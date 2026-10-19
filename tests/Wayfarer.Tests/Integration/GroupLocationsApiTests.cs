@@ -271,24 +271,24 @@ public class GroupLocationsApiTests
         var g = await gs.CreateGroupAsync(owner.Id, "G", null);
         await gs.AddMemberAsync(g.Id, owner.Id, u1.Id, GroupMember.Roles.Member);
 
-        // seed locations
+        // Seed previously admitted sensor observations; unknown historical rows are not current candidates.
         var p1 = new Point(10, 10) { SRID = 4326 };
         var p2 = new Point(11, 11) { SRID = 4326 };
         db.Locations.AddRange(
             new Location
             {
                 UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-10),
-                LocalTimestamp = DateTime.UtcNow.AddMinutes(-10)
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-10), PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-10)
             },
             new Location
             {
                 UserId = owner.Id, TimeZoneId = "UTC", Coordinates = p2, Timestamp = DateTime.UtcNow.AddMinutes(-5),
-                LocalTimestamp = DateTime.UtcNow.AddMinutes(-5)
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-5), PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-5)
             },
             new Location
             {
                 UserId = u1.Id, TimeZoneId = "UTC", Coordinates = p1, Timestamp = DateTime.UtcNow.AddMinutes(-8),
-                LocalTimestamp = DateTime.UtcNow.AddMinutes(-8)
+                LocalTimestamp = DateTime.UtcNow.AddMinutes(-8), PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-8)
             }
         );
         await db.SaveChangesAsync();
@@ -319,7 +319,7 @@ public class GroupLocationsApiTests
             new GroupMember { GroupId = group.Id, UserId = peer.Id, OrgPeerVisibilityAccessDisabled = sourceHidden });
         var now = DateTime.UtcNow;
         foreach (var user in new[] { caller, peer })
-            db.Locations.Add(new Location { UserId = user.Id, Coordinates = new Point(10, 10) { SRID = 4326 }, Timestamp = now, LocalTimestamp = now, TimeZoneId = "UTC" });
+            db.Locations.Add(new Location { UserId = user.Id, Coordinates = new Point(10, 10) { SRID = 4326 }, Timestamp = now, LocalTimestamp = now, PresenceObservedAtUtc = now, TimeZoneId = "UTC" });
         await db.SaveChangesAsync();
         var web = MakeController(db, caller.Id);
         var mobile = MakeMobileController(db, caller.Id);

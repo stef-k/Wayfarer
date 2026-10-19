@@ -17,6 +17,35 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>The public adapter retains derived freshness without disclosing raw observation/device evidence.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PublicTimeline_PreservesDerivedObservationFreshness(bool admitted)
+    {
+        var user = await fixture.CreateUserAsync();
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "now";
+        await using var db = fixture.CreateContext();
+        db.Users.Update(user);
+        var now = DateTime.UtcNow.AddSeconds(-2);
+        var row = Row(user.Id, now, 23, "Visible");
+        row.CoordinateOrigin = "sensor";
+        row.ObservedAtUtc = now;
+        row.ObservedAgeAtEventMs = 0;
+        row.PresenceObservedAtUtc = admitted ? now : null;
+        db.Locations.Add(row);
+        await db.SaveChangesAsync();
+        var point = Assert.Single(Points(await Controller(db).GetPublicTimeline(Request(user.UserName!))));
+        Assert.Equal(row.PresenceObservedAtUtc, point.PresenceObservedAtUtc);
+        Assert.Equal(admitted, point.IsLive);
+        var json = System.Text.Json.JsonSerializer.Serialize(point,
+            new System.Text.Json.JsonSerializerOptions { Converters = { new PointJsonConverter() } });
+        Assert.DoesNotContain("CoordinateOrigin", json);
+        Assert.DoesNotContain("ObservedAgeAtEventMs", json);
+        Assert.DoesNotContain("IdempotencyKey", json);
+    }
+
     /// <summary>A downstream relational failure keeps the public 200 failure envelope bounded.</summary>
     [PostgresFact]
     public async Task GetPublicTimeline_InternalFailureKeepsPagingAndGenericData()

@@ -67,7 +67,7 @@ public class GroupTimelineService : IGroupTimelineService
         var settings = await _dbContext.ApplicationSettings
             .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
-        var threshold = settings?.LocationTimeThresholdMinutes ?? 10;
+        var threshold = settings?.LocationTimeThresholdMinutes ?? 5;
 
         return new GroupTimelineAccessContext(group, callerMembership, activeMembers, allowed, isFriends, threshold);
     }
@@ -93,9 +93,8 @@ public class GroupTimelineService : IGroupTimelineService
         var results = new List<PublicLocationDto>(userIds.Count);
         foreach (var uid in userIds)
         {
-            var latest = await _dbContext.Locations
-                .Where(l => l.UserId == uid)
-                .OrderByDescending(l => l.LocalTimestamp)
+            var latest = await LocationPresence.Current(_dbContext.Locations
+                .Where(l => l.UserId == uid))
                 .Include(l => l.ActivityType)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(cancellationToken);

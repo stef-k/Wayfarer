@@ -72,7 +72,7 @@ namespace Wayfarer.Tests.Controllers;
         }
 
         [Fact]
-    public async Task Create_ValidModel_PersistsLocationAndBroadcastsToGroupChannel()
+    public async Task Create_ValidModel_PersistsHistoricalLocationAndHintsOwner()
     {
         // Arrange
         var db = CreateDbContext();
@@ -144,10 +144,10 @@ namespace Wayfarer.Tests.Controllers;
         Assert.Equal(model.Longitude, saved.Coordinates.X);
         Assert.Equal("Test note", saved.Notes);
 
-        // Verify broadcasts go to both per-user (for timeline views) and group channels
-        Assert.Equal(2, sse.Messages.Count);
-        Assert.Single(sse.Messages, m => m.Channel == $"location-update-{currentUser.UserName}");
-        Assert.Single(sse.Messages, m => m.Channel == $"group-{group.Id}");
+        // A map-selected record invalidates owner history without asserting a sensor fix to the Group.
+        var hint = Assert.Single(sse.Messages);
+        Assert.Equal($"location-update-{currentUser.UserName}", hint.Channel);
+        Assert.False(System.Text.Json.JsonDocument.Parse(hint.Data).RootElement.GetProperty("isLive").GetBoolean());
     }
 
     [Fact]

@@ -9,6 +9,17 @@ public class GpsLoggerLocationDto
     public double Longitude { get; set; }
     public DateTime Timestamp { get; set; } // Local device time
 
+    /// <summary>Optional coordinate origin: sensor, manual-map, or unknown; only sensor can establish presence.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(24)]
+    public string? CoordinateOrigin { get; set; }
+
+    /// <summary>Original sensor fix instant with an explicit UTC/offset representation.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.ObservationInstantJsonConverter))]
+    public DateTimeOffset? ObservedAtUtc { get; set; }
+
+    /// <summary>Known monotonic fix age at final submit; omit when reboot/clock change makes it uncertain.</summary>
+    public long? ObservedAgeAtEventMs { get; set; }
+
     public double? Accuracy { get; set; }
     public double? Altitude { get; set; }
     public double? Speed { get; set; }
@@ -27,7 +38,7 @@ public class GpsLoggerLocationDto
 
     /// <summary>
     /// Whether this location was manually invoked by user (check-in) or automatic.
-    /// For check-in endpoint, this is implicitly true.
+    /// Check-in defaults to true, but explicitly queued automatic observations retain false.
     /// </summary>
     public bool? IsUserInvoked { get; set; }
 

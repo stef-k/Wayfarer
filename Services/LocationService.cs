@@ -65,7 +65,7 @@ namespace Wayfarer.Parsers
 
             // 2.5) Load settings
             var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
-            int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
+            int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 5;
 
             // 3) EARLY-EXIT if small
             const int ExhaustiveFetchThreshold = 400;
@@ -388,7 +388,7 @@ namespace Wayfarer.Parsers
         {
             // Load settings
             var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
-            int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
+            int locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 5;
 
             // Build date range based on dateType
             DateTime startDate, endDate;

@@ -180,21 +180,7 @@ namespace Wayfarer.Areas.User.Controllers
                 _dbContext.Locations.Add(location);
                 await _dbContext.SaveChangesAsync();
 
-                // Process visit detection for web app location entries
-                try
-                {
-                    await _placeVisitDetectionService.ProcessPingAsync(
-                        model.UserId,
-                        location.Coordinates,
-                        model.Accuracy,
-                        HttpContext?.RequestAborted ?? CancellationToken.None);
-                }
-                catch (Exception ex)
-                {
-                    // Visit detection is non-critical - log and continue
-                    _logger.LogWarning(ex, "Visit detection failed for web app location user {UserId}", model.UserId);
-                }
-
+                // A web map-selected point records history without asserting a sensor observation or arrival visit.
                 LogAction("CreateLocation", $"Location added for user {model.UserId}");
                 SetAlert("The location has been successfully created.", "success");
 
@@ -203,37 +189,8 @@ namespace Wayfarer.Areas.User.Controllers
                 {
                     LocationId = location.Id,
                     TimeStamp = location.Timestamp,
+                    isLive = false,
                 }));
-
-                // Broadcast to all group channels
-                var groupIds = await _dbContext.GroupMembers
-                    .Where(m => m.UserId == model.UserId && m.Status == GroupMember.MembershipStatuses.Active)
-                    .Join(
-                        _dbContext.Groups,
-                        member => member.GroupId,
-                        group => group.Id,
-                        (member, group) => new { member.GroupId, group.IsArchived })
-                    .Where(x => !x.IsArchived)
-                    .Select(x => x.GroupId)
-                    .Distinct()
-                    .ToListAsync();
-
-                if (groupIds.Count > 0)
-                {
-                    var groupPayload = GroupSseEventDto.Location(
-                        location.Id,
-                        location.Timestamp,
-                        model.UserId,
-                        user?.UserName ?? string.Empty,
-                        isLive: true,
-                        locationType: null);
-                    var serializedPayload = JsonSerializer.Serialize(groupPayload);
-
-                    foreach (var groupId in groupIds)
-                    {
-                        await _sse.BroadcastAsync($"group-{groupId}", serializedPayload);
-                    }
-                }
 
                 return RedirectToAction("Edit", new { location.Id });
             }
@@ -379,6 +336,7 @@ namespace Wayfarer.Areas.User.Controllers
             // Update the location fields
             var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
             var coordinatesChanged = !location.Coordinates.X.Equals(model.Longitude) || !location.Coordinates.Y.Equals(model.Latitude);
+            if (coordinatesChanged || location.LocalTimestamp != utc) LocationPresence.Invalidate(location, _dbContext);
             LocationManualAddressEdit.Apply(location, model, coordinatesChanged);
             location.Coordinates.X = model.Longitude;
             location.Coordinates.Y = model.Latitude;

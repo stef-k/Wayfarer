@@ -850,6 +850,10 @@ namespace Wayfarer.Migrations
                     b.Property<double?>("Bearing")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("CoordinateOrigin")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
                     b.Property<Point>("Coordinates")
                         .IsRequired()
                         .HasColumnType("geography(Point, 4326)");
@@ -881,6 +885,12 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<long?>("ObservedAgeAtEventMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset?>("ObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("OsVersion")
                         .HasColumnType("text");
 
@@ -889,6 +899,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<string>("PostCode")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("PresenceObservedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Provider")
                         .HasColumnType("text");
@@ -954,6 +967,9 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId", "Timestamp")
                         .HasDatabaseName("IX_Location_UserId_Timestamp");
+
+                    b.HasIndex("UserId", "PresenceObservedAtUtc", "Id")
+                        .HasDatabaseName("IX_Location_UserId_PresenceObservedAtUtc_Id");
 
                     b.ToTable("Locations");
                 });

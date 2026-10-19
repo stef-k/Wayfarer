@@ -137,6 +137,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             await foreach (var location in parser.ParseAsync(stream, snapshot.UserId, cancellationToken))
             {
                 if (ordinal++ < processed) continue;
+                location.PresenceObservedAtUtc = null; // Portable evidence is history, never server admission.
                 location.Source ??= "queue-import";
                 batch.Add(location);
                 if (batch.Count < BatchSize) continue;

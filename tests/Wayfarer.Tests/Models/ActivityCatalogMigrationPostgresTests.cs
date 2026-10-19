@@ -18,6 +18,9 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
     /// <summary>Last migration before the coordinated catalog transition.</summary>
     internal const string Previous = "20261008200336_RetireGroupInvitationEmail";
 
+    /// <summary>Exact transition under test, independent of later Location schema additions.</summary>
+    private const string Transition = "20261013152203_ActivityCatalogIntegrity";
+
     /// <summary>Moves cross-owner FKs only, preserves prose and IDs, and qualifies retry/Down/re-Up.</summary>
     [PostgresFact]
     public async Task CleanupPreservesMetadataDescriptionsAndQueuedIds()
@@ -32,12 +35,12 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
             await SeedLegacyAsync(db);
             var first = Row(owner.Id, 102);
             var second = Row(other.Id, 105);
-            db.Locations.AddRange(first, second);
-            await db.SaveChangesAsync();
+            await InsertHistoricalRowAsync(db, first);
+            await InsertHistoricalRowAsync(db, second);
             var before = await MetadataAsync(db);
             await db.Database.ExecuteSqlRawAsync("SELECT setval(pg_get_serial_sequence('public.\"ActivityTypes\"', 'Id'), 500, true)");
 
-            await migrator.MigrateAsync();
+            await migrator.MigrateAsync(Transition);
             db.ChangeTracker.Clear();
             Assert.Equal(before, await MetadataAsync(db));
             Assert.Equal(new[] { 101, 104 }, await db.Locations.OrderBy(l => l.Id).Select(l => l.ActivityTypeId!.Value).ToArrayAsync());
@@ -48,7 +51,7 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
             Assert.Equal(new[] { 102, 103, 105, 111 }, await db.Set<ActivityTypeIdRedirect>().OrderBy(r => r.LegacyId).Select(r => r.LegacyId).ToArrayAsync());
             Assert.Equal(7, await db.ActivityTypes.CountAsync());
             Assert.Equal(101, await new ActivityCatalog(db).ResolveIdAsync(102));
-            await migrator.MigrateAsync(); // EF history is a no-op.
+            await migrator.MigrateAsync(Transition); // EF history is a no-op.
             var created = new ActivityType { Name = "GPS" };
             db.ActivityTypes.Add(created);
             await db.SaveChangesAsync();
@@ -61,7 +64,7 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
             Assert.Equal(4, await db.Set<ActivityTypeIdRedirect>().CountAsync());
             Assert.Equal(101, await new ActivityCatalog(db).ResolveIdAsync(102));
             Assert.Equal(before, await MetadataAsync(db));
-            await migrator.MigrateAsync(); // Cleanup itself must also be idempotent.
+            await migrator.MigrateAsync(Transition); // Cleanup itself must also be idempotent.
             Assert.Equal("Primary\n\nPreserved description from Activity 102 ( WALKING ):\n other \n\nPreserved description from Activity 103 (walking):\nOTHER",
                 await db.ActivityTypes.Where(a => a.Id == 101).Select(a => a.Description).SingleAsync());
         }
@@ -83,8 +86,7 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
         {
             await migrator.MigrateAsync(Previous);
             await SeedLegacyAsync(db);
-            db.Locations.Add(Row(owner.Id, 102));
-            await db.SaveChangesAsync();
+            await InsertHistoricalRowAsync(db, Row(owner.Id, 102));
             if (failure == "invalid")
                 await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"ActivityTypes\" SET \"Name\" = {"A\u0001B"} WHERE \"Id\" = 103");
             if (failure == "reference")
@@ -100,7 +102,7 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
                     """);
             var before = await CatalogJsonAsync(db);
             var metadata = await MetadataAsync(db);
-            var error = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
+            var error = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(Transition));
             if (failure == "capacity") Assert.Equal(PostgresErrorCodes.ProgramLimitExceeded, error.SqlState);
             else Assert.Contains(failure == "invalid" ? "ACTIVITY_INVALID" : failure == "reference" ? "ACTIVITY_UNACCOUNTED" : "injected", error.MessageText);
             Assert.Equal(before, await CatalogJsonAsync(db));
@@ -110,7 +112,7 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
             Assert.DoesNotContain("20261013152203_ActivityCatalogIntegrity", await db.Database.GetAppliedMigrationsAsync());
             await db.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS activity_extra_reference; DROP TRIGGER IF EXISTS activity_test_fail ON \"ActivityTypes\"; DROP FUNCTION IF EXISTS public.activity_test_fail()");
             await db.Database.ExecuteSqlRawAsync("UPDATE \"ActivityTypes\" SET \"Name\" = 'walking' WHERE \"Id\" = 103");
-            await migrator.MigrateAsync(); // Retry after the real cause is removed.
+            await migrator.MigrateAsync(Transition); // Retry after the real cause is removed.
             Assert.Equal(101, await db.Locations.Select(l => l.ActivityTypeId).SingleAsync());
         }
         finally
@@ -129,6 +131,16 @@ public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestF
             (109, U&'Eating\00A0Out', NULL), (110, repeat('α', 700), NULL),
             (111, 'wAlKiNg', ' other ');
         """);
+
+    /// <summary>Seeds only columns present at the legacy schema, without invoking the future EF Location model.</summary>
+    private static Task InsertHistoricalRowAsync(ApplicationDbContext db, Location row) =>
+        db.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO "Locations" ("UserId", "ActivityTypeId", "Coordinates", "Timestamp", "LocalTimestamp", "TimeZoneId",
+                "IdempotencyKey", "Notes", "LocationType", "DeviceModel", "Source", "Address", "Altitude")
+            VALUES ({{row.UserId}}, {{row.ActivityTypeId}}, ST_SetSRID(ST_MakePoint({{row.Coordinates.X}}, {{row.Coordinates.Y}}), 4326)::geography,
+                {{row.Timestamp}}, {{row.LocalTimestamp}}, {{row.TimeZoneId}}, {{row.IdempotencyKey}}, {{row.Notes}},
+                {{row.LocationType}}, {{row.DeviceModel}}, {{row.Source}}, {{row.Address}}, {{row.Altitude}})
+            """);
 
     /// <summary>Captures every non-FK database field, including geometry and nullable metadata.</summary>
     private static Task<string> MetadataAsync(ApplicationDbContext db) => db.Database.SqlQueryRaw<string>(

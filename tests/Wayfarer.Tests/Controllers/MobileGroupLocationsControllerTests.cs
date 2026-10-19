@@ -80,8 +80,8 @@ public class MobileGroupLocationsControllerTests
             new GroupMember { GroupId = group.Id, UserId = other.Id, Role = GroupMember.Roles.Member, Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow });
         db.ApplicationSettings.Add(new ApplicationSettings { LocationTimeThresholdMinutes = 5 });
         db.Locations.AddRange(
-            new LocationEntity { UserId = caller.Id, Coordinates = MakePoint(10, 10), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" },
-            new LocationEntity { UserId = other.Id, Coordinates = MakePoint(11, 11), Timestamp = DateTime.UtcNow.AddMinutes(-2), LocalTimestamp = DateTime.UtcNow.AddMinutes(-2), TimeZoneId = "UTC" });
+            new LocationEntity { UserId = caller.Id, Coordinates = MakePoint(10, 10), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, PresenceObservedAtUtc = DateTime.UtcNow, TimeZoneId = "UTC" },
+            new LocationEntity { UserId = other.Id, Coordinates = MakePoint(11, 11), Timestamp = DateTime.UtcNow.AddMinutes(-2), LocalTimestamp = DateTime.UtcNow.AddMinutes(-2), PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-2), TimeZoneId = "UTC" });
         await db.SaveChangesAsync();
 
         var controller = MakeController(db, "token");
@@ -132,7 +132,7 @@ public class MobileGroupLocationsControllerTests
             new GroupMember { GroupId = group.Id, UserId = caller.Id, Role = GroupMember.Roles.Owner, Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow },
             new GroupMember { GroupId = group.Id, UserId = other.Id, Role = GroupMember.Roles.Member, Status = GroupMember.MembershipStatuses.Active, OrgPeerVisibilityAccessDisabled = true, JoinedAt = DateTime.UtcNow });
         db.ApplicationSettings.Add(new ApplicationSettings { LocationTimeThresholdMinutes = 5 });
-        db.Locations.Add(new LocationEntity { UserId = caller.Id, Coordinates = MakePoint(10, 10), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" });
+        db.Locations.Add(new LocationEntity { UserId = caller.Id, Coordinates = MakePoint(10, 10), Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, PresenceObservedAtUtc = DateTime.UtcNow, TimeZoneId = "UTC" });
         await db.SaveChangesAsync();
 
         var controller = MakeController(db, "token");

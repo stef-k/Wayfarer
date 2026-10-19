@@ -420,9 +420,9 @@ public class LocationServiceTests : TestBase
         var (locations, _) = await service.GetLocationsByDateAsync(
             user.Id, "day", 2024, 6, 15);
 
-        // Assert - Default is 10 minutes
+        // Assert - The effective live window uses the ingestion default of five minutes.
         Assert.Single(locations);
-        Assert.Equal(10, locations[0].LocationTimeThresholdMinutes);
+        Assert.Equal(5, locations[0].LocationTimeThresholdMinutes);
     }
 
     [Fact]

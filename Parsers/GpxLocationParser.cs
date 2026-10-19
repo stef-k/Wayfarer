@@ -143,6 +143,9 @@ public sealed class GpxLocationParser : ILocationDataParser
                 // LocationType is independent text; only missing and zero-length values become null.
                 LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
                 // Metadata fields
+                CoordinateOrigin = ObservationEvidence.ReadOrigin(GetExtensionValue(extensions, "coordinateOrigin")),
+                ObservedAtUtc = ObservationEvidence.ReadInstant(GetExtensionValue(extensions, "observedAtUtc")),
+                ObservedAgeAtEventMs = ObservationEvidence.ReadAge(GetExtensionValue(extensions, "observedAgeAtEventMs")),
                 Source = source,
                 IsUserInvoked = isUserInvoked,
                 Provider = provider,

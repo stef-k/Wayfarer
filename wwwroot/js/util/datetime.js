@@ -1,5 +1,5 @@
 /**
- * Shared helpers for formatting location timestamps and numeric values.
+ * Shared helpers for formatting location timestamps/numbers and expiring admitted observation presence.
  * Provides deterministic output (YYYY-MM-DD HH:mm) regardless of navigator language.
  */
 
@@ -248,4 +248,33 @@ export const shiftMonth = (currentMonth, delta = 0, timeZone) => {
         const provisional = new Date(Date.UTC(year, monthIndex + delta, 1));
         return `${provisional.getUTCFullYear()}-${pad(provisional.getUTCMonth() + 1)}`;
     }
+};
+
+/**
+ * True only while a server-admitted UTC observation remains inside its effective positive window.
+ * @param {object} location Backend location projection, including derived observation clock and effective window.
+ * @param {number} [nowMs] Current UTC epoch milliseconds.
+ * @returns {boolean} Whether the observation is still live.
+ */
+export const isLiveLocation = (location, nowMs = Date.now()) => {
+    const observed = location?.presenceObservedAtUtc;
+    const windowMinutes = location?.locationTimeThresholdMinutes;
+    const age = nowMs - new Date(observed).getTime();
+    return !!observed && Number.isFinite(windowMinutes) && windowMinutes > 0
+        && age >= 0 && age <= windowMinutes * 60000;
+};
+
+/**
+ * Schedule one bounded live-to-last-known render; the caller cancels when its marker changes or is removed.
+ * @param {object} location Backend location projection.
+ * @param {Function} onExpiry Refreshes the retained marker's presentation.
+ * @param {boolean} [renderedLive] Captured render state, so expiry during rendering still receives a transition.
+ * @returns {number|null} Browser timer handle, or null when no LIVE marker needs a transition.
+ */
+export const scheduleLocationExpiry = (location, onExpiry, renderedLive = isLiveLocation(location)) => {
+    const nowMs = Date.now();
+    if (!renderedLive) return null;
+    const expiryMs = new Date(location.presenceObservedAtUtc).getTime()
+        + location.locationTimeThresholdMinutes * 60000;
+    return setTimeout(onExpiry, Math.min(Math.max(expiryMs - nowMs + 1, 1), 2147483647));
 };

@@ -163,11 +163,13 @@ public class LocationSseBroadcastsTests
         await SeedUserAsync(db, user, token, firstGroup, secondGroup);
         var (controller, sse) = CreateController(db, token);
 
+        var eventTime = DateTime.UtcNow.AddSeconds(-1);
         var dto = new GpsLoggerLocationDto
         {
             Latitude = 37.978,
             Longitude = 23.72,
-            Timestamp = DateTime.UtcNow
+            Timestamp = eventTime, CoordinateOrigin = "sensor",
+            ObservedAtUtc = eventTime, ObservedAgeAtEventMs = 0
         };
 
         var result = await controller.CheckIn(dto);

@@ -105,51 +105,8 @@ public class GroupsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         var access = await _timelineService.BuildAccessContextAsync(groupId, CurrentUserId, ct);
         if (access?.IsMember != true) return StatusCode(403);
-        var requested = req?.IncludeUserIds;
-        var userIds = requested?.Count > 0
-            ? requested.Distinct().Where(access.AllowedUserIds.Contains).ToList()
-            : access.AllowedUserIds.ToList();
-
-        // Query latest location IDs per user in a single database call to avoid N+1 queries
-        var latestLocationIds = await _db.Locations
-            .Where(l => userIds.Contains(l.UserId))
-            .GroupBy(l => l.UserId)
-            .Select(g => g.OrderByDescending(l => l.LocalTimestamp).First().Id)
-            .ToListAsync(ct);
-
-        // Fetch full location entities with ActivityType included
-        var latestLocations = await _db.Locations
-            .Where(l => latestLocationIds.Contains(l.Id))
-            .Include(l => l.ActivityType)
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var latestPerUser = latestLocations
-            .Select(l => (l.UserId, Loc: l))
-            .ToList();
-
-        // settings for threshold
-        var settings = await _db.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(ct);
-        var locationTimeThreshold = settings?.LocationTimeThresholdMinutes ?? 10;
-
-        var result = latestPerUser.Select(t => new PublicLocationDto
-        {
-            Id = t.Loc.Id,
-            UserId = t.UserId,
-            Timestamp = t.Loc.Timestamp,
-            LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(t.Loc.Coordinates.Y, t.Loc.Coordinates.X,
-                DateTime.SpecifyKind(t.Loc.LocalTimestamp, DateTimeKind.Utc)),
-            Coordinates = t.Loc.Coordinates,
-            Timezone = t.Loc.TimeZoneId,
-            Accuracy = t.Loc.Accuracy,
-            Altitude = t.Loc.Altitude,
-            Speed = t.Loc.Speed,
-            LocationType = t.Loc.LocationType,
-            ActivityType = t.Loc.ActivityType?.Name,
-            Notes = RichNotes.Normalize(t.Loc.Notes),
-            IsLatestLocation = true,
-            LocationTimeThresholdMinutes = locationTimeThreshold
-        }.WithAddress(t.Loc)).ToList();
+        // Both cookie and bearer latest projections use the same persisted presence authority and audience.
+        var result = await _timelineService.GetLatestLocationsAsync(access, req?.IncludeUserIds, ct);
 
         return Ok(result);
     }

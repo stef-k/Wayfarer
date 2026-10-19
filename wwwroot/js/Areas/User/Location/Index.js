@@ -11,6 +11,8 @@ import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../ma
 import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText, renderAddressComponent } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
+    isLiveLocation,
+    scheduleLocationExpiry,
     formatDate,
     formatDecimal,
     currentDateInputValue,
@@ -288,15 +290,12 @@ const buildLayers = (locations) => {
         chunkedLoading:  true
     });
 
-    const nowMinGlobal = Math.floor(Date.now() / 60000);
-    const thresholdFor = (location) => location.locationTimeThresholdMinutes ?? 10;
 
     // Find the backend-designated latest location and determine if it's currently live
     const latestLocation = locations.find(loc => loc.isLatestLocation);
     let highlightCandidate = null;
     if (latestLocation) {
-        const locMin = Math.floor(new Date(latestLocation.localTimestamp).getTime() / 60000);
-        const isLive = (nowMinGlobal - locMin) <= thresholdFor(latestLocation);
+        const isLive = isLiveLocation(latestLocation);
         highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
     }
     const highlightId = highlightCandidate?.location?.id ?? null;
@@ -307,9 +306,7 @@ const buildLayers = (locations) => {
 
         const bindInteractions = (markerInstance) => {
             markerInstance.on('click', () => {
-                const now2  = Math.floor(Date.now() / 60000);
-                const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-                const isLiveM   = (now2 - loc2) <= thresholdFor(location);
+                const isLiveM = isLiveLocation(location);
                 const isLatestM = location.isLatestLocation;
 
                 document.getElementById('modalContent').innerHTML =
@@ -353,51 +350,21 @@ const buildLayers = (locations) => {
     }
 
     // Schedule marker transition when live marker expires
-    scheduleMarkerTransition(locations);
+    scheduleMarkerTransition(locations, highlightCandidate?.type === 'live' ? latestLocation : null);
 };
 
 /**
  * Schedules a timer to re-render markers when the current live marker should transition to latest.
- * Calculates when the earliest live location will age past its threshold and sets a timeout.
- * @param {Array} locations - Array of location objects with localTimestamp and locationTimeThresholdMinutes
+ * Uses the observation actually rendered, including expiry during the render itself.
+ * @param {Array} locations - Retained map data for the transition render.
+ * @param {object|null} renderedLiveLocation - Observation actually drawn with the LIVE icon.
  */
-const scheduleMarkerTransition = (locations) => {
-    // Clear any existing timer
-    if (markerTransitionTimer) {
-        clearTimeout(markerTransitionTimer);
-        markerTransitionTimer = null;
-    }
-
-    if (!locations || locations.length === 0) return;
-
-    const nowMs = Date.now();
-    let earliestTransitionMs = null;
-
-    // Find the earliest time when a live marker should transition
-    locations.forEach(location => {
-        const locMs = new Date(location.localTimestamp).getTime();
-        const thresholdMs = (location.locationTimeThresholdMinutes ?? 10) * 60 * 1000;
-        const ageMs = nowMs - locMs;
-
-        // If location is currently live (within threshold)
-        if (ageMs <= thresholdMs) {
-            // Calculate when it will expire
-            const expiresAtMs = locMs + thresholdMs;
-            const msUntilExpiry = expiresAtMs - nowMs;
-
-            if (msUntilExpiry > 0 && (earliestTransitionMs === null || msUntilExpiry < earliestTransitionMs)) {
-                earliestTransitionMs = msUntilExpiry;
-            }
-        }
-    });
-
-    // If there's a live marker that will expire, schedule re-render
-    if (earliestTransitionMs !== null) {
-        // Add small buffer (1 second) to ensure threshold has definitely passed
-        markerTransitionTimer = setTimeout(() => {
-            displayLocationsOnMap(mapContainer, locations);
-        }, earliestTransitionMs + 1000);
-    }
+const scheduleMarkerTransition = (locations, renderedLiveLocation) => {
+    clearTimeout(markerTransitionTimer);
+    // A point drawn live must transition even if it expires before this scheduler runs.
+    markerTransitionTimer = renderedLiveLocation ? scheduleLocationExpiry(renderedLiveLocation, () => {
+        displayLocationsOnMap(mapContainer, locations);
+    }, true) : null;
 };
 
 // Display locations on the mapContainer with markers
@@ -433,9 +400,7 @@ const generateLocationModalContent = location => {
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
     const timestamps = getLocationTimestampInfo(location);
-    const nowMinutes = Math.floor(Date.now() / 60000);
-    const locationMinutes = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-    const isLive = (nowMinutes - locationMinutes) <= (location.locationTimeThresholdMinutes || 10);
+    const isLive = isLiveLocation(location);
     const isLatest = !!location.isLatestLocation;
     const badge = isLive
         ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>'

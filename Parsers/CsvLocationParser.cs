@@ -138,6 +138,9 @@ public sealed class CsvLocationParser : ILocationDataParser
                 LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
 
                 // Metadata fields
+                CoordinateOrigin = ObservationEvidence.ReadOrigin(GetField(csv, "CoordinateOrigin")),
+                ObservedAtUtc = ObservationEvidence.ReadInstant(GetField(csv, "ObservedAtUtc")),
+                ObservedAgeAtEventMs = ObservationEvidence.ReadAge(GetField(csv, "ObservedAgeAtEventMs")),
                 Source = source,
                 IsUserInvoked = isUserInvoked,
                 Provider = provider,

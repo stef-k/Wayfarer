@@ -22,9 +22,8 @@ public sealed class CanonicalRegionMigrationPostgresTests(PostgresMigrationTestF
         await using var db = fixture.CreateContext();
         var migrator = db.GetService<IMigrator>();
         var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
-        var current = migrations[^1];
-        Assert.EndsWith("_CanonicalUnassignedRegion", current);
-        await migrator.MigrateAsync(migrations[^2]);
+        var current = migrations.Single(migration => migration.EndsWith("_CanonicalUnassignedRegion", StringComparison.Ordinal));
+        await migrator.MigrateAsync(migrations[Array.IndexOf(migrations, current) - 1]);
         var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Historical duplicates" };
         var first = new Region
         {

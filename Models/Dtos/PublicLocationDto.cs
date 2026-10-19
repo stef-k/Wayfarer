@@ -37,6 +37,12 @@ public class PublicLocationDto
     public string? ResolvedFeatureType { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Server-derived observation clock for presentation, without disclosing private fix/device evidence.</summary>
+    public DateTime? PresenceObservedAtUtc { get; set; }
+
+    /// <summary>Freshness computed from server admission and the effective positive observation window.</summary>
+    public bool IsLive { get; set; }
+
     // Additional fields
     public bool IsLatestLocation { get; set; }
 
@@ -44,6 +50,8 @@ public class PublicLocationDto
     /// <summary>Copies the complete retained address contract for Location-only response projections.</summary>
     public PublicLocationDto WithAddress(Location location)
     {
+        PresenceObservedAtUtc = location.PresenceObservedAtUtc;
+        IsLive = Services.LocationPresence.IsLive(location, LocationTimeThresholdMinutes, DateTime.UtcNow);
         Address = location.Address;
         FullAddress = location.FullAddress;
         ProviderAddressLine1 = location.ProviderAddressLine1;
