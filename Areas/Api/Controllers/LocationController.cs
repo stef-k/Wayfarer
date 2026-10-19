@@ -578,7 +578,7 @@ public partial class LocationController : BaseApiController
 
             if (!await CompleteObservationAsync(user, location,
                 LocationPresence.AutomaticObservation(location.LocalTimestamp, location.Timestamp, locationTimeThreshold),
-                locationTimeThreshold, processVisit: false)) return DeletedLocationResult();
+                locationTimeThreshold, processVisit: false, automaticCoordinates: coordinates)) return DeletedLocationResult();
 
             return Ok(new { success = true, skipped = false, locationId = location.Id });
         }
@@ -586,7 +586,7 @@ public partial class LocationController : BaseApiController
 
     /// <summary>Admits only a non-regressing observation after persistence; history and replay identity remain independent.</summary>
     private async Task<bool> CompleteObservationAsync(ApplicationUser user, Location location, DateTime? observedUtc,
-        int windowMinutes, bool processVisit)
+        int windowMinutes, bool processVisit, Point? automaticCoordinates = null)
     {
         var ct = HttpContext.RequestAborted;
         // Commit admission before any cache or broadcast can expose it. Provider contact remains outside these locks.
@@ -628,8 +628,9 @@ public partial class LocationController : BaseApiController
             row => row.UserId == user.Id && row.Id == location.Id, ct);
         if (retainedForEffects == null) return true;
         location = retainedForEffects;
+        // Automatic Visits describe the arriving capture, even when an owner edited its stored row during HTTP.
         if (!processVisit && location.IdempotencyKey.HasValue)
-            await ProcessAutomaticVisitAsync(user.Id, location.Coordinates, location.Accuracy, effects);
+            await ProcessAutomaticVisitAsync(user.Id, automaticCoordinates ?? location.Coordinates, location.Accuracy, effects);
         var current = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
             .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
         var isCurrent = current?.Id == location.Id;

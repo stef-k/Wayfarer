@@ -245,6 +245,38 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
         });
     }
 
+    /// <summary>An owner coordinate edit during enrichment cannot turn that edit into the automatic capture's Visit input.</summary>
+    [PostgresFact(Timeout = 30000)]
+    public async Task AutomaticVisit_AfterOwnerEdit_UsesOriginalCaptureCoordinates()
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var owner = await SeedAsync("geoapify", protection);
+        using var handler = new ControlledProvider
+        {
+            BeforeResponse = async _ =>
+            {
+                await using var db = fixture.CreateContext();
+                var row = await db.Locations.SingleAsync(location => location.UserId == owner.UserId);
+                row.Coordinates = new Point(21, 11) { SRID = 4326 };
+                await db.SaveChangesAsync();
+            }
+        };
+        var visits = new Mock<IPlaceVisitDetectionService>();
+        visits.Setup(service => service.ProcessPingAsync(owner.UserId, It.IsAny<Point>(), It.IsAny<double?>(),
+            It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        await WithHostAsync(protection, handler, [], async client =>
+        {
+            using var request = Request("log-location", owner.Token, Guid.NewGuid());
+            using var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            visits.Verify(service => service.ProcessPingAsync(owner.UserId,
+                It.Is<Point>(point => point.X == 20 && point.Y == 10), 5, It.IsAny<CancellationToken>()), Times.Once);
+            await using var verify = fixture.CreateContext();
+            Assert.Equal((21d, 11d), await verify.Locations.Where(row => row.UserId == owner.UserId)
+                .Select(row => new ValueTuple<double, double>(row.Coordinates.X, row.Coordinates.Y)).SingleAsync());
+        }, visits: visits.Object);
+    }
+
     /// <summary>Seeds payload-bearing owner history without invoking any provider, presence or Visit effects.</summary>
     private async Task<int> SeedLocationAsync(string userId, Guid? key)
     {
