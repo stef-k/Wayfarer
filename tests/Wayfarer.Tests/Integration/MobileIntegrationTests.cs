@@ -124,8 +124,8 @@ public class MobileIntegrationTests
             new GroupMember { GroupId = group.Id, UserId = friend.Id, Role = GroupMember.Roles.Member, Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow });
 
         db.Locations.AddRange(
-            new LocationEntity { UserId = caller.Id, Coordinates = new Point(10, 10) { SRID = 4326 }, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC" },
-            new LocationEntity { UserId = friend.Id, Coordinates = new Point(11, 11) { SRID = 4326 }, Timestamp = DateTime.UtcNow.AddMinutes(-1), LocalTimestamp = DateTime.UtcNow.AddMinutes(-1), TimeZoneId = "UTC" });
+            new LocationEntity { UserId = caller.Id, Coordinates = new Point(10, 10) { SRID = 4326 }, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, PresenceObservedAtUtc = DateTime.UtcNow, TimeZoneId = "UTC" },
+            new LocationEntity { UserId = friend.Id, Coordinates = new Point(11, 11) { SRID = 4326 }, Timestamp = DateTime.UtcNow.AddMinutes(-1), LocalTimestamp = DateTime.UtcNow.AddMinutes(-1), PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-1), TimeZoneId = "UTC" });
 
         db.SaveChanges();
     }
@@ -179,11 +179,13 @@ public class MobileIntegrationTests
         var subscribeTask = ctx.SseController.SubscribeToGroupAsync(group.Id, cts.Token);
         await Task.Delay(150);
 
+        var eventTime = DateTime.UtcNow;
         var checkInDto = new GpsLoggerLocationDto
         {
             Latitude = 12.34,
             Longitude = 23.45,
-            Timestamp = DateTime.UtcNow
+            Timestamp = eventTime, CoordinateOrigin = "sensor",
+            ObservedAtUtc = eventTime, ObservedAgeAtEventMs = 0
         };
 
         var checkIn = await ctx.LocationController.CheckIn(checkInDto);

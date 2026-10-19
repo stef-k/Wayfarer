@@ -47,8 +47,8 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
             : new[] { "results", "totalItems" }, payload.EnumerateObject().Select(p => p.Name).Order());
         var row = Assert.Single(payload.GetProperty("results").EnumerateArray());
         Assert.Equal(new[] { "accuracy", "activityType", "activityTypeId", "address", "addressNumber", "altitude",
-            "clusterId", "coordinates", "country", "fullAddress", "id", "isGeoapifyAddress", "isLatestLocation",
-            "localTimestamp", "locationTimeThresholdMinutes", "locationType", "notes", "place", "postCode",
+            "clusterId", "coordinates", "country", "fullAddress", "id", "isGeoapifyAddress", "isLatestLocation", "isLive",
+            "localTimestamp", "locationTimeThresholdMinutes", "locationType", "notes", "place", "postCode", "presenceObservedAtUtc",
             "providerAddressLine1", "region", "resolvedFeatureName", "resolvedFeatureType", "speed", "streetName",
             "timestamp", "timezone", "userId" }, row.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(userId, row.GetProperty("userId").GetString());
@@ -56,6 +56,8 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("activityTypeId").ValueKind);
         Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("clusterId").ValueKind);
         Assert.Equal("Unknown", row.GetProperty("activityType").GetString());
+        Assert.False(row.GetProperty("isLive").GetBoolean());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("presenceObservedAtUtc").ValueKind);
         Assert.DoesNotContain("idempotencyKey", row.ToString());
         using var noBody = await client.PostAsync(path, new StringContent("null", System.Text.Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, noBody.StatusCode);

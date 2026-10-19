@@ -198,13 +198,14 @@ public class GroupTimelineServiceTests : TestBase
                     UserId = "friend-allowed",
                     Notes = "<p>safe</p><script>bad()</script>",
                     Coordinates = new NetTopologySuite.Geometries.Point(10, 10) { SRID = 4326 },
-                    Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC"
+                    Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, PresenceObservedAtUtc = DateTime.UtcNow, TimeZoneId = "UTC"
                 },
                 new LocationEntity
                 {
                     UserId = "friend-optout",
                     Coordinates = new NetTopologySuite.Geometries.Point(11, 11) { SRID = 4326 },
                     Timestamp = DateTime.UtcNow.AddMinutes(-1), LocalTimestamp = DateTime.UtcNow.AddMinutes(-1),
+                    PresenceObservedAtUtc = DateTime.UtcNow.AddMinutes(-1),
                     TimeZoneId = "UTC"
                 });
         }

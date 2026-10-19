@@ -45,7 +45,8 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
             db.HiddenAreas.AddRange(legacy, correct);
             var visible = Row(user.Id, 23, "Visible", DateTime.UtcNow.AddDays(-2));
             var hidden = Row(user.Id, 25, "Hidden", DateTime.UtcNow.AddDays(-1));
-            db.Locations.AddRange(visible, hidden);
+            await InsertHistoricalRowAsync(db, visible);
+            await InsertHistoricalRowAsync(db, hidden);
             await db.SaveChangesAsync();
             db.ChangeTracker.Clear();
             var before = await db.HiddenAreas.AsNoTracking().Where(a => a.UserId == user.Id)
@@ -55,8 +56,11 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
                 .OrderBy(a => a.Id).Select(a => a.Area.SRID).ToArrayAsync());
             var controller = Controller(db);
 
-            var pointsError = await Assert.ThrowsAsync<PostgresException>(
-                () => controller.GetPublicTimeline(Request(user.UserName!)));
+            // Exercise the exact public spatial source while this historical schema lacks future EF Location columns.
+            var projection = new PublicTimelineLocationProjection(user, DateTime.UtcNow);
+            var pointsError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.SqlQueryRaw<long>(
+                "SELECT COUNT(*) AS \"Value\" FROM " + PublicTimelineLocationProjection.SourceSql + " AS history",
+                projection.Bind()).SingleAsync());
             var statsError = await Assert.ThrowsAsync<PostgresException>(
                 () => controller.GetPublicStats(user.UserName!));
             Assert.Contains("mixed SRID", pointsError.MessageText);
@@ -118,6 +122,19 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
         if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
+    /// <summary>Seeds the old schema directly and retains generated identity for post-upgrade endpoint assertions.</summary>
+    private static async Task InsertHistoricalRowAsync(ApplicationDbContext db, Location row)
+    {
+        await db.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO "Locations" ("UserId", "Timestamp", "LocalTimestamp", "TimeZoneId", "Coordinates", "Country", "Region", "Place")
+            VALUES ({{row.UserId}}, {{row.Timestamp}}, {{row.LocalTimestamp}}, {{row.TimeZoneId}},
+                ST_SetSRID(ST_MakePoint({{row.Coordinates.X}}, {{row.Coordinates.Y}}), 4326)::geography,
+                {{row.Country}}, {{row.Region}}, {{row.Place}})
+            """);
+        row.Id = await db.Locations.Where(location => location.UserId == row.UserId && location.Country == row.Country)
+            .Select(location => location.Id).SingleAsync();
+    }
+
     /// <summary>Uses the production controllers/services and checks the point envelope, public and private counts.</summary>
     private static async Task AssertRepairedEndpointsAsync(ApplicationDbContext db, ApplicationUser user, Location visible)
     {
@@ -129,6 +146,8 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
         var point = Assert.Single(points);
         Assert.Equal(visible.Id, point.Id);
         Assert.True(point.IsLatestLocation);
+        Assert.Null(point.PresenceObservedAtUtc); // Pre-migration history remains unknown evidence after upgrade.
+        Assert.False(point.IsLive);
         var summary = Assert.IsType<UserLocationStatsDto>(
             Assert.IsType<OkObjectResult>(await controller.GetPublicStats(user.UserName!)).Value);
         Assert.Equal((1, 1, 1, 1),
