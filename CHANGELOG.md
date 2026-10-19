@@ -41,6 +41,13 @@
 
 ### Fixed
 
+- Correct Web Timeline statistics/navigation semantic calendar errors while
+  retaining cookie authority, optional MVC binding fallbacks, distinct statistics
+  DTOs and safe server errors. Accept maximum day/month history and availability
+  selections without overflowing successor calculations; preserve inclusive UTC
+  bounds, PostgreSQL infinity mapping and existing extreme-zone projection limits
+  (#849).
+
 - Allow valid saved Unassigned Places in Segment From/To and intermediate Place
   pickers, retaining saved route identities and truthful unavailable-reference
   labels without changing protected Region permissions (#847).
