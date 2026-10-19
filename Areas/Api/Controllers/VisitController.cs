@@ -315,7 +315,7 @@ public class VisitController : BaseApiController
             // Use server-side Timestamp for comparison since visit timestamps are also server-side UTC
             var query = _dbContext.Locations
                 .Include(l => l.ActivityType)
-                .Where(l => l.UserId == userId)
+                .Where(l => l.UserId == userId && l.PresenceObservedAtUtc != null)
                 .Where(l => l.Timestamp >= visit.ArrivedAtUtc)
                 .Where(l => l.Timestamp <= endTime)
                 .Where(l => l.Coordinates.IsWithinDistance(visit.PlaceLocationSnapshot, radiusMeters))
@@ -381,7 +381,7 @@ public class VisitController : BaseApiController
 
             var endTime = v.EndedAtUtc ?? v.LastSeenAtUtc;
             var count = await _dbContext.Locations
-                .Where(l => l.UserId == userId)
+                .Where(l => l.UserId == userId && l.PresenceObservedAtUtc != null)
                 .Where(l => l.Timestamp >= v.ArrivedAtUtc)
                 .Where(l => l.Timestamp <= endTime)
                 .Where(l => l.Coordinates.IsWithinDistance(v.PlaceLocationSnapshot, radiusMeters))

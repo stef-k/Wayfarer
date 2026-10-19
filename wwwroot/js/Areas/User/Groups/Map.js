@@ -124,7 +124,12 @@ import {
     return await resp.json();
   }
   function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
-  function isLiveLocation(loc){ const now=new Date(), localTs=new Date(loc.localTimestamp); const diffMin=Math.abs(now-localTs)/60000; return diffMin <= (loc.locationTimeThresholdMinutes||10); }
+  // Only a server-admitted observation can be live; never infer freshness from the human event clock.
+  const isLiveLocation = (loc) => {
+    const age = Date.now() - new Date(loc.presenceObservedAtUtc).getTime();
+    return !!loc.presenceObservedAtUtc && loc.locationTimeThresholdMinutes > 0
+      && age >= 0 && age <= loc.locationTimeThresholdMinutes * 60000;
+  };
   function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
   function buildTooltipHtml(info, loc){
@@ -596,9 +601,7 @@ import {
     return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps"><i class="bi bi-globe-europe-africa"></i> Maps</a>`;
   }
   function openLocationModal(location){
-    const nowMin = Math.floor(Date.now()/60000);
-    const locMin = Math.floor(new Date(location.localTimestamp).getTime()/60000);
-    const isLive = (nowMin - locMin) <= (location.locationTimeThresholdMinutes||10);
+    const isLive = isLiveLocation(location);
     // In group map context, displayed locations are always the latest for each user
     const isLatest = !isLive;
     const badge = isLive ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>' : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');

@@ -74,6 +74,9 @@ public class LocationExportController : Controller
                 { "ReverseGeocodedAt", loc.ReverseGeocodedAt },
                 { "Notes", Wayfarer.Util.RichNotes.Normalize(loc.Notes) },
                 // Metadata fields
+                { "CoordinateOrigin", loc.CoordinateOrigin },
+                { "ObservedAtUtc", loc.ObservedAtUtc?.ToUniversalTime().ToString("O") },
+                { "ObservedAgeAtEventMs", loc.ObservedAgeAtEventMs },
                 { "Source", loc.Source },
                 { "IsUserInvoked", loc.IsUserInvoked },
                 { "Provider", loc.Provider },
@@ -139,6 +142,9 @@ public class LocationExportController : Controller
             ReverseGeocodedAt = l.ReverseGeocodedAt?.ToString("O", CultureInfo.InvariantCulture),
             Notes = Wayfarer.Util.RichNotes.Normalize(l.Notes),
             // Metadata fields
+            l.CoordinateOrigin,
+            ObservedAtUtc = l.ObservedAtUtc?.ToUniversalTime().ToString("O"),
+            l.ObservedAgeAtEventMs,
             l.Source,
             l.IsUserInvoked,
             l.Provider,
@@ -205,6 +211,7 @@ public class LocationExportController : Controller
                    || !string.IsNullOrEmpty(loc.LocationType)
                    || !string.IsNullOrWhiteSpace(Wayfarer.Util.RichNotes.Normalize(loc.Notes))
                    // Metadata fields
+                   || loc.CoordinateOrigin != null || loc.ObservedAtUtc.HasValue || loc.ObservedAgeAtEventMs.HasValue
                    || !string.IsNullOrWhiteSpace(loc.Source)
                    || loc.IsUserInvoked.HasValue
                    || !string.IsNullOrWhiteSpace(loc.Provider)
@@ -272,6 +279,9 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "reverseGeocodedAt", loc.ReverseGeocodedAt?.ToUniversalTime().ToString("O"));
                     WriteGpxExtension(xw, "notes", Wayfarer.Util.RichNotes.Normalize(loc.Notes));
                     // Metadata fields
+                    WriteGpxExtension(xw, "coordinateOrigin", loc.CoordinateOrigin);
+                    WriteGpxExtension(xw, "observedAtUtc", loc.ObservedAtUtc?.ToUniversalTime().ToString("O"));
+                    WriteGpxExtension(xw, "observedAgeAtEventMs", loc.ObservedAgeAtEventMs?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "source", loc.Source);
                     WriteGpxExtension(xw, "isUserInvoked", loc.IsUserInvoked?.ToString().ToLowerInvariant());
                     WriteGpxExtension(xw, "provider", loc.Provider);
@@ -369,6 +379,9 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "ReverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode);
                 WriteKmlData(xw, "ReverseGeocodedAt", loc.ReverseGeocodedAt?.ToUniversalTime().ToString("O"));
                 // Metadata fields
+                WriteKmlData(xw, "CoordinateOrigin", loc.CoordinateOrigin);
+                WriteKmlData(xw, "ObservedAtUtc", loc.ObservedAtUtc?.ToUniversalTime().ToString("O"));
+                WriteKmlData(xw, "ObservedAgeAtEventMs", loc.ObservedAgeAtEventMs?.ToString(CultureInfo.InvariantCulture));
                 WriteKmlData(xw, "Source", loc.Source);
                 WriteKmlData(xw, "IsUserInvoked", loc.IsUserInvoked?.ToString());
                 WriteKmlData(xw, "Provider", loc.Provider);

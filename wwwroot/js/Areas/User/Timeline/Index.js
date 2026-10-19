@@ -179,6 +179,13 @@ const initializeMap = () => {
     return mapContainer;
 };
 
+// Observation admission and UTC expiry come from the server, independently of event-time display.
+const isLiveLocation = (location) => {
+    const age = Date.now() - new Date(location.presenceObservedAtUtc).getTime();
+    return !!location.presenceObservedAtUtc && location.locationTimeThresholdMinutes > 0
+        && age >= 0 && age <= location.locationTimeThresholdMinutes * 60000;
+};
+
 const buildLayers = (locations) => {
     if (highlightLayer) {
         highlightLayer.clearLayers();
@@ -193,15 +200,12 @@ const buildLayers = (locations) => {
         chunkedLoading:  true
     });
 
-    const nowMinGlobal = Math.floor(Date.now() / 60000);
-    const thresholdFor = (location) => location.locationTimeThresholdMinutes ?? 10;
 
     // Find the backend-designated latest location and determine if it's currently live
     const latestLocation = locations.find(loc => loc.isLatestLocation);
     let highlightCandidate = null;
     if (latestLocation) {
-        const locMin = Math.floor(new Date(latestLocation.localTimestamp).getTime() / 60000);
-        const isLive = (nowMinGlobal - locMin) <= thresholdFor(latestLocation);
+        const isLive = isLiveLocation(latestLocation);
         highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
     }
     const highlightId = highlightCandidate?.location?.id ?? null;
@@ -212,9 +216,7 @@ const buildLayers = (locations) => {
 
         const bindInteractions = (markerInstance) => {
             markerInstance.on('click', () => {
-                const now2  = Math.floor(Date.now() / 60000);
-                const loc2  = Math.floor(new Date(location.localTimestamp).getTime() / 60000);
-                const isLiveM   = (now2 - loc2) <= thresholdFor(location);
+                const isLiveM = isLiveLocation(location);
                 const isLatestM = location.isLatestLocation;
 
                 document.getElementById('modalContent').innerHTML =
@@ -280,12 +282,12 @@ const scheduleMarkerTransition = (locations) => {
 
     // Find the earliest time when a live marker should transition
     locations.forEach(location => {
-        const locMs = new Date(location.localTimestamp).getTime();
+        const locMs = new Date(location.presenceObservedAtUtc).getTime();
         const thresholdMs = (location.locationTimeThresholdMinutes ?? 10) * 60 * 1000;
         const ageMs = nowMs - locMs;
 
         // If location is currently live (within threshold)
-        if (ageMs <= thresholdMs) {
+        if (isLiveLocation(location)) {
             // Calculate when it will expire
             const expiresAtMs = locMs + thresholdMs;
             const msUntilExpiry = expiresAtMs - nowMs;

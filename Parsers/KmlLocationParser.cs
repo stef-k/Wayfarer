@@ -146,6 +146,9 @@ public sealed class KmlLocationParser : ILocationDataParser
                 // LocationType is independent text; only missing and zero-length values become null.
                 LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
                 // Metadata fields
+                CoordinateOrigin = ObservationEvidence.ReadOrigin(ReadDataValue(extendedData, namespaceToUse, "CoordinateOrigin")),
+                ObservedAtUtc = ObservationEvidence.ReadInstant(ReadDataValue(extendedData, namespaceToUse, "ObservedAtUtc")),
+                ObservedAgeAtEventMs = ObservationEvidence.ReadAge(ReadDataValue(extendedData, namespaceToUse, "ObservedAgeAtEventMs")),
                 Source = source,
                 IsUserInvoked = isUserInvoked,
                 Provider = provider,

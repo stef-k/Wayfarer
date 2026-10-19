@@ -19,6 +19,18 @@ namespace Wayfarer.Models
         /// </summary>
         public Guid? IdempotencyKey { get; set; }
 
+        /// <summary>Coordinate provenance asserted by the client: sensor, manual-map, or unknown.</summary>
+        [MaxLength(24)] public string? CoordinateOrigin { get; set; }
+
+        /// <summary>Original sensor fix instant; independent of human event and server receipt clocks.</summary>
+        public DateTimeOffset? ObservedAtUtc { get; set; }
+
+        /// <summary>Reliable elapsed fix age at the event, or null when reboot/clock uncertainty prevents it.</summary>
+        public long? ObservedAgeAtEventMs { get; set; }
+
+        /// <summary>Server-owned admitted observation order; absent on historical-only and imported records.</summary>
+        public DateTime? PresenceObservedAtUtc { get; set; }
+
         public required string TimeZoneId { get; set; } // Time zone ID (e.g., "America/New_York")
 
         // PostGIS Point type to store LonLat in a single field

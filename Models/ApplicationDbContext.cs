@@ -73,6 +73,10 @@ namespace Wayfarer.Models
             builder.Entity<Location>().HasIndex(l => new { l.UserId, l.Timestamp })
                 .HasDatabaseName("IX_Location_UserId_Timestamp"); // Bounds legacy candidates before ST_DWithin.
 
+            // Current-order reads ignore historical-only rows and use a stable tie-breaker.
+            builder.Entity<Location>().HasIndex(l => new { l.UserId, l.PresenceObservedAtUtc, l.Id })
+                .HasDatabaseName("IX_Location_UserId_PresenceObservedAtUtc_Id");
+
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)
                 .IsRequired();

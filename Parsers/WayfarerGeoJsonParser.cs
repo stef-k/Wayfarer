@@ -207,6 +207,9 @@ namespace Wayfarer.Parsers
                         ReverseGeocodedAt = feature.EnrichedAt,
 
                         // Metadata fields
+                        CoordinateOrigin = ObservationEvidence.ReadOrigin(getTupleString("CoordinateOrigin")),
+                        ObservedAtUtc = ObservationEvidence.ReadInstant(getString("ObservedAtUtc")),
+                        ObservedAgeAtEventMs = ObservationEvidence.ReadAge(getString("ObservedAgeAtEventMs")),
                         Source = source,
                         IsUserInvoked = isUserInvoked,
                         Provider = provider,

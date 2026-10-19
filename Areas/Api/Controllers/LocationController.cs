@@ -150,6 +150,9 @@ public class LocationController : BaseApiController
                 IdempotencyKey = idempotencyKey,
                 TimeZoneId = timeZoneId,
                 Coordinates = coordinates,
+                CoordinateOrigin = dto.CoordinateOrigin,
+                ObservedAtUtc = dto.ObservedAtUtc?.ToUniversalTime(),
+                ObservedAgeAtEventMs = dto.ObservedAgeAtEventMs,
                 Accuracy = dto.Accuracy,
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
@@ -204,37 +207,11 @@ public class LocationController : BaseApiController
                 return StatusCode(500, "Internal server error while saving check-in location.");
             }
 
-            // Process visit detection for check-ins (manual confirmation is strong signal)
-            try
-            {
-                await _placeVisitDetectionService.ProcessPingAsync(
-                    user.Id,
-                    coordinates,
-                    dto.Accuracy,
-                    HttpContext?.RequestAborted ?? CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                // Visit detection is non-critical - log and continue
-                _logger.LogWarning("Visit detection failed for check-in user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
-            }
-
-            // Update cache with latest location (same as log-location)
-            var cacheKey = $"lastLocation_{user.Id}";
-            _cache.Set(cacheKey, location, TimeSpan.FromMinutes(30));
-
-            // SSE broadcast (same pattern as log-location and User/LocationController)
+            // History is durable before the shared observation/current-order decision grants any live effects.
             var settings = _settingsService.GetSettings();
-            var locationTimeThreshold =
-                settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
-            var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
-
-            await BroadcastLocationUpdatesAsync(
-                user,
-                location,
-                locationTimeThreshold,
-                true,
-                cancellationToken);
+            var window = settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
+            await CompleteObservationAsync(user, location, LocationPresence.CheckInObservation(location, window),
+                window, processVisit: true);
 
             // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
 
@@ -273,11 +250,7 @@ public class LocationController : BaseApiController
         if (user == null) throw new ArgumentNullException(nameof(user));
         if (location == null) throw new ArgumentNullException(nameof(location));
 
-        var thresholdWindow = locationTimeThresholdMinutes > 0
-            ? TimeSpan.FromMinutes(locationTimeThresholdMinutes)
-            : TimeSpan.Zero;
-        var isLive = thresholdWindow == TimeSpan.Zero ||
-                     DateTime.UtcNow - location.Timestamp <= thresholdWindow;
+        var isLive = LocationPresence.IsLive(location, locationTimeThresholdMinutes, DateTime.UtcNow);
 
         // Per-user broadcast for timeline views (User/Timeline, Public/Timeline, Embed)
         // Note: Timeline views refresh all data on any event, so payload content is informational
@@ -291,6 +264,9 @@ public class LocationController : BaseApiController
             type = isCheckIn ? "check-in" : (string?)null
         };
         await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(userPayload));
+
+        // Historical history invalidation stays on the owner channel; it cannot announce Group presence.
+        if (location.PresenceObservedAtUtc == null) return;
 
         // Broadcast to all group channels
         var groupPayload = GroupSseEventDto.Location(
@@ -492,17 +468,9 @@ public class LocationController : BaseApiController
             if (!idempotencyKey.HasValue)
                 await ProcessAutomaticVisitAsync(user.Id, coordinates, dto.Accuracy);
 
-            var cacheKey = $"lastLocation_{user.Id}";
-            if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))
-            {
-                lastLocation = _dbContext.Locations
-                    .Where(l => l.UserId == user.Id)
-                    .OrderByDescending(l => l.Timestamp)
-                    .FirstOrDefault();
-
-                if (lastLocation != null)
-                    _cache.Set(cacheKey, lastLocation, TimeSpan.FromMinutes(locationTimeThreshold));
-            }
+            // The cache is advisory: a persisted historical arrival or another process cannot poison admission.
+            var lastLocation = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
+                .Where(l => l.UserId == user.Id)).FirstOrDefaultAsync(HttpContext.RequestAborted);
 
             if (lastLocation != null)
             {
@@ -545,6 +513,9 @@ public class LocationController : BaseApiController
                 IdempotencyKey = idempotencyKey,
                 TimeZoneId = timeZoneId,
                 Coordinates = coordinates,
+                CoordinateOrigin = dto.CoordinateOrigin,
+                ObservedAtUtc = dto.ObservedAtUtc?.ToUniversalTime(),
+                ObservedAgeAtEventMs = dto.ObservedAgeAtEventMs,
                 Accuracy = dto.Accuracy,
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
@@ -603,19 +574,42 @@ public class LocationController : BaseApiController
             if (idempotencyKey.HasValue)
                 await ProcessAutomaticVisitAsync(user.Id, coordinates, dto.Accuracy);
 
-            _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
-
-            var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
-
-            await BroadcastLocationUpdatesAsync(
-                user,
-                location,
-                locationTimeThreshold,
-                false,
-                cancellationToken);
+            await CompleteObservationAsync(user, location,
+                LocationPresence.AutomaticObservation(location.LocalTimestamp, location.Timestamp, locationTimeThreshold),
+                locationTimeThreshold, processVisit: false);
 
             return Ok(new { success = true, skipped = false, locationId = location.Id });
         }
+    }
+
+    /// <summary>Admits only a non-regressing observation after persistence; history and replay identity remain independent.</summary>
+    private async Task CompleteObservationAsync(ApplicationUser user, Location location, DateTime? observedUtc,
+        int windowMinutes, bool processVisit)
+    {
+        var ct = HttpContext.RequestAborted;
+        await using var transaction = await LocationPresence.LockAsync(_dbContext, user.Id, ct);
+        var current = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
+            .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
+        if (observedUtc.HasValue && (current == null || observedUtc > current.PresenceObservedAtUtc
+            || observedUtc == current.PresenceObservedAtUtc && location.Id > current.Id))
+        {
+            // Recheck freshness after provider work/lock waits. Only this durable winner may feed arrival-time visits.
+            location.PresenceObservedAtUtc = observedUtc;
+            if (LocationPresence.IsLive(location, windowMinutes, DateTime.UtcNow))
+            {
+                var tracked = _dbContext.Locations.Local.Single(row => row.Id == location.Id);
+                tracked.PresenceObservedAtUtc = observedUtc;
+                await _dbContext.SaveChangesAsync(ct);
+                current = location;
+                if (processVisit) await ProcessAutomaticVisitAsync(user.Id, location.Coordinates, location.Accuracy);
+            }
+            else location.PresenceObservedAtUtc = null;
+        }
+        // Serialize cache publication with the database decision; all admission reads still query durable authority.
+        if (current != null) _cache.Set($"lastLocation_{user.Id}", current, TimeSpan.FromMinutes(30));
+        else _cache.Remove($"lastLocation_{user.Id}");
+        await BroadcastLocationUpdatesAsync(user, location, windowMinutes, location.IsUserInvoked == true, ct);
+        if (transaction != null) await transaction.CommitAsync(ct);
     }
 
     /// <summary>Evaluates an eligible automatic ping while preserving best-effort visit failure handling.</summary>
@@ -840,6 +834,8 @@ public class LocationController : BaseApiController
                 if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
                     return BadRequest(new { success = false, message = "Latitude or Longitude is out of range." });
 
+                if (!location.Coordinates.X.Equals(lon) || !location.Coordinates.Y.Equals(lat))
+                    LocationPresence.Invalidate(location);
                 location.Coordinates = new Point(lon, lat) { SRID = 4326 };
                 anyChange = true;
                 coordsUpdated = true;
@@ -895,6 +891,7 @@ public class LocationController : BaseApiController
 
                     utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
 
+                    if (location.LocalTimestamp != utcTimestamp) LocationPresence.Invalidate(location);
                     location.LocalTimestamp = utcTimestamp;
                     location.TimeZoneId = tzId;
                     anyChange = true;
