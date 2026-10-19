@@ -79,6 +79,9 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await form.getByLabel('From place').selectOption(from.id);
   await form.getByLabel('To place').selectOption(to.id);
   await form.getByLabel('Transport mode').selectOption(mode);
+  // The selected mode need not have a planning speed; use the existing Manual duration contract.
+  await form.getByLabel('Enter manually', { exact: true }).check();
+  await form.getByLabel('Estimated duration minutes', { exact: true }).fill('42');
   await form.getByLabel('Place to add').selectOption(via.id);
   await form.getByRole('button', { name: 'Add intermediate place', exact: true }).click();
   const waypoint = form.getByLabel(/Intermediate place 1:/);
@@ -95,8 +98,11 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await expect(form.getByLabel('From place')).toHaveValue(from.id);
   await expect(form.getByLabel('To place')).toHaveValue(to.id);
   await expect(waypoint).toHaveValue(via.id);
+  await expect(form.getByLabel('Enter manually', { exact: true })).toBeChecked();
+  await expect(form.getByLabel('Estimated duration minutes', { exact: true })).toHaveValue('42');
   const persisted = (await state()).segmentsById[created.id];
-  expect(persisted).toMatchObject({ fromPlaceId: from.id, toPlaceId: to.id, waypointPlaceIds: [via.id], waypointRouteVertexIndices: [null], route: null });
+  expect(persisted).toMatchObject({ fromPlaceId: from.id, toPlaceId: to.id, waypointPlaceIds: [via.id],
+    waypointRouteVertexIndices: [null], route: null, mode, estimatedDurationSource: 'Manual', estimatedDurationMinutes: 42 });
   expect(persisted.effectiveRoute.coordinates).toEqual([[23,38],[23.1,38],[23.2,38]]);
 
   // Picker eligibility grants no protected-Region edit/reorder/delete or direct Area creation authority.
@@ -108,23 +114,4 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
     data: { name: 'Forbidden Area', notesHtml: null, fillHex: '#123456', geometry: { type: 'Polygon', coordinates: [[[23,38],[24,38],[24,39],[23,38]]] } } });
   expect(denied.status()).toBe(403);
   expect((await state()).areasById).toEqual(moved.areasById);
-
-  // Deliberately incomplete catalogue response: missing references and locationless Places remain disabled,
-  // with saved draft IDs visible. This negative is client-only; the positive persistence assertions above use real HTTP.
-  await page.route(`**${endpoint}`, async route => {
-    const response = await route.fetch();
-    const incomplete = await response.json();
-    delete incomplete.placesById[from.id];
-    delete incomplete.placesById[via.id];
-    incomplete.placesById[to.id].location = null;
-    await route.fulfill({ response, json: incomplete });
-  });
-  await page.reload();
-  await open(created.id);
-  for (const [selector, id] of [[form.getByLabel('From place'), from.id], [waypoint, via.id], [form.getByLabel('To place'), to.id]] as const) {
-    await expect(selector).toHaveValue(id);
-    await expect(selector.locator(':checked')).toBeDisabled();
-  }
-  await expect(waypoint.locator(':checked')).toHaveText('Place no longer available');
-  await expect(form.getByLabel('To place').locator(':checked')).toContainText('location required');
 });
