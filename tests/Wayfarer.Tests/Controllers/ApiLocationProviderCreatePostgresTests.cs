@@ -27,7 +27,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Exercises keyed creation through authenticated MVC, PostgreSQL and real provider admission.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
+public sealed partial class ApiLocationProviderCreatePostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
     /// <summary>Only the inserted winner may charge or contact; persisted cross-endpoint replay does neither.</summary>
     [PostgresTheory(Timeout = 30000)]
@@ -37,7 +37,7 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
     {
         var protection = new EphemeralDataProtectionProvider();
         var (userId, token) = await SeedAsync(provider, protection);
-        var barrier = new InsertControl(barrier: true);
+        var barrier = new KeyReadBarrier();
         using var handler = new ControlledProvider();
         var sse = new Mock<SseService>();
         sse.Setup(service => service.BroadcastAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -303,7 +303,7 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
 
     /// <summary>Uses real request-scoped contexts/controllers and substitutes only external transport and noncritical work.</summary>
     private async Task WithHostAsync(IDataProtectionProvider protection, ControlledProvider handler,
-        IInterceptor[] interceptors, Func<HttpClient, Task> run, SseService? sse = null)
+        IInterceptor[] interceptors, Func<HttpClient, Task> run, SseService? sse = null, IPlaceVisitDetectionService? visits = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"wayfarer-822-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -326,12 +326,14 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
                         NullLogger<BaseApiController>.Instance, gate, db);
                 });
                 services.AddScoped(sp => ApiLocationAdmissionTests.Controller(sp.GetRequiredService<ApplicationDbContext>(),
-                    workAdmission, sse: sse, reverse: sp.GetRequiredService<ReverseGeocodingService>()));
+                    workAdmission, visits: visits, sse: sse, reverse: sp.GetRequiredService<ReverseGeocodingService>()));
                 services.AddControllers().AddControllersAsServices();
             });
             using var client = app.GetTestClient();
             client.BaseAddress = new Uri("https://wayfarer.test");
+            _cookieServices = app.Services;
             await run(client);
+            _cookieServices = null;
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -397,25 +399,19 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
     }
 
     /// <summary>Coordinates or fails only initial Location saves, never provider admission saves.</summary>
-    private sealed class InsertControl(bool barrier = false, bool failFirst = false) : SaveChangesInterceptor
+    private sealed class InsertControl(bool failFirst = false) : SaveChangesInterceptor
     {
         private int _arrived;
-        private readonly TaskCompletionSource _both = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         /// <summary>Releases the two first inserts together or injects exactly one pre-insert failure.</summary>
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
             InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
             if (!eventData.Context!.ChangeTracker.Entries<Location>().Any(row => row.State == EntityState.Added))
-                return result;
+                return ValueTask.FromResult(result);
             var count = Interlocked.Increment(ref _arrived);
             if (failFirst && count == 1) throw new DbUpdateException("Synthetic initial Location insert failure");
-            if (barrier)
-            {
-                if (count == 2) _both.TrySetResult();
-                await _both.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
-            }
-            return result;
+            return ValueTask.FromResult(result);
         }
     }
 

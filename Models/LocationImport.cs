@@ -70,6 +70,9 @@ public class LocationImport
     /// </summary>
     public int SkippedDuplicates { get; set; }
 
+    /// <summary>Records suppressed by retained owner deletion intent, atomically committed with the checkpoint.</summary>
+    public int SkippedDeleted { get; set; }
+
     /// <summary>Accepted new Locations whose supplied Activity was invalid; missing values are optional.</summary>
     public int UnclassifiedActivityCount { get; set; }
 
@@ -110,6 +113,7 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
         builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.ToTable(table =>
         {
+            table.HasCheckConstraint("CK_LocationImport_SkippedDeleted", "\"SkippedDeleted\" >= 0");
             table.HasCheckConstraint("CK_LocationImport_UnclassifiedActivity", "\"UnclassifiedActivityCount\" >= 0");
             table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
             table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",

@@ -968,10 +968,22 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId", "Timestamp")
                         .HasDatabaseName("IX_Location_UserId_Timestamp");
 
-                    b.HasIndex("UserId", "PresenceObservedAtUtc", "Id")
-                        .HasDatabaseName("IX_Location_UserId_PresenceObservedAtUtc_Id");
+                    b.HasIndex(new[] { "UserId", "PresenceObservedAtUtc", "Id" }, "IX_Location_UserId_PresenceObservedAtUtc_Id");
 
                     b.ToTable("Locations");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationDeletionMarker", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("UserId", "IdempotencyKey");
+
+                    b.ToTable("LocationDeletionMarkers", (string)null);
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentAttempt", b =>
@@ -1237,6 +1249,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("RemainingEnrichmentCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("SkippedDeleted")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SkippedDuplicates")
                         .HasColumnType("integer");
 
@@ -1281,6 +1296,8 @@ namespace Wayfarer.Migrations
                             t.HasCheckConstraint("CK_LocationImport_LifecycleState", "((\"Status\" = 'In Progress' AND \"StopRequestedAtUtc\" IS NULL AND \"DeletionRequestedAtUtc\" IS NULL) OR (\"Status\" = 'Stopping' AND \"StopRequestedAtUtc\" IS NOT NULL AND \"DeletionRequestedAtUtc\" IS NULL AND \"ProjectionPending\") OR (\"Status\" = 'Stopped' AND NOT \"ProjectionPending\") OR (\"Status\" IN ('Completed','Failed') AND \"StopRequestedAtUtc\" IS NULL AND NOT \"ProjectionPending\")) IS TRUE");
 
                             t.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationImport_SkippedDeleted", "\"SkippedDeleted\" >= 0");
 
                             t.HasCheckConstraint("CK_LocationImport_UnclassifiedActivity", "\"UnclassifiedActivityCount\" >= 0");
                         });
@@ -2237,6 +2254,15 @@ namespace Wayfarer.Migrations
                         .IsRequired();
 
                     b.Navigation("ActivityType");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationDeletionMarker", b =>
+                {
+                    b.HasOne("Wayfarer.Models.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentAttempt", b =>

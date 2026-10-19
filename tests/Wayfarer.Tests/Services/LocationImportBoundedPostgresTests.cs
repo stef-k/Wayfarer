@@ -506,7 +506,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 .ToList();
             var keys = batch.Select(item => item.IdempotencyKey!.Value).ToHashSet();
 
-            var (toInsert, skipped) = await LocationImportDeduplicator.FilterAsync(
+            var (toInsert, skipped, _) = await LocationImportDeduplicator.FilterAsync(
                 context, batch, keys, user.Id, NullLogger.Instance, CancellationToken.None);
             Assert.Equal(0, skipped);
             Assert.Equal(50, toInsert.Count);

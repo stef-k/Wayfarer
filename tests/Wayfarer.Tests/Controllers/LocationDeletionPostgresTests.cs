@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -11,7 +12,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Durable owner deletion decisions survive retries in independent PostgreSQL contexts.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationDeletionPostgresTests(PostgresImportTestFixture fixture)
+public sealed partial class LocationDeletionPostgresTests(PostgresImportTestFixture fixture)
 {
     /// <summary>A committed bearer deletion is terminal on both ingest routes, even under saturation or passive filtering.</summary>
     [PostgresTheory]

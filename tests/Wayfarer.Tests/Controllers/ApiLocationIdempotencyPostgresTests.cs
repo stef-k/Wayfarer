@@ -311,15 +311,21 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         }
     }
 
-    /// <summary>Holds both real first inserts until both actions have passed their replay lookup.</summary>
-    private sealed class SaveBarrier : SaveChangesInterceptor
+    /// <summary>Coordinates the two fast winner reads before either caller owns the account fence.</summary>
+    private sealed class SaveBarrier : DbCommandInterceptor
     {
         private int _arrived;
         private readonly TaskCompletionSource _both = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
-            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+
+        /// <summary>Forces both requests to observe the initial key miss without waiting inside the serialized insert.</summary>
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
-            if (Interlocked.Increment(ref _arrived) == 2) _both.TrySetResult();
+            if (!command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+                || !command.CommandText.Contains("\"IdempotencyKey\"", StringComparison.Ordinal)) return result;
+            var count = Interlocked.Increment(ref _arrived);
+            if (count > 2) return result;
+            if (count == 2) _both.TrySetResult();
             await _both.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
             return result;
         }

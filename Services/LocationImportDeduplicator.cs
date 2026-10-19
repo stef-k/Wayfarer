@@ -7,7 +7,7 @@ namespace Wayfarer.Parsers;
 /// <summary>Owns legacy proximity and portable-key duplicate handling for location imports.</summary>
 internal static class LocationImportDeduplicator
 {
-    public static async Task<(List<Location> ToInsert, int Skipped)> FilterAsync(
+    public static async Task<(List<Location> ToInsert, int Skipped, int Deleted)> FilterAsync(
         ApplicationDbContext context,
         List<Location> batch,
         IReadOnlySet<Guid> batchKeys,
@@ -16,7 +16,7 @@ internal static class LocationImportDeduplicator
         CancellationToken cancellationToken)
     {
         if (batch.Count == 0)
-            return (batch, 0);
+            return (batch, 0, 0);
 
         var keys = batchKeys.ToArray();
         var seenKeys = (await context.Locations.AsNoTracking()
@@ -25,11 +25,21 @@ internal static class LocationImportDeduplicator
             .Select(location => location.IdempotencyKey!.Value)
             .ToListAsync(cancellationToken)).ToHashSet();
 
+        var deletedKeys = (await context.Set<LocationDeletionMarker>().AsNoTracking()
+            .Where(marker => marker.UserId == userId && keys.Contains(marker.IdempotencyKey))
+            .Select(marker => marker.IdempotencyKey).ToListAsync(cancellationToken)).ToHashSet();
+        var deleted = 0;
         var toInsert = new List<Location>();
         var acceptedLegacy = new List<Location>();
         var skipped = 0;
         foreach (var location in batch)
         {
+            // Every repeated deleted record contributes to suppression, never duplicate or Activity accounting.
+            if (location.IdempotencyKey is { } key && deletedKeys.Contains(key))
+            {
+                deleted++;
+                continue;
+            }
             var duplicate = location.IdempotencyKey.HasValue
                 ? !seenKeys.Add(location.IdempotencyKey.Value)
                 : acceptedLegacy.Any(candidate => IsLegacyDuplicate(candidate, location)) ||
@@ -46,7 +56,7 @@ internal static class LocationImportDeduplicator
             }
         }
 
-        return (toInsert, skipped);
+        return (toInsert, skipped, deleted);
     }
 
     private static bool IsLegacyDuplicate(Location candidate, Location location) =>

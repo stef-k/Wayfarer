@@ -58,7 +58,7 @@ public static class LocationPresence
         ApplicationDbContext db, string userId, int locationId, CancellationToken cancellationToken)
     {
         if (!db.Database.IsRelational()) return null;
-        var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var transaction = await LocationDeletionFence.BeginAsync(db, userId, cancellationToken);
         try
         {
             if (db.Database.IsNpgsql())
@@ -74,7 +74,7 @@ public static class LocationPresence
         }
         catch
         {
-            await transaction.DisposeAsync();
+            if (transaction != null) await transaction.DisposeAsync();
             throw;
         }
     }

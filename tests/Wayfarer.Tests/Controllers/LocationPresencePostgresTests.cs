@@ -405,15 +405,14 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
     }
 
     /// <summary>Pauses a committed keyed insert before optional enrichment and postwrite effects.</summary>
-    private sealed class PauseAfterInsert : SaveChangesInterceptor
+    private sealed class PauseAfterInsert : DbTransactionInterceptor
     {
         internal TaskCompletionSource Inserted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData data, int result, CancellationToken ct = default)
+        public override async Task TransactionCommittedAsync(System.Data.Common.DbTransaction transaction, TransactionEndEventData data, CancellationToken ct = default)
         {
             if (data.Context!.ChangeTracker.Entries<Location>().Any() && !Inserted.Task.IsCompleted)
             { Inserted.TrySetResult(); await Release.Task.WaitAsync(ct); }
-            return result;
         }
     }
 }
