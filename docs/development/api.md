@@ -318,10 +318,39 @@ inclusive UTC period, including the final day/month of year 9999. Navigation use
 the server-local current date, retains all previous-navigation flags, and disables
 future or unrepresentable next periods.
 
-Maximum-date support here is limited to bearer statistics/navigation. Chronology's
-shared date service still returns 400 for December 9999 and 9999-12-31 because its
-successor calculation overflows. Cookie Web Timeline calendar validation and
-boundary arithmetic remain separate, unchanged limitations.
+Cookie Web `GET /User/Timeline/GetChronologicalStats`, `GetChronologicalStatsDetailed`
+and `CheckNavigationAvailability` validate semantic calendar components after
+cookie authorization and current-user resolution. They recognize day/month/year
+case-insensitively without trimming, accept years 1–9999 and valid applicable
+months/days, and return 400 for invalid bound selections. Statistics keeps its
+required-component-first errors and `{ "success": false, "message": "..." }`
+body; navigation uses `{ "success": false }`. The summary counters and detailed
+visit arrays remain distinct DTOs. Genuine downstream statistics failures retain
+their distinct safe 500 messages. Login/AccessDenied redirects, anonymous XHR 401
+and missing-user 401 take precedence over calendar validation.
+
+These conventional Web MVC actions intentionally preserve optional binding
+fallbacks: empty/unparseable month/day binds to null, causing the existing
+statistics required-component error or navigation partial-selection fallback.
+Missing/unparseable year binds to 0 and receives the semantic year 400. Ignored
+mode-irrelevant extras remain ignored, including unparseable strings; there is no
+blanket ModelState rejection or framework error envelope. Navigation still allows
+day mode with neither optional field, month only or day only (day 1–31), and month
+mode without a month. All six flags, month/leap-day clamps and the server-local
+clock retain their meanings; unrepresentable next periods are unavailable.
+
+Shared chronology and day/month availability queries, and Web/bearer statistics
+and navigation, no longer fail solely because constructing the next query or
+navigation period overflows. December 9999 and 9999-12-31 remain valid selections.
+History preserves inclusive UTC `LocalTimestamp` predicates, owner filtering,
+sampling and projection; Group selection and response contracts are unchanged.
+Npgsql still maps `DateTime.MaxValue` to PostgreSQL infinity: maximum upper bounds
+include infinity and PostgreSQL timestamps beyond year 9999, rather than imposing
+a strict finite cutoff. The finite final PostgreSQL microsecond is
+`9999-12-31 23:59:59.999999` UTC. Extreme stored timestamps/zones may still fail
+coordinate-local projection (for example, that final finite UTC microsecond at
+Athens coordinates). This existing conversion limitation is outside the bounded
+successor-arithmetic correction; timestamps are not clamped or rewritten (#849).
 
 `PUT /api/location/{id}` accepts a partial `LocationUpdateRequestDto`: paired
 `latitude`/`longitude`, `notes`, `localTimestamp`, `activityTypeId` or `activityName`,

@@ -373,6 +373,7 @@ namespace Wayfarer.Parsers
         /// Gets locations for a specific chronological period (day, month, or year).
         /// For single day: returns all unfiltered locations.
         /// For month/year: uses sampling to avoid overwhelming the frontend with 8500-21500+ locations.
+        /// Inclusive UTC query ends do not require a representable successor day/month.
         /// </summary>
         /// <param name="userId">User ID to filter locations</param>
         /// <param name="dateType">Type of period: "day", "month", or "year"</param>
@@ -397,14 +398,15 @@ namespace Wayfarer.Parsers
                     if (!month.HasValue || !day.HasValue)
                         throw new ArgumentException("Month and day are required for day filter");
                     startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+                    endDate = startDate.AddTicks(TimeSpan.TicksPerDay - 1);
                     break;
 
                 case "month":
                     if (!month.HasValue)
                         throw new ArgumentException("Month is required for month filter");
                     startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
+                    endDate = new DateTime(year, month.Value, DateTime.DaysInMonth(year, month.Value), 0, 0, 0, DateTimeKind.Utc)
+                        .AddTicks(TimeSpan.TicksPerDay - 1);
                     break;
 
                 case "year":
@@ -548,7 +550,7 @@ namespace Wayfarer.Parsers
 
         /// <summary>
         /// Checks if user has location data for a specific date.
-        /// Used for conditional prev/next date navigation.
+        /// Used for conditional prev/next date navigation, including the final representable day.
         /// </summary>
         /// <param name="userId">User ID</param>
         /// <param name="date">Date to check</param>
@@ -557,7 +559,7 @@ namespace Wayfarer.Parsers
         public async Task<bool> HasDataForDateAsync(string userId, DateTime date, CancellationToken cancellationToken = default)
         {
             var startDate = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
-            var endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+            var endDate = startDate.AddTicks(TimeSpan.TicksPerDay - 1);
 
             return await _dbContext.Locations
                 .AnyAsync(l => l.UserId == userId
@@ -567,7 +569,7 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>
-        /// Checks if user has location data for a specific month.
+        /// Checks if user has location data for a specific month, including December 9999.
         /// </summary>
         /// <param name="userId">User ID</param>
         /// <param name="year">Year</param>
@@ -577,7 +579,8 @@ namespace Wayfarer.Parsers
         public async Task<bool> HasDataForMonthAsync(string userId, int year, int month, CancellationToken cancellationToken = default)
         {
             var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
+            var endDate = new DateTime(year, month, DateTime.DaysInMonth(year, month), 0, 0, 0, DateTimeKind.Utc)
+                .AddTicks(TimeSpan.TicksPerDay - 1);
 
             return await _dbContext.Locations
                 .AnyAsync(l => l.UserId == userId

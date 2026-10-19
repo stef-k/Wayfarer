@@ -233,6 +233,7 @@ namespace Wayfarer.Controllers
         /// <summary>
         /// Get statistics for a specific chronological period (day, month, or year).
         /// Returns location count, countries, regions, cities for the selected period.
+        /// Validates bound calendar components after user resolution, preserving optional MVC binding semantics.
         /// </summary>
         /// <param name="dateType">Type of period: "day", "month", or "year"</param>
         /// <param name="year">Year</param>
@@ -249,32 +250,9 @@ namespace Wayfarer.Controllers
                     return Unauthorized(new { success = false, message = "User not found." });
                 }
 
-                // Build date range based on dateType
-                DateTime startDate, endDate;
-                switch (dateType.ToLower())
-                {
-                    case "day":
-                        if (!month.HasValue || !day.HasValue)
-                            return BadRequest(new { success = false, message = "Month and day are required for day filter" });
-                        startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
-                        break;
-
-                    case "month":
-                        if (!month.HasValue)
-                            return BadRequest(new { success = false, message = "Month is required for month filter" });
-                        startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
-                        break;
-
-                    case "year":
-                        startDate = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(new DateTime(year, 12, 31, 23, 59, 59, DateTimeKind.Utc).AddTicks(9999999), DateTimeKind.Utc);
-                        break;
-
-                    default:
-                        return BadRequest(new { success = false, message = $"Invalid dateType: {dateType}" });
-                }
+                var error = GetStatsDateRange(dateType, year, month, day, out var startDate, out var endDate);
+                if (error != null)
+                    return BadRequest(new { success = false, message = error });
 
                 var stats = await _statsService.GetStatsForDateRangeAsync(currentUser.Id, startDate, endDate);
 
@@ -295,6 +273,7 @@ namespace Wayfarer.Controllers
         /// Check navigation availability for chronological timeline.
         /// Returns whether prev/next navigation is available based ONLY on future date restrictions.
         /// Always allows navigation to past dates to prevent users from getting trapped in dates with no data.
+        /// Preserves valid partial selections and disables unrepresentable successor periods.
         /// </summary>
         /// <param name="dateType">Type of period: "day", "month", or "year"</param>
         /// <param name="year">Current year</param>
@@ -311,6 +290,16 @@ namespace Wayfarer.Controllers
                     return Unauthorized(new { success = false });
                 }
 
+                // Validate only bound, applicable components; MVC's optional binding fallbacks remain intact.
+                var mode = dateType?.ToLowerInvariant();
+                if (mode is not ("day" or "month" or "year") || year is < 1 or > 9999)
+                    return BadRequest(new { success = false });
+                if ((mode is "day" or "month") && month.HasValue && (month.Value is < 1 or > 12))
+                    return BadRequest(new { success = false });
+                if (mode == "day" && day.HasValue &&
+                    (day.Value < 1 || day.Value > (month.HasValue ? DateTime.DaysInMonth(year, month.Value) : 31)))
+                    return BadRequest(new { success = false });
+
                 var now = DateTime.Now;
 
                 // Initialize all navigation flags - default to true (allow navigation)
@@ -319,22 +308,21 @@ namespace Wayfarer.Controllers
                 bool canNavigatePrevYear = true, canNavigateNextYear = false;
 
                 // Check day navigation (only relevant in day view)
-                if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+                if (mode == "day" && month.HasValue && day.HasValue)
                 {
                     var currentDate = new DateTime(year, month.Value, day.Value);
-                    var nextDate = currentDate.AddDays(1);
-
-                    // Can't navigate to future dates
-                    canNavigateNextDay = nextDate.Date <= now.Date;
+                    // Comparing the selected date avoids constructing a day beyond year 9999.
+                    canNavigateNextDay = currentDate.Date < now.Date;
                 }
 
                 // Check month navigation (relevant in day and month views)
-                if ((dateType.ToLower() == "day" || dateType.ToLower() == "month") && month.HasValue)
+                if ((mode == "day" || mode == "month") && month.HasValue &&
+                    (year < 9999 || month.Value < 12))
                 {
                     int nextMonth = month.Value == 12 ? 1 : month.Value + 1;
                     int nextMonthYear = month.Value == 12 ? year + 1 : year;
 
-                    if (dateType.ToLower() == "day" && day.HasValue)
+                    if (mode == "day" && day.HasValue)
                     {
                         // Check if next month would be in the future
                         int currentDay = day.Value;
@@ -348,18 +336,19 @@ namespace Wayfarer.Controllers
                     }
                 }
 
-                // Check year navigation (always relevant, maintains month/day context)
+                // Check year navigation when representable, maintaining month/day context.
+                if (year < 9999)
                 {
                     int nextYearVal = year + 1;
 
-                    if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+                    if (mode == "day" && month.HasValue && day.HasValue)
                     {
                         // Check if next year would be in the future
                         int currentDay = day.Value;
                         var nextYearDate = new DateTime(nextYearVal, month.Value, Math.Min(currentDay, DateTime.DaysInMonth(nextYearVal, month.Value)));
                         canNavigateNextYear = nextYearDate.Date <= now.Date;
                     }
-                    else if (dateType.ToLower() == "month" && month.HasValue)
+                    else if (mode == "month" && month.HasValue)
                     {
                         // Can't navigate to future years
                         canNavigateNextYear = (nextYearVal < now.Year) || (nextYearVal == now.Year && month.Value <= now.Month);
@@ -392,6 +381,7 @@ namespace Wayfarer.Controllers
         /// <summary>
         /// Get detailed statistics for a specific chronological period (day, month, or year).
         /// Returns location count and detailed arrays of countries, regions, cities for the selected period.
+        /// Uses the same validated inclusive UTC bounds as summary statistics, including year 9999.
         /// </summary>
         /// <param name="dateType">Type of period: "day", "month", or "year"</param>
         /// <param name="year">Year</param>
@@ -408,32 +398,9 @@ namespace Wayfarer.Controllers
                     return Unauthorized(new { success = false, message = "User not found." });
                 }
 
-                // Build date range based on dateType
-                DateTime startDate, endDate;
-                switch (dateType.ToLower())
-                {
-                    case "day":
-                        if (!month.HasValue || !day.HasValue)
-                            return BadRequest(new { success = false, message = "Month and day are required for day filter" });
-                        startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
-                        break;
-
-                    case "month":
-                        if (!month.HasValue)
-                            return BadRequest(new { success = false, message = "Month is required for month filter" });
-                        startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
-                        break;
-
-                    case "year":
-                        startDate = new DateTime(year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                        endDate = DateTime.SpecifyKind(new DateTime(year, 12, 31, 23, 59, 59, DateTimeKind.Utc).AddTicks(9999999), DateTimeKind.Utc);
-                        break;
-
-                    default:
-                        return BadRequest(new { success = false, message = $"Invalid dateType: {dateType}" });
-                }
+                var error = GetStatsDateRange(dateType, year, month, day, out var startDate, out var endDate);
+                if (error != null)
+                    return BadRequest(new { success = false, message = error });
 
                 var detailedStats = await _statsService.GetDetailedStatsForDateRangeAsync(currentUser.Id, startDate, endDate);
 
@@ -448,6 +415,38 @@ namespace Wayfarer.Controllers
                 _logger.LogError(ex, "Error getting detailed chronological stats");
                 return StatusCode(500, new { success = false, message = "An error occurred while fetching detailed stats." });
             }
+        }
+
+        /// <summary>
+        /// Validates the two Web statistics selections with required-component-first errors.
+        /// Returns null and inclusive UTC bounds on success; never constructs a successor period.
+        /// </summary>
+        private static string? GetStatsDateRange(string? dateType, int year, int? month, int? day,
+            out DateTime startDate, out DateTime endDate)
+        {
+            startDate = endDate = default;
+            var mode = dateType?.ToLowerInvariant();
+            if (mode is not ("day" or "month" or "year"))
+                return $"Invalid dateType: {dateType}";
+            if (mode == "day" && (!month.HasValue || !day.HasValue))
+                return "Month and day are required for day filter";
+            if (mode == "month" && !month.HasValue)
+                return "Month is required for month filter";
+            if (year is < 1 or > 9999)
+                return "Year must be between 1 and 9999";
+            if ((mode is "day" or "month") && (month!.Value is < 1 or > 12))
+                return "Month must be between 1 and 12";
+            if (mode == "day" && (day!.Value < 1 || day.Value > DateTime.DaysInMonth(year, month!.Value)))
+                return "Day is invalid for the selected year and month";
+
+            var firstMonth = mode == "year" ? 1 : month!.Value;
+            var firstDay = mode == "day" ? day!.Value : 1;
+            var lastMonth = mode == "year" ? 12 : firstMonth;
+            var lastDay = mode == "day" ? firstDay : DateTime.DaysInMonth(year, lastMonth);
+            startDate = new DateTime(year, firstMonth, firstDay, 0, 0, 0, DateTimeKind.Utc);
+            endDate = new DateTime(year, lastMonth, lastDay, 0, 0, 0, DateTimeKind.Utc)
+                .AddTicks(TimeSpan.TicksPerDay - 1);
+            return null;
         }
     }
 }
