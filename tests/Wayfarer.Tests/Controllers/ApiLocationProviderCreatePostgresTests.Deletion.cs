@@ -272,8 +272,8 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
             visits.Verify(service => service.ProcessPingAsync(owner.UserId,
                 It.Is<Point>(point => point.X == 20 && point.Y == 10), 5, It.IsAny<CancellationToken>()), Times.Once);
             await using var verify = fixture.CreateContext();
-            Assert.Equal((21d, 11d), await verify.Locations.Where(row => row.UserId == owner.UserId)
-                .Select(row => new ValueTuple<double, double>(row.Coordinates.X, row.Coordinates.Y)).SingleAsync());
+            var saved = await verify.Locations.SingleAsync(row => row.UserId == owner.UserId);
+            Assert.Equal((21d, 11d), (saved.Coordinates.X, saved.Coordinates.Y));
         }, visits: visits.Object);
     }
 
