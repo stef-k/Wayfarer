@@ -5,6 +5,8 @@ import { createTileLayer } from '../../../retryTileLayer.js';
 import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
   formatViewerAndSourceTimes,
+  isLiveLocation,
+  scheduleLocationExpiry,
   currentDateInputValue,
   currentMonthInputValue,
   currentYearInputValue,
@@ -124,7 +126,6 @@ import {
     return await resp.json();
   }
   function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
-  function isLiveLocation(loc){ const now=new Date(), localTs=new Date(loc.localTimestamp); const diffMin=Math.abs(now-localTs)/60000; return diffMin <= (loc.locationTimeThresholdMinutes||10); }
   function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
   function buildTooltipHtml(info, loc){
@@ -147,7 +148,19 @@ import {
     const statusHtml = live ? ' <span style="color:#dc3545">Live Location</span>' : ' <span style="color:#198754">Latest Location</span>';
     const tooltip = buildTooltipHtml(info, loc) + statusHtml;
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
-    else { const m=L.marker(latlng, { icon, zIndexOffset:(live?10000:9000) }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
+    else {
+      const m=L.marker(latlng, { icon, zIndexOffset: (live?10000:9000) }).bindTooltip(tooltip, {direction:'top'});
+      m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} });
+      m.on('remove', () => clearTimeout(m.presenceExpiryTimer));
+      m.addTo(map);
+      latestMarkers.set(userId, m);
+    }
+    // Expire idle markers too; removed/deselected markers must never be recreated by a late timer.
+    const marker = latestMarkers.get(userId);
+    clearTimeout(marker.presenceExpiryTimer);
+    marker.presenceExpiryTimer = scheduleLocationExpiry(loc, () => {
+      if (latestMarkers.get(userId) === marker) upsertLatestForUser(userId, loc);
+    });
   }
   /**
    * Loads latest locations for specified users and removes markers for deselected users.
@@ -649,9 +662,7 @@ import {
     return `<a href=\"https://www.google.com/maps/search/?api=1&query=${q}\" target=\"_blank\" class=\"ms-2 btn btn-outline-primary btn-sm\" title=\"View in Google Maps\"><i class=\"bi bi-globe-europe-africa\"></i> Maps</a>`;
   }
   function openLocationModal(location){
-    const nowMin = Math.floor(Date.now()/60000);
-    const locMin = Math.floor(new Date(location.localTimestamp).getTime()/60000);
-    const isLive = (nowMin - locMin) <= (location.locationTimeThresholdMinutes||10);
+    const isLive = isLiveLocation(location);
     // In group map context, displayed locations are always the latest for each user
     const isLatest = !isLive;
     const badge = isLive ? '<span class=\"badge bg-danger float-end ms-2\">LIVE LOCATION</span>' : (isLatest ? '<span class=\"badge bg-success float-end ms-2\">LATEST LOCATION</span>' : '');

@@ -5,6 +5,8 @@ import { createTileLayer } from '../../../retryTileLayer.js';
 import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
   formatViewerAndSourceTimes,
+  isLiveLocation,
+  scheduleLocationExpiry,
   currentDateInputValue,
   currentMonthInputValue,
   currentYearInputValue,
@@ -124,12 +126,6 @@ import {
     return await resp.json();
   }
   function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
-  // Only a server-admitted observation can be live; never infer freshness from the human event clock.
-  const isLiveLocation = (loc) => {
-    const age = Date.now() - new Date(loc.presenceObservedAtUtc).getTime();
-    return !!loc.presenceObservedAtUtc && loc.locationTimeThresholdMinutes > 0
-      && age >= 0 && age <= loc.locationTimeThresholdMinutes * 60000;
-  };
   function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
   function buildTooltipHtml(info, loc){
@@ -152,7 +148,19 @@ import {
     const statusHtml = live ? ' <span style="color:#dc3545">Live Location</span>' : ' <span style="color:#198754">Latest Location</span>';
     const tooltip = buildTooltipHtml(info, loc) + statusHtml;
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
-    else { const m=L.marker(latlng, { icon, zIndexOffset: (live?10000:9000) }).bindTooltip(tooltip, {direction:'top'}); m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} }); m.addTo(map); latestMarkers.set(userId, m); }
+    else {
+      const m=L.marker(latlng, { icon, zIndexOffset: (live?10000:9000) }).bindTooltip(tooltip, {direction:'top'});
+      m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} });
+      m.on('remove', () => clearTimeout(m.presenceExpiryTimer));
+      m.addTo(map);
+      latestMarkers.set(userId, m);
+    }
+    // Expire idle markers too; removed/deselected markers must never be recreated by a late timer.
+    const marker = latestMarkers.get(userId);
+    clearTimeout(marker.presenceExpiryTimer);
+    marker.presenceExpiryTimer = scheduleLocationExpiry(loc, () => {
+      if (latestMarkers.get(userId) === marker) upsertLatestForUser(userId, loc);
+    });
   }
   /**
    * Loads latest locations for specified users and removes markers for deselected users.

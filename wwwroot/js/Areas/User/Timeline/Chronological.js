@@ -10,6 +10,7 @@ import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../ma
 import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
+    isLiveLocation,
     formatDate,
     formatDecimal,
     currentDateInputValue,
@@ -637,13 +638,6 @@ const initializeMap = () => {
  * Build marker layers (flat and clustered)
  * Live and latest markers are added to highlightLayer (always visible, not clustered)
  */
-// Observation admission and UTC expiry come from the server, independently of event-time display.
-const isLiveLocation = (location) => {
-    const age = Date.now() - new Date(location.presenceObservedAtUtc).getTime();
-    return !!location.presenceObservedAtUtc && location.locationTimeThresholdMinutes > 0
-        && age >= 0 && age <= location.locationTimeThresholdMinutes * 60000;
-};
-
 const buildLayers = (locations) => {
     // Clear highlight layer for live/latest markers
     if (highlightLayer) {

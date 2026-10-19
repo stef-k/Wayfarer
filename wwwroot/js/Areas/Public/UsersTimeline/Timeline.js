@@ -32,6 +32,7 @@ import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLoc
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import {
     formatViewerAndSourceTimes,
+    isLiveLocation,
     formatDate,
     formatDecimal,
     getViewerTimeZone,
@@ -125,13 +126,6 @@ const initializeMap = () => {
     }
     highlightLayer.addTo(mapContainer);
     return mapContainer;
-};
-
-// Observation admission and UTC expiry come from the server, independently of event-time display.
-const isLiveLocation = (location) => {
-    const age = Date.now() - new Date(location.presenceObservedAtUtc).getTime();
-    return !!location.presenceObservedAtUtc && location.locationTimeThresholdMinutes > 0
-        && age >= 0 && age <= location.locationTimeThresholdMinutes * 60000;
 };
 
 const buildLayers = (locations) => {

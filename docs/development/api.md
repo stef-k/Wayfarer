@@ -115,7 +115,9 @@ order, including equal-time fixes. A late-finishing older request cannot replace
 current state. Cache entries are advisory; automatic admission queries the same
 durable current selection used by both authorized Group latest adapters. Admitted
 points remain last-known after aging; live styling expires from this UTC observation
-clock, independently of displayed event time. Existing public/Group audience and
+clock, independently of displayed event time. All owner/public/embed and User/Manager
+Group maps share that expiry rule; idle Group markers transition to last-known
+without waiting for another upload and cancel expiry when removed. Existing public/Group audience and
 hidden-area/delay rules still govern reads and protected SSE delivery.
 
 Historical-only check-ins persist and acknowledge the immutable account/UUID winner,
