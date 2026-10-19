@@ -1,5 +1,6 @@
 using NetTopologySuite.Geometries;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
@@ -14,6 +15,56 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationStatsServicePostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Maximum history/availability bounds reach PostgreSQL and retain the provider's infinity convention.</summary>
+    [PostgresFact]
+    public async Task MaximumPeriod_HistoryAndStatisticsPreserveInclusiveProviderBounds()
+    {
+        var user = await fixture.CreateUserAsync();
+        var other = await fixture.CreateUserAsync();
+        var start = new DateTime(9999, 12, 31, 0, 0, 0, DateTimeKind.Utc);
+        var maximum = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+        var finite = maximum.AddTicks(-9); // Last representable PostgreSQL microsecond, without infinity conversion.
+        await using var context = fixture.CreateContext();
+        var first = Location(user.Id, start, 0, 0);
+        var last = Location(user.Id, finite, 0, 0);
+        context.Locations.AddRange(first, last, Location(user.Id, start.AddTicks(-10), 0, 0),
+            Location(other.Id, finite, 0, 0));
+        await context.SaveChangesAsync();
+        var history = new LocationService(context);
+        foreach (var mode in new[] { "day", "month", "year" })
+        {
+            var (rows, total) = await history.GetLocationsByDateAsync(user.Id, mode, 9999, 12, 31);
+            Assert.Equal(mode == "day" ? 2 : 3, total);
+            Assert.Contains(rows, row => row.Id == first.Id);
+            Assert.Contains(rows, row => row.Id == last.Id && row.Timestamp == finite);
+        }
+        Assert.True(await history.HasDataForDateAsync(user.Id, start));
+        Assert.True(await history.HasDataForMonthAsync(user.Id, 9999, 12));
+        Assert.False(await history.HasDataForDateAsync("absent-owner", start));
+        Assert.False(await history.HasDataForMonthAsync("absent-owner", 9999, 12));
+        var stats = new LocationStatsService(context);
+        var detail = await stats.GetDetailedStatsForDateRangeAsync(user.Id, start, maximum);
+        AssertAgreement(await stats.GetStatsForDateRangeAsync(user.Id, start, maximum), detail, 2, 1, 1, 1);
+        Assert.Equal((start, finite), (detail.FromDate, detail.ToDate));
+
+        await using var connection = fixture.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand("""
+            SELECT @maximum::timestamptz = 'infinity'::timestamptz
+                AND @finite::timestamptz = '9999-12-31 23:59:59.999999+00'::timestamptz
+                AND '10000-01-01 00:00:00+00'::timestamptz < @maximum::timestamptz
+            """, connection);
+        command.Parameters.AddWithValue("maximum", maximum);
+        command.Parameters.AddWithValue("finite", finite);
+        Assert.Equal(true, await command.ExecuteScalarAsync());
+        // Fixture-owned infinity remains part of the inclusive statistics window; do not project it as local time.
+        context.Locations.Add(Location(user.Id, maximum, 0, 0));
+        await context.SaveChangesAsync();
+        detail = await stats.GetDetailedStatsForDateRangeAsync(user.Id, start, maximum);
+        AssertAgreement(await stats.GetStatsForDateRangeAsync(user.Id, start, maximum), detail, 3, 1, 1, 1);
+        Assert.Equal(DateTime.MaxValue, detail.ToDate);
+    }
+
     [PostgresFact]
     public async Task PopulatedStatistics_ReturnExpectedAllTimeAndDateRangeDetails()
     {

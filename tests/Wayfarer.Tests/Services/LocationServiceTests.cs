@@ -14,87 +14,41 @@ public class LocationServiceTests : TestBase
 {
     #region GetLocationsByDateAsync Tests
 
-    [Fact]
-    public async Task GetLocationsByDateAsync_ReturnsLocations_ForSpecificDay()
+    /// <summary>Inclusive leap/max bounds select capture time and owner; availability shares the same boundaries.</summary>
+    [Theory]
+    [InlineData("day", 2024, 2, 29, "2024-02-29T00:00:00Z", "2024-02-29T23:59:59.9999999Z")]
+    [InlineData("month", 2024, 2, null, "2024-02-01T00:00:00Z", "2024-02-29T23:59:59.9999999Z")]
+    [InlineData("year", 2024, null, null, "2024-01-01T00:00:00Z", "2024-12-31T23:59:59.9999999Z")]
+    [InlineData("day", 9999, 12, 31, "9999-12-31T00:00:00Z", "9999-12-31T23:59:59.9999999Z")]
+    [InlineData("month", 9999, 12, null, "9999-12-01T00:00:00Z", "9999-12-31T23:59:59.9999999Z")]
+    [InlineData("year", 9999, null, null, "9999-01-01T00:00:00Z", "9999-12-31T23:59:59.9999999Z")]
+    public async Task GetLocationsByDateAsync_PreservesInclusiveOwnerSelection(string mode, int year, int? month,
+        int? day, string first, string last)
     {
-        // Arrange
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
-
-        var targetDate = new DateTime(2024, 6, 15, 12, 0, 0, DateTimeKind.Utc);
-        var location1 = CreateLocation(user.Id, targetDate, 40.7128, -74.0060);
-        var location2 = CreateLocation(user.Id, targetDate.AddHours(2), 40.7130, -74.0062);
-        var locationOtherDay = CreateLocation(user.Id, targetDate.AddDays(1), 40.7140, -74.0070);
-
-        db.Locations.AddRange(location1, location2, locationOtherDay);
+        var other = TestDataFixtures.CreateUser();
+        db.Users.AddRange(user, other);
+        var start = DateTime.Parse(first, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        var end = DateTime.Parse(last, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind);
+        var firstRow = CreateLocation(user.Id, start, 0, 0);
+        var lastRow = CreateLocation(user.Id, end, 0, 0);
+        // Receipt time differs: the inclusive predicate belongs to capture/event LocalTimestamp.
+        firstRow.Timestamp = lastRow.Timestamp = start.AddDays(-1);
+        db.Locations.AddRange(firstRow, lastRow, CreateLocation(user.Id, start.AddTicks(-1), 0, 0),
+            CreateLocation(other.Id, end, 0, 0));
+        if (year != 9999) db.Locations.Add(CreateLocation(user.Id, end.AddTicks(1), 0, 0));
         await db.SaveChangesAsync();
-
         var service = new LocationService(db);
 
-        // Act
-        var (locations, totalItems) = await service.GetLocationsByDateAsync(
-            user.Id, "day", 2024, 6, 15);
+        var (locations, totalItems) = await service.GetLocationsByDateAsync(user.Id, mode, year, month, day);
 
-        // Assert
         Assert.Equal(2, totalItems);
-        Assert.Equal(2, locations.Count);
-    }
-
-    [Fact]
-    public async Task GetLocationsByDateAsync_ReturnsLocations_ForSpecificMonth()
-    {
-        // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
-
-        var june1 = new DateTime(2024, 6, 1, 12, 0, 0, DateTimeKind.Utc);
-        var june15 = new DateTime(2024, 6, 15, 12, 0, 0, DateTimeKind.Utc);
-        var july1 = new DateTime(2024, 7, 1, 12, 0, 0, DateTimeKind.Utc);
-
-        db.Locations.Add(CreateLocation(user.Id, june1, 40.71, -74.00));
-        db.Locations.Add(CreateLocation(user.Id, june15, 40.72, -74.01));
-        db.Locations.Add(CreateLocation(user.Id, july1, 40.73, -74.02));
-        await db.SaveChangesAsync();
-
-        var service = new LocationService(db);
-
-        // Act
-        var (locations, totalItems) = await service.GetLocationsByDateAsync(
-            user.Id, "month", 2024, 6);
-
-        // Assert
-        Assert.Equal(2, totalItems);
-        Assert.Equal(2, locations.Count);
-    }
-
-    [Fact]
-    public async Task GetLocationsByDateAsync_ReturnsLocations_ForSpecificYear()
-    {
-        // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
-
-        var jan2024 = new DateTime(2024, 1, 15, 12, 0, 0, DateTimeKind.Utc);
-        var dec2024 = new DateTime(2024, 12, 15, 12, 0, 0, DateTimeKind.Utc);
-        var jan2025 = new DateTime(2025, 1, 15, 12, 0, 0, DateTimeKind.Utc);
-
-        db.Locations.Add(CreateLocation(user.Id, jan2024, 40.71, -74.00));
-        db.Locations.Add(CreateLocation(user.Id, dec2024, 40.72, -74.01));
-        db.Locations.Add(CreateLocation(user.Id, jan2025, 40.73, -74.02));
-        await db.SaveChangesAsync();
-
-        var service = new LocationService(db);
-
-        // Act
-        var (locations, totalItems) = await service.GetLocationsByDateAsync(
-            user.Id, "year", 2024);
-
-        // Assert
-        Assert.Equal(2, totalItems);
-        Assert.Equal(2, locations.Count);
+        Assert.Equal(new[] { firstRow.Id, lastRow.Id }, locations.Select(l => l.Id));
+        Assert.True(await service.HasDataForDateAsync(user.Id, end));
+        Assert.True(await service.HasDataForMonthAsync(user.Id, end.Year, end.Month));
+        Assert.False(await service.HasDataForDateAsync("absent-owner", end));
+        Assert.False(await service.HasDataForMonthAsync("absent-owner", end.Year, end.Month));
     }
 
     [Fact]
