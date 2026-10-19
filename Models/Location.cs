@@ -3,6 +3,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Wayfarer.Models
 {
+    /// <summary>Stored owner history with independent clocks and nullable observation admission.</summary>
+    [Microsoft.EntityFrameworkCore.Index(nameof(UserId), nameof(PresenceObservedAtUtc), nameof(Id),
+        Name = "IX_Location_UserId_PresenceObservedAtUtc_Id")]
     public partial class Location
     {
         public int Id { get; set; }

@@ -41,6 +41,14 @@
 
 ### Fixed
 
+- Keep stale, delayed, unknown-evidence and map-selected check-ins as owner history
+  without false live presence or arrival-time visits. Preserve UUID winners and
+  event/receipt clocks; add portable nullable fix evidence, shared observation-order
+  current selection, privacy-preserving Group projections and UTC live expiry.
+  Legacy check-ins without evidence become historical-only; activation requires
+  coordination with successor WayfarerApp readiness (#855).
+
+
 - Correct Web Timeline statistics/navigation semantic calendar errors while
   retaining cookie authority, optional MVC binding fallbacks, distinct statistics
   DTOs and safe server errors. Accept maximum day/month history and availability

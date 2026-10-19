@@ -416,6 +416,9 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
                 expected.ReverseGeocodingProvider, expected.ReverseGeocodingStorageMode, expected.ReverseGeocodedAt),
             (actual.ProviderAddressLine1, actual.ResolvedFeatureName, actual.ResolvedFeatureType,
                 actual.ReverseGeocodingProvider, actual.ReverseGeocodingStorageMode, actual.ReverseGeocodedAt));
+        Assert.Equal((expected.CoordinateOrigin, expected.ObservedAtUtc, expected.ObservedAgeAtEventMs),
+            (actual.CoordinateOrigin, actual.ObservedAtUtc, actual.ObservedAgeAtEventMs));
+        Assert.Null(actual.PresenceObservedAtUtc); // Raw portable history cannot restore live authority.
         Assert.Equal((expected.Source, expected.IsUserInvoked, expected.Provider, expected.Bearing,
                 expected.AppVersion, expected.AppBuild, expected.DeviceModel, expected.OsVersion,
                 expected.BatteryLevel, expected.IsCharging),
@@ -431,6 +434,8 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         Timestamp = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc),
         LocalTimestamp = new DateTime(2026, 8, 25, 11, 59, 30, DateTimeKind.Utc),
         TimeZoneId = "Europe/Athens", Coordinates = new Point(22.2, 40.1) { SRID = 4326 },
+        CoordinateOrigin = "sensor", ObservedAtUtc = new DateTimeOffset(2026, 8, 25, 11, 59, 29, TimeSpan.Zero),
+        ObservedAgeAtEventMs = 1000, PresenceObservedAtUtc = new DateTime(2026, 8, 25, 11, 59, 29, DateTimeKind.Utc),
         Accuracy = 4.5, Altitude = 42.25, Speed = 1.5,
         Address = "Main Street, 10", FullAddress = "Main Street, 10, City",
         AddressNumber = "10", StreetName = "Main Street", PostCode = "12345",

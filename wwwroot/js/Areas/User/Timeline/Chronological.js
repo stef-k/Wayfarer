@@ -660,7 +660,6 @@ const buildLayers = (locations) => {
     const latestLocation = locations.find(loc => loc.isLatestLocation);
     let highlightCandidate = null;
     if (latestLocation) {
-        const nowMin = Math.floor(Date.now() / 60000);
         const isLive = isLiveLocation(latestLocation);
         highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
     }
@@ -738,7 +737,6 @@ const scheduleMarkerTransition = (locations) => {
     locations.forEach(location => {
         const locMs = new Date(location.presenceObservedAtUtc).getTime();
         const thresholdMs = (location.locationTimeThresholdMinutes ?? 10) * 60 * 1000;
-        const ageMs = nowMs - locMs;
 
         // If location is currently live (within threshold)
         if (isLiveLocation(location)) {

@@ -142,6 +142,48 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         Assert.Single(await verify.PlaceVisitCandidates.Where(row => row.UserId == user.Id).ToListAsync());
     }
 
+    /// <summary>Historical arrivals neither extend an open visit nor become its supporting locations/counts.</summary>
+    [PostgresFact]
+    public async Task HistoricalArrival_PreservesOpenVisitAndArrivalAssociationBoundary()
+    {
+        var user = await SeedAsync();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        await using var db = fixture.CreateContext();
+        var sse = new Recorder();
+        var controller = Controller(db, user.Id, cache, sse);
+        var now = DateTime.UtcNow.AddSeconds(-2);
+        Assert.IsType<OkObjectResult>(await controller.CheckIn(Dto(now.AddSeconds(-1))));
+        Assert.IsType<OkObjectResult>(await controller.CheckIn(Dto(now)));
+        var visit = await db.PlaceVisitEvents.AsNoTracking().SingleAsync(row => row.UserId == user.Id);
+        var before = sse.Events.Count;
+        var history = Dto(now.AddSeconds(1));
+        history.ObservedAtUtc = history.ObservedAtUtc!.Value.AddDays(-1);
+        history.ObservedAgeAtEventMs += 86400000;
+        Assert.IsType<OkObjectResult>(await controller.CheckIn(history));
+        await using var verify = fixture.CreateContext();
+        var after = await verify.PlaceVisitEvents.SingleAsync(row => row.UserId == user.Id);
+        Assert.Equal((visit.ArrivedAtUtc, visit.LastSeenAtUtc, visit.EndedAtUtc),
+            (after.ArrivedAtUtc, after.LastSeenAtUtc, after.EndedAtUtc));
+        Assert.False(await verify.PlaceVisitCandidates.AnyAsync(row => row.UserId == user.Id));
+        Assert.DoesNotContain(sse.Events.Skip(before), item => item.Data.Contains("visit_"));
+        // Expand the synthetic association interval to include the late receipt, without advancing detector state.
+        after.LastSeenAtUtc = DateTime.UtcNow.AddSeconds(1);
+        await verify.SaveChangesAsync();
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
+        var reads = new VisitController(verify, NullLogger<BaseApiController>.Instance, settings.Object);
+        reads.ControllerContext = new ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            { User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id)], "cookie")) } };
+        var recent = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(await reads.GetVisitLocations(visit.Id)).Value);
+        // Only the second live Location was received after the candidate-based arrival clock.
+        Assert.Equal(1, recent.GetProperty("totalItems").GetInt32());
+        after.Source = "backfill";
+        await verify.SaveChangesAsync();
+        var backfill = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(await reads.GetVisitLocations(visit.Id)).Value);
+        Assert.Equal(2, backfill.GetProperty("totalItems").GetInt32());
+    }
+
     /// <summary>Real Group latest projections and protected-frame authorization share the persisted audience.</summary>
     private async Task AssertGroupPrivacyAsync(ApplicationDbContext db, HttpClient client, ApplicationUser owner, int? currentId)
     {

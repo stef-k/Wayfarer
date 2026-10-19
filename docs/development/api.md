@@ -82,6 +82,59 @@ not identity proof. Account partitions, in-flight fences, atomic credential
 replacement and delivery eligibility remain WayfarerApp #5 responsibilities; this
 GET never authorizes transferring old work to a new account/server.
 
+## Observation history and current presence (#855)
+
+Check-in keeps three independent clocks: `timestamp` becomes stored UTC
+`LocalTimestamp` (human final-submit time for deliberate Check In), nullable
+`observedAtUtc` is the original sensor fix instant, and `Timestamp` remains server
+receipt time. Ordinary `log-location` retains its capture-time and accuracy/time/
+distance filtering semantics, including legitimate filtered-ping visit detection.
+
+New clients can add `coordinateOrigin` (`sensor`, `manual-map`, or `unknown`),
+`observedAtUtc` (an offset/UTC instant) and `observedAgeAtEventMs` (a nonnegative
+integer representing reliable monotonic fix age at the frozen event). Omit age
+when reboot or clock change makes it uncertain. These assertions are not sensor
+attestation. Accuracy, provider, source and `isUserInvoked` keep their meanings;
+queued automatic check-ins retain `isUserInvoked=false` and automatic SSE labels.
+The check-in route does not change passive `log-location` admission thresholds.
+
+Only affirmative sensor evidence with known age, consistent event-minus-fix age
+(at declared millisecond precision), fix <= event <= receipt, and receipt-minus-fix
+within the effective positive `LocationTimeThresholdMinutes` window can advance
+presence. The default is five minutes. **Future/clock-skew tolerance is zero**:
+no existing time contract grants drift. Clock disagreement or a disabled/nonpositive
+window fails closed; it never widens freshness. This does not reject valid history
+for age, accuracy, manual coordinates or missing evidence. Syntactically malformed
+new JSON values use existing MVC 400 handling. Unknown bounded origin text and
+negative age remain historical-only assertions.
+
+The nullable server-owned `PresenceObservedAtUtc` records an admitted observation.
+Clients and portable files cannot set it. PostgreSQL serializes postcommit current
+selection; observation instant then row ID provide deterministic non-regressing
+order, including equal-time fixes. A late-finishing older request cannot replace
+current state. Cache entries are advisory; automatic admission queries the same
+durable current selection used by both authorized Group latest adapters. Admitted
+points remain last-known after aging; live styling expires from this UTC observation
+clock, independently of displayed event time. Existing public/Group audience and
+hidden-area/delay rules still govern reads and protected SSE delivery.
+
+Historical-only check-ins persist and acknowledge the immutable account/UUID winner,
+including legacy clients and pre-migration unknown rows. They can send a non-live
+owner history refresh hint, but no Group presence hint or arrival-time visit
+candidate, open/update/close, cooldown or visit notification. Arrival-time Visit
+location/count associations exclude them; explicit historical backfill remains
+separate. Replays return the first winner without repeating effects. A successful
+acknowledgement does not promise completed visit work or notification delivery.
+
+Migration `LocationObservationEvidence` adds four nullable columns and an ordering
+index, without rewriting stored rows. Native CSV/GeoJSON properties and GPX/KML
+metadata retain the three raw evidence fields; absent/malformed optional import
+metadata stays unknown. Imports always remain historical. Owner receipt, search,
+export and database recovery retain raw evidence; shared Group/public DTOs expose
+only derived presence. Coordinate/event edits clear coordinate-bound evidence and
+admission. This release changes legacy live semantics and must be coordinated with
+successor WayfarerApp readiness; it does not establish that old clients are retired.
+
 ## Antiforgery boundary
 
 Browser mutations that rely on cookie Identity use MVC antiforgery, normally through `[ValidateAntiForgeryToken]`. This includes the Trip Editor mutation family and many group/invitation/backfill/browser mutations.

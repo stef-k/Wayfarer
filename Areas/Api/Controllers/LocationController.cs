@@ -588,6 +588,16 @@ public class LocationController : BaseApiController
     {
         var ct = HttpContext.RequestAborted;
         await using var transaction = await LocationPresence.LockAsync(_dbContext, user.Id, ct);
+        if (_dbContext.Database.IsNpgsql())
+            await _dbContext.Database.SqlQuery<int>($$"""
+                SELECT 1 AS "Value" FROM "Locations" WHERE "UserId" = {{user.Id}} AND "Id" = {{location.Id}} FOR UPDATE
+                """).ToListAsync(ct);
+        var retained = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
+            row => row.UserId == user.Id && row.Id == location.Id, ct);
+        if (retained == null) return;
+        if (!retained.Coordinates.EqualsExact(location.Coordinates) || retained.LocalTimestamp.Ticks / 10 != location.LocalTimestamp.Ticks / 10
+            || retained.CoordinateOrigin != location.CoordinateOrigin || retained.ObservedAtUtc?.UtcTicks / 10 != location.ObservedAtUtc?.UtcTicks / 10
+            || retained.ObservedAgeAtEventMs != location.ObservedAgeAtEventMs) observedUtc = null;
         var current = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
             .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
         if (observedUtc.HasValue && (current == null || observedUtc > current.PresenceObservedAtUtc
@@ -1061,6 +1071,9 @@ public class LocationController : BaseApiController
                                 DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc))
                             : l.LocalTimestamp,
                         l.TimeZoneId,
+                        l.CoordinateOrigin,
+                        l.ObservedAtUtc,
+                        l.ObservedAgeAtEventMs,
                         Activity = l.ActivityType?.Name,
                         ActivityTypeId = l.ActivityTypeId,
                         l.Address,

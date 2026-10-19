@@ -1,5 +1,5 @@
 using NetTopologySuite.Geometries;
-using Wayfarer.Models;
+using Location = Wayfarer.Models.Location;
 using Wayfarer.Services;
 using Xunit;
 
@@ -24,8 +24,8 @@ public sealed class LocationPresenceTests
     [InlineData("sensor", 0, 0, 0, -1, false)]
     [InlineData("manual-map", 0, 0, 0, 5, false)]
     [InlineData(null, 0, 0, 0, 5, false)]
-    public void Evidence_RequiresKnownAgeChronologyAndPositiveWindow(string? origin, long fixAge,
-        long? elapsedAge, long deliveryAge, int window, bool eligible)
+    public void Evidence_RequiresKnownAgeChronologyAndPositiveWindow(string? origin, int fixAge,
+        int? elapsedAge, int deliveryAge, int window, bool eligible)
     {
         var receipt = new DateTime(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc);
         var eventTime = receipt.AddMilliseconds(-deliveryAge);
