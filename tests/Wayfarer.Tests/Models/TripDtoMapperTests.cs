@@ -167,6 +167,8 @@ public class TripDtoMapperTests : TestBase
         region = trip.Regions.Single();
         place = region.Places.Single();
         Assert.Single(trip.ToFullApiDto(db).Regions!);
+        // Keep malformed unit inputs intact instead of invoking EF's write-side relationship fixup.
+        db.ChangeTracker.AutoDetectChangesEnabled = false;
         switch (failure)
         {
             case "unloaded": db.Entry(region).Collection(item => item.Areas).IsLoaded = false; break;

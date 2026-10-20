@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
@@ -104,8 +105,11 @@ public partial class TripsController
         try { return await resolver.ResolveAsync(HttpContext, token); }
         catch (ApiTokenAdmissionException) { throw; }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        // PostgreSQL 18 transaction_timeout (25P04) is a server read failure even before timer delivery.
+        catch (PostgresException exception) when (exception.SqlState == "25P04") { throw; }
         catch (Exception exception)
         {
+            token.ThrowIfCancellationRequested();
             _logger.LogError("Trip token lookup failed with {ExceptionType}", exception.GetType().Name);
             return null;
         }
@@ -122,7 +126,7 @@ public partial class TripsController
         var succeeded = true;
         if (transaction is not null)
         {
-            try { await transaction.RollbackAsync(cleanup.Token); }
+            try { await transaction.RollbackAsync(cleanup.Token).WaitAsync(cleanup.Token); }
             catch (Exception exception) { RecordFailure(exception); }
             try { await transaction.DisposeAsync().AsTask().WaitAsync(cleanup.Token); }
             catch (Exception exception) { RecordFailure(exception); }

@@ -318,6 +318,7 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
     /// <summary>Asserts read contexts never saved changes or issued domain DML.</summary>
     private static void AssertNoWrites(ReadGate gate)
     {
+        Assert.NotEmpty(gate.Contexts);
         Assert.Equal(0, gate.Saves);
         Assert.DoesNotContain(gate.Commands, sql => sql.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
             || sql.StartsWith("INSERT", StringComparison.OrdinalIgnoreCase) || sql.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase));

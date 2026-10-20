@@ -1195,9 +1195,6 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.IsType<NotFoundObjectResult>(result);
     }
 
-
-
-
     [Fact]
     public async Task GetTripBoundary_Unauthorized_ForPrivateTrip()
     {

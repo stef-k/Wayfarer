@@ -70,7 +70,7 @@ public sealed partial class ApiTripSnapshotPostgresTests
         var via = new Place { Id = Guid.NewGuid(), RegionId = destination.Id, UserId = trip.UserId, Name = "Via",
             Location = new Point(24, 38) { SRID = 4326 }, DisplayOrder = null };
         var unlocated = new Place { Id = Guid.NewGuid(), RegionId = destination.Id, UserId = trip.UserId, Name = "Unlocated", DisplayOrder = 44 };
-        var tag = new Tag { Id = Guid.NewGuid(), Name = "Snapshot tag", Slug = "snapshot-" + trip.Id.ToString("N") };
+        var tag = new Tag { Id = Guid.NewGuid(), Name = "Snapshot " + trip.Id.ToString("N"), Slug = "snapshot-" + trip.Id.ToString("N") };
         fixture.RegisterTag(tag);
         var area = new Area
         {
@@ -104,6 +104,7 @@ public sealed partial class ApiTripSnapshotPostgresTests
             Waypoints = [new SegmentWaypoint { Place = via, Position = 0 }] });
         db.Segments.Add(new Segment { Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId, Mode = "legacy", DisplayOrder = 17 });
         await db.SaveChangesAsync();
+        await db.Entry(stored).ReloadAsync();
         var before = stored.UpdatedAt;
         var gate = new ReadGate(pause: false);
         await using var app = await StartAsync(db, gate);
@@ -139,7 +140,8 @@ public sealed partial class ApiTripSnapshotPostgresTests
         Assert.Equal(1.23456789, route.GetProperty("estimatedDistanceKm").GetDouble());
         Assert.True(route.GetProperty("hasCustomRoute").GetBoolean());
         Assert.Equal(historicalProfile, route.GetProperty("routeTransportProfileId").GetGuid());
-        Assert.Equal(JsonValueKind.Null, route.GetProperty("transportProfileId").ValueKind);
+        Assert.Equal(custom.TransportProfileId, route.GetProperty("transportProfileId").GetGuid());
+        Assert.NotEqual(historicalProfile, custom.TransportProfileId);
         Assert.Equal(via.Id, route.GetProperty("waypoints")[0].GetProperty("placeId").GetGuid());
         Assert.Equal(1, route.GetProperty("waypoints")[0].GetProperty("routeVertexIndex").GetInt32());
         var fallback = segments.Single(segment => segment.GetProperty("waypoints").GetArrayLength() == 1 && !segment.GetProperty("hasCustomRoute").GetBoolean());
