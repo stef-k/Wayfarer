@@ -115,56 +115,69 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
         var key = mode == "keyless" ? (Guid?)null : Guid.NewGuid();
         var id = await SeedLocationAsync(owner.UserId, key);
         var observed = new DateTime(2026, 10, 19, 12, 0, 0, DateTimeKind.Utc);
-        int activityId;
-        await using (var db = fixture.CreateContext())
+        // Own the catalog prerequisite so these cases also run against a fresh, unseeded CI database.
+        var activity = new ActivityType { Name = $"Refresh fixture {Guid.NewGuid():N}" };
+        await using var catalog = fixture.CreateContext();
+        catalog.ActivityTypes.Add(activity);
+        try
         {
-            var row = await db.Locations.SingleAsync(location => location.Id == id);
-            row.CoordinateOrigin = "sensor";
-            row.ObservedAtUtc = observed;
-            row.ObservedAgeAtEventMs = 0;
-            row.PresenceObservedAtUtc = observed;
-            row.LocalTimestamp = observed;
-            row.FullAddress = "Prior address";
-            row.ReverseGeocodingProvider = "manual";
-            row.ProviderAddressLine1 = "Prior display line";
-            activityId = await db.ActivityTypes.OrderBy(activity => activity.Id).Select(activity => activity.Id).FirstAsync();
-            if (mode == "none")
-                (await db.PersonalLocationProviderSelections.SingleAsync(row => row.UserId == owner.UserId))
-                    .Select(Wayfarer.Models.LocationProviders.PersonalProviderCapability.Geocoding, null);
-            await db.SaveChangesAsync();
+            await catalog.SaveChangesAsync();
+            await using (var db = fixture.CreateContext())
+            {
+                var row = await db.Locations.SingleAsync(location => location.Id == id);
+                row.CoordinateOrigin = "sensor";
+                row.ObservedAtUtc = observed;
+                row.ObservedAgeAtEventMs = 0;
+                row.PresenceObservedAtUtc = observed;
+                row.LocalTimestamp = observed;
+                row.FullAddress = "Prior address";
+                row.ReverseGeocodingProvider = "manual";
+                row.ProviderAddressLine1 = "Prior display line";
+                if (mode == "none")
+                    (await db.PersonalLocationProviderSelections.SingleAsync(row => row.UserId == owner.UserId))
+                        .Select(Wayfarer.Models.LocationProviders.PersonalProviderCapability.Geocoding, null);
+                await db.SaveChangesAsync();
+            }
+            using var handler = new ControlledProvider {
+                BeforeResponse = mode == "failure" ? _ => throw new HttpRequestException("Synthetic optional provider failure") : null };
+            var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+            var events = new Mock<SseService>(MockBehavior.Strict);
+            await WithHostAsync(protection, handler, [], async client =>
+            {
+                client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+                using var response = await client.PutAsJsonAsync($"/api/location/{id}", new {
+                    latitude = changedCoordinates ? 11 : 10, longitude = changedCoordinates ? 21 : 20,
+                    notes = "Owner patch", activityTypeId = activity.Id,
+                    localTimestamp = changedCoordinates ? observed.AddHours(1) : (DateTime?)null });
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                await using var db = fixture.CreateContext();
+                var row = await db.Locations.AsNoTracking().SingleAsync(location => location.Id == id);
+                Assert.Equal((changedCoordinates ? 21d : 20d, changedCoordinates ? 11d : 10d), (row.Coordinates.X, row.Coordinates.Y));
+                Assert.Equal("Owner patch", row.Notes);
+                Assert.Equal(activity.Id, row.ActivityTypeId);
+                Assert.Equal(changedCoordinates ? observed.AddHours(1) : observed, row.LocalTimestamp);
+                Assert.Equal(key, row.IdempotencyKey);
+                Assert.Equal(changedCoordinates ? null : (DateTime?)observed, row.PresenceObservedAtUtc);
+                Assert.Equal(changedCoordinates ? null : "sensor", row.CoordinateOrigin);
+                var enriched = mode is "success" or "keyless";
+                Assert.Equal(enriched ? "Controlled address" : "Prior address", row.FullAddress);
+                Assert.Equal(enriched ? provider : null, row.ReverseGeocodingProvider);
+                Assert.Equal(enriched ? provider == "geoapify" ? "persistent" : "permanent" : null, row.ReverseGeocodingStorageMode);
+                Assert.Equal(enriched, row.ReverseGeocodedAt.HasValue);
+                Assert.Equal(enriched && provider == "geoapify" ? "12 Main Street" : null, row.ProviderAddressLine1);
+                Assert.Equal(mode == "none" ? 0 : 1, handler.Calls);
+                Assert.Equal(handler.Calls, await AdmissionCountAsync(owner.UserId, provider));
+            }, events.Object, visits.Object);
+            visits.VerifyNoOtherCalls();
+            events.VerifyNoOtherCalls();
         }
-        using var handler = new ControlledProvider {
-            BeforeResponse = mode == "failure" ? _ => throw new HttpRequestException("Synthetic optional provider failure") : null };
-        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
-        var events = new Mock<SseService>(MockBehavior.Strict);
-        await WithHostAsync(protection, handler, [], async client =>
+        finally
         {
-            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
-            using var response = await client.PutAsJsonAsync($"/api/location/{id}", new {
-                latitude = changedCoordinates ? 11 : 10, longitude = changedCoordinates ? 21 : 20,
-                notes = "Owner patch", activityTypeId = activityId,
-                localTimestamp = changedCoordinates ? observed.AddHours(1) : (DateTime?)null });
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            await using var db = fixture.CreateContext();
-            var row = await db.Locations.AsNoTracking().SingleAsync(location => location.Id == id);
-            Assert.Equal((changedCoordinates ? 21d : 20d, changedCoordinates ? 11d : 10d), (row.Coordinates.X, row.Coordinates.Y));
-            Assert.Equal("Owner patch", row.Notes);
-            Assert.Equal(activityId, row.ActivityTypeId);
-            Assert.Equal(changedCoordinates ? observed.AddHours(1) : observed, row.LocalTimestamp);
-            Assert.Equal(key, row.IdempotencyKey);
-            Assert.Equal(changedCoordinates ? null : (DateTime?)observed, row.PresenceObservedAtUtc);
-            Assert.Equal(changedCoordinates ? null : "sensor", row.CoordinateOrigin);
-            var enriched = mode is "success" or "keyless";
-            Assert.Equal(enriched ? "Controlled address" : "Prior address", row.FullAddress);
-            Assert.Equal(enriched ? provider : null, row.ReverseGeocodingProvider);
-            Assert.Equal(enriched ? provider == "geoapify" ? "persistent" : "permanent" : null, row.ReverseGeocodingStorageMode);
-            Assert.Equal(enriched, row.ReverseGeocodedAt.HasValue);
-            Assert.Equal(enriched && provider == "geoapify" ? "12 Main Street" : null, row.ProviderAddressLine1);
-            Assert.Equal(mode == "none" ? 0 : 1, handler.Calls);
-            Assert.Equal(handler.Calls, await AdmissionCountAsync(owner.UserId, provider));
-        }, events.Object, visits.Object);
-        visits.VerifyNoOtherCalls();
-        events.VerifyNoOtherCalls();
+            // Remove only this case's FK-bearing row and Activity; the shared fixture still owns its user cleanup.
+            await using var cleanup = fixture.CreateContext();
+            await cleanup.Locations.Where(row => row.UserId == owner.UserId && row.Id == id).ExecuteDeleteAsync();
+            await cleanup.ActivityTypes.Where(row => row.Id == activity.Id).ExecuteDeleteAsync();
+        }
     }
 
     /// <summary>A newer manual tuple and pending editor fields win before admission, during HTTP or before completion.</summary>
