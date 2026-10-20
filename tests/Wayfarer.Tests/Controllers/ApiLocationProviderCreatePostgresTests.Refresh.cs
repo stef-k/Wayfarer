@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -221,6 +222,107 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
             Assert.Equal(new DateTime(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc), current.LocalTimestamp);
             Assert.Equal(boundary == "before-admission" ? 0 : 1, handler.Calls);
             Assert.Equal(handler.Calls, await AdmissionCountAsync(owner.UserId, "geoapify"));
+        });
+    }
+
+    /// <summary>Admission uses authority committed after legacy preparation, preserving valid edits without false quota charges.</summary>
+    [PostgresTheory(Timeout = 30000)]
+    [InlineData("geoapify", "selection", false)]
+    [InlineData("geoapify", "selection", true)]
+    [InlineData("mapbox", "consent", false)]
+    [InlineData("mapbox", "consent", true)]
+    [InlineData("mapbox", "switch", true)]
+    [InlineData("mapbox", "switch-verified", true)]
+    [InlineData("mapbox", "credential", true)]
+    [InlineData("mapbox", "verification", true)]
+    [InlineData("geoapify", "unchanged", true)]
+    [InlineData("mapbox", "unchanged", true)]
+    public async Task CoordinateRefresh_AuthorityChangedAfterPreparation_UsesCurrentAdmission(
+        string provider, string mutation, bool changedCoordinates)
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var owner = await SeedAsync(provider, protection);
+        var key = Guid.NewGuid();
+        var id = await SeedLocationAsync(owner.UserId, key);
+        await using (var seed = fixture.CreateContext())
+        {
+            var row = await seed.Locations.SingleAsync(row => row.Id == id);
+            row.FullAddress = "Prior address";
+            row.ReverseGeocodingProvider = "manual";
+            row.ProviderAddressLine1 = "Prior display line";
+            row.ResolvedFeatureName = "Prior feature";
+            row.ResolvedFeatureType = "Prior type";
+            await seed.SaveChangesAsync();
+        }
+        using var handler = new ControlledProvider();
+        var switched = mutation.StartsWith("switch", StringComparison.Ordinal);
+        var selectedProvider = switched ? "geoapify" : mutation == "selection" ? null : provider;
+        var admitted = mutation is "unchanged" or "switch-verified";
+        var boundary = new BeforeFence(1, async () =>
+        {
+            // The editor has read its Location and preparation has committed; no admission lock has run yet.
+            Assert.Equal(0, handler.Calls);
+            Assert.Equal(0, await AdmissionCountAsync(owner.UserId, provider));
+            await using var edit = fixture.CreateContext();
+            var selection = await edit.PersonalLocationProviderSelections.SingleAsync(row => row.UserId == owner.UserId);
+            var profile = await edit.PersonalLocationProviderProfiles.SingleAsync(row => row.UserId == owner.UserId);
+            var credentials = CredentialTestFactory.Create(protection);
+            if (switched)
+            {
+                var replacement = PersonalLocationProviderProfile.Create(owner.UserId, PersonalLocationProvider.Geoapify);
+                credentials.Replace(replacement, "replacement-synthetic");
+                replacement.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+                if (admitted) credentials.RecordVerification(replacement, PersonalProviderCapability.Geocoding,
+                    PersonalProviderVerification.Verified);
+                edit.PersonalLocationProviderProfiles.Add(replacement);
+                selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);
+            }
+            else if (mutation == "selection") selection.Select(PersonalProviderCapability.Geocoding, null);
+            else if (mutation == "consent") profile.ClearPermanentGeocodingConsent();
+            else if (mutation == "credential") credentials.Replace(profile, "replacement-synthetic");
+            else if (mutation == "verification") profile.ClearVerification(PersonalProviderCapability.Geocoding);
+            await edit.SaveChangesAsync();
+            Assert.Equal(0, await AdmissionCountAsync(owner.UserId, provider));
+            Assert.Equal(0, handler.Calls);
+        });
+        await WithHostAsync(protection, handler, [boundary], async client =>
+        {
+            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+            using var response = await client.PutAsJsonAsync($"/api/location/{id}", new {
+                latitude = changedCoordinates ? 11 : 10, longitude = changedCoordinates ? 21 : 20, notes = "Valid owner patch" });
+            Assert.True(boundary.Triggered);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await using var db = fixture.CreateContext();
+            var current = await db.Locations.AsNoTracking().SingleAsync(row => row.Id == id);
+            Assert.Equal((changedCoordinates ? 21d : 20d, changedCoordinates ? 11d : 10d), (current.Coordinates.X, current.Coordinates.Y));
+            Assert.Equal("Valid owner patch", current.Notes);
+            Assert.Equal(key, current.IdempotencyKey);
+            Assert.Equal(admitted ? "Controlled address" : "Prior address", current.FullAddress);
+            Assert.Equal(admitted ? selectedProvider : null, current.ReverseGeocodingProvider);
+            Assert.Equal(admitted ? selectedProvider == "geoapify" ? "persistent" : "permanent" : null, current.ReverseGeocodingStorageMode);
+            Assert.Equal(admitted, current.ReverseGeocodedAt.HasValue);
+            Assert.Equal(admitted && selectedProvider == "geoapify" ? "12 Main Street" : null, current.ProviderAddressLine1);
+            Assert.NotEqual("Prior feature", current.ResolvedFeatureName);
+            Assert.NotEqual("Prior type", current.ResolvedFeatureType);
+            Assert.Equal(selectedProvider, (await db.PersonalLocationProviderSelections.AsNoTracking()
+                .SingleAsync(row => row.UserId == owner.UserId)).GeocodingProviderKey);
+            var profile = await db.PersonalLocationProviderProfiles.AsNoTracking()
+                .SingleAsync(row => row.UserId == owner.UserId && row.ProviderKey == provider);
+            if (mutation == "consent") Assert.False(profile.HasCurrentPermanentGeocodingConsent());
+            if (mutation is "consent" or "credential" or "verification")
+                Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
+            var geoapify = await AdmissionCountAsync(owner.UserId, "geoapify");
+            var mapbox = await AdmissionCountAsync(owner.UserId, "mapbox");
+            output.WriteLine("After preparation: provider={0}, mutation={1}, changed={2}, Geoapify={3}, Mapbox={4}, contacts={5}",
+                provider, mutation, changedCoordinates, geoapify, mapbox, handler.Calls);
+            Assert.Equal(admitted && selectedProvider == "geoapify" ? 1 : 0, geoapify);
+            Assert.Equal(admitted && selectedProvider == "mapbox" ? 1 : 0, mapbox);
+            Assert.Equal(admitted ? 1 : 0, handler.Calls);
+            if (!admitted)
+            {
+                Assert.False(await db.GeoapifyUsageAdmissions.AnyAsync(row => row.UserId == owner.UserId));
+                Assert.False(await db.MapboxProductMeters.AnyAsync(row => row.UserId == owner.UserId));
+            }
         });
     }
 

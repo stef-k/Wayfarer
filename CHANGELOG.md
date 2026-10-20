@@ -11,6 +11,8 @@
   Coverage is prospective; WayfarerApp handling is separately qualified (#838).
   Fence owner coordinate refreshes before admission and after provider HTTP;
   deletion returns owner 404 and superseded edit snapshots return 409.
+  Recheck committed provider authority under admission locks after preparation;
+  withdrawn selection or consent consumes no new quota and makes no contact.
 
 - Add atomic four-way Region deletion with independent Keep/Delete choices for
   Places and Areas, content-bound preview/confirmation for editor and bearer

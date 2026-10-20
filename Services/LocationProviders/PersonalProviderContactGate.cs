@@ -306,21 +306,23 @@ public sealed class PersonalProviderContactGate(
                 ? profile.GeocodingVerifiedConfigurationGeneration : profile.RoutingVerifiedConfigurationGeneration);
     }
 
+    /// <summary>Reads fresh selection authority under its lock without reusing legacy preparation's tracked values.</summary>
     private Task<PersonalLocationProviderSelection?> LockSelectionAsync(
         string userId, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
         ? dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
             SELECT *, xmin FROM "PersonalLocationProviderSelections" WHERE "UserId" = {{userId}} FOR UPDATE
-            """).SingleOrDefaultAsync(cancellationToken)
-        : dbContext.Set<PersonalLocationProviderSelection>()
+            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
 
+    /// <summary>Reads fresh consent, verification and credential authority under the selected profile's admission lock.</summary>
     private Task<PersonalLocationProviderProfile?> LockProfileAsync(
         string userId, string providerKey, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
         ? dbContext.Set<PersonalLocationProviderProfile>().FromSqlInterpolated($$"""
             SELECT *, xmin FROM "PersonalLocationProviderProfiles"
             WHERE "UserId" = {{userId}} AND "ProviderKey" = {{providerKey}} FOR UPDATE
-            """).SingleOrDefaultAsync(cancellationToken)
-        : dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
+            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking().SingleOrDefaultAsync(
             item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
 
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(

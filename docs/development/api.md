@@ -500,6 +500,10 @@ a missing row returns the ordinary owner `404`, while a newer owner edit returns
 The stale patch and enrichment do not overwrite that newer edit. Optional provider
 failure or no selected provider still permits a valid coordinate patch. A contact
 already admitted before deletion cannot be recalled; its result is discarded.
+Admission reads fresh provider selection and profile authority under their row
+locks after legacy preparation. Deselection or consent withdrawal committed before
+admission consumes no provider quota and makes no provider contact; a later change
+does not refund an already committed admission.
 
 Activity writes resolve a current positive `activityTypeId` first, then a permanent
 redirect for IDs removed during catalog duplicate cleanup. The stored FK is the
