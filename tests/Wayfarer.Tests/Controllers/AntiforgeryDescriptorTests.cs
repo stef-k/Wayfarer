@@ -59,7 +59,9 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         """;
 
     // These routes have their own credential authority; cookie tokens must not become a mobile requirement.
+    // KeyStatus is a read-only POST under the same active bearer authority as Location ingestion.
     private const string BearerActions = """
+        Api.Location.KeyStatus
         Api.Location.CheckIn Api.Location.LogLocation Api.Location.Delete Api.MobileGroups.Latest Api.MobileGroups.Query
         Api.MobileGroups.SetPeerVisibility Api.MobileRouting.Route Api.Trips.CreatePlace Api.Trips.UpdatePlace
         Api.Trips.DeletePlace Api.Trips.CreateRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes

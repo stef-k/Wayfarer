@@ -4,6 +4,16 @@
 
 ### Added
 
+- Retain minimal lifetime owner/UUID deletion intent to prevent stale API replay
+  and keyed CSV/GeoJSON imports from recreating deleted Locations. Add terminal
+  `location_deleted` HTTP 410, bearer-only bounded key-status discovery, atomic
+  `SkippedDeleted` import accounting and deletion-safe provider/presence effects.
+  Coverage is prospective; WayfarerApp handling is separately qualified (#838).
+  Fence owner coordinate refreshes before admission and after provider HTTP;
+  deletion returns owner 404 and superseded edit snapshots return 409.
+  Recheck committed provider authority under admission locks after preparation;
+  withdrawn selection or consent consumes no new quota and makes no contact.
+
 - Add atomic four-way Region deletion with independent Keep/Delete choices for
   Places and Areas, content-bound preview/confirmation for editor and bearer
   clients, an accessible Vue confirmation dialog and held unknown outcomes.

@@ -217,7 +217,10 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         Assert.IsType<OkObjectResult>(await controller.CheckIn(Dto(DateTime.UtcNow.AddSeconds(-1))));
         var row = await db.Locations.SingleAsync(location => location.UserId == user.Id);
         var eventTime = row.LocalTimestamp;
-        Assert.IsType<OkObjectResult>(await controller.Update(row.Id, new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
+        // HTTP edits load their persisted snapshot in a fresh request scope, including PostgreSQL timestamp precision.
+        await using var editDb = fixture.CreateContext();
+        var edit = Controller(editDb, user.Id, cache, new Recorder());
+        Assert.IsType<OkObjectResult>(await edit.Update(row.Id, new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
         await using var verify = fixture.CreateContext();
         var edited = await verify.Locations.SingleAsync(location => location.UserId == user.Id);
         Assert.Null(edited.CoordinateOrigin);
@@ -242,7 +245,7 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         await pause.Inserted.Task.WaitAsync(TimeSpan.FromSeconds(15));
         try
         {
-            await using var editDb = fixture.CreateContext(new BeforeEditSave(async () =>
+            await using var editDb = fixture.CreateContext(new BeforeEditFence(async () =>
             {
                 pause.Release.TrySetResult();
                 Assert.IsType<OkObjectResult>(await first);
@@ -392,28 +395,33 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         }
     }
 
-    /// <summary>Lets actual admission complete after the edit snapshot, immediately before its Location UPDATE.</summary>
-    private sealed class BeforeEditSave(Func<Task> admit) : SaveChangesInterceptor
+    /// <summary>Lets actual admission complete after the edit snapshot, before the editor acquires its account fence.</summary>
+    private sealed class BeforeEditFence(Func<Task> admit) : DbCommandInterceptor
     {
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
-            InterceptionResult<int> result, CancellationToken ct = default)
+        private bool _admitted;
+
+        /// <summary>Models a committed competing admission without waiting while holding the editor's SQL locks.</summary>
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(System.Data.Common.DbCommand command,
+            CommandEventData data, InterceptionResult<int> result, CancellationToken ct = default)
         {
-            if (data.Context!.ChangeTracker.Entries<Location>().Any(entry => entry.State == EntityState.Modified))
+            if (!_admitted && command.CommandText.Contains(", 838)", StringComparison.Ordinal))
+            {
+                _admitted = true;
                 await admit();
+            }
             return result;
         }
     }
 
     /// <summary>Pauses a committed keyed insert before optional enrichment and postwrite effects.</summary>
-    private sealed class PauseAfterInsert : SaveChangesInterceptor
+    private sealed class PauseAfterInsert : DbTransactionInterceptor
     {
         internal TaskCompletionSource Inserted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override async ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData data, int result, CancellationToken ct = default)
+        public override async Task TransactionCommittedAsync(System.Data.Common.DbTransaction transaction, TransactionEndEventData data, CancellationToken ct = default)
         {
             if (data.Context!.ChangeTracker.Entries<Location>().Any() && !Inserted.Task.IsCompleted)
             { Inserted.TrySetResult(); await Release.Task.WaitAsync(ct); }
-            return result;
         }
     }
 }

@@ -73,6 +73,10 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
     [InlineData("distance", "absent")]
     [InlineData("duplicate", "winner")]
     [InlineData("duplicate", "absent")]
+    [InlineData("accuracy", "deleted")]
+    [InlineData("time", "deleted")]
+    [InlineData("distance", "deleted")]
+    [InlineData("duplicate", "deleted")]
     [InlineData("time", "other-owner")]
     [InlineData("time", "keyless")]
     public async Task LogLocation_TerminalSkip_OnlyAcknowledgesPersistedOwnerKey(string filter, string outcome)
@@ -113,6 +117,9 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
             {
                 concurrent.Locations.Add(winner);
                 concurrent.SaveChanges();
+                if (outcome == "deleted")
+                    LocationDeletionFence.DeleteAsync(concurrent, user.Id, [winner.Id], null, CancellationToken.None)
+                        .GetAwaiter().GetResult();
             }
             return new ApplicationSettings { Id = 1 };
         });
@@ -126,15 +133,17 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         controller.Request.Headers.Authorization = $"Bearer {user.Id}";
         if (outcome != "keyless") controller.Request.Headers["Idempotency-Key"] = key.ToString("D");
 
-        AssertLogResponse(await controller.LogLocation(dto), outcome == "winner" ? winner.Id : null);
+        var result = await controller.LogLocation(dto);
+        if (outcome == "deleted") Assert.Equal(410, Assert.IsType<ObjectResult>(result).StatusCode);
+        else AssertLogResponse(result, outcome == "winner" ? winner.Id : null);
 
         await using var verify = fixture.CreateContext();
-        Assert.Equal(outcome == "absent" ? 1 : 2,
+        Assert.Equal(outcome is "absent" or "deleted" ? 1 : 2,
             await verify.Locations.CountAsync(row => row.UserId == user.Id || row.UserId == winnerOwner.Id));
-        if (outcome != "absent")
+        if (outcome is not ("absent" or "deleted"))
             Assert.Equal("Concurrent winner", (await verify.Locations.AsNoTracking().SingleAsync(row => row.Id == winner.Id)).Notes);
         visits.Verify(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), dto.Accuracy,
-            It.IsAny<CancellationToken>()), outcome == "winner" || filter == "accuracy" ? Times.Never() : Times.Once());
+            It.IsAny<CancellationToken>()), outcome is "winner" or "deleted" || filter == "accuracy" ? Times.Never() : Times.Once());
         sse.VerifyNoOtherCalls();
     }
 
@@ -311,15 +320,21 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         }
     }
 
-    /// <summary>Holds both real first inserts until both actions have passed their replay lookup.</summary>
-    private sealed class SaveBarrier : SaveChangesInterceptor
+    /// <summary>Coordinates the two fast winner reads before either caller owns the account fence.</summary>
+    private sealed class SaveBarrier : DbCommandInterceptor
     {
         private int _arrived;
         private readonly TaskCompletionSource _both = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
-            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+
+        /// <summary>Forces both requests to observe the initial key miss without waiting inside the serialized insert.</summary>
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
-            if (Interlocked.Increment(ref _arrived) == 2) _both.TrySetResult();
+            if (!command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+                || !command.CommandText.Contains("\"IdempotencyKey\"", StringComparison.Ordinal)) return result;
+            var count = Interlocked.Increment(ref _arrived);
+            if (count > 2) return result;
+            if (count == 2) _both.TrySetResult();
             await _both.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
             return result;
         }

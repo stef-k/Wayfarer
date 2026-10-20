@@ -150,8 +150,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        await using var transaction = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        await using var transaction = await LocationDeletionFence.BeginAsync(db, owner.UserId, cancellationToken);
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
         var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
         var location = db.Database.IsNpgsql()
@@ -162,7 +161,9 @@ public sealed partial class GeoapifyLocationBackfillService(
                 && item.Id == locationId, cancellationToken);
         var attempt = location is null ? null : await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
-                owner.FencingGeneration, now) || location is null || !IsRunnableShape(location, attempt, authority, now))
+                owner.FencingGeneration, now) || location is null
+            || await LocationDeletionFence.IsDeletedAsync(db, owner.UserId, location.IdempotencyKey, cancellationToken)
+            || !IsRunnableShape(location, attempt, authority, now))
         {
             if (transaction != null) await transaction.RollbackAsync(cancellationToken);
             return default;
@@ -188,8 +189,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var gate = scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>();
-        await using var transaction = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        await using var transaction = await LocationDeletionFence.BeginAsync(db, owner.UserId, cancellationToken);
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
         var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
         var location = db.Database.IsNpgsql()
@@ -200,7 +200,9 @@ public sealed partial class GeoapifyLocationBackfillService(
                 && item.Id == locationId, cancellationToken);
         var attempt = location is null ? null : await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
-                owner.FencingGeneration, now) || location is null || !IsRunnableShape(location, attempt, authority, now))
+                owner.FencingGeneration, now) || location is null
+            || await LocationDeletionFence.IsDeletedAsync(db, owner.UserId, location.IdempotencyKey, cancellationToken)
+            || !IsRunnableShape(location, attempt, authority, now))
         { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
         var latitude = location.Coordinates.Y;
         var longitude = location.Coordinates.X;
@@ -283,8 +285,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        await using var transaction = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        await using var transaction = await LocationDeletionFence.BeginAsync(db, owner.UserId, cancellationToken);
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
         var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
         var selection = await db.PersonalLocationProviderSelections.AsNoTracking()

@@ -20,7 +20,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Exercises owner exports through the production parsers, worker and PostgreSQL persistence.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixture fixture) : TestBase, IAsyncLifetime
+public sealed partial class LocationExportRoundTripPostgresTests(PostgresImportTestFixture fixture) : TestBase, IAsyncLifetime
 {
     private readonly string activityPrefix = $"export-activity-{Guid.NewGuid():N}-";
 

@@ -293,6 +293,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         Exception? failure = null;
         try
         {
+            await LocationDeletionFence.AcquireAsync(context, snapshot.UserId, token);
             var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == snapshot.Id, token);
             if (import is not null && import.Status == ImportStatus.Stopping && import.ExecutionEpoch == epoch &&
                 import.DeletionRequestedAtUtc is null)
@@ -305,12 +306,13 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
                     """).SingleAsync(token);
             var batchKeys = batch.Where(item => item.IdempotencyKey.HasValue)
                 .Select(item => item.IdempotencyKey!.Value).ToHashSet();
-            var (toInsert, skipped) = await LocationImportDeduplicator.FilterAsync(
+            var (toInsert, skipped, deleted) = await LocationImportDeduplicator.FilterAsync(
                 context, batch, batchKeys, snapshot.UserId, _logger, token);
             var reused = await LocationImportDeduplicator.InsertAsync(context, toInsert, snapshot.UserId, token);
             var accepted = toInsert.Where(item => context.Entry(item).State != EntityState.Detached).ToList();
             import.UnclassifiedActivityCount += await new ActivityCatalogReconciler(context).ReconcileAsync(accepted, token);
             import.SkippedDuplicates += skipped + reused;
+            import.SkippedDeleted += deleted;
             if (import.EnrichmentRequested)
                 import.RemainingEnrichmentCount += accepted.Count(IsMissingAddress);
             import.LastProcessedIndex = processed + batch.Count;

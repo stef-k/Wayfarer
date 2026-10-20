@@ -10,7 +10,7 @@ namespace Wayfarer.Services;
 internal static class ApiLocationCreation
 {
     /// <summary>Only a newly committed keyed row may contact; returns durable state for response/cache/publication.</summary>
-    internal static async Task<Location> PersistAsync(ApplicationDbContext db, ReverseGeocodingService reverse,
+    internal static async Task<(Location Location, bool Created)> PersistAsync(ApplicationDbContext db, ReverseGeocodingService reverse,
         Location location, CancellationToken cancellationToken)
     {
         if (!location.IdempotencyKey.HasValue)
@@ -20,39 +20,47 @@ internal static class ApiLocationCreation
             legacyResult.ApplyTo(location, DateTimeOffset.UtcNow);
             db.Locations.Add(location);
             await db.SaveChangesAsync();
-            return location;
+            return (location, true);
         }
 
-        // The owner/key unique index arbitrates before any irreversible provider admission or HTTP.
-        db.Locations.Add(location);
-        await db.SaveChangesAsync(cancellationToken);
-        var result = await reverse.EnrichAsync(location.UserId, location.Coordinates.Y, location.Coordinates.X,
-            ReverseGeocodingIntent.LocationCreate, cancellationToken);
-        return await ApplyToWinnerAsync(db, location, result, cancellationToken);
+        // Serialize the final classification and insert. HTTP and provider preparation never hold this transaction.
+        await using (var creation = await LocationDeletionFence.BeginAsync(db, location.UserId, cancellationToken))
+        {
+            await LocationDeletionFence.ThrowIfDeletedAsync(db, location, cancellationToken);
+            var winner = await db.Locations.AsNoTracking().FirstOrDefaultAsync(
+                row => row.UserId == location.UserId && row.IdempotencyKey == location.IdempotencyKey, cancellationToken);
+            if (winner != null) return (winner, false);
+            db.Locations.Add(location);
+            await db.SaveChangesAsync(cancellationToken);
+            if (creation != null) await creation.CommitAsync(cancellationToken);
+        }
+        var result = await reverse.EnrichRetainedAsync(db, location, cancellationToken);
+        return (await ApplyToWinnerAsync(db, location, result, cancellationToken), true);
     }
 
     /// <summary>Locks only after HTTP, then validates current row and provider authority before applying the tuple.</summary>
     private static async Task<Location> ApplyToWinnerAsync(ApplicationDbContext db, Location inserted,
         ReverseGeocodingResult result, CancellationToken cancellationToken)
     {
-        if (!result.Succeeded || result.Authority is not { } authority
-            || authority.UserId != inserted.UserId || authority.Capability != PersonalProviderCapability.Geocoding)
-            return await db.Locations.AsNoTracking().SingleAsync(
-                row => row.UserId == inserted.UserId && row.Id == inserted.Id, cancellationToken);
-
-        await using var transaction = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        await using var transaction = await LocationDeletionFence.BeginAsync(db, inserted.UserId, cancellationToken);
+        await LocationDeletionFence.ThrowIfDeletedAsync(db, inserted, cancellationToken);
+        var authority = result.Authority;
+        var canApply = result.Succeeded && authority != null && authority.UserId == inserted.UserId
+            && authority.Capability == PersonalProviderCapability.Geocoding;
         if (db.Database.IsNpgsql())
         {
-            // Match provider admission lock order; hold authority and the winning row stable through this short save.
-            await db.Database.SqlQuery<int>($$"""
-                SELECT 1 AS "Value" FROM "PersonalLocationProviderSelections"
-                WHERE "UserId" = {{inserted.UserId}} FOR SHARE
-                """).ToListAsync(cancellationToken);
-            await db.Database.SqlQuery<int>($$"""
-                SELECT 1 AS "Value" FROM "PersonalLocationProviderProfiles"
-                WHERE "UserId" = {{inserted.UserId}} AND "ProviderKey" = {{authority.ProviderKey}} FOR SHARE
-                """).ToListAsync(cancellationToken);
+            // The outer account fence precedes provider selection/profile and then the Location row lock.
+            if (canApply)
+            {
+                await db.Database.SqlQuery<int>($$"""
+                    SELECT 1 AS "Value" FROM "PersonalLocationProviderSelections"
+                    WHERE "UserId" = {{inserted.UserId}} FOR SHARE
+                    """).ToListAsync(cancellationToken);
+                await db.Database.SqlQuery<int>($$"""
+                    SELECT 1 AS "Value" FROM "PersonalLocationProviderProfiles"
+                    WHERE "UserId" = {{inserted.UserId}} AND "ProviderKey" = {{authority!.ProviderKey}} FOR SHARE
+                    """).ToListAsync(cancellationToken);
+            }
             await db.Database.SqlQuery<int>($$"""
                 SELECT 1 AS "Value" FROM "Locations"
                 WHERE "UserId" = {{inserted.UserId}} AND "Id" = {{inserted.Id}} FOR UPDATE
@@ -61,8 +69,8 @@ internal static class ApiLocationCreation
 
         var current = await db.Locations.AsNoTracking().SingleAsync(
             row => row.UserId == inserted.UserId && row.Id == inserted.Id, cancellationToken);
-        if (current.Coordinates.EqualsExact(inserted.Coordinates) && HasUntouchedAddress(current)
-            && await HasCurrentAuthorityAsync(db, authority, cancellationToken))
+        if (canApply && current.Coordinates.EqualsExact(inserted.Coordinates) && HasUntouchedAddress(current)
+            && await HasCurrentAuthorityAsync(db, authority!, cancellationToken))
         {
             // Replace only the original tracked snapshot; owner edits on the fresh row remain untouched.
             db.Entry(inserted).State = EntityState.Detached;

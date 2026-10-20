@@ -289,7 +289,8 @@ post-commit/pre-enrichment gap has no automatic recovery or globally exactly-onc
 external-contact guarantee.
 
 Before any automatic threshold or duplicate-timestamp skip, a supplied valid key
-gets a fresh database check for that authenticated account. If the keyed winner
+gets a fresh database check under the account deletion fence. A deletion marker
+returns the terminal 410 described below, before any Visit decision. If the keyed winner
 is already persisted, log-location returns `success: true`, `skipped: false` and
 its numeric `locationId`, preserving the first writer's data. Otherwise the skip
 remains `success: true`, `skipped: true`, `locationId: null`. This check proves only
@@ -313,6 +314,82 @@ persistence and immediate post-write work. Admission can return 429/503: honor
 the actual `Retry-After` header. Invalid credentials need correction, and malformed
 JSON/coordinates need a corrected request. Basic GPSLogger setup does not require
 an idempotency key or claim its queue implements Wayfarer's retry strategy.
+
+## Deleted location identities and key status
+
+Owner deletion of a stored UUID-keyed Location retains a minimal
+`LocationDeletionMarkers(UserId, IdempotencyKey)` decision. Bearer single deletion,
+Web cookie/antiforgery bulk deletion and owner cookie/antiforgery delete-all all
+record markers atomically with row removal. Unknown or foreign IDs cannot create
+markers. Deleting all Locations retains existing markers; a genuinely new UUID
+can still be stored. There is no automatic restore or replacement-key bypass.
+
+Both ingest routes return HTTP **410** for a confirmed deleted owner/key:
+
+~~~json
+{"success":false,"code":"location_deleted","message":"Location was deleted."}
+~~~
+
+The response contains no `location`, `locationId`, successful skip or `Retry-After`.
+Deletion takes precedence over passive thresholds and ingestion saturation.
+Ordinary persisted replay, keyless writes and genuine filtered skips keep their
+existing response shapes. A marker is account-owned metadata, not anonymous data;
+it contains no coordinates, notes, device data, old integer ID or deletion time.
+
+Keyed creation, each import batch, owner deletion and relevant provider/presence
+effects acquire the same transaction-scoped PostgreSQL account lock before other
+locks. Marker/winner decisions use subsequent READ COMMITTED statements after
+lock acquisition. Provider admission is atomic with retained-row validation;
+provider HTTP runs outside the transaction, and results are revalidated before
+saving. Deletion during that HTTP returns 410 without stale Location publication
+or Visit effects. An already admitted external contact cannot be recalled.
+
+`POST /api/location/key-status` is a read-only bearer operation using the existing
+active-account token resolver, with no target-owner, Group or role override:
+
+~~~json
+{"keys":["18c8818c-24d5-46cd-a370-c238ff7e8126"]}
+~~~
+
+Supply 1–100 entries, using the existing parseable UUID domain, including a
+historical singleton zero UUID. Malformed, missing, non-string or oversized input
+returns whole-request 400. UUID aliases collapse to one distinct result. HTTP 200
+returns `success: true` and `results`, with one of these shapes per requested key:
+
+~~~json
+{"key":"18c8818c-24d5-46cd-a370-c238ff7e8126","state":"deleted"}
+{"key":"18c8818c-24d5-46cd-a370-c238ff7e8126","state":"present","locationId":123,"localTimestamp":"2026-10-19T12:00:00Z"}
+{"key":"18c8818c-24d5-46cd-a370-c238ff7e8126","state":"unknown"}
+~~~
+
+The bounded indexed query uses one coherent database statement snapshot. Responses
+use `Cache-Control: no-store`; request bodies and keys are not logged. No UUIDs
+are added to public or Group projections. A foreign UUID reports only the caller's
+own state, normally unknown. Authentication failures remain request errors.
+
+`present` survives date moves and edits; its canonical UTC event timestamp locates
+the ordinary owner day projection, and is not an edit revision. `unknown` includes
+never-uploaded, filtered and pre-marker-era absence. It authorizes neither local
+erasure nor blind replay of an ambiguous attempt. Missing or sampled day/Group
+results are never deletion evidence. Keyless history has no portable exact-key
+discovery guarantee. Devices query their own keys in chunks of 100; there is no
+history enumeration, durable cursor or change feed.
+
+Markers last for the account's lifetime, including normal backups/restores, with
+no TTL, quota eviction or cleanup. Complete account erasure cascades markers and
+credentials. Coverage starts at deployment: earlier deleted UUIDs cannot be
+reconstructed and remain unknown. Restoring an older whole-database backup cannot
+preserve deletion intent absent from that backup. Deliberate restore requires a
+separately accepted contract.
+
+Successor clients must persist deleted/410 as terminal under the original
+**server + account + UUID**, hide the observation from ordinary Timeline, and stop
+matching replay and incompatible mutations. A late 200, import Completed, date
+move or account-switch callback cannot reverse that decision. Never automatically
+mint another UUID to bypass deletion. Keep unsent originals on unknown and retain
+necessary scoped cancellation/recovery evidence or user work requiring explicit
+resolution. WayfarerApp integration remains a separate acceptance gate; unfamiliar
+410 retry handling is not guaranteed in released clients.
 
 ## Owned location history and corrections
 
@@ -414,6 +491,19 @@ clear flags take precedence. Coordinates are bounded decimal degrees and
 timestamps follow the current UTC/coordinate-zone conversion. The ID is the
 server's integer location ID, matched within the selected owner's rows. If a
 cookie selected the account, antiforgery is required even with a bearer header.
+
+Supplying coordinates, including unchanged coordinates, requests an optional
+provider refresh. Its admission and result save revalidate the retained owner row
+under the account deletion fence; provider HTTP holds no SQL locks. Deletion or
+a missing row returns the ordinary owner `404`, while a newer owner edit returns
+`409` with `success: false` and `message: "Location changed. Reload and retry."`.
+The stale patch and enrichment do not overwrite that newer edit. Optional provider
+failure or no selected provider still permits a valid coordinate patch. A contact
+already admitted before deletion cannot be recalled; its result is discarded.
+Admission reads fresh provider selection and profile authority under their row
+locks after legacy preparation. Deselection or consent withdrawal committed before
+admission consumes no provider quota and makes no provider contact; a later change
+does not refund an already committed admission.
 
 Activity writes resolve a current positive `activityTypeId` first, then a permanent
 redirect for IDs removed during catalog duplicate cleanup. The stored FK is the

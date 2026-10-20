@@ -82,12 +82,35 @@ The imports list shows status, processed records, the last processed record and
 errors. Records carrying portable identifiers are recognized by those identifiers;
 other records are checked for matching times and coordinates within a small
 tolerance. An import can finish with fewer new records than its source contains
-because of duplicates or invalid rows.
+because of duplicates, invalid rows or retained deletion decisions.
 
 Skipped invalid points do not contribute to the total or last processed record;
-duplicates still do. Repeating an import does not restore filtered invalid points.
+duplicates and deleted records still do. **Deleted records skipped** counts records
+suppressed by your prior deletion separately from duplicates, including repeated
+copies of a deleted UUID. Counters and processed progress commit together and
+survive stop/restart. Completed means the file was processed; it is not a receipt
+that every source record was stored. Repeating an import does not restore
+filtered invalid points or deliberately deleted UUIDs.
 
 ![Completed import with a durable Invalid Activity warning](../images/location-imports.JPG)
+
+![Deleted-record suppression count in the import list](../images/location-import-deleted-records.png)
+
+The deletion-count capture renders the production import view with synthetic
+records for illustration.
+
+Deleting a UUID-bearing Location through Web or an authorized device retains only
+its account and UUID as suppression metadata for your account's lifetime. Old CSV
+and Wayfarer GeoJSON exports cannot restore it, even after **Delete all Locations**.
+Suppressed records create no Activity or enrichment work. Another account's UUIDs
+remain independent. No restore override is provided.
+
+Coverage begins when this mechanism is deployed. Already-deleted records cannot
+be reconstructed from absent rows, and keyless history cannot prove exact UUID
+deletion. Complete account erasure removes the markers; ordinary Location deletion
+does not. An older database backup cannot recover deletion intent missing from
+that backup. See the [API identity contract](../development/api.md#deleted-location-identities-and-key-status)
+for `deleted`, `present` and `unknown` discovery and successor-client behavior.
 
 For records without a UUID, matching is approximate (within one second and ten
 metres); concurrent live uploads and imports, or capture timestamps that differ

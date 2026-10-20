@@ -27,7 +27,7 @@
             <th>
                 Status
                 <i class="bi bi-question-circle text-muted ms-1"
-                   data-tippy-content="InProgress: currently processing. Completed: history processed; check Activity warnings. Stopped: paused by user. Failed: encountered errors."></i>
+                   data-tippy-content="InProgress: currently processing. Completed: file processed; check deleted-record and Activity counts. Stopped: paused by user. Failed: encountered errors."></i>
             </th>
             <th>Processed Records</th>
             <th>Last Processed Record</th>
@@ -65,6 +65,11 @@
             </td>
             <td class="text-center lastProcessedIndex" data-total-records="@import.TotalRecords">
                 @import.LastProcessedIndex of @import.TotalRecords
+                @* Suppressed records are processed without restoring intentionally deleted history. *@
+                @if (import.SkippedDeleted > 0)
+                {
+                    <div class="text-body-secondary" role="status">Deleted records skipped: @import.SkippedDeleted</div>
+                }
             </td>
             <td class="text-center lastImportedRecord">
                 @import.LastImportedRecord

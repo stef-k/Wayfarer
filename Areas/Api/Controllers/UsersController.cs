@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.Extensions.Caching.Memory;
+using Wayfarer.Services;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 
@@ -15,12 +17,15 @@ public class UsersController : ControllerBase
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<UsersController> _logger;
     private readonly ILocationStatsService _statsService;
+    // Shared last-known cache is invalidated under the same account fence as deletion.
+    private readonly IMemoryCache? _cache;
 
-    public UsersController(ApplicationDbContext dbContext, ILogger<UsersController> logger, ILocationStatsService statsService)
+    public UsersController(ApplicationDbContext dbContext, ILogger<UsersController> logger, ILocationStatsService statsService, IMemoryCache? cache = null)
     {
         _dbContext = dbContext;
         _logger = logger;
         _statsService = statsService;
+        _cache = cache;
     }
 
     /// <summary>
@@ -59,9 +64,7 @@ public class UsersController : ControllerBase
 
         try
         {
-            await _dbContext.Locations
-                .Where(l => l.UserId == userId)
-                .ExecuteDeleteAsync();
+            await LocationDeletionFence.DeleteAsync(_dbContext, userId, null, _cache, HttpContext.RequestAborted);
 
             _logger.LogDebug("Deleted all locations for user {UserId}", userId);
             return NoContent();

@@ -17,7 +17,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Area("Api")]
 [Route("api/[controller]")]
 [ApiController]
-public class LocationController : BaseApiController
+public partial class LocationController : BaseApiController
 {
     // Constants for default threshold settings
     private const int DefaultLocationTimeThresholdMinutes = 5; // Default to 5 minutes
@@ -90,14 +90,16 @@ public class LocationController : BaseApiController
                 }
 
                 idempotencyKey = parsedKey;
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
 
                 if (existingLocation != null)
                 {
-                    _logger.LogDebug("Check-in idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
-                        user.Id, idempotencyKey);
+                    _logger.LogDebug("Check-in idempotency hit. UserId: {UserId}",
+                        user.Id);
                     return Ok(new { Message = "Check-in logged successfully", Location = existingLocation.ForPublication() });
                 }
             }
@@ -106,6 +108,8 @@ public class LocationController : BaseApiController
             using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
             if (permit == null)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 Response.Headers.RetryAfter = "12";
                 return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
             }
@@ -176,8 +180,10 @@ public class LocationController : BaseApiController
             try
             {
                 // Keyed creates commit their winner before optional provider admission/contact.
-                location = await ApiLocationCreation.PersistAsync(
+                var persisted = await ApiLocationCreation.PersistAsync(
                     _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
+                location = persisted.Location;
+                if (!persisted.Created) return Ok(new { Message = "Check-in logged successfully", Location = location.ForPublication() });
 
                 _logger.LogInformation("Check-in location saved with ID {LocationId}", location.Id);
             }
@@ -185,16 +191,19 @@ public class LocationController : BaseApiController
             {
                 throw;
             }
+            catch (LocationDeletedException) { return DeletedLocationResult(); }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation("Check-in idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey} Failure type: {ExceptionType}",
-                        user.Id, idempotencyKey, ex.GetType().Name);
+                    _logger.LogInformation("Check-in idempotency conflict resolved. UserId: {UserId} Failure type: {ExceptionType}",
+                        user.Id, ex.GetType().Name);
                     return Ok(new { Message = "Check-in logged successfully", Location = existingLocation.ForPublication() });
                 }
 
@@ -210,8 +219,8 @@ public class LocationController : BaseApiController
             // History is durable before the shared observation/current-order decision grants any live effects.
             var settings = _settingsService.GetSettings();
             var window = settings?.LocationTimeThresholdMinutes ?? DefaultLocationTimeThresholdMinutes;
-            await CompleteObservationAsync(user, location, LocationPresence.CheckInObservation(location, window),
-                window, processVisit: true);
+            if (!await CompleteObservationAsync(user, location, LocationPresence.CheckInObservation(location, window),
+                window, processVisit: true)) return DeletedLocationResult();
 
             // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
 
@@ -386,36 +395,26 @@ public class LocationController : BaseApiController
                 }
 
                 idempotencyKey = parsedKey;
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
 
                 if (existingLocation != null)
                 {
-                    _logger.LogDebug("Log-location idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
-                        user.Id, idempotencyKey);
+                    _logger.LogDebug("Log-location idempotency hit. UserId: {UserId}",
+                        user.Id);
                     return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
                 }
-            }
-
-            /// <summary>Rereads owner/key identity before a terminal skip and evaluates only genuine filtered pings.</summary>
-            async Task<IActionResult> SkipOrReplayAsync(Point? filteredCoordinates = null)
-            {
-                var locationId = idempotencyKey.HasValue
-                    ? await _dbContext.Locations.AsNoTracking()
-                        .Where(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value)
-                        .Select(l => (int?)l.Id)
-                        .FirstOrDefaultAsync(HttpContext.RequestAborted)
-                    : null;
-                if (idempotencyKey.HasValue && !locationId.HasValue && filteredCoordinates != null)
-                    await ProcessAutomaticVisitAsync(user.Id, filteredCoordinates, dto.Accuracy);
-                return Ok(new { success = true, skipped = !locationId.HasValue, locationId });
             }
 
             // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
             using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
             if (permit == null)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 Response.Headers.RetryAfter = "12";
                 return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
             }
@@ -445,7 +444,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to poor GPS accuracy for user {UserId}", user.Id);
-                return await SkipOrReplayAsync();
+                return await SkipOrReplayAsync(user.Id, idempotencyKey, dto);
             }
 
             DateTime utcTimestamp;
@@ -481,7 +480,7 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to time threshold for user {UserId}", user.Id);
-                    return await SkipOrReplayAsync(coordinates);
+                    return await SkipOrReplayAsync(user.Id, idempotencyKey, dto, coordinates);
                 }
 
                 var distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
@@ -492,7 +491,7 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to distance threshold for user {UserId}", user.Id);
-                    return await SkipOrReplayAsync(coordinates);
+                    return await SkipOrReplayAsync(user.Id, idempotencyKey, dto, coordinates);
                 }
             }
 
@@ -504,7 +503,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}", user.Id);
-                return await SkipOrReplayAsync(coordinates);
+                return await SkipOrReplayAsync(user.Id, idempotencyKey, dto, coordinates);
             }
 
             var location = new Location
@@ -541,8 +540,10 @@ public class LocationController : BaseApiController
             try
             {
                 // Keyed creates commit their winner before optional provider admission/contact.
-                location = await ApiLocationCreation.PersistAsync(
+                var persisted = await ApiLocationCreation.PersistAsync(
                     _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
+                location = persisted.Location;
+                if (!persisted.Created) return Ok(new { success = true, skipped = false, locationId = location.Id });
 
                 _logger.LogInformation("Location saved with ID {LocationId}", location.Id);
             }
@@ -550,16 +551,19 @@ public class LocationController : BaseApiController
             {
                 throw;
             }
+            catch (LocationDeletedException) { return DeletedLocationResult(); }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation("Log-location idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey} Failure type: {ExceptionType}",
-                        user.Id, idempotencyKey, ex.GetType().Name);
+                    _logger.LogInformation("Log-location idempotency conflict resolved. UserId: {UserId} Failure type: {ExceptionType}",
+                        user.Id, ex.GetType().Name);
                     return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
                 }
 
@@ -572,21 +576,17 @@ public class LocationController : BaseApiController
                 return StatusCode(500, "Internal server error while saving location.");
             }
 
-            // Only the durable keyed insert winner contributes a new visit observation.
-            if (idempotencyKey.HasValue)
-                await ProcessAutomaticVisitAsync(user.Id, coordinates, dto.Accuracy);
-
-            await CompleteObservationAsync(user, location,
+            if (!await CompleteObservationAsync(user, location,
                 LocationPresence.AutomaticObservation(location.LocalTimestamp, location.Timestamp, locationTimeThreshold),
-                locationTimeThreshold, processVisit: false);
+                locationTimeThreshold, processVisit: false, automaticCoordinates: coordinates)) return DeletedLocationResult();
 
             return Ok(new { success = true, skipped = false, locationId = location.Id });
         }
     }
 
     /// <summary>Admits only a non-regressing observation after persistence; history and replay identity remain independent.</summary>
-    private async Task CompleteObservationAsync(ApplicationUser user, Location location, DateTime? observedUtc,
-        int windowMinutes, bool processVisit)
+    private async Task<bool> CompleteObservationAsync(ApplicationUser user, Location location, DateTime? observedUtc,
+        int windowMinutes, bool processVisit, Point? automaticCoordinates = null)
     {
         var ct = HttpContext.RequestAborted;
         // Commit admission before any cache or broadcast can expose it. Provider contact remains outside these locks.
@@ -594,7 +594,8 @@ public class LocationController : BaseApiController
         {
             var retained = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
                 row => row.UserId == user.Id && row.Id == location.Id, ct);
-            if (retained == null) return;
+            if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, location.IdempotencyKey, ct)) return false;
+            if (retained == null) return true;
             // PostgreSQL stores microseconds; sub-microsecond CLR serialization differences are not owner edits.
             if (!retained.Coordinates.EqualsExact(location.Coordinates) || retained.LocalTimestamp.Ticks / 10 != location.LocalTimestamp.Ticks / 10
                 || retained.CoordinateOrigin != location.CoordinateOrigin || retained.ObservedAtUtc?.UtcTicks / 10 != location.ObservedAtUtc?.UtcTicks / 10
@@ -622,6 +623,14 @@ public class LocationController : BaseApiController
         }
         // A newer admission may have committed between phases; reacquire order before visits, cache or hints.
         await using var effects = await LocationPresence.LockAsync(_dbContext, user.Id, location.Id, ct);
+        if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, location.IdempotencyKey, ct)) return false;
+        var retainedForEffects = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
+            row => row.UserId == user.Id && row.Id == location.Id, ct);
+        if (retainedForEffects == null) return true;
+        location = retainedForEffects;
+        // Automatic Visits describe the arriving capture, even when an owner edited its stored row during HTTP.
+        if (!processVisit && location.IdempotencyKey.HasValue)
+            await ProcessAutomaticVisitAsync(user.Id, automaticCoordinates ?? location.Coordinates, location.Accuracy, effects);
         var current = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
             .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
         var isCurrent = current?.Id == location.Id;
@@ -631,6 +640,7 @@ public class LocationController : BaseApiController
         else _cache.Remove($"lastLocation_{user.Id}");
         await BroadcastLocationUpdatesAsync(user, location, windowMinutes, location.IsUserInvoked == true, isCurrent, ct);
         if (effects != null) await effects.CommitAsync(ct);
+        return true;
     }
 
     /// <summary>Evaluates an eligible automatic ping while preserving best-effort visit failure handling.</summary>
@@ -766,27 +776,16 @@ public class LocationController : BaseApiController
 
         try
         {
-            // Find the locations in the database that match the provided IDs that belong to the current user
-            var locationsToDelete = await _dbContext.Locations
-                .Where(location => request.LocationIds.Contains(location.Id) && location.UserId == currentUserId)
-                .ToListAsync();
-
-            // If no matching locations are found
-            if (locationsToDelete.Count == 0)
+            var deletedIds = await LocationDeletionFence.DeleteAsync(_dbContext, currentUserId,
+                request.LocationIds, _cache, HttpContext.RequestAborted);
+            if (deletedIds.Count == 0)
                 return NotFound(new { success = false, message = "No locations found for deletion." });
-
-            // Capture IDs before deletion for broadcast
-            var deletedIds = locationsToDelete.Select(l => l.Id).ToList();
-
-            // Delete the locations
-            _dbContext.Locations.RemoveRange(locationsToDelete);
-            await _dbContext.SaveChangesAsync();
 
             // Broadcast deletions to group members
             await BroadcastLocationDeletionAsync(currentUserId, deletedIds);
 
             return Ok(new
-                { success = true, message = $"{locationsToDelete.Count} locations deleted successfully." });
+                { success = true, message = $"{deletedIds.Count} locations deleted successfully." });
         }
         catch (Exception ex)
         {
@@ -810,13 +809,9 @@ public class LocationController : BaseApiController
 
         try
         {
-            var location = await _dbContext.Locations
-                .FirstOrDefaultAsync(l => l.Id == id && l.UserId == user.Id);
-
-            if (location == null) return NotFound(new { success = false, message = "Location not found." });
-
-            _dbContext.Locations.Remove(location);
-            await _dbContext.SaveChangesAsync();
+            var deleted = await LocationDeletionFence.DeleteAsync(_dbContext, user.Id,
+                new[] { id }, _cache, HttpContext.RequestAborted);
+            if (deleted.Count == 0) return NotFound(new { success = false, message = "Location not found." });
 
             // Broadcast deletion to group members
             await BroadcastLocationDeletionAsync(user.Id, new[] { id });
@@ -939,25 +934,23 @@ public class LocationController : BaseApiController
                 }
             }
 
-            // Reverse geocode only through the admitted persistent-enrichment boundary.
+            // Retained refreshes isolate pending edits and revalidate before admission and after unlocked provider HTTP.
             if (coordsUpdated)
-            {
-                location.ReverseGeocodingProvider = null;
-                location.ReverseGeocodingStorageMode = null;
-                location.ReverseGeocodedAt = null;
-                location.ProviderAddressLine1 = null;
-                location.ResolvedFeatureName = null;
-                location.ResolvedFeatureType = null;
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, location.Coordinates.Y,
-                    location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
-                anyChange |= enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-            }
+                location = await ApiLocationUpdate.PersistAsync(_dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
             if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location = location.ForPublication() });
 
-            await _dbContext.SaveChangesAsync();
+            if (!coordsUpdated) await _dbContext.SaveChangesAsync();
             _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location updated.", location = location.ForPublication() });
+        }
+        catch (Exception ex) when (ex is LocationUpdateMissingException or LocationDeletedException)
+        {
+            return NotFound(new { success = false, message = "Location not found." });
+        }
+        catch (LocationUpdateConflictException)
+        {
+            return Conflict(new { success = false, message = "Location changed. Reload and retry." });
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
