@@ -531,6 +531,31 @@ Private detail/boundary reads require a valid API token belonging to the Trip
 owner; cookie ownership alone is insufficient for those actions.
 Holding a token does not supply User cookie authority for the Vue editor.
 
+Full detail reads use a fresh context and one read-only PostgreSQL Repeatable Read
+snapshot for the root, all children and private bearer token/account resolution.
+Public detail skips token lookup; its 200 response does not prove bearer identity.
+A concurrent visibility change can leave an in-flight read authorized for the old
+public snapshot, but cannot expose later private children through that authority.
+Absent Trips remain 404 before token lookup; private denials remain 401. Lookup
+admission retains 429/503 with `Retry-After: 5`.
+
+The complete supported graph is eagerly projected and buffered with the configured
+MVC JSON options before a successful response. Missing required loaded content,
+unusable Area/custom-route geometry or projection failure gives a whole-read 500
+(`The trip could not be loaded.`), without a reduced graph. Legitimate empty
+collections, unlocated Places, nullable endpoints/orders, Area holes, cross-Region
+waypoints, fractional measurements and null legacy provenance remain supported.
+`centerLat` and `centerLon` remain independently numeric or null, including both
+asymmetric combinations. GET performs no repair, domain save or provider fetch.
+
+A linked 30-second budget covers connection acquisition, queries, projection and
+JSON preparation, with transaction-local `transaction_timeout = '30s'` as a server
+backstop. The snapshot and fresh context end before response transfer; cleanup has
+an independent five-second budget. Deadline/database failures cannot qualify as
+200. Caller cancellation propagates from the action; delivery after disconnect
+is not guaranteed. This read does not repair already committed writer anomalies
+or establish a client revision/conditional-write protocol (#853).
+
 Trip detail exposes the stored `updatedAt` as a **best-effort freshness hint**:
 a changed value can justify refetching, but equality does not prove every nested
 field is unchanged. Wall-clock stamping is not a universal, guaranteed monotonic

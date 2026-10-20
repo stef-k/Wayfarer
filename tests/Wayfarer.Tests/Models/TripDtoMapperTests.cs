@@ -1,6 +1,8 @@
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Wayfarer.Tests.Models;
@@ -8,7 +10,7 @@ namespace Wayfarer.Tests.Models;
 /// <summary>
 /// Tests for <see cref="TripDtoMapper"/>.
 /// </summary>
-public class TripDtoMapperTests
+public class TripDtoMapperTests : TestBase
 {
     [Fact]
     public void ToApiDto_Trip_MapsCollectionsAndOrder()
@@ -139,6 +141,43 @@ public class TripDtoMapperTests
 
         Assert.NotNull(dto);
         Assert.Equal(Guid.Empty, dto.Id);
+    }
+
+    /// <summary>Strict full reads reject missing/unloaded state and invalid numbers that permissive mutation mapping retains.</summary>
+    [Theory]
+    [InlineData("unloaded")]
+    [InlineData("null-collection")]
+    [InlineData("null-child")]
+    [InlineData("foreign")]
+    [InlineData("point")]
+    [InlineData("center")]
+    [InlineData("area")]
+    public async Task FullRead_RejectsIncompleteRequiredContent(string failure)
+    {
+        using var db = CreateDbContext();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), Trip = trip, UserId = trip.UserId, Name = "Region" };
+        var place = new Place { Id = Guid.NewGuid(), Region = region, UserId = trip.UserId, Name = "Place" };
+        db.Places.Add(place);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        trip = await db.Trips.Include(item => item.Tags).Include(item => item.Segments)
+            .Include(item => item.Regions).ThenInclude(item => item.Places)
+            .Include(item => item.Regions).ThenInclude(item => item.Areas).SingleAsync();
+        region = trip.Regions.Single();
+        place = region.Places.Single();
+        Assert.Single(trip.ToFullApiDto(db).Regions!);
+        switch (failure)
+        {
+            case "unloaded": db.Entry(region).Collection(item => item.Areas).IsLoaded = false; break;
+            case "null-collection": region.Places = null!; break;
+            case "null-child": region.Places.Add(null!); break;
+            case "foreign": place.RegionId = Guid.NewGuid(); break;
+            case "point": place.Location = new Point(double.NaN, 37) { SRID = 4326 }; break;
+            case "center": trip.CenterLon = double.PositiveInfinity; break;
+            case "area": region.Areas.Add(new Area { RegionId = region.Id, Name = "Missing geometry" }); break;
+        }
+        Assert.Throws<InvalidDataException>(() => trip.ToFullApiDto(db));
     }
 
 }

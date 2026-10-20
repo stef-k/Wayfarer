@@ -51,6 +51,12 @@
 
 ### Fixed
 
+- Read complete Trip detail and private bearer authority from one bounded read-only
+  PostgreSQL snapshot. Concurrent Web edits cannot mix root/child state or expose
+  new private content through old public visibility. Fail the whole read when
+  required content cannot be projected; preserve existing JSON, sparse/legacy
+  graph forms and independently nullable Trip center values (#852).
+
 - Keep stale, delayed, unknown-evidence and map-selected check-ins as owner history
   without false live presence or arrival-time visits. Preserve UUID winners and
   event/receipt clocks; add portable nullable fix evidence, shared observation-order
