@@ -14,12 +14,13 @@ using Wayfarer.Tests.Controllers;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Proves the incidental Trip timestamp write footprint against independent PostgreSQL writers.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture) : TestBase
+public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output) : TestBase
 {
     /// <summary>A routed Region update or an untracked-root Place insert preserves a later Web metadata edit.</summary>
     [PostgresTheory]
@@ -52,9 +53,12 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
 
             await using var verification = fixture.CreateContext();
             var stored = await verification.Trips.SingleAsync(trip => trip.Id == region.TripId);
+            output.WriteLine("Trip dirty properties: " + string.Join(", ", gate.DirtyProperties));
+            output.WriteLine("Trip save SQL: " + gate.TripUpdateSql);
             Assert.Equal(expected, Metadata(stored));
             Assert.Equal(gate.Timestamp.Ticks / 10, stored.UpdatedAt.Ticks / 10);
             Assert.Equal([nameof(Trip.UpdatedAt)], gate.DirtyProperties);
+            Assert.Contains("UPDATE \"Trips\" SET \"UpdatedAt\" =", gate.TripUpdateSql);
             Assert.DoesNotContain("\"Name\" =", gate.TripUpdateSql);
             if (routedRegionUpdate)
                 Assert.Equal("Changed child", (await verification.Regions.FindAsync(region.Id))!.Notes);
@@ -176,13 +180,14 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
             provider.GetRequiredService<IHttpContextAccessor>().HttpContext?.Request.Method == "PUT" ? [gate] : []));
         services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
         services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+        services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
     });
 
     /// <summary>Exercises the actual bearer child action, including its pretracked unchanged Trip.</summary>
     private static async Task UpdateRegionAsync(HttpClient bearer, Guid regionId)
     {
         using var response = await bearer.PutAsJsonAsync($"/api/trips/regions/{regionId}", new { notes = "Changed child" });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
     }
 
     /// <summary>Commits the actual cookie/antiforgery complete Web draft, then reads its persisted values.</summary>
@@ -194,7 +199,7 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
             coverImage = new { rawUrl = "https://example.test/after.jpg" },
             center = new { latitude = 37.5, longitude = 23.5 }, zoom = 11
         });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         await using var db = fixture.CreateContext();
         var stored = await db.Trips.SingleAsync(trip => trip.Id == tripId);
         Assert.Equal(new RootMetadata(stored.UserId, "Web title", "Web notes", false, false,
