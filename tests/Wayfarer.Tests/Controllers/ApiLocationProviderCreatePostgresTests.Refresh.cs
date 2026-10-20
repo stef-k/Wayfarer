@@ -176,7 +176,7 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
             // Remove only this case's FK-bearing row and Activity; the shared fixture still owns its user cleanup.
             await using var cleanup = fixture.CreateContext();
             await cleanup.Locations.Where(row => row.UserId == owner.UserId && row.Id == id).ExecuteDeleteAsync();
-            await cleanup.ActivityTypes.Where(row => row.Id == activity.Id).ExecuteDeleteAsync();
+            await cleanup.ActivityTypes.Where(row => row.Id == activity.Id && row.Name == activity.Name).ExecuteDeleteAsync();
         }
     }
 
