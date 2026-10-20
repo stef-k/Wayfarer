@@ -51,6 +51,9 @@
 
 ### Fixed
 
+- Stamp only Trip `UpdatedAt` on child saves, preserving concurrent Web root
+  metadata and intentional root edits in the same atomic save (#853, Slice 1).
+
 - Read complete Trip detail and private bearer authority from one bounded read-only
   PostgreSQL snapshot. Concurrent Web edits cannot mix root/child state or expose
   new private content through old public visibility. Fail the whole read when
