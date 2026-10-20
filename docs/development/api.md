@@ -492,6 +492,15 @@ timestamps follow the current UTC/coordinate-zone conversion. The ID is the
 server's integer location ID, matched within the selected owner's rows. If a
 cookie selected the account, antiforgery is required even with a bearer header.
 
+Supplying coordinates, including unchanged coordinates, requests an optional
+provider refresh. Its admission and result save revalidate the retained owner row
+under the account deletion fence; provider HTTP holds no SQL locks. Deletion or
+a missing row returns the ordinary owner `404`, while a newer owner edit returns
+`409` with `success: false` and `message: "Location changed. Reload and retry."`.
+The stale patch and enrichment do not overwrite that newer edit. Optional provider
+failure or no selected provider still permits a valid coordinate patch. A contact
+already admitted before deletion cannot be recalled; its result is discarded.
+
 Activity writes resolve a current positive `activityTypeId` first, then a permanent
 redirect for IDs removed during catalog duplicate cleanup. The stored FK is the
 survivor even after a client catalog refresh; queued Mobile IDs do not expire.

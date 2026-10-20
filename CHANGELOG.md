@@ -9,6 +9,8 @@
   `location_deleted` HTTP 410, bearer-only bounded key-status discovery, atomic
   `SkippedDeleted` import accounting and deletion-safe provider/presence effects.
   Coverage is prospective; WayfarerApp handling is separately qualified (#838).
+  Fence owner coordinate refreshes before admission and after provider HTTP;
+  deletion returns owner 404 and superseded edit snapshots return 409.
 
 - Add atomic four-way Region deletion with independent Keep/Delete choices for
   Places and Areas, content-bound preview/confirmation for editor and bearer

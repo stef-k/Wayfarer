@@ -934,25 +934,23 @@ public partial class LocationController : BaseApiController
                 }
             }
 
-            // Reverse geocode only through the admitted persistent-enrichment boundary.
+            // Retained refreshes isolate pending edits and revalidate before admission and after unlocked provider HTTP.
             if (coordsUpdated)
-            {
-                location.ReverseGeocodingProvider = null;
-                location.ReverseGeocodingStorageMode = null;
-                location.ReverseGeocodedAt = null;
-                location.ProviderAddressLine1 = null;
-                location.ResolvedFeatureName = null;
-                location.ResolvedFeatureType = null;
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, location.Coordinates.Y,
-                    location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
-                anyChange |= enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-            }
+                location = await ApiLocationUpdate.PersistAsync(_dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
             if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location = location.ForPublication() });
 
-            await _dbContext.SaveChangesAsync();
+            if (!coordsUpdated) await _dbContext.SaveChangesAsync();
             _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location updated.", location = location.ForPublication() });
+        }
+        catch (Exception ex) when (ex is LocationUpdateMissingException or LocationDeletedException)
+        {
+            return NotFound(new { success = false, message = "Location not found." });
+        }
+        catch (LocationUpdateConflictException)
+        {
+            return Conflict(new { success = false, message = "Location changed. Reload and retry." });
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
