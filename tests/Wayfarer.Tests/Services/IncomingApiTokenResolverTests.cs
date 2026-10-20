@@ -99,6 +99,31 @@ public class IncomingApiTokenResolverTests : TestBase
         Assert.Equal(0, owner.IdentityCount);
     }
 
+    /// <summary>An unused request authority can bind once; any previously resolved or mismatched authority fails closed.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SnapshotBindingRejectsPriorResolutionAndMismatchedContexts(bool resolved)
+    {
+        using var requestDb = CreateDbContext();
+        using var snapshot = CreateDbContext();
+        var request = new DefaultHttpContext();
+        var resolver = IncomingApiTokenResolver.ForRequest(request, requestDb);
+        if (resolved)
+        {
+            Assert.Null(await resolver.ResolveAsync(request));
+            resolver.Reset();
+            Assert.Throws<InvalidOperationException>(() => IncomingApiTokenResolver.BindReadContext(request, snapshot));
+        }
+        else
+        {
+            Assert.Same(resolver, IncomingApiTokenResolver.BindReadContext(request, snapshot));
+            Assert.Same(resolver, IncomingApiTokenResolver.ForRequest(request, snapshot));
+            Assert.Throws<InvalidOperationException>(() => IncomingApiTokenResolver.ForRequest(request, requestDb));
+            Assert.Throws<InvalidOperationException>(() => IncomingApiTokenResolver.BindReadContext(request, requestDb));
+        }
+    }
+
     /// <summary>Holds the production lookup boundary without timers or live database flooding.</summary>
     private sealed class GatedResolver(ApplicationDbContext db, ApiWorkAdmission owner, Task<ApplicationUser?> completion)
         : IncomingApiTokenResolver(db, owner)

@@ -11,15 +11,37 @@ namespace Wayfarer.Services;
 public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission admission)
 {
     private static readonly object RequestKey = new();
+    private ApplicationDbContext _db = db;
     private Task<ApplicationUser?>? _resolution;
     private string? _token;
+    private bool _resolved;
+    private bool _readContextBound;
 
     /// <summary>Gets the single authority shared by all bearer adapters in this request.</summary>
     public static IncomingApiTokenResolver ForRequest(HttpContext context, ApplicationDbContext db)
     {
-        if (context.Items.TryGetValue(RequestKey, out var value)) return (IncomingApiTokenResolver)value!;
+        if (context.Items.TryGetValue(RequestKey, out var value))
+        {
+            var existing = (IncomingApiTokenResolver)value!;
+            if (existing._readContextBound && !ReferenceEquals(existing._db, db))
+                throw new InvalidOperationException("Incoming token authority belongs to another read context.");
+            return existing;
+        }
         var resolver = new IncomingApiTokenResolver(db, ApiWorkAdmission.TokenLookups);
         context.Items[RequestKey] = resolver;
+        return resolver;
+    }
+
+    /// <summary>Binds an unresolved request authority to the full Trip read's fresh snapshot context.</summary>
+    public static IncomingApiTokenResolver BindReadContext(HttpContext context, ApplicationDbContext db)
+    {
+        // An earlier lookup, including one cleared by Reset, cannot establish authority for this snapshot.
+        var resolver = context.Items.TryGetValue(RequestKey, out var value)
+            ? (IncomingApiTokenResolver)value! : ForRequest(context, db);
+        if (resolver._resolved || resolver._readContextBound && !ReferenceEquals(resolver._db, db))
+            throw new InvalidOperationException("Incoming token authority was established outside this read.");
+        resolver._db = db;
+        resolver._readContextBound = true;
         return resolver;
     }
 
@@ -42,6 +64,7 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
     public Task<ApplicationUser?> ResolveTokenAsync(string? token, string effectiveIp,
         CancellationToken cancellationToken = default)
     {
+        _resolved = true;
         if (_resolution != null && _token == token) return _resolution;
         _token = token;
         return _resolution = ResolveCoreAsync(token, effectiveIp, cancellationToken);
@@ -67,10 +90,10 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
     {
         // Admission precedes hashing and every database lookup. The process limiter retains only live IP buckets.
         var hash = ApiTokenService.HashToken(token);
-        var row = await db.ApiTokens.AsNoTracking().FirstOrDefaultAsync(t => t.TokenHash == hash
+        var row = await _db.ApiTokens.AsNoTracking().FirstOrDefaultAsync(t => t.TokenHash == hash
             || t.Token == token && t.Name.Trim().ToLower() != "mapbox", cancellationToken).ConfigureAwait(false);
         if (row?.UserId == null) return null;
-        var user = await db.Users.Include(u => u.ApiTokens)
+        var user = await _db.Users.Include(u => u.ApiTokens)
             .FirstOrDefaultAsync(u => u.Id == row.UserId, cancellationToken).ConfigureAwait(false);
         return user is { IsActive: true } ? user : null;
     }

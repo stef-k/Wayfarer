@@ -6,6 +6,7 @@ using Location = Wayfarer.Models.Location;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -29,8 +30,9 @@ public partial class ApiTripsControllerTests
         trip.Regions = [region]; region.Places = [place]; region.Areas = [area]; trip.Segments = [segment];
         db.Trips.Add(trip); await db.SaveChangesAsync();
         var controller = BuildController(db, token: "tok");
-        var read = Assert.IsType<OkObjectResult>(controller.GetTrip(trip.Id));
-        var json = JsonSerializer.SerializeToElement(read.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        // Publication normalization is a mapper concern; routed snapshot/authority is proved on PostgreSQL.
+        var read = trip.ToApiDto([new ApiTripSegmentDto { Id = segment.Id, Notes = RichNotes.Normalize(segment.Notes) }]);
+        var json = JsonSerializer.SerializeToElement(read, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Equal("<p class=\"ql-align-justify\"><s>safe</s></p>", json.GetProperty("notes").GetString());
         Assert.DoesNotContain("bad()", json.ToString());
         var state = EditorTripStateMapper.ToEditorState(trip, new Dictionary<Guid, IReadOnlyList<PlaceVisitEvent>>(),
