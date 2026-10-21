@@ -77,6 +77,7 @@ export function useAreaEditorActions(context: any) {
         ? await updateArea(context.props.editorEndpoint, areaId, context.props.antiforgeryToken, submitted)
         : await createArea(context.props.editorEndpoint, areaDraft.regionId, context.props.antiforgeryToken, submitted.changes);
       if (!editorAlive) return;
+      if (!result.success) throw new Error('The Area save was not acknowledged. Keep your draft and review the unknown outcome.');
       if (session !== context.areaDraftState.session()) {
         context.emit('mutationApplied', result as EditorMutationResult<unknown>);
         return;

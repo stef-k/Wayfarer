@@ -67,6 +67,12 @@ export const createAreaDraftState = () => {
 
   /** Acknowledges before Vue updates parent props, preserving unsent fields and newer edits or polygon reversals. */
   const acknowledge = (next: EditorArea, submitted: EditorAreaConditionalRequest): void => {
+    // Validate before changing any field: a malformed 200 is an unknown outcome, not a partially adopted base.
+    if (!next?.originalValues || typeof next.name !== 'string' || typeof next.notesHtml !== 'string'
+      || typeof next.fillHex !== 'string' || next.geometry?.type !== 'Polygon' || !Array.isArray(next.geometry.coordinates)
+      || fields.some(field => !Object.hasOwn(next.originalValues!, field)) || !next.originalValues.regionId
+      || draft.id && next.id !== draft.id || draft.regionId !== next.regionId)
+      throw new Error('The Area save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
     const current = buildAreaRequest(draft);
     const before = buildAreaRequest(baseline);
     const retained = clone(draft);

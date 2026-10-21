@@ -4,6 +4,12 @@
 
 ### Added
 
+- Add paired conditional Area editing for bearer Notes and current Web
+  Name/Notes/Fill/Polygon. Compare pinned originals and Region identity under
+  PostgreSQL locks, write only dirty fields, preserve Polygon holes and newer Vue
+  drafts, and hold uncertain saves. Legacy full saves and geometry-only PUT remain
+  compatible and unprotected for their overlapping fields (#853 Slice 5).
+
 - Add paired conditional Region saves for bearer Name/Notes and the current Web
   Name/Notes/Cover/Center form. Compare pinned original fields after PostgreSQL
   locks, preserve disjoint edits and newer Vue drafts, and reject stale fields
