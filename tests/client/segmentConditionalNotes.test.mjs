@@ -292,22 +292,27 @@ test('explicit aggregate conflict reload pins its published Notes original for t
   assert.deepEqual(calls[1][1], { expected: { notesHtml: 'Server current' }, changes: { notesHtml: 'Reviewed scalar' } });
 }));
 
-test('unknown combined save also holds a newer Notes reversal without repeating a route mutation', () => withApp(async ({ parent, editor }) => {
-  const reply = deferred();
-  let calls = 0;
-  globalThis.fetch = async () => { calls++; return reply.promise; };
-  await editor.openEdit(parent.state.segmentsById.segment);
-  editor.draft.notesHtml = 'Submitted';
-  editor.draft.estimatedDurationMinutes = 120;
-  const saving = editor.saveDraft();
-  editor.draft.notesHtml = '';
-  reply.resolve(new Response('{}', { status: 500 }));
-  await saving;
-  parent.applyMutation(envelope(segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120 })));
-  await nextTick();
-  assert.equal(editor.draft.notesHtml, '');
-  assert.equal(editor.isDirty, true);
-  await editor.saveDraft();
-  assert.equal(calls, 1);
-  assert.match(editor.saveError, /unknown outcome/);
-}));
+for (const failure of ['500', 'incomplete']) {
+  test(`unknown combined save ${failure} retains proposal/newer Notes without repeating a route mutation`, () => withApp(async ({ parent, editor }) => {
+    const reply = deferred();
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return reply.promise; };
+    await editor.openEdit(parent.state.segmentsById.segment);
+    editor.draft.notesHtml = 'Submitted';
+    editor.draft.estimatedDurationMinutes = 120;
+    editor.previewRouteProposal({ proposalId: 'proposal', protectedContext: 'proof',
+      geometry: [{ longitude: 0, latitude: 0 }, { longitude: 1, latitude: 1 }, { longitude: 2, latitude: 2 }], waypointIndices: [0, 1, 2] });
+    const saving = editor.saveDraft();
+    editor.draft.notesHtml = '';
+    reply.resolve(failure === '500' ? new Response('{}', { status: 500 }) : saved({ id: 'segment' }));
+    await saving;
+    parent.applyMutation(envelope(segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120 })));
+    await nextTick();
+    assert.equal(editor.draft.notesHtml, '');
+    assert.equal(editor.isDirty, true);
+    assert.equal(editor.routeProposalDraft.hasProposal.value, true);
+    await editor.saveDraft();
+    assert.equal(calls, 1);
+    assert.match(editor.saveError, /unknown outcome/);
+  }));
+}

@@ -195,8 +195,8 @@ async function saveDraft(): Promise<void> {
 
 /** Shares complete-save adoption between normal and explicitly confirmed aggregate requests. */
 function acceptSavedSegment(result: EditorMutationResult<EditorSegment>, request: EditorSegmentSaveRequest, wasCreate: boolean): void {
-  routeProposalDraft.preview(null);
   const savedDraft = notes.acceptComplete(result.data, request);
+  routeProposalDraft.preview(null);
   if (wasCreate) {
     emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(savedDraft), work: null });
     emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
