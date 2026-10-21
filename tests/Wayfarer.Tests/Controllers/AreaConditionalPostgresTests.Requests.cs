@@ -12,6 +12,78 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class AreaConditionalPostgresTests
 {
+    /// <summary>The conditional Name cap applies to trimmed persistence values, including multi-field edits.</summary>
+    [PostgresTheory]
+    [InlineData(200, 0)]
+    [InlineData(200, 2)]
+    [InlineData(199, 1)]
+    public async Task ConditionalName_ValidLengthPersistsTrimmedNameAndNotes(int length, int padding)
+    {
+        var area = await SeedAsync();
+        var probe = new AreaProbe();
+        await using var db = fixture.CreateContext();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, area.Region.UserId);
+        var name = new string('x', length);
+        using var response = await PatchAsync(web, area, true, new { name = area.Name, notesHtml = area.Notes },
+            new { name = new string(' ', padding) + name + new string(' ', padding), notesHtml = "Edited notes" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Areas.SingleAsync(a => a.Id == area.Id);
+        Assert.Equal((name, "Edited notes", area.FillHex, area.RegionId, area.DisplayOrder),
+            (stored.Name, stored.Notes, stored.FillHex, stored.RegionId, stored.DisplayOrder));
+        AssertPolygon(area.Geometry, stored.Geometry);
+        Assert.True((await verify.Trips.FindAsync(area.Region.TripId))!.UpdatedAt > area.Region.Trip.UpdatedAt);
+        Assert.Equal(2, probe.Updates.Count);
+        Assert.Empty(_warmup.Invocations);
+    }
+
+    /// <summary>Invalid Name rejects every selected field without writes, and the same originals remain correctable.</summary>
+    [PostgresTheory]
+    [InlineData(201, 0)]
+    [InlineData(201, 2)]
+    [InlineData(0, 0)]
+    [InlineData(0, 2)]
+    [InlineData(-1, 0)]
+    public async Task ConditionalName_InvalidNameRejectsAllFieldsThenAllowsCorrection(int length, int padding)
+    {
+        var area = await SeedAsync();
+        var probe = new AreaProbe();
+        await using var db = fixture.CreateContext();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, area.Region.UserId);
+        var name = length < 0 ? null : new string(' ', padding) + new string('x', length) + new string(' ', padding);
+        using var response = await PatchAsync(web, area, true, new { name = area.Name, notesHtml = area.Notes },
+            new { name, notesHtml = "Must remain unapplied" });
+        // A third context proves atomic non-application even in the original 500 counterexample.
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Areas.AsNoTracking().SingleAsync(a => a.Id == area.Id);
+        var trip = await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == area.Region.TripId);
+        Assert.Equal((area.Name, area.Notes, area.FillHex, area.RegionId, area.DisplayOrder),
+            (stored.Name, stored.Notes, stored.FillHex, stored.RegionId, stored.DisplayOrder));
+        AssertPolygon(area.Geometry, stored.Geometry);
+        Assert.Equal((area.Region.Trip.Name, area.Region.Trip.Notes, area.Region.Trip.IsPublic, area.Region.Trip.UpdatedAt),
+            (trip.Name, trip.Notes, trip.IsPublic, trip.UpdatedAt));
+        Assert.Empty(_warmup.Invocations);
+        output.WriteLine($"Invalid Name length={length}, padding={padding}: HTTP {(int)response.StatusCode}; Area/Trip unchanged; attempted UPDATEs={probe.Updates.Count}; warmups=0.");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var error = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal("mutation-request-invalid", error.GetProperty("code").GetString());
+        var messages = error.GetProperty("errors").GetProperty("name");
+        Assert.NotEmpty(messages.EnumerateArray());
+        if (length > 200) Assert.Contains("200", messages[0].GetString());
+        Assert.Empty(probe.Updates);
+        var correctedName = new string('x', 200);
+        using var corrected = await PatchAsync(web, area, true, new { name = area.Name, notesHtml = area.Notes },
+            new { name = correctedName, notesHtml = "Corrected notes" });
+        Assert.Equal(HttpStatusCode.OK, corrected.StatusCode);
+        var correctedArea = await verify.Areas.AsNoTracking().SingleAsync(a => a.Id == area.Id);
+        Assert.Equal((correctedName, "Corrected notes"), (correctedArea.Name, correctedArea.Notes));
+        AssertPolygon(area.Geometry, correctedArea.Geometry);
+        Assert.Equal(2, probe.Updates.Count);
+        Assert.Empty(_warmup.Invocations);
+    }
+
     /// <summary>#848 keep disposition invalidates the old parent but retained Areas in Unassigned remain editable.</summary>
     [PostgresFact]
     public async Task KeptArea_RejectsOldParent_AndAllowsExplicitlyRefreshedUnassignedBase()
