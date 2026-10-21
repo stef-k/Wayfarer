@@ -52,6 +52,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.CreateArea Api.TripEditor.UpdateArea Api.TripEditor.UpdateAreaGeometry Api.TripEditor.DeleteArea
         Api.TripEditor.OrderAreas Api.TripEditor.PatchMetadata Api.TripEditor.CreateRegion Api.TripEditor.UpdateRegion
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
+        Api.TripEditor.PatchConditionalSegmentNotes
         Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
         Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace
         Api.TripEditor.UpdatePlace Api.TripEditor.DeletePlace Api.TripEditor.OrderPlaces Api.TripEditor.CreateSegment
@@ -69,6 +70,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Trips.UpdateRegion Api.Trips.UpdateArea Api.Trips.DeleteRegion Api.Trips.CloneTrip
         Api.Trips.PreviewRegionDeletion Api.Trips.ConfirmRegionDeletion
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea
+        Api.Trips.PatchConditionalSegmentNotes
         """;
 
     // Unsafe verbs used only for queries remain deliberate, enumerated exceptions.
