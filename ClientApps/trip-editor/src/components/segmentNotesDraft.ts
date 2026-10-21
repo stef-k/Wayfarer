@@ -173,7 +173,7 @@ export const createSegmentNotesDraft = (options: {
     const request = options.buildRequest();
     const segmentId = draft.id;
     const rows = draft.waypointRows.map(row => ({ ...row }));
-    isSaving.value = true;
+    pending.value = isSaving.value = true;
     options.resetFeedback();
     try {
       const result = segmentId
@@ -216,7 +216,7 @@ export const createSegmentNotesDraft = (options: {
         options.applyError(retryError, 'Segment save failed.', rows);
       }
     } finally {
-      if (currentAttempt()) isSaving.value = false;
+      if (currentAttempt()) pending.value = isSaving.value = false;
     }
   };
 

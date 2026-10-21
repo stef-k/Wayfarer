@@ -316,3 +316,25 @@ for (const failure of ['500', 'incomplete']) {
     assert.match(editor.saveError, /unknown outcome/);
   }));
 }
+
+test('pending complete saves keep a newer reversal dirty and pinned before any reply or parent refresh', () => withApp(async ({ parent, editor, sidebar }) => {
+  const reply = deferred();
+  globalThis.fetch = async () => reply.promise;
+  await editor.openEdit(parent.state.segmentsById.segment);
+  editor.draft.notesHtml = 'Submitted';
+  editor.draft.estimatedDurationMinutes = 120;
+  const saving = editor.saveDraft();
+  editor.draft.notesHtml = '';
+  editor.draft.estimatedDurationMinutes = 90;
+  await nextTick();
+  assert.equal(editor.isDirty, true, 'pending work remains an obligation even after a complete display reversal');
+  assert.equal(sidebar.hasAnyDraftChanges, true);
+  parent.applyMutation(envelope(segment({ notesHtml: 'Concurrent refresh', estimatedDurationMinutes: 180 })));
+  await nextTick();
+  assert.equal(editor.draft.notesHtml, '');
+  reply.resolve(saved(segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120 })));
+  await saving;
+  await nextTick();
+  assert.equal(editor.draft.notesHtml, '');
+  assert.equal(editor.isDirty, true);
+}));
