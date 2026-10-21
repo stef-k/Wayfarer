@@ -149,8 +149,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     return { expected, changes };
   };
 
-  /** Acknowledges only submitted fields; edits made during the request remain desired against the committed base. */
-  const acknowledge = (next: EditorTripMetadata, submitted: EditorMetadataConditionalRequest): void => {
+  /** Acknowledges submitted fields without erasing later manual edits or explicit sharing choices. */
+  const acknowledge = (next: EditorTripMetadata, submitted: EditorMetadataConditionalRequest, sharingEditedDuringSave: boolean): void => {
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
     const sharingWasClean = draft.shareProgressEnabled === baseline.shareProgressEnabled;
@@ -162,8 +162,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       adopt(field, incoming, next);
       if (wasSubmitted && !same(current[field], submitted.changes[field])) assignField(draft, retained, field);
     }
-    // Publication can disable sharing as a derived effect; keep its baseline aligned with the acknowledged commit.
-    if (!next.isPublic || sharingWasClean) draft.shareProgressEnabled = next.shareProgressEnabled;
+    // A derived sharing disable advances the baseline but cannot settle a newer checkbox choice.
+    if (sharingWasClean && !sharingEditedDuringSave) draft.shareProgressEnabled = next.shareProgressEnabled;
     baseline.shareProgressEnabled = next.shareProgressEnabled;
   };
 

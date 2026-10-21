@@ -278,6 +278,122 @@ test('publication acknowledgements retain the derived sharing baseline when priv
   } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
 });
 
+// A later checkbox choice may match the old baseline; it still follows the pending privacy save.
+for (const initiallyShared of [false, true]) {
+  test(`delayed privacy acknowledgement retains newer publication and sharing intent (initial sharing ${initiallyShared})`, async () => {
+    const previousWindow = globalThis.window;
+    const previousFetch = globalThis.fetch;
+    const navigations = [];
+    globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+    const owner = mountDraft();
+    const requests = [];
+    let complete;
+    let notifySharingStarted;
+    const sharingStarted = new Promise(resolve => { notifySharingStarted = resolve; });
+    globalThis.fetch = async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body });
+      assert.equal(options.method, 'PATCH');
+      assert.equal(options.credentials, 'same-origin');
+      const isSharing = url === '/editor/share-progress';
+      assert.ok(isSharing || url === '/editor/metadata/conditional', 'no legacy metadata fallback');
+      if (isSharing) assert.equal(owner.props.metadata.isPublic, true, 'publication must be acknowledged first');
+      const metadata = withOriginals({ ...owner.props.metadata, ...body.changes,
+        shareProgressEnabled: isSharing ? body.enabled : body.changes.isPublic === false ? false : owner.props.metadata.shareProgressEnabled });
+      await new Promise(resolve => { complete = resolve; if (isSharing) notifySharingStarted(); });
+      return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+    };
+    try {
+      owner.props.metadata = withOriginals({ ...owner.props.metadata, isPublic: true, shareProgressEnabled: initiallyShared });
+      await nextTick();
+      owner.editor.draft.isPublic = false;
+      await nextTick();
+      assert.equal(owner.editor.draft.shareProgressEnabled, false, 'making private derives a sharing disable');
+      const privatizing = owner.editor.saveAndExit();
+      assert.deepEqual(requests[0].body, { expected: { isPublic: true }, changes: { isPublic: false } });
+      owner.editor.draft.isPublic = true;
+      await nextTick();
+      assert.equal(owner.editor.shareProgressUnavailable, false);
+      owner.editor.visibleShareProgressEnabled = true;
+      complete();
+      await privatizing;
+      // Exercise a later props refresh as well as the save's own acknowledgement/refresh.
+      owner.props.metadata = withOriginals({ ...owner.props.metadata });
+      await nextTick();
+      assert.equal(owner.props.metadata.isPublic, false);
+      assert.equal(owner.props.metadata.shareProgressEnabled, false);
+      assert.equal(owner.editor.draft.isPublic, true);
+      assert.equal(owner.editor.draft.shareProgressEnabled, true, 'newer authored sharing must survive the private reply');
+      assert.equal(owner.editor.isDirty, true);
+      assert.equal(owner.editor.statusText, 'Unsaved changes');
+      assert.equal(owner.editor.shareProgressUnavailable, true, 'sharing remains unavailable on the committed private Trip');
+      assert.equal(requests.length, 1, 'an old reply cannot dispatch the newer sharing choice');
+      assert.deepEqual(navigations, [], 'Save & Exit must retain newer unsaved intent');
+
+      const republishing = owner.editor.saveAndExit();
+      assert.deepEqual(requests[1], { url: '/editor/metadata/conditional', body: {
+        expected: { isPublic: false }, changes: { isPublic: true } } });
+      assert.equal(requests.length, 2, 'sharing cannot start while publication is pending');
+      complete();
+      await sharingStarted;
+      assert.deepEqual(requests[2], { url: '/editor/share-progress', body: { enabled: true } });
+      assert.deepEqual(navigations, [], 'sharing also requires its own acknowledgement before exit');
+      complete();
+      await republishing;
+      await nextTick();
+      assert.equal(owner.editor.isDirty, false);
+      assert.equal(owner.props.metadata.shareProgressEnabled, true);
+      assert.equal(owner.editor.draft.shareProgressEnabled, true);
+      assert.equal(requests.length, 3);
+      assert.deepEqual(navigations, ['/User/Trip']);
+    } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+  });
+}
+
+// A share-progress reply owns only the submitted choice, just like a metadata reply.
+test('sharing disabled during its own PATCH remains dirty until the next explicit save', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const navigations = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  const owner = mountDraft();
+  const requests = [];
+  let complete;
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url, body });
+    const metadata = withOriginals({ ...owner.props.metadata, shareProgressEnabled: body.enabled });
+    await new Promise(resolve => { complete = resolve; });
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    owner.props.metadata = withOriginals({ ...owner.props.metadata, isPublic: true, shareProgressEnabled: false });
+    await nextTick();
+    owner.editor.visibleShareProgressEnabled = true;
+    const enabling = owner.editor.saveAndExit();
+    owner.editor.visibleShareProgressEnabled = false;
+    complete();
+    await enabling;
+    await nextTick();
+    assert.equal(owner.props.metadata.shareProgressEnabled, true);
+    assert.equal(owner.editor.draft.shareProgressEnabled, false);
+    assert.equal(owner.editor.isDirty, true);
+    assert.equal(owner.editor.statusText, 'Unsaved changes');
+    assert.equal(requests.length, 1, 'the newer disable needs an explicit save');
+    assert.deepEqual(navigations, []);
+    const disabling = owner.editor.saveAndExit();
+    assert.deepEqual(requests, [
+      { url: '/editor/share-progress', body: { enabled: true } },
+      { url: '/editor/share-progress', body: { enabled: false } }
+    ]);
+    complete();
+    await disabling;
+    assert.equal(owner.editor.isDirty, false);
+    assert.equal(owner.props.metadata.shareProgressEnabled, false);
+    assert.deepEqual(navigations, ['/User/Trip']);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
 test('tag edits authored during tag save survive its response and remain unsaved until their own acknowledgement', async () => {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;

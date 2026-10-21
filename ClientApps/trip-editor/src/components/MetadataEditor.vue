@@ -50,6 +50,8 @@ const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
+/// Distinguishes explicit sharing input during this save from privacy-driven clearing.
+let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
 const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
@@ -62,6 +64,7 @@ const visibleShareProgressEnabled = computed({
   get: () => !shareProgressUnavailable.value && draft.shareProgressEnabled,
   set: value => {
     draft.shareProgressEnabled = value;
+    if (isSaving.value) shareProgressEditedDuringSave = true;
   }
 });
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
@@ -179,6 +182,7 @@ const saveAndExit = async (): Promise<void> => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   if (isSaving.value) return;
+  shareProgressEditedDuringSave = false;
   isSaving.value = true;
   saveError.value = null;
   validationErrors.value = {};
@@ -193,7 +197,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
       const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, submitted);
       savedMetadata = result.affected.metadata ?? result.data;
       warnings.value = result.warnings;
-      draftState.acknowledge(savedMetadata, submitted);
+      draftState.acknowledge(savedMetadata, submitted, shareProgressEditedDuringSave);
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
