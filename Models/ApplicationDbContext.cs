@@ -466,6 +466,8 @@ namespace Wayfarer.Models
                     });
         }
 
+        /// <summary>Saves pending changes with import timestamps and property-specific Trip freshness stamps.</summary>
+        /// <remarks>Child changes preserve unrelated root fields and intentionally modified root properties.</remarks>
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             // Automatically set the UpdatedAt field before saving changes to the database
@@ -541,18 +543,16 @@ namespace Wayfarer.Models
 
                 if (entry != null)
                 {
-                    entry.Entity.UpdatedAt = DateTime.UtcNow;
-                    if (entry.State == EntityState.Unchanged)
-                        entry.State = EntityState.Modified;
+                    // A child stamp must not mark stale, unrelated Trip fields for writing.
+                    entry.Property(t => t.UpdatedAt).CurrentValue = DateTime.UtcNow;
                 }
                 else
                 {
-                    // unchanged – update trip timestamp anyway
+                    // Load an untracked Trip, then update only its timestamp in this save.
                     var trip = await Trips.FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
                     if (trip != null)
                     {
-                        trip.UpdatedAt = DateTime.UtcNow;
-                        Entry(trip).State = EntityState.Modified;
+                        Entry(trip).Property(t => t.UpdatedAt).CurrentValue = DateTime.UtcNow;
                     }
                 }
             }
