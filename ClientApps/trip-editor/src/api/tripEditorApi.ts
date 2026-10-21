@@ -7,6 +7,7 @@ import type {
   EditorAreaOrderRequest,
   EditorAreaOrderResult,
   EditorAreaSaveRequest,
+  EditorAreaConditionalRequest,
   EditorPlace,
   EditorPlaceDeleteResult,
   EditorPlaceOrderRequest,
@@ -268,13 +269,13 @@ export const createArea = async (
   request: EditorAreaSaveRequest
 ): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/regions/${regionId}/areas`, 'POST', antiforgeryToken, request, 'area create');
 
-/// Updates an area through the same-origin editor API.
+/// Updates only dirty Area fields using pinned originals; unsupported servers never receive a legacy fallback.
 export const updateArea = async (
   endpoint: string,
   areaId: string,
   antiforgeryToken: string,
-  request: EditorAreaSaveRequest
-): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/areas/${areaId}`, 'PUT', antiforgeryToken, request, 'area update');
+  request: EditorAreaConditionalRequest
+): Promise<EditorMutationResult<EditorArea>> => sendMutation(`${endpoint}/areas/${areaId}/conditional`, 'PATCH', antiforgeryToken, request, 'area update');
 
 /// Deletes an area through the same-origin editor API.
 export const deleteArea = async (
