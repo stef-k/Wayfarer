@@ -16,6 +16,7 @@ import type {
   EditorRegionOrderRequest,
   EditorRegionOrderResult,
   EditorRegionSaveRequest,
+  EditorRegionConditionalRequest,
   EditorSegment,
   EditorSegmentConflict,
   EditorSegmentDeleteResult,
@@ -198,13 +199,13 @@ export const createRegion = async (
   request: EditorRegionSaveRequest
 ): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions`, 'POST', antiforgeryToken, request, 'region create');
 
-/// Updates a region through the same-origin editor API.
+/// Uses pinned originals; an unsupported server never receives a fallback PUT.
 export const updateRegion = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: EditorRegionSaveRequest
-): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/${regionId}`, 'PUT', antiforgeryToken, request, 'region update');
+  request: EditorRegionConditionalRequest
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/${regionId}/conditional`, 'PATCH', antiforgeryToken, request, 'region update');
 
 /// Deletes a region through the same-origin editor API.
 export const deleteRegion = async (

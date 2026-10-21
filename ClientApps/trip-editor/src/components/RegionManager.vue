@@ -12,6 +12,7 @@ import { stopAreaPolygonEdit, type AreaPolygonEditor, type AreaPolygonMapWorkSta
 import { useAreaEditorActions } from './areaEditorActions';
 import { usePlaceEditorActions } from './placeEditorActions';
 import { useRegionEditorActions } from './regionEditorActions';
+import { createRegionDraftState } from './regionConditionalDraft';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
 import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
@@ -56,7 +57,9 @@ const regionListRebuildSignal = ref(0);
 const regionFormId = 'trip-editor-region-form';
 const placeFormId = 'trip-editor-place-form';
 const areaFormId = 'trip-editor-area-form';
-const draft = reactive(emptyRegionDraft());
+// The Region owner pins originals independently of the changing server-state props.
+const regionDraftState = createRegionDraftState();
+const draft = regionDraftState.draft;
 const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
 const areaDraft = reactive<EditorAreaDraft>(emptyAreaDraft());
 const isSaving = ref(false);
@@ -205,7 +208,7 @@ const forcedExpansionReasonByRegionId = computed<Record<Guid, 'editor' | 'select
 
   return reasons;
 });
-const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
+const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(regionDraftState.baseline) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? placeEditBaselineRequest.value ?? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
 const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex)) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
 const activeRegionTarget = computed<EditorTarget>(() => ({
@@ -265,6 +268,7 @@ const { cancelDraft, deleteDraftRegion, openCreate, openEdit, reorderRegions, re
   placeDraft,
   props,
   regionCreateBaselineRequest,
+  regionDraftState,
   resetFeedback,
   restoreRegionOrder
 });
@@ -319,6 +323,9 @@ watch(
   value => emit('dirtyStateChanged', value),
   { immediate: true }
 );
+
+// While a reply is pending, even a local reversal to the old base is a newer authored choice.
+watch(activeRegion, region => { if (!isSaving.value) regionDraftState.refresh(region); });
 
 watch(
   placePreview,
@@ -422,6 +429,7 @@ function clearRegionPlaceDrafts(): void {
 }
 
 function clearRegionPlaceBaselines(): void {
+  regionDraftState.reset(null);
   regionCreateBaselineRequest.value = null;
   placeCreateBaselineRequest.value = null;
   placeCreateBaselineDraft.value = null;
@@ -476,7 +484,7 @@ function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> 
 }
 
 function discardRegionDraft(): void {
-  Object.assign(draft, emptyRegionDraft());
+  regionDraftState.reset(null);
   regionCreateBaselineRequest.value = null;
   resetFeedback();
 }

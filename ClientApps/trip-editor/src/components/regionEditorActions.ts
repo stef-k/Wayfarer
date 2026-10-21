@@ -1,6 +1,6 @@
 import { onUnmounted } from 'vue';
 import { createRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
-import type { EditorMutationResult, EditorRegion, EditorRegionSaveRequest, Guid } from '../types';
+import type { EditorMutationResult, EditorRegion, Guid } from '../types';
 import { createRegionDeletionController, heldRegionDeletionKey } from './regionDeletionState';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildRegionCreateTarget, buildRegionEditTarget } from './regionPlaceEditorTargets';
@@ -23,7 +23,7 @@ export function useRegionEditorActions(context: any) {
       return;
     }
 
-    Object.assign(context.draft, emptyRegionDraft());
+    context.regionDraftState.reset(null);
     Object.assign(context.placeDraft, emptyPlaceDraft());
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.draft.name = 'New Region';
@@ -42,7 +42,7 @@ export function useRegionEditorActions(context: any) {
 
     Object.assign(context.placeDraft, emptyPlaceDraft());
     Object.assign(context.areaDraft, emptyAreaDraft());
-    Object.assign(context.draft, toRegionDraft(region));
+    context.regionDraftState.reset(region);
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
@@ -51,10 +51,11 @@ export function useRegionEditorActions(context: any) {
 
   const resetDraft = (): void => {
     if (!context.draft.id) {
-      Object.assign(context.draft, emptyRegionDraft());
+      context.regionDraftState.reset(null);
       context.draft.name = 'New Region';
+      context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
     } else {
-      Object.assign(context.draft, toRegionDraft(context.activeRegion.value));
+      context.regionDraftState.reset(context.activeRegion.value);
     }
     context.resetFeedback();
   };
@@ -64,17 +65,22 @@ export function useRegionEditorActions(context: any) {
   };
 
   const saveDraft = async (): Promise<void> => {
+    if (context.isSaving.value) return;
     if (held()) { context.applyError(new Error('An earlier Region deletion has an unresolved outcome. Reconcile it before changing Regions.'), 'Region operation held.'); return; }
     context.isSaving.value = true;
     context.resetFeedback();
 
     try {
-      const request = buildRegionRequest(context.draft);
-      const result = context.draft.id
-        ? await updateRegion(context.props.editorEndpoint, context.draft.id, context.props.antiforgeryToken, request)
-        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, request);
+      const regionId = context.draft.id;
+      const submitted = regionId ? context.regionDraftState.request() : { expected: {}, changes: buildRegionRequest(context.draft) };
+      if (regionId && Object.keys(submitted.changes).length === 0) return;
+      const result = regionId
+        ? await updateRegion(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted)
+        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, submitted.changes);
+      if (!editorAlive) return;
+      // Acknowledge before emitting: Vue schedules the parent's authoritative props for a later tick.
+      context.regionDraftState.acknowledge(result.data, submitted);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.draft, toRegionDraft(result.data));
       context.regionCreateBaselineRequest.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activeRegionTarget.value);
       context.markSaved();
@@ -103,7 +109,7 @@ export function useRegionEditorActions(context: any) {
       onSuccess: result => {
         context.emit('mutationApplied', result as EditorMutationResult<unknown>);
         // Only the deleted Region's own draft is cleared, after authoritative slices have been applied.
-        Object.assign(context.draft, emptyRegionDraft());
+        context.regionDraftState.reset(null);
         context.regionCreateBaselineRequest.value = null;
         context.props.editorSurface.clearActiveTarget(deletedTarget);
         context.markSaved();
@@ -141,7 +147,7 @@ export function useRegionEditorActions(context: any) {
     try {
       const result = await orderRegions(context.props.editorEndpoint, context.props.antiforgeryToken, { regionIds: ids });
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.draft, emptyRegionDraft());
+      context.regionDraftState.reset(null);
       context.markSaved();
     } catch (error) {
       context.applyError(error, 'Region reorder failed.');

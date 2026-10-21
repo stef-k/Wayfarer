@@ -1,4 +1,6 @@
 import type { EditorMetadataOriginalValues } from './api/metadataTypes';
+import type { EditorRegionOriginalValues } from './api/regionTypes';
+export type { EditorRegionOriginalValues, EditorRegionConditionalRequest } from './api/regionTypes';
 export type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTripMetadataUpdateRequest } from './api/metadataTypes';
 
 export type Guid = string;
@@ -47,6 +49,8 @@ export interface EditorRegion {
   displayOrder: number;
   isShadow: boolean;
   capabilities: EditorEntityCapabilities;
+  /** Exact originals are independent of nullable display defaults and image previews. */
+  originalValues?: EditorRegionOriginalValues;
 }
 
 export interface EditorExternalRoutingCapability {
