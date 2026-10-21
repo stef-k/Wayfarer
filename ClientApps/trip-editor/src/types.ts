@@ -30,6 +30,8 @@ export interface EditorTripMetadata {
   updatedAt: string;
   publicUrl: string | null;
   progressPublicUrl: string | null;
+  /** Original published values retain nullable Notes and partially populated legacy view fields. */
+  originalValues?: EditorMetadataOriginalValues;
 }
 
 export interface EditorRegion {
@@ -205,15 +207,6 @@ export interface EditorCoordinate {
 export interface EditorImageReference {
   rawUrl: string;
   proxiedUrl: string;
-}
-
-export interface EditorTripMetadataUpdateRequest {
-  name: string;
-  notesHtml: string | null;
-  isPublic: boolean;
-  coverImage: { rawUrl: string | null } | null;
-  center: EditorCoordinate | null;
-  zoom: number | null;
 }
 
 export interface EditorTripTagsUpdateRequest {
@@ -465,3 +458,6 @@ export interface BootstrapConfig {
   tilesUrl: string;
   antiforgeryToken: string;
 }
+import type { EditorMetadataOriginalValues } from './api/metadataTypes';
+export type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTripMetadataUpdateRequest } from './api/metadataTypes';
+

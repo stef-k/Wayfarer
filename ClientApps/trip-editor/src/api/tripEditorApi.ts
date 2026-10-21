@@ -26,7 +26,7 @@ import type {
   EditorTag,
   EditorTripTagsUpdateRequest,
   EditorTripMetadata,
-  EditorTripMetadataUpdateRequest,
+  EditorMetadataConditionalRequest,
   EditorTripState,
   ExternalRouteProposal,
   TagSuggestion,
@@ -129,12 +129,13 @@ export const searchGeocode = async (
   return (await response.json()) as EditorGeocodeSearchResponse;
 };
 
+/** Saves through the protected route only; unavailable contracts never fall back to a legacy full draft. */
 export const patchMetadata = async (
   endpoint: string,
   antiforgeryToken: string,
-  request: EditorTripMetadataUpdateRequest
+  request: EditorMetadataConditionalRequest
 ): Promise<EditorMutationResult<EditorTripMetadata>> => {
-  const response = await fetch(`${endpoint}/metadata`, {
+  const response = await fetch(`${endpoint}/metadata/conditional`, {
     method: 'PATCH',
     headers: {
       Accept: 'application/json',
@@ -149,8 +150,12 @@ export const patchMetadata = async (
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
   }
 
+  if (response.status === 409) {
+    throw new Error('Trip fields changed on another device. Your draft is retained. Review current Trip values before choosing a new base and saving.');
+  }
+
   if (!response.ok) {
-    throw new Error(`Trip Editor metadata save returned ${response.status}`);
+    throw new Error(`Trip settings could not be confirmed (${response.status}). Keep your draft and review current values before saving again.`);
   }
 
   return (await response.json()) as EditorMutationResult<EditorTripMetadata>;

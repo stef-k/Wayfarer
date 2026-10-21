@@ -48,6 +48,20 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
     /// <summary>Explicitly resets request resolution for the existing mobile reset adapter.</summary>
     public void Reset() => _resolution = null;
 
+    /// <summary>Rechecks and locks this request's incoming credential until the protected mutation transaction ends.</summary>
+    internal async Task<bool> RevalidateMutationAsync(HttpContext context, string userId, CancellationToken token)
+    {
+        // Initial admission/resolution is still required. This fresh row cannot reuse a cached positive lookup.
+        var credential = context.Request.Headers.Authorization.FirstOrDefault()?.Split(' ').Last();
+        if (!_resolved || string.IsNullOrEmpty(credential) || _db.Database.CurrentTransaction == null) return false;
+        var hash = ApiTokenService.HashToken(credential);
+        var rows = await _db.ApiTokens.FromSqlInterpolated($"""
+            SELECT * FROM public."ApiTokens" WHERE "UserId" = {userId}
+            AND ("TokenHash" = {hash} OR ("Token" = {credential} AND lower(btrim("Name")) <> 'mapbox')) FOR SHARE
+            """).AsNoTracking().ToListAsync(token);
+        return rows.Count > 0;
+    }
+
     /// <summary>Overload status recorded for the MVC boundary, including actions that catch exceptions.</summary>
     public int DeniedStatus { get; private set; }
 

@@ -66,7 +66,18 @@ public sealed record EditorTripMetadataDto(
     EditorImageReferenceDto? CoverImage,
     DateTime UpdatedAt,
     string? PublicUrl,
-    string? ProgressPublicUrl);
+    string? ProgressPublicUrl)
+{
+    /// <summary>Compatible additive originals for conditional saves; display Notes alone cannot prove null versus empty.</summary>
+    public EditorTripMetadataOriginalDto? OriginalValues { get; init; }
+}
+
+/// <summary>Exact published original metadata; no preview defaults or timestamp-based mutation condition.</summary>
+public sealed record EditorTripMetadataOriginalDto(string Name, string? NotesHtml, bool IsPublic,
+    EditorImageUpdateRequest? CoverImage, EditorMetadataOriginalCenterDto Center, int? Zoom);
+
+/// <summary>Retains partial legacy centers so replacing or clearing a view compares the actual stored pair.</summary>
+public sealed record EditorMetadataOriginalCenterDto(double? Latitude, double? Longitude);
 
 /// <summary>Region DTO with explicit shadow/capability flags.</summary>
 public sealed record EditorRegionDto(

@@ -278,9 +278,22 @@ namespace Wayfarer.Areas.User.Controllers
                 return Json(new { success = false, error = "Trip must be public to share progress" });
             }
 
-            trip.ShareProgressEnabled = enabled;
-            trip.UpdatedAt = DateTime.UtcNow;
-            await _dbContext.SaveChangesAsync();
+            if (_dbContext.Database.IsRelational())
+            {
+                // A stale preflight cannot re-enable sharing after a protected privacy change commits.
+                var now = DateTime.UtcNow;
+                var count = await _dbContext.Trips.Where(t => t.Id == id && t.UserId == userId && (!enabled || t.IsPublic))
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, enabled)
+                        .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), HttpContext.RequestAborted);
+                if (count == 0) return Json(new { success = false, error = "Trip must be public to share progress" });
+                await _dbContext.Entry(trip).ReloadAsync(HttpContext.RequestAborted);
+            }
+            else
+            {
+                trip.ShareProgressEnabled = enabled;
+                trip.UpdatedAt = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync();
+            }
 
             return Json(new { success = true, enabled = trip.ShareProgressEnabled });
         }
