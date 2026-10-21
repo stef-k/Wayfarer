@@ -39,7 +39,7 @@ const mount = (initial = region()) => {
       activateTarget: async target => { active.value = target; return true; },
       replaceActiveTarget: target => { active.value = target; },
       registerTargetHandler: (key, value) => { handlers.set(key, value); return () => handlers.delete(key); },
-      closeActiveTarget: async () => { handlers.get('region')?.discard(); active.value = null; return true; },
+      closeActiveTarget: async () => { handlers.get('region-draft')?.discard(); active.value = null; return true; },
       clearActiveTarget: () => { active.value = null; }, mapWork: ref(null) },
     editorEndpoint: '/api/trips/trip/editor', antiforgeryToken: 'anti', searchActive: false, selectedPlaceId: null,
     searchRegions: [], searchPlaceIdsByRegionId: {}, searchAreaIdsByRegionId: {}, pendingSearchAdd: null,
@@ -110,6 +110,7 @@ for (const newer of ['Newer edit', 'Original']) {
       owner.update(region({ name: 'During wait', notesHtml: 'During wait' }));
       await nextTick();
       assert.equal(owner.editor.draft.name, newer);
+      assert.equal(owner.editor.regionDirty, true, 'pending earlier writes retain navigation protection even after a reversal');
       reply.resolve(saved(region({ name: 'Submitted' })));
       await saving;
       await nextTick();
@@ -140,6 +141,7 @@ test('conflict retains draft and original through props; explicit reset adopts r
     await nextTick();
     assert.equal(owner.editor.draft.name, 'Mine');
     assert.ok(owner.editor.saveError);
+    assert.equal(owner.editor.saveError, 'Review current Region fields.');
     await owner.editor.saveDraft();
     assert.deepEqual(calls[0], calls[1]);
     owner.editor.resetDraft();
@@ -151,6 +153,31 @@ test('conflict retains draft and original through props; explicit reset adopts r
     assert.deepEqual(calls[2].expected, { name: 'Other device' });
     [...owner.handlers.values()][0].discard();
     assert.equal(owner.editor.draft.id, null);
+    assert.equal(owner.editor.regionDirty, false);
+  } finally { owner.dispose(); }
+}));
+
+test('lost reply holds a newer reversal and never blindly resends after props refresh', () => withGlobals(async () => {
+  const owner = mount();
+  const reply = deferred();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return reply.promise; };
+  try {
+    await owner.editor.openEdit(owner.props.state.regionsById.region);
+    owner.editor.draft.name = 'Earlier pending edit';
+    const saving = owner.editor.saveDraft();
+    owner.editor.draft.name = 'Original';
+    reply.resolve(new Response('{}', { status: 500 }));
+    await saving;
+    owner.update(region({ name: 'Earlier pending edit' }));
+    await nextTick();
+    assert.equal(owner.editor.draft.name, 'Original');
+    assert.equal(owner.editor.regionDirty, true);
+    await owner.editor.saveDraft();
+    assert.equal(calls, 1);
+    assert.match(owner.editor.saveError, /unknown outcome/);
+    owner.editor.resetDraft();
+    assert.equal(owner.editor.draft.name, 'Earlier pending edit');
     assert.equal(owner.editor.regionDirty, false);
   } finally { owner.dispose(); }
 }));

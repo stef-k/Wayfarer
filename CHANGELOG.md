@@ -4,6 +4,12 @@
 
 ### Added
 
+- Add paired conditional Region saves for bearer Name/Notes and the current Web
+  Name/Notes/Cover/Center form. Compare pinned original fields after PostgreSQL
+  locks, preserve disjoint edits and newer Vue drafts, and reject stale fields
+  without partial effects. Keep reserved Unassigned Places and legacy routes;
+  older unconditional writers remain unprotected (#853 Slice 4).
+
 - Add protected Trip Name/Notes saves for bearer clients and the current Web
   settings form, comparing original dirty fields under a PostgreSQL row lock.
   Retain conflicts and newer in-flight drafts; complete retained sharing after

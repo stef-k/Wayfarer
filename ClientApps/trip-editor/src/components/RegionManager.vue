@@ -7,7 +7,7 @@ import AreaEditorSurface from './AreaEditorSurface.vue';
 import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
 import { areaDraftKey, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
-import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft, toRegionDraft } from './regionPlaceDrafts';
+import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft } from './regionPlaceDrafts';
 import { stopAreaPolygonEdit, type AreaPolygonEditor, type AreaPolygonMapWorkState } from './areaPolygonMapWork';
 import { useAreaEditorActions } from './areaEditorActions';
 import { usePlaceEditorActions } from './placeEditorActions';
@@ -83,7 +83,7 @@ const activePlaceEditorId = computed(() => (activePlace.value && isPlaceEditOpen
 const isDraftOpen = computed(() => draft.id !== null || Boolean(draft.name || draft.notesHtml || draft.coverImageRawUrl || draft.centerLatitude || draft.centerLongitude));
 const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(placeDraft.name || placeDraft.notesHtml || placeDraft.address || placeDraft.latitude || placeDraft.longitude));
 const isAreaDraftOpen = computed(() => areaDraft.regionId !== null || Boolean(areaDraft.name || areaDraft.notesHtml || areaDraft.geometry));
-const regionDirty = computed(() => JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
+const regionDirty = computed(() => regionDraftState.pending.value || regionDraftState.uncertain.value || JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
 const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
 const areaDirty = computed(() => JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);

@@ -2,12 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NetTopologySuite.Geometries;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -22,6 +24,47 @@ namespace Wayfarer.Tests.Controllers;
 public sealed partial class RegionConditionalPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output) : TestBase
 {
     private readonly Mock<ICacheWarmupScheduler> _warmup = new();
+
+    /// <summary>Scalar editing leaves every persisted dependent row, route, provenance and measurement untouched.</summary>
+    [PostgresFact]
+    public async Task WebScalarSave_DoesNotWritePopulatedDependents()
+    {
+        var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        var region = await db.Regions.AsNoTracking().SingleAsync(r => r.Id == graph.SourceId);
+        var futureStamp = DateTime.UtcNow.Date.AddDays(1);
+        await db.Trips.Where(t => t.Id == region.TripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, futureStamp));
+        await using var connection = fixture.CreateConnection();
+        await connection.OpenAsync();
+        // Stable IDs plus PostgreSQL row versions detect any insert, delete or update, including same-value writes.
+        await using var snapshot = new NpgsqlCommand("""
+            SELECT string_agg(row, ',' ORDER BY row) FROM (
+              SELECT 'place:' || p."Id"::text || ':' || p.xmin::text AS row FROM "Places" p WHERE p."UserId" = $1
+              UNION ALL SELECT 'area:' || a."Id"::text || ':' || a.xmin::text FROM "Areas" a
+                JOIN "Regions" r ON r."Id" = a."RegionId" WHERE r."UserId" = $1
+              UNION ALL SELECT 'segment:' || s."Id"::text || ':' || s.xmin::text FROM "Segments" s WHERE s."UserId" = $1
+              UNION ALL SELECT 'waypoint:' || w."SegmentId"::text || ':' || w."Position"::text || ':' || w.xmin::text
+                FROM "SegmentWaypoints" w JOIN "Segments" s ON s."Id" = w."SegmentId" WHERE s."UserId" = $1
+            ) dependents
+            """, connection);
+        snapshot.Parameters.AddWithValue(graph.UserId);
+        var before = await snapshot.ExecuteScalarAsync();
+        var probe = new RegionProbe();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, graph.UserId);
+        using var response = await PatchAsync(web, region, true, new
+        {
+            name = region.Name, notesHtml = region.Notes, coverImage = new { rawUrl = region.CoverImageUrl },
+            center = new { latitude = region.Center!.Y, longitude = region.Center.X }
+        }, new { name = "Region scalar edit", notesHtml = "<p>Updated</p>", coverImage = (object?)null, center = (object?)null });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(before, await snapshot.ExecuteScalarAsync());
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(region.DisplayOrder, (await verification.Regions.FindAsync(region.Id))!.DisplayOrder);
+        Assert.Equal(futureStamp, (await verification.Trips.FindAsync(region.TripId))!.UpdatedAt);
+        Assert.Equal(2, probe.Updates.Count);
+        output.WriteLine("Mixed persisted Place/Area/Segment/Waypoint graph retained identical IDs and PostgreSQL row versions.");
+    }
 
     /// <summary>Disjoint originals survive in both directions and save orders, without structural or root replay.</summary>
     [PostgresTheory]
@@ -212,6 +255,8 @@ public sealed partial class RegionConditionalPostgresTests(PostgresImportTestFix
         {
             services.AddScoped(_ => fixture.CreateContext(interceptors ?? []));
             services.AddSingleton(_warmup.Object);
+            services.AddSingleton(Mock.Of<IIconColorProvider>());
+            services.AddSingleton(Mock.Of<IWebHostEnvironment>(environment => environment.WebRootPath == Directory.GetCurrentDirectory()));
             services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
             services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
         });

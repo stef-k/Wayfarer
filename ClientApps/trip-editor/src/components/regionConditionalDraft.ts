@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import type { EditorRegion, EditorRegionConditionalRequest, EditorRegionOriginalValues } from '../types';
 import { buildRegionRequest, emptyRegionDraft, toRegionDraft, type RegionDraft } from './regionPlaceDrafts';
 
@@ -9,7 +9,10 @@ const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) ==
 /** Copies one logical scalar while keeping the center coordinate pair a single intention. */
 const assign = (target: RegionDraft, source: RegionDraft, field: Field): void => {
   if (field === 'coverImage') target.coverImageRawUrl = source.coverImageRawUrl;
-  else if (field === 'center') { target.centerLatitude = source.centerLatitude; target.centerLongitude = source.centerLongitude; }
+  else if (field === 'center') {
+    target.centerLatitude = source.centerLatitude;
+    target.centerLongitude = source.centerLongitude;
+  }
   else target[field] = source[field];
 };
 
@@ -18,6 +21,8 @@ export const createRegionDraftState = () => {
   const draft = reactive(emptyRegionDraft());
   const baseline = reactive(emptyRegionDraft());
   const originals = reactive<Partial<EditorRegionOriginalValues>>({});
+  const pending = ref(false);
+  const uncertain = ref(false);
 
   /** Adopts a clean field without synthesizing absent originals from display values. */
   const adopt = (field: Field, incoming: RegionDraft, next: EditorRegion): void => {
@@ -30,6 +35,7 @@ export const createRegionDraftState = () => {
 
   /** Explicit open/reset/discard replaces the base; unrelated props never invoke this operation. */
   const reset = (next: EditorRegion | null): void => {
+    uncertain.value = false;
     Object.assign(draft, toRegionDraft(next));
     Object.assign(baseline, toRegionDraft(next));
     for (const field of fields) delete originals[field];
@@ -38,7 +44,7 @@ export const createRegionDraftState = () => {
 
   /** Clean fields follow props; dirty values and their original comparisons stay pinned. */
   const refresh = (next: EditorRegion | null): void => {
-    if (!next || next.id !== draft.id) return;
+    if (!next || next.id !== draft.id || pending.value || uncertain.value) return;
     const current = buildRegionRequest(draft);
     const before = buildRegionRequest(baseline);
     const incoming = toRegionDraft(next);
@@ -75,5 +81,5 @@ export const createRegionDraftState = () => {
     baseline.id = next.id;
   };
 
-  return { draft, baseline, reset, refresh, request, acknowledge };
+  return { draft, baseline, pending, uncertain, reset, refresh, request, acknowledge };
 };

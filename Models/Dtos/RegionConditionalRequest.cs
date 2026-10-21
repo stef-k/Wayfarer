@@ -54,7 +54,7 @@ internal sealed record RegionConditionalRequest(Dictionary<string, object?> Expe
     /// <summary>Canonicalizes desired values using existing Region validation; originals keep exact scalar identity.</summary>
     private static object? Value(string key, JsonElement value, bool desired)
     {
-        if (key == "center") return Center(value);
+        if (key == "center") return Center(value, desired);
         if (key == "coverImage")
         {
             if (value.ValueKind == JsonValueKind.Null) return null;
@@ -84,19 +84,19 @@ internal sealed record RegionConditionalRequest(Dictionary<string, object?> Expe
         return text;
     }
 
-    /// <summary>Requires a finite WGS84 pair or explicit Clear; geometry and order cannot enter this operation.</summary>
-    private static RegionConditionalCenter? Center(JsonElement value)
+    /// <summary>Desired centers require WGS84 pairs; finite legacy originals retain their exact identity for replacement/Clear.</summary>
+    private static RegionConditionalCenter? Center(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return null;
         var fields = Fields(value, ["latitude", "longitude"]);
-        return new(Coordinate(fields, "latitude", 90), Coordinate(fields, "longitude", 180));
+        return new(Coordinate(fields, "latitude", 90, desired), Coordinate(fields, "longitude", 180, desired));
     }
 
-    /// <summary>Rejects partial, nonnumeric, nonfinite and out-of-range center coordinates.</summary>
-    private static double Coordinate(Dictionary<string, JsonElement> fields, string key, int limit)
+    /// <summary>Rejects partial/nonfinite coordinates and enforces WGS84 bounds on authored replacements.</summary>
+    private static double Coordinate(Dictionary<string, JsonElement> fields, string key, int limit, bool desired)
     {
         if (!fields.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Number
-            || !value.TryGetDouble(out var number) || !double.IsFinite(number) || number < -limit || number > limit)
+            || !value.TryGetDouble(out var number) || !double.IsFinite(number) || desired && (number < -limit || number > limit))
             throw Invalid($"center.{key}", $"The coordinate must be finite and between {-limit} and {limit}.");
         return number;
     }

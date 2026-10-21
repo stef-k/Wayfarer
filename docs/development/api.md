@@ -771,7 +771,70 @@ envelopes. A stale full Web draft can still overwrite a later bearer edit, and
 an explicitly supplied legacy field can overwrite a protected edit. Existing
 tabs and old clients are not covered by the new guarantee. Later paired entity
 slices and a maintainer-approved legacy compatibility disposition are required
-before #853 can close; no Region/Place/Area/Segment conditions are added here.
+before #853 can close. Region protection is described below; Place/Area/Segment
+and structural conditions remain separate work.
+
+## Protected Region scalars (#853 Slice 4)
+
+The current Web Region form and opt-in bearer scalar action share one locked
+compare/apply authority. Only authored fields enter `changes`; every effective
+field needs its pinned original in `expected`. `UpdatedAt` is not a condition.
+
+| Writer | Protected route | Allowed fields and authority |
+| --- | --- | --- |
+| Bearer | `PATCH /api/trips/{tripId}/conditional/regions/{regionId}` | `name`, `notes`; active incoming bearer, active account and owned Trip/Region. |
+| Current Web form | `PATCH /api/trips/{tripId}/editor/regions/{regionId}/conditional` | `name`, `notesHtml`, `coverImage`, `center`; User cookie, active account, ownership and antiforgery. |
+
+For example, changing Notes without replaying an untouched Name, cover or center:
+
+~~~json
+{"expected":{"notes":null},"changes":{"notes":"<p>New notes</p>"}}
+~~~
+
+Omitted/null desired Notes means Unchanged; present `""` means Clear. Originals
+distinguish null from empty and use the shared normalized rich HTML. Names are
+trimmed and nonblank; ordinary Regions cannot adopt `Unassigned Places`, ignoring
+case and surrounding whitespace. Bearer can edit the reserved Region's Notes
+only. The reserved Web Region remains noneditable. Order and children are never
+writable through these scalar operations.
+
+The Web Region DTO adds `originalValues` containing `name`, nullable `notesHtml`,
+the exact stored `coverImage: {rawUrl}` or null, and `center: {latitude,longitude}`
+or null. Existing display fields remain compatible. Cover changes use a trimmed
+absolute HTTP(S) URL or null to clear; center changes use a finite WGS84 pair or
+null to clear. The Vue draft owner pins originals per field, adopts only clean
+fields on refresh, and retains newer authored edits across a delayed reply.
+Conflict feedback and dirty originals survive unrelated updates. Reset/discard
+explicitly adopts the current visible base; the next save still compares it.
+
+The server locks Region then parent Trip in lifecycle order, uses fresh persisted
+values, and locks/revalidates the current active account and incoming credential
+after waits. It updates only requested Region properties and a current-safe Trip
+timestamp in one transaction. No Region order, child, route, provenance or
+measurement is changed. Missing/foreign scope returns concealed 404; changed
+original parent scope returns 409 `mutation-scope-stale`; stale selected fields
+return 409 `mutation-base-stale`; confirmed unapplied contention can return
+`mutation-contention`. Invalid/duplicate/unknown/ambiguous input is 400. Rejected
+operations perform no image/cache work. Bearer retains its existing post-commit
+warm-up policy; Web Region saves retain their existing lack of external warm-up.
+
+Bearer success returns `contract: "bd2-1"`, `success`, `applied` and a canonical
+`region` DTO. An already equal desired value can return `applied:false`. Web keeps
+`EditorMutationResult` with the changed Region in `data` and `affected.regions`.
+These are committed operation results, without durable receipts. Lost replies and
+cancellation remain uncertain to the client and never authorize blind replay.
+Within the current Region editor session, an uncertain save holds the draft and
+further saves until explicit review/reset or discard. It supplies no durable
+receipt, cross-reload recovery or settlement of the separate Trip-sharing debt.
+
+**Compatibility boundary:** bearer `PUT /api/trips/regions/{id}` and cookie
+`PUT /api/trips/{tripId}/editor/regions/{id}` keep their unconditional payloads and
+responses for old clients/tabs. They can still overwrite overlapping protected
+edits. Current Vue updates use only the new PATCH and fail closed for missing
+original evidence or an unsupported route. Region creation, reorder, deletion
+and four-way consent remain unchanged. This slice does not complete #853, settle
+legacy-client policy or the retained sharing lost-reply obligation, implement
+#907, or qualify Place/Area/Segment/structural or native Mobile writes.
 
 ## Saved Trip measurements and native KML
 
