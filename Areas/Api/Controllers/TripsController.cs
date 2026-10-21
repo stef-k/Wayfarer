@@ -555,24 +555,25 @@ public partial class TripsController : BaseApiController
                 return BadRequest("Latitude or Longitude is out of range.");
             location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
-        location ??= place.Location == null ? null : (NetTopologySuite.Geometries.Point)place.Location.Copy();
         var iconName = request.ClearIcon == true || request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)
-            ? "marker" : request.IconName ?? place.IconName;
+            ? "marker" : request.IconName;
         var markerColor = request.ClearMarkerColor == true || request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)
-            ? "bg-blue" : request.MarkerColor ?? place.MarkerColor;
+            ? "bg-blue" : request.MarkerColor;
+        // Carry actual legacy intent to the locked reload; preflight values are not authoritative defaults.
         var lifecycle = await _lifecycle.UpdatePlaceAsync(
             place.Region.TripId,
             placeId,
             user.Id,
             new PlaceLifecycleUpdate(
-                targetRegionId,
-                string.IsNullOrWhiteSpace(request.Name) ? place.Name : request.Name,
-                (request.Notes is null ? place.Notes : RichNotes.Normalize(request.Notes)) ?? string.Empty,
-                place.Address ?? string.Empty,
-                iconName ?? "marker",
-                markerColor ?? "bg-blue",
+                request.RegionId,
+                string.IsNullOrWhiteSpace(request.Name) ? null : request.Name,
+                request.Notes is null ? null : RichNotes.Normalize(request.Notes) ?? string.Empty,
+                null,
+                iconName,
+                markerColor,
                 location,
-                request.DisplayOrder),
+                request.DisplayOrder,
+                PreserveOmittedFields: true),
             HttpContext.RequestAborted);
         if (!lifecycle.Succeeded)
             return lifecycle.ErrorCode == "lifecycle-concurrency-conflict"

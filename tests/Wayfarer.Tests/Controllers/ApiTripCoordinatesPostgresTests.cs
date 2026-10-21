@@ -123,7 +123,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(JsonValueKind.Array, coordinates.ValueKind);
         Assert.Equal(new[] { 23d, 37d }, coordinates.EnumerateArray().Select(item => item.GetDouble()));
 
-        // Metadata-only updates of absent positions retain null, with existing empty notes/address coercion.
+        // Metadata-only updates preserve absent positions and omitted nullable Notes/Address without coercion (#853 Slice 2).
         using var absentUpdate = await client.PutAsync($"/api/trips/places/{createdId}",
             new StringContent("""{"name":"Optional edited"}""", Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.OK, absentUpdate.StatusCode);
@@ -132,8 +132,8 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         var absentPlace = AssertPlaceShape(absentDocument.RootElement);
         Assert.Equal(createdId, absentPlace.GetProperty("id").GetGuid());
         Assert.Equal("Optional edited", absentPlace.GetProperty("name").GetString());
-        Assert.Equal(string.Empty, absentPlace.GetProperty("notes").GetString());
-        Assert.Equal(string.Empty, absentPlace.GetProperty("address").GetString());
+        Assert.Equal(JsonValueKind.Null, absentPlace.GetProperty("notes").ValueKind);
+        Assert.Equal(JsonValueKind.Null, absentPlace.GetProperty("address").ValueKind);
         Assert.Equal(3, absentPlace.GetProperty("displayOrder").GetInt32());
         Assert.Equal("marker", absentPlace.GetProperty("iconName").GetString());
         Assert.Equal("bg-blue", absentPlace.GetProperty("markerColor").GetString());

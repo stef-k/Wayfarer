@@ -54,26 +54,22 @@ public sealed partial class PlaceRegionLifecycleService
                 DetachCanonicalEntries(canonicalCandidates);
                 var place = await LoadOwnedPlaceAsync(tripId, placeId, userId, cancellationToken);
                 if (place == null) return PlaceLifecycleUpdateResult.NotFound;
+                var canonicalUpdate = update.ResolveAgainst(place);
                 var targetRegion = await _dbContext.Regions
-                    .SingleOrDefaultAsync(region => region.Id == update.RegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
+                    .SingleOrDefaultAsync(region => region.Id == canonicalUpdate.RegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
                 if (targetRegion == null) return PlaceLifecycleUpdateResult.NotFound;
                 var affected = await LoadAffectedSegmentsAsync(tripId, userId, [placeId], cancellationToken);
                 recovery = new([placeId], [place.RegionId, targetRegion.Id], affected.Select(item => item.Id).ToArray());
                 var oldRegionId = place.RegionId;
                 var moved = oldRegionId != targetRegion.Id;
-                var locationChanged = !CoordinatesEqual(place.Location, update.Location);
-                if (update.Location == null && affected.Any(segment => segment.Waypoints.Count > 0))
+                var locationChanged = !CoordinatesEqual(place.Location, canonicalUpdate.Location);
+                if (canonicalUpdate.Location == null && affected.Any(segment => segment.Waypoints.Count > 0))
                 {
                     await RollbackAsync(transaction);
                     return PlaceLifecycleUpdateResult.Validation("location", "waypoint-location-required", "Location is required while the Place is referenced by a waypoint-bearing Segment.");
                 }
 
-                place.Name = update.Name;
-                place.Notes = update.Notes;
-                ApplyAddressUpdate(place, update);
-                place.IconName = update.IconName;
-                place.MarkerColor = update.MarkerColor;
-                place.Location = CopyPoint(update.Location);
+                ApplyScalarUpdate(place, canonicalUpdate);
                 if (moved)
                 {
                     place.RegionId = targetRegion.Id;
@@ -86,7 +82,7 @@ public sealed partial class PlaceRegionLifecycleService
                 {
                     foreach (var segment in affected.OrderBy(item => item.Id))
                     {
-                        RewriteLocation(segment, placeId, update.Location);
+                        RewriteLocation(segment, placeId, canonicalUpdate.Location);
                         await ReconcileSegmentAsync(segment, cancellationToken);
                     }
                 }
@@ -306,7 +302,7 @@ public sealed partial class PlaceRegionLifecycleService
     private async Task<LifecycleLockCandidates?> DiscoverUpdateCandidatesAsync(
         Guid tripId,
         Guid placeId,
-        Guid targetRegionId,
+        Guid? targetRegionId,
         string userId,
         CancellationToken cancellationToken)
     {
@@ -315,6 +311,7 @@ public sealed partial class PlaceRegionLifecycleService
             .Select(place => (Guid?)place.RegionId)
             .SingleOrDefaultAsync(cancellationToken);
         if (!currentRegionId.HasValue) return null;
+        targetRegionId ??= currentRegionId.Value;
         var targetExists = await _dbContext.Regions.AsNoTracking()
             .AnyAsync(region => region.Id == targetRegionId && region.TripId == tripId && region.UserId == userId, cancellationToken);
         if (!targetExists) return null;
@@ -328,7 +325,7 @@ public sealed partial class PlaceRegionLifecycleService
             segments.Where(item => item.TransportProfileId.HasValue).Select(item => item.TransportProfileId!.Value).Distinct().Order().ToArray(),
             segments.Select(item => item.Id).Distinct().Order().ToArray(),
             [placeId],
-            new[] { currentRegionId.Value, targetRegionId }.Distinct().Order().ToArray());
+            new[] { currentRegionId.Value, targetRegionId.Value }.Distinct().Order().ToArray());
     }
 
     private async Task<LifecycleLockCandidates> BuildDeleteLockCandidatesAsync(
