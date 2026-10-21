@@ -125,7 +125,14 @@ public sealed record EditorAreaDto(
     string FillHex,
     JsonElement Geometry,
     int DisplayOrder,
-    EditorEntityCapabilitiesDto Capabilities);
+    EditorEntityCapabilitiesDto Capabilities)
+{
+    /// <summary>Server-origin comparisons, independent of display defaults and GeoJSON precision.</summary>
+    public EditorAreaOriginalValues? OriginalValues { get; init; }
+}
+
+/// <summary>Nullable canonical Notes, exact scalar originals and persisted Polygon fingerprint for Area editing.</summary>
+public sealed record EditorAreaOriginalValues(Guid RegionId, string Name, string? NotesHtml, string? FillHex, string Geometry);
 
 /// <summary>Segment DTO with GeoJSON object route geometry.</summary>
 public sealed record EditorSegmentDto(

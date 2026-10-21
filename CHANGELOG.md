@@ -4,6 +4,12 @@
 
 ### Added
 
+- Add paired conditional Area editing for bearer Notes and current Web
+  Name/Notes/Fill/Polygon. Compare pinned originals and Region identity under
+  PostgreSQL locks, write only dirty fields, preserve Polygon holes and newer Vue
+  drafts, and hold uncertain saves. Legacy full saves and geometry-only PUT remain
+  compatible and unprotected for their overlapping fields (#853 Slice 5).
+
 - Add paired conditional Region saves for bearer Name/Notes and the current Web
   Name/Notes/Cover/Center form. Compare pinned original fields after PostgreSQL
   locks, preserve disjoint edits and newer Vue drafts, and reject stale fields
@@ -64,6 +70,10 @@
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed
+
+- Keep late Area save feedback and cleanup scoped to the originating editing
+  session after explicit discard. Reject conditional Area Names above 200 trimmed
+  characters as correctable field validation before any writes (#853 Slice 5).
 
 - Preserve current locked Place fields omitted from legacy bearer PUT, including
   concurrent Web Region/coordinate/Address/marker edits and their route/order

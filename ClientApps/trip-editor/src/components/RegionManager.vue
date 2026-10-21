@@ -7,15 +7,16 @@ import AreaEditorSurface from './AreaEditorSurface.vue';
 import RegionEditorSurface from './RegionEditorSurface.vue';
 import RegionPlaceList from './RegionPlaceList.vue';
 import { areaDraftKey, placeDraftKey, regionDraftKey } from './regionPlaceEditorTargets';
-import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toAreaDraft, toPlaceDraft } from './regionPlaceDrafts';
+import { buildAreaRequest, buildPlaceRequest, buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft } from './regionPlaceDrafts';
 import { stopAreaPolygonEdit, type AreaPolygonEditor, type AreaPolygonMapWorkState } from './areaPolygonMapWork';
 import { useAreaEditorActions } from './areaEditorActions';
 import { usePlaceEditorActions } from './placeEditorActions';
 import { useRegionEditorActions } from './regionEditorActions';
 import { createRegionDraftState } from './regionConditionalDraft';
+import { createAreaDraftState } from './areaConditionalDraft';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
-import type { EditorArea, EditorAreaDraft, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
+import type { EditorArea, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 type PlaceDraftPreview = {
   coordinate: { latitude: number; longitude: number } | null;
@@ -61,7 +62,8 @@ const areaFormId = 'trip-editor-area-form';
 const regionDraftState = createRegionDraftState();
 const draft = regionDraftState.draft;
 const placeDraft = reactive<EditorPlaceDraft>(emptyPlaceDraft());
-const areaDraft = reactive<EditorAreaDraft>(emptyAreaDraft());
+const areaDraftState = createAreaDraftState();
+const areaDraft = areaDraftState.draft;
 const isSaving = ref(false);
 const isOrdering = ref(false);
 const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
@@ -85,7 +87,7 @@ const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(
 const isAreaDraftOpen = computed(() => areaDraft.regionId !== null || Boolean(areaDraft.name || areaDraft.notesHtml || areaDraft.geometry));
 const regionDirty = computed(() => regionDraftState.pending.value || regionDraftState.uncertain.value || JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
 const placeDirty = computed(() => JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
-const areaDirty = computed(() => JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
+const areaDirty = computed(() => areaDraftState.pending.value || areaDraftState.uncertain.value || JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));
 const unassignedPlacesRegion = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).find(region => region?.isShadow && region.name === 'Unassigned Places') ?? null);
@@ -210,7 +212,7 @@ const forcedExpansionReasonByRegionId = computed<Record<Guid, 'editor' | 'select
 });
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(regionDraftState.baseline) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? placeEditBaselineRequest.value ?? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
-const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(toAreaDraft(activeArea.value, areaDraft.regionId, props.state.options.areaDefaults.fillHex)) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
+const areaBaselineRequest = computed(() => areaDraft.id ? buildAreaRequest(areaDraftState.baseline) : areaCreateBaselineRequest.value ?? buildAreaRequest(emptyAreaDraft(areaDraft.regionId, props.state.options.areaDefaults.fillHex)));
 const activeRegionTarget = computed<EditorTarget>(() => ({
   key: regionDraftKey,
   identity: draft.id ? `region:edit:${draft.id}` : 'region:add',
@@ -302,8 +304,8 @@ const { cancelAreaDraft, deleteDraftArea, drawAreaPolygon, openAreaCreate, openA
   activeAreaTarget,
   applyError,
   areaCreateBaselineRequest,
-  areaDraft,
   areaPolygonMapWork,
+  areaDraftState,
   clearAllDraftsAndBaselines,
   clearRegionPlaceBaselines,
   clearRegionPlaceDrafts,
@@ -326,6 +328,7 @@ watch(
 
 // While a reply is pending, even a local reversal to the old base is a newer authored choice.
 watch(activeRegion, region => { if (!isSaving.value) regionDraftState.refresh(region); });
+watch(activeArea, area => { if (!isSaving.value) areaDraftState.refresh(area); });
 
 watch(
   placePreview,
@@ -438,9 +441,8 @@ function clearRegionPlaceBaselines(): void {
 
 function clearAllDraftsAndBaselines(): void {
   clearRegionPlaceDrafts();
-  Object.assign(areaDraft, emptyAreaDraft());
   clearRegionPlaceBaselines();
-  areaCreateBaselineRequest.value = null;
+  discardAreaDraft();
 }
 
 function cloneIdRecord(record: Record<Guid, Guid[]>): Record<Guid, Guid[]> {
@@ -498,7 +500,7 @@ function discardPlaceDraft(): void {
 }
 
 function discardAreaDraft(): void {
-  Object.assign(areaDraft, emptyAreaDraft());
+  areaDraftState.reset(null);
   areaCreateBaselineRequest.value = null;
   resetFeedback();
 }

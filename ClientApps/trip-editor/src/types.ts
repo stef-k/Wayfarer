@@ -1,5 +1,7 @@
 import type { EditorMetadataOriginalValues } from './api/metadataTypes';
 import type { EditorRegionOriginalValues } from './api/regionTypes';
+import type { EditorAreaOriginalValues } from './api/areaTypes';
+export type { EditorAreaOriginalValues, EditorAreaConditionalRequest } from './api/areaTypes';
 export type { EditorRegionOriginalValues, EditorRegionConditionalRequest } from './api/regionTypes';
 export type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTripMetadataUpdateRequest } from './api/metadataTypes';
 
@@ -101,6 +103,8 @@ export interface EditorArea {
   geometry: GeoJsonPolygon;
   displayOrder: number;
   capabilities: EditorEntityCapabilities;
+  /** Originals preserve nullable storage and exact Polygon identity independently of displayed defaults. */
+  originalValues?: EditorAreaOriginalValues;
 }
 
 export interface EditorSegment {

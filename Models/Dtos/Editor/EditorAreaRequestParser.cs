@@ -328,7 +328,8 @@ internal static class EditorAreaRequestParser
             && !double.IsInfinity(value);
     }
 
-    private static void ValidateRequiredName(string? name, Dictionary<string, string[]> errors)
+    /// <summary>Shared Name validation for complete and conditional Area replacements.</summary>
+    internal static void ValidateRequiredName(string? name, Dictionary<string, string[]> errors)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -336,7 +337,8 @@ internal static class EditorAreaRequestParser
         }
     }
 
-    private static void ValidateFillHex(string? fillHex, Dictionary<string, string[]> errors)
+    /// <summary>Shared fill validation; nullable legacy originals remain separate from desired replacements.</summary>
+    internal static void ValidateFillHex(string? fillHex, Dictionary<string, string[]> errors)
     {
         if (string.IsNullOrWhiteSpace(fillHex) || !FillHexRegex.IsMatch(fillHex.Trim()))
         {

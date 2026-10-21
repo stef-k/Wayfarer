@@ -836,6 +836,81 @@ and four-way consent remain unchanged. This slice does not complete #853, settle
 legacy-client policy or the retained sharing lost-reply obligation, implement
 #907, or qualify Place/Area/Segment/structural or native Mobile writes.
 
+## Protected Area editing (#853 Slice 5)
+
+Current Web Area saves and opt-in bearer Notes share one PostgreSQL compare/apply
+boundary. Supply original Region identity and only authored dirty fields:
+
+| Writer | Protected route | Selected fields and authority |
+| --- | --- | --- |
+| Bearer | `PATCH /api/trips/{tripId}/conditional/areas/{areaId}` | `notes`; active incoming token, account and current owned Area → Region → Trip. |
+| Current Web form | `PATCH /api/trips/{tripId}/editor/areas/{areaId}/conditional` | `name`, `notesHtml`, `fillHex`, `geometry`; active User cookie, current ownership and antiforgery. |
+
+~~~json
+{"expected":{"regionId":"original-region-guid","notes":null},"changes":{"notes":"<p>Authored notes</p>"}}
+~~~
+
+Each effective changed field requires an independently present original. Notes
+originals use the shared normalized rich HTML while preserving null versus empty;
+desired Notes omitted/null means Unchanged, `""` means Clear. Data-image sources
+are rejected and desired rich HTML is sanitized. Web Name remains trimmed and
+nonblank; Fill uses the existing `#RRGGBB` validation and lowercase persistence.
+Unknown/duplicate fields, empty effective changes and writable parent/order fields
+are rejected with 400 before any domain writes or cache work.
+
+The compatible editor Area projection adds `originalValues`: original `regionId`,
+`name`, nullable `notesHtml`, exact stored nullable `fillHex`, and `geometry`
+comparison evidence. Display Notes/Fill keep their existing empty/default values.
+Geometry evidence is `area-polygon-1:` followed by uppercase SHA-256 of fixed
+little-endian EWKB with SRID. It retains every XY double, exterior/interior ring,
+hole, vertex order and orientation; no rounding or topological normalization is
+performed. It is a narrow persisted Polygon comparison, not authorization or an
+aggregate revision. For a geometry change, put that original string in
+`expected.geometry` and the full authored GeoJSON Polygon in `changes.geometry`.
+Desired geometry retains finite paired `[longitude,latitude]` WGS84 positions,
+closed rings and existing Polygon validation. Notes-only saves need no geometry
+evidence and neither replace nor normalize the current Polygon.
+
+The transaction locks Area → current Region → current owned Trip, consistent with
+#848 keep/delete ordering, then locks/rechecks the active account and incoming
+bearer credential after waits. It compares original parent identity and selected
+fields using fresh untracked rows. Only selected Area columns plus a current-safe
+Trip `UpdatedAt` are written in the same commit; sibling orders, Region scalars,
+Places, Segments, waypoints, provenance, measurements and visits remain unchanged.
+An Area kept in canonical Unassigned Places remains editable; its old parent base
+returns 409 `mutation-scope-stale`, never a move back. Stale selected fields return
+409 `mutation-base-stale`; confirmed unapplied contention can return
+`mutation-contention`. Missing/foreign scope is concealed with 404 and unavailable
+current authority returns 401. Known failures write no domain rows or warm-up work.
+
+Bearer 200 returns `contract: "bd2-1"`, `success`, `applied` and canonical `area`;
+Web retains `EditorMutationResult`, with the Area in `data` and `affected.areas`
+and no order replacement. A desired value already equal to current can return
+`applied:false`. Bearer image warm-up runs only after an applied commit; Web Area
+saves continue to schedule no external work. These are committed results, without
+durable receipts: cancellation or commit/reply loss remains uncertain to callers.
+
+The Vue Area owner pins field originals independently of props, adopts only clean
+fields on refresh and retains newer draft/map Polygon edits and explicit reversals
+across a delayed acknowledgement. Parent drift cannot silently adopt a new Region.
+Conflicts/validation preserve drafts; uncertain results hold further saves in the
+current session until explicit current-state review/reset or discard. Neither
+reset nor discard proves that an earlier uncertain write failed. Existing polygon
+map-work Done/Cancel and Area create/delete/order workflows remain in place.
+Missing originals or an unsupported conditional route fail closed with no PUT
+fallback.
+
+**Retained unconditional writers:** bearer `PUT /api/trips/areas/{id}` and old Web
+complete-draft `PUT /api/trips/{tripId}/editor/areas/{id}` remain compatible and
+can overwrite newer protected fields. The separate cookie/antiforgery
+`PUT /api/trips/{tripId}/editor/areas/{id}/geometry` remains ownership/parent scoped
+and writes only Geometry plus Trip freshness, preserving Notes. It remains
+unprotected for competing Geometry replacements. New current-form saves use the
+conditional route; these legacy paths prevent a universal all-writer guarantee.
+No schema migration, native Mobile qualification, #907 fix, Segment/Place or
+structural protection, legacy-client policy decision, or settlement of the held
+Trip-sharing lost-reply obligation is included. #853 remains incomplete and open.
+
 ## Saved Trip measurements and native KML
 
 A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns

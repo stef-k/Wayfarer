@@ -200,7 +200,10 @@ public static class EditorTripStateMapper
             string.IsNullOrWhiteSpace(area.FillHex) ? "#ff6600" : area.FillHex,
             ToAreaPolygonGeoJson(tripId, area),
             area.DisplayOrder ?? 0,
-            EditableLeafCapabilities());
+            EditableLeafCapabilities())
+        {
+            OriginalValues = new(regionId, area.Name, RichNotes.Normalize(area.Notes), area.FillHex, AreaGeometryIdentity.For(area.Geometry))
+        };
 
     private static EditorVisitProgressDto BuildVisitProgress(
         IReadOnlyList<(Region Region, Place Place)> places,

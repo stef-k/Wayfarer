@@ -1,12 +1,23 @@
-import { createArea, deleteArea, orderAreas, updateArea } from '../api/tripEditorApi';
+import { onUnmounted, watch } from 'vue';
+import { createArea, deleteArea, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderAreas, updateArea } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorArea, EditorRegion, Guid } from '../types';
 import { buildAreaCreateTarget, buildAreaEditTarget } from './regionPlaceEditorTargets';
-import { buildAreaRequest, emptyAreaDraft, toAreaDraft } from './regionPlaceDrafts';
+import { buildAreaRequest, emptyAreaDraft } from './regionPlaceDrafts';
 import { beginAreaPolygonMapWork } from './areaPolygonMapWork';
 import { confirm } from '../composables/useConfirmDialog';
 
 /// Coordinates area-specific editor actions while RegionManager owns shared draft state.
 export function useAreaEditorActions(context: any) {
+  const areaDraft = context.areaDraftState.draft;
+  let editorAlive = true;
+  let savingSession: number | null = null;
+  onUnmounted(() => { editorAlive = false; });
+  // Explicit discard retires only this Area attempt's UI lock; it says nothing about its server outcome.
+  watch(() => context.areaDraftState.session(), () => {
+    if (savingSession === null) return;
+    savingSession = null;
+    context.isSaving.value = false;
+  }, { flush: 'sync' });
   const openAreaCreate = async (region: EditorRegion): Promise<void> => {
     const target = buildAreaCreateTarget(region);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -15,10 +26,11 @@ export function useAreaEditorActions(context: any) {
     }
 
     context.clearRegionPlaceDrafts();
-    Object.assign(context.areaDraft, emptyAreaDraft(region.id, context.props.state.options.areaDefaults.fillHex));
-    context.areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
+    context.areaDraftState.reset(null);
+    Object.assign(areaDraft, emptyAreaDraft(region.id, context.props.state.options.areaDefaults.fillHex));
+    areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
     context.clearRegionPlaceBaselines();
-    context.areaCreateBaselineRequest.value = buildAreaRequest(context.areaDraft);
+    context.areaCreateBaselineRequest.value = buildAreaRequest(areaDraft);
     context.resetFeedback();
   };
 
@@ -30,18 +42,19 @@ export function useAreaEditorActions(context: any) {
     }
 
     context.clearRegionPlaceDrafts();
-    Object.assign(context.areaDraft, toAreaDraft(area, area.regionId, context.props.state.options.areaDefaults.fillHex));
+    context.areaDraftState.reset(area);
     context.clearRegionPlaceBaselines();
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
   };
 
   const resetAreaDraft = (): void => {
-    if (!context.areaDraft.id) {
-      Object.assign(context.areaDraft, emptyAreaDraft(context.areaDraft.regionId, context.props.state.options.areaDefaults.fillHex));
-      context.areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
+    if (context.isSaving.value) return;
+    if (!areaDraft.id) {
+      Object.assign(areaDraft, emptyAreaDraft(areaDraft.regionId, context.props.state.options.areaDefaults.fillHex));
+      areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
     } else {
-      Object.assign(context.areaDraft, toAreaDraft(context.activeArea.value, context.areaDraft.regionId, context.props.state.options.areaDefaults.fillHex));
+      context.areaDraftState.reset(context.activeArea.value);
     }
     context.resetFeedback();
   };
@@ -51,26 +64,51 @@ export function useAreaEditorActions(context: any) {
   };
 
   const saveAreaDraft = async (): Promise<void> => {
-    if (!context.areaDraft.regionId) {
+    if (context.isSaving.value || !areaDraft.regionId) {
+      return;
+    }
+    if (context.areaDraftState.uncertain.value) {
+      context.applyError(new Error('The earlier Area save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.'), 'Area save held.');
       return;
     }
 
+    const areaId = areaDraft.id;
+    const regionId = areaDraft.regionId;
+    const session = context.areaDraftState.session();
+    let dispatched = false;
+    savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
     try {
-      const request = buildAreaRequest(context.areaDraft);
-      const result = context.areaDraft.id
-        ? await updateArea(context.props.editorEndpoint, context.areaDraft.id, context.props.antiforgeryToken, request)
-        : await createArea(context.props.editorEndpoint, context.areaDraft.regionId, context.props.antiforgeryToken, request);
+      const submitted = areaId ? context.areaDraftState.request() : { expected: {}, changes: buildAreaRequest(areaDraft) };
+      if (areaId && Object.keys(submitted.changes).length === 0) return;
+      context.areaDraftState.pending.value = Boolean(areaId);
+      dispatched = true;
+      const result = areaId
+        ? await updateArea(context.props.editorEndpoint, areaId, context.props.antiforgeryToken, submitted)
+        : await createArea(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted.changes);
+      // Retired replies cannot publish older affected slices over a newer editing session.
+      if (!editorAlive || session !== context.areaDraftState.session()) return;
+      if (!result.success) throw new Error('The Area save was not acknowledged. Keep your draft and review the unknown outcome.');
+      // Advance acknowledged originals before the parent's affected slices arrive on the next Vue tick.
+      context.areaDraftState.acknowledge(result.data, submitted);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.areaDraft, toAreaDraft(result.data, result.data.regionId, context.props.state.options.areaDefaults.fillHex));
       context.areaCreateBaselineRequest.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activeAreaTarget.value);
       context.markSaved();
     } catch (error) {
+      if (!editorAlive || session !== context.areaDraftState.session()) return;
+      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+        || error instanceof EditorMutationHttpError && error.status >= 400 && error.status < 500;
+      if (areaId && dispatched && !rejected) context.areaDraftState.uncertain.value = true;
       context.applyError(error, 'Area save failed.');
     } finally {
-      context.isSaving.value = false;
+      // An older completion cannot release a newer session's pending/save state.
+      if (editorAlive && savingSession === session) {
+        savingSession = null;
+        context.areaDraftState.pending.value = false;
+        context.isSaving.value = false;
+      }
     }
   };
 
@@ -95,7 +133,7 @@ export function useAreaEditorActions(context: any) {
       const deletedTarget = context.activeAreaTarget.value;
       const result = await deleteArea(context.props.editorEndpoint, context.activeArea.value.id, context.props.antiforgeryToken);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.areaDraft, emptyAreaDraft());
+      context.areaDraftState.reset(null);
       context.areaCreateBaselineRequest.value = null;
       context.props.editorSurface.clearActiveTarget(deletedTarget);
       context.markSaved();
@@ -140,7 +178,7 @@ export function useAreaEditorActions(context: any) {
     }
   };
 
-  const drawAreaPolygon = (): void => beginAreaPolygonMapWork(context.areaDraft, context.props.editorSurface, context.props.polygonEditor, context.areaPolygonMapWork);
+  const drawAreaPolygon = (): void => beginAreaPolygonMapWork(areaDraft, context.props.editorSurface, context.props.polygonEditor, context.areaPolygonMapWork);
 
   return { cancelAreaDraft, deleteDraftArea, drawAreaPolygon, openAreaCreate, openAreaEdit, reorderAreas, resetAreaDraft, saveAreaDraft };
 }
