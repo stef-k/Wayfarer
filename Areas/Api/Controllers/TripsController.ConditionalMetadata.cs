@@ -18,7 +18,7 @@ public partial class TripsController
             var result = await new TripMetadataMutationService(_dbContext).ApplyAsync(tripId, user.Id, Request.Body, false,
                 token => authority.RevalidateMutationAsync(HttpContext, user.Id, token), cancellationToken);
             if (result.Applied && result.NotesRequested)
-                await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: result.ImagesIntroduced);
+                await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: result.FirstImagesIntroduced);
             return Ok(new
             {
                 contract = "bd2-1", success = true, applied = result.Applied,

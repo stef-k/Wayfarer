@@ -38,15 +38,16 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
 
             var beforeImages = Images(trip);
             var disableSharing = request.Changes.TryGetValue("isPublic", out var publication) && publication is false && trip.ShareProgressEnabled;
-            var applied = request.Changes.Any(field => !Equals(field.Value, StoredValue(trip, field.Key))) || disableSharing;
+            var applied = request.Changes.Any(field => !Equals(field.Value, field.Key == "notes" ? trip.Notes : current[field.Key])) || disableSharing;
             if (applied)
             {
                 var now = DateTime.UtcNow;
                 trip.UpdatedAt = trip.UpdatedAt > now ? trip.UpdatedAt : now;
                 await WriteAsync(trip, request, disableSharing, token);
             }
+            var afterImages = Images(trip);
             var result = new TripMetadataMutationResult(trip, applied, disableSharing,
-                request.Changes.ContainsKey("notes"), Images(trip).Except(beforeImages).Any());
+                request.Changes.ContainsKey("notes"), afterImages.Any(url => !beforeImages.Contains(url)), beforeImages.Count == 0 && afterImages.Count > 0);
             commitStarted = true;
             await transaction.CommitAsync(token);
             return result;
@@ -71,16 +72,32 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
             {
                 switch (key)
                 {
-                    case "name": trip.Name = (string)value!; setters.SetProperty(t => t.Name, trip.Name); break;
-                    case "notes": trip.Notes = (string?)value; setters.SetProperty(t => t.Notes, trip.Notes); break;
-                    case "isPublic": trip.IsPublic = (bool)value!; setters.SetProperty(t => t.IsPublic, trip.IsPublic); break;
-                    case "coverImage": trip.CoverImageUrl = (string?)value; setters.SetProperty(t => t.CoverImageUrl, trip.CoverImageUrl); break;
+                    case "name":
+                        trip.Name = (string)value!;
+                        setters.SetProperty(t => t.Name, trip.Name);
+                        break;
+                    case "notes":
+                        trip.Notes = (string?)value;
+                        setters.SetProperty(t => t.Notes, trip.Notes);
+                        break;
+                    case "isPublic":
+                        trip.IsPublic = (bool)value!;
+                        setters.SetProperty(t => t.IsPublic, trip.IsPublic);
+                        break;
+                    case "coverImage":
+                        trip.CoverImageUrl = (string?)value;
+                        setters.SetProperty(t => t.CoverImageUrl, trip.CoverImageUrl);
+                        break;
                     case "center":
                         var center = (TripMetadataCenter)value!;
-                        trip.CenterLat = center.Latitude; trip.CenterLon = center.Longitude;
+                        trip.CenterLat = center.Latitude;
+                        trip.CenterLon = center.Longitude;
                         setters.SetProperty(t => t.CenterLat, trip.CenterLat).SetProperty(t => t.CenterLon, trip.CenterLon);
                         break;
-                    case "zoom": trip.Zoom = (int?)value; setters.SetProperty(t => t.Zoom, trip.Zoom); break;
+                    case "zoom":
+                        trip.Zoom = (int?)value;
+                        setters.SetProperty(t => t.Zoom, trip.Zoom);
+                        break;
                 }
             }
             if (disableSharing)
@@ -99,15 +116,15 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
         ["coverImage"] = trip.CoverImageUrl, ["center"] = new TripMetadataCenter(trip.CenterLat, trip.CenterLon), ["zoom"] = trip.Zoom
     };
 
-    private static object? StoredValue(Trip trip, string key) => key == "notes" ? trip.Notes : Values(trip)[key];
-
+    /// <summary>Compares external image identity for the existing post-commit warm-up gates.</summary>
     private static HashSet<string> Images(Trip trip) => HtmlHelpers.ExtractExternalImageUrls(trip.Notes)
         .Concat(string.IsNullOrWhiteSpace(trip.CoverImageUrl) ? [] : new[] { trip.CoverImageUrl.Trim() })
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Confirmed committed result; conveys no idempotency or durable receipt guarantee.</summary>
-internal sealed record TripMetadataMutationResult(Trip Trip, bool Applied, bool DisabledShareProgress, bool NotesRequested, bool ImagesIntroduced);
+internal sealed record TripMetadataMutationResult(Trip Trip, bool Applied, bool DisabledShareProgress, bool NotesRequested,
+    bool ImagesIntroduced, bool FirstImagesIntroduced);
 
 /// <summary>Nonleaking known-unapplied errors; unknown commit and transport failures never use this type.</summary>
 internal sealed class TripMetadataMutationRejected(int status, string code, string detail, Dictionary<string, string[]>? errors = null) : Exception(detail)

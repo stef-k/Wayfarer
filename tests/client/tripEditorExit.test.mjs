@@ -20,11 +20,16 @@ const bundled = await build({ stdin: { contents: script.content, loader: 'ts',
 const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const component = (await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=editor-exit-test.mjs').toString('base64')}`)).default;
 
+// Model the server's compatible display projection plus exact original-value evidence.
+const withOriginals = metadata => ({ ...metadata, originalValues: { name: metadata.name, notesHtml: metadata.notesHtml ?? null,
+  isPublic: metadata.isPublic, coverImage: metadata.coverImage ? { rawUrl: metadata.coverImage.rawUrl } : null,
+  center: metadata.center ?? { latitude: null, longitude: null }, zoom: metadata.zoom ?? null } });
+
 // Mount the real draft owner with reactive props; child rendering is irrelevant to draft lifetime.
 const mountDraft = () => {
   let editor;
-  const props = shallowReactive({ metadata: { name: 'Trip', isPublic: false, notesHtml: '',
-    center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 },
+  const props = shallowReactive({ metadata: withOriginals({ name: 'Trip', isPublic: false, notesHtml: '',
+    center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 }),
     capturedMapView: null, tagsBySlug: {}, tagOrder: [], tagOptions: {}, hasRegionDraftChanges: false,
     tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', editorSurface: {
       registerTargetHandler: () => () => {}, isTargetActive: () => false
@@ -33,6 +38,10 @@ const mountDraft = () => {
   const app = renderer.createApp({ setup() {
     editor = proxyRefs(component.setup(props, { expose() {}, emit: (name, metadata) => {
       if (name === 'saved') props.metadata = metadata;
+      if (name === 'mutationApplied' && Array.isArray(metadata.data)) {
+        props.tagOrder = metadata.data.map(tag => tag.slug);
+        props.tagsBySlug = Object.fromEntries(metadata.data.map(tag => [tag.slug, tag]));
+      }
     } }));
     return () => null;
   } });
@@ -84,13 +93,13 @@ test('capture after PATCH starts survives the old response and Save & Exit, then
     const body = JSON.parse(options.body);
     requests.push(body);
     await new Promise(resolve => { complete = resolve; });
-    const metadata = { ...owner.props.metadata, ...body };
+    const metadata = withOriginals({ ...owner.props.metadata, ...body.changes });
     return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
   };
   try {
     await owner.capture(38);
     const saving = owner.editor.saveAndExit();
-    assert.equal(requests[0].center.latitude, 38);
+    assert.equal(requests[0].changes.center.latitude, 38);
     await owner.capture(39);
     complete();
     await saving;
@@ -100,7 +109,7 @@ test('capture after PATCH starts survives the old response and Save & Exit, then
     assert.equal(owner.editor.isDirty, true);
     assert.deepEqual(navigations, [], 'new capture must not be silently discarded through exit');
     const retry = owner.editor.saveAndExit();
-    assert.equal(requests[1].center.latitude, 39);
+    assert.equal(requests[1].changes.center.latitude, 39);
     complete();
     await retry;
     await nextTick();
@@ -132,13 +141,13 @@ test('capture matching a manual zoom edit survives an older PATCH and saves on r
     const body = JSON.parse(options.body);
     requests.push(body);
     await new Promise(resolve => { complete = resolve; });
-    const metadata = { ...owner.props.metadata, ...body };
+    const metadata = withOriginals({ ...owner.props.metadata, ...body.changes });
     return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
   };
   try {
     await owner.capture(38, 10);
     const saving = owner.editor.saveAndExit();
-    assert.equal(requests[0].zoom, 10);
+    assert.equal(requests[0].changes.zoom, 10);
     owner.editor.draft.zoom = 11; // Match the still-enabled numeric input's value.
     await owner.capture(38, 11);
     complete();
@@ -148,12 +157,151 @@ test('capture matching a manual zoom edit survives an older PATCH and saves on r
     assert.equal(owner.editor.isMetadataDirty, true);
     assert.deepEqual(navigations, [], 'the newer unsaved view must retain the editor');
     const retry = owner.editor.saveAndExit();
-    assert.equal(requests[1].zoom, 11);
+    assert.equal(requests[1].changes.zoom, 11);
     complete();
     await retry;
     await nextTick();
     assert.equal(owner.editor.isDirty, false);
     assert.deepEqual(navigations, ['/User/Trip']);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+test('dirty Name and Notes keep their original base and visible conflict across props refresh and retry', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, body: JSON.parse(options.body) });
+    return new Response(JSON.stringify({ code: 'mutation-base-stale' }), { status: 409 });
+  };
+  try {
+    owner.editor.draft.name = 'My name';
+    owner.editor.draft.notesHtml = '<p>My notes</p>';
+    owner.props.metadata = withOriginals({ ...owner.props.metadata, name: 'Other device', notesHtml: '<p>Other notes</p>', zoom: 11 });
+    await nextTick();
+    assert.equal(owner.editor.draft.name, 'My name');
+    assert.equal(owner.editor.draft.zoom, '11', 'clean fields may refresh independently');
+    await owner.editor.save(false);
+    assert.deepEqual(requests[0], { url: '/editor/metadata/conditional', body: {
+      expected: { name: 'Trip', notesHtml: '' }, changes: { name: 'My name', notesHtml: '<p>My notes</p>' } } });
+    assert.match(owner.editor.saveError, /draft is retained/);
+    owner.props.tagsBySlug = {};
+    await nextTick();
+    assert.match(owner.editor.saveError, /draft is retained/, 'unrelated props cannot clear a conflict');
+    await owner.editor.save(false);
+    assert.deepEqual(requests[1].body, requests[0].body, 'failed save cannot adopt an intervening base');
+    assert.equal(requests.length, 2, 'only explicit saves dispatch; there is no fallback or blind replay');
+    owner.editor.resetDraft();
+    owner.editor.draft.name = 'Explicit reviewed edit';
+    await owner.editor.save(false);
+    assert.equal(requests[2].body.expected.name, 'Other device', 'explicit discard/review adopts the visible current base');
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+test('older responses preserve newer manual edits and their acknowledged base, including fields first edited during save', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  let complete;
+  let body;
+  globalThis.fetch = async (_url, options) => {
+    body = JSON.parse(options.body);
+    await new Promise(resolve => { complete = resolve; });
+    const metadata = withOriginals({ ...owner.props.metadata, ...body.changes });
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    owner.editor.draft.name = 'First name';
+    const saving = owner.editor.save(false);
+    owner.editor.draft.name = 'Newer name';
+    owner.editor.draft.notesHtml = 'Newer notes';
+    complete();
+    await saving;
+    assert.equal(owner.editor.draft.name, 'Newer name');
+    assert.equal(owner.editor.draft.notesHtml, 'Newer notes');
+    assert.deepEqual(owner.editor.draftState.request(), { expected: { name: 'First name', notesHtml: '' },
+      changes: { name: 'Newer name', notesHtml: 'Newer notes' } });
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+test('missing original evidence and unsupported protected route fail closed without losing the draft', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  const calls = [];
+  globalThis.fetch = async url => { calls.push(url); return new Response('{}', { status: 404 }); };
+  try {
+    owner.props.metadata = { ...owner.props.metadata, originalValues: undefined };
+    await nextTick();
+    owner.editor.draft.name = 'Retained';
+    await owner.editor.save(false);
+    assert.match(owner.editor.saveError, /Original Trip values are unavailable/);
+    assert.deepEqual(calls, []);
+    owner.props.metadata = withOriginals(owner.props.metadata);
+    owner.editor.resetDraft();
+    owner.editor.draft.name = 'Still retained';
+    await owner.editor.save(false);
+    assert.deepEqual(calls, ['/editor/metadata/conditional']);
+    assert.equal(owner.editor.draft.name, 'Still retained');
+    assert.equal(owner.editor.isDirty, true);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+test('publication acknowledgements retain the derived sharing baseline when privatizing and republishing', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    calls.push(url);
+    const body = JSON.parse(options.body);
+    const metadata = withOriginals({ ...owner.props.metadata, ...body.changes, shareProgressEnabled: false });
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    owner.props.metadata = withOriginals({ ...owner.props.metadata, isPublic: true, shareProgressEnabled: true });
+    await nextTick();
+    owner.editor.draft.isPublic = false;
+    await nextTick();
+    await owner.editor.save(false);
+    assert.equal(owner.editor.isDirty, false);
+    owner.editor.draft.isPublic = true;
+    await owner.editor.save(false);
+    assert.equal(owner.editor.isDirty, false, 'derived sharing cannot remain an old dirty obligation after republishing');
+    assert.deepEqual(calls, ['/editor/metadata/conditional', '/editor/metadata/conditional']);
+    assert.equal(owner.editor.draft.shareProgressEnabled, false);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+test('tag edits authored during tag save survive its response and remain unsaved until their own acknowledgement', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  let complete;
+  globalThis.fetch = async (_url, options) => {
+    const { tags } = JSON.parse(options.body);
+    await new Promise(resolve => { complete = resolve; });
+    return new Response(JSON.stringify({ data: tags.map(name => ({ name, slug: name.toLowerCase() })), warnings: [] }));
+  };
+  try {
+    owner.editor.draft.tags = ['First'];
+    const saving = owner.editor.save(false);
+    owner.editor.draft.tags.push('Newer');
+    complete();
+    await saving;
+    assert.deepEqual([...owner.editor.draft.tags], ['First', 'Newer']);
+    assert.equal(owner.editor.isTagsDirty, true);
+    const nextSave = owner.editor.save(false);
+    complete();
+    await nextSave;
+    assert.equal(owner.editor.isDirty, false);
+    assert.deepEqual([...owner.editor.draft.tags], ['First', 'Newer']);
   } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
 });
 

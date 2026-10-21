@@ -1,3 +1,6 @@
+import type { EditorMetadataOriginalValues } from './api/metadataTypes';
+export type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTripMetadataUpdateRequest } from './api/metadataTypes';
+
 export type Guid = string;
 
 export interface EditorTripState {
@@ -458,6 +461,3 @@ export interface BootstrapConfig {
   tilesUrl: string;
   antiforgeryToken: string;
 }
-import type { EditorMetadataOriginalValues } from './api/metadataTypes';
-export type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTripMetadataUpdateRequest } from './api/metadataTypes';
-

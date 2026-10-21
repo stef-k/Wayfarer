@@ -116,7 +116,8 @@ public sealed partial class TripEditorController
                 .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, update.Enabled)
                     .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), cancellationToken);
             if (count == 0) return ValidationError(new() { ["shareProgressEnabled"] = ["Share progress can only be enabled for public trips."] });
-            await _dbContext.Entry(trip).ReloadAsync(cancellationToken);
+            trip = await _dbContext.Trips.AsNoTracking().SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+            if (trip == null) return NotFound();
         }
         else
         {

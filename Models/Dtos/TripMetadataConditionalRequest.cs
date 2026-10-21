@@ -22,18 +22,20 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
             var parsed = new TripMetadataConditionalRequest([], []);
             foreach (var (key, value) in desired)
             {
-                if (!originals.TryGetValue(key, out var original)) throw Invalid(key, "An original value is required for each changed field.");
                 var canonicalKey = key == "notesHtml" ? "notes" : key;
-                parsed.Expected[canonicalKey] = ReadValue(key, original, false);
                 var next = ReadValue(key, value, true);
                 // Bearer null Notes means Unchanged. Web Clear must also be an explicit empty string.
-                if (canonicalKey == "notes" && next == null) continue;
+                if (canonicalKey == "notes" && next == null)
+                {
+                    if (originals.TryGetValue(key, out var ignored)) ReadValue(key, ignored, false);
+                    continue;
+                }
+                if (!originals.TryGetValue(key, out var original)) throw Invalid(key, "An original value is required for each changed field.");
+                parsed.Expected[canonicalKey] = ReadValue(key, original, false);
                 parsed.Changes[canonicalKey] = next;
             }
             if (originals.Keys.Except(desired.Keys).Any()) throw Invalid("expected", "Originals must correspond to requested fields.");
             if (parsed.Changes.Count == 0) throw Invalid("changes", "At least one effective field change is required.");
-            // Ignored null Notes must not accidentally add a compare to an unrelated effective mutation.
-            foreach (var key in parsed.Expected.Keys.Except(parsed.Changes.Keys).ToArray()) parsed.Expected.Remove(key);
             return parsed;
         }
         catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
@@ -64,6 +66,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         _ => throw Invalid(key, "The field has an invalid value.")
     };
 
+    /// <summary>Validates new names while retaining the exact original identity of legacy stored names.</summary>
     private static string ReadName(JsonElement value, bool desired)
     {
         if (value.ValueKind != JsonValueKind.String) throw Invalid("name", "Name must be a string.");
@@ -74,6 +77,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return name;
     }
 
+    /// <summary>Applies the shared published HTML policy without conflating null and explicit Clear.</summary>
     private static string? ReadNotes(string key, JsonElement value, bool desired)
     {
         var notes = NullableString(key, value);
@@ -82,6 +86,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return RichNotes.Normalize(notes);
     }
 
+    /// <summary>Retains exact original URLs; desired URLs use the existing trim/HTTP policy.</summary>
     private static string? ReadCover(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return null;
@@ -96,6 +101,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return url;
     }
 
+    /// <summary>Desired centers are finite pairs or Clear; originals also admit partial legacy pairs.</summary>
     private static TripMetadataCenter ReadCenter(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return new(null, null);
@@ -105,6 +111,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return new(Coordinate(lat, "center.latitude", 90, desired), Coordinate(lon, "center.longitude", 180, desired));
     }
 
+    /// <summary>Validates finite WGS84 input, preserving original nullable coordinates.</summary>
     private static double? Coordinate(JsonElement value, string key, int limit, bool desired)
     {
         if (!desired && value.ValueKind == JsonValueKind.Null) return null;
@@ -114,6 +121,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return number;
     }
 
+    /// <summary>Uses the existing view zoom limits without rejecting an originally published legacy integer.</summary>
     private static int? ReadZoom(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return null;
@@ -122,6 +130,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         return zoom;
     }
 
+    /// <summary>Distinguishes explicit null from invalid or omitted original strings.</summary>
     private static string? NullableString(string key, JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => null,
@@ -129,6 +138,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         _ => throw Invalid(key, "The field must be a string or null.")
     };
 
+    /// <summary>Returns field-keyed validation guidance without echoing private supplied values.</summary>
     private static TripMetadataMutationRejected Invalid(string field, string message) =>
         new(400, "mutation-request-invalid", "Check the requested Trip fields.", new() { [field] = [message] });
 }

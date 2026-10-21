@@ -153,6 +153,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   const acknowledge = (next: EditorTripMetadata, submitted: EditorMetadataConditionalRequest): void => {
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
+    const sharingWasClean = draft.shareProgressEnabled === baseline.shareProgressEnabled;
     const incoming = toDraft(next, [], {});
     for (const field of metadataFields) {
       const wasSubmitted = Object.hasOwn(submitted.changes, field);
@@ -161,6 +162,9 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       adopt(field, incoming, next);
       if (wasSubmitted && !same(current[field], submitted.changes[field])) assignField(draft, retained, field);
     }
+    // Publication can disable sharing as a derived effect; keep its baseline aligned with the acknowledged commit.
+    if (!next.isPublic || sharingWasClean) draft.shareProgressEnabled = next.shareProgressEnabled;
+    baseline.shareProgressEnabled = next.shareProgressEnabled;
   };
 
   /** Explicit discard adopts the latest visible server base and clears every local field obligation. */
