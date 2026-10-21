@@ -176,7 +176,7 @@ for (const status of [400, 409]) {
   }));
 }
 
-for (const failure of ['server', 'transport', 'invalid success', 'empty success']) {
+for (const failure of ['server', 'transport', 'invalid success', 'empty success', 'incomplete Area']) {
   test(`Area ${failure} uncertainty holds a reversal through refresh and prevents blind replay/exit`, () => withGlobals(async () => {
     const owner = mount();
     const reply = deferred();
@@ -187,7 +187,11 @@ for (const failure of ['server', 'transport', 'invalid success', 'empty success'
       owner.editor.areaDraft.name = 'Submitted';
       const saving = owner.editor.saveAreaDraft();
       owner.editor.areaDraft.name = 'Original';
-      reply.resolve(failure === 'transport' ? null : new Response(failure === 'server' || failure === 'empty success' ? '{}' : 'broken JSON', { status: failure === 'server' ? 500 : 200 }));
+      let response = null;
+      if (failure === 'incomplete Area') response = saved({ id: 'area' });
+      else if (failure !== 'transport') response = new Response(
+        failure === 'server' || failure === 'empty success' ? '{}' : 'broken JSON', { status: failure === 'server' ? 500 : 200 });
+      reply.resolve(response);
       await saving;
       owner.update(area({ name: 'Submitted' }));
       await nextTick();
@@ -336,31 +340,31 @@ const withActualApp = action => withGlobals(async () => {
 });
 
 test('actual App/TripSidebar parent updates preserve Area originals and newer dirty edits after a delayed reply', () => withActualApp(async ({ parent, editor }) => {
-    const reply = deferred();
-    const calls = [];
-    globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
-    await editor.openAreaEdit(parent.state.areasById.area);
-    editor.areaDraft.notesHtml = 'Submitted';
-    parent.applyMutation(envelope(area({ name: 'Concurrent Name', notesHtml: 'Concurrent Notes' })));
-    await nextTick();
-    assert.equal(editor.areaDraft.notesHtml, 'Submitted');
-    assert.equal(editor.areaDraft.name, 'Concurrent Name');
-    const saving = editor.saveAreaDraft();
-    editor.areaDraft.notesHtml = 'Newer unsaved';
-    reply.resolve(new Response(JSON.stringify(envelope(area({ name: 'Concurrent Name', notesHtml: 'Submitted' })))));
-    await saving;
-    await nextTick();
-    assert.equal(parent.state.areasById.area.notesHtml, 'Submitted');
-    assert.equal(editor.areaDraft.notesHtml, 'Newer unsaved');
-    assert.equal(editor.areaDirty, true);
-    assert.deepEqual(calls[0], { expected: { regionId: 'region', notesHtml: null }, changes: { notesHtml: 'Submitted' } });
+  const reply = deferred();
+  const calls = [];
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
+  await editor.openAreaEdit(parent.state.areasById.area);
+  editor.areaDraft.notesHtml = 'Submitted';
+  parent.applyMutation(envelope(area({ name: 'Concurrent Name', notesHtml: 'Concurrent Notes' })));
+  await nextTick();
+  assert.equal(editor.areaDraft.notesHtml, 'Submitted');
+  assert.equal(editor.areaDraft.name, 'Concurrent Name');
+  const saving = editor.saveAreaDraft();
+  editor.areaDraft.notesHtml = 'Newer unsaved';
+  reply.resolve(new Response(JSON.stringify(envelope(area({ name: 'Concurrent Name', notesHtml: 'Submitted' })))));
+  await saving;
+  await nextTick();
+  assert.equal(parent.state.areasById.area.notesHtml, 'Submitted');
+  assert.equal(editor.areaDraft.notesHtml, 'Newer unsaved');
+  assert.equal(editor.areaDirty, true);
+  assert.deepEqual(calls[0], { expected: { regionId: 'region', notesHtml: null }, changes: { notesHtml: 'Submitted' } });
 }));
 
 // Each reply uses the actual surface discard handler and Vue queue, including known success and validation controls.
 for (const [outcome, response] of [
   ['500', () => new Response('{}', { status: 500 })],
   ['network error', () => null],
-  ['incomplete 200', () => new Response('{}')],
+  ['incomplete 200', () => new Response(JSON.stringify(envelope({ id: 'area' })))],
   ['400', () => new Response(JSON.stringify({ errors: { name: ['Invalid name.'] } }), { status: 400 })],
   ['200', () => new Response(JSON.stringify(envelope(area({ name: 'Submitted' }))))]
 ]) {
@@ -399,7 +403,7 @@ for (const [outcome, response] of [
     globalThis.areaConfirm = async () => { assert.fail('clean Region must not prompt for discarded Area'); };
     assert.equal(await parent.editorSurface.closeActiveTarget(), true);
     assert.equal(calls, 1, 'discard never replays the earlier server attempt');
-    assert.equal(parent.state.areasById.area.name, outcome === '200' ? 'Submitted' : 'Original');
+    assert.equal(parent.state.areasById.area.name, 'Original', 'a retired reply is not a refresh of the current session');
   }));
 }
 
@@ -429,38 +433,52 @@ test('actual App rejected discard retains an undiscarded Area unknown-result hol
   assert.equal(await parent.editorSurface.closeActiveTarget(), false);
 }));
 
-test('actual App old Area completion cannot clear a newer Area save or overwrite its draft/feedback', () => withActualApp(async ({ parent, editor }) => {
-  const oldReply = deferred();
-  const newReply = deferred();
-  let calls = 0;
-  globalThis.fetch = async () => (++calls === 1 ? oldReply.promise : newReply.promise);
-  await editor.openAreaEdit(parent.state.areasById.area);
-  editor.areaDraft.name = 'Old submission';
-  const oldSaving = editor.saveAreaDraft();
-  globalThis.areaConfirm = async () => true;
-  await parent.editorSurface.closeActiveTarget();
-  const other = area({ id: 'other-area', name: 'Other Area' });
-  parent.applyMutation(envelope(other));
-  await nextTick();
-  await editor.openAreaEdit(parent.state.areasById['other-area']);
-  editor.areaDraft.notesHtml = 'New session notes';
-  const newSaving = editor.saveAreaDraft();
-  assert.equal(calls, 2, 'discard retires the old save lock so the new session can save');
-  oldReply.resolve(new Response('{}', { status: 500 }));
-  await oldSaving;
-  await nextTick();
-  assert.equal(editor.areaDraft.id, 'other-area');
-  assert.equal(editor.areaDraft.notesHtml, 'New session notes');
-  assert.equal(editor.areaDraftState.pending.value, true);
-  assert.equal(editor.isSaving, true);
-  assert.equal(editor.statusText, 'Saving...');
-  assert.equal(editor.saveError, null);
-  newReply.resolve(new Response(JSON.stringify(envelope(area({ ...other, notesHtml: 'New session notes', originalValues: undefined })))));
-  await newSaving;
-  await nextTick();
-  assert.equal(editor.areaDirty, false);
-  assert.match(editor.statusText, /^Saved /);
-}));
+for (const [outcome, id, oldAfterNewSave] of [[500, 'other-area', false], [200, 'other-area', false], [200, 'area', true]]) {
+  test(`actual App old Area ${outcome} cannot clear or overwrite newer Area ${id}, completed=${oldAfterNewSave}`, () => withActualApp(async ({ parent, editor }) => {
+    const oldReply = deferred();
+    const newReply = deferred();
+    let calls = 0;
+    globalThis.fetch = async () => (++calls === 1 ? oldReply.promise : newReply.promise);
+    await editor.openAreaEdit(parent.state.areasById.area);
+    editor.areaDraft.name = 'Old submission';
+    const oldSaving = editor.saveAreaDraft();
+    globalThis.areaConfirm = async () => true;
+    await parent.editorSurface.closeActiveTarget();
+    const other = area({ id, name: 'Other Area' });
+    parent.applyMutation(envelope(other));
+    await nextTick();
+    await editor.openAreaEdit(parent.state.areasById[id]);
+    editor.areaDraft.notesHtml = 'New session notes';
+    const newSaving = editor.saveAreaDraft();
+    assert.equal(calls, 2, 'discard retires the old save lock so the new session can save');
+    if (oldAfterNewSave) {
+      newReply.resolve(new Response(JSON.stringify(envelope(area({ ...other, notesHtml: 'New session notes', originalValues: undefined })))));
+      await newSaving;
+      await nextTick();
+    }
+    oldReply.resolve(outcome === 200
+      ? new Response(JSON.stringify(envelope(area({ name: 'Old submission' }))))
+      : new Response('{}', { status: 500 }));
+    await oldSaving;
+    await nextTick();
+    assert.equal(editor.areaDraft.id, id);
+    assert.equal(editor.areaDraft.name, 'Other Area');
+    assert.equal(editor.areaDraft.notesHtml, 'New session notes');
+    assert.equal(editor.saveError, null);
+    if (!oldAfterNewSave) {
+      assert.equal(editor.areaDraftState.pending.value, true);
+      assert.equal(editor.isSaving, true);
+      assert.equal(editor.statusText, 'Saving...');
+      newReply.resolve(new Response(JSON.stringify(envelope(area({ ...other, notesHtml: 'New session notes', originalValues: undefined })))));
+      await newSaving;
+      await nextTick();
+    }
+    assert.equal(editor.areaDirty, false);
+    assert.equal(parent.state.areasById[id].name, 'Other Area');
+    assert.equal(parent.state.areasById[id].notesHtml, 'New session notes');
+    assert.match(editor.statusText, /^Saved /);
+  }));
+}
 
 test('actual App Name validation 400 retains multi-field intent and allows correction without reset', () => withActualApp(async ({ parent, editor }) => {
   const calls = [];

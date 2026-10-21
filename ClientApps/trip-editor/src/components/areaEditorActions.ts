@@ -1,4 +1,4 @@
-import { onUnmounted } from 'vue';
+import { onUnmounted, watch } from 'vue';
 import { createArea, deleteArea, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderAreas, updateArea } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorArea, EditorRegion, Guid } from '../types';
 import { buildAreaCreateTarget, buildAreaEditTarget } from './regionPlaceEditorTargets';
@@ -10,7 +10,14 @@ import { confirm } from '../composables/useConfirmDialog';
 export function useAreaEditorActions(context: any) {
   const areaDraft = context.areaDraftState.draft;
   let editorAlive = true;
+  let savingSession: number | null = null;
   onUnmounted(() => { editorAlive = false; });
+  // Explicit discard retires only this Area attempt's UI lock; it says nothing about its server outcome.
+  watch(() => context.areaDraftState.session(), () => {
+    if (savingSession === null) return;
+    savingSession = null;
+    context.isSaving.value = false;
+  }, { flush: 'sync' });
   const openAreaCreate = async (region: EditorRegion): Promise<void> => {
     const target = buildAreaCreateTarget(region);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -65,23 +72,24 @@ export function useAreaEditorActions(context: any) {
       return;
     }
 
+    const areaId = areaDraft.id;
+    const regionId = areaDraft.regionId;
+    const session = context.areaDraftState.session();
+    let dispatched = false;
+    savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
     try {
-      const areaId = areaDraft.id;
-      const session = context.areaDraftState.session();
       const submitted = areaId ? context.areaDraftState.request() : { expected: {}, changes: buildAreaRequest(areaDraft) };
       if (areaId && Object.keys(submitted.changes).length === 0) return;
       context.areaDraftState.pending.value = Boolean(areaId);
+      dispatched = true;
       const result = areaId
         ? await updateArea(context.props.editorEndpoint, areaId, context.props.antiforgeryToken, submitted)
-        : await createArea(context.props.editorEndpoint, areaDraft.regionId, context.props.antiforgeryToken, submitted.changes);
-      if (!editorAlive) return;
+        : await createArea(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted.changes);
+      // Retired replies cannot publish older affected slices over a newer editing session.
+      if (!editorAlive || session !== context.areaDraftState.session()) return;
       if (!result.success) throw new Error('The Area save was not acknowledged. Keep your draft and review the unknown outcome.');
-      if (session !== context.areaDraftState.session()) {
-        context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-        return;
-      }
       // Advance acknowledged originals before the parent's affected slices arrive on the next Vue tick.
       context.areaDraftState.acknowledge(result.data, submitted);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
@@ -89,13 +97,18 @@ export function useAreaEditorActions(context: any) {
       context.props.editorSurface.replaceActiveTarget(context.activeAreaTarget.value);
       context.markSaved();
     } catch (error) {
+      if (!editorAlive || session !== context.areaDraftState.session()) return;
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && error.status >= 400 && error.status < 500;
-      if (context.areaDraftState.pending.value && !rejected) context.areaDraftState.uncertain.value = true;
+      if (areaId && dispatched && !rejected) context.areaDraftState.uncertain.value = true;
       context.applyError(error, 'Area save failed.');
     } finally {
-      context.areaDraftState.pending.value = false;
-      context.isSaving.value = false;
+      // An older completion cannot release a newer session's pending/save state.
+      if (editorAlive && savingSession === session) {
+        savingSession = null;
+        context.areaDraftState.pending.value = false;
+        context.isSaving.value = false;
+      }
     }
   };
 

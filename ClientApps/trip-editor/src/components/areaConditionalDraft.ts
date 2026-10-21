@@ -19,7 +19,7 @@ export const createAreaDraftState = () => {
   const originals = reactive<Partial<EditorAreaOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
-  let session = 0;
+  const session = ref(0);
 
   /** Advances one clean field, never inventing missing server evidence from display values. */
   const adopt = (field: Field, incoming: EditorAreaDraft, next: EditorArea): void => {
@@ -32,7 +32,8 @@ export const createAreaDraftState = () => {
 
   /** Explicit open/reset/discard adopts a reviewed base; a reset never asserts that an earlier attempt failed. */
   const reset = (next: EditorArea | null): void => {
-    session++;
+    pending.value = false;
+    session.value++;
     uncertain.value = false;
     Object.assign(draft, toAreaDraft(next, null));
     Object.assign(baseline, toAreaDraft(next, null));
@@ -88,5 +89,5 @@ export const createAreaDraftState = () => {
     originals.regionId = next.originalValues?.regionId;
   };
 
-  return { draft, baseline, pending, uncertain, reset, refresh, request, acknowledge, session: () => session };
+  return { draft, baseline, pending, uncertain, reset, refresh, request, acknowledge, session: () => session.value };
 };

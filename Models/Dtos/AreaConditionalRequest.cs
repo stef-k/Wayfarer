@@ -55,7 +55,7 @@ internal sealed record AreaConditionalRequest(Guid RegionId, Dictionary<string, 
         return result;
     }
 
-    /// <summary>Validates desired replacements using existing Area rules; comparison evidence retains nullable identity.</summary>
+    /// <summary>Validates desired replacements, including the persisted trimmed Name cap; originals retain nullable identity.</summary>
     private static object? Value(string key, JsonElement value, bool desired)
     {
         if (key == "geometry" && desired)
@@ -86,7 +86,11 @@ internal sealed record AreaConditionalRequest(Guid RegionId, Dictionary<string, 
             return text;
         }
         var validation = new Dictionary<string, string[]>();
-        if (key == "name") EditorAreaRequestParser.ValidateRequiredName(text, validation);
+        if (key == "name")
+        {
+            EditorAreaRequestParser.ValidateRequiredName(text, validation);
+            if (text?.Trim().Length > 200) validation["name"] = ["Area name must be 200 characters or fewer."];
+        }
         else EditorAreaRequestParser.ValidateFillHex(text, validation);
         if (validation.Count != 0) throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the requested Area fields.", validation);
         return key == "name" ? text!.Trim() : text!.Trim().ToLowerInvariant();

@@ -71,6 +71,10 @@
 
 ### Fixed
 
+- Keep late Area save feedback and cleanup scoped to the originating editing
+  session after explicit discard. Reject conditional Area Names above 200 trimmed
+  characters as correctable field validation before any writes (#853 Slice 5).
+
 - Preserve current locked Place fields omitted from legacy bearer PUT, including
   concurrent Web Region/coordinate/Address/marker edits and their route/order
   effects. Explicit fields remain unconditional pending later #853 slices (Slice 2).
