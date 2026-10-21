@@ -16,6 +16,7 @@ import type {
   EditorRegionOrderRequest,
   EditorRegionOrderResult,
   EditorRegionSaveRequest,
+  EditorRegionConditionalRequest,
   EditorSegment,
   EditorSegmentConflict,
   EditorSegmentDeleteResult,
@@ -62,6 +63,11 @@ export class EditorValidationError extends Error {
     super(problem.title ?? 'Validation failed.');
     this.errors = problem.errors ?? {};
   }
+}
+
+/** Retains HTTP status so a caller can distinguish a rejected write from an uncertain server failure. */
+export class EditorMutationHttpError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
 }
 
 /// Error raised when canonical lifecycle dependencies require confirmation or changed before retry.
@@ -198,13 +204,13 @@ export const createRegion = async (
   request: EditorRegionSaveRequest
 ): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions`, 'POST', antiforgeryToken, request, 'region create');
 
-/// Updates a region through the same-origin editor API.
+/// Uses pinned originals; an unsupported server never receives a fallback PUT.
 export const updateRegion = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: EditorRegionSaveRequest
-): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/${regionId}`, 'PUT', antiforgeryToken, request, 'region update');
+  request: EditorRegionConditionalRequest
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/${regionId}/conditional`, 'PATCH', antiforgeryToken, request, 'region update');
 
 /// Deletes a region through the same-origin editor API.
 export const deleteRegion = async (
@@ -350,13 +356,16 @@ const sendMutation = async <TData>(
 
   if (response.status === 409) {
     const conflict = await response.json() as EditorLifecycleConflict | EditorSegmentConflict;
+    // Scalar conflicts offer review guidance rather than a structural confirmation dialog.
+    if (String(conflict.code).startsWith('mutation-'))
+      throw new EditorMutationHttpError((conflict as { detail?: string }).detail ?? 'Keep your draft and review the current values before saving.', response.status);
     if (String(conflict.code).startsWith('segment-'))
       throw new EditorSegmentConflictError(conflict as EditorSegmentConflict, response.headers.get('X-Wayfarer-Clear-Route-Confirmation'));
     throw new EditorLifecycleConfirmationError(conflict as EditorLifecycleConflict);
   }
 
   if (!response.ok) {
-    throw new Error(`Trip Editor ${label} returned ${response.status}`);
+    throw new EditorMutationHttpError(`Trip Editor ${label} returned ${response.status}`, response.status);
   }
 
   return (await response.json()) as EditorMutationResult<TData>;

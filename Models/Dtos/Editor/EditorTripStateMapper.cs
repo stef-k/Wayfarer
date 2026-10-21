@@ -98,7 +98,11 @@ public static class EditorTripStateMapper
             ToCoordinate(region.Center),
             region.DisplayOrder,
             isShadow,
-            isShadow ? ShadowCapabilities() : EditableRegionCapabilities());
+            isShadow ? ShadowCapabilities() : EditableRegionCapabilities())
+        {
+            OriginalValues = new(region.Name, RichNotes.Normalize(region.Notes),
+                region.CoverImageUrl == null ? null : new EditorImageUpdateRequest(region.CoverImageUrl), ToCoordinate(region.Center))
+        };
     }
 
     /// <summary>

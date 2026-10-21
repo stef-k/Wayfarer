@@ -89,7 +89,14 @@ public sealed record EditorRegionDto(
     EditorCoordinateDto? Center,
     int DisplayOrder,
     bool IsShadow,
-    EditorEntityCapabilitiesDto Capabilities);
+    EditorEntityCapabilitiesDto Capabilities)
+{
+    /// <summary>Exact published originals for protected Region saves; display defaults are not original evidence.</summary>
+    public EditorRegionOriginalDto? OriginalValues { get; init; }
+}
+
+/// <summary>Nullable canonical Notes, exact stored cover URL and center, independent of display projection.</summary>
+public sealed record EditorRegionOriginalDto(string Name, string? NotesHtml, EditorImageUpdateRequest? CoverImage, EditorCoordinateDto? Center);
 
 /// <summary>Place DTO with explicit parent region and visit summary.</summary>
 public sealed record EditorPlaceDto(
