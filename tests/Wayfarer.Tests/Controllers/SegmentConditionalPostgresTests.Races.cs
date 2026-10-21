@@ -5,6 +5,8 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Tests.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -105,6 +107,52 @@ public sealed partial class SegmentConditionalPostgresTests
             await transaction.DisposeAsync();
             using var one = await first.WaitAsync(TimeSpan.FromSeconds(10));
             if (second != null) { using var two = await second.WaitAsync(TimeSpan.FromSeconds(10)); }
+        }
+    }
+
+    /// <summary>Notes serialize with #848's real deletion owner; changed Segment content invalidates destructive approval.</summary>
+    [PostgresFact]
+    public async Task QueuedRegionDeletion_RejectsApprovalAfterNotesCommit()
+    {
+        var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
+        var segmentId = graph.EndpointIds[0];
+        await using var db = fixture.CreateContext();
+        var probe = new SegmentProbe();
+        await using var app = await StartAsync(db, probe);
+        using var web = await WebAsync(app, graph.UserId);
+        var regionUrl = $"/api/trips/{graph.TripId}/editor/regions/{graph.SourceId}";
+        using var previewResponse = await web.PostAsJsonAsync(regionUrl + "/deletion-preview", new { places = "delete", areas = "keep" });
+        Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
+        var preview = (await previewResponse.Content.ReadFromJsonAsync<RegionDeletionPreviewDto>())!;
+        await using var blocker = fixture.CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE");
+        var notes = web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/segments/{segmentId}/conditional",
+            new { expected = new { notesHtml = "Segment notes" }, changes = new { notesHtml = "Protected newer notes" } });
+        Task<HttpResponseMessage>? deletion = null;
+        try
+        {
+            await WaitForLockAsync(probe, 0);
+            deletion = web.PostAsJsonAsync(regionUrl + "/deletion", new { places = "delete", areas = "keep", confirmationToken = preview.Confirmation.Token });
+            await WaitForLockAsync(probe, 1);
+            await transaction.CommitAsync();
+            using var saved = await notes.WaitAsync(TimeSpan.FromSeconds(10));
+            using var rejected = await deletion.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+            await using var verify = fixture.CreateContext();
+            Assert.Equal("Protected newer notes", (await verify.Segments.FindAsync(segmentId))!.Notes);
+            Assert.True(await verify.Regions.AnyAsync(r => r.Id == graph.SourceId));
+            Assert.Equal(graph.PlaceIds.Length, await verify.Places.CountAsync(p => graph.PlaceIds.Contains(p.Id)));
+            Assert.Equal(2, probe.Updates.Count);
+            Assert.Empty(_warmup.Invocations);
+            output.WriteLine("Observed Notes and #848 deletion Segment waits; compatible lock order; changed Notes invalidated content-bound deletion approval with zero deletion effects.");
+        }
+        finally
+        {
+            await transaction.DisposeAsync();
+            using var saved = await notes.WaitAsync(TimeSpan.FromSeconds(10));
+            if (deletion != null) { using var rejected = await deletion.WaitAsync(TimeSpan.FromSeconds(10)); }
         }
     }
 

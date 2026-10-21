@@ -66,6 +66,7 @@ const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkLifecycleState>({ work: null, stopEdit: null });
 const routeProposalDraftRevision = ref(0);
 const semanticTaint = createSegmentSemanticTaint();
+/** Vue collects the persisted editor's template ref as an array inside the Segment list. */
 type SegmentSurface = { focusNotes: () => void; focusRouteAction: () => boolean };
 const segmentEditorSurface = ref<SegmentSurface | SegmentSurface[] | null>(null);
 let unregisterHandler: (() => void) | null = null;
@@ -275,6 +276,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
     return;
   }
 
+  notes.reset(null);
   isSaving.value = true;
   resetFeedback();
   try {
@@ -586,9 +588,7 @@ function isFocusable(element: HTMLElement): boolean {
 /** Replaces the complete draft only after explicit confirmation against current server state. */
 async function reloadCurrentSegment(): Promise<void> {
   if (!segmentConflict.value || !(await confirm({ title: 'Reload current saved Segment?', message: 'Discard this complete unsaved Segment draft and load the current saved version?', confirmLabel: 'Reload saved Segment', cancelLabel: 'Keep editing', variant: 'warning' }))) return;
-  persistedBaseline.value = toSegmentDraft(segmentConflict.value.currentSegment);
-  Object.assign(draft, toSegmentDraft(segmentConflict.value.currentSegment)); semanticTaint.resetFromAuthoritativeBaseline();
-  resetFeedback();
+  installAuthoritativeSegment(segmentConflict.value.currentSegment);
   syncRouteDraftPreview();
 }
 

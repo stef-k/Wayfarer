@@ -4,6 +4,14 @@
 
 ### Added
 
+- Add paired protected Segment Notes saves for opt-in bearer and current Web
+  Notes-only intent, comparing pinned nullable originals under PostgreSQL locks
+  with current authority and atomic property-only writes. Retain newer Vue drafts,
+  retire discarded replies and hold unknown outcomes or later route intent.
+  Complete Notes + route edits retain one aggregate PUT, route-clear consent,
+  provider provenance and stale-token rejection. Legacy bearer writes and
+  conservative route-versus-Notes conflicts remain debt (#853 Slice 6).
+
 - Add paired conditional Area editing for bearer Notes and current Web
   Name/Notes/Fill/Polygon. Compare pinned originals and Region identity under
   PostgreSQL locks, write only dirty fields, preserve Polygon holes and newer Vue

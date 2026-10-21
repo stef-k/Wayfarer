@@ -17,7 +17,10 @@ const completeSegment = (next: EditorSegment): boolean => {
   const geometry = (value: EditorSegment['route']): boolean => value === null
     || value?.type === 'LineString' && Array.isArray(value.coordinates) && value.coordinates.length >= 2
       && value.coordinates.every(c => c.length === 2 && c.every(n => typeof n === 'number' && Number.isFinite(n)));
-  return nullableString(next.fromPlaceId) && nullableString(next.toPlaceId) && nullableString(next.transportProfileId)
+  return typeof next?.id === 'string' && typeof next.tripId === 'string' && typeof next.notesHtml === 'string'
+    && typeof next.aggregateConcurrencyToken === 'string' && next.aggregateConcurrencyToken.length > 0
+    && Array.isArray(next.waypointPlaceIds) && Array.isArray(next.waypointRouteVertexIndices)
+    && nullableString(next.fromPlaceId) && nullableString(next.toPlaceId) && nullableString(next.transportProfileId)
     && typeof next.mode === 'string' && nullableNumber(next.estimatedDistanceKm) && nullableNumber(next.estimatedDurationMinutes)
     && ['Manual', 'Automatic'].includes(next.estimatedDurationSource) && geometry(next.route) && geometry(next.effectiveRoute)
     && next.waypointPlaceIds.every(id => typeof id === 'string')
@@ -25,6 +28,10 @@ const completeSegment = (next: EditorSegment): boolean => {
     && next.waypointRouteVertexIndices.every(i => i === null || Number.isInteger(i))
     && typeof next.capabilities?.canEdit === 'boolean' && typeof next.displayOrder === 'number';
 };
+
+/** Only explicit admission/validation/conflict failures establish a rejected attempt; proxy timeouts can hide a commit. */
+const knownRejected = (error: unknown): boolean => error instanceof EditorValidationError || error instanceof EditorSegmentConflictError
+  || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
 
 /** Binds Notes-only acknowledgements and feedback to the originating editor session. */
 export const createSegmentNotesDraft = (options: {
@@ -85,7 +92,7 @@ export const createSegmentNotesDraft = (options: {
   /** Blocks replay after uncertainty and implicit token advancement over a later route/proposal intention. */
   const blocked = (): boolean => {
     const message = uncertain.value
-      ? 'The earlier Segment Notes save has an unknown outcome. Keep your draft and explicitly review current saved state before saving again.'
+      ? 'The earlier Segment save has an unknown outcome. Keep your draft and explicitly review current saved state before saving again.'
       : routeHeld.value ? 'Route edits began during the Notes save. Keep your route draft and explicitly review/reset current saved state before saving.' : null;
     if (message) options.applyError(new Error(message), message);
     return message !== null;
@@ -97,8 +104,7 @@ export const createSegmentNotesDraft = (options: {
     if (result?.success !== true || next?.id !== draft.id || next.tripId !== options.current()?.tripId
       || typeof next.notesHtml !== 'string' || !next.originalValues || !Object.hasOwn(next.originalValues, 'notesHtml')
       || next.originalValues.notesHtml !== null && typeof next.originalValues.notesHtml !== 'string'
-      || (next.originalValues.notesHtml ?? '') !== next.notesHtml || !next.aggregateConcurrencyToken
-      || !Array.isArray(next.waypointPlaceIds) || !Array.isArray(next.waypointRouteVertexIndices)
+      || (next.originalValues.notesHtml ?? '') !== next.notesHtml
       || !completeSegment(next)
       || result.affected?.segments?.length !== 1 || JSON.stringify(result.affected.segments[0]) !== JSON.stringify(next))
       throw new Error('The Segment Notes save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
@@ -139,8 +145,7 @@ export const createSegmentNotesDraft = (options: {
       options.saved();
     } catch (error) {
       if (!currentAttempt()) return;
-      uncertain.value = attempted && !(error instanceof EditorValidationError
-        || error instanceof EditorMutationHttpError && error.status >= 400 && error.status < 500);
+      uncertain.value = attempted && !knownRejected(error);
       options.applyError(error, 'Segment Notes save failed.');
     } finally {
       if (currentAttempt()) pending.value = isSaving.value = false;
@@ -149,6 +154,8 @@ export const createSegmentNotesDraft = (options: {
 
   /** Complete saves retain a newer Notes obligation while preserving the existing aggregate operation. */
   const acceptComplete = (next: EditorSegment, submitted: EditorSegmentSaveRequest): EditorSegmentDraft => {
+    if (!completeSegment(next) || draft.id && next.id !== draft.id)
+      throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
     const incoming = toSegmentDraft(next);
     const newer = buildSegmentRequest(draft).notesHtml !== submitted.notesHtml ? draft.notesHtml : null;
     baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
@@ -172,10 +179,14 @@ export const createSegmentNotesDraft = (options: {
       const result = segmentId
         ? await updateSegment(options.endpoint(), segmentId, options.antiforgery(), request)
         : await createSegment(options.endpoint(), options.antiforgery(), request);
-      if (currentAttempt()) options.accepted(result, request, segmentId === null);
+      if (currentAttempt()) {
+        if (result?.success !== true) throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
+        options.accepted(result, request, segmentId === null);
+      }
     } catch (error) {
       if (!currentAttempt()) return;
       if (!(error instanceof EditorSegmentConflictError) || !segmentId) {
+        uncertain.value = !knownRejected(error);
         options.applyError(error, 'Segment save failed.', rows);
         return;
       }
@@ -194,9 +205,13 @@ export const createSegmentNotesDraft = (options: {
       try {
         // Confirmation binds the submitted aggregate, never a rebuilt draft containing later edits.
         const result = await updateSegment(options.endpoint(), segmentId, options.antiforgery(), request, error.confirmationToken);
-        if (currentAttempt()) options.accepted(result, request, false);
+        if (currentAttempt()) {
+          if (result?.success !== true) throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
+          options.accepted(result, request, false);
+        }
       } catch (retryError) {
         if (!currentAttempt()) return;
+        uncertain.value = !knownRejected(retryError);
         if (retryError instanceof EditorSegmentConflictError) options.showConflict(retryError.conflict);
         options.applyError(retryError, 'Segment save failed.', rows);
       }
