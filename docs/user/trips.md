@@ -31,6 +31,14 @@ Start with a Region, add two Places, then connect them with a Segment. Add more
 detail as you need it. An Area in a Trip is planning content; it does not have the
 privacy effect of a Timeline Hidden Area.
 
+Trip settings saves retain your draft if another device changed an edited field.
+The save error stays visible; unrelated settings can change independently. Copy
+any notes or other edits you want to keep before reloading to review current
+values. **Cancel / Reset** discards the draft and adopts the values currently
+shown by the editor. Saving again still checks the original values; it does not
+force an overwrite. Older applications and already-open older editor tabs do not
+provide this protection.
+
 ## Add Places and Areas
 
 In the editor, select a Region and add a Place. Pick its position on the map or

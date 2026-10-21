@@ -76,7 +76,12 @@ public static class EditorTripStateMapper
             ToImageReference(trip.CoverImageUrl),
             trip.UpdatedAt,
             publicUrl,
-            progressPublicUrl);
+            progressPublicUrl)
+        {
+            OriginalValues = new(trip.Name, RichNotes.Normalize(trip.Notes), trip.IsPublic,
+                trip.CoverImageUrl == null ? null : new EditorImageUpdateRequest(trip.CoverImageUrl),
+                new(trip.CenterLat, trip.CenterLon), trip.Zoom)
+        };
 
     /// <summary>
     /// Maps a region into the editor region contract.

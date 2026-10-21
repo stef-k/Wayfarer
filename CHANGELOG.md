@@ -4,6 +4,14 @@
 
 ### Added
 
+- Add protected Trip Name/Notes saves for bearer clients and the current Web
+  settings form, comparing original dirty fields under a PostgreSQL row lock.
+  Retain conflicts and newer in-flight drafts; complete retained sharing after
+  acknowledged publication within the next explicit Save & Exit. Preserve
+  independent metadata edits and disable progress atomically when making private.
+  Legacy unconditional routes remain compatible and outside this protection;
+  other selected entity slices and the legacy policy remain open (#853 Slice 3).
+
 - Retain minimal lifetime owner/UUID deletion intent to prevent stale API replay
   and keyed CSV/GeoJSON imports from recreating deleted Locations. Add terminal
   `location_deleted` HTTP 410, bearer-only bounded key-status discovery, atomic

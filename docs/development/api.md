@@ -701,6 +701,78 @@ visibility and provider gates. These are limited API contracts, not unrestricted
 account access or full Web editor parity; Web invitations, provider backfill,
 account/admin tools and editor mutations keep their cookie/role/antiforgery rules.
 
+## Protected Trip metadata (#853 Slice 3)
+
+Two opt-in routes share one PostgreSQL original-value comparison and dirty-field
+commit. This slice protects Trip Name/Notes and the existing Web Trip settings
+form; it does not qualify other entity mutations or finish #853.
+
+| Writer | Protected route | Selected fields and authority |
+| --- | --- | --- |
+| Bearer | `PATCH /api/trips/{tripId}/conditional` | `name`, `notes`; current active incoming token and Trip owner. Cookie alone is insufficient. |
+| Web settings | `PATCH /api/trips/{tripId}/editor/metadata/conditional` | `name`, `notesHtml`, `isPublic`, `coverImage`, `center`, `zoom`; active User cookie, ownership and antiforgery. |
+
+Send `{ "expected": { ... }, "changes": { ... } }`. Include only authored
+fields, with a separately present **original** value for every effective changed
+field. Unknown, duplicate, wrongly cased or malformed keys and empty effective
+changes return 400 `mutation-request-invalid`. New names are trimmed and contain
+1–200 characters. Omitted/null desired Notes means Unchanged; present `""` means
+Clear. Original Notes can be null, and null differs from empty. Rich HTML uses the
+existing shared sanitization/normalization; data-image input is rejected.
+
+For example, clearing originally null Notes uses:
+
+~~~http
+PATCH /api/trips/{tripId}/conditional
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"expected":{"notes":null},"changes":{"notes":""}}
+~~~
+
+Web metadata responses add `originalValues`, preserving normalized nullable
+`notesHtml`, exact original cover URL and both nullable center coordinates.
+The existing non-null display `notesHtml` and all other display fields remain
+compatible. Pin each edited field's `originalValues` when editing starts; never
+infer an original from an empty display default or replace it merely because
+props refreshed. Web expected/changed cover uses `{rawUrl: ...}` or null. Expected
+center can contain independently nullable latitude/longitude; a desired center
+is a finite WGS84 pair or null to clear both. Zoom remains nullable or 0–19.
+Publication becoming private atomically disables ShareProgress; both existing
+share-progress toggles guard their final write against current publication.
+
+Comparison uses fresh state after the final Trip row lock, with current owner,
+active account and, for bearer, a still-valid locked incoming credential. A stale
+selected field returns 409 `mutation-base-stale`, with zero domain writes or
+thumbnail/warm-up effects and no disclosure of current values. Disjoint dirty
+fields survive in either save order. Definitively unapplied database contention
+can return `mutation-contention`. Missing or non-owned targets remain concealed
+404; unavailable authentication is 401. Existing role/antiforgery denials remain.
+
+Bearer 200 contains `contract: "bd2-1"`, `success`, `applied` and canonical
+`trip: {id,name,notes,updatedAt}` after commit. An equal desired value can return
+`applied:false`; it does not prove a new Clear occurred. Web retains the existing
+`EditorMutationResult` metadata/affected slices, URLs and warnings. Thumbnail
+invalidation and the respective Web/bearer image warm-up policies follow a
+confirmed successful commit. `updatedAt` is advisory and is never the condition.
+These responses are neither a coherent full Trip baseline nor durable receipts.
+
+On conflict, the current Vue form retains authored fields, original comparisons
+and the visible error through refreshes. New edits or map captures made during a
+save survive its older response. An explicit resolution must review and adopt
+a new base and compare again; there is no force-overwrite or automatic rebase.
+A missing route/original-value contract holds the save without falling back to
+an unconditional endpoint. A lost reply or cancellation does **not** prove no
+effect and must not trigger blind replay.
+
+**Residual legacy risk:** old bearer `PUT /api/trips/{id}` and cookie
+`PATCH /api/trips/{id}/editor/metadata` keep their unconditional payloads and
+envelopes. A stale full Web draft can still overwrite a later bearer edit, and
+an explicitly supplied legacy field can overwrite a protected edit. Existing
+tabs and old clients are not covered by the new guarantee. Later paired entity
+slices and a maintainer-approved legacy compatibility disposition are required
+before #853 can close; no Region/Place/Area/Segment conditions are added here.
+
 ## Saved Trip measurements and native KML
 
 A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns

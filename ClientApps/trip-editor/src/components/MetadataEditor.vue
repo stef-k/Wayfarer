@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { TripEditorMapView } from '../map/mapViewport';
-import { buildMetadataRequest, capturedViewDraft, equivalentViewDraft, normalizeTagNameKey, normalizeTagNames,
-  toDraft, toMetadataDraft, viewDraft, type MetadataDraft } from './metadataDraft';
+import { buildMetadataRequest, capturedViewDraft, createMetadataDraftState, equivalentViewDraft, normalizeTagNameKey, normalizeTagNames,
+  viewDraft, type MetadataDraft } from './metadataDraft';
 import EditorSurface from './EditorSurface.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 import type {
@@ -37,7 +37,8 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
 }>();
 
-const draft = reactive<MetadataDraft>(toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
+const draftState = createMetadataDraftState(props.metadata, props.tagOrder, props.tagsBySlug);
+const draft = draftState.draft;
 const isSaving = ref(false);
 const lastSavedAt = ref<string | null>(null);
 const saveError = ref<string | null>(null);
@@ -49,10 +50,9 @@ const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
-let captureRevision = 0;
-let hasCapturedView = false;
-
-const persistedDraft = computed(() => toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
+/// Distinguishes explicit sharing input during this save from privacy-driven clearing.
+let shareProgressEditedDuringSave = false;
+const persistedDraft = computed(() => draftState.baseline);
 const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
 const isShareProgressDirty = computed(() => normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
@@ -64,6 +64,7 @@ const visibleShareProgressEnabled = computed({
   get: () => !shareProgressUnavailable.value && draft.shareProgressEnabled,
   set: value => {
     draft.shareProgressEnabled = value;
+    if (isSaving.value) shareProgressEditedDuringSave = true;
   }
 });
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
@@ -109,12 +110,8 @@ watch(
       return;
     }
 
-    // applyMutation can rebuild tag props while settings are closed or another editor is active.
-    hasCapturedView = hasCapturedView && !equivalentViewDraft(draft, persistedDraft.value);
-    const retainedView = hasCapturedView ? viewDraft(draft) : {};
-    Object.assign(draft, persistedDraft.value, retainedView);
-    validationErrors.value = {};
-    saveError.value = null;
+    // Dirty values and their original bases, including a visible conflict, survive unrelated refreshes.
+    draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
   }
 );
 
@@ -123,9 +120,6 @@ watch(() => props.capturedMapView, view => {
   if (!view) return;
   const captured = capturedViewDraft(view);
   const matchesSaved = equivalentViewDraft(persistedDraft.value, captured);
-  // Capture ownership advances even when manual fields already match, fencing older PATCH responses.
-  captureRevision++;
-  hasCapturedView = !matchesSaved;
   if (equivalentViewDraft(draft, captured)) return;
   Object.assign(draft, matchesSaved ? viewDraft(persistedDraft.value) : captured);
 }, { flush: 'sync' });
@@ -169,8 +163,7 @@ onUnmounted(() => {
 });
 
 const resetDraft = (): void => {
-  hasCapturedView = false;
-  Object.assign(draft, toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
+  draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
   tagInput.value = '';
   tagSuggestions.value = [];
   tagSuggestionError.value = null;
@@ -188,6 +181,8 @@ const saveAndExit = async (): Promise<void> => {
 };
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
+  if (isSaving.value) return;
+  shareProgressEditedDuringSave = false;
   isSaving.value = true;
   saveError.value = null;
   validationErrors.value = {};
@@ -198,28 +193,30 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 
   try {
     if (isMetadataDirty.value) {
-      const submittedCaptureRevision = captureRevision;
-      const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, buildMetadataRequest(draft));
+      const submitted = draftState.request();
+      const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, submitted);
       savedMetadata = result.affected.metadata ?? result.data;
       warnings.value = result.warnings;
-      // The response acknowledges only the submitted capture, never a gesture made during PATCH.
-      const retainedView = captureRevision !== submittedCaptureRevision ? viewDraft(draft) : {};
-      Object.assign(draft, toMetadataDraft(savedMetadata), retainedView);
-      hasCapturedView = !equivalentViewDraft(draft, toMetadataDraft(savedMetadata));
+      draftState.acknowledge(savedMetadata, submitted, shareProgressEditedDuringSave);
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
 
     if (isTagsDirty.value) {
-      const result = await putTags(props.editorEndpoint, props.antiforgeryToken, { tags: normalizeTagNames(draft.tags) });
-      draft.tags = result.data.map(tag => tag.name);
+      const submittedTags = normalizeTagNames(draft.tags);
+      const result = await putTags(props.editorEndpoint, props.antiforgeryToken, { tags: submittedTags });
+      if (JSON.stringify(normalizeTagNames(draft.tags)) === JSON.stringify(submittedTags)) draft.tags = result.data.map(tag => tag.name);
+      draftState.baseline.tags = result.data.map(tag => tag.name);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
 
-    if (isShareProgressDirty.value && savedMetadata.isPublic) {
-      const result = await patchShareProgress(props.editorEndpoint, props.antiforgeryToken, { enabled: draft.shareProgressEnabled });
+    // The response advances the baseline before Vue propagates publication into child props.
+    if (savedMetadata.isPublic && draft.isPublic && draft.shareProgressEnabled !== persistedDraft.value.shareProgressEnabled) {
+      const submittedSharing = draft.shareProgressEnabled;
+      const result = await patchShareProgress(props.editorEndpoint, props.antiforgeryToken, { enabled: submittedSharing });
       savedMetadata = result.affected.metadata ?? result.data;
-      draft.shareProgressEnabled = savedMetadata.shareProgressEnabled;
+      if (draft.shareProgressEnabled === submittedSharing) draft.shareProgressEnabled = savedMetadata.shareProgressEnabled;
+      draftState.baseline.shareProgressEnabled = savedMetadata.shareProgressEnabled;
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
@@ -238,7 +235,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   if (!failed) {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
-    if (exitAfterSave && (!hasCapturedView || !isMetadataDirty.value)) {
+    draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
+    if (exitAfterSave && !isDirty.value) {
       leaveEditor();
     }
   }

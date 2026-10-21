@@ -108,9 +108,23 @@ public sealed partial class TripEditorController
             });
         }
 
-        trip.ShareProgressEnabled = update.Enabled;
-        trip.UpdatedAt = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        if (_dbContext.Database.IsRelational())
+        {
+            // Final publication/owner predicate is evaluated under PostgreSQL's update lock after any wait.
+            var now = DateTime.UtcNow;
+            var count = await _dbContext.Trips.Where(t => t.Id == tripId && t.UserId == userId && (!update.Enabled || t.IsPublic))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, update.Enabled)
+                    .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), cancellationToken);
+            if (count == 0) return ValidationError(new() { ["shareProgressEnabled"] = ["Share progress can only be enabled for public trips."] });
+            trip = await _dbContext.Trips.AsNoTracking().SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
+            if (trip == null) return NotFound();
+        }
+        else
+        {
+            trip.ShareProgressEnabled = update.Enabled;
+            trip.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
 
         var metadata = EditorTripStateMapper.ToMetadata(
             trip,
