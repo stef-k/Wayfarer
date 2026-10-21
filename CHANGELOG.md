@@ -6,8 +6,9 @@
 
 - Add protected Trip Name/Notes saves for bearer clients and the current Web
   settings form, comparing original dirty fields under a PostgreSQL row lock.
-  Retain conflicts and newer in-flight drafts, preserve independent metadata
-  edits, and disable public progress atomically when making a Trip private.
+  Retain conflicts and newer in-flight drafts; complete retained sharing after
+  acknowledged publication within the next explicit Save & Exit. Preserve
+  independent metadata edits and disable progress atomically when making private.
   Legacy unconditional routes remain compatible and outside this protection;
   other selected entity slices and the legacy policy remain open (#853 Slice 3).
 

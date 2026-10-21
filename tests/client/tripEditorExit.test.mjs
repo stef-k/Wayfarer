@@ -25,25 +25,32 @@ const withOriginals = metadata => ({ ...metadata, originalValues: { name: metada
   isPublic: metadata.isPublic, coverImage: metadata.coverImage ? { rawUrl: metadata.coverImage.rawUrl } : null,
   center: metadata.center ?? { latitude: null, longitude: null }, zoom: metadata.zoom ?? null } });
 
-// Mount the real draft owner with reactive props; child rendering is irrelevant to draft lifetime.
+// Mount the real draft owner under a reactive parent so Vue schedules child prop updates.
 const mountDraft = () => {
   let editor;
   const props = shallowReactive({ metadata: withOriginals({ name: 'Trip', isPublic: false, notesHtml: '',
     center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 }),
     capturedMapView: null, tagsBySlug: {}, tagOrder: [], tagOptions: {}, hasRegionDraftChanges: false,
-    tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', editorSurface: {
+    tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', antiforgeryToken: 'test-token', editorSurface: {
       registerTargetHandler: () => () => {}, isTargetActive: () => false
     }, autoOpen: false });
-  const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode() {} });
-  const app = renderer.createApp({ setup() {
-    editor = proxyRefs(component.setup(props, { expose() {}, emit: (name, metadata) => {
-      if (name === 'saved') props.metadata = metadata;
-      if (name === 'mutationApplied' && Array.isArray(metadata.data)) {
-        props.tagOrder = metadata.data.map(tag => tag.slug);
-        props.tagsBySlug = Object.fromEntries(metadata.data.map(tag => [tag.slug, tag]));
-      }
-    } }));
+  // Only rendering is stubbed; production setup, watchers and emitted events belong to the child.
+  const child = { ...component, setup(childProps, context) {
+    editor = proxyRefs(component.setup(childProps, context));
     return () => null;
+  } };
+  const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {},
+    parentNode: () => ({}), nextSibling: () => null });
+  const app = renderer.createApp({ setup() {
+    return () => h(child, { ...props,
+      onSaved: metadata => { props.metadata = metadata; },
+      onMutationApplied: result => {
+        if (result.affected.metadata) props.metadata = result.affected.metadata;
+        if (!Array.isArray(result.data)) return;
+        props.tagOrder = result.data.map(tag => tag.slug);
+        props.tagsBySlug = Object.fromEntries(result.data.map(tag => [tag.slug, tag]));
+      }
+    });
   } });
   app.mount({});
   return { editor, props, dispose: () => app.unmount(), capture: async (latitude, zoom = 10) => {
@@ -242,6 +249,7 @@ test('missing original evidence and unsupported protected route fail closed with
     assert.match(owner.editor.saveError, /Original Trip values are unavailable/);
     assert.deepEqual(calls, []);
     owner.props.metadata = withOriginals(owner.props.metadata);
+    await nextTick();
     owner.editor.resetDraft();
     owner.editor.draft.name = 'Still retained';
     await owner.editor.save(false);
@@ -288,6 +296,7 @@ for (const initiallyShared of [false, true]) {
     const owner = mountDraft();
     const requests = [];
     let complete;
+    let serverMetadata;
     let notifySharingStarted;
     const sharingStarted = new Promise(resolve => { notifySharingStarted = resolve; });
     globalThis.fetch = async (url, options) => {
@@ -297,15 +306,16 @@ for (const initiallyShared of [false, true]) {
       assert.equal(options.credentials, 'same-origin');
       const isSharing = url === '/editor/share-progress';
       assert.ok(isSharing || url === '/editor/metadata/conditional', 'no legacy metadata fallback');
-      if (isSharing) assert.equal(owner.props.metadata.isPublic, true, 'publication must be acknowledged first');
-      const metadata = withOriginals({ ...owner.props.metadata, ...body.changes,
-        shareProgressEnabled: isSharing ? body.enabled : body.changes.isPublic === false ? false : owner.props.metadata.shareProgressEnabled });
+      if (isSharing) assert.equal(serverMetadata.isPublic, true, 'server publication must be acknowledged first');
       await new Promise(resolve => { complete = resolve; if (isSharing) notifySharingStarted(); });
-      return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+      serverMetadata = withOriginals({ ...serverMetadata, ...body.changes,
+        shareProgressEnabled: isSharing ? body.enabled : body.changes.isPublic === false ? false : serverMetadata.shareProgressEnabled });
+      return new Response(JSON.stringify({ data: serverMetadata, affected: { metadata: serverMetadata }, warnings: [] }));
     };
     try {
       owner.props.metadata = withOriginals({ ...owner.props.metadata, isPublic: true, shareProgressEnabled: initiallyShared });
       await nextTick();
+      serverMetadata = owner.props.metadata;
       owner.editor.draft.isPublic = false;
       await nextTick();
       assert.equal(owner.editor.draft.shareProgressEnabled, false, 'making private derives a sharing disable');
@@ -335,8 +345,11 @@ for (const initiallyShared of [false, true]) {
         expected: { isPublic: false }, changes: { isPublic: true } } });
       assert.equal(requests.length, 2, 'sharing cannot start while publication is pending');
       complete();
-      await sharingStarted;
+      // A skipped sharing request must fail an assertion instead of hanging on an unfulfilled stub.
+      await Promise.race([sharingStarted, republishing]);
       assert.deepEqual(requests[2], { url: '/editor/share-progress', body: { enabled: true } });
+      assert.equal(serverMetadata.isPublic, true);
+      assert.equal(serverMetadata.shareProgressEnabled, false, 'sharing has not been acknowledged yet');
       assert.deepEqual(navigations, [], 'sharing also requires its own acknowledgement before exit');
       complete();
       await republishing;
@@ -346,6 +359,48 @@ for (const initiallyShared of [false, true]) {
       assert.equal(owner.editor.draft.shareProgressEnabled, true);
       assert.equal(requests.length, 3);
       assert.deepEqual(navigations, ['/User/Trip']);
+    } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+  });
+}
+
+// Seed the retained F1 draft proven above, then challenge only publication/sharing dispatch guards.
+for (const outcome of ['publication conflict', 'publication failure', 'sharing failure', 'newer private draft']) {
+  test(`retained sharing cannot exit or enable unsafely after ${outcome}`, async () => {
+    const previousWindow = globalThis.window;
+    const previousFetch = globalThis.fetch;
+    const navigations = [];
+    globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+    const owner = mountDraft();
+    const requests = [];
+    let complete;
+    globalThis.fetch = async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body });
+      if (outcome === 'publication conflict') return new Response('{}', { status: 409 });
+      if (outcome === 'publication failure' || url === '/editor/share-progress') return new Response('{}', { status: 500 });
+      await new Promise(resolve => { complete = resolve; });
+      const metadata = withOriginals({ ...owner.props.metadata, ...body.changes, shareProgressEnabled: false });
+      return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+    };
+    try {
+      owner.editor.draft.isPublic = true;
+      owner.editor.draft.shareProgressEnabled = true;
+      const saving = owner.editor.saveAndExit();
+      assert.deepEqual(requests[0], { url: '/editor/metadata/conditional', body: {
+        expected: { isPublic: false }, changes: { isPublic: true } } });
+      if (outcome === 'newer private draft') owner.editor.draft.isPublic = false;
+      complete?.();
+      await saving;
+      assert.equal(requests.length, outcome === 'sharing failure' ? 2 : 1, 'no retry or sharing after failed/private publication');
+      if (outcome === 'sharing failure') assert.deepEqual(requests[1], { url: '/editor/share-progress', body: { enabled: true } });
+      assert.equal(owner.editor.isDirty, true);
+      assert.deepEqual(navigations, []);
+      if (outcome === 'newer private draft') assert.equal(owner.editor.draft.isPublic, false);
+      else {
+        assert.equal(owner.editor.draft.shareProgressEnabled, true);
+        assert.equal(owner.editor.statusText, 'Save failed');
+        assert.ok(owner.editor.saveError);
+      }
     } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
   });
 }
@@ -403,7 +458,7 @@ test('tag edits authored during tag save survive its response and remain unsaved
   globalThis.fetch = async (_url, options) => {
     const { tags } = JSON.parse(options.body);
     await new Promise(resolve => { complete = resolve; });
-    return new Response(JSON.stringify({ data: tags.map(name => ({ name, slug: name.toLowerCase() })), warnings: [] }));
+    return new Response(JSON.stringify({ data: tags.map(name => ({ name, slug: name.toLowerCase() })), affected: {}, warnings: [] }));
   };
   try {
     owner.editor.draft.tags = ['First'];

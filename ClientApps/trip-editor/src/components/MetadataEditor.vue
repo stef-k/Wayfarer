@@ -210,7 +210,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
 
-    if (isShareProgressDirty.value && savedMetadata.isPublic) {
+    // The response advances the baseline before Vue propagates publication into child props.
+    if (savedMetadata.isPublic && draft.isPublic && draft.shareProgressEnabled !== persistedDraft.value.shareProgressEnabled) {
       const submittedSharing = draft.shareProgressEnabled;
       const result = await patchShareProgress(props.editorEndpoint, props.antiforgeryToken, { enabled: submittedSharing });
       savedMetadata = result.affected.metadata ?? result.data;
