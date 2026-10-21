@@ -667,7 +667,15 @@ all reserved Region edits.
 
 These PUT DTOs use null/omitted values as unchanged rather than generic patch
 clear operations. Use a non-null empty notes string to clear notes; Place icon
-and marker-color clear flags restore `marker` and `bg-blue`. Successful mutations
+and marker-color clear flags restore `marker` and `bg-blue`. Legacy Place PUT
+resolves omissions against the current locked Place, including its current Region
+and coordinates; a Notes-only edit preserves concurrent changes to other fields,
+sibling order and route dependencies. Address is not editable through this DTO;
+its null/empty value and all five enrichment fields remain unchanged. Explicit
+coordinate updates retain the existing route-reconciliation and enrichment policy.
+Explicit fields still write unconditionally: this omission correction provides no
+original-client-base conflict protection or complete bidirectional Web/Mobile
+safety (#853 Slice 2; conditional writes remain later work). Successful mutations
 return 200 with `success` and the corresponding `place`/`region` DTO, or a bounded
 delete success object. Invalid input/destination/reserved names return 400;
 missing resources return 404; missing bearer authority and some non-owner checks

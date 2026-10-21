@@ -51,6 +51,10 @@
 
 ### Fixed
 
+- Preserve current locked Place fields omitted from legacy bearer PUT, including
+  concurrent Web Region/coordinate/Address/marker edits and their route/order
+  effects. Explicit fields remain unconditional pending later #853 slices (Slice 2).
+
 - Stamp only Trip `UpdatedAt` on child saves, preserving concurrent Web root
   metadata and intentional root edits in the same atomic save (#853, Slice 1).
 
