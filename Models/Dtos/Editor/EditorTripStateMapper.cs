@@ -150,7 +150,10 @@ public static class EditorTripStateMapper
             aggregateConcurrencyToken,
             segment.DisplayOrder,
             EditableLeafCapabilities(),
-            externalRouting);
+            externalRouting)
+        {
+            OriginalValues = new(RichNotes.Normalize(segment.Notes))
+        };
     }
 
     private static LineString? BuildEffectiveRoute(Segment segment)

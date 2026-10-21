@@ -154,7 +154,14 @@ public sealed record EditorSegmentDto(
     string AggregateConcurrencyToken,
     int DisplayOrder,
     EditorEntityCapabilitiesDto Capabilities,
-    EditorExternalRoutingCapabilityDto? ExternalRouting = null);
+    EditorExternalRoutingCapabilityDto? ExternalRouting = null)
+{
+    /// <summary>Exact nullable published Notes, independent of display defaults and opaque route-aggregate evidence.</summary>
+    public EditorSegmentNotesOriginalDto? OriginalValues { get; init; }
+}
+
+/// <summary>Preserves null versus empty for conditional Segment Notes.</summary>
+public sealed record EditorSegmentNotesOriginalDto(string? NotesHtml);
 
 /// <summary>Safe per-Segment external-routing capability without endpoint or configuration details.</summary>
 public sealed record EditorExternalRoutingCapabilityDto(

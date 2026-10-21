@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { createSegment, deleteSegment, EditorSegmentConflictError, orderSegments, updateSegment } from '../api/tripEditorApi';
+import { deleteSegment, orderSegments } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
@@ -17,6 +17,7 @@ import { reverseSegmentDraftRoute } from '../segments/segmentPresentationResolve
 import { createSegmentRouteProposalDraftController, routeProposalDraftContextKey } from './segmentRouteProposalDraft';
 import { createSegmentSemanticTaint } from './segmentSemanticTaint';
 import { activateAuthoritativeSegment } from './segmentDraftActivation';
+import { createSegmentNotesDraft } from './segmentNotesDraft';
 
 declare global {
   interface Window {
@@ -65,7 +66,8 @@ const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkLifecycleState>({ work: null, stopEdit: null });
 const routeProposalDraftRevision = ref(0);
 const semanticTaint = createSegmentSemanticTaint();
-const segmentEditorSurface = ref<{ focusNotes: () => void; focusRouteAction: () => boolean } | null>(null);
+type SegmentSurface = { focusNotes: () => void; focusRouteAction: () => boolean };
+const segmentEditorSurface = ref<SegmentSurface | SegmentSurface[] | null>(null);
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
 let sortableRetry: number | null = null;
@@ -74,7 +76,7 @@ let reorderSnapshotIds: Guid[] | null = null;
 const activeSegment = computed(() => (draft.id ? props.state.segmentsById[draft.id] ?? null : null));
 const isDraftOpen = computed(() => props.editorSurface.isTargetActive(activeSegmentTarget.value) || draft.id !== null || Boolean(draft.fromPlaceId || draft.toPlaceId || draft.mode || draft.estimatedDistanceKm || draft.estimatedDurationMinutes || draft.notesHtml || draft.route));
 const baselineRequest = computed(() => draft.id ? buildSegmentRequest(persistedBaseline.value) : createBaselineRequest.value ?? buildSegmentRequest(emptySegmentDraft()));
-const isDirty = computed(() => routeProposalDraft.hasProposal.value || JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
+const isDirty = computed(() => notes.held.value || routeProposalDraft.hasProposal.value || JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
 const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
   .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
@@ -93,6 +95,11 @@ const draftOrientation = computed(() => {
 const routeProposalContextKey = computed(() => routeProposalDraftContextKey(draft, props.state, routeProposalDraftRevision.value));
 const routeProposalDraft = createSegmentRouteProposalDraftController(
   draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview));
+const notes = createSegmentNotesDraft({ draft, baseline: persistedBaseline, isSaving, current: () => activeSegment.value,
+  routeAuthored: () => routeProposalDraft.hasProposal.value || !semanticTaint.isSafe.value || Boolean(routeMapWork.work) || isGenerating.value,
+  endpoint: () => props.editorEndpoint, antiforgery: () => props.antiforgeryToken, resetFeedback, applyError,
+  applied: result => emit('mutationApplied', result), saved: () => { syncRouteDraftPreview(); publishPresentation(); markSaved(); },
+  buildRequest: () => routeProposalDraft.buildRequest(), accepted: acceptSavedSegment, showConflict, formId: segmentFormId });
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(
@@ -119,6 +126,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  notes.reset(null);
   unregisterHandler?.();
   destroySortable();
   stopSegmentRouteEdit(routeMapWork);
@@ -135,6 +143,7 @@ async function openCreate(): Promise<void> {
   }
 
   Object.assign(draft, emptySegmentDraft());
+  notes.reset(null);
   persistedBaseline.value = emptySegmentDraft();
   createBaselineRequest.value = buildSegmentRequest(draft); semanticTaint.resetFromAuthoritativeBaseline();
   resetFeedback();
@@ -152,18 +161,22 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
 function resetDraft(): void {
   routeProposalDraft.preview(null);
   routeProposalDraftRevision.value += 1;
-  const focusDestination = resetFocusDestination(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
-  Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft()); semanticTaint.resetFromAuthoritativeBaseline();
+  const next = activeSegment.value ? toSegmentDraft(activeSegment.value) : emptySegmentDraft();
+  const focusDestination = resetFocusDestination(draft, next);
+  persistedBaseline.value = cloneDraft(next);
+  Object.assign(draft, next); semanticTaint.resetFromAuthoritativeBaseline();
+  notes.reset(activeSegment.value);
   resetFeedback();
   syncRouteDraftPreview();
   publishPresentation();
   void nextTick(async () => {
     await nextTick();
+    const surface = Array.isArray(segmentEditorSurface.value) ? segmentEditorSurface.value[0] : segmentEditorSurface.value;
     if (focusDestination === 'notes') {
-      segmentEditorSurface.value?.focusNotes();
+      surface?.focusNotes();
       return;
     }
-    if (focusDestination === 'route' && segmentEditorSurface.value?.focusRouteAction()) return;
+    if (focusDestination === 'route' && surface?.focusRouteAction()) return;
     const requested = focusDestination ? document.querySelector<HTMLElement>(focusDestination) : null;
     const target = requested && isFocusable(requested) ? requested : document.querySelector<HTMLElement>('[data-segment-waypoint-group]');
     target?.focus();
@@ -176,60 +189,23 @@ async function cancelDraft(): Promise<void> {
 
 async function saveDraft(): Promise<void> {
   if (isSaving.value || isGenerating.value) return;
-  isSaving.value = true;
-  resetFeedback();
-  const submittedWaypointRows = draft.waypointRows.map(row => ({ ...row }));
-  try {
-    const request = routeProposalDraft.buildRequest();
-    const wasCreate = draft.id === null;
-    const result = draft.id
-      ? await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, request)
-      : await createSegment(props.editorEndpoint, props.antiforgeryToken, request);
-    routeProposalDraft.preview(null);
-    const savedDraft = toSegmentDraft(result.data);
-    if (wasCreate) {
-      emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(savedDraft), work: null });
-      emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
-    }
-    emit('mutationApplied', result as EditorMutationResult<unknown>);
-    persistedBaseline.value = cloneDraft(savedDraft);
-    Object.assign(draft, savedDraft);
-    createBaselineRequest.value = null; semanticTaint.resetFromAuthoritativeBaseline();
-    props.editorSurface.replaceActiveTarget(buildSegmentEditTarget(result.data, segmentLabel(result.data)));
-    emit('routeDraftPreviewChanged', null);
-    publishPresentation();
-    markSaved();
-  } catch (error) {
-    if (error instanceof EditorSegmentConflictError && draft.id) {
-      if (error.confirmationToken && error.conflict.code === 'segment-route-clear-confirmation-required') {
-        const accepted = await confirm({ title: 'Clear custom route?', message: error.conflict.warning,
-          confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning' });
-        if (!accepted) {
-          void nextTick(() => document.querySelector<HTMLElement>(`button[form="${segmentFormId}"]`)?.focus());
-          return;
-        }
-        try {
-          const confirmed = await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, routeProposalDraft.buildRequest(), error.confirmationToken);
-          emit('mutationApplied', confirmed as EditorMutationResult<unknown>);
-          persistedBaseline.value = toSegmentDraft(confirmed.data);
-          Object.assign(draft, toSegmentDraft(confirmed.data)); semanticTaint.resetFromAuthoritativeBaseline();
-          emit('routeDraftPreviewChanged', null);
-          publishPresentation();
-          markSaved();
-          return;
-        } catch (retryError) {
-          if (retryError instanceof EditorSegmentConflictError) showConflict(retryError.conflict);
-          applyError(retryError, 'Segment save failed.', submittedWaypointRows);
-          return;
-        }
-      }
-      showConflict(error.conflict);
-      // Keep the user's complete visible and hidden proposal retryable after canonical contention.
-    }
-    applyError(error, 'Segment save failed.', submittedWaypointRows);
-  } finally {
-    isSaving.value = false;
+  await notes.save();
+}
+
+/** Shares complete-save adoption between normal and explicitly confirmed aggregate requests. */
+function acceptSavedSegment(result: EditorMutationResult<EditorSegment>, request: EditorSegmentSaveRequest, wasCreate: boolean): void {
+  routeProposalDraft.preview(null);
+  const savedDraft = notes.acceptComplete(result.data, request);
+  if (wasCreate) {
+    emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(savedDraft), work: null });
+    emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
   }
+  emit('mutationApplied', result);
+  createBaselineRequest.value = null; semanticTaint.resetFromAuthoritativeBaseline();
+  props.editorSurface.replaceActiveTarget(buildSegmentEditTarget(result.data, segmentLabel(result.data)));
+  emit('routeDraftPreviewChanged', null);
+  publishPresentation();
+  markSaved();
 }
 
 async function deleteDraft(): Promise<void> {
@@ -275,6 +251,7 @@ async function activatePersistedSegment(
 
 /** Replaces draft, persisted baseline, feedback, and semantic history as one ownership commit. */
 function installAuthoritativeSegment(segment: EditorSegment): void {
+  notes.reset(segment);
   const authoritativeDraft = toSegmentDraft(segment);
   persistedBaseline.value = cloneDraft(authoritativeDraft);
   Object.assign(draft, authoritativeDraft);
@@ -454,6 +431,7 @@ function restoreSegmentOrder(_previousIds: Guid[]): void {
 }
 
 function discardDraft(): void {
+  notes.reset(null);
   routeProposalDraft.preview(null);
   routeProposalDraftRevision.value += 1;
   const discardedKey = draft.id ? persistedPresentationKey(draft.id) : createPresentationKey();

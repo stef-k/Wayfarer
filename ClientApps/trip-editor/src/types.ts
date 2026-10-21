@@ -1,3 +1,5 @@
+import type { EditorSegment } from './api/segmentTypes';
+export type { EditorSegment, EditorSegmentNotesConditionalRequest } from './api/segmentTypes';
 import type { EditorMetadataOriginalValues } from './api/metadataTypes';
 import type { EditorRegionOriginalValues } from './api/regionTypes';
 import type { EditorAreaOriginalValues } from './api/areaTypes';
@@ -105,28 +107,6 @@ export interface EditorArea {
   capabilities: EditorEntityCapabilities;
   /** Originals preserve nullable storage and exact Polygon identity independently of displayed defaults. */
   originalValues?: EditorAreaOriginalValues;
-}
-
-export interface EditorSegment {
-  id: Guid;
-  tripId: Guid;
-  fromPlaceId: Guid | null;
-  toPlaceId: Guid | null;
-  waypointPlaceIds: Guid[];
-  waypointRouteVertexIndices: Array<number | null>;
-  mode: string;
-  transportProfileId: Guid | null;
-  hasCustomRoute: boolean;
-  estimatedDistanceKm: number | null;
-  estimatedDurationMinutes: number | null;
-  estimatedDurationSource: 'Automatic' | 'Manual';
-  notesHtml: string;
-  route: GeoJsonLineString | null;
-  effectiveRoute: GeoJsonLineString | null;
-  aggregateConcurrencyToken: string;
-  displayOrder: number;
-  capabilities: EditorEntityCapabilities;
-  externalRouting?: EditorExternalRoutingCapability | null;
 }
 
 export interface EditorTag {
