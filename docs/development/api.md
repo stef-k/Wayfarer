@@ -911,6 +911,87 @@ No schema migration, native Mobile qualification, #907 fix, Segment/Place or
 structural protection, legacy-client policy decision, or settlement of the held
 Trip-sharing lost-reply obligation is included. #853 remains incomplete and open.
 
+## Protected Segment Notes (#853 Slice 6)
+
+| Writer | Route | Selected intent |
+| --- | --- | --- |
+| Opt-in bearer | `PATCH /api/trips/{tripId}/conditional/segments/{segmentId}` | `expected.notes` and `changes.notes`; current active incoming token/account and owned Segment → Trip. |
+| Current Web Notes-only form | `PATCH /api/trips/{tripId}/editor/segments/{segmentId}/conditional` | `expected.notesHtml` and `changes.notesHtml`; User cookie, current active account/ownership and antiforgery. |
+| Current Web complete edit | `PUT /api/trips/{tripId}/editor/segments/{segmentId}` | Existing single aggregate transaction and opaque `aggregateConcurrencyToken`, including combined Notes + route/proposal/waypoint/profile/measurement edits. |
+| Legacy bearer | `PUT /api/trips/segments/{segmentId}` | Compatible unconditional Notes; no original-base guarantee. |
+
+~~~json
+{"expected":{"notes":null},"changes":{"notes":"<p>Authored notes</p>"}}
+~~~
+
+Both PATCH routes use the same server-owned compare/apply authority. Originals
+must be independently present, exactly matching published normalized Notes,
+including the distinction between null and empty. Editor Segment publication
+adds `originalValues.notesHtml`; display `notesHtml` still defaults to `""`.
+Neither a preview nor `UpdatedAt` nor the aggregate token substitutes for the
+original Notes. Desired `""` explicitly clears; null/omitted desired Notes means
+Unchanged, rejected here as an empty effective change. Unknown, duplicate,
+wrong-case or malformed keys and all non-Notes fields return 400. Desired HTML
+uses existing rich-Notes sanitation and data-image rejection.
+
+The PostgreSQL transaction locks Segment → owned Trip, a subset of the existing
+profile → Segment → Place/Area → Region → Trip order used by route/lifecycle and
+#848 deletion owners. It rereads scope, account activity and incoming bearer
+credential after waits. Only Segment Notes and a current-safe maximum Trip
+`UpdatedAt` are written, without EF aggregate replay or provider/cache warm-up.
+Route geometry, waypoint rows/indices, profile, provider provenance, measurements,
+orders and unrelated Trip metadata remain intact. Stale Notes/scope returns a
+nonleaking known-unapplied 409; foreign/missing scope is concealed with 404;
+revoked/inactive authority cannot write. Precommit contention is reported as 409
+only after successful rollback. Cancellation and lost commit/HTTP acknowledgements
+are not no-effect receipts and are never automatically retried.
+
+Bearer success returns `contract: "bd2-1"`, `success`, `applied` and `segment`
+containing exact `id` and canonical `notes`. A matching desired value can return
+`applied:false` without SQL writes. Web keeps `EditorMutationResult` with the
+complete Segment in `data`/`affected.segments`, no order replacement, exact nullable
+originals and a fresh opaque aggregate token. Tokens expose no raw xmin and are
+neither authorization nor durable receipts; token strings can differ even when
+their protected row versions match.
+
+The Vue owner selects PATCH only for truly Notes-only intent, pins original
+evidence independently of display/props and retains later Notes edits/reversals
+across acknowledgements and reactive App/TripSidebar updates. Feedback and parent
+slice adoption belong to the originating editor session: explicit discard
+retires late success/failure and cannot overwrite a newer completed save.
+Uncertain undiscarded attempts remain dirty and held from blind replay; 400/409
+remain correctable. Missing original evidence or unsupported PATCH fails closed.
+Explicit Reset/reload adopts current displayed server state; discard/reset does
+not prove an earlier uncertain attempt failed.
+
+Complete create/PUT acknowledgements, including the confirmed route-clear PUT,
+must validate the entire Segment mutation envelope before adopting any draft,
+proposal, preview, parent or Saved state. The complete `data` must match the
+authoritative `affected.segments` entry, expected Trip/target, nullable Notes
+originals and opaque aggregate token. Any supplied Segment order must contain
+unique IDs; creation requires an order containing the created ID exactly once.
+The authoritative order is not compared with possibly stale client membership.
+Missing or inconsistent acknowledgements are unknown outcomes even with
+HTTP 200. Keep authored Notes, route/proposal, waypoints, manual duration and the
+original dependency token, and require explicit review/reset before another save.
+
+If route, proposal or semantic edits begin during a Notes PATCH, their desired
+state and original dependency token remain pinned. The acknowledgement holds
+further saves for explicit review/reset rather than silently rebasing that route
+intent. Existing complete edits stay one aggregate PUT, retaining route-clear
+confirmation and proposal provenance; combined edits are never split into PATCH
+plus PUT. An intervening Notes write changes Segment xmin, so an old complete
+Web draft must return 409 with zero route/measurement/waypoint effects.
+
+**Transitional disjointness debt:** a Notes-first write can conservatively reject
+an otherwise disjoint full Web route edit. A route-first edit preserving original
+Notes permits the subsequent conditional Notes save. A full Web edit that also
+changes Notes conflicts with a stale Notes original. Legacy bearer PUT remains
+unconditional. These limits, later Segment route/structural disposition, Place
+operations, legacy policy, #907 and the held Trip-sharing lost-reply obligation
+remain open; Slice 6 does not establish final BD2 acceptance or native runtime
+qualification. No schema migration is required.
+
 ## Saved Trip measurements and native KML
 
 A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns

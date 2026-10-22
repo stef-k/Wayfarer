@@ -4,6 +4,14 @@
 
 ### Added
 
+- Add paired protected Segment Notes saves for opt-in bearer and current Web
+  Notes-only intent, comparing pinned nullable originals under PostgreSQL locks
+  with current authority and atomic property-only writes. Retain newer Vue drafts,
+  retire discarded replies and hold unknown outcomes or later route intent.
+  Complete Notes + route edits retain one aggregate PUT, route-clear consent,
+  provider provenance and stale-token rejection. Legacy bearer writes and
+  conservative route-versus-Notes conflicts remain debt (#853 Slice 6).
+
 - Add paired conditional Area editing for bearer Notes and current Web
   Name/Notes/Fill/Polygon. Compare pinned originals and Region identity under
   PostgreSQL locks, write only dirty fields, preserve Polygon holes and newer Vue
@@ -70,6 +78,12 @@
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed
+
+- Validate complete Segment save acknowledgements before changing draft, proposal
+  or parent state, including confirmed route-clear saves and creation. Reject
+  duplicate Segment order IDs before adoption. Incomplete HTTP 200 replies retain
+  authored Notes, route intent and the original token in an unknown-outcome hold
+  without marking Saved or replaying (#853 Slice 6).
 
 - Keep late Area save feedback and cleanup scoped to the originating editing
   session after explicit discard. Reject conditional Area Names above 200 trimmed

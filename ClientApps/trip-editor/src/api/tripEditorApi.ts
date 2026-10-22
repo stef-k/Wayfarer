@@ -24,6 +24,7 @@ import type {
   EditorSegmentOrderRequest,
   EditorSegmentOrderResult,
   EditorSegmentSaveRequest,
+  EditorSegmentNotesConditionalRequest,
   EditorShareProgressUpdateRequest,
   EditorTag,
   EditorTripTagsUpdateRequest,
@@ -308,6 +309,12 @@ export const updateSegment = async (
   request: EditorSegmentSaveRequest,
   confirmationToken?: string
 ): Promise<EditorMutationResult<EditorSegment>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'PUT', antiforgeryToken, request, 'segment update', confirmationToken, true);
+
+/** Uses only pinned Notes originals; an unsupported protected endpoint never falls back to aggregate PUT. */
+export const patchSegmentNotes = async (
+  endpoint: string, segmentId: string, antiforgeryToken: string, request: EditorSegmentNotesConditionalRequest
+): Promise<EditorMutationResult<EditorSegment>> =>
+  sendMutation(`${endpoint}/segments/${segmentId}/conditional`, 'PATCH', antiforgeryToken, request, 'Segment Notes save');
 
 /// Deletes a segment through the same-origin editor API.
 export const deleteSegment = async (
