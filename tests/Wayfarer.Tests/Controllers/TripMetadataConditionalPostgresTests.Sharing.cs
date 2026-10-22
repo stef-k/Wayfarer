@@ -159,10 +159,10 @@ public sealed partial class TripMetadataConditionalPostgresTests
         using var foreign = await WebAsync(app, other.Id);
         using var nonOwner = await ShareAsync(foreign, trip.Id, editorRoute, false);
         using var missing = await ShareAsync(foreign, Guid.NewGuid(), editorRoute, false);
+        var foreignBody = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await nonOwner.Content.ReadAsStringAsync());
+        var missingBody = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(await missing.Content.ReadAsStringAsync());
         await AssertSharingDeniedAsync(nonOwner, editorRoute, HttpStatusCode.NotFound);
         await AssertSharingDeniedAsync(missing, editorRoute, HttpStatusCode.NotFound);
-        var foreignBody = await nonOwner.Content.ReadFromJsonAsync<Dictionary<string, JsonElement>>();
-        var missingBody = await missing.Content.ReadFromJsonAsync<Dictionary<string, JsonElement>>();
         // Framework trace IDs identify requests; all resource-visible response fields must match.
         foreignBody!.Remove("traceId");
         missingBody!.Remove("traceId");
