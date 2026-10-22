@@ -439,7 +439,8 @@ for (const [name, corrupt] of [
   ['missing Notes original', result => { delete result.data.originalValues; delete result.affected.segments[0].originalValues; }],
   ['wrong Notes original', result => { result.data.originalValues = result.affected.segments[0].originalValues = { notesHtml: null }; }],
   ['missing parent-consumed slice', result => { delete result.affected.places; }],
-  ['missing deleted IDs', result => { delete result.deletedIds; }]
+  ['missing deleted IDs', result => { delete result.deletedIds; }],
+  ['duplicate Segment order', result => { result.affected.segmentOrder = ['segment', 'segment']; }]
 ]) {
   test(`complete acknowledgement rejects ${name} before any adoption`, () => withApp(async ({ parent, editor }) => {
     let calls = 0;
@@ -465,6 +466,92 @@ for (const [name, corrupt] of [
     assert.match(editor.saveError, /incomplete.*unknown outcome/i);
     await editor.saveDraft();
     assert.equal(calls, 1);
+  }));
+}
+
+// R1: malformed create order must not retire the authored draft/proposal or duplicate actual sidebar rows.
+for (const repeatedId of ['created', 'segment']) {
+  test(`R1 create duplicate ${repeatedId} order retains the entire uncertain draft`, t => withApp(async ({ parent, editor, sidebar }) => {
+    const calls = [];
+    let applied = 0;
+    t.after(watch(() => parent.state, () => applied++, { flush: 'sync' }));
+    globalThis.fetch = async (url, init) => {
+      calls.push([url, init, JSON.parse(init.body)]);
+      const result = envelope(segment({ id: 'created', notesHtml: 'Created', estimatedDurationMinutes: 120,
+        aggregateConcurrencyToken: 'created-token' }));
+      result.affected.segmentOrder = ['segment', 'created', repeatedId];
+      return new Response(JSON.stringify(result));
+    };
+    await editor.openCreate();
+    Object.assign(editor.draft, { fromPlaceId: 'from', toPlaceId: 'to', mode: 'walk', notesHtml: 'Created',
+      estimatedDurationMinutes: 120, estimatedDurationSource: 'Manual', route: structuredClone(route),
+      waypointRows: [{ clientId: 'create-waypoint', placeId: 'waypoint', routeVertexIndex: 1 }] });
+    editor.previewRouteProposal({ proposalId: 'create-proposal', protectedContext: 'create-proof',
+      geometry: [{ longitude: 0, latitude: 0 }, { longitude: 1, latitude: 1 }, { longitude: 2, latitude: 2 }],
+      waypointIndices: [0, 1, 2], durationSeconds: 500 });
+    const before = JSON.parse(JSON.stringify({ draft: editor.draft, baseline: editor.persistedBaseline,
+      proposalRequest: editor.routeProposalDraft.buildRequest() }));
+    const parentBefore = parent.state;
+    await editor.saveDraft();
+    await nextTick();
+    t.diagnostic(JSON.stringify({ repeatedId, applied, dirty: editor.isDirty, error: editor.saveError,
+      order: [...parent.state.segmentOrder], proposal: editor.routeProposalDraft.hasProposal.value,
+      draftId: editor.draft.id, draftToken: editor.draft.aggregateConcurrencyToken, status: editor.statusText }));
+    assert.equal(editor.isDirty, true, 'duplicate create order must retain the unknown-outcome hold');
+    assert.equal(parent.state, parentBefore, 'invalid order never reaches the parent mutation owner');
+    assert.equal(applied, 0);
+    assert.deepEqual(sidebar.orderedSegments.map(value => value.id), ['segment']);
+    assert.deepEqual(JSON.parse(JSON.stringify(editor.draft)), before.draft);
+    assert.deepEqual(JSON.parse(JSON.stringify(editor.persistedBaseline)), before.baseline);
+    assert.equal(editor.draft.id, null);
+    assert.equal(editor.draft.aggregateConcurrencyToken, null);
+    assert.equal(editor.routeProposalDraft.hasProposal.value, true);
+    assert.deepEqual(editor.routeProposalDraft.buildRequest(), before.proposalRequest);
+    assert.equal(sidebar.hasAnyDraftChanges, true);
+    assert.equal(editor.lastSavedAt, null);
+    assert.doesNotMatch(editor.statusText, /^Saved/);
+    assert.match(editor.saveError, /incomplete.*unknown outcome/i);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], '/api/trips/trip/editor/segments');
+    assert.equal(calls[0][1].method, 'POST');
+    assert.deepEqual(calls[0][2], before.proposalRequest);
+    await editor.saveDraft();
+    assert.equal(calls.length, 1, 'unknown create must never resend automatically or on another Save');
+    globalThis.segmentConfirm = async () => false;
+    assert.equal(await parent.editorSurface.closeActiveTarget(), false, 'unknown create still fences navigation');
+  }));
+}
+
+// An authoritative order may differ from stale client membership, including concurrently added/removed Segments.
+for (const creating of [false, true]) {
+  test(`${creating ? 'create' : 'update'} accepts a unique supplied order beyond stale parent membership exactly once`, t => withApp(async ({ parent, editor }) => {
+    let calls = 0;
+    let applied = 0;
+    t.after(watch(() => parent.state, () => applied++, { flush: 'sync' }));
+    const id = creating ? 'created' : 'segment';
+    const result = envelope(segment({ id, notesHtml: 'Submitted', estimatedDurationMinutes: 120,
+      aggregateConcurrencyToken: 'saved-token' }));
+    result.affected.segmentOrder = ['concurrent', id];
+    globalThis.fetch = async (_url, init) => {
+      calls++;
+      assert.equal(init.method, creating ? 'POST' : 'PUT');
+      return new Response(JSON.stringify(result));
+    };
+    if (creating) await editor.openCreate();
+    else await editor.openEdit(parent.state.segmentsById.segment);
+    Object.assign(editor.draft, { fromPlaceId: 'from', toPlaceId: 'to', mode: 'walk', notesHtml: 'Submitted',
+      estimatedDurationMinutes: 120, estimatedDurationSource: 'Manual' });
+    await editor.saveDraft();
+    await nextTick();
+    assert.equal(calls, 1);
+    assert.equal(applied, 1);
+    assert.equal(editor.saveError, null);
+    assert.equal(editor.isDirty, false);
+    assert.equal(editor.draft.id, id);
+    assert.equal(editor.draft.aggregateConcurrencyToken, 'saved-token');
+    assert.equal(parent.state.segmentsById[id].notesHtml, 'Submitted');
+    assert.deepEqual([...parent.state.segmentOrder], [id], 'parent retains its established filtering of unknown IDs');
+    assert.match(editor.statusText, /^Saved/);
   }));
 }
 
