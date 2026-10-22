@@ -13,6 +13,7 @@ import type {
   EditorPlaceOrderRequest,
   EditorPlaceOrderResult,
   EditorPlaceSaveRequest,
+  EditorPlaceConditionalRequest,
   EditorRegion,
   EditorRegionOrderRequest,
   EditorRegionOrderResult,
@@ -228,6 +229,12 @@ export const orderRegions = async (
   antiforgeryToken: string,
   request: EditorRegionOrderRequest
 ): Promise<EditorMutationResult<EditorRegionOrderResult>> => sendMutation(`${endpoint}/regions/order`, 'PUT', antiforgeryToken, request, 'region order');
+
+/** Sends selected Place scalars without any structural authority or legacy fallback. */
+export const updatePlaceConditional = async (
+  endpoint: string, placeId: string, antiforgeryToken: string, request: EditorPlaceConditionalRequest
+): Promise<EditorMutationResult<EditorPlace>> =>
+  sendMutation(`${endpoint}/places/${placeId}/conditional`, 'PATCH', antiforgeryToken, request, 'Place scalar save');
 
 /// Creates a place in a normal region through the same-origin editor API.
 export const createPlace = async (

@@ -78,6 +78,21 @@ export interface ExternalRouteProposal {
   durationSeconds?: number | null;
 }
 
+/** Exact server comparison values, preserving nullable storage independently of the rendered defaults. */
+export interface EditorPlaceOriginalValues {
+  regionId: Guid;
+  name: string;
+  notesHtml: string | null;
+  iconName: string | null;
+  markerColor: string | null;
+}
+
+/** Only authored scalar fields carry their own originals; Region is evidence, never a change. */
+export interface EditorPlaceConditionalRequest {
+  expected: { regionId: Guid } & Partial<Omit<EditorPlaceOriginalValues, 'regionId'>>;
+  changes: Partial<Pick<EditorPlaceSaveRequest, 'name' | 'notesHtml' | 'iconName' | 'markerColor'>>;
+}
+
 export interface EditorPlace {
   id: Guid;
   tripId: Guid;
@@ -91,6 +106,8 @@ export interface EditorPlace {
   iconName: string;
   markerColor: string;
   displayOrder: number;
+  /** Server-origin originals for conditional scalar editing. */
+  originalValues?: EditorPlaceOriginalValues;
   visitSummary: EditorPlaceVisitSummary;
   capabilities: EditorEntityCapabilities;
 }

@@ -113,7 +113,14 @@ public sealed record EditorPlaceDto(
     string MarkerColor,
     int DisplayOrder,
     EditorPlaceVisitSummaryDto VisitSummary,
-    EditorEntityCapabilitiesDto Capabilities);
+    EditorEntityCapabilitiesDto Capabilities)
+{
+    /// <summary>Exact server originals; nullable storage is independent of display defaults.</summary>
+    public EditorPlaceOriginalDto? OriginalValues { get; init; }
+}
+
+/// <summary>Original Place parent and canonical scalars for selected-field comparison.</summary>
+public sealed record EditorPlaceOriginalDto(Guid RegionId, string Name, string? NotesHtml, string? IconName, string? MarkerColor);
 
 /// <summary>Area DTO with GeoJSON object geometry.</summary>
 public sealed record EditorAreaDto(
