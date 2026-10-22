@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
@@ -55,6 +56,44 @@ public sealed partial class TripMetadataConditionalPostgresTests
             Assert.Empty(probe.Updates);
             using var metadata = await PatchAsync(web, trip.Id, true, new { name = trip.Name }, new { name = "Denied metadata" });
             Assert.Equal(HttpStatusCode.Unauthorized, metadata.StatusCode);
+        }
+        finally
+        {
+            await transaction.DisposeAsync();
+            using var response = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    /// <summary>The final owner predicate conceals a Trip transferred while either sharing action waits.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SharingLockWait_OwnerTransferIsConcealed(bool editorRoute)
+    {
+        var trip = await SeedAsync();
+        var other = await fixture.CreateUserAsync();
+        var probe = new MutationProbe();
+        await using var db = fixture.CreateContext();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, trip.UserId);
+        await using var blocker = fixture.CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {trip.Id} FOR UPDATE");
+        var pending = ShareAsync(web, trip.Id, editorRoute, false);
+        try
+        {
+            await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForBlockAsync(probe.ProcessId);
+            await blocker.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.UserId, other.Id));
+            await transaction.CommitAsync();
+            using var response = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+            await AssertSharingDeniedAsync(response, editorRoute, HttpStatusCode.NotFound);
+            await using var verification = fixture.CreateContext();
+            var stored = await verification.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id);
+            Assert.Equal(other.Id, stored.UserId);
+            Assert.True(stored.ShareProgressEnabled);
+            Assert.Equal(trip.UpdatedAt, stored.UpdatedAt);
+            Assert.Empty(probe.Updates);
         }
         finally
         {
@@ -121,7 +160,13 @@ public sealed partial class TripMetadataConditionalPostgresTests
         using var nonOwner = await ShareAsync(foreign, trip.Id, editorRoute, false);
         using var missing = await ShareAsync(foreign, Guid.NewGuid(), editorRoute, false);
         await AssertSharingDeniedAsync(nonOwner, editorRoute, HttpStatusCode.NotFound);
-        Assert.Equal(await nonOwner.Content.ReadAsStringAsync(), await missing.Content.ReadAsStringAsync());
+        await AssertSharingDeniedAsync(missing, editorRoute, HttpStatusCode.NotFound);
+        var foreignBody = await nonOwner.Content.ReadFromJsonAsync<Dictionary<string, JsonElement>>();
+        var missingBody = await missing.Content.ReadFromJsonAsync<Dictionary<string, JsonElement>>();
+        // Framework trace IDs identify requests; all resource-visible response fields must match.
+        foreignBody!.Remove("traceId");
+        missingBody!.Remove("traceId");
+        Assert.Equal(JsonSerializer.Serialize(foreignBody), JsonSerializer.Serialize(missingBody));
         using var noAntiforgery = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(noAntiforgery, app.Services, trip.UserId);
         using var csrf = await ShareAsync(noAntiforgery, trip.Id, editorRoute, false);
@@ -131,6 +176,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(wrongRole);
         using var role = await ShareAsync(wrongRole, trip.Id, editorRoute, false);
         Assert.True(role.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Redirect);
+        if (role.StatusCode == HttpStatusCode.Redirect) Assert.Contains("AccessDenied", role.Headers.Location!.ToString());
         await using var verification = fixture.CreateContext();
         var stored = await verification.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id);
         Assert.True(stored.ShareProgressEnabled);

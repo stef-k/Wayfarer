@@ -315,6 +315,8 @@ public sealed class TripEditorTagsShareProgressControllerTests : TestBase
             ShareProgressEnabled = shareProgressEnabled
         };
 
+        // Sharing mutations revalidate the account rather than trusting only the test principal.
+        db.Users.Add(new ApplicationUser { Id = userId, UserName = userId, DisplayName = userId, IsActive = true });
         db.Trips.Add(trip);
         db.SaveChanges();
         return trip;

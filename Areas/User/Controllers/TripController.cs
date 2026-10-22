@@ -258,44 +258,25 @@ namespace Wayfarer.Areas.User.Controllers
 
         /// <summary>
         /// Toggle the ShareProgressEnabled setting for a trip via AJAX.
-        /// Only works if trip is already public.
+        /// Enabling requires publication; either direction requires the current active owner at the write boundary.
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleShareProgress(Guid id, bool enabled)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var trip = await _dbContext.Trips.FindAsync(id);
-
-            if (trip == null || trip.UserId != userId)
-            {
+            if (string.IsNullOrWhiteSpace(userId))
                 return Json(new { success = false, error = "Trip not found or unauthorized" });
-            }
 
-            // Only allow enabling share progress if trip is public
-            if (enabled && !trip.IsPublic)
-            {
+            // Share the editor's final Trip -> active-account lock boundary without changing the legacy JSON contract.
+            var result = await new TripShareProgressMutationService(_dbContext)
+                .ApplyAsync(id, userId, enabled, HttpContext.RequestAborted);
+            if (result.Status is TripShareProgressStatus.NotFound or TripShareProgressStatus.Inactive)
+                return Json(new { success = false, error = "Trip not found or unauthorized" });
+            if (result.Status == TripShareProgressStatus.NotPublic)
                 return Json(new { success = false, error = "Trip must be public to share progress" });
-            }
 
-            if (_dbContext.Database.IsRelational())
-            {
-                // A stale preflight cannot re-enable sharing after a protected privacy change commits.
-                var now = DateTime.UtcNow;
-                var count = await _dbContext.Trips.Where(t => t.Id == id && t.UserId == userId && (!enabled || t.IsPublic))
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, enabled)
-                        .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), HttpContext.RequestAborted);
-                if (count == 0) return Json(new { success = false, error = "Trip must be public to share progress" });
-                await _dbContext.Entry(trip).ReloadAsync(HttpContext.RequestAborted);
-            }
-            else
-            {
-                trip.ShareProgressEnabled = enabled;
-                trip.UpdatedAt = DateTime.UtcNow;
-                await _dbContext.SaveChangesAsync();
-            }
-
-            return Json(new { success = true, enabled = trip.ShareProgressEnabled });
+            return Json(new { success = true, enabled = result.Trip!.ShareProgressEnabled });
         }
 
         /// <summary>

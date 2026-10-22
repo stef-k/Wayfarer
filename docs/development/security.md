@@ -14,6 +14,44 @@ Production Identity mutations use the shared `IdentityPasswordPolicy`: at least 
 
 Selected Identity credential/recovery/token routes also use application-owned attempt admission. Keep that boundary separate from general `/api` token admission.
 
+## Cookie Trip sharing mutations (#907)
+
+`PATCH /api/trips/{tripId}/editor/share-progress` and
+`POST /User/Trip/ToggleShareProgress` use `TripShareProgressMutationService`.
+A previously issued User-role cookie and valid antiforgery token provide HTTP
+admission; the write also requires the current active account and current Trip
+ownership. Both enable and disable use this authority boundary.
+
+On PostgreSQL, one `READ COMMITTED` transaction locks the owned Trip `FOR UPDATE`,
+then the active `AspNetUsers` row `FOR SHARE`, matching protected Trip metadata's
+lock order. Untracked reads obtain post-wait values even when the request already
+tracks a user or Trip. The account lock waits for pending deactivation and keeps
+activity stable through commit. An account deactivation that starts after this
+lock must wait for the sharing transaction to finish. Do not acquire these locks
+in reverse order or replace this with an early activity lookup.
+
+Enabling still requires current publication; an active owner may disable on a
+private Trip. Only `ShareProgressEnabled` and `UpdatedAt` are written, preserving
+a newer stored timestamp and unrelated metadata. Missing/foreign Trips remain
+concealed: the editor returns 404, while the legacy action retains its generic
+`success:false` JSON. Inactive accounts receive editor 401 or that same generic
+legacy denial. Existing success envelopes and publication-validation errors stay
+compatible. Commit/reply failures remain uncertain and provide no retry authority.
+
+The routed PostgreSQL tests in `TripMetadataConditionalPostgresTests.Sharing.cs`
+use real cookies/antiforgery and confirmed `pg_blocking_pids` waits, checking
+persisted state from fresh contexts. Existing privacy-race tests cover both
+sharing routes against protected metadata in either request order. InMemory tests
+provide controller evidence only.
+
+This correction covers both direct sharing toggles. Protected metadata already
+checks active authority when privacy clears sharing. Legacy full metadata's
+derived privacy clear and new-Trip creation retain their existing contracts;
+they are outside this direct-toggle correction. This is not global cookie
+revocation or a general Identity/legacy-policy redesign. The separate #853 C3
+sharing unknown-outcome obligation, independent review and maintainer acceptance
+remain open; this correction does not settle them.
+
 ## API-token authority
 
 Current Wayfarer API tokens are cryptographically random, shown to the user once and stored as SHA-256 hashes. `IncomingApiTokenResolver` is request-owned: it admits and resolves a token once for the current HTTP request and never retains a positive identity across requests.

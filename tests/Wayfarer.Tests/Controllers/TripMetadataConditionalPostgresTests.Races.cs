@@ -104,7 +104,10 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var probe = new MutationProbe();
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
-        using var web = await WebAsync(app, trip.UserId);
+        // Each request family has its own probe now that both acquire the same Trip lock first.
+        var sharingProbe = new MutationProbe();
+        await using var sharingApp = await StartAsync(db, [sharingProbe]);
+        using var web = await WebAsync(sharingApp, trip.UserId);
         using var privacyWeb = await WebAsync(app, trip.UserId);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
@@ -117,11 +120,11 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Task<HttpResponseMessage>? second = null;
         try
         {
-            await (privacyFirst ? probe.LockStarted.Task : probe.UpdateStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
-            await WaitForBlockAsync(probe.ProcessId);
+            await (privacyFirst ? probe.LockStarted.Task : sharingProbe.LockStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForBlockAsync(privacyFirst ? probe.ProcessId : sharingProbe.ProcessId);
             second = privacyFirst ? Share() : Privatize();
-            await (privacyFirst ? probe.UpdateStarted.Task : probe.LockStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
-            await WaitForBlockAsync(probe.ProcessId);
+            await (privacyFirst ? sharingProbe.LockStarted.Task : probe.LockStarted.Task).WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForBlockAsync(privacyFirst ? sharingProbe.ProcessId : probe.ProcessId);
             await transaction.CommitAsync();
             using var privacy = await (privacyFirst ? first : second).WaitAsync(TimeSpan.FromSeconds(10));
             using var sharing = await (privacyFirst ? second : first).WaitAsync(TimeSpan.FromSeconds(10));
