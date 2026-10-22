@@ -4,6 +4,14 @@
 
 ### Added
 
+- Add paired protected Place Name/Notes/icon/marker-color PATCH routes for Web
+  scalar-only edits and opt-in bearer clients. Compare exact nullable originals
+  and original Region under PostgreSQL locks, preserve disjoint edits and newer
+  Vue drafts, validate complete acknowledgements and hold unknown outcomes.
+  Structural/combined Web edits retain one lifecycle PUT, and both that writer
+  and explicit legacy bearer edits remain unprotected for overlapping scalars
+  (#853 Slice 7).
+
 - Add paired protected Segment Notes saves for opt-in bearer and current Web
   Notes-only intent, comparing pinned nullable originals under PostgreSQL locks
   with current authority and atomic property-only writes. Retain newer Vue drafts,

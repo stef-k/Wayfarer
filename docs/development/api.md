@@ -911,6 +911,77 @@ No schema migration, native Mobile qualification, #907 fix, Segment/Place or
 structural protection, legacy-client policy decision, or settlement of the held
 Trip-sharing lost-reply obligation is included. #853 remains incomplete and open.
 
+## Protected Place scalars (#853 Slice 7)
+
+| Writer | Route | Authority / write intent |
+| --- | --- | --- |
+| Opt-in bearer | `PATCH /api/trips/{tripId}/conditional/places/{placeId}` | Active incoming bearer and account; selected `name`, `notes`, `iconName`, `markerColor`. |
+| Current Web scalar-only form | `PATCH /api/trips/{tripId}/editor/places/{placeId}/conditional` | User cookie plus antiforgery and current active owner; `notesHtml` maps to the same canonical Notes. |
+| Retained complete Web edit | `PUT /api/trips/{tripId}/editor/places/{placeId}` | One existing lifecycle save for structural/combined intent, including simultaneously authored scalars. |
+| Legacy bearer | `PUT /api/trips/places/{placeId}` | Existing optional fields, null/clear/default-reset and corrected omission semantics; explicit edits remain unconditional. |
+
+~~~json
+{
+  "expected": {
+    "regionId": "f948ab48-615c-4eb4-abbb-fbf226402281",
+    "notes": null,
+    "iconName": null
+  },
+  "changes": {"notes": "<p>Authored notes</p>", "iconName": "marker"}
+}
+~~~
+
+`expected.regionId` is required original-parent evidence, never writable. Each
+selected scalar needs its own present original. Notes compare the exact published
+`RichNotes.Normalize` value, preserving null versus empty; icon/color originals
+preserve nullable storage rather than rendered `marker` / `bg-blue` defaults.
+Desired Notes omitted/null means Unchanged; `""` clears; nonempty HTML is sanitized.
+Names are trimmed and nonblank (persisted PostgreSQL text has no length cap).
+Desired icons/colors must belong to the existing editor catalogs. Explicit
+`marker` / `bg-blue` resets are valid; omitted fields never normalize storage.
+Duplicate, unknown, wrong-case, nested, malformed, structural or empty-effective
+requests return 400 without effects. No protected client falls back to PUT.
+
+Both PATCH routes share one PostgreSQL transaction: Place → live Region → Trip,
+then current account and incoming bearer credential validation after waits. This
+uses the child/parent suffix of the lifecycle/Segment lock order without taking
+profile/Segment locks. Compare selected originals and original parent, update only
+authored scalar columns plus current-safe maximum Trip `UpdatedAt`, and commit
+once. Same-field or parent drift is a nonleaking, definitively unapplied 409;
+foreign/missing Place/Region/Trip remains concealed with 404. Disjoint edits survive
+both orders. Unrelated coordinates, Address, enrichment, routes, orders and visits
+do not cause scalar conflicts while the parent remains valid. #848 keep-to-
+Unassigned invalidates the old parent proof; an explicitly reviewed new parent
+can be used there.
+
+No geometry, Address, enrichment/provenance, membership/order, sibling, visit,
+Segment/waypoint, route/provider or measurement columns are written; no geocoding
+or provider lookup occurs. Existing bearer Place image warm-up runs only after an
+applied commit. The Web path retains its existing no-warm-up behavior. Bearer
+success returns `contract: "bd2-1"`, `success`, `applied`, and canonical `place`
+(`id`, `regionId`, `name`, `notes`, `iconName`, `markerColor`). An accepted no-op
+returns `applied:false` without mutation SQL or warm-up. Web returns the existing
+complete `EditorMutationResult<EditorPlaceDto>` with matching `data` and
+`affected.places`, unchanged orders/IDs/visits and the normal warnings contract.
+
+Editor Place publication adds `originalValues` with `regionId`, `name`, nullable
+canonical `notesHtml`, nullable `iconName` and nullable `markerColor`. The draft
+owner pins these separately from parent props, follows clean-field refreshes and
+retains dirty/newer intent and in-flight reversals. It validates complete success
+and the matching affected Place before any parent/original/preview/Saved adoption.
+Late replies from discarded/superseded sessions are retired. Correctable 400/409
+retains originals and content; network/408/500/incomplete-200 outcomes hold the
+draft against blind replay. Explicit Reset/discard never proves an earlier
+operation failed to commit; neither response nor `UpdatedAt` is a durable receipt.
+
+**Retained compatibility limit:** structural/combined Web edits stay a single
+complete lifecycle PUT; they are never decomposed into PATCH plus PUT. That PUT
+and explicit legacy bearer writes can still overwrite overlapping scalars after a
+protected save. Routed PostgreSQL witnesses prove this limitation, including a
+combined coordinate/Address/Name edit restoring stale Notes. Slice 7 therefore
+protects the paired scalar operations, not every Web ↔ Mobile writer. Structural
+Place proofs, legacy policy and #853 C1–C5 remain outstanding; #907 is separate.
+
 ## Protected Segment Notes (#853 Slice 6)
 
 | Writer | Route | Selected intent |
