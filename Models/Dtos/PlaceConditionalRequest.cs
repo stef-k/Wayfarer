@@ -42,6 +42,7 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
             return parsed;
         }
         catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
+        catch (InvalidOperationException) { throw Invalid("request", "The request must contain valid Unicode text."); }
     }
 
     /// <summary>Checks exact spelling and uniqueness at each accepted object boundary.</summary>
@@ -69,6 +70,8 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
         if (key == "name")
         {
             if (text == null || desired && string.IsNullOrWhiteSpace(text)) throw Invalid(key, "Name is required.");
+            // PostgreSQL text cannot store U+0000; reject before any SQL mutation is attempted.
+            if (text.Contains('\0')) throw Invalid(key, "Name must not contain null characters.");
             return desired ? text.Trim() : text;
         }
         if (desired && (text == null || !(key == "iconName" ? icons : colors).Contains(text)))

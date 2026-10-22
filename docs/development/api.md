@@ -936,7 +936,8 @@ selected scalar needs its own present original. Notes compare the exact publishe
 `RichNotes.Normalize` value, preserving null versus empty; icon/color originals
 preserve nullable storage rather than rendered `marker` / `bg-blue` defaults.
 Desired Notes omitted/null means Unchanged; `""` clears; nonempty HTML is sanitized.
-Names are trimmed and nonblank (persisted PostgreSQL text has no length cap).
+Names are trimmed, nonblank and contain no null characters; PostgreSQL text has
+no length cap. Invalid Unicode escapes also reject with 400.
 Desired icons/colors must belong to the existing editor catalogs. Explicit
 `marker` / `bg-blue` resets are valid; omitted fields never normalize storage.
 Duplicate, unknown, wrong-case, nested, malformed, structural or empty-effective

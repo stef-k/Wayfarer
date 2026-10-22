@@ -39,6 +39,8 @@ public sealed partial class PlaceConditionalPostgresTests
     [InlineData(false, """{"expected":{"regionId":"PARENT"},"changes":{"latitude":10}}""")]
     [InlineData(false, """{"expected":{"regionId":"PARENT"},"changes":{"route":{}}}""")]
     [InlineData(false, """{"expected":{"regionId":"PARENT"},"changes":{"resolvedFeatureName":"No"}}""")]
+    [InlineData(true, """{"expected":{"regionId":"PARENT","name":"Original Place"},"changes":{"name":"New\u0000name"}}""")]
+    [InlineData(false, """{"expected":{"regionId":"PARENT","name":"Original Place"},"changes":{"name":"New\uD800name"}}""")]
     public async Task InvalidRequests_WriteNothing(bool web, string json)
     {
         var place = await SeedAsync();
