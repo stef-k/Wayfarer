@@ -41,8 +41,9 @@ export function beginPlaceCoordinateMapWork(
     canFinish: () => isValidCoordinate(state.coordinate),
     isDirty: () => !sameCoordinate(state.coordinate, coordinateFromSnapshot(coordinateSnapshot)),
     snapshot: () => coordinateSnapshot,
-    rollback: snapshot => {
-      restorePlaceCoordinate(draft, state, snapshot as PlaceCoordinateSnapshot);
+    rollback: () => {
+      // Picks remain temporary until Done. Cancel follows the current draft, including clean parent refreshes.
+      state.coordinate = coordinateFromSnapshot(snapshotPlaceCoordinate(draft));
     },
     done: () => {
       if (isValidCoordinate(state.coordinate)) {
@@ -68,12 +69,6 @@ export function stopPlaceCoordinatePick(state: PlaceCoordinateMapWorkState): voi
 
 function snapshotPlaceCoordinate(draft: EditorPlaceDraft): PlaceCoordinateSnapshot {
   return { latitude: draft.latitude, longitude: draft.longitude };
-}
-
-function restorePlaceCoordinate(draft: EditorPlaceDraft, state: PlaceCoordinateMapWorkState, snapshot: PlaceCoordinateSnapshot): void {
-  draft.latitude = snapshot.latitude;
-  draft.longitude = snapshot.longitude;
-  state.coordinate = coordinateFromSnapshot(snapshot);
 }
 
 function coordinateFromSnapshot(snapshot: PlaceCoordinateSnapshot): EditorCoordinate | null {

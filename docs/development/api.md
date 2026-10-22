@@ -968,8 +968,20 @@ complete `EditorMutationResult<EditorPlaceDto>` with matching `data` and
 Editor Place publication adds `originalValues` with `regionId`, `name`, nullable
 canonical `notesHtml`, nullable `iconName` and nullable `markerColor`. The draft
 owner pins these separately from parent props, follows clean-field refreshes and
-retains dirty/newer intent and in-flight reversals. It validates complete success
-and the matching affected Place before any parent/original/preview/Saved adoption.
+retains dirty/newer intent and in-flight reversals. Coordinate picks stay temporary
+until Done; Cancel preserves clean refreshed coordinates and existing authored
+fields, so a subsequent Name-only save still uses conditional PATCH.
+
+Before any parent/original/preview/Saved adoption, the client validates the matching
+complete Place, including nullable `resolvedFeatureName` / `resolvedFeatureType`
+when present. All Place saves reject Region/Area/Tag mutations and unrelated
+metadata, options or orders. Complete lifecycle saves may publish unique Place
+orders, dependent Segments, unique Segment order and visit progress; scalar PATCH
+cannot publish those effects. Authoritative order membership is not compared with
+stale client membership. Malformed success replies retain intent and the prior
+comparison baseline under an unknown-outcome hold, without Saved or another HTTP
+attempt.
+
 Late replies from discarded/superseded sessions are retired. Correctable 400/409
 retains originals and content; network/408/500/incomplete-200 outcomes hold the
 draft against blind replay. Explicit Reset/discard never proves an earlier

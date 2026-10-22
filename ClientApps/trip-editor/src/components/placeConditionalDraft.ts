@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue';
-import type { EditorMutationResult, EditorPlace, EditorPlaceConditionalRequest, EditorPlaceDraft, EditorPlaceOriginalValues, EditorPlaceSaveRequest } from '../types';
+import type { EditorMutationResult, EditorPlace, EditorPlaceConditionalRequest, EditorPlaceDraft, EditorPlaceOriginalValues, EditorPlaceSaveRequest, EditorPlaceVisitSummary, EditorVisitProgress } from '../types';
 import { buildPlaceRequest, emptyPlaceDraft, toPlaceDraft } from './regionPlaceDrafts';
+import { completeSegment } from './segmentNotesDraft';
 
 const scalars = ['name', 'notesHtml', 'iconName', 'markerColor'] as const;
 const fields = [...scalars, 'regionId', 'address', 'location', 'reverseGeocode'] as const;
@@ -94,6 +95,23 @@ export const createPlaceDraftState = () => {
   return { draft, baseline, pending, uncertain, reset, refresh, structural, request, acknowledge, session: () => session.value };
 };
 
+/** Checks visit projections used by both the Place and optional complete-save progress slice. */
+const completeVisitSummary = (visit: EditorPlaceVisitSummary): boolean => Boolean(visit && typeof visit.placeId === 'string'
+  && Number.isInteger(visit.visitCount) && visit.visitCount >= 0 && typeof visit.isVisited === 'boolean'
+  && [visit.firstVisitAt, visit.lastVisitAt].every(date => date === null || typeof date === 'string'));
+
+/** Complete Place saves may refresh visit progress; scalar acknowledgements cannot publish it. */
+const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolean(progress
+  && Number.isInteger(progress.totalPlaces) && progress.totalPlaces >= 0
+  && Number.isInteger(progress.visitedPlaces) && progress.visitedPlaces >= 0 && progress.visitedPlaces <= progress.totalPlaces
+  && Number.isFinite(progress.percentVisited) && progress.percentVisited >= 0 && progress.percentVisited <= 100
+  && progress.placeSummariesByPlaceId && typeof progress.placeSummariesByPlaceId === 'object' && !Array.isArray(progress.placeSummariesByPlaceId)
+  && Object.entries(progress.placeSummariesByPlaceId).every(([id, visit]) => completeVisitSummary(visit) && visit.placeId === id)
+  && Array.isArray(progress.historyRows) && progress.historyRows.every(row => row && typeof row.visitId === 'string'
+    && typeof row.placeId === 'string' && typeof row.regionId === 'string' && typeof row.startedAt === 'string'
+    && (row.endedAt === null || typeof row.endedAt === 'string')
+    && (row.durationMinutes === null || Number.isFinite(row.durationMinutes))));
+
 /** Requires the complete Place shape before any parent, baseline, preview or Saved adoption. */
 const completePlace = (value: EditorPlace): boolean => {
   const original = value?.originalValues;
@@ -101,12 +119,13 @@ const completePlace = (value: EditorPlace): boolean => {
   const visit = value?.visitSummary;
   return Boolean(value && typeof value.id === 'string' && typeof value.tripId === 'string' && typeof value.regionId === 'string'
     && ['name', 'notesHtml', 'address', 'iconName', 'markerColor'].every(key => typeof value[key as keyof EditorPlace] === 'string')
+    && ['resolvedFeatureName', 'resolvedFeatureType'].every(key => !Object.hasOwn(value, key)
+      || value[key as keyof EditorPlace] === null || typeof value[key as keyof EditorPlace] === 'string')
     && Number.isInteger(value.displayOrder) && value.capabilities && typeof value.capabilities.canEdit === 'boolean'
     && typeof value.capabilities.canDelete === 'boolean'
     && (coordinate === null || coordinate && Number.isFinite(coordinate.latitude) && Math.abs(coordinate.latitude) <= 90
       && Number.isFinite(coordinate.longitude) && Math.abs(coordinate.longitude) <= 180)
-    && visit && visit.placeId === value.id && Number.isInteger(visit.visitCount) && visit.visitCount >= 0 && typeof visit.isVisited === 'boolean'
-    && [visit.firstVisitAt, visit.lastVisitAt].every(date => date === null || typeof date === 'string')
+    && completeVisitSummary(visit) && visit.placeId === value.id
     && original && original.regionId === value.regionId && original.name === value.name
     && ['notesHtml', 'iconName', 'markerColor'].every(key => Object.hasOwn(original, key)
       && (original[key as keyof EditorPlaceOriginalValues] === null || typeof original[key as keyof EditorPlaceOriginalValues] === 'string'))
@@ -115,25 +134,34 @@ const completePlace = (value: EditorPlace): boolean => {
     && (original.markerColor?.trim() ? original.markerColor : 'bg-blue') === value.markerColor);
 };
 
-/** Checks the entire scalar acknowledgement and its matching affected Place before publishing any slice. */
+/** Place saves never publish Region/Area/Tag changes; only complete saves may publish lifecycle effects. */
 export const validatePlaceAcknowledgement = (result: EditorMutationResult<EditorPlace>, tripId: string,
   placeId: string | null, regionId: string, scalar: boolean): void => {
   const next = result?.data;
   const affected = result?.affected;
-  const unrelated = ['regions', 'areas', 'segments', 'tags'] as const;
+  const unrelated = ['regions', 'areas', 'tags'] as const;
+  const validOrder = (ids: string[]): boolean => Array.isArray(ids) && ids.every(id => typeof id === 'string') && new Set(ids).size === ids.length;
   const validOrders = (orders: Record<string, string[]>): boolean => Boolean(orders && typeof orders === 'object' && !Array.isArray(orders)
-    && Object.values(orders).every(ids => Array.isArray(ids) && ids.every(id => typeof id === 'string') && new Set(ids).size === ids.length));
+    && Object.values(orders).every(validOrder));
   if (result?.success !== true || !completePlace(next) || !next.id || next.tripId !== tripId || next.regionId !== regionId
     || placeId !== null && next.id !== placeId
     || !Array.isArray(affected?.places) || affected.places.length !== 1 || !same(affected.places[0], next)
     || !validOrders(affected.placeOrdersByRegionId) || !validOrders(affected.areaOrdersByRegionId)
     || placeId === null && !affected.placeOrdersByRegionId[next.regionId]?.includes(next.id)
     || affected.placeOrdersByRegionId[next.regionId] && !affected.placeOrdersByRegionId[next.regionId].includes(next.id)
-    || unrelated.some(key => !Array.isArray(affected[key]))
-    || scalar && (unrelated.some(key => affected[key].length !== 0)
-      || Object.keys(affected.placeOrdersByRegionId).length !== 0 || Object.keys(affected.areaOrdersByRegionId).length !== 0
-      || [affected.metadata, affected.regionOrder, affected.segmentOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value !== null))
-    || [...unrelated, 'places' as const].some(key => !Array.isArray(result.deletedIds?.[key]) || result.deletedIds[key].length !== 0)
+    || unrelated.some(key => !Array.isArray(affected[key]) || affected[key].length !== 0)
+    || Object.keys(affected.areaOrdersByRegionId).length !== 0
+    || [affected.metadata, affected.regionOrder, affected.tagOrder, affected.options].some(value => value !== null)
+    || !Array.isArray(affected.segments) || affected.segments.some(segment => !completeSegment(segment) || segment.tripId !== tripId
+      || typeof segment.hasCustomRoute !== 'boolean' || typeof segment.capabilities.canDelete !== 'boolean'
+      || ![segment.fromPlaceId, segment.toPlaceId, ...segment.waypointPlaceIds].includes(next.id))
+    || new Set(affected.segments.map(segment => segment.id)).size !== affected.segments.length
+    || affected.segmentOrder !== null && (!validOrder(affected.segmentOrder) || affected.segments.some(segment => !affected.segmentOrder!.includes(segment.id)))
+    || affected.visitProgress !== null && !completeVisitProgress(affected.visitProgress)
+    || scalar && (Object.keys(affected.placeOrdersByRegionId).length !== 0 || affected.segments.length !== 0
+      || affected.segmentOrder !== null || affected.visitProgress !== null)
+    || placeId === null && (affected.segments.length !== 0 || affected.segmentOrder !== null)
+    || [...unrelated, 'places' as const, 'segments' as const].some(key => !Array.isArray(result.deletedIds?.[key]) || result.deletedIds[key].length !== 0)
     || !Array.isArray(result.warnings) || result.warnings.some(warning => typeof warning?.code !== 'string' || typeof warning.message !== 'string'
       || warning.entityType !== null && typeof warning.entityType !== 'string' || warning.entityId !== null && typeof warning.entityId !== 'string'))
     throw new Error('The Place save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');

@@ -181,6 +181,7 @@ for (const scalar of [true, false]) {
     assert.equal(JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview }), before);
     assert.equal(editor.placeDraft.name, 'Submitted');
     assert.equal(editor.placeDraft.address, scalar ? 'Original address' : 'New address');
+    assert.deepEqual(editor.placeDraftState.request(), { expected: { regionId: 'region', name: 'Original' }, changes: { name: 'Submitted' } });
     assert.equal(editor.placeDirty, true);
     assert.equal(sidebar.hasAnyDraftChanges, true);
     assert.equal(editor.placeDraftState.uncertain.value, true);
@@ -321,12 +322,27 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   assert.equal(editor.placeDirty, false);
   editor.pickPlaceCoordinate();
   globalThis.placeMapWork.onPicked({ latitude: 30, longitude: 40 });
+  parent.applyMutation(envelope(place({ location: { latitude: 35, longitude: 45 } })));
+  await nextTick();
   await parent.editorSurface.finishMapWork();
   assert.equal(editor.placeDraft.latitude, 30);
   editor.placeDraft.name = 'Combined';
   editor.placeDraft.address = 'Combined address';
   editor.placeDraft.regionId = 'target';
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); return saved(place({ regionId: 'target', name: 'Combined', address: 'Combined address', location: { latitude: 30, longitude: 40 } })); };
+  // Mirror the reader's legitimate move/coordinate effects, including authoritative orders beyond stale client membership.
+  const result = envelope(place({ regionId: 'target', name: 'Combined', address: 'Combined address',
+    resolvedFeatureName: null, resolvedFeatureType: 'museum', location: { latitude: 30, longitude: 40 } }));
+  result.affected.placeOrdersByRegionId = { region: [], target: ['concurrent-place', 'place'] };
+  result.affected.segments = [{ id: 'segment', tripId: 'trip', fromPlaceId: 'place', toPlaceId: null,
+    waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: 'walk', transportProfileId: null, hasCustomRoute: false,
+    estimatedDistanceKm: null, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic', notesHtml: '',
+    route: null, effectiveRoute: null, aggregateConcurrencyToken: 'refreshed-aggregate', displayOrder: 1,
+    capabilities: { canEdit: true, canDelete: true }, originalValues: { notesHtml: null } }];
+  result.affected.segmentOrder = ['concurrent-segment', 'segment'];
+  result.affected.visitProgress = { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0,
+    placeSummariesByPlaceId: { place: result.data.visitSummary }, historyRows: [{ visitId: 'visit', placeId: 'place',
+      regionId: 'target', startedAt: '2026-10-22T00:00:00Z', endedAt: null, durationMinutes: null }] };
+  globalThis.fetch = async (url, init) => { calls.push([url, init]); return new Response(JSON.stringify(result)); };
   await editor.savePlaceDraft();
   await nextTick();
   assert.equal(calls.length, 1);
@@ -335,6 +351,12 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   assert.deepEqual(JSON.parse(calls[0][1].body), { regionId: 'target', name: 'Combined', notesHtml: '', address: 'Combined address',
     location: { latitude: 30, longitude: 40 }, iconName: 'marker', markerColor: 'bg-blue', reverseGeocode: false });
   assert.equal(editor.placeDirty, false);
+  assert.deepEqual(parent.state.placeOrderByRegionId, { region: [], target: ['place'] });
+  assert.equal(parent.state.segmentsById.segment.aggregateConcurrencyToken, 'refreshed-aggregate');
+  assert.deepEqual(parent.state.segmentOrder, ['segment']);
+  assert.deepEqual(parent.state.visitProgress, result.affected.visitProgress);
+  assert.equal(parent.state.placesById.place.resolvedFeatureType, 'museum');
+  assert.match(editor.statusText, /^Place saved/);
 }));
 
 test('Place map and search create keep the single existing POST and creation draft separation', () => withApp(async ({ parent, editor }) => {

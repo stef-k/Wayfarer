@@ -10,8 +10,8 @@ const routeIntent = (draft: EditorSegmentDraft): string => {
   return JSON.stringify({ ...route, transportProfileId: draft.transportProfileId });
 };
 
-/** Requires a complete published route view before advancing its aggregate token. */
-const completeSegment = (next: EditorSegment): boolean => {
+/** Requires a complete published route view before adopting a Segment save or a Place lifecycle effect. */
+export const completeSegment = (next: EditorSegment): boolean => {
   const nullableString = (value: unknown): boolean => value === null || typeof value === 'string';
   const nullableNumber = (value: unknown): boolean => value === null || typeof value === 'number' && Number.isFinite(value);
   const geometry = (value: EditorSegment['route']): boolean => value === null
