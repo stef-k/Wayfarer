@@ -111,7 +111,7 @@ public sealed partial class TripEditorController
         var result = await new TripShareProgressMutationService(_dbContext)
             .ApplyAsync(tripId, userId!, update.Enabled, cancellationToken);
         if (result.Status == TripShareProgressStatus.NotFound) return NotFound();
-        if (result.Status == TripShareProgressStatus.Inactive) return Unauthorized();
+        if (result.Status == TripShareProgressStatus.AuthorityUnavailable) return Unauthorized();
         if (result.Status == TripShareProgressStatus.NotPublic)
             return ValidationError(new() { ["shareProgressEnabled"] = ["Share progress can only be enabled for public trips."] });
         trip = result.Trip!;

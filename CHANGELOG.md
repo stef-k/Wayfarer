@@ -93,10 +93,13 @@
 ### Fixed
 
 - Reject Web Trip sharing enable/disable from a deactivated owner's existing
-  cookie after lock waits. Both direct toggles now lock the Trip then current
-  active account through commit, preserving publication checks, private disable,
-  response contracts, narrow writes and newer Trip freshness (#907). This does
-  not settle #853 C3 sharing unknown outcomes or general legacy authorization.
+  cookie after Trip lock waits. Both direct toggles try the current active account
+  without waiting while holding the Trip, avoiding a lock cycle with Identity's
+  account-deletion cascade. Busy accounts cause rollback and generic denial;
+  successful sharing retains account protection through commit, publication
+  checks, private disable, response contracts, narrow writes and newer Trip
+  freshness (#907). This does not settle #853 C3 sharing unknown outcomes or
+  general legacy authorization.
 
 - Validate complete Segment save acknowledgements before changing draft, proposal
   or parent state, including confirmed route-clear saves and creation. Reject

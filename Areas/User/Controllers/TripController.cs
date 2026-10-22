@@ -268,10 +268,10 @@ namespace Wayfarer.Areas.User.Controllers
             if (string.IsNullOrWhiteSpace(userId))
                 return Json(new { success = false, error = "Trip not found or unauthorized" });
 
-            // Share the editor's final Trip -> active-account lock boundary without changing the legacy JSON contract.
+            // Share the editor's final Trip lock and nonwaiting account gate, preserving the legacy JSON contract.
             var result = await new TripShareProgressMutationService(_dbContext)
                 .ApplyAsync(id, userId, enabled, HttpContext.RequestAborted);
-            if (result.Status is TripShareProgressStatus.NotFound or TripShareProgressStatus.Inactive)
+            if (result.Status is TripShareProgressStatus.NotFound or TripShareProgressStatus.AuthorityUnavailable)
                 return Json(new { success = false, error = "Trip not found or unauthorized" });
             if (result.Status == TripShareProgressStatus.NotPublic)
                 return Json(new { success = false, error = "Trip must be public to share progress" });

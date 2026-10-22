@@ -23,32 +23,42 @@ admission; the write also requires the current active account and current Trip
 ownership. Both enable and disable use this authority boundary.
 
 On PostgreSQL, one `READ COMMITTED` transaction locks the owned Trip `FOR UPDATE`,
-then the active `AspNetUsers` row `FOR SHARE`, matching protected Trip metadata's
-lock order. Untracked reads obtain post-wait values even when the request already
-tracks a user or Trip. The account lock waits for pending deactivation and keeps
-activity stable through commit. An account deactivation that starts after this
-lock must wait for the sharing transaction to finish. Do not acquire these locks
-in reverse order or replace this with an early activity lookup.
+then tries the active `AspNetUsers` row `FOR SHARE SKIP LOCKED`. Untracked reads
+obtain post-wait values even when the request already tracks a user or Trip.
+Sharing never waits for an account lock while holding the Trip: Admin/Manager
+Identity deletion locks the account before cascading to its Trips. A busy account,
+including pending deletion or deactivation, causes an explicit rollback before
+any sharing write and the same generic denial as unavailable authority. There is
+no automatic retry. Successful account acquisition keeps activity protected
+through commit; later deactivation or deletion must wait for sharing to finish.
+The Trip-first order and compatible shared account lock retain serialization
+with protected metadata. Do not replace this gate with an early activity lookup.
 
 Enabling still requires current publication; an active owner may disable on a
 private Trip. Only `ShareProgressEnabled` and `UpdatedAt` are written, preserving
 a newer stored timestamp and unrelated metadata. Missing/foreign Trips remain
 concealed: the editor returns 404, while the legacy action retains its generic
 `success:false` JSON. Inactive accounts receive editor 401 or that same generic
-legacy denial. Existing success envelopes and publication-validation errors stay
+legacy denial; a busy account receives those same responses without revealing
+its state. Existing success envelopes and publication-validation errors stay
 compatible. Commit/reply failures remain uncertain and provide no retry authority.
 
 The routed PostgreSQL tests in `TripMetadataConditionalPostgresTests.Sharing.cs`
 use real cookies/antiforgery and confirmed `pg_blocking_pids` waits, checking
 persisted state from fresh contexts. Existing privacy-race tests cover both
-sharing routes against protected metadata in either request order. InMemory tests
-provide controller evidence only.
+sharing routes against protected metadata in either request order. The companion
+`TripMetadataConditionalPostgresTests.SharingTransactions.cs` exercises actual
+Identity deletion blocked on sharing's Trip, account contention, protection
+through commit and pre-commit rollback on both routes. Deletion must finish
+without deadlock, with account/Trip/token cascade effects checked from a fresh
+context. InMemory tests provide controller evidence only.
 
 This correction covers both direct sharing toggles. Protected metadata already
 checks active authority when privacy clears sharing. Legacy full metadata's
 derived privacy clear and new-Trip creation retain their existing contracts;
-they are outside this direct-toggle correction. This is not global cookie
-revocation or a general Identity/legacy-policy redesign. The separate #853 C3
+they are outside this direct-toggle correction. Protected metadata's pre-existing
+account-deletion interaction is also outside this correction. This is not global
+cookie revocation or a general Identity/legacy-policy redesign. The separate #853 C3
 sharing unknown-outcome obligation, independent review and maintainer acceptance
 remain open; this correction does not settle them.
 

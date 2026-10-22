@@ -7,7 +7,7 @@ namespace Wayfarer.Services;
 /// <summary>One current-account write boundary for both cookie sharing toggles.</summary>
 internal sealed class TripShareProgressMutationService(ApplicationDbContext db)
 {
-    /// <summary>Locks Trip then active account, matching protected metadata; writes only sharing and current-safe freshness.</summary>
+    /// <summary>Locks the Trip then tries the active account without waiting; writes only sharing and current-safe freshness.</summary>
     internal async Task<(TripShareProgressStatus Status, Trip? Trip)> ApplyAsync(
         Guid tripId, string userId, bool enabled, CancellationToken token)
     {
@@ -17,19 +17,25 @@ internal sealed class TripShareProgressMutationService(ApplicationDbContext db)
             : null;
         try
         {
-            // Never adopt a preflight/tracked Trip after the lock wait or reverse the Trip -> account lock order.
+            // Retain metadata's Trip-first order and obtain current ownership/publication after any Trip wait.
             var trip = relational
                 ? await db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {tripId} AND \"UserId\" = {userId} FOR UPDATE")
                     .AsNoTracking().SingleOrDefaultAsync(token)
                 : await db.Trips.SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, token);
             if (trip == null) return (TripShareProgressStatus.NotFound, null);
 
-            // The shared account lock also waits for pending deactivation and protects activity through commit.
+            // Never wait for an account while holding its Trip: Identity deletion locks account then cascades to Trip.
+            // SKIP LOCKED denies this attempt if busy; a successful shared lock protects current activity through commit.
             var active = relational
-                ? (await db.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {userId} AND \"IsActive\" FOR SHARE")
+                ? (await db.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {userId} AND \"IsActive\" FOR SHARE SKIP LOCKED")
                     .AsNoTracking().ToListAsync(token)).Count != 0
                 : await db.Users.AsNoTracking().AnyAsync(u => u.Id == userId && u.IsActive, token);
-            if (!active) return (TripShareProgressStatus.Inactive, null);
+            if (!active)
+            {
+                // No sharing write has run. Release the Trip before reporting a known-unapplied generic denial.
+                if (transaction != null) await transaction.RollbackAsync(token);
+                return (TripShareProgressStatus.AuthorityUnavailable, null);
+            }
             if (enabled && !trip.IsPublic) return (TripShareProgressStatus.NotPublic, null);
 
             var now = DateTime.UtcNow;
@@ -71,8 +77,8 @@ internal enum TripShareProgressStatus
     Succeeded,
     /// <summary>The current Trip does not exist in the owner's scope.</summary>
     NotFound,
-    /// <summary>The current owning account is missing or inactive.</summary>
-    Inactive,
+    /// <summary>The current owning account is missing, inactive or locked by another transaction.</summary>
+    AuthorityUnavailable,
     /// <summary>Enabling requires a currently public Trip.</summary>
     NotPublic
 }
