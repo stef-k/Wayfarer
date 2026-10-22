@@ -131,6 +131,66 @@ test('Place scalar PATCH pins null/default originals, adopts clean refreshes and
   assert.match(editor.statusText, /^Place saved/);
 }));
 
+// Cancel discards only temporary map work, even after App has refreshed the clean coordinate baseline.
+for (const authored of [false, true]) {
+  test(`Place coordinate Cancel preserves refreshed or intentionally edited coordinates: ${authored}`, () => withApp(async ({ parent, editor }) => {
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    if (authored) {
+      editor.placeDraft.latitude = 11;
+      editor.placeDraft.longitude = 22;
+      editor.placeDraft.notesHtml = 'Keep my notes';
+    }
+    editor.pickPlaceCoordinate();
+    globalThis.placeMapWork.onPicked({ latitude: 50, longitude: 60 });
+    parent.applyMutation(envelope(place({ location: { latitude: 30, longitude: 40 } })));
+    await nextTick();
+    globalThis.placeConfirm = async () => true;
+    await parent.editorSurface.cancelMapWork();
+    await nextTick();
+    assert.deepEqual([editor.placeDraft.latitude, editor.placeDraft.longitude], authored ? [11, 22] : ['30', '40']);
+    assert.equal(editor.placeDirty, authored);
+    assert.equal(editor.placeDraftState.baseline.latitude, authored ? '10' : '30');
+    assert.equal(editor.placeDraft.notesHtml, authored ? 'Keep my notes' : '');
+    assert.deepEqual(parent.activePlaceDraftPreview.coordinate, authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 });
+    editor.placeDraft.name = 'Name after Cancel';
+    const calls = [];
+    globalThis.fetch = async (_url, init) => { calls.push(init); return saved(place({ name: 'Name after Cancel',
+      notesHtml: authored ? 'Keep my notes' : '', location: authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 } })); };
+    await editor.savePlaceDraft();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, authored ? 'PUT' : 'PATCH');
+    if (!authored) assert.deepEqual(JSON.parse(calls[0].body), { expected: { regionId: 'region', name: 'Original' }, changes: { name: 'Name after Cancel' } });
+  }));
+}
+
+// Both demonstrated malformed 200 replies must hold before any production parent or comparison adoption.
+for (const scalar of [true, false]) {
+  test(`Place malformed ${scalar ? 'scalar projection' : 'combined footprint'} holds before adoption`, () => withApp(async ({ parent, editor, sidebar }) => {
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.placeDraft.name = 'Submitted';
+    if (!scalar) editor.placeDraft.address = 'New address';
+    await nextTick();
+    const before = JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview });
+    const result = envelope(place({ name: 'Submitted', address: scalar ? 'Original address' : 'New address',
+      ...(scalar ? { resolvedFeatureType: { bad: 'type' } } : {}) }));
+    if (!scalar) result.affected.regionOrder = ['region', 'region'];
+    let calls = 0;
+    globalThis.fetch = async (_url, init) => { calls++; assert.equal(init.method, scalar ? 'PATCH' : 'PUT'); return new Response(JSON.stringify(result)); };
+    await editor.savePlaceDraft();
+    await nextTick();
+    assert.equal(JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview }), before);
+    assert.equal(editor.placeDraft.name, 'Submitted');
+    assert.equal(editor.placeDraft.address, scalar ? 'Original address' : 'New address');
+    assert.equal(editor.placeDirty, true);
+    assert.equal(sidebar.hasAnyDraftChanges, true);
+    assert.equal(editor.placeDraftState.uncertain.value, true);
+    assert.equal(editor.statusText, 'Save failed');
+    await editor.savePlaceDraft();
+    assert.match(editor.saveError, /unknown outcome/i);
+    assert.equal(calls, 1);
+  }));
+}
+
 for (const reversal of [false, true]) {
   test(`newer Place intent and old-baseline reversal survive delayed acknowledgement and later refresh: ${reversal}`, () => withApp(async ({ parent, editor }) => {
     const reply = deferred();
