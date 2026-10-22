@@ -143,14 +143,15 @@ export const validatePlaceAcknowledgement = (result: EditorMutationResult<Editor
   const validOrder = (ids: string[]): boolean => Array.isArray(ids) && ids.every(id => typeof id === 'string') && new Set(ids).size === ids.length;
   const validOrders = (orders: Record<string, string[]>): boolean => Boolean(orders && typeof orders === 'object' && !Array.isArray(orders)
     && Object.values(orders).every(validOrder));
-  /** Create publishes only its target; update publishes nothing or the live source/target pair. */
+  /** Create publishes its target; update may publish a live source/target pair with the Place only in target. */
   const validPlaceOrders = (orders: Record<string, string[]>): boolean => {
     if (!validOrders(orders)) return false;
     const regionIds = Object.keys(orders);
     // The server's current source may differ from the client's pinned source after a concurrent move.
     if (placeId !== null && regionIds.length === 0) return true;
     return regionIds.length === (placeId === null ? 1 : 2)
-      && Object.hasOwn(orders, regionId) && orders[regionId].includes(next.id);
+      && Object.hasOwn(orders, regionId) && orders[regionId].includes(next.id)
+      && regionIds.every(id => id === regionId || !orders[id].includes(next.id));
   };
   if (result?.success !== true || !completePlace(next) || !next.id || next.tripId !== tripId || next.regionId !== regionId
     || placeId !== null && next.id !== placeId

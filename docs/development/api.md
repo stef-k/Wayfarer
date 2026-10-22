@@ -980,6 +980,7 @@ orders, dependent Segments, unique Segment order and visit progress; scalar PATC
 cannot publish those effects. Create requires only its target Region's Place order.
 Complete update permits an empty map or exactly the live source and acknowledged
 target orders; unrelated-only, target-only update and oversized maps reject.
+The acknowledged Place must occur in the target vector and in no non-target vector.
 The live source need not match the client's original Region. Authoritative vector
 membership is not compared with stale client membership. Malformed success replies
 retain intent and the prior comparison baseline under an unknown-outcome hold,
