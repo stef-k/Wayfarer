@@ -127,10 +127,12 @@ export const validatePlaceAcknowledgement = (result: EditorMutationResult<Editor
     || placeId !== null && next.id !== placeId
     || !Array.isArray(affected?.places) || affected.places.length !== 1 || !same(affected.places[0], next)
     || !validOrders(affected.placeOrdersByRegionId) || !validOrders(affected.areaOrdersByRegionId)
+    || placeId === null && !affected.placeOrdersByRegionId[next.regionId]?.includes(next.id)
+    || affected.placeOrdersByRegionId[next.regionId] && !affected.placeOrdersByRegionId[next.regionId].includes(next.id)
     || unrelated.some(key => !Array.isArray(affected[key]))
     || scalar && (unrelated.some(key => affected[key].length !== 0)
       || Object.keys(affected.placeOrdersByRegionId).length !== 0 || Object.keys(affected.areaOrdersByRegionId).length !== 0
-      || [affected.metadata, affected.regionOrder, affected.segmentOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value != null))
+      || [affected.metadata, affected.regionOrder, affected.segmentOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value !== null))
     || [...unrelated, 'places' as const].some(key => !Array.isArray(result.deletedIds?.[key]) || result.deletedIds[key].length !== 0)
     || !Array.isArray(result.warnings) || result.warnings.some(warning => typeof warning?.code !== 'string' || typeof warning.message !== 'string'
       || warning.entityType !== null && typeof warning.entityType !== 'string' || warning.entityId !== null && typeof warning.entityId !== 'string'))

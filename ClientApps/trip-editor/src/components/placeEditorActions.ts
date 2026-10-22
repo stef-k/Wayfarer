@@ -82,6 +82,7 @@ export function usePlaceEditorActions(context: any) {
   const resetPlaceDraft = (): void => {
     if (context.isSaving.value) return;
     if (!context.placeDraft.id) {
+      owner.reset(null);
       Object.assign(context.placeDraft, context.placeCreateBaselineDraft.value ?? emptyPlaceDraft(context.placeDraft.regionId));
     } else {
       owner.reset(context.activePlace.value);

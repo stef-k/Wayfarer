@@ -288,7 +288,7 @@ test('Place map and search create keep the single existing POST and creation dra
   assert.equal(editor.draft.id, null);
   assert.equal(editor.areaDraft.id, null);
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); return saved(place({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } })); };
+  globalThis.fetch = async (url, init) => { calls.push([url, init]); const result = envelope(place({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } })); result.affected.placeOrdersByRegionId.region = ['place']; return new Response(JSON.stringify(result)); };
   await editor.savePlaceDraft();
   await nextTick();
   assert.equal(calls.length, 1);

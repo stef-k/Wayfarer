@@ -28,19 +28,25 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
 
     /// <summary>Routed stale complete Web drafts overwrite bearer Notes; scalar PATCH retains them.</summary>
     [PostgresTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StaleWebDraft_LegacyOverwriteAndProtectedCounterpart(bool conditional)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task StaleWebDraft_LegacyOverwriteAndProtectedCounterpart(bool conditional, bool protectedBearer)
     {
         var place = await SeedAsync();
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db);
         using var web = await WebAsync(app, place.UserId);
         using var bearer = Bearer(app, place.UserId);
-        using var mobile = await bearer.PutAsJsonAsync($"/api/trips/places/{place.Id}", new { notes = "Newer Mobile notes" });
+        using var mobile = protectedBearer
+            ? await PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Newer Mobile notes" })
+            : await bearer.PutAsJsonAsync($"/api/trips/places/{place.Id}", new { notes = "Newer Mobile notes" });
         Assert.Equal(HttpStatusCode.OK, mobile.StatusCode);
         using var response = conditional
-            ? await PatchAsync(web, place, true, new { name = place.Name }, new { name = "Web name" })
+            ? protectedBearer
+                ? await PatchAsync(web, place, true, new { iconName = place.IconName }, new { iconName = "star" })
+                : await PatchAsync(web, place, true, new { name = place.Name }, new { name = "Web name" })
             : await web.PutAsJsonAsync($"/api/trips/{place.Region.TripId}/editor/places/{place.Id}", new
             { regionId = place.RegionId, name = "Web name", notesHtml = place.Notes, address = place.Address,
                 location = new { latitude = 14, longitude = 22 }, iconName = "marker", markerColor = "bg-blue", reverseGeocode = false });
@@ -48,9 +54,9 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.SingleAsync(p => p.Id == place.Id);
         Assert.Equal(conditional ? "Newer Mobile notes" : place.Notes, stored.Notes);
-        Assert.Equal(("Web name", place.Address, place.Location!.AsText(), place.RegionId, place.DisplayOrder),
+        Assert.Equal((conditional && protectedBearer ? place.Name : "Web name", place.Address, place.Location!.AsText(), place.RegionId, place.DisplayOrder),
             (stored.Name, stored.Address, stored.Location!.AsText(), stored.RegionId, stored.DisplayOrder));
-        output.WriteLine(conditional ? "PROTECTED: scalar Web Name preserves bearer Notes."
+        output.WriteLine(conditional ? "PROTECTED: scalar Web Name/icon preserves bearer Notes."
             : "LEGACY OVERWRITE: complete Web PUT restores stale Notes; retained compatibility risk.");
     }
 
