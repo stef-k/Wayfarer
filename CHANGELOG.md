@@ -79,6 +79,11 @@
 
 ### Fixed
 
+- Validate complete Segment save acknowledgements before changing draft, proposal
+  or parent state, including confirmed route-clear saves and creation. Incomplete
+  HTTP 200 replies retain authored Notes, route intent and the original token in
+  an unknown-outcome hold without marking Saved or replaying (#853 Slice 6).
+
 - Keep late Area save feedback and cleanup scoped to the originating editing
   session after explicit discard. Reject conditional Area Names above 200 trimmed
   characters as correctable field validation before any writes (#853 Slice 5).

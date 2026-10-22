@@ -98,7 +98,7 @@ const routeProposalDraft = createSegmentRouteProposalDraftController(
   draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview));
 const notes = createSegmentNotesDraft({ draft, baseline: persistedBaseline, isSaving, current: () => activeSegment.value,
   routeAuthored: () => routeProposalDraft.hasProposal.value || !semanticTaint.isSafe.value || Boolean(routeMapWork.work) || isGenerating.value,
-  endpoint: () => props.editorEndpoint, antiforgery: () => props.antiforgeryToken, resetFeedback, applyError,
+  tripId: () => props.state.tripId, endpoint: () => props.editorEndpoint, antiforgery: () => props.antiforgeryToken, resetFeedback, applyError,
   applied: result => emit('mutationApplied', result), saved: () => { syncRouteDraftPreview(); publishPresentation(); markSaved(); },
   buildRequest: () => routeProposalDraft.buildRequest(), accepted: acceptSavedSegment, showConflict, formId: segmentFormId });
 

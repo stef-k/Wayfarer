@@ -964,6 +964,15 @@ remain correctable. Missing original evidence or unsupported PATCH fails closed.
 Explicit Reset/reload adopts current displayed server state; discard/reset does
 not prove an earlier uncertain attempt failed.
 
+Complete create/PUT acknowledgements, including the confirmed route-clear PUT,
+must validate the entire Segment mutation envelope before adopting any draft,
+proposal, preview, parent or Saved state. The complete `data` must match the
+authoritative `affected.segments` entry, expected Trip/target, nullable Notes
+originals and opaque aggregate token; creation also publishes its new Segment
+order. Missing or inconsistent acknowledgements are unknown outcomes even with
+HTTP 200. Keep authored Notes, route/proposal, waypoints, manual duration and the
+original dependency token, and require explicit review/reset before another save.
+
 If route, proposal or semantic edits begin during a Notes PATCH, their desired
 state and original dependency token remain pinned. The acknowledgement holds
 further saves for explicit review/reset rather than silently rebasing that route

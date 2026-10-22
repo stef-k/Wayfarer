@@ -16,7 +16,7 @@ const completeSegment = (next: EditorSegment): boolean => {
   const nullableNumber = (value: unknown): boolean => value === null || typeof value === 'number' && Number.isFinite(value);
   const geometry = (value: EditorSegment['route']): boolean => value === null
     || value?.type === 'LineString' && Array.isArray(value.coordinates) && value.coordinates.length >= 2
-      && value.coordinates.every(c => c.length === 2 && c.every(n => typeof n === 'number' && Number.isFinite(n)));
+      && value.coordinates.every(c => Array.isArray(c) && c.length === 2 && c.every(n => typeof n === 'number' && Number.isFinite(n)));
   return typeof next?.id === 'string' && typeof next.tripId === 'string' && typeof next.notesHtml === 'string'
     && typeof next.aggregateConcurrencyToken === 'string' && next.aggregateConcurrencyToken.length > 0
     && Array.isArray(next.waypointPlaceIds) && Array.isArray(next.waypointRouteVertexIndices)
@@ -29,6 +29,39 @@ const completeSegment = (next: EditorSegment): boolean => {
     && typeof next.capabilities?.canEdit === 'boolean' && typeof next.displayOrder === 'number';
 };
 
+/** Compares the two published JSON views without making object property order part of the wire contract. */
+const samePublishedValue = (left: unknown, right: unknown): boolean => {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object' || Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key)
+    && samePublishedValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]));
+};
+
+/** Segment create/update publishes one matching Segment, optional Segment order, and no unrelated mutations. */
+const validateComplete = (result: EditorMutationResult<EditorSegment>, tripId: string, segmentId: string | null): void => {
+  const next = result?.data;
+  const affected = result?.affected;
+  const unrelated = ['regions', 'places', 'areas', 'tags'] as const;
+  const emptyOrders = [affected?.placeOrdersByRegionId, affected?.areaOrdersByRegionId].every(value => value !== null
+    && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
+  if (result?.success !== true || !completeSegment(next) || !next.id || next.tripId !== tripId || segmentId !== null && next.id !== segmentId
+    || typeof next.hasCustomRoute !== 'boolean' || typeof next.capabilities.canDelete !== 'boolean'
+    || !next.originalValues || !Object.hasOwn(next.originalValues, 'notesHtml')
+    || next.originalValues.notesHtml !== null && typeof next.originalValues.notesHtml !== 'string'
+    || (next.originalValues.notesHtml ?? '') !== next.notesHtml
+    || !Array.isArray(affected?.segments) || affected.segments.length !== 1 || !samePublishedValue(affected.segments[0], next)
+    || unrelated.some(key => !Array.isArray(affected[key]) || affected[key].length !== 0)
+    || !emptyOrders || [affected.metadata, affected.regionOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value != null)
+    || affected.segmentOrder != null && (!Array.isArray(affected.segmentOrder) || !affected.segmentOrder.every(id => typeof id === 'string')
+      || !affected.segmentOrder.includes(next.id))
+    || segmentId === null && !affected.segmentOrder?.includes(next.id)
+    || [...unrelated, 'segments' as const].some(key => !Array.isArray(result.deletedIds?.[key]) || result.deletedIds[key].length !== 0)
+    || !Array.isArray(result.warnings) || result.warnings.some(warning => typeof warning?.code !== 'string' || typeof warning.message !== 'string'
+      || warning.entityType !== null && typeof warning.entityType !== 'string' || warning.entityId !== null && typeof warning.entityId !== 'string'))
+    throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
+};
+
 /** Only explicit admission/validation/conflict failures establish a rejected attempt; proxy timeouts can hide a commit. */
 const knownRejected = (error: unknown): boolean => error instanceof EditorValidationError || error instanceof EditorSegmentConflictError
   || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
@@ -39,6 +72,7 @@ export const createSegmentNotesDraft = (options: {
   baseline: Ref<EditorSegmentDraft>;
   isSaving: Ref<boolean>;
   current: () => EditorSegment | null;
+  tripId: () => string;
   routeAuthored: () => boolean;
   endpoint: () => string;
   antiforgery: () => string;
@@ -152,10 +186,8 @@ export const createSegmentNotesDraft = (options: {
     }
   };
 
-  /** Complete saves retain a newer Notes obligation while preserving the existing aggregate operation. */
+  /** Adopts only a validated complete acknowledgement, retaining any newer Notes obligation. */
   const acceptComplete = (next: EditorSegment, submitted: EditorSegmentSaveRequest): EditorSegmentDraft => {
-    if (!completeSegment(next) || draft.id && next.id !== draft.id)
-      throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
     const incoming = toSegmentDraft(next);
     const newer = buildSegmentRequest(draft).notesHtml !== submitted.notesHtml ? draft.notesHtml : null;
     baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
@@ -172,6 +204,12 @@ export const createSegmentNotesDraft = (options: {
     const currentAttempt = (): boolean => attempt === session.value;
     const request = options.buildRequest();
     const segmentId = draft.id;
+    const tripId = options.tripId();
+    // Every complete response crosses this boundary before draft, proposal, preview, parent or Saved adoption.
+    const accept = (result: EditorMutationResult<EditorSegment>): void => {
+      validateComplete(result, tripId, segmentId);
+      options.accepted(result, request, segmentId === null);
+    };
     const rows = draft.waypointRows.map(row => ({ ...row }));
     pending.value = isSaving.value = true;
     options.resetFeedback();
@@ -179,10 +217,7 @@ export const createSegmentNotesDraft = (options: {
       const result = segmentId
         ? await updateSegment(options.endpoint(), segmentId, options.antiforgery(), request)
         : await createSegment(options.endpoint(), options.antiforgery(), request);
-      if (currentAttempt()) {
-        if (result?.success !== true) throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
-        options.accepted(result, request, segmentId === null);
-      }
+      if (currentAttempt()) accept(result);
     } catch (error) {
       if (!currentAttempt()) return;
       if (!(error instanceof EditorSegmentConflictError) || !segmentId) {
@@ -205,10 +240,7 @@ export const createSegmentNotesDraft = (options: {
       try {
         // Confirmation binds the submitted aggregate, never a rebuilt draft containing later edits.
         const result = await updateSegment(options.endpoint(), segmentId, options.antiforgery(), request, error.confirmationToken);
-        if (currentAttempt()) {
-          if (result?.success !== true) throw new Error('The Segment save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
-          options.accepted(result, request, false);
-        }
+        if (currentAttempt()) accept(result);
       } catch (retryError) {
         if (!currentAttempt()) return;
         uncertain.value = !knownRejected(retryError);

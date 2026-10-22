@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { build } from 'esbuild';
-import { createRenderer, nextTick, proxyRefs } from 'vue';
+import { createRenderer, nextTick, proxyRefs, watch } from 'vue';
 
 // Mount the actual App -> TripSidebar -> SegmentManager queue; substitute only map, DOM/Quill and unrelated leaves.
 const bundle = await build({ stdin: { contents: 'export { default } from "./App.vue";', loader: 'ts',
@@ -49,7 +49,8 @@ const segment = (overrides = {}) => {
   return value;
 };
 const envelope = data => ({ success: true, data, affected: { metadata: null, regions: [], places: [], areas: [],
-  segments: data ? [data] : [], tags: [], placeOrdersByRegionId: {}, areaOrdersByRegionId: {} },
+  segments: data ? [data] : [], tags: [], placeOrdersByRegionId: {}, areaOrdersByRegionId: {},
+  regionOrder: null, segmentOrder: null, tagOrder: null, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
 const saved = data => new Response(JSON.stringify(envelope(data)));
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
@@ -158,7 +159,7 @@ test('route intent begun during Notes PATCH retains its old dependency token and
   assert.equal(editor.draft.aggregateConcurrencyToken, 'after-notes');
 }));
 
-for (const failure of ['500', '408', 'network', 'incomplete']) {
+for (const failure of ['500', '408', 'network', 'incomplete', 'incomplete affected']) {
   test(`undiscarded ${failure} holds a newer reversal and prevents blind replay`, () => withApp(async ({ parent, editor, sidebar }) => {
     const reply = deferred();
     let calls = 0;
@@ -167,7 +168,10 @@ for (const failure of ['500', '408', 'network', 'incomplete']) {
     editor.draft.notesHtml = 'Submitted';
     const saving = editor.saveDraft();
     editor.draft.notesHtml = '';
-    reply.resolve(failure === 'network' ? null : failure === 'incomplete' ? saved({ id: 'segment' }) : new Response('{}', { status: Number(failure) }));
+    const incompleteAffected = envelope(segment({ notesHtml: 'Submitted', aggregateConcurrencyToken: 'committed-token' }));
+    incompleteAffected.affected.segments = [];
+    reply.resolve(failure === 'network' ? null : failure === 'incomplete' ? saved({ id: 'segment' })
+      : failure === 'incomplete affected' ? new Response(JSON.stringify(incompleteAffected)) : new Response('{}', { status: Number(failure) }));
     await saving;
     parent.applyMutation(envelope(segment({ notesHtml: 'Submitted' })));
     await nextTick();
@@ -233,9 +237,19 @@ test('400/409 remain correctable with pinned original; absent original/unsupport
   assert.match(editor.saveError, /Original Segment Notes/);
 }));
 
-test('combined Notes/manual route/proposal remains one aggregate PUT and keeps original confirmation authority', () => withApp(async ({ parent, editor }) => {
+test('combined Notes/manual route/proposal remains one aggregate PUT and keeps original confirmation authority', t => withApp(async ({ parent, editor }) => {
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init, JSON.parse(init.body)]); return saved(segment({ notesHtml: 'Combined', estimatedDurationMinutes: 120 })); };
+  let applied = 0;
+  t.after(watch(() => parent.state, () => applied++, { flush: 'sync' }));
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init, JSON.parse(init.body)]);
+    const result = envelope(segment({ notesHtml: 'Combined', estimatedDurationMinutes: 120, aggregateConcurrencyToken: 'complete-token' }));
+    // Equal JSON objects remain authoritative when their property order differs between data and affected.
+    result.affected.segments = [Object.fromEntries(Object.entries(result.data).reverse())];
+    result.affected.segments[0].capabilities = { canDelete: true, canEdit: true };
+    result.affected.segments[0].route = { coordinates: route.coordinates, type: 'LineString' };
+    return new Response(JSON.stringify(result));
+  };
   await editor.openEdit(parent.state.segmentsById.segment);
   editor.draft.notesHtml = 'Combined';
   editor.draft.estimatedDurationMinutes = 120;
@@ -249,10 +263,19 @@ test('combined Notes/manual route/proposal remains one aggregate PUT and keeps o
   assert.equal(calls[0][2].notesHtml, 'Combined');
   assert.equal(calls[0][2].estimatedDurationMinutes, 120);
   assert.deepEqual(calls[0][2].proposal, { proposalId: 'proposal', protectedContext: 'proof', manualDurationOverride: true });
+  await nextTick();
+  assert.equal(applied, 1);
+  assert.equal(parent.state.segmentsById.segment.notesHtml, 'Combined');
+  assert.equal(editor.draft.aggregateConcurrencyToken, 'complete-token');
+  assert.equal(editor.routeProposalDraft.hasProposal.value, false);
+  assert.equal(editor.isDirty, false);
+  assert.match(editor.statusText, /^Saved/);
 }));
 
-test('route-clear confirmation resubmits the same complete aggregate and retains later Notes', () => withApp(async ({ parent, editor }) => {
+test('route-clear confirmation resubmits the same complete aggregate and retains later Notes', t => withApp(async ({ parent, editor }) => {
   const calls = [];
+  let applied = 0;
+  t.after(watch(() => parent.state, () => applied++, { flush: 'sync' }));
   globalThis.fetch = async (url, init) => {
     calls.push([url, init, JSON.parse(init.body)]);
     return calls.length === 1 ? new Response(JSON.stringify({ code: 'segment-route-clear-confirmation-required',
@@ -271,6 +294,12 @@ test('route-clear confirmation resubmits the same complete aggregate and retains
   assert.equal(calls[1][1].headers['X-Wayfarer-Clear-Route-Confirmation'], 'clear-approval');
   assert.equal(editor.draft.notesHtml, 'Newer during confirmation');
   assert.equal(editor.isDirty, true);
+  await nextTick();
+  assert.equal(applied, 1);
+  assert.equal(parent.state.segmentsById.segment.notesHtml, 'Submitted');
+  assert.equal(parent.state.segmentsById.segment.route, null);
+  assert.equal(editor.routeProposalDraft.hasProposal.value, false);
+  assert.ok(editor.lastSavedAt, 'the acknowledged aggregate is saved while newer Notes remain dirty');
 }));
 
 test('explicit aggregate conflict reload pins its published Notes original for the next scalar edit', () => withApp(async ({ parent, editor }) => {
@@ -396,3 +425,120 @@ for (const confirmed of [false, true]) {
     assert.equal(await parent.editorSurface.closeActiveTarget(), false, 'the uncertain draft still fences navigation');
   }));
 }
+
+// Exercise malformed acknowledgements at the same mounted product boundary, including coherent but foreign data.
+for (const [name, corrupt] of [
+  ['absent affected slice', result => { delete result.affected.segments; }],
+  ['affected identity', result => { result.affected.segments[0].id = 'other'; }],
+  ['affected Notes', result => { result.affected.segments[0].notesHtml = 'Different'; }],
+  ['affected route', result => { result.affected.segments[0].route.coordinates[1] = [3, 3]; }],
+  ['affected waypoints', result => { result.affected.segments[0].waypointRouteVertexIndices = [2]; }],
+  ['affected duration', result => { result.affected.segments[0].estimatedDurationMinutes = 180; }],
+  ['affected token', result => { result.affected.segments[0].aggregateConcurrencyToken = 'different-token'; }],
+  ['foreign Trip', result => { result.data.tripId = result.affected.segments[0].tripId = 'other-trip'; }],
+  ['missing Notes original', result => { delete result.data.originalValues; delete result.affected.segments[0].originalValues; }],
+  ['wrong Notes original', result => { result.data.originalValues = result.affected.segments[0].originalValues = { notesHtml: null }; }],
+  ['missing parent-consumed slice', result => { delete result.affected.places; }],
+  ['missing deleted IDs', result => { delete result.deletedIds; }]
+]) {
+  test(`complete acknowledgement rejects ${name} before any adoption`, () => withApp(async ({ parent, editor }) => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      const result = envelope(segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120, aggregateConcurrencyToken: 'committed-token' }));
+      result.affected.segments = [structuredClone(result.data)];
+      corrupt(result);
+      return new Response(JSON.stringify(result));
+    };
+    await editor.openEdit(parent.state.segmentsById.segment);
+    editor.draft.notesHtml = 'Submitted';
+    editor.draft.estimatedDurationMinutes = 120;
+    const parentBefore = parent.state;
+    await editor.saveDraft();
+    await nextTick();
+    assert.equal(parent.state, parentBefore);
+    assert.equal(editor.draft.notesHtml, 'Submitted');
+    assert.equal(editor.draft.estimatedDurationMinutes, 120);
+    assert.equal(editor.draft.aggregateConcurrencyToken, 'original-aggregate');
+    assert.equal(editor.isDirty, true);
+    assert.equal(editor.lastSavedAt, null);
+    assert.match(editor.saveError, /incomplete.*unknown outcome/i);
+    await editor.saveDraft();
+    assert.equal(calls, 1);
+  }));
+}
+
+// Create shares the complete-save boundary, but its target identity and order must come from this acknowledgement.
+for (const complete of [false, true]) {
+  test(`create ${complete ? 'accepts a complete' : 'holds an incomplete'} affected Segment acknowledgement`, () => withApp(async ({ parent, editor }) => {
+    let calls = 0;
+    globalThis.fetch = async (_url, init) => {
+      calls++;
+      assert.equal(init.method, 'POST');
+      const result = envelope(segment({ id: 'created', notesHtml: 'Created', waypointPlaceIds: [], waypointRouteVertexIndices: [],
+        route: null, effectiveRoute: null, aggregateConcurrencyToken: 'created-token' }));
+      result.affected.segmentOrder = ['segment', 'created'];
+      if (!complete) result.affected.segments = [];
+      return new Response(JSON.stringify(result));
+    };
+    await editor.openCreate();
+    editor.draft.fromPlaceId = 'from';
+    editor.draft.toPlaceId = 'to';
+    editor.draft.mode = 'walk';
+    editor.draft.notesHtml = 'Created';
+    const parentBefore = parent.state;
+    await editor.saveDraft();
+    await nextTick();
+    assert.equal(calls, 1);
+    if (complete) {
+      assert.equal(parent.state.segmentsById.created.notesHtml, 'Created');
+      assert.deepEqual([...parent.state.segmentOrder], ['segment', 'created']);
+      assert.equal(editor.draft.id, 'created');
+      assert.equal(editor.draft.aggregateConcurrencyToken, 'created-token');
+      assert.equal(editor.isDirty, false);
+      assert.match(editor.statusText, /^Saved/);
+    } else {
+      assert.equal(parent.state, parentBefore);
+      assert.equal(editor.draft.id, null);
+      assert.equal(editor.draft.notesHtml, 'Created');
+      assert.equal(editor.draft.aggregateConcurrencyToken, null);
+      assert.equal(editor.isDirty, true);
+      assert.equal(editor.lastSavedAt, null);
+      assert.match(editor.saveError, /incomplete.*unknown outcome/i);
+      await editor.saveDraft();
+      assert.equal(calls, 1);
+    }
+  }));
+}
+
+test('discarded complete acknowledgement cannot release or mutate a newer pending save of the same Segment', () => withApp(async ({ parent, editor }) => {
+  const old = deferred();
+  const newer = deferred();
+  let calls = 0;
+  globalThis.fetch = async () => ++calls === 1 ? old.promise : newer.promise;
+  await editor.openEdit(parent.state.segmentsById.segment);
+  editor.draft.notesHtml = 'Old aggregate';
+  editor.draft.estimatedDurationMinutes = 120;
+  const oldSaving = editor.saveDraft();
+  globalThis.segmentConfirm = async () => true;
+  await parent.editorSurface.closeActiveTarget();
+  await editor.openEdit(parent.state.segmentsById.segment);
+  editor.draft.notesHtml = 'New current Notes';
+  const newSaving = editor.saveDraft();
+  old.resolve(saved(segment({ notesHtml: 'Old aggregate', estimatedDurationMinutes: 120, aggregateConcurrencyToken: 'retired-token' })));
+  await oldSaving;
+  await nextTick();
+  assert.equal(editor.isSaving, true);
+  assert.equal(editor.draft.notesHtml, 'New current Notes');
+  assert.equal(editor.draft.aggregateConcurrencyToken, 'original-aggregate');
+  assert.equal(editor.saveError, null);
+  assert.equal(editor.lastSavedAt, null);
+  assert.equal(parent.state.segmentsById.segment.notesHtml, '');
+  newer.resolve(saved(segment({ notesHtml: 'New current Notes', aggregateConcurrencyToken: 'new-token' })));
+  await newSaving;
+  await nextTick();
+  assert.equal(calls, 2);
+  assert.equal(editor.draft.aggregateConcurrencyToken, 'new-token');
+  assert.equal(parent.state.segmentsById.segment.notesHtml, 'New current Notes');
+  assert.equal(editor.isDirty, false);
+}));
