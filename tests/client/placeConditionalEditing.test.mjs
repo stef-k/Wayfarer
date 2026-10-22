@@ -192,6 +192,47 @@ for (const scalar of [true, false]) {
   }));
 }
 
+// Complete saves must match the create/update lifecycle footprint before any state adoption.
+for (const [operation, orders] of [
+  ['update unrelated-only', { other: ['b', 'a'] }],
+  ['update target-only', { region: ['place'] }],
+  ['update extra Region', { region: ['place'], source: [], other: ['b', 'a'] }],
+  ['create extra Region', { region: ['place'], other: ['b', 'a'] }]
+]) {
+  test(`Place complete ${operation} order map holds before adoption`, () => withApp(async ({ parent, editor, sidebar }) => {
+    parent.state.regionsById.other = { ...region, id: 'other', name: 'Other Region' };
+    parent.state.regionOrder.push('other');
+    for (const [index, id] of ['a', 'b'].entries()) parent.state.placesById[id] = place({ id, regionId: 'other',
+      name: id, displayOrder: index + 1, visitSummary: { ...place().visitSummary, placeId: id } });
+    parent.state.placeOrderByRegionId.other = ['a', 'b'];
+    if (operation.startsWith('create')) await editor.openPlaceCreate(region);
+    else await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.placeDraft.name = 'Submitted';
+    editor.placeDraft.address = 'New address';
+    await nextTick();
+    const before = JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview });
+    const result = envelope(place({ name: 'Submitted', address: 'New address' }));
+    result.affected.placeOrdersByRegionId = orders;
+    let calls = 0;
+    globalThis.fetch = async (_url, init) => { calls++; assert.equal(init.method, operation.startsWith('create') ? 'POST' : 'PUT'); return new Response(JSON.stringify(result)); };
+    await editor.savePlaceDraft();
+    await nextTick();
+    assert.deepEqual(parent.state.placeOrderByRegionId.other, ['a', 'b']);
+    assert.equal(JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview }), before);
+    assert.equal(editor.placeDraft.name, 'Submitted');
+    assert.equal(editor.placeDraft.address, 'New address');
+    if (!operation.startsWith('create')) assert.deepEqual(editor.placeDraftState.request(), {
+      expected: { regionId: 'region', name: 'Original' }, changes: { name: 'Submitted' } });
+    assert.equal(editor.placeDraftState.uncertain.value, true);
+    assert.equal(editor.placeDirty, true);
+    assert.equal(sidebar.hasAnyDraftChanges, true);
+    assert.equal(editor.statusText, 'Save failed');
+    await editor.savePlaceDraft();
+    assert.match(editor.saveError, /unknown outcome/i);
+    assert.equal(calls, 1);
+  }));
+}
+
 for (const reversal of [false, true]) {
   test(`newer Place intent and old-baseline reversal survive delayed acknowledgement and later refresh: ${reversal}`, () => withApp(async ({ parent, editor }) => {
     const reply = deferred();
