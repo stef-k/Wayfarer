@@ -188,7 +188,10 @@ public static class EditorTripStateMapper
             string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor,
             place.DisplayOrder ?? 0,
             visitSummary,
-            EditableLeafCapabilities());
+            EditableLeafCapabilities())
+        {
+            OriginalValues = new(regionId, place.Name, RichNotes.Normalize(place.Notes), place.IconName, place.MarkerColor)
+        };
 
     /// <summary>
     /// Maps an area into the editor area contract.

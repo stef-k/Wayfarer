@@ -1,13 +1,24 @@
-import { nextTick } from 'vue';
-import { createPlace, deletePlace, EditorLifecycleConfirmationError, orderPlaces, updatePlace } from '../api/tripEditorApi';
+import { nextTick, onUnmounted, watch } from 'vue';
+import { createPlace, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildPlaceCreateTarget, buildPlaceEditTarget } from './regionPlaceEditorTargets';
-import { buildPlaceRequest, defaultPlaceIconName, defaultPlaceMarkerColor, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toPlaceDraft, withoutRegionId } from './regionPlaceDrafts';
+import { buildPlaceRequest, defaultPlaceIconName, defaultPlaceMarkerColor, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, withoutRegionId } from './regionPlaceDrafts';
+import { validatePlaceAcknowledgement } from './placeConditionalDraft';
 import { beginPlaceCoordinateMapWork } from './placeCoordinateMapWork';
 
 /// Coordinates place-specific editor actions while RegionManager owns shared draft state.
 export function usePlaceEditorActions(context: any) {
+  const owner = context.placeDraftState;
+  let alive = true;
+  let savingSession: number | null = null;
+  onUnmounted(() => { alive = false; });
+  // Discard retires this attempt's UI gate without declaring that the server did not commit.
+  watch(() => owner.session(), () => {
+    if (savingSession === null) return;
+    savingSession = null;
+    context.isSaving.value = false;
+  }, { flush: 'sync' });
   const openPlaceCreate = async (region: EditorRegion): Promise<void> => {
     await openPlaceCreateDraft(region, null);
   };
@@ -30,6 +41,7 @@ export function usePlaceEditorActions(context: any) {
     }
 
     Object.assign(context.draft, emptyRegionDraft());
+    owner.reset(null);
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.placeDraft.name = result ? searchResultName(result) : 'New Place';
@@ -42,7 +54,6 @@ export function usePlaceEditorActions(context: any) {
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.placeCreateBaselineDraft.value = { ...context.placeDraft };
-    context.placeEditBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
     await nextTick();
@@ -58,29 +69,22 @@ export function usePlaceEditorActions(context: any) {
     }
 
     Object.assign(context.draft, emptyRegionDraft());
-    Object.assign(context.placeDraft, toPlaceDraft(place, place.regionId));
+    owner.reset(place);
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.regionCreateBaselineRequest.value = null;
     context.placeCreateBaselineRequest.value = null;
     context.placeCreateBaselineDraft.value = null;
-    context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
     context.areaCreateBaselineRequest.value = null;
-    // Quill can normalize legacy persisted notes after render; keep that hydration out of dirty-state prompts.
-    void nextTick(() => {
-      if (context.placeDraft.id === place.id && context.props.editorSurface.isTargetActive(target)) {
-        context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
-      }
-    });
     context.resetFeedback();
     return true;
   };
 
   const resetPlaceDraft = (): void => {
+    if (context.isSaving.value) return;
     if (!context.placeDraft.id) {
       Object.assign(context.placeDraft, context.placeCreateBaselineDraft.value ?? emptyPlaceDraft(context.placeDraft.regionId));
     } else {
-      Object.assign(context.placeDraft, toPlaceDraft(context.activePlace.value, context.placeDraft.regionId));
-      context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
+      owner.reset(context.activePlace.value);
     }
     context.resetFeedback();
   };
@@ -95,28 +99,51 @@ export function usePlaceEditorActions(context: any) {
   };
 
   const savePlaceDraft = async (): Promise<void> => {
-    if (!context.placeDraft.regionId) {
+    if (context.isSaving.value || !context.placeDraft.regionId) return;
+    if (owner.uncertain.value) {
+      context.applyError(new Error('The earlier Place save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.'), 'Place save held.');
       return;
     }
-
+    const placeId = context.placeDraft.id;
+    const session = owner.session();
+    const currentAttempt = (): boolean => alive && session === owner.session();
+    let dispatched = false;
+    savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
     try {
-      const request = buildPlaceRequest(context.placeDraft);
-      const result = context.placeDraft.id
-        ? await updatePlace(context.props.editorEndpoint, context.placeDraft.id, context.props.antiforgeryToken, request)
-        : await createPlace(context.props.editorEndpoint, context.placeDraft.regionId, context.props.antiforgeryToken, withoutRegionId(request));
+      const complete = buildPlaceRequest(context.placeDraft);
+      const scalar = Boolean(placeId) && !owner.structural();
+      const conditional = scalar ? owner.request() : null;
+      if (conditional && Object.keys(conditional.changes).length === 0) return;
+      owner.pending.value = true;
+      dispatched = true;
+      // Combined edits stay one lifecycle PUT. A failed protected PATCH never falls back to that writer.
+      const result = conditional
+        ? await updatePlaceConditional(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, conditional)
+        : placeId
+          ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, complete)
+          : await createPlace(context.props.editorEndpoint, context.placeDraft.regionId, context.props.antiforgeryToken, withoutRegionId(complete));
+      if (!currentAttempt()) return;
+      validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
+      owner.acknowledge(result.data, conditional?.changes ?? complete);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.placeDraft, toPlaceDraft(result.data, result.data.regionId));
       context.placeCreateBaselineRequest.value = null;
       context.placeCreateBaselineDraft.value = null;
-      context.placeEditBaselineRequest.value = buildPlaceRequest(context.placeDraft);
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
     } catch (error) {
+      if (!currentAttempt()) return;
+      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+        || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (dispatched && !rejected) owner.uncertain.value = true;
       context.applyError(error, 'Place save failed.');
     } finally {
-      context.isSaving.value = false;
+      if (currentAttempt() && savingSession === session) {
+        savingSession = null;
+        owner.pending.value = false;
+        context.isSaving.value = false;
+      }
     }
   };
 
@@ -163,11 +190,10 @@ export function usePlaceEditorActions(context: any) {
       }
       if (!result) throw new Error('Place dependencies changed repeatedly. Please retry.');
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      Object.assign(context.placeDraft, emptyPlaceDraft());
+      owner.reset(null);
       Object.assign(context.areaDraft, emptyAreaDraft());
       context.placeCreateBaselineRequest.value = null;
       context.placeCreateBaselineDraft.value = null;
-      context.placeEditBaselineRequest.value = null;
       context.areaCreateBaselineRequest.value = null;
       context.props.editorSurface.clearActiveTarget(deletedTarget);
       context.markSaved();
