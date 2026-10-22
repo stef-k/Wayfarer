@@ -338,3 +338,61 @@ test('pending complete saves keep a newer reversal dirty and pinned before any r
   assert.equal(editor.draft.notesHtml, '');
   assert.equal(editor.isDirty, true);
 }));
+
+// A complete data DTO cannot acknowledge the parent's saved state without its authoritative affected Segment.
+for (const confirmed of [false, true]) {
+  test(`F1 ${confirmed ? 'route-clear confirmed' : 'ordinary'} complete 200 missing affected Segment retains the entire uncertain draft`, t => withApp(async ({ parent, editor, sidebar }) => {
+    const calls = [];
+    const committed = segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120,
+      fromPlaceId: confirmed ? 'waypoint' : 'from', aggregateConcurrencyToken: 'committed-token',
+      ...(confirmed ? { route: null, effectiveRoute: null, waypointRouteVertexIndices: [null] } : {}) });
+    globalThis.fetch = async (url, init) => {
+      calls.push([url, init, JSON.parse(init.body)]);
+      if (confirmed && calls.length === 1) return new Response(JSON.stringify({ code: 'segment-route-clear-confirmation-required',
+        currentSegment: segment(), warning: 'Clear custom route?', operation: 'update' }), {
+        status: 409, headers: { 'X-Wayfarer-Clear-Route-Confirmation': 'clear-approval' }
+      });
+      const incomplete = envelope(committed);
+      incomplete.affected.segments = [];
+      return new Response(JSON.stringify(incomplete), { status: 200 });
+    };
+    globalThis.segmentConfirm = async () => true;
+    await editor.openEdit(parent.state.segmentsById.segment);
+    editor.draft.notesHtml = 'Submitted';
+    editor.draft.estimatedDurationMinutes = 120;
+    if (confirmed) editor.draft.fromPlaceId = 'waypoint';
+    editor.draft.waypointRows[0].routeVertexIndex = 2;
+    editor.previewRouteProposal({ proposalId: 'pending-proposal', protectedContext: 'original-proof',
+      geometry: [{ longitude: 0, latitude: 0 }, { longitude: 1, latitude: 1 }, { longitude: 2, latitude: 2 }],
+      waypointIndices: [0, 1, 2], durationSeconds: 500 });
+    const before = JSON.parse(JSON.stringify({ draft: editor.draft, baseline: editor.persistedBaseline,
+      proposalRequest: editor.routeProposalDraft.buildRequest() }));
+    const parentBefore = parent.state;
+    await editor.saveDraft();
+    await nextTick();
+    t.diagnostic(JSON.stringify({ dirty: editor.isDirty, error: editor.saveError, proposal: editor.routeProposalDraft.hasProposal.value,
+      parentNotes: parent.state.segmentsById.segment.notesHtml, draftNotes: editor.draft.notesHtml,
+      draftToken: editor.draft.aggregateConcurrencyToken, status: editor.statusText }));
+    assert.equal(editor.isDirty, true, 'incomplete complete-save acknowledgement must retain the dirty hold');
+    assert.equal(sidebar.hasAnyDraftChanges, true);
+    assert.match(editor.saveError, /incomplete.*unknown outcome/i);
+    assert.equal(editor.lastSavedAt, null, 'an incomplete acknowledgement never marks Saved');
+    assert.doesNotMatch(editor.statusText, /^Saved/);
+    assert.equal(parent.state, parentBefore, 'no parent slice is applied before full acknowledgement validation');
+    assert.deepEqual(JSON.parse(JSON.stringify(editor.draft)), before.draft, 'Notes, manual duration, route, waypoints and old token survive');
+    assert.deepEqual(JSON.parse(JSON.stringify(editor.persistedBaseline)), before.baseline);
+    assert.equal(editor.routeProposalDraft.hasProposal.value, true);
+    assert.deepEqual(editor.routeProposalDraft.buildRequest(), before.proposalRequest);
+    assert.equal(calls.length, confirmed ? 2 : 1);
+    assert.ok(calls.every(call => call[1].method === 'PUT'));
+    if (confirmed) {
+      assert.deepEqual(calls[0][2], calls[1][2], 'confirmation resubmits the original complete aggregate');
+      assert.equal(calls[1][1].headers['X-Wayfarer-Clear-Route-Confirmation'], 'clear-approval');
+    }
+    await editor.saveDraft();
+    assert.equal(calls.length, confirmed ? 2 : 1, 'uncertain attempt blocks blind retry');
+    assert.match(editor.saveError, /unknown outcome/);
+    globalThis.segmentConfirm = async () => false;
+    assert.equal(await parent.editorSurface.closeActiveTarget(), false, 'the uncertain draft still fences navigation');
+  }));
+}
