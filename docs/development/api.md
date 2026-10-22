@@ -968,8 +968,10 @@ Complete create/PUT acknowledgements, including the confirmed route-clear PUT,
 must validate the entire Segment mutation envelope before adopting any draft,
 proposal, preview, parent or Saved state. The complete `data` must match the
 authoritative `affected.segments` entry, expected Trip/target, nullable Notes
-originals and opaque aggregate token; creation also publishes its new Segment
-order. Missing or inconsistent acknowledgements are unknown outcomes even with
+originals and opaque aggregate token. Any supplied Segment order must contain
+unique IDs; creation requires an order containing the created ID exactly once.
+The authoritative order is not compared with possibly stale client membership.
+Missing or inconsistent acknowledgements are unknown outcomes even with
 HTTP 200. Keep authored Notes, route/proposal, waypoints, manual duration and the
 original dependency token, and require explicit review/reset before another save.
 

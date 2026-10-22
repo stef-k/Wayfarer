@@ -38,7 +38,7 @@ const samePublishedValue = (left: unknown, right: unknown): boolean => {
     && samePublishedValue((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]));
 };
 
-/** Segment create/update publishes one matching Segment, optional Segment order, and no unrelated mutations. */
+/** Segment create/update publishes one matching Segment, an optional unique Segment order, and no unrelated mutations. */
 const validateComplete = (result: EditorMutationResult<EditorSegment>, tripId: string, segmentId: string | null): void => {
   const next = result?.data;
   const affected = result?.affected;
@@ -54,7 +54,7 @@ const validateComplete = (result: EditorMutationResult<EditorSegment>, tripId: s
     || unrelated.some(key => !Array.isArray(affected[key]) || affected[key].length !== 0)
     || !emptyOrders || [affected.metadata, affected.regionOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value != null)
     || affected.segmentOrder != null && (!Array.isArray(affected.segmentOrder) || !affected.segmentOrder.every(id => typeof id === 'string')
-      || !affected.segmentOrder.includes(next.id))
+      || new Set(affected.segmentOrder).size !== affected.segmentOrder.length || !affected.segmentOrder.includes(next.id))
     || segmentId === null && !affected.segmentOrder?.includes(next.id)
     || [...unrelated, 'segments' as const].some(key => !Array.isArray(result.deletedIds?.[key]) || result.deletedIds[key].length !== 0)
     || !Array.isArray(result.warnings) || result.warnings.some(warning => typeof warning?.code !== 'string' || typeof warning.message !== 'string'
