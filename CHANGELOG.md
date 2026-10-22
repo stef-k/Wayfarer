@@ -10,6 +10,8 @@
   Vue drafts, validate complete acknowledgements and hold unknown outcomes.
   Coordinate Cancel preserves refreshed clean coordinates; malformed Place
   projections or unrelated acknowledgement slices hold before parent adoption.
+  Complete Place order maps must match the create target or update source/target
+  footprint, preserving authoritative membership after concurrent moves.
   Structural/combined Web edits retain one lifecycle PUT, and both that writer
   and explicit legacy bearer edits remain unprotected for overlapping scalars
   (#853 Slice 7).

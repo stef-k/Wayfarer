@@ -350,6 +350,32 @@ for (const outcome of [200, 400, 409, 500]) {
   }));
 }
 
+// An ordinary update has no order slice; a concurrent move can change the server's source before this PUT.
+for (const concurrentSource of [false, true]) {
+  test(`Place complete update accepts its authoritative lifecycle order footprint: ${concurrentSource}`, () => withApp(async ({ parent, editor }) => {
+    parent.state.regionsById.source = { ...region, id: 'source', name: 'Live source' };
+    parent.state.regionOrder.push('source');
+    if (concurrentSource) parent.state.placeOrderByRegionId.region.push('stale-client-member');
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.placeDraft.name = 'Submitted';
+    editor.placeDraft.address = 'New address';
+    const result = envelope(place({ name: 'Submitted', address: 'New address' }));
+    // Neither the changed source nor concurrent/stale vector membership is client comparison evidence.
+    result.affected.placeOrdersByRegionId = concurrentSource ? { source: [], region: ['concurrent-place', 'place'] } : {};
+    const calls = [];
+    globalThis.fetch = async (_url, init) => { calls.push(init); return new Response(JSON.stringify(result)); };
+    await editor.savePlaceDraft();
+    await nextTick();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'PUT');
+    assert.equal(parent.state.placesById.place.name, 'Submitted');
+    assert.equal(editor.placeDraftState.baseline.address, 'New address');
+    assert.equal(editor.placeDraftState.uncertain.value, false);
+    assert.equal(editor.placeDirty, false);
+    assert.match(editor.statusText, /^Place saved/);
+  }));
+}
+
 test('Place coordinate picker Cancel/Done and combined scalar/address/move save retain one complete PUT', () => withApp(async ({ parent, editor }) => {
   const calls = [];
   parent.state.regionsById.target = { ...region, id: 'target', name: 'Target' };

@@ -977,10 +977,13 @@ complete Place, including nullable `resolvedFeatureName` / `resolvedFeatureType`
 when present. All Place saves reject Region/Area/Tag mutations and unrelated
 metadata, options or orders. Complete lifecycle saves may publish unique Place
 orders, dependent Segments, unique Segment order and visit progress; scalar PATCH
-cannot publish those effects. Authoritative order membership is not compared with
-stale client membership. Malformed success replies retain intent and the prior
-comparison baseline under an unknown-outcome hold, without Saved or another HTTP
-attempt.
+cannot publish those effects. Create requires only its target Region's Place order.
+Complete update permits an empty map or exactly the live source and acknowledged
+target orders; unrelated-only, target-only update and oversized maps reject.
+The live source need not match the client's original Region. Authoritative vector
+membership is not compared with stale client membership. Malformed success replies
+retain intent and the prior comparison baseline under an unknown-outcome hold,
+without Saved or another HTTP attempt.
 
 Late replies from discarded/superseded sessions are retired. Correctable 400/409
 retains originals and content; network/408/500/incomplete-200 outcomes hold the
