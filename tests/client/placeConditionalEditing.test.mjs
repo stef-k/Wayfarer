@@ -192,10 +192,11 @@ for (const scalar of [true, false]) {
   }));
 }
 
-// Complete saves must match the create/update lifecycle footprint before any state adoption.
+// Complete saves must match the lifecycle footprint, with the saved Place only in its target vector.
 for (const [operation, orders] of [
   ['update unrelated-only', { other: ['b', 'a'] }],
   ['update target-only', { region: ['place'] }],
+  ['update saved ID repeated in source', { region: ['place'], other: ['place', 'b', 'a'] }],
   ['update extra Region', { region: ['place'], source: [], other: ['b', 'a'] }],
   ['create extra Region', { region: ['place'], other: ['b', 'a'] }]
 ]) {
@@ -372,6 +373,7 @@ for (const concurrentSource of [false, true]) {
     assert.equal(editor.placeDraftState.baseline.address, 'New address');
     assert.equal(editor.placeDraftState.uncertain.value, false);
     assert.equal(editor.placeDirty, false);
+    if (concurrentSource) assert.deepEqual(parent.state.placeOrderByRegionId, { region: ['place'], source: [] });
     assert.match(editor.statusText, /^Place saved/);
   }));
 }
