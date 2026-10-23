@@ -1,0 +1,155 @@
+using System.Globalization;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
+using Wayfarer.Util;
+
+namespace Wayfarer.Services;
+
+/// <summary>Reads only inside the route's short read-only repeatable-read transaction.</summary>
+internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor cursors)
+{
+    /// <summary>All-owner readiness is checked in the response snapshot; no read repairs or weakens preparation.</summary>
+    internal async Task PrepareQueryAsync(string owner, HistoryQuery query, CancellationToken token)
+    {
+        if (query.Scope.ActivityIds is { Length: > 0 } ids)
+        {
+            var canonical = await new ActivityCatalog(db).ResolveIdsAsync(ids, token) ?? throw new HistoryRequestException("activityInvalid");
+            query.Scope = query.Scope with { ActivityIds = canonical };
+        }
+        cursors.Read(owner, query, HistoryCursor.ScopeKey(owner, query.Scope));
+        var preparation = new LocationHistoryPreparation(db);
+        if (query.Scope.TimeBasis == "capture" && !(await preparation.StatusAsync("time", token)).Ready
+            || query.Scope.Q.Length != 0 && !(await preparation.StatusAsync("text", token)).Ready)
+            throw new HistoryRequestException("historyPreparationRequired", 503);
+    }
+
+    /// <summary>Independent candidate counts cover the whole scope, before either result set's continuation.</summary>
+    private async Task<long> CandidateCountAsync(HistoryPredicate predicate, CancellationToken token) =>
+        await db.Database.SqlQueryRaw<long>($"SELECT count(*) AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {predicate.Truth} IS NULL", predicate.CopyParameters()).SingleAsync(token);
+
+    /// <summary>Unsampled pages use strict value anchors; deletion or movement of the anchor needs no lookup.</summary>
+    internal async Task<object> PageAsync(string owner, HistoryQuery query, CancellationToken token)
+    {
+        var key = HistoryCursor.ScopeKey(owner, query.Scope);
+        var anchor = cursors.Read(owner, query, key);
+        var predicate = new HistoryPredicate(owner, query, token);
+        var candidates = await CandidateCountAsync(predicate, token);
+        var candidate = query.ResultSet == "unresolvedCandidates";
+        var tail = "";
+        if (anchor != null)
+            tail = candidate ? $"AND l.\"Id\" < {predicate.Add(anchor.Id)}"
+                : $"AND (l.\"LocalTimestamp\",l.\"Id\") < ({predicate.Add(anchor.EventUtc!.Value)},{predicate.Add(anchor.Id)})";
+        var rows = await db.Database.SqlQueryRaw<HistorySummaryRow>($"""
+            SELECT l."Id", l."IdempotencyKey" AS "Uuid",
+                CASE WHEN {HistoryPredicate.EventValid} THEN l."LocalTimestamp" END AS "EventUtc",
+                CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS "Longitude",
+                CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Latitude} END AS "Latitude",
+                l."CaptureLocalTimestamp" AS "CaptureLocal", l."CaptureTimeZoneId" AS "CaptureZone", l."CaptureOffsetSeconds" AS "CaptureOffset",
+                l."HistoryTimeStatus" AS "TimeStatus", l."HistoryTimeVersion" AS "TimeVersion", l."HistoryTimeFailureCode" AS "TimeFailure",
+                l."ActivityTypeId", left(a."Name",161) AS "ActivityName",
+                left(coalesce(nullif(l."ResolvedFeatureName",''),nullif(l."FullAddress",''),nullif(l."Address",''),l."Place"),161) AS "Label"
+            FROM "Locations" l LEFT JOIN "ActivityTypes" a ON a."Id" = l."ActivityTypeId"
+            WHERE {predicate.Where} AND {(candidate ? predicate.Truth + " IS NULL" : predicate.Matches)} {tail}
+            ORDER BY {(candidate ? "l.\"Id\" DESC" : "l.\"LocalTimestamp\" DESC, l.\"Id\" DESC")} LIMIT {predicate.Add(query.PageSize + 1)}
+            """, predicate.CopyParameters()).ToListAsync(token);
+        string? continuation = null;
+        if (rows.Count > query.PageSize)
+        {
+            rows.RemoveAt(rows.Count - 1);
+            continuation = cursors.Protect(owner, query, key, rows[^1].Id, rows[^1].EventUtc);
+        }
+        var result = Envelope(owner, query, key, HistoryCursor.Profile(query), candidates, candidate ? "candidatesPage" : "page");
+        var items = new List<object>();
+        foreach (var row in rows)
+        {
+            token.ThrowIfCancellationRequested();
+            items.Add(HistoryPublication.Summary(row, query.Zone, candidate));
+        }
+        result["items"] = items;
+        result["nextContinuation"] = continuation;
+        return result;
+    }
+
+    /// <summary>Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.</summary>
+    internal async Task<object> OverviewAsync(string owner, HistoryQuery query, CancellationToken token)
+    {
+        var key = HistoryCursor.ScopeKey(owner, query.Scope);
+        var predicate = new HistoryPredicate(owner, query, token);
+        var candidates = await CandidateCountAsync(predicate, token);
+        var area = query.Scope.Area ?? new HistoryArea(-180, -90, 180, 90);
+        var west = predicate.Add(area.West); var south = predicate.Add(area.South);
+        var span = predicate.Add(area.Span); var height = predicate.Add(area.North - area.South); var grid = predicate.Add(query.Grid);
+        var rows = await db.Database.SqlQueryRaw<HistoryCellRow>($"""
+            WITH matches AS (
+                SELECT l."Id", l."IdempotencyKey", l."LocalTimestamp",
+                    CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS lon,
+                    CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Latitude} END AS lat
+                FROM "Locations" l WHERE {predicate.Where} AND {predicate.Matches}
+            ), unwrapped AS (
+                SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM matches
+            ), cells AS (
+                SELECT *, CASE WHEN lon IS NOT NULL THEN least({grid}-1, floor((ux-{west})/{span}*{grid})::int) END AS x,
+                    CASE WHEN lat IS NOT NULL THEN least({grid}-1, floor((lat-{south})/{height}*{grid})::int) END AS y FROM unwrapped
+            )
+            SELECT x AS "X", y AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
+                min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
+                CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId",
+                CASE WHEN count(*) = 1 THEN min("IdempotencyKey"::text) END AS "SingletonUuid"
+            FROM cells GROUP BY x,y ORDER BY x NULLS LAST,y NULLS LAST
+            """, predicate.CopyParameters()).ToListAsync(token);
+        var cells = new List<object>();
+        long mapped = 0, unmapped = 0;
+        foreach (var row in rows)
+        {
+            token.ThrowIfCancellationRequested();
+            if (row.X == null) { unmapped += row.Count; continue; }
+            mapped += row.Count;
+            var cellWest = area.West + row.X.Value * area.Span / query.Grid;
+            var cellEast = area.West + (row.X.Value + 1) * area.Span / query.Grid;
+            cells.Add(new
+            {
+                cellKey = HistoryCursor.Hash($"{key}:{query.Grid}:{row.X}:{row.Y}"),
+                bounds = Bounds(cellWest, area.South + row.Y!.Value * (area.North - area.South) / query.Grid,
+                    cellEast, area.South + (row.Y.Value + 1) * (area.North - area.South) / query.Grid, true),
+                occupiedBounds = Bounds(row.West!.Value, row.South!.Value, row.East!.Value, row.North!.Value, false),
+                displayPoint = new { longitude = Canonical((row.West.Value + row.East.Value) / 2), latitude = (row.South.Value + row.North.Value) / 2 },
+                recordCount = Count(row.Count), earliestEventUtc = HistoryQuery.Utc(row.Earliest), latestEventUtc = HistoryQuery.Utc(row.Latest),
+                singleton = row.Count == 1 ? new { locationId = row.SingletonId, uuid = row.SingletonUuid } : null
+            });
+        }
+        var result = Envelope(owner, query, key, "owner-overview-1", candidates, "aggregation");
+        result["grid"] = query.Grid; result["knownMatchCount"] = Count(mapped + unmapped);
+        result["mappedMatchCount"] = Count(mapped); result["unmappedMatchCount"] = Count(unmapped); result["cells"] = cells;
+        return result;
+    }
+
+    /// <summary>Common metadata makes live scope and conservative membership explicit on both collection operations.</summary>
+    private static Dictionary<string, object?> Envelope(string owner, HistoryQuery query, string key, string profile, long candidates, string extent) => new()
+    {
+        ["subjectId"] = owner, ["profile"] = profile, ["scopeKey"] = key, ["scope"] = query.Scope,
+        ["derivationVersions"] = HistoryPublication.Versions, ["observedAtUtc"] = HistoryQuery.Utc(DateTime.UtcNow),
+        ["consistency"] = "live-request", ["coverage"] = new { membership = candidates == 0 ? "complete" : "incomplete",
+            resultExtent = extent, unresolvedCandidateCount = Count(candidates) }
+    };
+
+    private static string Count(long value) => value.ToString(CultureInfo.InvariantCulture);
+    private static double Canonical(double longitude) => longitude >= 180 ? longitude - 360 : longitude;
+    private static object Bounds(double west, double south, double east, double north, bool rectangle) => new
+    { west = Canonical(west), south, east = rectangle && east == 180 ? 180 : Canonical(east), north };
+}
+
+/// <summary>Only compact grouped facts leave PostgreSQL, including a separate null-position bucket.</summary>
+internal sealed class HistoryCellRow
+{
+    public int? X { get; set; }
+    public int? Y { get; set; }
+    public long Count { get; set; }
+    public double? West { get; set; }
+    public double? East { get; set; }
+    public double? South { get; set; }
+    public double? North { get; set; }
+    public DateTime Earliest { get; set; }
+    public DateTime Latest { get; set; }
+    public int? SingletonId { get; set; }
+    public string? SingletonUuid { get; set; }
+}

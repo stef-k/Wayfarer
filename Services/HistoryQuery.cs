@@ -116,7 +116,11 @@ internal sealed class HistoryQuery
     {
         if (Scope.TimeMode != "daily") return local >= Start && local < End;
         var anchor = local.Date;
-        if (Overnight && local.TimeOfDay < UntilTime) anchor = anchor.AddDays(-1);
+        if (Overnight && local.TimeOfDay < UntilTime)
+        {
+            if (anchor == DateTime.MinValue.Date) return false;
+            anchor = anchor.AddDays(-1);
+        }
         return anchor >= Start && anchor < End && (Overnight
             ? local.TimeOfDay >= FromTime || local.TimeOfDay < UntilTime
             : local.TimeOfDay >= FromTime && local.TimeOfDay < UntilTime);
@@ -146,12 +150,21 @@ internal sealed class HistoryQuery
     /// <summary>Only microsecond ISO forms are accepted; UTC requires an explicit offset.</summary>
     private static DateTime ParseDateTime(string? value, bool utc)
     {
-        var pattern = @"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,6})?" + (utc ? @"(Z|[+-][0-9]{2}:[0-9]{2})$" : "$");
+        var pattern = @"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}"
+            + (utc ? @":[0-9]{2}(\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$" : @"(:[0-9]{2}(\.[0-9]{1,6})?)?$");
         if (value == null || !Regex.IsMatch(value, pattern, RegexOptions.CultureInvariant)) throw Invalid();
         if (utc)
         {
-            if (!DateTimeOffset.TryParse(value, Invariant, DateTimeStyles.None, out var instant)) throw Invalid();
-            return instant.UtcDateTime;
+            var zulu = value.EndsWith('Z');
+            var wallText = zulu ? value[..^1] : value[..^6];
+            if (!DateTime.TryParse(wallText, Invariant, DateTimeStyles.None, out var wall)) throw Invalid();
+            var hours = zulu ? 0 : int.Parse(value.AsSpan(value.Length - 5, 2), Invariant);
+            var minutes = zulu ? 0 : int.Parse(value.AsSpan(value.Length - 2, 2), Invariant);
+            if (hours > 23 || minutes > 59) throw Invalid();
+            var seconds = (hours * 3600L + minutes * 60L) * (!zulu && value[^6] == '-' ? -1 : 1);
+            var ticks = wall.Ticks - seconds * TimeSpan.TicksPerSecond;
+            if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks) throw Invalid();
+            return new DateTime(ticks, DateTimeKind.Utc);
         }
         if (!DateTime.TryParse(value, Invariant, DateTimeStyles.None, out var local)) throw Invalid();
         return DateTime.SpecifyKind(local, DateTimeKind.Unspecified);

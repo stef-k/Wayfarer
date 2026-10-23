@@ -17,6 +17,11 @@ internal sealed class HistoryPredicate
     internal readonly List<NpgsqlParameter> Parameters = [];
     internal string Where { get; }
     internal string Truth { get; }
+    internal string Matches { get; }
+    private string _timeMatch = "TRUE";
+    private string _areaMatch = "TRUE";
+    private static readonly int MinCaptureOffset = DateTimeZoneProviders.Tzdb.Ids.Min(id => DateTimeZoneProviders.Tzdb[id].MinOffset.Seconds);
+    private static readonly int MaxCaptureOffset = DateTimeZoneProviders.Tzdb.Ids.Max(id => DateTimeZoneProviders.Tzdb[id].MaxOffset.Seconds);
 
     /// <summary>All reliable dimensions precede page/aggregation; unknown event/area evidence cannot disappear.</summary>
     internal HistoryPredicate(string owner, HistoryQuery query, CancellationToken token)
@@ -40,6 +45,7 @@ internal sealed class HistoryPredicate
         var area = scope.Area == null ? "TRUE" : AreaTruth(scope.Area);
         Where = string.Join(" AND ", filters.Select(value => "(" + value + ")"));
         Truth = $"(({time}) AND ({area}))";
+        Matches = $"({_timeMatch}) AND ({_areaMatch})";
     }
 
     /// <summary>A fresh parameter instance is required for each EF/Npgsql command.</summary>
@@ -47,7 +53,9 @@ internal sealed class HistoryPredicate
     internal string Add(object value)
     {
         var name = "p" + Parameters.Count;
-        Parameters.Add(new NpgsqlParameter(name, value));
+        var parameter = new NpgsqlParameter(name, value);
+        if (value is TimeSpan) parameter.NpgsqlDbType = NpgsqlDbType.Time;
+        Parameters.Add(parameter);
         return "@" + name;
     }
 
@@ -55,18 +63,23 @@ internal sealed class HistoryPredicate
     private string TimeTruth(HistoryQuery query, CancellationToken token)
     {
         if (query.Scope.TimeBasis == "utc")
-            return $"CASE WHEN {EventValid} THEN l.\"LocalTimestamp\" >= {Add(query.Start)} AND l.\"LocalTimestamp\" < {Add(query.End)} END";
+        {
+            var exact = $"l.\"LocalTimestamp\" >= {Add(query.Start)} AND l.\"LocalTimestamp\" < {Add(query.End)}";
+            _timeMatch = $"({EventValid}) AND {exact}";
+            return $"CASE WHEN {EventValid} THEN {exact} END";
+        }
         var start = query.Scope.TimeMode == "daily" ? query.Start.Add(query.FromTime) : query.Start;
         var end = query.Scope.TimeMode == "daily"
             ? (query.Overnight ? query.End : query.End.AddDays(-1)).Add(query.UntilTime) : query.End;
-        var min = query.Scope.TimeBasis == "viewer" ? query.Zone.MinOffset.Seconds : DateTimeZoneProviders.Tzdb.Ids.Min(id => DateTimeZoneProviders.Tzdb[id].MinOffset.Seconds);
-        var max = query.Scope.TimeBasis == "viewer" ? query.Zone.MaxOffset.Seconds : DateTimeZoneProviders.Tzdb.Ids.Max(id => DateTimeZoneProviders.Tzdb[id].MaxOffset.Seconds);
+        var min = query.Scope.TimeBasis == "viewer" ? query.Zone.MinOffset.Seconds : MinCaptureOffset;
+        var max = query.Scope.TimeBasis == "viewer" ? query.Zone.MaxOffset.Seconds : MaxCaptureOffset;
         var lower = ClipUtc(start, -max);
         var upper = ClipUtc(end, -min);
         var envelope = $"l.\"LocalTimestamp\" >= {Add(lower)} AND l.\"LocalTimestamp\" <= {Add(upper)}";
         if (query.Scope.TimeBasis == "capture")
         {
             var wall = Wall("l.\"CaptureLocalTimestamp\"", query);
+            _timeMatch = $"({EventValid}) AND {envelope} AND l.\"HistoryTimeStatus\" = 'resolved' AND {wall}";
             return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE WHEN l.\"HistoryTimeStatus\" = 'resolved' THEN {wall} END";
         }
         var starts = new List<DateTime>(); var ends = new List<DateTime>(); var offsets = new List<int>();
@@ -82,7 +95,10 @@ internal sealed class HistoryPredicate
         var lo = Add(starts.ToArray()); var hi = Add(ends.ToArray()); var off = Add(offsets.ToArray());
         var local = "((l.\"LocalTimestamp\" AT TIME ZONE 'UTC') + s.off * interval '1 second')";
         var predicate = Wall(local, query);
-        return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE ELSE EXISTS (SELECT FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND l.\"LocalTimestamp\" < s.hi AND {predicate}) END";
+        var endComparison = upper.Ticks == DateTime.MaxValue.Ticks - 9 ? "<=" : "<";
+        var exactViewer = $"EXISTS (SELECT FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND (l.\"LocalTimestamp\" < s.hi OR (s.hi = {Add(upper)} AND l.\"LocalTimestamp\" {endComparison} s.hi)) AND {predicate})";
+        _timeMatch = $"({EventValid}) AND {envelope} AND {exactViewer}";
+        return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE ELSE {exactViewer} END";
     }
 
     /// <summary>Wall arithmetic preserves fold occurrences, gaps, non-hour offsets and overnight anchor dates.</summary>
@@ -106,7 +122,9 @@ internal sealed class HistoryPredicate
             : $"({geometry} && ST_MakeEnvelope({west},{south},180,{north},4326) OR {geometry} && ST_MakeEnvelope(-180,{south},{east},{north},4326))";
         // Longitude +180 is canonical -180, even for a non-wrapping rectangle beginning at -180.
         if (area.West == -180 || area.West > area.East) box = $"({box} OR ({geometry} && ST_MakeEnvelope(180,{south},180,{north},4326)))";
-        return $"CASE WHEN {PositionValid} THEN {box} AND ({longitude}) AND {Latitude} >= {south} AND ({Latitude} < {north} OR ({north} = 90 AND {Latitude} = 90)) END";
+        var exact = $"{box} AND ({longitude}) AND {Latitude} >= {south} AND ({Latitude} < {north} OR ({north} = 90 AND {Latitude} = 90))";
+        _areaMatch = $"({PositionValid}) AND {exact}";
+        return $"CASE WHEN {PositionValid} THEN {exact} END";
     }
 
     /// <summary>Optimizing envelopes clip safely; the exact predicate always makes the membership decision.</summary>

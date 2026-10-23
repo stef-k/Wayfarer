@@ -8,6 +8,191 @@ Wayfarer's API is implemented by the controllers under `Areas/Api/Controllers/`.
 
 Development exposes Swagger UI at `/swagger`. Swagger is not enabled by the normal Production middleware path.
 
+## Personal history bearer reads (#918 I918-B)
+
+`GET /api/location/history`, `GET /api/location/history/overview` and
+`GET /api/location/history/{locationId:int}` require one strict `Bearer` header
+and the current active owner. Cookies cannot authorize them and there is no owner
+parameter. Missing/revoked credentials or an inactive account return the existing
+normalized API 401; missing and foreign detail share the same generic 404. Authority
+is checked at request time (#907); an already authorized read may finish after
+revocation/deactivation. Every success/error is `Cache-Control: no-store`.
+
+These are live browsing reads, not backup, synchronization or deletion evidence.
+One read-only repeatable-read database view covers preparation, data, counts and
+publication per response. Later requests can observe changes. Stable identity is
+trusted normalized server origin + `subjectId` + `locationId`; nullable UUID is an
+additional portable alias in D format. Absence, exhausted paging and detail 404
+never establish keyed deletion (#838 retains that authority).
+
+### Collection request and exact predicates
+
+Both collection routes share one normalized SQL scope, echoed in `scope`, and a
+subject/rules-bound `scopeKey`. Values must be URL encoded. Unknown keys, repeated
+scalars, conflicting/irrelevant parameters, invalid Unicode/NUL, nonfinite numbers,
+empty/reversed intervals and unsupported precision are controlled 400 errors.
+Operational query input is bounded by 8192 UTF-8 bytes and the serving request-target
+limit. There is no history-retention or one-/two-year range cap.
+
+| Parameter | Meaning |
+| --- | --- |
+| `timeBasis` | Required `utc`, `capture`, `viewer`. |
+| `timeMode` | Required `interval`, `days`, `daily`; UTC supports interval only. |
+| `viewerZone` | Required serving NodaTime IANA zone for display in every mode; aliases echo the canonical zone. Never the host zone. |
+| `startUtc`, `endUtc` | UTC interval only: explicit-offset RFC3339, normalized UTC `[start,end)`. |
+| `fromLocal`, `untilLocal` | Capture/viewer interval: offset-free ISO datetime, `[from,until)`. |
+| `fromDate`, `throughDate` | Days/daily: inclusive ISO calendar dates. |
+| `fromTime`, `untilTime` | Daily only, `HH:mm[:ss[.ffffff]]`; equal values invalid. |
+| `q` | Optional literal whole phrase, at most 256 Unicode scalars before normalization. Whitespace-only means no predicate. |
+| `activityIds`, `includeUnassigned` | Comma-separated positive catalog IDs (OR) and boolean. Resolve retained redirects, deduplicate/sort/echo canonical IDs. Null activity is distinct from an activity named Unknown. Omission means all; `includeUnassigned=true` alone means null only. Empty/false-only selections are invalid. |
+| `west`, `south`, `east`, `north` | All four or none: exact WGS84 rectangle, no padding. West greater than east wraps; equal longitude/nonpositive latitude spans are invalid. Longitude `[west,east)` canonicalizes recorded +180 to -180; latitude `[south,north)`, including +90 at the world maximum. |
+
+Calendar years are 0001–9999, with at most six fractional digits; next-day bounds
+must be representable. Event UTC is `LocalTimestamp`, not `Timestamp` or presence
+admission. Continuous wall intervals include intervening daytime. Days mean whole
+calendar days, independent of elapsed-day length. Recurring overnight dates name
+start days: 10–12 October 22:00–02:00 includes early 13 October and excludes early
+10 October. Both fold occurrences match, gaps/skipped dates create no records,
+and historical offsets can include seconds. Capture predicates use I918-A's stored
+facts. Viewer predicates use serving NodaTime transition segments with wall arithmetic
+inside PostgreSQL, independently of PostgreSQL's installed TZDB.
+
+Time AND text AND activity AND area apply before paging/aggregation. Text searches
+Notes and Address, FullAddress, ProviderAddressLine1, AddressNumber, StreetName,
+PostCode, Place, Region, Country, ResolvedFeatureName. It uses the exact I918-A
+[normalizer and equivalences](../maintainer/history-preparation.md#text-equivalences-and-matching):
+visible sanitized Notes, compatibility normalization, selected Latin/Greek accent
+folding, invariant case and collapsed whitespace. `cafe` matches `café`; `%`, `_`
+and backslash are literal. No phrase crosses fields; no fuzzy/stemming/translation
+or script transliteration. Short/punctuation phrases use exact `strpos`; useful
+trigrams use escaped literal LIKE over prepared C-collated text. No raw Notes
+history scan, per-row coordinate conversion, provider lookup or mutation occurs.
+
+### Pages, overview and coverage
+
+Common envelope: `{subjectId,profile,scopeKey,scope,derivationVersions,observedAtUtc,
+consistency:"live-request",coverage,...}`. `observedAtUtc` is observation time, not
+a commit/revision watermark. `coverage` has `membership:"complete"|"incomplete"`,
+`resultExtent:"page"|"aggregation"|"candidatesPage"` and
+`unresolvedCandidateCount` as a decimal string. This exact conservative candidate
+count covers the entire scope before continuation. It is not a confirmed match
+count. Reliable false predicates exclude rows; otherwise unevaluable required
+time/area evidence remains unknown. Zero known matches plus candidates is not
+“no history”. Complete membership is not exhaustive retained history or sync proof.
+
+History adds `pageSize` (default 100, max 500), `continuation` and
+`resultSet=matches|unresolvedCandidates` (default matches). Response adds
+`{items,nextContinuation}`. Matches use `owner-summary-1` and
+`(eventUtc DESC,locationId DESC)` at microsecond precision. Candidates use
+`owner-unresolved-1`, ID descending, `filterMembership:"undetermined"` and safe
+`reasonCodes`. They are inspection records, not matching history. The two cursors
+are independent. No full match total is attached to every page.
+
+Continuations are protected with a dedicated Data Protection purpose and bind
+subject, complete normalized predicate, interpretation/derivation versions,
+profile, result set, order and page size. They do not require a surviving anchor.
+Tampered/retired/unknown-version/foreign/changed-scope tokens return generic
+400 `continuationInvalid`, without silently restarting. A new valid credential
+for the same owner may resume. Page size, result set and overview grid do not
+change matching scope; their cursors still bind applicable controls.
+
+Inserts below an anchor may appear later; above-anchor inserts need refresh.
+Event edits can repeat seen records moved below or miss unseen records moved
+above; deduplicate by stable identity and refresh. Text/activity/coordinate edits
+change membership/cells. Deletes remove later results; previous positives may be
+stale. Neither absence nor a repeated record authorizes deletion.
+
+Overview accepts `grid` only beyond common filters (integer 1–16, default 16).
+It independently groups every definite match, with no sampling/top-N/chronology
+prerequisite. It adds decimal-string signed-64-bit `knownMatchCount`,
+`mappedMatchCount`, `unmappedMatchCount`, plus `grid` and `cells` (at most 256).
+Known=mapped+unmapped; cell counts sum to mapped. In world UTC/viewer scope,
+unknown positions may be definite unmapped matches. With an area filter unknown
+position instead contributes a candidate. Candidates never enter matching cells.
+
+Each cell contains `{cellKey,bounds,occupiedBounds,displayPoint,recordCount,
+earliestEventUtc,latestEventUtc,singleton}`. Bounds partition the selected area;
+wrapping areas use an unwrapped longitude internally and canonical bounds on the
+wire. Occupied bounds enclose actual matching coordinates; displayPoint is their
+synthetic midpoint. Extrema do not assert continuous presence. Singleton has actual
+ID/UUID only for count=1; multiple records have no arbitrary representative.
+Cells are aggregates, not recorded Locations, routes or Visits. Dense clusters,
+distant sparse destinations and coincident records all remain reachable.
+
+Request a cell's exact bounds on overview or history for refinement/paged choices,
+keeping time/text/activity, then use direct detail. This works with chronology
+closed. These requests create an explicit new area scope; a page never changes
+map geography. Consumers fence stale session/query/viewport replies and preserve
+selection by identity independently of matching. No automatic camera reset follows
+refresh. Full map-first consumer composition/scale qualification remains I918-C.
+
+### Profiles and complete owner detail
+
+`owner-summary-1` declares locationId, nullable uuid, eventUtc, position,
+captureTime, viewerTime, nullable activityTypeId, activityNamePreview and labelPreview.
+Each preview is `{text,truncated}` capped at 160 Unicode scalars; it is not a full
+retained field. Position has `{status:"available",longitude,latitude}` or
+`{status:"unavailable",reason}`. Time facts have `{status,local,zoneId,offsetSeconds,
+version}` when available; unavailable/pending facts carry a safe reason and version,
+without invented wall values. Viewer facts use the serving rules. Capture uses
+prepared versioned facts; stored TimeZoneId is preserved separately and does not
+override coordinate derivation. An unresolved event is an unavailable status object
+in candidate inspection. Summaries/candidates cannot clear richer retained detail.
+
+Detail accepts only `viewerZone`, and remains independent of active filters,
+list traversal, overview and collection preparation. Envelope:
+`{subjectId,profile:"owner-detail-1",observedAtUtc,derivationVersions,record,
+unavailableFields,filterMembership:"not-evaluated"}`. `record` includes every field
+below, including known nulls. Unrepresentable stored numeric/time fields are omitted
+with an `unavailableFields` reason, never serialized as nonfinite JSON or fabricated
+null. Other unavailable evidence has explicit position/time status objects.
+
+| Detail fields | Stored authority |
+| --- | --- |
+| locationId, uuid, eventUtc, storedTimestampUtc, storedTimeZoneId | Id, IdempotencyKey, LocalTimestamp, Timestamp, TimeZoneId. Timestamp can be imported; it is not universally receipt/modified time. |
+| coordinateOrigin, observedAtUtc, observedAgeAtEventMs, presenceObservedAtUtc | Retained fix/event/admission evidence. No invented clocks. |
+| position, accuracy, altitude, speed, bearing, locationType | Stored coordinates/type/measurements: accuracy/altitude meters, bearing degrees, legacy speed may be m/s or km/h (no stronger unit guarantee). |
+| activityTypeId, activityName, notesHtml | Nullable catalog ID/current joined name; complete non-mutating RichNotes.Normalize publication, without a new truncation cap. |
+| address, fullAddress, providerAddressLine1, addressNumber, streetName, postCode, place, region, country | Complete corresponding stored text. |
+| resolvedFeatureName, resolvedFeatureType, reverseGeocodingProvider, reverseGeocodingStorageMode, reverseGeocodedAt | Complete retained enrichment/provenance. |
+| source, isUserInvoked, provider, appVersion, appBuild, deviceModel, osVersion, batteryLevel, isCharging | Corresponding private owner metadata. |
+| captureTime, viewerTime | Explicit evidence status and version provenance, as above. |
+
+No original submitted offset/device-local zone or modification revision is invented.
+No credentials, navigation entities or internal derivation/search columns are
+published. Detail can select an out-of-filter ID; `not-evaluated` proves neither
+matching nor outside status. Consumers preserve originating scope, richer retained
+facts, immutable originals, drafts and absorbing known-key deletion under their
+session/query/record fences. Detail must not add a selected record into filter counts.
+
+### Preparation and protective limits
+
+The [I918-A runbook](../maintainer/history-preparation.md) remains upgrade authority.
+Capture collections require all-owner ready time generation; nonempty q requires
+all-owner ready text generation, including matching target/active/writer versions,
+physical indexes and zero pending work in the response snapshot. Affected operations
+return 503 `historyPreparationRequired`. UTC/viewer nontext reads and direct detail
+remain available with explicit pending capture evidence when applicable. Exceptional
+current-version unresolved evidence instead returns labelled incomplete 200.
+
+Collections use separate nonwaiting admission at two reads per owner/four globally,
+independently of ingestion. Detail has an independent four-owner/sixteen-global pool.
+A five-second collection end-to-end budget (detail thirty seconds) covers lookup,
+SQL, projection and buffered JSON before success; remaining-time cancellation also
+reaches SQL. These are initial protective engineering defaults, not a production
+latency/capacity promise. Disconnects cancel work; incomplete evaluation never
+becomes a partial successful page/overview. Ordinary multi-year and long detail
+qualification remains explicitly I918-C, not inferred from SQL plan timings.
+
+Controlled 400 codes are `parametersInvalid`, `activityInvalid`,
+`continuationInvalid`. Owner admission is 429 `historyOwnerAdmissionExceeded` with
+`Retry-After: 5`; global admission is 503 `historyAdmissionUnavailable` with that hint.
+Token lookup retains its existing admission behavior. Other controlled 503 codes
+are `historyPreparationRequired`, `historyBudgetExceeded`, `historyStoreUnavailable`.
+Errors use fixed messages, without SQL, credentials or private query content;
+unexpected failures retain the generic API 500 path. No provider/media acquisition,
+presence/Visit, queue, ingestion or persistent read effects are introduced.
+
 ## Authentication modes
 
 Wayfarer has three API access patterns:

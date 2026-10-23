@@ -5,9 +5,9 @@ title: History derivation and upgrade preparation
 # History derivation and upgrade preparation
 
 Issue #918 package I918-A supplies internal data and upgrade readiness. It does
-not deliver the history routes, advertise consumer capability, or complete #918.
-I918-B owns routed reads and dependent-operation gates; I918-C owns routed
-qualification and consumer documentation. #604 owns any actual M6/maintainer
+not by itself deliver the history routes or complete #918.
+I918-B supplies [routed reads and dependent-operation gates](../development/api.md#personal-history-bearer-reads-918-i918-b); I918-C retains final routed
+qualification and consumer composition documentation. #604 owns any actual M6/maintainer
 instance work. This procedure grants no production operation authority.
 
 ## Authorities and upgrade boundary
@@ -109,7 +109,7 @@ imported `TimeZoneId` are preserved; the imported zone does not override coordin
 
 Readiness requires matching target/active/writer identities, valid indexes and zero
 pending rows across every owner. Current-version unresolved time is terminal
-classified evidence, counted separately from pending. I918-B must inspect status
+classified evidence, counted separately from pending. I918-B inspects status
 in the response snapshot: capture predicates depend on time readiness, nonempty
 search on text readiness. Affected operations return `historyPreparationRequired`;
 unaffected UTC/viewer/nontext reads and direct detail retain their contracts.

@@ -54,6 +54,17 @@ public sealed class HistoryQueryTests
         Assert.Throws<HistoryRequestException>(() => Parse("?timeBasis=viewer&timeMode=days&viewerZone=UTC&fromDate=9999-12-31&throughDate=9999-12-31"));
     }
 
+    /// <summary>RFC3339 offsets normalize exactly, while extra precision and unrepresentable instants are rejected.</summary>
+    [Fact]
+    public void ExplicitOffsetsAndPrecisionPreserveMembership()
+    {
+        var query = Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-02T00:00:00%2B15:00&endUtc=2025-01-02T00:00:00%2B14:00");
+        Assert.Equal("2025-01-01T09:00:00.000000Z", query.Scope.StartUtc);
+        Assert.Throws<HistoryRequestException>(() => Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-01T00:00:00.0000001Z&endUtc=2025-02-01T00:00:00Z"));
+        Assert.Throws<HistoryRequestException>(() => Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=0001-01-01T00:00:00%2B01:00&endUtc=2025-02-01T00:00:00Z"));
+        Assert.Equal(new DateTime(2025, 1, 1, 12, 0, 0), Parse("?timeBasis=capture&timeMode=interval&viewerZone=UTC&fromLocal=2025-01-01T12:00&untilLocal=2025-01-01T13:00").Start);
+    }
+
     /// <summary>Use the same query collection parser as the route, without a host or database.</summary>
     internal static HistoryQuery Parse(string value, bool overview = false)
     {
