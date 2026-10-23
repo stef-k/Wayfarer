@@ -30,6 +30,7 @@ public class ApiErrorResponseMiddlewareTests
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         document.RootElement.GetProperty("status").GetInt32().Should().Be(statusCode);
         document.RootElement.GetProperty("error").GetString().Should().Be(error);
+        response.Headers.GetValues("Set-Cookie").Should().Contain("session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/");
     }
 
     /// <summary>Unhandled failures keep the envelope and correlate only bounded diagnostic context.</summary>
@@ -42,12 +43,14 @@ public class ApiErrorResponseMiddlewareTests
         context.Request.Path = "/api/test-error";
         context.TraceIdentifier = "request-663";
         context.Response.Body = new MemoryStream();
+        context.Response.Headers.SetCookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
         var middleware = new ApiErrorResponseMiddleware(_ => throw new InvalidOperationException("secret-663"));
         await middleware.InvokeAsync(context, factory.CreateLogger<ApiErrorResponseMiddleware>());
         context.Response.Body.Position = 0;
         var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
         using var document = JsonDocument.Parse(json);
         Assert.Equal(500, context.Response.StatusCode);
+        Assert.Contains("session=;", context.Response.Headers.SetCookie.ToString());
         Assert.Equal("Internal Server Error", document.RootElement.GetProperty("error").GetString());
         Assert.Equal("An unexpected error occurred.", document.RootElement.GetProperty("message").GetString());
         Assert.Equal("The request could not be completed.", document.RootElement.GetProperty("details").GetString());
@@ -64,7 +67,13 @@ public class ApiErrorResponseMiddlewareTests
         var host = new HostBuilder().ConfigureWebHost(webHost => webHost.UseTestServer().Configure(app =>
         {
             app.UseMiddleware<ApiErrorResponseMiddleware>();
-            app.Run(context => { context.Response.StatusCode = statusCode; return Task.CompletedTask; });
+            app.Run(context =>
+            {
+                // Terminal no-body results must retain cookie deletions when normalization clears the response.
+                context.Response.Headers.SetCookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+                context.Response.StatusCode = statusCode;
+                return Task.CompletedTask;
+            });
         })).Build();
         await host.StartAsync();
         return host;

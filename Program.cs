@@ -280,6 +280,9 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
         .AddRoles<IdentityRole>() // Adds role-based authorization
         .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
         .AddDefaultTokenProviders(); // Adds support for token-based authentication
+
+    // Check current account activity and stamp on every application-cookie presentation.
+    builder.Services.ConfigureApplicationCookie(ActiveAccountCookie.Configure);
 }
 
 // Method to configure Quartz for job scheduling

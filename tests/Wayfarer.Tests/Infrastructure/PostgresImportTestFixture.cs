@@ -115,6 +115,7 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
             UserName = $"import-fixture-{Guid.NewGuid():N}",
             NormalizedUserName = $"IMPORT-FIXTURE-{Guid.NewGuid():N}",
             DisplayName = "Import fixture",
+            SecurityStamp = Guid.NewGuid().ToString(),
             IsActive = true
         };
         await using var context = CreateContext();

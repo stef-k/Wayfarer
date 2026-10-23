@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
+import { EditorMutationHttpError, ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
 import type { EditorSegment, ExternalRouteProposal, Guid } from '../types';
 import { createSegmentRouteProposalStore } from './segmentRouteProposalState';
 
@@ -81,6 +81,8 @@ function discard(): void {
 }
 
 function boundedMessage(error: unknown): string {
+  // Session rejection must not invite provider retries or discard the current route draft.
+  if (error instanceof EditorMutationHttpError && error.status === 401) return error.message;
   if (!(error instanceof ExternalRouteProposalError)) return 'Route generation is unavailable. The draft is unchanged.';
   if (error.code === 'provider-mode-required' || error.code === 'unsupported-provider-mode') return 'Choose a supported Directions mode and generate again.';
   if (error.code === 'segment-anchors-invalid') return 'Check that every route stop has coordinates and the Segment has at most 50 stops.';

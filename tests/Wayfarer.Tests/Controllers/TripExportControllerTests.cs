@@ -1,18 +1,14 @@
 using System.Net;
 using System.Security.Claims;
 using System.Xml.Linq;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 using Wayfarer.Controllers;
 using Wayfarer.Models;
@@ -289,14 +285,7 @@ public sealed class TripExportPostgresTests(PostgresImportTestFixture fixture) :
         }
 
         // Protect the synthetic owner's ticket with the same Identity cookie configuration used by the host.
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(CreateUserPrincipal(owner.Id), new AuthenticationProperties
-        {
-            IssuedUtc = DateTimeOffset.UtcNow,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10)
-        }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, owner.Id, "User"));
         using (var valid = await client.GetAsync(route))
         {
             Assert.Equal(HttpStatusCode.OK, valid.StatusCode);

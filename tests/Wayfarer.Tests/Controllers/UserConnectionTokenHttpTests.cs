@@ -1,14 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
 using AngleSharp.Html.Parser;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
@@ -52,8 +47,8 @@ public sealed class UserConnectionTokenHttpTests : TestBase
     [InlineData(null, true, true, 302)]
     [InlineData("Admin", true, true, 302)]
     [InlineData("Manager", true, true, 302)]
-    [InlineData("User", false, true, 403)]
-    [InlineData("deleted", true, true, 403)]
+    [InlineData("User", false, true, 302)]
+    [InlineData("deleted", true, true, 302)]
     [InlineData("User", true, false, 400)]
     [InlineData("User", true, true, 201)]
     public async Task Create_EnforcesCookieAccountAndAntiforgery(string? role, bool active, bool antiforgery, int expected)
@@ -101,8 +96,8 @@ public sealed class UserConnectionTokenHttpTests : TestBase
 
     /// <summary>GET is safe, owner-scoped, and requires a User cookie even when it only returns metadata.</summary>
     [Theory]
-    [InlineData(null, true, 302)]
-    [InlineData("Admin", true, 302)]
+    [InlineData(null, true, 401)]
+    [InlineData("Admin", true, 403)]
     [InlineData("User", true, 200)]
     [InlineData("User", false, 200)]
     public async Task Get_IsSecretFreeAndDoesNotMutate(string? role, bool exists, int expected)
@@ -190,14 +185,7 @@ public sealed class UserConnectionTokenHttpTests : TestBase
     /// <summary>Uses framework cookie protection, without an invented bearer-to-browser authentication seam.</summary>
     internal static void Cookie(HttpClient client, IServiceProvider services, string userId, string role = "User")
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Name, userId),
-            new Claim(ClaimTypes.Role, role)], scheme));
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties
-            { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(services, userId, role));
     }
 
     /// <summary>Preserves the Identity cookie while adding authentic framework antiforgery cookie/header values.</summary>

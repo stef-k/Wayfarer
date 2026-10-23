@@ -60,22 +60,26 @@ const saveShareProgress = async (enabled) => {
         const response = await fetch(`/User/Trip/ToggleShareProgress?id=${tripId}&enabled=${enabled}`, {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'RequestVerificationToken': token
             }
         });
 
+        if (response.status === 401) {
+            throw new Error('Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
+        }
         const result = await response.json();
-        if (result.success) {
+        if (response.ok && result.success) {
             syncToggles(result.enabled);
         } else {
-            // Revert on error
-            syncToggles(!enabled);
-            console.error('Failed to save share progress:', result.error);
+            throw new Error(result.message || result.error || 'Share progress could not be saved.');
         }
     } catch (error) {
         // Revert on error
         syncToggles(!enabled);
+        // Use the same visible rejection convention as other Trip actions; never leave a success badge.
+        wayfarer.showAlert('danger', error instanceof Error ? error.message : 'Share progress could not be saved.');
         console.error('Failed to save share progress:', error);
     }
 };

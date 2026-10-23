@@ -1,13 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using AngleSharp.Html.Parser;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Util;
@@ -84,10 +79,10 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
     [InlineData(null, "Bearer phone", false, 200)]
     [InlineData(null, "Bearer invalid", false, 401)]
     [InlineData(null, null, false, 401)]
-    [InlineData("inactive", "Bearer phone", false, 400)]
+    [InlineData("inactive", "Bearer phone", false, 401)]
     [InlineData("inactive", "Bearer phone", true, 401)]
     [InlineData("missing", "Bearer phone", true, 401)]
-    [InlineData("missing", "Bearer phone", false, 400)]
+    [InlineData("missing", "Bearer phone", false, 401)]
     public async Task LocationPut_PreservesAuthority(string? cookieUser, string? bearer, bool token, int status)
     {
         var db = Seed();
@@ -101,7 +96,12 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         Assert.Equal(status, (int)response.StatusCode);
         Assert.Equal(status == 200 ? "changed" : "original", db.Locations.Find(target)!.Notes);
         Assert.Equal("original", db.Locations.Find(target == 1 ? 2 : 1)!.Notes);
-        if (status == 401) Assert.Equal("Invalid or missing API token.", await response.Content.ReadAsStringAsync());
+        if (status == 401)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            if (cookieUser is "inactive" or "missing") Assert.Contains("session has ended", body);
+            else Assert.Equal("Invalid or missing API token.", body);
+        }
     }
 
     /// <summary>A bearer owner's antiforgery pair cannot authorize the selected cookie owner's request.</summary>
@@ -299,15 +299,8 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
     /// <summary>Issue an actual protected Identity cookie; authentication still runs through the framework handler.</summary>
     private static void Cookie(HttpClient client, IServiceProvider services, string userId)
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Name, userId),
-            new Claim(ClaimTypes.Role, "User")], scheme));
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties
-            { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
         client.DefaultRequestHeaders.Remove("Cookie");
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(services, userId, "User"));
     }
 
     /// <summary>Keep the authenticated cookie when adding the framework's antiforgery cookie.</summary>

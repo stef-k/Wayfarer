@@ -47,6 +47,9 @@ namespace Wayfarer.Areas.Api.Controllers
         /// <returns>The ApplicationUser or null if not found.</returns>
         protected internal ApplicationUser? GetUserFromTokenOrCookie()
         {
+            // Rejected/expired website credentials cannot silently select another bearer identity.
+            if (Wayfarer.Services.ActiveAccountCookie.HasCookieAuthority(HttpContext)
+                && User?.Identity?.IsAuthenticated != true) return null;
             if (User?.Identity?.IsAuthenticated == true)
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

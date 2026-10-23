@@ -343,14 +343,13 @@ namespace Wayfarer.Areas.Manager.Controllers
                 user.IsProtected = model.IsProtected;
 
                 // Eligibility already proves exactly User; leave role membership untouched.
-                IdentityResult updateResult = await _userManager.UpdateAsync(user);
+                // Persist account fields and session invalidation in one Identity save, including deactivation.
+                IdentityResult updateResult = await _userManager.UpdateSecurityStampAsync(user);
                 if (updateResult.Succeeded)
                 {
                     LogAudit("Edit User", "User Data Changed", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
                     LogAction("User Edit", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
 
-                    // Successful account edits continue invalidating existing sessions.
-                    await _userManager.UpdateSecurityStampAsync(user);
                     LogAction("User Edit", $"Invalidate User {user.UserName} sessions after account update");
 
                     return RedirectWithAlert("Index", "Users", $"User {model.UserName} data has been updated successfuly", "success", routeValues: null, "Manager");

@@ -172,6 +172,27 @@ test('one Generate with existing geometry requests a preview without confirmatio
   } finally { globalThis.fetch = previousFetch; }
 });
 
+test('Generate session rejection explains fresh login and preserves the draft', async () => {
+  const { default: component, render } = await loadProposalComponent();
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{}', { status: 401 });
+  let bindings;
+  const props = { segment: { id: 'segment', mode: 'Fish', externalRouting: { available: true, modes: [] } },
+    draftMode: 'Fish', draftHasRoute: true, draftContextKey: 'context' };
+  try {
+    await renderToString(createSSRApp({ setup() {
+      bindings = proxyRefs(component.setup(props, { expose() {}, emit() {} }));
+      bindings.selectedProviderMode = 'drive';
+      return () => render({}, [], props, bindings, {}, {});
+    } }));
+    await bindings.generate();
+    assert.match(bindings.state.error, /session has ended.*Sign in again/);
+    assert.equal(bindings.state.proposal, null);
+    assert.equal(props.draftHasRoute, true);
+    assert.equal(props.draftMode, 'Fish');
+  } finally { globalThis.fetch = previousFetch; }
+});
+
 test('pending template labels present, absent and zero estimates and explains Manual precedence', async () => {
   const { default: component, render } = await loadProposalComponent();
   const props = { segment: { id: 'segment', mode: 'walk', externalRouting: { available: true, modes: [] } },

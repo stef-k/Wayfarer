@@ -1,15 +1,11 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Wayfarer.Models;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models.Dtos.Editor;
@@ -34,7 +30,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
         var place = SeedMetadata(trip, "Old address");
-        db.Users.Add(new ApplicationUser { Id = "owner-user", UserName = "Owner", DisplayName = "Owner", IsActive = true });
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner-user", username: "Owner", displayName: "Owner"));
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
@@ -43,11 +39,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
             services.AddSingleton(BuildController(db));
         });
         using var client = app.GetTestClient();
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(BuildHttpContextWithUser("owner-user", "User").User,
-            new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        var authCookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        var authCookie = IdentityRouteHost.Cookie(app.Services, "owner-user", "User");
         client.DefaultRequestHeaders.Add("Cookie", authCookie);
         var token = await IdentityRouteHost.AntiforgeryAsync(client);
         var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();

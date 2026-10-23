@@ -1,10 +1,7 @@
 using System.Net;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.TestHost;
@@ -12,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 using Wayfarer.Areas.Admin.Controllers;
@@ -247,12 +243,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             const string description = "Original <strong>prose</strong> & \"quoted\" text.\nSecond line.";
             await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
             using var client = app.GetTestClient();
-            var scheme = IdentityConstants.ApplicationScheme;
-            var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-            var ticket = new AuthenticationTicket(BuildHttpContextWithUser(admin.Id, "Admin").User,
-                new AuthenticationProperties
-                { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-            var authCookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+            var authCookie = IdentityRouteHost.Cookie(app.Services, admin.Id, "Admin");
             client.DefaultRequestHeaders.Add("Cookie", authCookie);
             var antiforgery = await IdentityRouteHost.AntiforgeryAsync(client);
             var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();

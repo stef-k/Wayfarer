@@ -16,9 +16,15 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var http = context.HttpContext;
+        // The cookie validator already removed this identity; preserve cookie priority before bearer resolution.
+        if (ActiveAccountCookie.HasCookieAuthority(http) && http.User.Identity?.IsAuthenticated != true)
+        {
+            context.Result = new UnauthorizedObjectResult(new { message = ActiveAccountCookie.SessionEndedMessage });
+            return;
+        }
         if (http.User.Identity?.IsAuthenticated == true)
         {
-            // Validate even if the cookie's account has since become inactive or disappeared.
+            // The selected active cookie still requires genuine antiforgery, regardless of bearer headers.
             var antiforgery = http.RequestServices.GetRequiredService<IAntiforgery>();
             if (!await antiforgery.IsRequestValidAsync(http))
             {

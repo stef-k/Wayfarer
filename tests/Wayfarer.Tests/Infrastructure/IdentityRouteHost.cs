@@ -1,15 +1,20 @@
 using System.Net;
 using System.Reflection;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using System.Security.Claims;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
 using Wayfarer.Services;
@@ -20,6 +25,28 @@ namespace Wayfarer.Tests.Infrastructure;
 /// <summary>Real production Identity/MVC parts without database migrations, jobs or startup seeding.</summary>
 internal static class IdentityRouteHost
 {
+    /// <summary>Protects a representative Identity ticket with the persisted account's security stamp.</summary>
+    public static string Cookie(IServiceProvider services, string userId, string role = "User")
+    {
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var stamp = db.Users.Where(user => user.Id == userId).Select(user => user.SecurityStamp).SingleOrDefault();
+        var scheme = IdentityConstants.ApplicationScheme;
+        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, userId),
+            new(ClaimTypes.Name, userId),
+            new(ClaimTypes.Role, role)
+        };
+        if (stamp != null) claims.Add(new("AspNet.Identity.SecurityStamp", stamp));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, scheme));
+        var ticket = new AuthenticationTicket(principal,
+            new AuthenticationProperties
+            { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
+        return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+    }
+
     /// <summary>Starts production MVC/Identity parts with optional service and pre-routing middleware setup.</summary>
     public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
         Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null)
@@ -86,7 +113,8 @@ internal static class IdentityRouteHost
         using var response = await client.GetAsync("/test-antiforgery");
         response.EnsureSuccessStatusCode();
         client.DefaultRequestHeaders.Remove("Cookie");
-        client.DefaultRequestHeaders.Add("Cookie", response.Headers.GetValues("Set-Cookie").Single().Split(';')[0]);
+        client.DefaultRequestHeaders.Add("Cookie", response.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal)).Split(';')[0]);
         return await response.Content.ReadAsStringAsync();
     }
 }

@@ -152,6 +152,7 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
             UserName = id,
             NormalizedUserName = id.ToUpperInvariant(),
             DisplayName = "Migration fixture",
+            SecurityStamp = Guid.NewGuid().ToString(),
             IsActive = true
         };
         await using var context = CreateContext();

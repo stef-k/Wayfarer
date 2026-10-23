@@ -1,16 +1,11 @@
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
@@ -293,13 +288,7 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
     private string OwnerCookie(string userId)
     {
         var services = _cookieServices ?? throw new InvalidOperationException("No routed host.");
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId),
-            new Claim(ClaimTypes.Name, userId), new Claim(ClaimTypes.Role, "User")], "fixture"));
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties {
-            IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        return IdentityRouteHost.Cookie(services, userId);
     }
 
     // The existing per-test host supplies its cookie protector only for the duration of the callback.

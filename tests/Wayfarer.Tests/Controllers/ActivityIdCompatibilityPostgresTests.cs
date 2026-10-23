@@ -1,16 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Tests.Mocks;
@@ -177,10 +173,6 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
     /// <summary>Builds a genuine Identity cookie with the existing production ticket format.</summary>
     private static string Cookie(IServiceProvider services, string userId)
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(BuildHttpContextWithUser(userId, "User").User,
-            new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        return IdentityRouteHost.Cookie(services, userId);
     }
 }

@@ -52,7 +52,8 @@ public sealed partial class ApiTripSnapshotPostgresTests
         }
         else Assert.DoesNotContain(Place(trip).Id.ToString(), await response.Content.ReadAsStringAsync());
         if (isPublic || bearer == "absent")
-            Assert.DoesNotContain(gate.Commands, sql => sql.Contains("ApiTokens") || sql.Contains("AspNetUsers"));
+            // Cookie validation now reads the current account before the snapshot; bearer authority remains unresolved.
+            Assert.DoesNotContain(gate.Commands, sql => sql.Contains("ApiTokens") || !cookie && sql.Contains("AspNetUsers"));
         AssertNoWrites(gate);
     }
 
