@@ -13,7 +13,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
         context.expose({ focusNotes() {}, focusRouteAction: () => false }); return () => null;
       } };` };
-      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
+      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface|RegionManager|RegionEditorSurface)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
       const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
       const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
@@ -48,7 +48,7 @@ const metadata = (enabled = false) => ({ id: 'trip', name: 'Trip', notesHtml: ''
 const initial = { tripId: 'trip', metadata: metadata(), regionsById: {}, regionOrder: [], placesById: {}, placeOrderByRegionId: {},
   areasById: {}, areaOrderByRegionId: {}, segmentsById: {}, segmentOrder: [], tagsBySlug: {}, tagOrder: [],
   visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] },
-  options: { iconNames: [], markerColorClasses: [], transportModes: [], tag: { maxTags: 10, suggestionTake: 5 } },
+  options: { iconNames: [], markerColorClasses: [], transportModes: [], areaDefaults: { fillHex: '#ff6600' }, tag: { maxTags: 10, suggestionTake: 5 } },
   permissions: { canEditMetadata: true } };
 const reply = enabled => JSON.stringify({ success: true, data: metadata(enabled), affected: { metadata: metadata(enabled),
   regions: [], places: [], areas: [], segments: [], tags: [], regionOrder: null, segmentOrder: null, tagOrder: null,
@@ -106,7 +106,7 @@ const withApp = async action => {
     assert.ok(editor, 'actual production Metadata owner mounted through App and TripSidebar');
     assert.equal(parent.error, null);
     await nextTick();
-    await action({ parent, editor, navigations, confirmations,
+    await action({ parent, editor, regionEditor: captured['RegionManager.vue'], navigations, confirmations,
       approve: value => { approved = value; },
       visibleText: () => textOf(root),
       button: label => descendants(root).find(node => node.tagName === 'BUTTON' && textOf(node) === label) });
@@ -134,6 +134,68 @@ const observation = (label, owner, requests) => {
   console.log(JSON.stringify({ label, ...state }));
   return state;
 };
+
+// No checkbox reversal: the acknowledgement cleans metadata but cannot exit a newer Region session.
+test('R1: delayed sharing Save & Exit preserves a newer Region draft and navigation protection', () => withApp(async owner => {
+  const { editor, parent, regionEditor } = owner;
+  const gate = deferred();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; await gate.promise; return new Response(enabledReply); };
+  editor.visibleShareProgressEnabled = true;
+  const pending = editor.saveAndExit();
+  await nextTick();
+  owner.approve(true);
+  await regionEditor.openCreate();
+  regionEditor.draft.name = 'Newer Region choice';
+  regionEditor.draft.notesHtml = 'Newer Region notes';
+  await nextTick();
+  gate.resolve();
+  await pending;
+  await nextTick();
+  const settled = observation('R1-late-success-newer-region', owner, calls);
+  console.log(JSON.stringify({ regionName: regionEditor.draft.name, regionNotes: regionEditor.draft.notesHtml,
+    regionDirty: regionEditor.regionDirty, aggregateDirty: editor.hasUnsavedEditorChanges, activeTarget: parent.editorSurface.activeTarget.value }));
+  assert.deepEqual(owner.navigations, [], 'the earlier discard approval cannot authorize losing later work');
+  assert.equal(owner.confirmations.length, 1, 'a superseded continuation must not seek exit permission');
+  assert.equal(parent.editorSurface.activeTarget.value.identity, 'region:add');
+  assert.equal(regionEditor.draft.name, 'Newer Region choice');
+  assert.equal(regionEditor.draft.notesHtml, 'Newer Region notes');
+  assert.equal(regionEditor.regionDirty, true);
+  assert.equal(editor.hasUnsavedEditorChanges, true);
+  assert.equal(settled.unloadWarns, true);
+  assert.equal(settled.dirty, false, 'the valid sharing acknowledgement settles its own attempt');
+  assert.equal(settled.parentSharing, true);
+  assert.equal(settled.baselineSharing, true);
+  assert.equal(settled.draftSharing, true);
+  assert.equal(editor.draftState.sharingAttempt.value, null);
+  assert.equal(editor.saveError, null);
+  assert.equal(calls, 1);
+  owner.approve(false);
+  await editor.backToTrips();
+  assert.equal(owner.confirmations.length, 2, 'the shared navigation action still protects the Region draft');
+  assert.deepEqual(owner.navigations, []);
+}));
+
+// A session change invalidates exit even if the reopened editor is clean; the ordinary path still exits.
+for (const reopened of [false, true]) test(`R1: delayed sharing success ${reopened ? 'cannot exit a reopened session' : 'exits its current clean session'}`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  const gate = deferred();
+  globalThis.fetch = async () => { await gate.promise; return new Response(enabledReply); };
+  editor.visibleShareProgressEnabled = true;
+  const pending = editor.saveAndExit();
+  if (reopened) {
+    owner.approve(true);
+    assert.equal(await parent.editorSurface.closeActiveTarget(), true);
+    await editor.openMetadata();
+  }
+  gate.resolve();
+  await pending;
+  await nextTick();
+  assert.equal(editor.isDirty, false);
+  assert.equal(editor.draftState.sharingAttempt.value, null);
+  assert.equal(parent.state.metadata.shareProgressEnabled, true);
+  assert.deepEqual(owner.navigations, reopened ? [] : ['/User/Trip']);
+}));
 
 test('C3 control: delayed successful enable retains newer disable and next explicit save completes it', () => withApp(async owner => {
   const { editor, parent } = owner;
