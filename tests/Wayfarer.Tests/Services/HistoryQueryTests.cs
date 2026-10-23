@@ -1,0 +1,64 @@
+using Microsoft.AspNetCore.Http;
+using Wayfarer.Services;
+using Xunit;
+
+namespace Wayfarer.Tests.Services;
+
+/// <summary>Strict transport and wall-boundary semantics at the normalized product seam.</summary>
+public sealed class HistoryQueryTests
+{
+    private const string Common = "?timeBasis=capture&timeMode=daily&viewerZone=Europe%2FAthens&fromDate=2025-10-10&throughDate=2025-10-12&fromTime=22:00&untilTime=02:00";
+
+    /// <summary>Overnight dates name start days, including the final spill and excluding the first early hours.</summary>
+    [Theory]
+    [InlineData("2025-10-10T01:00:00", false)]
+    [InlineData("2025-10-10T22:00:00", true)]
+    [InlineData("2025-10-11T02:00:00", false)]
+    [InlineData("2025-10-13T01:59:59.999999", true)]
+    [InlineData("2025-10-13T02:00:00", false)]
+    public void OvernightUsesStartDays(string local, bool expected)
+    {
+        var query = Parse(Common);
+        Assert.Equal(expected, query.ContainsWall(DateTime.Parse(local)));
+    }
+
+    /// <summary>Wrong shapes, precision, Unicode, controls and irrelevant parameters fail before SQL.</summary>
+    [Theory]
+    [InlineData("&fromTime=01:00")]
+    [InlineData("&owner=other")]
+    [InlineData("&grid=4")]
+    [InlineData("&q=%00")]
+    [InlineData("&includeUnassigned=false")]
+    [InlineData("&west=NaN&south=0&east=10&north=10")]
+    [InlineData("&startUtc=2025-01-01T00:00:00Z")]
+    public void InvalidCombinationsAreRejected(string suffix) => Assert.Throws<HistoryRequestException>(() => Parse(Common + suffix));
+
+    /// <summary>Equivalent phrases use I918-A's field normalizer, with response controls outside scope.</summary>
+    [Fact]
+    public void NormalizationAndScopeIgnoreResponseControls()
+    {
+        var first = Parse(Common + "&q=caf%C3%A9%20%20station&pageSize=1");
+        var second = Parse(Common + "&q=CAFE%20STATION&pageSize=500&resultSet=unresolvedCandidates");
+        Assert.Equal("CAFE STATION", first.Scope.Q);
+        Assert.Equal(first.Scope, second.Scope);
+        Assert.Equal(1, first.PageSize);
+    }
+
+    /// <summary>Continuous intervals retain daytime; whole days reject an unrepresentable next boundary.</summary>
+    [Fact]
+    public void ContinuousAndDayBoundsAreExact()
+    {
+        var query = Parse("?timeBasis=viewer&timeMode=interval&viewerZone=UTC&fromLocal=2025-01-01T22:00:00&untilLocal=2025-01-03T02:00:00");
+        Assert.True(query.ContainsWall(new DateTime(2025, 1, 2, 12, 0, 0)));
+        Assert.False(query.ContainsWall(new DateTime(2025, 1, 3, 2, 0, 0)));
+        Assert.Throws<HistoryRequestException>(() => Parse("?timeBasis=viewer&timeMode=days&viewerZone=UTC&fromDate=9999-12-31&throughDate=9999-12-31"));
+    }
+
+    /// <summary>Use the same query collection parser as the route, without a host or database.</summary>
+    internal static HistoryQuery Parse(string value, bool overview = false)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.QueryString = new QueryString(value);
+        return HistoryQuery.Parse(context.Request.Query, overview);
+    }
+}
