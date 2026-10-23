@@ -468,7 +468,7 @@ namespace Wayfarer.Models
 
         /// <summary>Saves pending changes with import timestamps and property-specific Trip freshness stamps.</summary>
         /// <remarks>Child changes preserve unrelated root fields and intentionally modified root properties.</remarks>
-        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        private async Task<int> SaveApplicationChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken)
         {
             // Automatically set the UpdatedAt field before saving changes to the database
             foreach (var entry in ChangeTracker.Entries<LocationImport>())
@@ -557,7 +557,7 @@ namespace Wayfarer.Models
                 }
             }
 
-            return await base.SaveChangesAsync(cancellationToken);
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
     }
 }

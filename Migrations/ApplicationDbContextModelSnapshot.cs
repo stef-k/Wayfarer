@@ -22,6 +22,7 @@ namespace Wayfarer.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
@@ -741,6 +742,50 @@ namespace Wayfarer.Migrations
                     b.ToTable("HiddenAreas");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.HistoryPreparationState", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ActiveVersion")
+                        .HasColumnType("text");
+
+                    b.Property<long>("Examined")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("LastFailure")
+                        .HasColumnType("text");
+
+                    b.Property<int>("LastId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Prepared")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("Ready")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("Scanning")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TargetVersion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WriterVersion")
+                        .HasColumnType("text");
+
+                    b.HasKey("Kind");
+
+                    b.ToTable("HistoryPreparationStates", t =>
+                        {
+                            t.HasCheckConstraint("CK_HistoryPreparation_Kind", "\"Kind\" IN ('time', 'text')");
+                        });
+                });
+
             modelBuilder.Entity("Wayfarer.Models.ImageCacheMetadata", b =>
                 {
                     b.Property<int>("Id")
@@ -850,6 +895,15 @@ namespace Wayfarer.Migrations
                     b.Property<double?>("Bearing")
                         .HasColumnType("double precision");
 
+                    b.Property<DateTime?>("CaptureLocalTimestamp")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int?>("CaptureOffsetSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CaptureTimeZoneId")
+                        .HasColumnType("text");
+
                     b.Property<string>("CoordinateOrigin")
                         .HasMaxLength(24)
                         .HasColumnType("character varying(24)");
@@ -865,6 +919,22 @@ namespace Wayfarer.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("FullAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HistorySearchText")
+                        .HasColumnType("text")
+                        .UseCollation("C");
+
+                    b.Property<string>("HistoryTextVersion")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HistoryTimeFailureCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HistoryTimeStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HistoryTimeVersion")
                         .HasColumnType("text");
 
                     b.Property<Guid?>("IdempotencyKey")
@@ -961,6 +1031,12 @@ namespace Wayfarer.Migrations
 
                     NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Coordinates"), "GIST");
 
+                    b.HasIndex("HistorySearchText")
+                        .HasDatabaseName("IX_Location_HistoryText");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("HistorySearchText"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("HistorySearchText"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique()
                         .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
@@ -968,9 +1044,22 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId", "Timestamp")
                         .HasDatabaseName("IX_Location_UserId_Timestamp");
 
+                    b.HasIndex("UserId", "CaptureLocalTimestamp", "Id")
+                        .HasDatabaseName("IX_Location_HistoryCapture");
+
+                    b.HasIndex("UserId", "LocalTimestamp", "Id")
+                        .HasDatabaseName("IX_Location_HistoryUtc");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserId", "LocalTimestamp", "Id"), new[] { "Coordinates", "CaptureLocalTimestamp", "ActivityTypeId" });
+
                     b.HasIndex(new[] { "UserId", "PresenceObservedAtUtc", "Id" }, "IX_Location_UserId_PresenceObservedAtUtc_Id");
 
-                    b.ToTable("Locations");
+                    b.ToTable("Locations", t =>
+                        {
+                            t.HasCheckConstraint("CK_Location_HistoryText", "(\"HistorySearchText\" IS NULL) = (\"HistoryTextVersion\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_Location_HistoryTime", "(\"HistoryTimeVersion\" IS NULL AND \"HistoryTimeStatus\" IS NULL AND \"HistoryTimeFailureCode\" IS NULL\n    AND \"CaptureLocalTimestamp\" IS NULL AND \"CaptureTimeZoneId\" IS NULL AND \"CaptureOffsetSeconds\" IS NULL)\nOR (\"HistoryTimeVersion\" IS NOT NULL AND \"HistoryTimeStatus\" IS NOT NULL AND (\n    (\"HistoryTimeStatus\" = 'resolved' AND \"HistoryTimeFailureCode\" IS NULL AND \"CaptureLocalTimestamp\" IS NOT NULL\n        AND \"CaptureTimeZoneId\" IS NOT NULL AND \"CaptureOffsetSeconds\" IS NOT NULL)\n    OR (\"HistoryTimeStatus\" = 'unresolved' AND \"HistoryTimeFailureCode\" IS NOT NULL\n        AND \"CaptureLocalTimestamp\" IS NULL AND \"CaptureTimeZoneId\" IS NULL AND \"CaptureOffsetSeconds\" IS NULL)))");
+                        });
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationDeletionMarker", b =>

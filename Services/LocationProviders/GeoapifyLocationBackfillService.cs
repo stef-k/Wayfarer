@@ -384,6 +384,12 @@ public sealed partial class GeoapifyLocationBackfillService(
                             && item.PermanentGeocodingConsentCredentialGeneration == contacted.ConsentCredentialGeneration)));
             var updated = await PublishAddressAsync(eligibleLocations, value,
                 contacted.ProviderKey, persistedAt, incompleteRepair, cancellationToken);
+            if (updated)
+            {
+                // ExecuteUpdate holds the winning Location lock until this existing fenced transaction commits.
+                var final = await db.Locations.AsNoTracking().SingleAsync(item => item.Id == locationId, cancellationToken);
+                await LocationHistoryStorage.UpdateAsync(db, final, time: false, text: true, cancellationToken);
+            }
             enriched = updated && (!incompleteRepair || !string.IsNullOrWhiteSpace(value.Place));
             repairNoResult = incompleteRepair && updated && !enriched;
             if (enriched) db.LocationEnrichmentAttempts.Remove(attempt);

@@ -96,6 +96,10 @@ public sealed class LocationImportTimestampPostgresTests(PostgresImportTestFixtu
         Assert.Equal((22.2, 40.1), (saved.Coordinates.X, saved.Coordinates.Y));
         Assert.Equal("Imported capture", saved.Notes);
         Assert.Equal("Synthetic device", saved.DeviceModel);
+        Assert.Equal(Wayfarer.Util.LocationHistoryDerivation.TimeVersion, saved.HistoryTimeVersion);
+        Assert.Equal(Wayfarer.Util.LocationHistoryDerivation.TextVersion, saved.HistoryTextVersion);
+        Assert.Equal("IMPORTED CAPTURE", saved.HistorySearchText);
+        Assert.Equal(saved.LocalTimestamp.AddHours(3).Ticks, saved.CaptureLocalTimestamp!.Value.Ticks);
     }
 
     /// <summary>Builds native features with distinct keys, including an optional replay of existing history.</summary>

@@ -4,6 +4,12 @@
 
 ### Added
 
+- Add internal versioned capture-local facts and accent-insensitive visible history
+  text, atomic Location writer maintenance, four initial access paths and resumable
+  operator preparation with independent time/text readiness and rebuilds
+  ([upgrade procedure](docs/maintainer/history-preparation.md), #918 I918-A).
+  History read endpoints and consumer capability remain separate packages.
+
 - Add paired protected Place Name/Notes/icon/marker-color PATCH routes for Web
   scalar-only edits and opt-in bearer clients. Compare exact nullable originals
   and original Region under PostgreSQL locks, preserve disjoint edits and newer
