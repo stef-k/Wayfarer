@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { reactive, ref } from 'vue';
 import type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { normalizeNotesHtml } from '../notes/notesHtml';
@@ -106,6 +106,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   const draft = reactive(toDraft(metadata, tagOrder, tagsBySlug));
   const baseline = reactive(toDraft(metadata, tagOrder, tagsBySlug));
   const originals = reactive<Partial<EditorMetadataOriginalValues>>({ ...metadata.originalValues });
+  // A submitted sharing write is an obligation even when a newer choice equals the old baseline.
+  const sharingAttempt = ref<{ enabled: boolean; outcome: 'pending' | 'unknown' } | null>(null);
 
   /** Adopts only clean fields; dirty fields retain both their desired value and their original compare. */
   const refresh = (next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
@@ -118,7 +120,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     if (same(normalizeTagNames(draft.tags), normalizeTagNames(baseline.tags))) {
       draft.tags = [...incoming.tags]; baseline.tags = [...incoming.tags];
     }
-    if (draft.shareProgressEnabled === baseline.shareProgressEnabled) {
+    if (!sharingAttempt.value && draft.shareProgressEnabled === baseline.shareProgressEnabled) {
       draft.shareProgressEnabled = incoming.shareProgressEnabled;
       baseline.shareProgressEnabled = incoming.shareProgressEnabled;
     }
@@ -163,19 +165,36 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       if (wasSubmitted && !same(current[field], submitted.changes[field])) assignField(draft, retained, field);
     }
     // A derived sharing disable advances the baseline but cannot settle a newer checkbox choice.
-    if (sharingWasClean && !sharingEditedDuringSave) draft.shareProgressEnabled = next.shareProgressEnabled;
-    baseline.shareProgressEnabled = next.shareProgressEnabled;
+    if (!sharingAttempt.value) {
+      if (sharingWasClean && !sharingEditedDuringSave) draft.shareProgressEnabled = next.shareProgressEnabled;
+      baseline.shareProgressEnabled = next.shareProgressEnabled;
+    }
   };
 
-  /** Explicit discard adopts the latest visible server base and clears every local field obligation. */
+  /** A correlated sharing reply advances the confirmed base without erasing the latest choice. */
+  const acknowledgeSharing = (next: EditorTripMetadata): void => {
+    const attempt = sharingAttempt.value;
+    if (!attempt || next.id !== metadata.id || typeof next.isPublic !== 'boolean' || typeof next.shareProgressEnabled !== 'boolean' ||
+        (!next.isPublic && next.shareProgressEnabled)) throw new Error('Sharing acknowledgement is incomplete.');
+    if (draft.shareProgressEnabled === attempt.enabled) draft.shareProgressEnabled = next.shareProgressEnabled;
+    baseline.shareProgressEnabled = next.shareProgressEnabled;
+    sharingAttempt.value = null;
+  };
+
+  /** Discard ordinary fields; reset/close/reopen cannot settle or retire an unresolved sharing write. */
   const reset = (next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
+    const retainedSharing = sharingAttempt.value ? { desired: draft.shareProgressEnabled, confirmed: baseline.shareProgressEnabled } : null;
     Object.assign(draft, toDraft(next, order, tags));
     Object.assign(baseline, toDraft(next, order, tags));
+    if (retainedSharing) {
+      draft.shareProgressEnabled = retainedSharing.desired;
+      baseline.shareProgressEnabled = retainedSharing.confirmed;
+    }
     for (const field of metadataFields) delete originals[field];
     Object.assign(originals, next.originalValues ?? {});
   };
 
-  return { draft, baseline, refresh, request, acknowledge, reset };
+  return { draft, baseline, sharingAttempt, refresh, request, acknowledge, acknowledgeSharing, reset };
 }
 
 /** Trim and deduplicate tags in their entered order. */

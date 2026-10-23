@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
+import { EditorMutationHttpError, EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { TripEditorMapView } from '../map/mapViewport';
@@ -50,12 +50,20 @@ const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
+/// Discarding this interaction revokes pending exit permission without retiring an HTTP attempt.
+let editSession = 0;
 /// Distinguishes explicit sharing input during this save from privacy-driven clearing.
 let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
 const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
-const isShareProgressDirty = computed(() => normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
+const isShareProgressDirty = computed(() => draftState.sharingAttempt.value !== null || normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
+const sharingUnconfirmed = computed(() => draftState.sharingAttempt.value?.outcome === 'unknown');
+/// Explain the held choice and explicit abandonment without promising remote rollback or settlement.
+const sharingHoldMessage = computed(() =>
+  `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? 'Enabled' : 'Disabled'}) is retained in this editor. ` +
+  'Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. ' +
+  'Leaving or reloading loses the retained choice and does not undo the earlier change.');
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
 /// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
@@ -70,6 +78,7 @@ const visibleShareProgressEnabled = computed({
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 /// Reports persisted share-progress state for read-only Trip summaries.
 const shareProgressSummary = computed(() => {
+  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
   if (!props.metadata.isPublic) {
     return 'Unavailable until trip is public';
   }
@@ -91,6 +100,8 @@ const statusText = computed(() => {
   if (isSaving.value) {
     return 'Saving...';
   }
+
+  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
 
   if (saveError.value) {
     return 'Save failed';
@@ -131,7 +142,7 @@ watch(tagInput, () => {
 watch(
   () => draft.isPublic,
   isPublic => {
-    if (!isPublic) {
+    if (!isPublic && !draftState.sharingAttempt.value) {
       draft.shareProgressEnabled = false;
     }
   }
@@ -158,11 +169,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  editSession++;
   unregisterSurfaceHandler?.();
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
 const resetDraft = (): void => {
+  editSession++;
   draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
   tagInput.value = '';
   tagSuggestions.value = [];
@@ -172,16 +185,14 @@ const resetDraft = (): void => {
   warnings.value = [];
 };
 
+/// Save settings before checking the current unsaved drafts through the shared exit action.
 const saveAndExit = async (): Promise<void> => {
-  if (props.hasRegionDraftChanges && !(await confirmDiscardTripEditorChanges())) {
-    return;
-  }
-
   await save(true);
 };
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
-  if (isSaving.value) return;
+  if (isSaving.value || sharingUnconfirmed.value) return;
+  const savingSession = editSession;
   shareProgressEditedDuringSave = false;
   isSaving.value = true;
   saveError.value = null;
@@ -213,15 +224,24 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     // The response advances the baseline before Vue propagates publication into child props.
     if (savedMetadata.isPublic && draft.isPublic && draft.shareProgressEnabled !== persistedDraft.value.shareProgressEnabled) {
       const submittedSharing = draft.shareProgressEnabled;
+      draftState.sharingAttempt.value = { enabled: submittedSharing, outcome: 'pending' };
       const result = await patchShareProgress(props.editorEndpoint, props.antiforgeryToken, { enabled: submittedSharing });
       savedMetadata = result.affected.metadata ?? result.data;
-      if (draft.shareProgressEnabled === submittedSharing) draft.shareProgressEnabled = savedMetadata.shareProgressEnabled;
-      draftState.baseline.shareProgressEnabled = savedMetadata.shareProgressEnabled;
+      draftState.acknowledgeSharing(savedMetadata);
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
   } catch (error) {
     failed = true;
+    // Only explicit pre-write rejection retires this attempt. Transport/server/body failures remain unknown.
+    if (draftState.sharingAttempt.value) {
+      if (error instanceof EditorValidationError || (error instanceof EditorMutationHttpError && [401, 403].includes(error.status))) {
+        draftState.sharingAttempt.value = null;
+      } else {
+        draftState.sharingAttempt.value.outcome = 'unknown';
+        return;
+      }
+    }
     if (error instanceof EditorValidationError) {
       validationErrors.value = error.errors;
       saveError.value = error.message;
@@ -236,8 +256,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
     draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
-    if (exitAfterSave && !isDirty.value) {
-      leaveEditor();
+    if (exitAfterSave && savingSession === editSession && !isDirty.value) {
+      await backToTrips();
     }
   }
 };
@@ -274,6 +294,13 @@ function confirmUnload(event: BeforeUnloadEvent): void {
 
 /// Confirms before discarding Trip Editor drafts that are not saved by the current action.
 function confirmDiscardTripEditorChanges(): Promise<boolean> {
+  if (sharingUnconfirmed.value) return confirm({
+    title: 'Leave without saving?',
+    message: 'The sharing change is not confirmed. The earlier change may still finish. Leaving will lose your retained sharing choice and any other unsaved edits; it will not undo the earlier change.',
+    confirmLabel: 'Leave without saving',
+    cancelLabel: 'Keep editing',
+    variant: 'warning'
+  });
   return confirm({
     title: 'Discard changes?',
     message: 'Discard unsaved trip editor changes and return to Trips?',
@@ -343,6 +370,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
       <h2>Trip Settings</h2>
       <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
       <p>Share progress: {{ shareProgressSummary }}</p>
+      <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
       <div v-if="metadata.publicUrl || summaryProgressUrl" class="trip-editor-editor-summary__links">
         <a v-if="metadata.publicUrl" :href="metadata.publicUrl" target="_blank" rel="noopener">Open public trip</a>
         <a v-if="summaryProgressUrl" :href="summaryProgressUrl" target="_blank" rel="noopener">Open progress URL</a>
@@ -373,6 +401,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
 
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-share-progress-heading">
           <h3 id="trip-editor-share-progress-heading">Share Progress</h3>
+          <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
           <label class="trip-editor-toggle">
             <input v-model="visibleShareProgressEnabled" type="checkbox" :disabled="shareProgressUnavailable" />
             <span>Show visit progress on public trip</span>
@@ -446,10 +475,10 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     </template>
 
     <template #footer>
-      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving">Save &amp; Continue</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="saveAndExit">Save &amp; Exit</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="resetDraft">Cancel / Reset</button>
-      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">Back to Trips</button>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || sharingUnconfirmed">Save &amp; Continue</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || sharingUnconfirmed" @click="saveAndExit">Save &amp; Exit</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || sharingUnconfirmed || !isDirty" @click="resetDraft">Cancel / Reset</button>
+      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ sharingUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
     </template>
   </EditorSurface>
 </template>

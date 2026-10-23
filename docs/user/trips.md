@@ -195,6 +195,23 @@ be copied by signed-in users and be retained in exported or downloaded files.
 when you also want visitors to see your visits and journey progress. Public
 Timeline delays and Hidden Areas do not protect this Trip content or progress.
 
+If Trip Settings reports **Sharing change not confirmed**, the earlier change
+may have saved or may still finish. Your latest sharing choice is retained in
+the open editor, including a disable chosen during or after the failed save.
+Saving settings is paused to avoid repeating the uncertain change. Closing and
+reopening Trip Settings keeps this hold; it does not confirm the server outcome.
+
+Keep the editor open to retain your choice, or choose **Leave without saving**
+and review its warning. Leaving or reloading loses the retained choice and other
+unsaved edits without undoing the earlier request. It is not a successful save
+or recovery. A refreshed value, even one matching your choice, cannot prove that
+the earlier request has finished. This editor cannot safely complete an uncertain
+sharing change automatically. After an acknowledged successful save, a newer
+sharing choice remains unsaved and can be saved explicitly in the usual way.
+Switching away from Trip Settings cancels its pending **Save & Exit** navigation,
+so a later successful reply cannot discard a newer editor draft. Any save-triggered
+exit also checks the current unsaved drafts before leaving.
+
 Use the public sharing menu to copy a link, **Copy embed URL** or **Copy embed
 HTML**. Copy at your instance's public HTTPS address. Trip embeds let ordinary
 scrolling move the containing page; deliberate map gestures and **Open full view**

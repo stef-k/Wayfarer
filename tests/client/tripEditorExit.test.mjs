@@ -423,8 +423,13 @@ for (const outcome of ['publication conflict', 'publication failure', 'sharing f
       if (outcome === 'newer private draft') assert.equal(owner.editor.draft.isPublic, false);
       else {
         assert.equal(owner.editor.draft.shareProgressEnabled, true);
-        assert.equal(owner.editor.statusText, 'Save failed');
-        assert.ok(owner.editor.saveError);
+        if (outcome === 'sharing failure') {
+          assert.equal(owner.editor.statusText, 'Sharing change not confirmed');
+          assert.equal(owner.editor.sharingUnconfirmed, true);
+        } else {
+          assert.equal(owner.editor.statusText, 'Save failed');
+          assert.ok(owner.editor.saveError);
+        }
       }
     } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
   });
@@ -499,6 +504,35 @@ test('tag edits authored during tag save survive its response and remain unsaved
     assert.equal(owner.editor.isDirty, false);
     assert.deepEqual([...owner.editor.draft.tags], ['First', 'Newer']);
   } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+// Sidebar dirtiness may change during the request; a still-current save must ask the shared exit action again.
+test('Save & Exit rechecks other unsaved drafts after acknowledgement', async () => {
+  const previous = { window: globalThis.window, fetch: globalThis.fetch, exitConfirm: globalThis.exitConfirm };
+  const navigations = [];
+  let confirmations = 0;
+  let complete;
+  globalThis.exitConfirm = async () => { confirmations++; return false; };
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  const owner = mountDraft();
+  globalThis.fetch = async (_url, options) => {
+    const metadata = withOriginals({ ...owner.props.metadata, ...JSON.parse(options.body).changes });
+    await new Promise(resolve => { complete = resolve; });
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    owner.editor.draft.name = 'Saved name';
+    const saving = owner.editor.saveAndExit();
+    owner.props.hasRegionDraftChanges = true;
+    complete();
+    await saving;
+    assert.equal(owner.editor.isDirty, false);
+    assert.equal(confirmations, 1, 'new unsaved drafts require the existing navigation confirmation');
+    assert.deepEqual(navigations, []);
+    const event = { prevented: false, preventDefault() { this.prevented = true; } };
+    owner.editor.confirmUnload(event);
+    assert.equal(event.prevented, true);
+  } finally { owner.dispose(); Object.assign(globalThis, previous); }
 });
 
 test('custom exit confirmation replaces the native warning only after approval and successful save', async () => {
