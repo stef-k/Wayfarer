@@ -32,6 +32,11 @@ public sealed class LocationHistoryPostgresTests(PostgresImportTestFixture fixtu
         Assert.Equal("NEW WORDS\nCAFE STREET", saved.HistorySearchText);
         Assert.Equal(row.LocalTimestamp, saved.LocalTimestamp);
         Assert.Equal(row.CaptureLocalTimestamp, saved.CaptureLocalTimestamp);
+        row.Address = null;
+        await first.SaveChangesAsync();
+        saved = await verify.Locations.AsNoTracking().SingleAsync(item => item.Id == row.Id);
+        Assert.Equal("NEW WORDS", saved.HistorySearchText);
+        Assert.Equal("<p>new <b>words</b></p>", saved.Notes);
         await using (var transaction = await stale.Database.BeginTransactionAsync())
         {
             edited.Notes = "rollback";
@@ -90,8 +95,17 @@ public sealed class LocationHistoryPostgresTests(PostgresImportTestFixture fixtu
             // A stale row below the durable ID checkpoint must still defeat readiness.
             await resume.Locations.Where(item => item.Id == a.Id).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.HistoryTextVersion, "old"));
             Assert.False((await service.StatusAsync("text", default)).Ready);
-            await service.BeginAsync("text", true, default);
+            await service.BeginAsync("text", false, default);
             while (!await service.PrepareBatchAsync("text", default)) { }
+            Assert.True((await service.StatusAsync("text", default)).Ready);
+            await using (var missingIndex = await resume.Database.BeginTransactionAsync())
+            {
+                await resume.Database.ExecuteSqlRawAsync("DROP INDEX \"IX_Location_HistoryText\"");
+                var unavailable = await service.StatusAsync("text", default);
+                Assert.False(unavailable.IndexesReady); Assert.False(unavailable.Ready);
+                await missingIndex.RollbackAsync();
+            }
+            Assert.True((await service.StatusAsync("text", default)).Ready);
         }
     }
 

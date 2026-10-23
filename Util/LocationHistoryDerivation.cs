@@ -12,7 +12,7 @@ internal static class LocationHistoryDerivation
     /// <summary>Pins the converter, packaged mapping and NodaTime historical rules.</summary>
     internal static readonly string TimeVersion = $"history-time-1;GeoTimeZone-6.1.0;{DateTimeZoneProviders.Tzdb.VersionId}";
     /// <summary>Pins safe extraction/folding plus runtime/ICU Unicode behavior; drift requires explicit preparation.</summary>
-    internal static readonly string TextVersion = $"history-text-1;RichNotes-2;AngleSharp-{typeof(AngleSharp.Html.Parser.HtmlParser).Assembly.GetName().Version};runtime-{Environment.Version};unicode-{CultureInfo.InvariantCulture.CompareInfo.Version.FullVersion}";
+    internal static readonly string TextVersion = $"history-text-1;RichNotes-2;AngleSharp-{typeof(AngleSharp.Html.Parser.HtmlParser).Assembly.GetName().Version};runtime-{Environment.Version};unicode-{CultureInfo.InvariantCulture.CompareInfo.Version.FullVersion}-{CultureInfo.InvariantCulture.CompareInfo.Version.SortId:N}";
 
     /// <summary>Only these columns are excluded from canonical snapshot comparison and accepted owner edits.</summary>
     internal static bool IsDerived(string name) => name is nameof(Location.CaptureLocalTimestamp)

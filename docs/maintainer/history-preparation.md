@@ -94,7 +94,7 @@ affected reads while rebuilding. Unselected facts/progress stay intact.
 Time identity includes converter/validation version, GeoTimeZone 6.1.0 mapping
 package and the serving NodaTime TZDB identity. Text identity includes extraction/
 folding version, AngleSharp assembly identity, .NET runtime and invariant Unicode/
-ICU sort version. Deploy identical qualified runtime/globalization artifacts across
+[Unicode sort version and identity](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.sortversion?view=net-10.0). Deploy identical qualified runtime/globalization artifacts across
 writers/readers; an identity change requires the affected rebuild. Never relabel
 old facts as new rules. Future collection cursors must bind these identities.
 
@@ -172,7 +172,7 @@ text COPY. The trial took 10.70 seconds; maximum batch elapsed/lock upper bound 
 19,193,856 → 32,858,112 bytes, with four history indexes growing
 4,751,360 → 18,399,232 bytes. Observed preparation WAL was 82,773,880 bytes.
 These are pre-vacuum physical footprints including MVCC/GIN pending-list growth and
-existing test-database allocation, not steady-state per-row or production estimates.
+fixture allocation, not steady-state per-row or production estimates.
 Allow at least the observed growth plus index-build temporary space and WAL retention;
 measure the restored installation's real headroom before its authorized upgrade.
 

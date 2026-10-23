@@ -12,8 +12,15 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>One bounded synthetic preparation/write trial through the production derivation and existing fixture.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationHistoryCostPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
+public sealed class LocationHistoryCostPostgresTests(ITestOutputHelper output) : IAsyncLifetime
 {
+    private readonly PostgresMigrationTestFixture fixture = new();
+
+    /// <summary>Uses the established disposable database owner so earlier fixture allocation cannot skew growth.</summary>
+    public Task InitializeAsync() => fixture.InitializeAsync();
+
+    /// <summary>Removes only the exact database owned by that fixture.</summary>
+    public Task DisposeAsync() => fixture.DisposeAsync();
     [PostgresFact]
     public async Task DistinctContentPreparationAndRepresentativeWriteCosts()
     {
