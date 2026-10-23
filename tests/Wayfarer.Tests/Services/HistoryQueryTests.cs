@@ -65,6 +65,28 @@ public sealed class HistoryQueryTests
         Assert.Equal(new DateTime(2025, 1, 1, 12, 0, 0), Parse("?timeBasis=capture&timeMode=interval&viewerZone=UTC&fromLocal=2025-01-01T12:00&untilLocal=2025-01-01T13:00").Start);
     }
 
+    /// <summary>Final-year recurring windows require a next day only when they actually spill overnight.</summary>
+    [Fact]
+    public void LastYearDailyWindowsDoNotInventAnExtraDayBoundary()
+    {
+        var common = "?timeBasis=viewer&timeMode=daily&viewerZone=UTC&fromDate=9999-12-31&throughDate=9999-12-31&fromTime=11:00&untilTime=15:00";
+        Assert.True(Parse(common).ContainsWall(new DateTime(9999, 12, 31, 12, 0, 0)));
+        Assert.False(Parse(common).ContainsWall(new DateTime(9999, 12, 31, 15, 0, 0)));
+        Assert.Throws<HistoryRequestException>(() => Parse(common.Replace("11:00", "22:00").Replace("15:00", "02:00")));
+        Assert.True(Parse(common.Replace("9999-12-31", "9999-12-30").Replace("11:00", "22:00").Replace("15:00", "02:00"))
+            .ContainsWall(new DateTime(9999, 12, 31, 1, 0, 0)));
+    }
+
+    /// <summary>Normalized recurring clocks can be reapplied directly, including six-digit fractions.</summary>
+    [Fact]
+    public void FractionalClockScopeEchoRoundTripsWithoutRounding()
+    {
+        var query = Parse(Common.Replace("22:00", "22:00:00.123456"));
+        Assert.Equal("22:00:00.123456", query.Scope.FromTime);
+        var roundTrip = Parse(Common.Replace("22:00", query.Scope.FromTime!).Replace("02:00", query.Scope.UntilTime!));
+        Assert.Equal(query.Scope, roundTrip.Scope);
+    }
+
     /// <summary>Use the same query collection parser as the route, without a host or database.</summary>
     internal static HistoryQuery Parse(string value, bool overview = false)
     {

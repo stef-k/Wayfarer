@@ -41,7 +41,9 @@ internal sealed class HistoryCursor(IDataProtectionProvider protection)
         { throw new HistoryRequestException("continuationInvalid"); }
     }
 
+    /// <summary>Matching and inspection profiles cannot share a continuation.</summary>
     internal static string Profile(HistoryQuery query) => query.ResultSet == "matches" ? "owner-summary-1" : "owner-unresolved-1";
+    /// <summary>Stable scope/cell identity is a content digest, never an authorization credential.</summary>
     internal static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }
 

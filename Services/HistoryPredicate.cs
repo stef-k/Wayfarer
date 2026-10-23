@@ -1,9 +1,6 @@
-using System.Data;
-using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Npgsql;
 using NpgsqlTypes;
-using Wayfarer.Models;
 
 namespace Wayfarer.Services;
 
@@ -50,9 +47,18 @@ internal sealed class HistoryPredicate
 
     /// <summary>A fresh parameter instance is required for each EF/Npgsql command.</summary>
     internal object[] CopyParameters() => Parameters.Select(parameter => (object)((ICloneable)parameter).Clone()).ToArray();
+    /// <summary>Request values enter SQL only through typed parameters, including exact local clock values.</summary>
     internal string Add(object value)
     {
         var name = "p" + Parameters.Count;
+        // Npgsql's global infinity conversion belongs to canonical storage. Query boundaries/anchors must stay finite,
+        // including the real year-0001 midnight, so bind their exact ISO value and cast on the database side.
+        if (value is DateTime date)
+        {
+            var utc = date.Kind == DateTimeKind.Utc;
+            Parameters.Add(new NpgsqlParameter(name, NpgsqlDbType.Text) { Value = utc ? HistoryQuery.Utc(date) : HistoryQuery.Local(date) });
+            return $"@{name}::{(utc ? "timestamptz" : "timestamp")}";
+        }
         var parameter = new NpgsqlParameter(name, value);
         if (value is TimeSpan) parameter.NpgsqlDbType = NpgsqlDbType.Time;
         Parameters.Add(parameter);
@@ -69,13 +75,13 @@ internal sealed class HistoryPredicate
             return $"CASE WHEN {EventValid} THEN {exact} END";
         }
         var start = query.Scope.TimeMode == "daily" ? query.Start.Add(query.FromTime) : query.Start;
-        var end = query.Scope.TimeMode == "daily"
-            ? (query.Overnight ? query.End : query.End.AddDays(-1)).Add(query.UntilTime) : query.End;
+        var end = query.End;
         var min = query.Scope.TimeBasis == "viewer" ? query.Zone.MinOffset.Seconds : MinCaptureOffset;
         var max = query.Scope.TimeBasis == "viewer" ? query.Zone.MaxOffset.Seconds : MaxCaptureOffset;
         var lower = ClipUtc(start, -max);
         var upper = ClipUtc(end, -min);
-        var envelope = $"l.\"LocalTimestamp\" >= {Add(lower)} AND l.\"LocalTimestamp\" <= {Add(upper)}";
+        var upperClipped = end.Ticks - min * TimeSpan.TicksPerSecond > DateTime.MaxValue.Ticks - 9;
+        var envelope = $"l.\"LocalTimestamp\" >= {Add(lower)} AND l.\"LocalTimestamp\" {(upperClipped ? "<=" : "<")} {Add(upper)}";
         if (query.Scope.TimeBasis == "capture")
         {
             var wall = Wall("l.\"CaptureLocalTimestamp\"", query);
@@ -91,12 +97,12 @@ internal sealed class HistoryPredicate
             ends.Add((interval.HasEnd && interval.End < last ? interval.End : last).ToDateTimeUtc());
             offsets.Add(interval.WallOffset.Seconds);
         }
-        // The clipped maximum is inclusive at microsecond precision; add one tick-free microsecond in SQL below.
+        // Only the clipped final supported microsecond is inclusive; transition segment ends stay half-open.
         var lo = Add(starts.ToArray()); var hi = Add(ends.ToArray()); var off = Add(offsets.ToArray());
         var local = "((l.\"LocalTimestamp\" AT TIME ZONE 'UTC') + s.off * interval '1 second')";
         var predicate = Wall(local, query);
-        var endComparison = upper.Ticks == DateTime.MaxValue.Ticks - 9 ? "<=" : "<";
-        var exactViewer = $"EXISTS (SELECT FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND (l.\"LocalTimestamp\" < s.hi OR (s.hi = {Add(upper)} AND l.\"LocalTimestamp\" {endComparison} s.hi)) AND {predicate})";
+        var clippedEnd = upperClipped ? $" OR (s.hi = {Add(upper)} AND l.\"LocalTimestamp\" = s.hi)" : "";
+        var exactViewer = $"EXISTS (SELECT FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND (l.\"LocalTimestamp\" < s.hi{clippedEnd}) AND {predicate})";
         _timeMatch = $"({EventValid}) AND {envelope} AND {exactViewer}";
         return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE ELSE {exactViewer} END";
     }
@@ -104,12 +110,13 @@ internal sealed class HistoryPredicate
     /// <summary>Wall arithmetic preserves fold occurrences, gaps, non-hour offsets and overnight anchor dates.</summary>
     private string Wall(string local, HistoryQuery query)
     {
-        var start = Add(query.Start); var end = Add(query.End);
-        if (query.Scope.TimeMode != "daily") return $"{local} >= {start} AND {local} < {end}";
+        var start = Add(query.Start);
+        if (query.Scope.TimeMode != "daily") return $"{local} >= {start} AND {local} < {Add(query.End)}";
+        var through = Add(query.ThroughDate);
         var from = Add(query.FromTime); var until = Add(query.UntilTime);
         var date = query.Overnight ? $"({local}::date - CASE WHEN {local}::time < {until} THEN 1 ELSE 0 END)" : $"{local}::date";
         var hours = query.Overnight ? $"({local}::time >= {from} OR {local}::time < {until})" : $"({local}::time >= {from} AND {local}::time < {until})";
-        return $"{date} >= {start} AND {date} < {end} AND {hours}";
+        return $"{date} >= {start} AND {date} <= {through} AND {hours}";
     }
 
     /// <summary>GiST boxes prune valid coordinates; residuals own half-open and +180 alias membership.</summary>

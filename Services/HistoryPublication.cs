@@ -16,7 +16,7 @@ internal static class HistoryPublication
         var result = new Dictionary<string, object?>
         {
             ["locationId"] = row.Id, ["uuid"] = row.Uuid?.ToString("D"),
-            ["eventUtc"] = row.EventUtc is { } instant ? HistoryQuery.Utc(instant) : new { status = "unavailable", reason = "invalidEventUtc" } as object,
+            ["eventUtc"] = row.EventUtc is { } instant ? HistoryQuery.Utc(instant) : new { status = "unavailable", reason = "invalidEventUtc" },
             ["position"] = Position(row.Longitude, row.Latitude),
             ["captureTime"] = Capture(row.CaptureLocal, row.CaptureZone, row.CaptureOffset, row.TimeStatus, row.TimeVersion, row.TimeFailure),
             ["viewerTime"] = Viewer(row.EventUtc, zone), ["activityTypeId"] = row.ActivityTypeId,
@@ -40,7 +40,7 @@ internal static class HistoryPublication
     }
 
     internal static object Position(double? longitude, double? latitude) => longitude is { } x && latitude is { } y
-        ? new { status = "available", longitude = x, latitude = y } as object
+        ? new { status = "available", longitude = x, latitude = y }
         : new { status = "unavailable", reason = "invalidCoordinates" };
 
     /// <summary>Prepared capture facts retain their generation; stale/missing preparation never becomes invented evidence.</summary>

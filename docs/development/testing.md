@@ -307,3 +307,21 @@ Code Guard complements compilers, tests, linters, security analysis and review; 
 - Browser infrastructure failure is not automatically a product failure.
 - A green broad suite does not replace a focused regression proof when a practical seam exists.
 - Do not add higher-layer evidence merely to duplicate behavior already proven at the owning lower seam.
+
+### Personal history reads (#918 I918-B)
+
+Use the existing guarded PostgreSQL 18/PostGIS prerequisite above. The focused
+selection is `HistoryQueryTests`, `HistoryCursorTests`, `HistoryPredicatePostgresTests`,
+`LocationHistoryHttpPostgresTests` and `HistoryQueryPlanPostgresTests`. Pure tests own
+transport/wall boundary and cursor rules; direct SQL tests own the semantic matrix;
+real MVC/PostgreSQL tests own bearer authority, snapshots, coverage, independent
+overview/detail, preparation gates, live paging, protected errors and cancellation.
+No browser or provider is needed. The disposable migration fixture owns its database.
+
+The plan probe prepares 10,000 distinct synthetic records through I918-A, then
+records parameterized production predicates, natural EXPLAIN ANALYZE/BUFFERS for
+UTC/viewer/capture/text/geometry and whole-scope uncertainty, plus separately labelled
+forced index eligibility. It makes no endpoint timing or capacity assertion. Retain
+detailed xUnit output with `--logger 'console;verbosity=detailed'`. I918-C retains
+full DTO/consumer composition and named 210,240/1,051,200-owner routed workloads,
+four-read concurrency, post-write plans and end-to-end bytes/timing qualification.

@@ -5,7 +5,10 @@ using Wayfarer.Util;
 
 namespace Wayfarer.Services;
 
-/// <summary>Reads only inside the route's short read-only repeatable-read transaction.</summary>
+/// <summary>
+/// Reads only inside the route's short read-only repeatable-read transaction.
+/// Interpolated SQL contains compiler-owned structure only; every request/anchor value is a bound parameter.
+/// </summary>
 internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor cursors)
 {
     /// <summary>All-owner readiness is checked in the response snapshot; no read repairs or weakens preparation.</summary>
@@ -24,8 +27,11 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
     }
 
     /// <summary>Independent candidate counts cover the whole scope, before either result set's continuation.</summary>
-    private async Task<long> CandidateCountAsync(HistoryPredicate predicate, CancellationToken token) =>
-        await db.Database.SqlQueryRaw<long>($"SELECT count(*) AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {predicate.Truth} IS NULL", predicate.CopyParameters()).SingleAsync(token);
+    private async Task<long> CandidateCountAsync(HistoryPredicate predicate, CancellationToken token)
+    {
+        var sql = $"SELECT count(*) AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {predicate.Truth} IS NULL";
+        return await db.Database.SqlQueryRaw<long>(sql, predicate.CopyParameters()).SingleAsync(token);
+    }
 
     /// <summary>Unsampled pages use strict value anchors; deletion or movement of the anchor needs no lookup.</summary>
     internal async Task<object> PageAsync(string owner, HistoryQuery query, CancellationToken token)
@@ -39,7 +45,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         if (anchor != null)
             tail = candidate ? $"AND l.\"Id\" < {predicate.Add(anchor.Id)}"
                 : $"AND (l.\"LocalTimestamp\",l.\"Id\") < ({predicate.Add(anchor.EventUtc!.Value)},{predicate.Add(anchor.Id)})";
-        var rows = await db.Database.SqlQueryRaw<HistorySummaryRow>($"""
+        var sql = $"""
             SELECT l."Id", l."IdempotencyKey" AS "Uuid",
                 CASE WHEN {HistoryPredicate.EventValid} THEN l."LocalTimestamp" END AS "EventUtc",
                 CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS "Longitude",
@@ -51,7 +57,8 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
             FROM "Locations" l LEFT JOIN "ActivityTypes" a ON a."Id" = l."ActivityTypeId"
             WHERE {predicate.Where} AND {(candidate ? predicate.Truth + " IS NULL" : predicate.Matches)} {tail}
             ORDER BY {(candidate ? "l.\"Id\" DESC" : "l.\"LocalTimestamp\" DESC, l.\"Id\" DESC")} LIMIT {predicate.Add(query.PageSize + 1)}
-            """, predicate.CopyParameters()).ToListAsync(token);
+            """;
+        var rows = await db.Database.SqlQueryRaw<HistorySummaryRow>(sql, predicate.CopyParameters()).ToListAsync(token);
         string? continuation = null;
         if (rows.Count > query.PageSize)
         {
@@ -79,7 +86,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         var area = query.Scope.Area ?? new HistoryArea(-180, -90, 180, 90);
         var west = predicate.Add(area.West); var south = predicate.Add(area.South);
         var span = predicate.Add(area.Span); var height = predicate.Add(area.North - area.South); var grid = predicate.Add(query.Grid);
-        var rows = await db.Database.SqlQueryRaw<HistoryCellRow>($"""
+        var sql = $"""
             WITH matches AS (
                 SELECT l."Id", l."IdempotencyKey", l."LocalTimestamp",
                     CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS lon,
@@ -96,7 +103,8 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
                 CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId",
                 CASE WHEN count(*) = 1 THEN min("IdempotencyKey"::text) END AS "SingletonUuid"
             FROM cells GROUP BY x,y ORDER BY x NULLS LAST,y NULLS LAST
-            """, predicate.CopyParameters()).ToListAsync(token);
+            """;
+        var rows = await db.Database.SqlQueryRaw<HistoryCellRow>(sql, predicate.CopyParameters()).ToListAsync(token);
         var cells = new List<object>();
         long mapped = 0, unmapped = 0;
         foreach (var row in rows)
@@ -132,8 +140,11 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
             resultExtent = extent, unresolvedCandidateCount = Count(candidates) }
     };
 
+    /// <summary>Counts use decimal strings so clients cannot lose signed-64-bit precision.</summary>
     private static string Count(long value) => value.ToString(CultureInfo.InvariantCulture);
+    /// <summary>Aggregation uses an unwrapped span internally; external longitudes stay canonical.</summary>
     private static double Canonical(double longitude) => longitude >= 180 ? longitude - 360 : longitude;
+    /// <summary>Preserve +180 only as a rectangle end; occupied bounds may have coincident edges.</summary>
     private static object Bounds(double west, double south, double east, double north, bool rectangle) => new
     { west = Canonical(west), south, east = rectangle && east == 180 ? 180 : Canonical(east), north };
 }

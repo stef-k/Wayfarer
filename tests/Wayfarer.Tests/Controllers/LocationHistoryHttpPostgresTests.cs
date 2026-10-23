@@ -63,6 +63,29 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(rows[3].Id, Assert.Single(Ids(last)));
     }
 
+    /// <summary>Real finite year-0001 midnight anchors must not become Npgsql's minus-infinity sentinel.</summary>
+    [PostgresFact]
+    public async Task FiniteMinimumInstantKeepsEqualTimeCursorTies()
+    {
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 3);
+        await using (var edit = fixture.CreateContext())
+            await edit.Database.ExecuteSqlInterpolatedAsync($$"""
+                UPDATE "Locations" SET "LocalTimestamp" = '0001-01-01 00:00:00+00'::timestamptz,
+                    "HistoryTimeVersion" = 'legacy-generation' WHERE "UserId" = {{owner}}
+                """);
+        await using var app = await HostAsync(); using var client = Client(app, owner);
+        var query = "?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=0001-01-01T00:00:00Z&endUtc=0001-01-02T00:00:00Z&pageSize=1";
+        string? cursor = null;
+        foreach (var expected in rows.Reverse())
+        {
+            var page = await GetAsync(client, Route + query + (cursor == null ? "" : "&continuation=" + Uri.EscapeDataString(cursor)));
+            Assert.Equal(expected.Id, Assert.Single(Ids(page)));
+            Assert.Equal("0001-01-01T00:00:00.000000Z", page.GetProperty("items")[0].GetProperty("eventUtc").GetString());
+            cursor = page.GetProperty("nextContinuation").GetString();
+        }
+        Assert.Null(cursor);
+    }
+
     /// <summary>Dense, distant and coincident points survive aggregation; map choices work before any chronology read.</summary>
     [PostgresFact]
     public async Task IndependentOverviewRetainsDistantAndCoincidentRecords()
@@ -127,12 +150,21 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(rows[3].IdempotencyKey!.Value.ToString("D"), detail.GetProperty("record").GetProperty("uuid").GetString());
         await using (var edit = fixture.CreateContext())
         {
+            await edit.Locations.Where(row => row.Id == rows[3].Id).ExecuteUpdateAsync(setters => setters.SetProperty(row => row.LocalTimestamp, DateTime.MinValue));
+        }
+        var unknownEvent = await GetAsync(client, Route + "?" + Capture + "&resultSet=unresolvedCandidates&pageSize=1");
+        Assert.Equal("unavailable", unknownEvent.GetProperty("items")[0].GetProperty("eventUtc").GetProperty("status").GetString());
+        var unavailableDetail = await GetAsync(client, Route + "/" + rows[3].Id + "?viewerZone=UTC");
+        Assert.False(unavailableDetail.GetProperty("record").TryGetProperty("eventUtc", out _));
+        Assert.True(unavailableDetail.GetProperty("unavailableFields").TryGetProperty("eventUtc", out _));
+        await using (var edit = fixture.CreateContext())
+        {
             await new LocationHistoryPreparation(edit).BeginAsync("time", true, default);
             await new LocationHistoryPreparation(edit).BeginAsync("text", true, default);
         }
         await ErrorAsync(client, Route + "?" + Capture, 503, "historyPreparationRequired");
         await ErrorAsync(client, Route + "/overview?" + Utc + "&q=cafe", 503, "historyPreparationRequired");
-        Assert.Equal(4, Ids(await GetAsync(client, Route + "?" + Utc)).Length);
+        Assert.Equal(3, Ids(await GetAsync(client, Route + "?" + Utc)).Length);
         // Independent direct detail is still a complete profile while collection generations rebuild.
         await GetAsync(client, Route + "/" + rows[3].Id + "?viewerZone=Europe%2FAthens");
     }
@@ -271,7 +303,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
             row.Notes = notes; row.DeviceModel = "private model"; row.ProviderAddressLine1 = "independent line";
             row.Accuracy = double.NaN; row.Altitude = 123.25; await edit.SaveChangesAsync();
             await edit.Locations.Where(row => row.Id == rows[0].Id).ExecuteUpdateAsync(setters => setters
-                .SetProperty(row => row.HistoryTimeVersion, (string?)null).SetProperty(row => row.Timestamp, DateTime.MinValue));
+                .SetProperty(row => row.HistoryTimeVersion, "previous-time-generation").SetProperty(row => row.Timestamp, DateTime.MinValue));
         }
         await using var app = await HostAsync(); using var client = Client(app, owner);
         var outside = await GetAsync(client, Route + "?" + Utc.Replace("2025-01-01", "2024-01-01").Replace("2026-01-01", "2024-02-01"));

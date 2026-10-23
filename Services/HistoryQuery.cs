@@ -26,6 +26,7 @@ internal sealed class HistoryQuery
     internal required DateTimeZone Zone { get; init; }
     internal DateTime Start { get; init; }
     internal DateTime End { get; init; }
+    internal DateTime ThroughDate { get; init; }
     internal TimeSpan FromTime { get; init; }
     internal TimeSpan UntilTime { get; init; }
     internal int PageSize { get; init; } = 100;
@@ -52,6 +53,7 @@ internal sealed class HistoryQuery
         foreach (var key in Common.Skip(3).Take(8))
             if (values.ContainsKey(key) != timeKeys.Contains(key)) throw Invalid();
         DateTime start, end;
+        DateTime through = default;
         TimeSpan from = default, until = default;
         if (mode == "interval")
         {
@@ -61,15 +63,16 @@ internal sealed class HistoryQuery
         else
         {
             start = ParseDate(Get("fromDate"));
-            var through = ParseDate(Get("throughDate"));
-            if (through < start || through.Date == DateTime.MaxValue.Date) throw Invalid();
-            end = through.AddDays(1);
+            through = ParseDate(Get("throughDate"));
+            if (through < start) throw Invalid();
             if (mode == "daily")
             {
                 from = ParseTime(Get("fromTime")); until = ParseTime(Get("untilTime"));
                 if (from == until) throw Invalid();
-                if (from > until && end.Date == DateTime.MaxValue.Date) throw Invalid();
+                if (from > until && through == DateTime.MaxValue.Date) throw Invalid();
+                end = (from > until ? through.AddDays(1) : through).Add(until);
             }
+            else end = through == DateTime.MaxValue.Date ? throw Invalid() : through.AddDays(1);
         }
         if (start >= end) throw Invalid();
         var rawText = Get("q") ?? "";
@@ -92,10 +95,10 @@ internal sealed class HistoryQuery
                 basis == "utc" ? Utc(start) : null, basis == "utc" ? Utc(end) : null,
                 basis != "utc" && mode == "interval" ? Local(start) : null, basis != "utc" && mode == "interval" ? Local(end) : null,
                 mode != "interval" ? start.ToString("yyyy-MM-dd", Invariant) : null,
-                mode != "interval" ? end.AddDays(-1).ToString("yyyy-MM-dd", Invariant) : null,
-                mode == "daily" ? from.ToString("c", Invariant) : null, mode == "daily" ? until.ToString("c", Invariant) : null,
+                mode != "interval" ? through.ToString("yyyy-MM-dd", Invariant) : null,
+                mode == "daily" ? Clock(from) : null, mode == "daily" ? Clock(until) : null,
                 text, ids, unassigned, area),
-            Zone = zone, Start = start, End = end, FromTime = from, UntilTime = until,
+            Zone = zone, Start = start, End = end, ThroughDate = through, FromTime = from, UntilTime = until,
             PageSize = Get("pageSize") is { } size ? PositiveInt(size, 500) : 100,
             Grid = Get("grid") is { } grid ? PositiveInt(grid, 16) : 16,
             ResultSet = Get("resultSet") is { } set ? set is "matches" or "unresolvedCandidates" ? set : throw Invalid() : "matches",
@@ -121,7 +124,7 @@ internal sealed class HistoryQuery
             if (anchor == DateTime.MinValue.Date) return false;
             anchor = anchor.AddDays(-1);
         }
-        return anchor >= Start && anchor < End && (Overnight
+        return anchor >= Start && anchor <= ThroughDate && (Overnight
             ? local.TimeOfDay >= FromTime || local.TimeOfDay < UntilTime
             : local.TimeOfDay >= FromTime && local.TimeOfDay < UntilTime);
     }
@@ -170,17 +173,25 @@ internal sealed class HistoryQuery
         return DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
     }
 
+    /// <summary>Calendar input is exact Gregorian ISO, without host culture or implicit time.</summary>
     private static DateTime ParseDate(string? value) => DateTime.TryParseExact(value, "yyyy-MM-dd", Invariant, DateTimeStyles.None, out var date) ? date : throw Invalid();
+    /// <summary>Daily clocks remain exact to stored microsecond precision.</summary>
     private static TimeSpan ParseTime(string? value)
     {
         if (value == null || !Regex.IsMatch(value, @"^[0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?$", RegexOptions.CultureInvariant)) throw Invalid();
         if (!TimeOnly.TryParse(value, Invariant, DateTimeStyles.None, out var time)) throw Invalid();
         return time.ToTimeSpan();
     }
+    /// <summary>Finite request controls and catalog identities do not accept signs, whitespace or overflow.</summary>
     private static int PositiveInt(string value, int maximum) => int.TryParse(value, NumberStyles.None, Invariant, out var number) && number > 0 && number <= maximum ? number : throw Invalid();
+    /// <summary>All parameter failures are controlled and omit supplied content.</summary>
     private static HistoryRequestException Invalid() => new("parametersInvalid");
+    /// <summary>Canonical wire instants retain all stored microseconds.</summary>
     internal static string Utc(DateTime value) => value.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", Invariant);
+    /// <summary>Wall facts never acquire an invented offset suffix.</summary>
     internal static string Local(DateTime value) => value.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff", Invariant);
+    /// <summary>Echoed clocks round-trip through the accepted microsecond grammar, without TimeSpan's seventh digit.</summary>
+    private static string Clock(TimeSpan value) => TimeOnly.FromTimeSpan(value).ToString("HH:mm:ss.ffffff", Invariant);
 
     /// <summary>Every route uses one case-sensitive allowlist and rejects PostgreSQL-untransportable input.</summary>
     private static void ValidateKeys(IQueryCollection values, IEnumerable<string> allowed)

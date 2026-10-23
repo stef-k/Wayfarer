@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -88,7 +89,10 @@ public sealed class HistoryPredicatePostgresTests(PostgresMigrationTestFixture f
         var a = Row(owner.Id, "2025-10-10T03:00:00Z", double.NaN, double.NaN);
         var b = Row(owner.Id, "2020-01-01T03:00:00Z", double.NaN, double.NaN);
         var c = Row(owner.Id, "2025-10-10T03:00:00Z", double.NaN, double.NaN); c.Notes = "known false";
-        db.AddRange(a, b, c); await db.SaveChangesAsync();
+        var cutoff = Row(owner.Id, "2025-10-11T00:00:00Z", double.NaN, double.NaN);
+        var minimumOffset = DateTimeZoneProviders.Tzdb.Ids.Min(id => DateTimeZoneProviders.Tzdb[id].MinOffset.Seconds);
+        cutoff.LocalTimestamp = cutoff.LocalTimestamp.AddSeconds(-minimumOffset);
+        db.AddRange(a, b, c, cutoff); await db.SaveChangesAsync();
         var capture = HistoryQueryTests.Parse("?timeBasis=capture&timeMode=days&viewerZone=UTC&fromDate=2025-10-10&throughDate=2025-10-10&q=cafe");
         Assert.Empty(await SelectAsync(db, owner.Id, capture));
         Assert.Equal(a.Id, Assert.Single(await SelectAsync(db, owner.Id, capture, true)));
@@ -97,11 +101,40 @@ public sealed class HistoryPredicatePostgresTests(PostgresMigrationTestFixture f
         Assert.Equal(2, (await SelectAsync(db, owner.Id, capture, true)).Length);
     }
 
+    /// <summary>Representable final-year daily windows and last-night spills survive both SQL time paths.</summary>
+    [PostgresFact]
+    public async Task FinalCalendarYearWindowsRemainQueryable()
+    {
+        var owner = await fixture.CreateUserAsync(); await using var db = fixture.CreateContext();
+        var noon = Row(owner.Id, "9999-12-31T03:00:00Z", 139.76, 35.68);
+        var night = Row(owner.Id, "9999-12-30T16:00:00Z", 139.76, 35.68);
+        db.AddRange(noon, night); await db.SaveChangesAsync();
+        foreach (var basis in new[] { "capture", "viewer" })
+        {
+            var common = $"?timeBasis={basis}&timeMode=daily&viewerZone=Asia%2FTokyo&fromDate=9999-12-31&throughDate=9999-12-31&fromTime=11:00&untilTime=15:00";
+            Assert.Equal(noon.Id, Assert.Single(await SelectAsync(db, owner.Id, HistoryQueryTests.Parse(common))));
+            var overnight = common.Replace("9999-12-31", "9999-12-30").Replace("11:00", "22:00").Replace("15:00", "02:00");
+            Assert.Equal(night.Id, Assert.Single(await SelectAsync(db, owner.Id, HistoryQueryTests.Parse(overnight))));
+        }
+        var firstYear = Row(owner.Id, "0001-01-01T12:00:00Z", 139.76, 35.68);
+        db.Add(firstYear); await db.SaveChangesAsync();
+        var firstDay = HistoryQueryTests.Parse("?timeBasis=viewer&timeMode=daily&viewerZone=UTC&fromDate=0001-01-01&throughDate=0001-01-01&fromTime=11:00&untilTime=15:00");
+        Assert.Equal(firstYear.Id, Assert.Single(await SelectAsync(db, owner.Id, firstDay)));
+    }
+
     /// <summary>Only the production predicate is under test; projection and routing have their own focused witnesses.</summary>
-    private static Task<int[]> SelectAsync(ApplicationDbContext db, string owner, HistoryQuery query, bool candidates = false)
+    private static async Task<int[]> SelectAsync(ApplicationDbContext db, string owner, HistoryQuery query, bool candidates = false)
     {
         var predicate = new HistoryPredicate(owner, query, default);
-        return db.Database.SqlQueryRaw<int>($"SELECT l.\"Id\" AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {(candidates ? predicate.Truth + " IS NULL" : predicate.Matches)}", predicate.CopyParameters()).ToArrayAsync();
+        var sql = $"SELECT l.\"Id\" AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {(candidates ? predicate.Truth + " IS NULL" : predicate.Matches)}";
+        var rows = await db.Database.SqlQueryRaw<int>(sql, predicate.CopyParameters()).ToArrayAsync();
+        if (!candidates)
+        {
+            var truthSql = $"SELECT l.\"Id\" AS \"Value\" FROM \"Locations\" l WHERE {predicate.Where} AND {predicate.Truth} IS TRUE";
+            var truthRows = await db.Database.SqlQueryRaw<int>(truthSql, predicate.CopyParameters()).ToArrayAsync();
+            Assert.Equal(rows.Order(), truthRows.Order());
+        }
+        return rows;
     }
     private static Location Row(string owner, string instant, double longitude, double latitude) => new()
     {

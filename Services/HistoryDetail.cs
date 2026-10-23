@@ -75,6 +75,8 @@ internal static class HistoryDetail
             derivationVersions = HistoryPublication.Versions, record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
     }
 
+    /// <summary>PostgreSQL infinity and dates outside the wire calendar are unavailable, not known null.</summary>
     private static string DateValid(string column) => $"isfinite(l.\"{column}\") AND l.\"{column}\" >= timestamptz '0001-01-01 00:00:00+00' AND l.\"{column}\" < timestamptz '10000-01-01 00:00:00+00'";
+    /// <summary>PostgreSQL orders NaN above infinity; this also excludes every nonfinite measurement.</summary>
     private static string NumberValid(string column) => $"l.\"{column}\" > '-Infinity'::float8 AND l.\"{column}\" < 'Infinity'::float8";
 }
