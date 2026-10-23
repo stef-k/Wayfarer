@@ -66,13 +66,17 @@ internal static class LocationHistoryDerivation
     /// <summary>Validates evidence before the resolver; unexpected library/operational failures propagate without a stamp.</summary>
     private static void DeriveTime(Location row)
     {
-        row.CaptureLocalTimestamp = null; row.CaptureTimeZoneId = null; row.CaptureOffsetSeconds = null;
-        row.HistoryTimeVersion = TimeVersion; row.HistoryTimeStatus = "unresolved"; row.HistoryTimeFailureCode = null;
+        row.CaptureLocalTimestamp = null;
+        row.CaptureTimeZoneId = null;
+        row.CaptureOffsetSeconds = null;
+        row.HistoryTimeVersion = TimeVersion;
+        row.HistoryTimeStatus = "unresolved";
+        row.HistoryTimeFailureCode = null;
         var point = row.Coordinates;
         if (point == null || point.IsEmpty || !double.IsFinite(point.X) || !double.IsFinite(point.Y)
             || point.X is < -180 or > 180 || point.Y is < -90 or > 90 || point.SRID != 4326)
         { row.HistoryTimeFailureCode = "invalidCoordinates"; return; }
-        if (row.LocalTimestamp.Kind == DateTimeKind.Local)
+        if (row.LocalTimestamp.Kind == DateTimeKind.Local || row.LocalTimestamp == DateTime.MinValue || row.LocalTimestamp == DateTime.MaxValue)
         { row.HistoryTimeFailureCode = "invalidEventUtc"; return; }
         var zoneId = TimeZoneLookup.GetTimeZone(point.Y, point.X).Result;
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(zoneId);
@@ -81,7 +85,8 @@ internal static class LocationHistoryDerivation
         {
             var value = Instant.FromDateTimeUtc(DateTime.SpecifyKind(row.LocalTimestamp, DateTimeKind.Utc)).InZone(zone);
             row.CaptureLocalTimestamp = value.LocalDateTime.ToDateTimeUnspecified();
-            row.CaptureTimeZoneId = zoneId; row.CaptureOffsetSeconds = value.Offset.Seconds;
+            row.CaptureTimeZoneId = zoneId;
+            row.CaptureOffsetSeconds = value.Offset.Seconds;
             row.HistoryTimeStatus = "resolved";
         }
         catch (ArgumentOutOfRangeException) { row.HistoryTimeFailureCode = "captureOutOfRange"; }

@@ -33,6 +33,13 @@ public sealed class LocationHistoryDerivationTests
         Assert.Contains("<strong>", row.Notes);
     }
 
+    [Fact]
+    public void DiscardedLegacyBlocksAndSingleEntityDecodingPreserveVisibleWords()
+    {
+        Assert.Equal("TOKYO STATION CAFE &AMP; TEA", LocationHistoryDerivation.NormalizeText(
+            RichNotes.ToPlainText("<div>Tokyo</div><div>station</div><table><tr><td>café</td><td>&amp;amp; tea</td></tr></table>")));
+    }
+
     [Theory]
     [InlineData("2025-11-02T05:30:00Z", "2025-11-02T01:30:00", -14400)]
     [InlineData("2025-11-02T06:30:00Z", "2025-11-02T01:30:00", -18000)]

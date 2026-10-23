@@ -119,7 +119,14 @@ public static class RichNotes
 
         if (!AllowedTags.Contains(element.TagName))
         {
-            element.Replace(element.ChildNodes.ToArray());
+            // Legacy block containers must not concatenate visible words when their markup is discarded.
+            var block = element.LocalName is "div" or "section" or "article" or "header" or "footer" or "main"
+                or "aside" or "pre" or "table" or "tr" or "td" or "th" or "dl" or "dt" or "dd" or "hr"
+                or "figure" or "figcaption";
+            if (block)
+                element.Replace(new INode[] { element.Owner!.CreateTextNode(" ") }.Concat(element.ChildNodes)
+                    .Append(element.Owner!.CreateTextNode(" ")).ToArray());
+            else element.Replace(element.ChildNodes.ToArray());
             return;
         }
 

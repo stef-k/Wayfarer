@@ -20,15 +20,23 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
         if (state == null)
         {
             state = new HistoryPreparationState { Kind = kind, TargetVersion = version };
-            db.Add(state); rebuild = true;
+            db.Add(state);
+            rebuild = true;
         }
         else if (state.TargetVersion != version && !rebuild)
             throw new InvalidOperationException("Rule identity changed; explicitly rebuild the affected generation.");
         if (rebuild)
         {
-            state.TargetVersion = version; state.ActiveVersion = null; state.Ready = false; state.Scanning = true;
-            state.LastId = 0; state.Examined = 0; state.Prepared = 0; state.LastFailure = null;
-            state.WriterVersion = WriterVersion; state.UpdatedAtUtc = DateTime.UtcNow;
+            state.TargetVersion = version;
+            state.ActiveVersion = null;
+            state.Ready = false;
+            state.Scanning = true;
+            state.LastId = 0;
+            state.Examined = 0;
+            state.Prepared = 0;
+            state.LastFailure = null;
+            state.WriterVersion = WriterVersion;
+            state.UpdatedAtUtc = DateTime.UtcNow;
         }
         await db.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
@@ -50,7 +58,13 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                 """).SingleAsync(token);
             if (state.TargetVersion != Version(kind) || state.WriterVersion != WriterVersion)
                 throw new InvalidOperationException("Preparation target does not match this binary.");
-            if (state.Ready) { await transaction.CommitAsync(token); return true; }
+            if (state.Ready)
+            {
+                var status = await StatusAsync(kind, token);
+                if (status.Ready) { await transaction.CommitAsync(token); return true; }
+                state.Ready = false;
+                state.ActiveVersion = null;
+            }
             var version = Version(kind);
             var rows = state.Scanning
                 ? await db.Locations.FromSqlInterpolated($$"""
@@ -67,7 +81,8 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                         """).AsNoTracking().ToListAsync(token);
             foreach (var row in rows)
                 await LocationHistoryStorage.UpdateAsync(db, row, kind == "time", kind == "text", token);
-            state.Examined += rows.Count; state.Prepared += rows.Count;
+            state.Examined += rows.Count;
+            state.Prepared += rows.Count;
             if (state.Scanning && rows.Count > 0) state.LastId = rows[^1].Id;
             if (rows.Count == 0)
             {
@@ -75,10 +90,12 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                 else
                 {
                     if (!await IndexesReadyAsync(token)) throw new InvalidOperationException("Required history indexes are unavailable.");
-                    state.Ready = true; state.ActiveVersion = version;
+                    state.Ready = true;
+                    state.ActiveVersion = version;
                 }
             }
-            state.LastFailure = null; state.UpdatedAtUtc = DateTime.UtcNow;
+            state.LastFailure = null;
+            state.UpdatedAtUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
             var complete = state.Ready;
@@ -117,17 +134,19 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
             : await db.Locations.LongCountAsync(row => row.HistoryTextVersion != version || row.HistoryTextVersion == null
                 || scanning && row.Id > lastId, token);
         var unresolved = kind == "time" ? await db.Locations.LongCountAsync(row => row.HistoryTimeVersion == version
-            && row.HistoryTimeStatus == "unresolved", token) : 0;
+            && row.HistoryTimeStatus == "unresolved" && (!scanning || row.Id <= lastId), token) : 0;
         var indexes = await IndexesReadyAsync(token);
         var ready = state?.Ready == true && state.ActiveVersion == version && state.TargetVersion == version
             && state.WriterVersion == WriterVersion && pending == 0 && indexes;
-        return new(kind, version, state?.ActiveVersion, ready, all, pending, unresolved, state?.Examined ?? 0,
+        return new(kind, version, state?.ActiveVersion, ready, all, pending, all - pending - unresolved, unresolved, state?.Examined ?? 0,
             state?.Prepared ?? 0, state?.LastId ?? 0, indexes, state?.LastFailure);
     }
 
     /// <summary>Checks valid/ready physical index definitions, not just names, and the required trigram extension.</summary>
     internal Task<bool> IndexesReadyAsync(CancellationToken token) => db.Database.SqlQueryRaw<bool>("""
-        SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_trgm') AND
+        SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_trgm')
+            AND EXISTS (SELECT FROM pg_attribute a JOIN pg_collation col ON col.oid = a.attcollation
+                WHERE a.attrelid = '"Locations"'::regclass AND a.attname = 'HistorySearchText' AND col.collname = 'C') AND
             (SELECT count(*) = 4 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
              JOIN pg_am am ON am.oid = c.relam
              JOIN (VALUES
@@ -155,4 +174,4 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
 
 /// <summary>Safe operational progress; pending work is separate from classified exceptional time evidence.</summary>
 internal sealed record HistoryPreparationStatus(string Kind, string TargetVersion, string? ActiveVersion, bool Ready,
-    long Total, long Pending, long Unresolved, long Examined, long Prepared, int LastId, bool IndexesReady, string? LastFailure);
+    long Total, long Pending, long Resolved, long Unresolved, long Examined, long Prepared, int LastId, bool IndexesReady, string? LastFailure);

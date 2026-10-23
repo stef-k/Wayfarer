@@ -11,17 +11,22 @@ public partial class ApplicationDbContext
 
     /// <summary>All async save entry points share the same atomic boundary.</summary>
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
-        SaveChangesAsync(true, cancellationToken);
+        SaveHistoryChangesAsync(() => SaveApplicationChangesAsync(true, cancellationToken), cancellationToken);
 
     /// <summary>Synchronous callers retain the same derivation contract.</summary>
     public override int SaveChanges() => SaveChanges(true);
 
     /// <summary>Synchronous callers retain explicit change-acceptance semantics.</summary>
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
-        SaveChangesAsync(acceptAllChangesOnSuccess, CancellationToken.None).GetAwaiter().GetResult();
+        SaveHistoryChangesAsync(() => Task.FromResult(base.SaveChanges(acceptAllChangesOnSuccess)), CancellationToken.None)
+            .GetAwaiter().GetResult();
 
     /// <summary>Locks current rows, overlays only modified canonical properties and saves derived values together.</summary>
-    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default) =>
+        SaveHistoryChangesAsync(() => base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken), cancellationToken);
+
+    /// <summary>Preserves each existing save overload's non-Location behavior while adding the same history boundary.</summary>
+    private async Task<int> SaveHistoryChangesAsync(Func<Task<int>> save, CancellationToken cancellationToken)
     {
         var entries = ChangeTracker.Entries<Location>()
             .Where(entry => entry.State is EntityState.Added or EntityState.Modified).OrderBy(entry => entry.Entity.Id).ToArray();
@@ -57,7 +62,7 @@ public partial class ApplicationDbContext
                 if (!added) property.IsModified = property.Metadata.Name is nameof(Location.HistorySearchText) or nameof(Location.HistoryTextVersion) ? text : time;
             }
         }
-        var count = await SaveApplicationChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        var count = await save();
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return count;
     }
