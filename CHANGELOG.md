@@ -92,6 +92,14 @@
 
 ### Fixed
 
+- Retain unresolved Trip Settings sharing attempts and the latest choice even
+  when a newer disable matches the old baseline. Preserve navigation protection,
+  hold refresh/reset/reopen and further saves after an unconfirmed reply, and
+  prevent false Saved/exit or blind replay. Explain the hold and offer an explicit
+  Leave without saving warning; abandonment does not undo the earlier request.
+  A delayed successful save still permits the next explicit corrective save
+  (#853 C3; pending review and maintainer acceptance).
+
 - Check current account activity and session stamps on every website-cookie
   request across protected MVC, Razor and API routes. Deactivation requires fresh
   website login even after reactivation; existing API tokens recover under their

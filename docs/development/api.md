@@ -765,6 +765,25 @@ A missing route/original-value contract holds the save without falling back to
 an unconditional endpoint. A lost reply or cancellation does **not** prove no
 effect and must not trigger blind replay.
 
+The existing Web Trip Settings sharing owner also retains its submitted sharing
+attempt separately from the confirmed baseline and latest checkbox choice
+(#853 C3). An in-flight or uncertain attempt keeps navigation protection active
+even if a newer disable equals the old baseline. Network/server failures or an
+unusable sharing acknowledgement show **Sharing change not confirmed**; subsequent
+Save and Save & Exit cannot dispatch again, report Saved or navigate. Metadata
+refresh, reset and closing/reopening the settings surface do not retire that
+attempt or overwrite the latest choice. Explicit validation/authentication or
+authorization rejection remains an ordinary correctable save failure.
+
+The bounded available action is **Leave without saving**, with confirmation that
+the earlier request may still finish and the retained choice will be lost.
+Staying preserves the hold; leaving is deliberate abandonment, not reconciliation
+or remote rollback. There is no cross-page/reload persistence, retry, corrective
+replay, receipt or terminality guarantee. A fresh read, timeout, fetch abortion
+or reopened surface does not supply terminal evidence. A genuine successful
+sharing reply advances the baseline while retaining a newer disable; its next
+explicit save still works. The sharing endpoint and database write are unchanged.
+
 **Residual legacy risk:** old bearer `PUT /api/trips/{id}` and cookie
 `PATCH /api/trips/{id}/editor/metadata` keep their unconditional payloads and
 envelopes. A stale full Web draft can still overwrite a later bearer edit, and
