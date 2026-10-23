@@ -71,6 +71,7 @@ internal static class ApiLocationUpdate
         var currentValues = db.Entry(current).CurrentValues;
         foreach (var property in original.Properties)
         {
+            if (Util.LocationHistoryDerivation.IsDerived(property.Name)) continue;
             // A concurrent presence admission is not an owner edit; retain it or explicitly invalidate it with the patch.
             if (property.Name is nameof(Location.CoordinateOrigin) or nameof(Location.ObservedAtUtc)
                 or nameof(Location.ObservedAgeAtEventMs) or nameof(Location.PresenceObservedAtUtc)) continue;

@@ -36,6 +36,13 @@ if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console
     return;
 }
 
+// History preparation is operator-run and must not start the web host, jobs or providers.
+if (args.Length > 0 && args[0] == "history-data")
+{
+    Environment.ExitCode = await LocationHistoryCli.RunAsync(args, Console.Out, Console.Error);
+    return;
+}
+
 // Explicit preparation exits before web startup, migrations, seeding, logging or jobs.
 if (args.Length > 0 && args[0] == "data-protection")
 {

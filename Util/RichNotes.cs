@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
@@ -85,9 +86,28 @@ public static class RichNotes
             : html;
     }
 
-    /// <summary>Derives plain preview text; callers must encode it when placing it into HTML.</summary>
-    public static string? ToPlainText(string? notesHtml) => notesHtml is null
-        ? null : new HtmlParser().ParseDocument(Normalize(notesHtml)!).Body!.TextContent;
+    /// <summary>Extracts sanitized visible words, preserving inline continuity and block/line separators.</summary>
+    public static string? ToPlainText(string? notesHtml)
+    {
+        if (notesHtml is null) return null;
+        var body = new HtmlParser().ParseDocument(Normalize(notesHtml)!).Body!;
+        var result = new StringBuilder();
+        AppendVisible(body, result);
+        return result.ToString().Trim();
+    }
+
+    /// <summary>The parser decodes text entities once; attributes and image content never contribute words.</summary>
+    private static void AppendVisible(INode node, StringBuilder result)
+    {
+        if (node is IText text) { result.Append(text.Data); return; }
+        var tag = (node as IElement)?.LocalName;
+        if (tag == "img") return;
+        var boundary = tag is "blockquote" or "br" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6"
+            or "li" or "ol" or "p" or "ul";
+        if (boundary) result.Append(' ');
+        foreach (var child in node.ChildNodes) AppendVisible(child, result);
+        if (boundary) result.Append(' ');
+    }
 
     private static void NormalizeElement(IElement element)
     {
