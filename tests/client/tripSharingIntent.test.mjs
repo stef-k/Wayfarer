@@ -221,8 +221,8 @@ test('C3 contract: parent refresh cannot erase newer disable or settle the unkno
   gate.resolve();
   await enabling;
   // Both matching and opposite snapshots are observations, not evidence that the predecessor is terminal.
-  for (const enabled of [true, false]) {
-    parent.applyMetadata(metadata(enabled));
+  for (const [enabled, isPublic] of [[true, true], [false, true], [false, false]]) {
+    parent.applyMetadata({ ...metadata(enabled), isPublic });
     await nextTick();
     const refreshed = observation(`unknown-parent-refresh-${enabled}`, owner, requests);
     assert.equal(refreshed.parentSharing, enabled);
@@ -320,5 +320,55 @@ for (const successful of [false, true]) test(`C3 close/reopen retains in-flight 
     await editor.saveAndExit();
     assert.match(owner.visibleText(), /could not confirm/i);
     assert.equal(calls, 1);
+    assert.equal(await parent.editorSurface.closeActiveTarget(), true);
+    await editor.openMetadata();
+    await nextTick();
+    assert.match(owner.visibleText(), /could not confirm/i);
+    assert.equal(editor.draft.shareProgressEnabled, false);
   }
+}));
+
+// Body/shape failures also lack an acknowledgement; they must hold before changing parent or baseline.
+test('C3 incomplete successful reply retains intent and cannot become a retry opportunity', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ data: {}, affected: { metadata: {} } })); };
+  editor.visibleShareProgressEnabled = true;
+  await editor.saveAndExit();
+  editor.visibleShareProgressEnabled = false;
+  editor.resetDraft();
+  await nextTick();
+  assert.equal(editor.draft.shareProgressEnabled, false);
+  assert.equal(editor.persistedDraft.shareProgressEnabled, false);
+  assert.equal(parent.state.metadata.shareProgressEnabled, false);
+  assert.equal(editor.draftState.sharingAttempt.value.enabled, true);
+  assert.equal(editor.draftState.sharingAttempt.value.outcome, 'unknown');
+  assert.equal(editor.isDirty, true);
+  assert.match(owner.visibleText(), /could not confirm/i);
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.deepEqual(owner.navigations, []);
+}));
+
+// An explicit pre-write validation rejection remains correctable through the normal save action.
+test('C3 confirmed validation rejection permits a later explicit sharing save', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return calls === 1 ? new Response(JSON.stringify({ title: 'Review sharing', errors: { enabled: ['Review sharing'] } }), { status: 400 }) : new Response(enabledReply);
+  };
+  editor.visibleShareProgressEnabled = true;
+  await editor.saveAndExit();
+  await nextTick();
+  assert.equal(editor.statusText, 'Save failed');
+  assert.equal(editor.sharingUnconfirmed, false);
+  assert.equal(editor.isDirty, true);
+  assert.match(owner.visibleText(), /Review sharing/);
+  assert.equal(owner.button('Save & Exit').props.disabled, false);
+  await owner.button('Save & Exit').props.onClick();
+  assert.equal(calls, 2);
+  assert.equal(parent.state.metadata.shareProgressEnabled, true);
+  assert.equal(editor.isDirty, false);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
 }));

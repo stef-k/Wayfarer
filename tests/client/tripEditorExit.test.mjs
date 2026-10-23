@@ -423,8 +423,13 @@ for (const outcome of ['publication conflict', 'publication failure', 'sharing f
       if (outcome === 'newer private draft') assert.equal(owner.editor.draft.isPublic, false);
       else {
         assert.equal(owner.editor.draft.shareProgressEnabled, true);
-        assert.equal(owner.editor.statusText, 'Save failed');
-        assert.ok(owner.editor.saveError);
+        if (outcome === 'sharing failure') {
+          assert.equal(owner.editor.statusText, 'Sharing change not confirmed');
+          assert.equal(owner.editor.sharingUnconfirmed, true);
+        } else {
+          assert.equal(owner.editor.statusText, 'Save failed');
+          assert.ok(owner.editor.saveError);
+        }
       }
     } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
   });
