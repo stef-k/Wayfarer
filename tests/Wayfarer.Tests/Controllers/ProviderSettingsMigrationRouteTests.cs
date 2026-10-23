@@ -295,14 +295,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
     /// <summary>Issues a genuine framework Identity cookie, retaining production authorization.</summary>
     private static void Cookie(HttpClient client, IServiceProvider services, string role = "User")
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(ClaimTypes.NameIdentifier, "owner"), new Claim(ClaimTypes.Name, "owner"),
-            new Claim(ClaimTypes.Role, role)], scheme));
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties
-            { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(services, "owner", role));
     }
 
     /// <summary>Retains auth, antiforgery, and TempData cookies across the real PRG flow.</summary>

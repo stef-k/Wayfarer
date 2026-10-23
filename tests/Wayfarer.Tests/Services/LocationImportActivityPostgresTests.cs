@@ -440,13 +440,7 @@ public sealed class LocationImportActivityPostgresTests(PostgresImportTestFixtur
                 services.AddSingleton(Moq.Mock.Of<ILocationImportLifecycle>());
             });
             using var client = app.GetTestClient();
-            var scheme = IdentityConstants.ApplicationScheme;
-            var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-            var principal = new ClaimsPrincipal(new ClaimsIdentity([
-                new(ClaimTypes.NameIdentifier, import.UserId), new(ClaimTypes.Role, "User")], scheme));
-            var ticket = new AuthenticationTicket(principal, new AuthenticationProperties
-                { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-            client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+            client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, import.UserId, "User"));
             using var response = await client.GetAsync("/User/LocationImport");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var html = await response.Content.ReadAsStringAsync();

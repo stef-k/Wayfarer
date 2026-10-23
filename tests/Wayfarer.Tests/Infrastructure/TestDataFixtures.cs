@@ -57,6 +57,7 @@ public static class TestDataFixtures
             UserName = username,
             DisplayName = displayName,
             Email = $"{username}@test.com",
+            SecurityStamp = Guid.NewGuid().ToString(),
             IsActive = isActive,
             EmailConfirmed = true
         };

@@ -70,11 +70,7 @@ public class ApiActivityControllerTests : TestBase
         using var client = app.GetTestClient();
         if (mode.Contains("cookie"))
         {
-            var scheme = IdentityConstants.ApplicationScheme;
-            var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-            var ticket = new AuthenticationTicket(BuildHttpContextWithUser(user.Id, "User").User,
-                new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-            client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+            client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, user.Id, "User"));
             // An authenticated cookie owns resolution, even when the Bearer is invalid.
             client.DefaultRequestHeaders.Authorization = new("Bearer", mode == "inactive-cookie-valid-bearer" ? "other-active-token" : "invalid");
         }

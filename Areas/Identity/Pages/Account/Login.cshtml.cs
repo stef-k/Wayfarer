@@ -44,6 +44,9 @@ namespace Wayfarer.Areas.Identity.Pages.Account
 
         public async Task OnGetAsync(string? returnUrl = null)
         {
+            // Navigation after cookie rejection explains why a fresh login is required.
+            if (Request.Query["sessionEnded"] == "true")
+                ModelState.AddModelError(string.Empty, Services.ActiveAccountCookie.SessionEndedMessage);
             if (!string.IsNullOrEmpty(ErrorMessage))
             {
                 ModelState.AddModelError(string.Empty, ErrorMessage);

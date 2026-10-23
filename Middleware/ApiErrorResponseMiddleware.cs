@@ -28,7 +28,7 @@ public sealed class ApiErrorResponseMiddleware
             if (isApi && !context.Response.HasStarted && context.Response.StatusCode is 401 or 403 or 404)
             {
                 int statusCode = context.Response.StatusCode;
-                context.Response.Clear();
+                ClearPreservingCookies(context.Response);
                 context.Response.StatusCode = statusCode;
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsync(JsonSerializer.Serialize(new
@@ -37,6 +37,7 @@ public sealed class ApiErrorResponseMiddleware
                     error = statusCode switch { 401 => "Unauthorized", 403 => "Forbidden", _ => "Not Found" },
                     message = statusCode switch
                     {
+                        401 when Services.ActiveAccountCookie.WasRejected(context) => Services.ActiveAccountCookie.SessionEndedMessage,
                         401 => "Authentication is required to access this endpoint.",
                         403 => "You do not have permission to access this resource.",
                         _ => "The requested API endpoint does not exist."
@@ -49,7 +50,7 @@ public sealed class ApiErrorResponseMiddleware
             // Keep exception payloads out of both the public envelope and routine diagnostics.
             logger.LogError("Unhandled API failure {ExceptionType} for {Method} {Path}; request {RequestId}",
                 ex.GetType().Name, context.Request.Method, context.Request.Path, context.TraceIdentifier);
-            context.Response.Clear();
+            ClearPreservingCookies(context.Response);
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(JsonSerializer.Serialize(new
@@ -61,5 +62,13 @@ public sealed class ApiErrorResponseMiddleware
                 requestId = context.TraceIdentifier
             }));
         }
+    }
+
+    /// <summary>Keep sign-out and other cookie lifecycle headers when replacing an API error body.</summary>
+    private static void ClearPreservingCookies(HttpResponse response)
+    {
+        var cookies = response.Headers.SetCookie;
+        response.Clear();
+        if (cookies.Count > 0) response.Headers.SetCookie = cookies;
     }
 }

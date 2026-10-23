@@ -250,13 +250,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
     /// <summary>Protects an owner cookie with the test host's actual Identity scheme.</summary>
     private static void Authenticate(HttpClient client, IServiceProvider services, string userId)
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(CreateUserPrincipal(userId), new AuthenticationProperties
-        {
-            IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10)
-        }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(services, userId, "User"));
     }
 
     /// <summary>Both routed exports accept the saved estimates while retaining their separate format contracts.</summary>

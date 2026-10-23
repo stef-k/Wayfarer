@@ -59,6 +59,31 @@ const mountDraft = () => {
   } };
 };
 
+// Exercise actual metadata/sharing actions; rejected authentication never advances a draft or navigates away.
+for (const sharing of [false, true]) test(`session rejection retains ${sharing ? 'sharing' : 'metadata'} draft and reports fresh-login guidance`, async () => {
+  const previous = { window: globalThis.window, fetch: globalThis.fetch };
+  const navigations = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Your session has ended or your account is disabled. Sign in again.' }), { status: 401 });
+  const owner = mountDraft();
+  try {
+    if (sharing) {
+      owner.props.metadata = withOriginals({ ...owner.props.metadata, isPublic: true, shareProgressEnabled: false });
+      await nextTick();
+      owner.editor.draft.shareProgressEnabled = true;
+    } else owner.editor.draft.name = 'Unsaved name';
+    const before = structuredClone(owner.props.metadata);
+    await owner.editor.saveAndExit();
+    assert.match(owner.editor.saveError, /session has ended|account is disabled/i);
+    assert.match(owner.editor.saveError, /sign in again/i);
+    assert.equal(owner.editor.isDirty, true);
+    assert.equal(sharing ? owner.editor.draft.shareProgressEnabled : owner.editor.draft.name, sharing ? true : 'Unsaved name');
+    assert.deepEqual(owner.props.metadata, before);
+    assert.equal(owner.editor.lastSavedAt, null);
+    assert.deepEqual(navigations, []);
+  } finally { owner.dispose(); Object.assign(globalThis, previous); }
+});
+
 test('captured viewport survives closed settings and unrelated refresh, with equivalent capture and reset staying clean', async () => {
   const previousWindow = globalThis.window;
   globalThis.window = { addEventListener() {}, removeEventListener() {} };

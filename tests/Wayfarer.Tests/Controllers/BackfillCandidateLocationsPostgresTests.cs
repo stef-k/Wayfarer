@@ -116,15 +116,6 @@ public class BackfillCandidateLocationsPostgresTests(PostgresImportTestFixture f
     /// <summary>Uses the existing protected Identity-cookie convention so production authentication still runs.</summary>
     private static void Cookie(HttpClient client, IServiceProvider services, string userId)
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var principal = new ClaimsPrincipal(new ClaimsIdentity([
-            new Claim(ClaimTypes.NameIdentifier, userId), new Claim(ClaimTypes.Name, userId),
-            new Claim(ClaimTypes.Role, "User")], scheme));
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties
-        {
-            IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10)
-        }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(services, userId, "User"));
     }
 }

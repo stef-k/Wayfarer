@@ -289,14 +289,7 @@ public sealed class TripExportPostgresTests(PostgresImportTestFixture fixture) :
         }
 
         // Protect the synthetic owner's ticket with the same Identity cookie configuration used by the host.
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(CreateUserPrincipal(owner.Id), new AuthenticationProperties
-        {
-            IssuedUtc = DateTimeOffset.UtcNow,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10)
-        }, scheme);
-        client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, owner.Id, "User"));
         using (var valid = await client.GetAsync(route))
         {
             Assert.Equal(HttpStatusCode.OK, valid.StatusCode);

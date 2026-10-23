@@ -247,12 +247,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             const string description = "Original <strong>prose</strong> & \"quoted\" text.\nSecond line.";
             await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
             using var client = app.GetTestClient();
-            var scheme = IdentityConstants.ApplicationScheme;
-            var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-            var ticket = new AuthenticationTicket(BuildHttpContextWithUser(admin.Id, "Admin").User,
-                new AuthenticationProperties
-                { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-            var authCookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+            var authCookie = IdentityRouteHost.Cookie(app.Services, admin.Id, "Admin");
             client.DefaultRequestHeaders.Add("Cookie", authCookie);
             var antiforgery = await IdentityRouteHost.AntiforgeryAsync(client);
             var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();

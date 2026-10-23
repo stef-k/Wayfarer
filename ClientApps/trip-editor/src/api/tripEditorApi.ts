@@ -73,6 +73,12 @@ export class EditorMutationHttpError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
+/** Authentication rejection leaves the current editor/draft mounted and explains how to regain access. */
+const requireSession = (response: Response): void => {
+  if (response.status === 401) throw new EditorMutationHttpError(
+    'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.', 401);
+};
+
 /// Error raised when canonical lifecycle dependencies require confirmation or changed before retry.
 export class EditorLifecycleConfirmationError extends Error {
   readonly conflict: EditorLifecycleConflict;
@@ -95,6 +101,7 @@ export const loadEditorState = async (endpoint: string): Promise<EditorTripState
     headers: { Accept: 'application/json' },
     credentials: 'same-origin'
   });
+  requireSession(response);
 
   if (!response.ok) {
     throw new Error(`Trip Editor API returned ${response.status}`);
@@ -118,6 +125,7 @@ export const searchGeocode = async (
     body: JSON.stringify({ query, limit }),
     signal
   });
+  requireSession(response);
 
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
@@ -154,6 +162,7 @@ export const patchMetadata = async (
     credentials: 'same-origin',
     body: JSON.stringify(request)
   });
+  requireSession(response);
 
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
@@ -365,6 +374,7 @@ const sendMutation = async <TData>(
   }
 
   const response = await fetch(url, init);
+  requireSession(response);
   if (response.status === 400) {
     throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
   }

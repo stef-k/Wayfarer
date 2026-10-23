@@ -177,10 +177,6 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
     /// <summary>Builds a genuine Identity cookie with the existing production ticket format.</summary>
     private static string Cookie(IServiceProvider services, string userId)
     {
-        var scheme = IdentityConstants.ApplicationScheme;
-        var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
-        var ticket = new AuthenticationTicket(BuildHttpContextWithUser(userId, "User").User,
-            new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
-        return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        return IdentityRouteHost.Cookie(services, userId);
     }
 }
