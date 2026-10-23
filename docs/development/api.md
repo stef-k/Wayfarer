@@ -783,6 +783,10 @@ replay, receipt or terminality guarantee. A fresh read, timeout, fetch abortion
 or reopened surface does not supply terminal evidence. A genuine successful
 sharing reply advances the baseline while retaining a newer disable; its next
 explicit save still works. The sharing endpoint and database write are unchanged.
+Discarding or closing the initiating settings session revokes its pending
+Save & Exit continuation without retiring the sharing attempt or rejecting a
+valid acknowledgement. A still-current save uses the shared navigation check
+against all current unsaved editor drafts before exiting.
 
 **Residual legacy risk:** old bearer `PUT /api/trips/{id}` and cookie
 `PATCH /api/trips/{id}/editor/metadata` keep their unconditional payloads and

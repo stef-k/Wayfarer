@@ -50,6 +50,8 @@ const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
+/// Discarding this interaction revokes pending exit permission without retiring an HTTP attempt.
+let editSession = 0;
 /// Distinguishes explicit sharing input during this save from privacy-driven clearing.
 let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
@@ -167,11 +169,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  editSession++;
   unregisterSurfaceHandler?.();
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
 const resetDraft = (): void => {
+  editSession++;
   draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
   tagInput.value = '';
   tagSuggestions.value = [];
@@ -181,17 +185,14 @@ const resetDraft = (): void => {
   warnings.value = [];
 };
 
+/// Save settings before checking the current unsaved drafts through the shared exit action.
 const saveAndExit = async (): Promise<void> => {
-  if (isSaving.value || sharingUnconfirmed.value) return;
-  if (props.hasRegionDraftChanges && !(await confirmDiscardTripEditorChanges())) {
-    return;
-  }
-
   await save(true);
 };
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   if (isSaving.value || sharingUnconfirmed.value) return;
+  const savingSession = editSession;
   shareProgressEditedDuringSave = false;
   isSaving.value = true;
   saveError.value = null;
@@ -255,8 +256,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
     draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
-    if (exitAfterSave && !isDirty.value) {
-      leaveEditor();
+    if (exitAfterSave && savingSession === editSession && !isDirty.value) {
+      await backToTrips();
     }
   }
 };

@@ -208,6 +208,9 @@ or recovery. A refreshed value, even one matching your choice, cannot prove that
 the earlier request has finished. This editor cannot safely complete an uncertain
 sharing change automatically. After an acknowledged successful save, a newer
 sharing choice remains unsaved and can be saved explicitly in the usual way.
+Switching away from Trip Settings cancels its pending **Save & Exit** navigation,
+so a later successful reply cannot discard a newer editor draft. Any save-triggered
+exit also checks the current unsaved drafts before leaving.
 
 Use the public sharing menu to copy a link, **Copy embed URL** or **Copy embed
 HTML**. Copy at your instance's public HTTPS address. Trip embeds let ordinary
