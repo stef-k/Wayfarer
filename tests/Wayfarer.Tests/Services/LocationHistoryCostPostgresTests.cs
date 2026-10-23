@@ -33,7 +33,7 @@ public sealed class LocationHistoryCostPostgresTests(ITestOutputHelper output) :
             SELECT {{owner.Id}}, '2025-01-01Z'::timestamptz + n * interval '5 minutes',
                 '2025-01-01Z'::timestamptz + n * interval '5 minutes', 'UTC',
                 ST_SetSRID(ST_MakePoint(139.76 + n % 100 * 0.0001, 35.68),4326)::geography,
-                '<p>Visit ' || n || ' café Καφές 東京</p><p>Distinct diary ' || md5(n::text) || ' and walking near station ' || n || '</p>',
+                '<p>Visit ' || n || ' café façade școală Καφές 東京</p><p>Distinct diary ' || md5(n::text) || ' and walking near station ' || n || '</p>',
                 n || ' Café road', n || ' Café road Tokyo Japan', n || ' independent provider line', n::text,
                 'Café road', '100-' || n, 'Tokyo', 'Kantō', 'Japan', 'Station ' || n
             FROM generate_series(1,10000) n
@@ -112,7 +112,7 @@ public sealed class LocationHistoryCostPostgresTests(ITestOutputHelper output) :
     /// <summary>Qualifies accent-folded stored/query parity, C-collated literals and actual trigram eligibility.</summary>
     private async Task CheckMatchingAsync(ApplicationDbContext db, string owner)
     {
-        foreach (var phrase in new[] { "café", "cafe\u0301", "Καφές", "東京", "100%_\\", "a", "%" })
+        foreach (var phrase in new[] { "café", "cafe\u0301", "façade", "facade", "școală", "scoala", "Καφές", "東京", "100%_\\", "a", "%" })
         {
             var normalized = LocationHistoryDerivation.NormalizeText(phrase);
             var pattern = "%" + normalized.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";

@@ -12,7 +12,7 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Proves final-row atomicity and durable independent preparation on the guarded database.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationHistoryPostgresTests(PostgresImportTestFixture fixture)
+public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fixture) : IClassFixture<PostgresMigrationTestFixture>
 {
     [PostgresFact]
     public async Task StalePartialEditsDeriveFromFinalMergedRowAndRollbackTogether()
