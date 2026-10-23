@@ -120,8 +120,9 @@ I918-A exposes no routes or readiness/capability advertisement to consumers.
 `LocationHistoryDerivation.NormalizeText` is the shared stored/query implementation.
 It applies compatibility decomposition (NFKD), the explicitly selected accent fold,
 Unicode whitespace collapse/trim, invariant scalar uppercase and NFC composition.
-It removes U+0300/0301/0302/0303/0304/0306/0307/0308/030A/030B/030C/0313/0314/0342
-only following Latin or Greek base letters. Thus `cafe`, `CAFÉ`, and decomposed
+It removes U+0300/0301/0302/0303/0304/0306/0307/0308/030A/030B/030C/0313/0314/031B/
+0323/0324/0325/0326/0327/0328/032D/032E/0330/0331/0342 only following Latin or Greek
+base letters, including cedilla, ogonek, comma/dot below and Vietnamese horn/tone marks. Thus `cafe`, `CAFÉ`, and decomposed
 `cafe` + acute agree; Greek tonos, dialytika, breathing and circumflex accents fold.
 Greek final sigma agrees through uppercase. Iota subscript, Arabic marks, Indic
 virama and Japanese dakuten remain meaningful. Letters without an applicable

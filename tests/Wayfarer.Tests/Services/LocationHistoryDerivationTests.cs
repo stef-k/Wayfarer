@@ -12,6 +12,7 @@ public sealed class LocationHistoryDerivationTests
     [Theory]
     [InlineData("  CAFÉ\t au\n lait ", "CAFE AU LAIT")]
     [InlineData("cafe\u0301", "CAFE")]
+    [InlineData("façade ação școală Łódź ắộơ", "FACADE ACAO SCOALA ŁODZ AOO")]
     [InlineData("Καφές Αθήνα ΐ ΰ", "ΚΑΦΕΣ ΑΘΗΝΑ Ι Υ")]
     [InlineData("東京 ガイド العربية हिन्दी", "東京 ガイド العربية हिन्दी")]
     [InlineData("ＡＢＣ 100%_\\", "ABC 100%_\\")]

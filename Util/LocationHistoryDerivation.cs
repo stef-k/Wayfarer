@@ -61,7 +61,8 @@ internal static class LocationHistoryDerivation
 
     /// <summary>Accents only: preserves iota subscript, virama, Arabic vowels, Japanese dakuten and other marks.</summary>
     private static bool IsAccent(int scalar) => scalar is 0x300 or 0x301 or 0x302 or 0x303 or 0x304 or 0x306
-        or 0x307 or 0x308 or 0x30a or 0x30b or 0x30c or 0x313 or 0x314 or 0x342;
+        or 0x307 or 0x308 or 0x30a or 0x30b or 0x30c or 0x313 or 0x314 or 0x31b
+        or 0x323 or 0x324 or 0x325 or 0x326 or 0x327 or 0x328 or 0x32d or 0x32e or 0x330 or 0x331 or 0x342;
 
     /// <summary>Validates evidence before the resolver; unexpected library/operational failures propagate without a stamp.</summary>
     private static void DeriveTime(Location row)
