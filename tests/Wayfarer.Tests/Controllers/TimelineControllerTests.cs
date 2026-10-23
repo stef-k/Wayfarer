@@ -414,10 +414,10 @@ public class TimelineControllerTests : TestBase
             client.DefaultRequestHeaders.Remove("Cookie");
             UserConnectionTokenHttpTests.Cookie(client, app.Services, "missing-user");
             using var missing = await client.GetAsync(path);
-            Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
-            var expected = action == "CheckNavigationAvailability" ? "{\"success\":false}"
-                : "{\"success\":false,\"message\":\"User not found.\"}";
-            Assert.Equal(expected, await missing.Content.ReadAsStringAsync());
+            // Current-account cookie admission precedes the legacy action's missing-user envelope.
+            Assert.Equal(HttpStatusCode.Redirect, missing.StatusCode);
+            Assert.Contains("sessionEnded", missing.Headers.Location!.OriginalString);
+            Assert.Contains(missing.Headers.GetValues("Set-Cookie"), value => value.StartsWith(".AspNetCore.Identity.Application=;"));
             client.DefaultRequestHeaders.Remove("Cookie");
         }
         client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");

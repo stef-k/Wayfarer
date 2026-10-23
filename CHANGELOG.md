@@ -92,6 +92,13 @@
 
 ### Fixed
 
+- Check current account activity and session stamps on every website-cookie
+  request across protected MVC, Razor and API routes. Deactivation requires fresh
+  website login even after reactivation; existing API tokens recover under their
+  existing rules. Preserve cookie priority, antiforgery, sign-out deletion headers,
+  editor drafts and anonymous sharing; show clear session-ended feedback on both
+  sharing controls. Already admitted requests may finish (#907).
+
 - Validate complete Segment save acknowledgements before changing draft, proposal
   or parent state, including confirmed route-clear saves and creation. Reject
   duplicate Segment order IDs before adoption. Incomplete HTTP 200 replies retain

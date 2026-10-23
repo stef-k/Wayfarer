@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
@@ -58,7 +59,7 @@ public sealed class ActiveAccountCookieTests : TestBase
         client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
         var path = editor ? $"/api/trips/{trip.Id}/editor/share-progress" : $"/User/Trip/ToggleShareProgress?id={trip.Id}&enabled=true";
         using var active = editor ? await client.PatchAsJsonAsync(path, new { enabled = true }) : await client.PostAsync(path, null);
-        Assert.Equal(HttpStatusCode.OK, active.StatusCode);
+        Assert.True(active.StatusCode == HttpStatusCode.OK, await active.Content.ReadAsStringAsync());
         Assert.True(trip.ShareProgressEnabled);
         trip.ShareProgressEnabled = false;
         db.Users.Find("owner")!.IsActive = false;
@@ -183,6 +184,8 @@ public sealed class ActiveAccountCookieTests : TestBase
             // These routes do not capture thumbnails or run background jobs in the registration host.
             services.AddSingleton(Moq.Mock.Of<Quartz.IScheduler>());
             services.AddSingleton(Moq.Mock.Of<Wayfarer.Services.ITripMapThumbnailGenerator>());
+            // Provider capability dependencies are constructed but never queried by these sharing mutations.
+            services.AddSingleton(Moq.Mock.Of<IDbContextFactory<ApplicationDbContext>>());
         },
         app => app.UseMiddleware<ApiErrorResponseMiddleware>());
 

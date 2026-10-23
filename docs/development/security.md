@@ -14,6 +14,50 @@ Production Identity mutations use the shared `IdentityPasswordPolicy`: at least 
 
 Selected Identity credential/recovery/token routes also use application-owned attempt admission. Keep that boundary separate from general `/api` token admission.
 
+Every application-cookie presentation checks the current account's existence,
+activity and security stamp through `ActiveAccountCookie` in Identity's existing
+cookie validation hook. The database projection bypasses tracked account state;
+the normal Identity stamp validator still owns periodic principal renewal. A
+stale activity claim or the periodic stamp interval cannot authorize a request.
+Rejected sessions are signed out. Navigation explains the ended session on the
+login page; API/JSON/fetch challenges return a non-success response with login
+guidance. Editor writes retain unsaved drafts and do not report success (#907).
+
+Admin account edits already commit stamp invalidation with their account update.
+Manager edits now save account fields through `UpdateSecurityStampAsync`, so the
+same Identity save persists activity and invalidation. Deactivate/reactivate
+therefore requires fresh website login even if the old cookie was never used
+while inactive. Existing API tokens are neither rotated nor deleted: they deny
+access while inactive and may work after reactivation under their existing rules.
+
+This is request-time authorization. Work admitted while active may finish after
+deactivation. No account lock spans the request; background work and established
+streams are outside this admission guarantee. Existing stronger domain checks
+remain in place. Public visibility and anonymous sharing do not depend on the
+owner's activity and are unchanged.
+
+### Shared path coverage
+
+The source reconciliation for #907 covers these distinct paths rather than adding
+an activity check to every action:
+
+| Endpoint family | Current-account authority |
+| --- | --- |
+| Admin, Manager and User MVC CRUD; Identity Manage Razor Pages | Application-cookie validation, then existing roles/ownership/antiforgery |
+| Cookie APIs: editor, Backfill, Groups, Invitations, Users, Visit, cookie Location actions and authenticated SSE subscriptions | The same cookie validation before attributed or manual identity checks |
+| Manual owner routes, including private `Trip/Export*` and identity-based API actions without `Authorize` | Rejected cookie removes trusted identity before the existing owner predicate |
+| Mixed Activity, Location PUT and Trip search | Cookie priority in `GetUserFromTokenOrCookie`; presented rejected/expired cookies cannot fall back to another bearer owner; active cookie mutations retain antiforgery |
+| General bearer Trip/Location CRUD and conditional writers | Existing `IncomingApiTokenResolver` activity check through `BaseApiController` or the direct resolver |
+| Mobile Groups, Visits, Routing and SSE; account proof | Existing mobile accessor/resolver; account proof uses the resolver directly and remains token-only |
+| Full bearer Trip reads | Resolver bound inside the coherent read context; no global bearer pre-resolution |
+| Public Trips/timelines/exports/SSE, tiles, icons, tags, settings and version | Existing anonymous/public projections and visibility rules |
+
+`ActiveAccountCookieTests` exercises representative MVC, Razor, editor writes,
+manual/mixed routes, token recovery and public export through production
+registrations. Existing cookie-antiforgery and token/coherent-read tests retain
+their distinct authority contracts. API error normalization preserves deletion
+cookies even when replacing an empty error response or handling an exception.
+
 ## API-token authority
 
 Current Wayfarer API tokens are cryptographically random, shown to the user once and stored as SHA-256 hashes. `IncomingApiTokenResolver` is request-owned: it admits and resolves a token once for the current HTTP request and never retains a positive identity across requests.

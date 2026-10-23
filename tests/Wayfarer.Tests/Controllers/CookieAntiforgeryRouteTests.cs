@@ -1,13 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
 using AngleSharp.Html.Parser;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Util;

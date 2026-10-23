@@ -51,6 +51,7 @@ export const generateExternalRouteProposal = async (
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
     body: JSON.stringify({ aggregateConcurrencyToken, providerMode })
   });
+  requireSession(response);
   if (!response.ok) {
     const error = await response.json().catch(() => ({ code: 'external-routing-unavailable' })) as { code?: string };
     throw new ExternalRouteProposalError(error.code ?? 'external-routing-unavailable');
