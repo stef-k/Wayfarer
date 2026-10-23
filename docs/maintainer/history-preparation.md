@@ -166,25 +166,30 @@ conflict or idempotency equality/export field.
 ## Local qualification and measured limits
 
 The retained I918-A receipt uses PostgreSQL 18.6/PostGIS on Linux/WSL, 10,000 synthetic
-rows with distinct diary content and all stored address fields. It uses the actual
+rows in a fresh fixture-owned database, with distinct diary content and all stored
+address fields. Rules were GeoTimeZone 6.1.0, TZDB 2026c (mapping 48.2), RichNotes-2,
+AngleSharp 1.7.1.0, .NET 10.0.13 and Unicode 31129 with the invariant sort identity
+recorded in CLI status. It uses the actual
 production preparer, 500-row transactions, no provider calls and no raw pre-extracted
-text COPY. The trial took 10.70 seconds; maximum batch elapsed/lock upper bound was
-365 ms. Table+TOAST grew 4,136,960 → 17,932,288 bytes; all indexes grew
-19,193,856 → 32,858,112 bytes, with four history indexes growing
-4,751,360 → 18,399,232 bytes. Observed preparation WAL was 82,773,880 bytes.
+text COPY. The trial took 13.14 seconds; maximum batch elapsed/lock upper bound was
+448 ms. Table+TOAST grew 4,349,952 → 14,991,360 bytes; all indexes grew
+6,881,280 → 24,576,000 bytes, with four history indexes growing
+3,096,576 → 16,949,248 bytes. Observed preparation WAL was 86,780,568 bytes.
 These are pre-vacuum physical footprints including MVCC/GIN pending-list growth and
 fixture allocation, not steady-state per-row or production estimates.
 Allow at least the observed growth plus index-build temporary space and WAL retention;
 measure the restored installation's real headroom before its authorized upgrade.
+Migration/index-build elapsed time and peak temporary disk were not measured by this
+preparation trial; instance qualification must budget those separately.
 
 Equivalent 100-row canonical SQL trials, each rolled back, compared baseline versus
-the same transaction plus production derivation/storage: create/import 21.66/112.48 ms,
-Notes/address edit 46.83/129.12 ms, enrichment 46.69/105.80 ms. Observed WAL respectively
-189,456/754,080; 433,560/2,574,328; 464,864/939,632 bytes. Transaction/lock elapsed was
-within 0.3 ms of those totals. These isolate added derivation at the SQL seam;
+the same transaction plus production derivation/storage: create/import 35.45/124.15 ms,
+Notes/address edit 68.80/154.43 ms, enrichment 61.93/126.45 ms. Observed WAL respectively
+177,904/724,360; 454,872/2,528,088; 478,328/960,888 bytes. Transaction/lock windows were respectively 27.85/117.27, 61.81/147.34 and
+54.93/119.53 ms; totals include connection/rollback overhead. These isolate added derivation at the SQL seam;
 they do not measure complete routed/import/provider workflows or sustained load.
 WAL is cluster-observed and can include other work. A forced eligible GIN plan for
-folded `CAFE` took 4.4 ms locally; this proves amended-normalizer compatibility,
+folded `CAFE` took 5.8 ms locally; this proves amended-normalizer compatibility,
 not routed query performance or a production SLO.
 
 Focused tests cover folded scripts, safe visible Notes, historical folds/gaps/non-hour
