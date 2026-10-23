@@ -84,8 +84,10 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         var predicate = new HistoryPredicate(owner, query, token);
         var candidates = await CandidateCountAsync(predicate, token);
         var area = query.Scope.Area ?? new HistoryArea(-180, -90, 180, 90);
-        var west = predicate.Add(area.West); var south = predicate.Add(area.South);
-        var span = predicate.Add(area.Span); var height = predicate.Add(area.North - area.South); var grid = predicate.Add(query.Grid);
+        var longitudes = PartitionEdges(area.West, area.East, area.Span, query.Grid, true);
+        var latitudes = PartitionEdges(area.South, area.North, area.North - area.South, query.Grid, false);
+        var x = CellIndex(predicate, longitudes, true); var y = CellIndex(predicate, latitudes, false);
+        var west = predicate.Add(area.West);
         var sql = $"""
             WITH matches AS (
                 SELECT l."Id", l."IdempotencyKey", l."LocalTimestamp",
@@ -95,8 +97,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
             ), unwrapped AS (
                 SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM matches
             ), cells AS (
-                SELECT *, CASE WHEN lon IS NOT NULL THEN least({grid}-1, floor((ux-{west})/{span}*{grid})::int) END AS x,
-                    CASE WHEN lat IS NOT NULL THEN least({grid}-1, floor((lat-{south})/{height}*{grid})::int) END AS y FROM unwrapped
+                SELECT *, {x} AS x, {y} AS y FROM unwrapped
             )
             SELECT x AS "X", y AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
                 min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
@@ -112,13 +113,11 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
             token.ThrowIfCancellationRequested();
             if (row.X == null) { unmapped += row.Count; continue; }
             mapped += row.Count;
-            var cellWest = area.West + row.X.Value * area.Span / query.Grid;
-            var cellEast = area.West + (row.X.Value + 1) * area.Span / query.Grid;
             cells.Add(new
             {
                 cellKey = HistoryCursor.Hash($"{key}:{query.Grid}:{row.X}:{row.Y}"),
-                bounds = Bounds(cellWest, area.South + row.Y!.Value * (area.North - area.South) / query.Grid,
-                    cellEast, area.South + (row.Y.Value + 1) * (area.North - area.South) / query.Grid, true),
+                bounds = Bounds(longitudes[row.X.Value], latitudes[row.Y!.Value],
+                    longitudes[row.X.Value + 1], latitudes[row.Y.Value + 1], true),
                 occupiedBounds = Bounds(row.West!.Value, row.South!.Value, row.East!.Value, row.North!.Value, false),
                 displayPoint = new { longitude = Canonical((row.West.Value + row.East.Value) / 2), latitude = (row.South.Value + row.North.Value) / 2 },
                 recordCount = Count(row.Count), earliestEventUtc = HistoryQuery.Utc(row.Earliest), latestEventUtc = HistoryQuery.Utc(row.Latest),
@@ -129,6 +128,41 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         result["grid"] = query.Grid; result["knownMatchCount"] = Count(mapped + unmapped);
         result["mappedMatchCount"] = Count(mapped); result["unmappedMatchCount"] = Count(unmapped); result["cells"] = cells;
         return result;
+    }
+
+    /// <summary>Compute representable edges once, preserving parent endpoints exactly, before binding or publishing them.</summary>
+    private static double[] PartitionEdges(double start, double end, double span, int grid, bool longitude)
+    {
+        var edges = new double[grid + 1];
+        edges[0] = start; edges[grid] = end;
+        for (var i = 1; i < grid; i++)
+        {
+            var edge = start + i * span / grid;
+            edges[i] = longitude && edge != 180 ? Canonical(edge) : edge;
+        }
+        return edges;
+    }
+
+    /// <summary>
+    /// Compare canonical stored coordinates with the exact wire edges, using the scope's half-open residuals.
+    /// Unwrapping is only for occupied extents: adding 360 can round distinct coordinates onto the same edge.
+    /// Sub-ULP partitions may have coincident edges; their empty intervals own no records.
+    /// </summary>
+    private static string CellIndex(HistoryPredicate predicate, double[] edges, bool longitude)
+    {
+        var cases = new List<string>();
+        for (var i = 0; i < edges.Length - 1; i++)
+        {
+            if (edges[i] == edges[i + 1]) continue;
+            var lower = longitude ? Canonical(edges[i]) : edges[i];
+            var upper = edges[i + 1];
+            if (lower == upper) continue;
+            var lo = predicate.Add(lower); var hi = predicate.Add(upper);
+            var contains = longitude ? HistoryPredicate.LongitudeWithin("lon", lo, hi, lower > upper)
+                : HistoryPredicate.LatitudeWithin("lat", lo, hi);
+            cases.Add($"WHEN {contains} THEN {i}");
+        }
+        return "CASE " + string.Join(" ", cases) + " END";
     }
 
     /// <summary>Common metadata makes live scope and conservative membership explicit on both collection operations.</summary>

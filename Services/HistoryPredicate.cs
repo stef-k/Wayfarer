@@ -123,16 +123,25 @@ internal sealed class HistoryPredicate
     private string AreaTruth(HistoryArea area)
     {
         var west = Add(area.West); var east = Add(area.East); var south = Add(area.South); var north = Add(area.North);
-        var longitude = area.West < area.East ? $"{Longitude} >= {west} AND {Longitude} < {east}" : $"({Longitude} >= {west} OR {Longitude} < {east})";
+        var longitude = LongitudeWithin(Longitude, west, east, area.West > area.East);
         var geometry = "l.\"Coordinates\"::geometry";
         var box = area.West < area.East ? $"{geometry} && ST_MakeEnvelope({west},{south},{east},{north},4326)"
             : $"({geometry} && ST_MakeEnvelope({west},{south},180,{north},4326) OR {geometry} && ST_MakeEnvelope(-180,{south},{east},{north},4326))";
         // Longitude +180 is canonical -180, even for a non-wrapping rectangle beginning at -180.
         if (area.West == -180 || area.West > area.East) box = $"({box} OR ({geometry} && ST_MakeEnvelope(180,{south},180,{north},4326)))";
-        var exact = $"{box} AND ({longitude}) AND {Latitude} >= {south} AND ({Latitude} < {north} OR ({north} = 90 AND {Latitude} = 90))";
+        var exact = $"{box} AND ({longitude}) AND ({LatitudeWithin(Latitude, south, north)})";
         _areaMatch = $"({PositionValid}) AND {exact}";
         return $"CASE WHEN {PositionValid} THEN {exact} END";
     }
+
+    /// <summary>Canonical longitude membership is shared by scope filtering and published overview cells.</summary>
+    internal static string LongitudeWithin(string coordinate, string west, string east, bool wraps) => wraps
+        ? $"({coordinate} >= {west} OR {coordinate} < {east})"
+        : $"{coordinate} >= {west} AND {coordinate} < {east}";
+
+    /// <summary>Shared latitude membership includes the north pole only at the world maximum.</summary>
+    internal static string LatitudeWithin(string coordinate, string south, string north) =>
+        $"{coordinate} >= {south} AND ({coordinate} < {north} OR ({north} = 90 AND {coordinate} = 90))";
 
     /// <summary>Optimizing envelopes clip safely; the exact predicate always makes the membership decision.</summary>
     private static DateTime ClipUtc(DateTime local, int seconds)

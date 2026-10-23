@@ -497,7 +497,12 @@ position instead contributes a candidate. Candidates never enter matching cells.
 Each cell contains `{cellKey,bounds,occupiedBounds,displayPoint,recordCount,
 earliestEventUtc,latestEventUtc,singleton}`. Bounds partition the selected area;
 wrapping areas use an unwrapped longitude internally and canonical bounds on the
-wire. Occupied bounds enclose actual matching coordinates; displayPoint is their
+wire. Membership and published bounds use the same representable numeric edges,
+retaining parent endpoints exactly. Shared edges belong to the cell beginning
+there, with the existing north-pole exception. Preserve the returned numeric
+precision when requesting choices; counts and choices agree on unchanged data,
+while separate reads retain live-request semantics.
+Occupied bounds enclose actual matching coordinates; displayPoint is their
 synthetic midpoint. Extrema do not assert continuous presence. Singleton has actual
 ID/UUID only for count=1; multiple records have no arbitrary representative.
 Cells are aggregates, not recorded Locations, routes or Visits. Dense clusters,

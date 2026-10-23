@@ -141,6 +141,85 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(JsonValueKind.Null, choices.GetProperty("nextContinuation").ValueKind);
     }
 
+    /// <summary>One-ULP neighbours on both axes share exact edges, including canonical longitude across the dateline.</summary>
+    [PostgresTheory]
+    [InlineData(139.7, 139.8, 139.70624999999998)]
+    [InlineData(170.1, -169.9, -179.9)]
+    public async Task OverviewSharedEdgesHaveOneOwner(double west, double east, double sharedLongitude)
+    {
+        const double sharedLatitude = 35.6875;
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 7);
+        (double X, double Y)[] points = [
+            (Math.BitDecrement(sharedLongitude), sharedLatitude), (sharedLongitude, sharedLatitude),
+            (Math.BitIncrement(sharedLongitude), sharedLatitude), (sharedLongitude, Math.BitDecrement(sharedLatitude)),
+            (sharedLongitude, Math.BitIncrement(sharedLatitude)), (east, sharedLatitude), (sharedLongitude, 36)
+        ];
+        await using (var edit = fixture.CreateContext())
+        {
+            foreach (var (row, point) in rows.Zip(points))
+            {
+                edit.Attach(row); row.Coordinates = new Point(point.X, point.Y) { SRID = 4326 };
+            }
+            await edit.SaveChangesAsync(); await ReadyAsync(edit);
+        }
+        await using var app = await HostAsync(); using var client = Client(app, owner);
+        var area = FormattableString.Invariant($"&west={west:R}&south=35&east={east:R}&north=36");
+        var overview = await AssertPartitionChoicesAsync(client, Utc + "&q=cafe&includeUnassigned=true", area, 16, rows.Take(5));
+        var cells = overview.GetProperty("cells").EnumerateArray().ToArray();
+        var upper = Assert.Single(cells, cell => cell.GetProperty("bounds").GetProperty("west").GetDouble() == sharedLongitude
+            && cell.GetProperty("bounds").GetProperty("south").GetDouble() == sharedLatitude);
+        Assert.Equal("3", upper.GetProperty("recordCount").GetString());
+        Assert.Single(cells, cell => cell.GetProperty("bounds").GetProperty("east").GetDouble() == sharedLongitude);
+        Assert.Single(cells, cell => cell.GetProperty("bounds").GetProperty("north").GetDouble() == sharedLatitude);
+    }
+
+    /// <summary>World endpoints, both pole inclusions and the +/-180 alias survive full-world and wrapping partitions.</summary>
+    [PostgresTheory]
+    [InlineData("", 1, 7)]
+    [InlineData("", 2, 7)]
+    [InlineData("&west=170&south=-90&east=-170&north=90", 2, 5)]
+    [InlineData("&west=180&south=-90&east=-179.99999999999997&north=90", 16, 4)]
+    public async Task OverviewWorldAndWrappingEdgesKeepExactChoices(string area, int grid, int count)
+    {
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 7);
+        (double X, double Y)[] points = [(-180, -90), (180, -90), (-180, 90), (180, 90), (170, -90), (-170, 90), (0, 0)];
+        await using (var edit = fixture.CreateContext())
+        {
+            foreach (var (row, point) in rows.Zip(points))
+            {
+                edit.Attach(row); row.Coordinates = new Point(point.X, point.Y) { SRID = 4326 };
+            }
+            await edit.SaveChangesAsync();
+        }
+        await using var app = await HostAsync(); using var client = Client(app, owner);
+        await AssertPartitionChoicesAsync(client, Utc, area, grid, rows.Take(count));
+    }
+
+    /// <summary>On unchanged data, serialized cell bounds recover exactly the parent matches once, with matching counts and refinement.</summary>
+    private static async Task<JsonElement> AssertPartitionChoicesAsync(HttpClient client, string query, string area, int grid, IEnumerable<Location> expected)
+    {
+        var expectedIds = expected.Select(row => row.Id).Order().ToArray();
+        var overview = await GetAsync(client, Route + "/overview?" + query + area + "&grid=" + grid);
+        Assert.Equal(expectedIds.Length.ToString(), overview.GetProperty("knownMatchCount").GetString());
+        Assert.Equal(expectedIds.Length.ToString(), overview.GetProperty("mappedMatchCount").GetString());
+        Assert.Equal("0", overview.GetProperty("unmappedMatchCount").GetString());
+        var seen = new HashSet<int>();
+        foreach (var cell in overview.GetProperty("cells").EnumerateArray())
+        {
+            var bounds = string.Join("&", cell.GetProperty("bounds").EnumerateObject().Select(edge => edge.Name + "=" + edge.Value.GetRawText()));
+            var choices = await GetAsync(client, Route + "?" + query + "&" + bounds);
+            Assert.Equal(cell.GetProperty("recordCount").GetString(), Ids(choices).Length.ToString());
+            Assert.Equal("complete", choices.GetProperty("coverage").GetProperty("membership").GetString());
+            Assert.Equal(JsonValueKind.Null, choices.GetProperty("nextContinuation").ValueKind);
+            foreach (var id in Ids(choices)) Assert.True(seen.Add(id), "A record was returned by more than one cell.");
+            var refined = await GetAsync(client, Route + "/overview?" + query + "&" + bounds + "&grid=1");
+            Assert.Equal(cell.GetProperty("recordCount").GetString(), refined.GetProperty("mappedMatchCount").GetString());
+        }
+        Assert.Equal(expectedIds, seen.Order());
+        Assert.Equal(expectedIds, Ids(await GetAsync(client, Route + "?" + query + area)).Order());
+        return overview;
+    }
+
     /// <summary>Uncertainty is conserved across whole-scope counts, candidate pages, overview and complete direct detail.</summary>
     [PostgresFact]
     public async Task CandidateCoverageAndPendingPreparationAreDifferent()
