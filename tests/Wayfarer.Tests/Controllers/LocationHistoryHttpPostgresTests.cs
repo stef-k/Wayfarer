@@ -115,6 +115,32 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal("owner-detail-1", detail.GetProperty("profile").GetString());
     }
 
+    /// <summary>The review's exact floating-point edge remains selectable through its published half-open bounds on unchanged data.</summary>
+    [PostgresFact]
+    public async Task OverviewPartitionBoundaryKeepsCountedRecordSelectable()
+    {
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 3);
+        await using (var edit = fixture.CreateContext())
+        {
+            var boundary = await edit.Locations.SingleAsync(row => row.Id == rows[0].Id);
+            boundary.Coordinates = new Point(139.70624999999998, 35.68) { SRID = 4326 };
+            await edit.SaveChangesAsync();
+        }
+        await using var app = await HostAsync(); using var client = Client(app, owner);
+        var query = Utc.Replace("Europe%2FAthens", "UTC");
+        var overview = await GetAsync(client, Route + "/overview?" + query + "&west=139.7&south=35&east=139.8&north=36&grid=16");
+        Assert.Equal("3", overview.GetProperty("mappedMatchCount").GetString());
+        var cell = Assert.Single(overview.GetProperty("cells").EnumerateArray(), cell => cell.GetProperty("recordCount").GetString() == "1");
+        Assert.Equal(rows[0].Id, cell.GetProperty("singleton").GetProperty("locationId").GetInt32());
+        var area = string.Join("&", cell.GetProperty("bounds").EnumerateObject().Select(edge => edge.Name + "=" + edge.Value.GetRawText()));
+        // No writes occur between aggregation and choices; cross-request live changes are a separate contract.
+        var choices = await GetAsync(client, Route + "?" + query + "&" + area);
+        Assert.True(Ids(choices).SequenceEqual(new[] { rows[0].Id }), "Overview: " + overview.GetRawText() + " Choices: " + choices.GetRawText());
+        Assert.Equal("complete", choices.GetProperty("coverage").GetProperty("membership").GetString());
+        Assert.Equal("0", choices.GetProperty("coverage").GetProperty("unresolvedCandidateCount").GetString());
+        Assert.Equal(JsonValueKind.Null, choices.GetProperty("nextContinuation").ValueKind);
+    }
+
     /// <summary>Uncertainty is conserved across whole-scope counts, candidate pages, overview and complete direct detail.</summary>
     [PostgresFact]
     public async Task CandidateCoverageAndPendingPreparationAreDifferent()
