@@ -4,11 +4,19 @@
 
 ### Added
 
+- Add active-owner bearer personal history pages, independently paged unresolved
+  inspection, complete owner detail and independent complete geographic overview
+  (#918 I918-B). Share exact PostgreSQL time/text/activity/area predicates,
+  version-bound protected cursors, honest live coverage and dependent preparation
+  gates; preserve no-store, request-time authority and independent detail admission.
+  [API contract](docs/development/api.md#personal-history-bearer-reads-918-i918-b);
+  final full-DTO/map-first and named scale/concurrency qualification remains I918-C.
+
 - Add internal versioned capture-local facts and accent-insensitive visible history
   text, atomic Location writer maintenance, four initial access paths and resumable
   operator preparation with independent time/text readiness and rebuilds
   ([upgrade procedure](docs/maintainer/history-preparation.md), #918 I918-A).
-  History read endpoints and consumer capability remain separate packages.
+  I918-B supplies read endpoints; final consumer/routed qualification remains I918-C.
 
 - Add paired protected Place Name/Notes/icon/marker-color PATCH routes for Web
   scalar-only edits and opt-in bearer clients. Compare exact nullable originals

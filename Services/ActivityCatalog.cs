@@ -51,6 +51,17 @@ public sealed class ActivityCatalog(ApplicationDbContext db)
             .Select(r => (int?)r.ActivityTypeId).FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>Resolves a bounded read selection in two queries using the same live-first retained redirect authority.</summary>
+    internal async Task<int[]?> ResolveIdsAsync(int[] ids, CancellationToken token)
+    {
+        var live = await db.ActivityTypes.Where(row => ids.Contains(row.Id)).Select(row => row.Id).ToArrayAsync(token);
+        var missing = ids.Except(live).ToArray();
+        var redirects = await db.Set<ActivityTypeIdRedirect>().Where(row => missing.Contains(row.LegacyId))
+            .Select(row => new { row.LegacyId, row.ActivityTypeId }).ToArrayAsync(token);
+        if (live.Length + redirects.Length != ids.Length) return null;
+        return live.Concat(redirects.Select(row => row.ActivityTypeId)).Distinct().Order().ToArray();
+    }
+
     /// <summary>Retains the existing FK failure behavior of create writers for unknown/offline IDs.</summary>
     public async Task<int?> ResolveWriteIdAsync(int? id, CancellationToken cancellationToken = default) =>
         await ResolveIdAsync(id, cancellationToken) ?? id;
