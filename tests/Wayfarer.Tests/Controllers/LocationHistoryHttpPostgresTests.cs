@@ -222,7 +222,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.False(verify.Database.HasPendingModelChanges());
     }
 
-    /// <summary>Owner/global admission is independent of detail; disconnect cancels real SQL and releases permits.</summary>
+    /// <summary>Owner/global admission is independent of detail; disconnect cancels pending database work and releases permits.</summary>
     [PostgresFact]
     public async Task AdmissionAndCancellationPreserveIndependentDetail()
     {
@@ -252,11 +252,11 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
     [PostgresFact]
     public async Task CollectionDeadlineCancelsEvaluationBeforeSuccess()
     {
-        var owner = await OwnerAsync(); await SeedAsync(owner, 1); var gate = new ReadGate();
+        var owner = await OwnerAsync(); await SeedAsync(owner, 1); var gate = new ReadGate(delayInPostgres: true);
         await using var app = await HostAsync(gate); using var client = Client(app, owner);
         var body = await ErrorAsync(client, Route + "/overview?" + Utc, 503, "historyBudgetExceeded");
         Assert.DoesNotContain("coverage", body); Assert.DoesNotContain("cells", body);
-        Assert.True(gate.Cancelled.Task.IsCompleted);
+        Assert.True(gate.Reached.Task.IsCompleted);
         Assert.Equal(0, LocationHistoryController.Collections.IdentityCount);
     }
 
@@ -390,7 +390,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
     }
 
     /// <summary>Hold the production count SELECT to witness snapshot/cancellation; record any attempted mutation command.</summary>
-    private sealed class ReadGate : DbCommandInterceptor
+    private sealed class ReadGate(bool delayInPostgres = false) : DbCommandInterceptor
     {
         internal TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -402,6 +402,11 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
             if (command.CommandText.Contains("SELECT count(*) AS \"Value\" FROM \"Locations\" l") && !Reached.Task.IsCompleted)
             {
                 Reached.TrySetResult();
+                if (delayInPostgres)
+                {
+                    command.CommandText = "SELECT pg_sleep(30); " + command.CommandText;
+                    return result;
+                }
                 try { await Release.Task.WaitAsync(cancellationToken); cancellationToken.ThrowIfCancellationRequested(); }
                 catch (OperationCanceledException) { Cancelled.TrySetResult(); throw; }
             }
