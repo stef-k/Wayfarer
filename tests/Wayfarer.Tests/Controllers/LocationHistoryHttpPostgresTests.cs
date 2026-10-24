@@ -593,7 +593,8 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
                 Reached.TrySetResult();
                 if (delayInPostgres)
                 {
-                    command.CommandText = $"SELECT pg_sleep({delaySeconds}); " + command.CommandText;
+                    // A DO command delays SQL without adding a result set or an optimizable join.
+                    command.CommandText = $"DO $$ BEGIN PERFORM pg_sleep({delaySeconds}); END $$; " + command.CommandText;
                     return result;
                 }
                 try { await Release.Task.WaitAsync(cancellationToken); cancellationToken.ThrowIfCancellationRequested(); }
