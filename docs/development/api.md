@@ -394,6 +394,14 @@ resolution. WayfarerApp integration remains a separate acceptance gate; unfamili
 
 ## Personal history bearer reads (#918 I918-B)
 
+The UTC history index includes capture status after migration
+`20261024172605_LocationHistoryUtcStatusCoverage`, enabling covered capture
+membership/uncertainty reads where the planner selects them. This changes no
+request, response, filter, coverage, readiness or timeout semantics. Use the
+[maintenance procedure](../maintainer/history-preparation.md#utc-index-status-coverage-correction)
+and [bounded measurements](history-final-qualification.md#status-coverage-delivery);
+the sub-second performance target remains pending maintainer disposition.
+
 `GET /api/location/history`, `GET /api/location/history/overview` and
 `GET /api/location/history/{locationId:int}` require one strict `Bearer` header
 and the current active owner. Cookies cannot authorize them and there is no owner

@@ -34,14 +34,17 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
             SELECT row_to_json(l)::text AS "Value" FROM "Locations" l WHERE "UserId"={owner.Id}
             """).SingleAsync();
         Assert.Equal(corrected, await UtcIndexDefinitionAsync(db));
+        Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
         Assert.False(db.Database.HasPendingModelChanges());
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261023175322_LocationHistoryPreparation");
         try
         {
             Assert.Equal(original, await UtcIndexDefinitionAsync(db));
+            Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
             await migrator.MigrateAsync();
             Assert.Equal(corrected, await UtcIndexDefinitionAsync(db));
+            Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
             Assert.Empty(await db.Database.GetPendingMigrationsAsync());
             var after = await db.Database.SqlQuery<string>($"""
                 SELECT row_to_json(l)::text AS "Value" FROM "Locations" l WHERE "UserId"={owner.Id}

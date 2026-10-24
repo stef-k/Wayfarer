@@ -38,6 +38,49 @@ The migration uses ordinary transactional index builds while writers are quiesce
 allow its table/index locks and disk headroom. No concurrent-build release protocol
 or release manifest/operator changes are introduced here.
 
+## UTC index status coverage correction
+
+Migration `20261024172605_LocationHistoryUtcStatusCoverage` replaces only
+`IX_Location_HistoryUtc`. Its B-tree keys remain `(UserId, LocalTimestamp, Id)`;
+the INCLUDE payload becomes `(Coordinates, CaptureLocalTimestamp, ActivityTypeId,
+HistoryTimeStatus)`, with no predicate. The EF model matches this definition.
+Status covers capture membership and uncertainty without becoming a search key.
+HistoryTimeVersion and singleton UUID remain uncovered. Preparation logic,
+generation versions, filters and budgets are unchanged; no history rebuild is needed.
+The physical preparation check accepts either exact UTC payload, retaining the
+original correctness prerequisite and recognizing the corrected coverage. It still
+rejects missing/invalid indexes, different keys, payloads and predicates. Migration
+history and the current EF model own installation of the corrected definition;
+a preparation-ready result alone does not certify that migration or performance.
+
+Use the existing explicit schema-maintenance workflow, with a verified recovery
+set and all application/read/import/enrichment traffic quiesced. This ordinary EF
+transaction drops and rebuilds the index, then records migration history at commit.
+The [DROP INDEX lock](https://www.postgresql.org/docs/18/sql-dropindex.html)
+blocks table access until the transaction ends. This is an offline replacement,
+without `CONCURRENTLY` or transaction suppression. Fresh migration chains first
+create the original index and then replace it; upgrades replace that original.
+Down rebuilds the original payload under the same locking/headroom requirements.
+
+If CREATE, lock acquisition, cancellation or commit fails before a confirmed commit,
+inspect migration history and the physical definition before retrying. Transaction
+rollback restores the original index and leaves this migration unapplied; there is
+no committed interval without the index or invalid concurrent-build remnant. An
+ambiguous commit requires inspection rather than blindly rebuilding. Do not perform
+an out-of-band replacement and mark history applied manually.
+
+Allow space for the old index retained until commit, the complete replacement,
+temporary sort files, WAL and the recovery reserve. Final index growth alone is
+insufficient headroom. The supported 2,838,240-row experiment measured 408.64 →
+440.68 MiB (+32.04 MiB), a 3.6-second CREATE, 384.11 MiB database build-temp writes
+and about 395.63 MiB shared-cluster WAL LSN advance. These are local observations,
+not peak bounds or production sizing. Maintenance command timeouts must accommodate
+the real rebuild and lock window through the established operator workflow; no
+global tuning is introduced. Verify valid/ready physical definition, no pending
+model/migration changes, and ordinary readiness before resuming traffic. See the
+[bounded delivery evidence](../development/history-final-qualification.md#status-coverage-delivery).
+#604 retains actual deployment, restored-population headroom and recovery qualification.
+
 ## Commands and recovery
 
 Run the target application's CLI under the same protected configuration/database

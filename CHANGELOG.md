@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Include `HistoryTimeStatus` in the existing UTC history index payload (#918),
+  matching the EF model with an atomic maintenance-window replacement migration.
+  Capture uncertainty and aggregation can use covered scans; preparation and query
+  semantics remain unchanged. See the [upgrade procedure](docs/maintainer/history-preparation.md#utc-index-status-coverage-correction)
+  and [bounded qualification](docs/development/history-final-qualification.md#status-coverage-delivery).
+
 ### Added
 
 - Raise #918 history/page and overview evaluation ceilings to fifteen seconds at
