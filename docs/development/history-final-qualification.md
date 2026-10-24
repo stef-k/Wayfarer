@@ -1,5 +1,11 @@
 # Final #918 performance and resource qualification
 
+The [status-coverage delivery](#status-coverage-delivery) below adds the final bounded
+index correction to the original qualification. Earlier index/source claims and
+timings retain their historical revisions. The earlier overall acceptance
+recommendation has **not** been accepted by the maintainer; #918 and the sub-second
+target remain open pending an explicit performance decision.
+
 This bounded local qualification supports a measured readiness decision. The
 maintainer-approved **15-second history/page and overview evaluation ceiling**
 retains the independent **30-second selected-detail budget**, existing admission,
@@ -301,3 +307,174 @@ resource cutoff, fixture/index-restore provenance and explicit target misses.
 Reuse the expensive scale receipt when the final source delta proves production
 query inputs unchanged. CI is only observed once for startup; its final result and
 fresh independent review remain outstanding. Do not merge or close #918 here.
+
+## Status coverage delivery
+
+24 October 2026. Remote main/base remains
+`d94b6a35e99fc4acf162ee3cb30a49d263f5ddfd`; draft #924 remains open, so this delivery
+extends `fix/918-history-deadline-final`, preserving its prior head
+`75870fcce3c446d530026847c20ed9b3598e62b5`. Qualified production/model/test revision:
+`43a40b5aedbd267bb63821c0151617f22f9b0cf2`. Subsequent delivery changes document
+these results; the final exact head is recorded on #924 and #918. The former
+independent PASS at `75870fc…` is historical and does not review the new head.
+
+Evidence:
+`/home/stef/.local/share/wayfarer-investigations/918-status-delivery-20261024/`.
+It retains exact source/assembly hashes, commands, all complete responses, captured
+SQL/typed parameters, natural plans/results, write/persistence/cleanup receipts,
+migration/failure checks and resource samples. It reuses the authorized retained
+database, OID 1708055, owner postgres, with 2,628,000 large-owner and 210,240
+small-owner rows; identity, candidate definition and zero other clients were
+verified before restoring the original through the retained guarded script.
+No population reconstruction or production database is used.
+
+### Correction and migration
+
+The supported experiment found missing `HistoryTimeStatus` coverage in the UTC
+index. This delivery appends only that INCLUDE column; keys, existing payload and
+absence of a predicate are preserved. The exact resulting definition is:
+
+```sql
+CREATE INDEX "IX_Location_HistoryUtc" ON public."Locations"
+USING btree ("UserId", "LocalTimestamp", "Id")
+INCLUDE ("Coordinates", "CaptureLocalTimestamp", "ActivityTypeId", "HistoryTimeStatus");
+```
+
+The EF configuration, snapshot and migration
+`20261024172605_LocationHistoryUtcStatusCoverage` agree. Physical readiness accepts
+the original and corrected exact payloads, preserving the existing preparation
+prerequisite and recognizing the added coverage; it still checks valid/ready state,
+method, keys, attributes and no predicate. This metadata change does not alter
+preparation queries, generations or completeness. Migration/model state owns
+installation of the corrected index. No filter, projection, uncertainty policy,
+admission, JIT/memory setting or timeout changes; the approved 15-second collections,
+30-second detail and transaction-local remaining-time SQL timeout remain.
+
+The actual EF migration was applied **from the restored original index** on the
+large fixture in 4,608 ms. Fresh-chain creation and Down/Up are also tested. The
+ordinary transaction holds DROP's table access lock through rebuild and history
+commit. A deliberately invalid CREATE after DROP proves transaction rollback
+restores the original index and leaves the correction unapplied. This explicit
+failure injection uses the same replacement transaction layout as generated SQL;
+it is separate from the successful real EF upgrade. No concurrent DDL, transaction
+suppression or migration framework is added. See the
+[maintenance requirements](../maintainer/history-preparation.md#utc-index-status-coverage-correction).
+
+Immediately before/after the real migration, index size is 428,507,136 →
+462,086,144 bytes (+32.02 MiB). The original had grown 16 KiB during the preceding
+write trial; the supported experiment's prepared-index delta remains +32.04 MiB.
+Database build-temp writes increase by 384.10 MiB, and shared-cluster WAL insert LSN
+advances 395.61 MiB. Sampled filesystem growth during the candidate process reaches
+797.18 MiB with at least 701.77 GiB free. Sampling includes other phases and shared
+activity; it can miss peaks. Allow the old and replacement indexes, sort temp, WAL
+and recovery reserve simultaneously. These observations do not qualify production
+headroom, downtime or recovery; #604 retains that work.
+
+### Fixed routed and write comparison
+
+Both configurations execute the same freshly built Debug MVC/TestServer application,
+settings, bearer owner, SQL and typed parameters. Capture scope is days 2001-01-01
+through 2025-12-31, Europe/Athens, worldwide/default grid 16, with no text, activity
+or recurring-hour filter. One warmup precedes exactly three measured capture reads;
+one warmup precedes one UTC control per configuration. Both prepared phases receive
+the same explicit VACUUM, without ANALYZE, cache flush or planner changes. Original
+then corrected order, index builds, warm OS caches and a shared workstation limit
+causal/production extrapolation. TestServer includes real bearer/MVC/DTO/buffering,
+excluding TCP/TLS/proxy; diagnostic statements execute separately afterwards.
+
+| Routed complete overview | Original ms | Corrected ms |
+| --- | ---: | ---: |
+| Capture warmup, excluded | 9,698 | 5,748 |
+| Capture measured observations | 6,881 / 6,714 / 7,298 | 4,940 / 4,980 / 5,044 |
+| Capture median | 6,881 | 4,980 (**27.6% lower**) |
+| UTC control, one measured | 2,590 | 2,865 |
+| Candidate after 500 indexed-fact edits, no vacuum | — | 4,531 |
+
+All 13 complete responses return 200/no-store. Complete capture responses match
+after removing only root observedAtUtc: 2,627,999 definite matches, zero uncertain
+candidates and identical cells, extrema and singleton identity. UTC responses also
+match completely apart from observation time, retaining 2,628,000 matches. The UTC
+control is 275 ms slower in this single observation; no latency improvement or
+stable regression estimate is established for that already efficient path.
+Captured SQL and typed parameters match exactly across the two configurations.
+
+For each configuration, one warmup and three measured 20-row batches use the
+existing production tracked SaveChanges boundary. Inserts include canonical data
+and current derivations; updates change event time and ActivityTypeId, affecting
+indexed facts. Fresh contexts verify all persisted rows, current derived versions,
+resolved status and revised capture seconds before deleting only those task-owned
+rows/users. These are EF persistence timings, without routed/provider overhead.
+
+| 20-row batch | Original median (range), ms | Corrected median (range), ms |
+| --- | ---: | ---: |
+| Insert | 40.6 (39.4–51.1) | 39.9 (39.0–42.0) |
+| Update | 39.2 (37.2–40.0) | 43.5 (42.0–45.5) |
+
+Observed update overhead is 4.3 ms per batch, about 11%; inserts show no increase
+in this sample. Counts/data/order/cache treatment are comparable, with no cache
+reset or interleaving. Do not extrapolate these small samples to sustained writes,
+import throughput, production percentiles or general write capacity.
+
+### Separate diagnostics, post-write evidence and limits
+
+| Diagnostic execution, one per statement | Original ms | Corrected ms | Post-write corrected ms |
+| --- | ---: | ---: | ---: |
+| Preparation pending | 932 | 780 | 683 |
+| Uncertainty | 2,802 | 1,846 | 1,518 |
+| Aggregation | 4,100 | 2,854 | 2,378 |
+
+Preparation still performs its complete heap scan. Both corrected membership scans
+use IX_Location_HistoryUtc index-only, with zero prepared heap fetches. Post-write
+diagnostics show 663 heap fetches in each scan, so the separate 4,531-ms routed
+observation survives loss of fully vacuumed visibility. This is not a paired
+post-write speedup claim or sustained-churn qualification. All three complete SQL
+results match before/after and post-write, including preparation=false, uncertainty=0,
+every cell field and singleton UUID. Do not sum diagnostic times into endpoint time.
+
+The watchdog interrupted the candidate process **after all routed/write samples**,
+mistaking initializing parallel workers with temporarily empty application names
+for other clients. The receipt and original runner are retained. The repaired
+watchdog checks actual client backends; one resume completed only the unfinished
+post-write diagnostics and cleanup. No routed measurement or write trial was rerun.
+The earlier partial pending plan remains separate. Source/assembly identities,
+all 13 response receipts and the fixed sample counts are retained.
+
+The 500 large-owner edits change ActivityTypeId, leaving this unfiltered overview's
+membership unchanged. Original values were saved before writing and restored after
+the resumed diagnostics. Whole-row logical checksums of all 500 match before/after.
+All 160 temporary inserted rows and both temporary users are deleted; sequence
+advances and physical dead tuples are retained. Final population is 2,838,240,
+both generations remain ready, other index definitions are unchanged, no other
+clients remain and no final VACUUM was run. The candidate index is installed,
+valid/ready, with its migration recorded. Preserve this fixture for independent
+review. The artifact's retention/cleanup instructions explain inspection and any
+later explicitly authorized baseline restoration; do not rebuild or drop it here.
+
+The one-second target is **not achieved**. The remaining preparation pass, broad
+uncertainty work and cell processing remain material; no preparation optimization,
+JIT/memory experiment, full filter/concurrency matrix or second index candidate is
+part of this delivery. Reuse I918-A preparation/semantic/writer evidence, I918-B
+correctness/composition, the prior full filter/detail/mixed-use matrix and historical
+independent #924 review for their unchanged scope. Historical latency/concurrency
+numbers are not fresh corrected-index qualification. Production/cold-disk/Release/
+TCP/proxy/sustained-load/mobile acceptance remains unqualified. The earlier overall
+performance recommendation remains unaccepted; #918 stays open for the maintainer.
+
+### Validation and fresh independent review scope
+
+All 56 focused tests pass with zero skips, including migration/model/row-preservation,
+readiness, routed history, query/cursor, predicate and actual-plan checks. The first
+run's nine readiness failures are retained as a corrected branch regression, not
+environment debt. Application/test build, pending-model check, generated migration
+transaction inspection, version consistency and diff hygiene pass. Existing
+dependency/analyzer advisories remain; no full-suite or hosted CI success is claimed.
+
+Fresh independent review must pin the new exact live #924 base/head and inspect
+the complete combined change: the prior deadline/tests plus this model/migration,
+exact dual-shape readiness metadata, focused regression and documentation. Audit
+original-index restoration, real upgrade/failure rollback, write overhead, complete
+SQL/response parity, interrupted-diagnostic recovery, row restoration, retained
+fixture and explicit target misses. The previous review does not cover this head.
+Applicable exact-head CI, independent review and maintainer acceptance remain
+outstanding. Implementation observes CI startup once, without polling or reruns;
+it does not merge, waive the target or close #918.
