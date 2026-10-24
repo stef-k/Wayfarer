@@ -1521,10 +1521,11 @@ also retains an unknown-outcome hold. Reload an older editor after upgrading;
 there is no unconditional fallback. Old complete-draft PUT requests and old
 proposal contexts retain conservative xmin protection, including Notes-first
 conflicts. Protected Notes PATCH routes and legacy bearer PUT semantics are
-unchanged; explicitly supplied legacy bearer Notes remain unconditional. C2 legacy
-policy, structural packages, #907, sharing lost-reply acceptance and final #853
-acceptance remain open. No schema migration or native Mobile qualification is
-part of C4.
+unchanged; explicitly supplied legacy bearer Notes remain unconditional. C1 endpoint
+coverage, C2 legacy policy, C4 delivery acceptance, structural packages and C5 final
+#853 acceptance remain open. #907 is separately complete via #917; C3 sharing
+lost-reply behavior was accepted via #919. No schema migration or native Mobile
+qualification is part of C4.
 
 ## Saved Trip measurements and native KML
 
