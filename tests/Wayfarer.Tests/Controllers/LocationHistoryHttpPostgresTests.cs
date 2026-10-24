@@ -15,12 +15,13 @@ using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Actual routed PostgreSQL owner reads, snapshots, paging, preparation and geographic coverage.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixture fixture) : TestBase, IClassFixture<PostgresMigrationTestFixture>
+public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixture fixture, ITestOutputHelper output) : TestBase, IClassFixture<PostgresMigrationTestFixture>
 {
     private const string Route = "/api/location/history";
     private const string Utc = "timeBasis=utc&timeMode=interval&viewerZone=Europe%2FAthens&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z";
@@ -90,29 +91,62 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
     [PostgresFact]
     public async Task IndependentOverviewRetainsDistantAndCoincidentRecords()
     {
-        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 5);
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 69);
         await using (var edit = fixture.CreateContext())
         {
-            var distant = await edit.Locations.SingleAsync(row => row.Id == rows[4].Id);
-            distant.Coordinates = new Point(-74, 40.7) { SRID = 4326 }; await edit.SaveChangesAsync();
+            foreach (var row in rows.Take(65))
+            {
+                edit.Attach(row); row.Coordinates = new Point(23.73, 37.98) { SRID = 4326 };
+            }
+            edit.Attach(rows[68]); rows[68].Coordinates = new Point(-74, 40.7) { SRID = 4326 };
+            await edit.SaveChangesAsync();
         }
         await using var app = await HostAsync(); using var client = Client(app, owner);
         var overview = await GetAsync(client, Route + "/overview?" + Utc + "&grid=4");
-        Assert.Equal("5", overview.GetProperty("knownMatchCount").GetString());
+        Assert.Equal("69", overview.GetProperty("knownMatchCount").GetString());
         Assert.Equal("0", overview.GetProperty("unmappedMatchCount").GetString());
-        var cells = overview.GetProperty("cells").EnumerateArray().ToArray(); Assert.Equal(2, cells.Length);
-        var dense = Assert.Single(cells, cell => cell.GetProperty("recordCount").GetString() == "4");
-        Assert.Equal(JsonValueKind.Null, dense.GetProperty("singleton").ValueKind);
+        var cells = overview.GetProperty("cells").EnumerateArray().ToArray(); Assert.Equal(3, cells.Length);
+        Assert.Single(cells, cell => cell.GetProperty("recordCount").GetString() == "65");
         var sparse = Assert.Single(cells, cell => cell.GetProperty("recordCount").GetString() == "1");
-        Assert.Equal(rows[4].Id, sparse.GetProperty("singleton").GetProperty("locationId").GetInt32());
-        var bounds = dense.GetProperty("bounds");
-        var area = string.Join("&", new[] { "west", "south", "east", "north" }.Select(key => key + "=" + bounds.GetProperty(key).GetRawText()));
-        var choices = await GetAsync(client, Route + "?" + Utc + "&" + area + "&pageSize=2");
-        Assert.Equal(2, Ids(choices).Length);
-        Assert.NotNull(choices.GetProperty("nextContinuation").GetString());
-        var detail = await GetAsync(client, Route + "/" + Ids(choices)[0] + "?viewerZone=UTC");
+        Assert.Equal(rows[68].Id, sparse.GetProperty("singleton").GetProperty("locationId").GetInt32());
+        var journey = Assert.Single(cells, cell => cell.GetProperty("recordCount").GetString() == "3");
+        var scope = Utc;
+        // Repeated spatial refinement cannot separate coincident records; exact choices remain necessary.
+        foreach (var grid in new[] { 4, 16 })
+        {
+            scope = Utc + "&" + string.Join("&", journey.GetProperty("bounds").EnumerateObject()
+                .Select(edge => edge.Name + "=" + edge.Value.GetRawText()));
+            var refined = await GetAsync(client, Route + "/overview?" + scope + "&grid=" + grid);
+            Assert.Equal("3", refined.GetProperty("mappedMatchCount").GetString());
+            journey = Assert.Single(refined.GetProperty("cells").EnumerateArray());
+            Assert.Equal(JsonValueKind.Null, journey.GetProperty("singleton").ValueKind);
+            output.WriteLine("Refinement: " + refined.GetRawText());
+        }
+        var choices = await GetAsync(client, Route + "?" + scope + "&pageSize=2");
+        var next = await GetAsync(client, Route + "?" + scope + "&pageSize=2&continuation="
+            + Uri.EscapeDataString(choices.GetProperty("nextContinuation").GetString()!));
+        var selected = Ids(choices)[0];
+        Assert.Equal(rows.Skip(65).Take(3).Select(row => row.Id).Order(), Ids(choices).Concat(Ids(next)).Order());
+        Assert.Equal(JsonValueKind.Null, next.GetProperty("nextContinuation").ValueKind);
+        var detail = await GetAsync(client, Route + "/" + selected + "?viewerZone=Europe%2FAthens");
+        Assert.Equal(selected, detail.GetProperty("record").GetProperty("locationId").GetInt32());
         Assert.Equal("not-evaluated", detail.GetProperty("filterMembership").GetString());
         Assert.Equal("owner-detail-1", detail.GetProperty("profile").GetString());
+        // Main chronology is opened only after selected detail; it uses the refined scope independently.
+        var first = await GetAsync(client, Route + "?" + scope + "&pageSize=1");
+        var ids = new List<int>(Ids(first)); var page = first;
+        while (page.GetProperty("nextContinuation").GetString() is { } cursor)
+        {
+            page = await GetAsync(client, Route + "?" + scope + "&pageSize=1&continuation=" + Uri.EscapeDataString(cursor));
+            Assert.Equal(first.GetProperty("scopeKey").GetString(), page.GetProperty("scopeKey").GetString());
+            ids.AddRange(Ids(page));
+        }
+        Assert.Equal(Ids(choices).Concat(Ids(next)), ids);
+        Assert.Equal(choices.GetProperty("scopeKey").GetString(), first.GetProperty("scopeKey").GetString());
+        var refreshed = await GetAsync(client, Route + "/overview?" + scope + "&grid=16");
+        Assert.Equal("3", refreshed.GetProperty("knownMatchCount").GetString());
+        output.WriteLine("Full-period overview: " + overview.GetRawText());
+        output.WriteLine("Choices: " + choices.GetRawText()); output.WriteLine("Detail: " + detail.GetRawText());
     }
 
     /// <summary>The review's exact floating-point edge remains selectable through its published half-open bounds on unchanged data.</summary>
@@ -401,11 +435,17 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
     public async Task CompleteDetailPreservesFieldsAndClassifiesUnrepresentableValues()
     {
         var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 1);
-        var notes = "<p>" + new string('x', 256 * 1024) + " café</p>";
+        var notes = "<p>" + string.Join(" ", Enumerable.Range(0, 32768).Select(i => $"Diary {i}: café 東京.")) + "</p>";
         await using (var edit = fixture.CreateContext())
         {
             var row = await edit.Locations.SingleAsync(row => row.Id == rows[0].Id);
             row.Notes = notes; row.DeviceModel = "private model"; row.ProviderAddressLine1 = "independent line";
+            row.FullAddress = "10 Station Road, Tokyo"; row.AddressNumber = "10"; row.StreetName = "Station Road";
+            row.PostCode = "100-0005"; row.Place = "Tokyo"; row.Region = "Kantō"; row.Country = "Japan";
+            row.ResolvedFeatureName = "Station café"; row.ResolvedFeatureType = "amenity";
+            row.ReverseGeocodingProvider = "geoapify"; row.ReverseGeocodingStorageMode = "permanent";
+            row.ReverseGeocodedAt = new DateTimeOffset(2025, 10, 11, 1, 2, 3, TimeSpan.Zero);
+            row.CoordinateOrigin = "sensor"; row.ObservedAgeAtEventMs = 1250;
             row.Accuracy = double.NaN; row.Altitude = 123.25; await edit.SaveChangesAsync();
             await edit.Locations.Where(row => row.Id == rows[0].Id).ExecuteUpdateAsync(setters => setters
                 .SetProperty(row => row.HistoryTimeVersion, "previous-time-generation").SetProperty(row => row.Timestamp, DateTime.MinValue));
@@ -424,6 +464,16 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(2, detail.GetProperty("unavailableFields").EnumerateObject().Count());
         Assert.Equal("pendingPreparation", record.GetProperty("captureTime").GetProperty("status").GetString());
         Assert.Equal("imported-zone", record.GetProperty("storedTimeZoneId").GetString());
+        Assert.Equal("2025-10-10T03:00:00.123456Z", record.GetProperty("eventUtc").GetString());
+        Assert.Equal(rows[0].IdempotencyKey!.Value.ToString("D"), record.GetProperty("uuid").GetString());
+        foreach (var (field, value) in new[] { ("fullAddress", "10 Station Road, Tokyo"), ("addressNumber", "10"),
+                     ("streetName", "Station Road"), ("postCode", "100-0005"), ("place", "Tokyo"), ("region", "Kantō"),
+                     ("country", "Japan"), ("resolvedFeatureName", "Station café"), ("resolvedFeatureType", "amenity"),
+                     ("reverseGeocodingProvider", "geoapify"), ("reverseGeocodingStorageMode", "permanent"), ("coordinateOrigin", "sensor") })
+            Assert.Equal(value, record.GetProperty(field).GetString());
+        Assert.Equal(1250, record.GetProperty("observedAgeAtEventMs").GetInt64());
+        Assert.Equal("2025-10-11T01:02:03.000000Z", record.GetProperty("reverseGeocodedAt").GetString());
+        output.WriteLine($"Complete Notes: {System.Text.Encoding.UTF8.GetByteCount(notes)} UTF-8 bytes; detail: {System.Text.Encoding.UTF8.GetByteCount(detail.GetRawText())} bytes.");
         Assert.DoesNotContain("historySearchText", detail.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("tokenHash", detail.GetRawText(), StringComparison.OrdinalIgnoreCase);
     }
