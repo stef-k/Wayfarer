@@ -11,9 +11,7 @@ public partial class ApiTripsControllerTests
 {
     [Theory]
     [InlineData("trip")]
-    [InlineData("region-create")]
     [InlineData("region-update")]
-    [InlineData("place-create")]
     [InlineData("place-update")]
     [InlineData("area")]
     [InlineData("segment")]
@@ -34,9 +32,7 @@ public partial class ApiTripsControllerTests
         IActionResult result = writer switch
         {
             "trip" => await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Notes = input }),
-            "region-create" => await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "Created", Notes = input }),
             "region-update" => await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Notes = input }),
-            "place-create" => await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { RegionId = region.Id, Name = "Created", Notes = input }),
             "place-update" => await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Notes = input }),
             "area" => await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = input }),
             _ => await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = input })
@@ -45,9 +41,7 @@ public partial class ApiTripsControllerTests
         var stored = writer switch
         {
             "trip" => trip.Notes,
-            "region-create" => db.Regions.Single(item => item.Name == "Created").Notes,
             "region-update" => region.Notes,
-            "place-create" => db.Places.Single(item => item.Name == "Created").Notes,
             "place-update" => db.Places.Single(item => item.Id == place.Id).Notes,
             "area" => area.Notes,
             _ => segment.Notes

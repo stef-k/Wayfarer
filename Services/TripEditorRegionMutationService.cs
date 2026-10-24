@@ -46,10 +46,9 @@ public sealed class TripEditorRegionMutationService
         var request = await CreationConditionalRequest.ReadAsync(requestBody, false, cancellationToken);
         CreationConditionalRequest.ValidateValue(request.Value, false, true);
         if (!EditorRegionRequestParser.TryParseSave(request.Value, out var update, out var errors))
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.ValidationFailed(errors);
+            throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the creation fields.", errors);
         var region = new Region
         {
-            Id = Guid.NewGuid(),
             TripId = tripId,
             UserId = userId,
             Name = update.Name.Trim(),

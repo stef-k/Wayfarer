@@ -8,7 +8,7 @@ public partial class TripsController
 {
     /// <summary>Rejects the overlapping unconditional creation path; a generated ID cannot make replay safe.</summary>
     [HttpPost("{tripId}/places")]
-    public Task<IActionResult> CreatePlace(Guid tripId, [FromBody] PlaceCreateRequestDto request) =>
-        Task.FromResult<IActionResult>(GetUserFromToken() == null ? Unauthorized()
-            : CreationConditionalRequest.Invalid("Use the conditional Place creation contract.").ToActionResult());
+    public IActionResult RejectUnconditionalPlaceCreation(Guid tripId) =>
+        GetUserFromToken() == null ? Unauthorized()
+            : CreationConditionalRequest.Invalid("Use the conditional Place creation contract.").ToActionResult();
 }

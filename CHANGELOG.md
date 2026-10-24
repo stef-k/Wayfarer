@@ -4,6 +4,15 @@
 
 ### Changed
 
+- Protect Region and Place creation in the new Web and bearer contracts (#853,
+  BD2-06/07). Compare client starting-view membership, stored orders and canonical
+  fallback evidence; atomically append server-identified children and stamp Trip
+  freshness. Concurrent/stale creates reject without partial or ghost fallback
+  records. Web retains its fields and address-provider policy; bearer coordinates
+  acquire no provider data and never modify Location history. Validate creation
+  acknowledgements, retain newer drafts and hold unknown outcomes without replay.
+  See [supported requests and outcomes](docs/development/trip-creation.md). No migration.
+
 - Separate current Web Segment route evidence from independently authored Notes
   (#853 package R / C4). Protected disjoint saves now survive either order and
   queued waits; route-only saves preserve untouched nullable Notes, while combined

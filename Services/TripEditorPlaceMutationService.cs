@@ -63,7 +63,7 @@ public sealed class TripEditorPlaceMutationService
         if (request.RegionId != regionId) throw CreationConditionalRequest.Invalid("The original destination must match the path.");
         CreationConditionalRequest.ValidateValue(request.Value, true, true);
         if (!EditorPlaceRequestParser.TryParseCreate(request.Value, IconNames(), MarkerColors(), out var value, out var errors))
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(errors);
+            throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the creation fields.", errors);
         var place = new Place
         {
             Id = Guid.NewGuid(),
@@ -81,7 +81,6 @@ public sealed class TripEditorPlaceMutationService
 
         return await new CheckedCreationService(_dbContext).PlaceAsync(tripId, userId, request, place, async created =>
         {
-
             var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
             var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, new[] { created.RegionId }, null, null, true, cancellationToken);
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
@@ -273,21 +272,6 @@ public sealed class TripEditorPlaceMutationService
             new EditorMutationResult<EditorPlaceOrderResult>(true, data, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
     }
 
-    private async Task<(EditorPlaceCreateRequest? Value, Dictionary<string, string[]>? ValidationErrors)> ParseAndValidateCreateAsync(
-        Stream requestBody,
-        CancellationToken cancellationToken)
-    {
-        var request = await ParseJsonBodyAsync(requestBody, "Place create request must be valid JSON.", cancellationToken);
-        if (request.ValidationErrors != null)
-        {
-            return (null, request.ValidationErrors);
-        }
-
-        return EditorPlaceRequestParser.TryParseCreate(request.Value!.Value, IconNames(), MarkerColors(), out var value, out var errors)
-            ? (value, null)
-            : (null, errors);
-    }
-
     private async Task<(EditorPlaceUpdateRequest? Value, Dictionary<string, string[]>? ValidationErrors)> ParseAndValidateUpdateAsync(
         Stream requestBody,
         CancellationToken cancellationToken)
@@ -384,9 +368,6 @@ public sealed class TripEditorPlaceMutationService
             ? Directory.GetFiles(iconDir, "*.svg").Select(Path.GetFileNameWithoutExtension).Where(n => n != null).Cast<string>().OrderBy(n => n).ToList()
             : Array.Empty<string>();
     }
-
-    private static int NextPlaceOrder(Region region) =>
-        (region.Places.Count == 0 ? 0 : region.Places.Max(p => p.DisplayOrder ?? 0)) + 1;
 
     private static Point? ToPoint(EditorCoordinateDto? coordinate) =>
         coordinate == null ? null : new Point(coordinate.Longitude, coordinate.Latitude) { SRID = 4326 };

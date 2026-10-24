@@ -171,6 +171,7 @@ public sealed record EditorMutationResult<TData>(
     IReadOnlyList<EditorWarningDto> Warnings)
 {
     /// <summary>Present for protected creation acknowledgements; never a durable retry receipt.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? Contract { get; init; }
 }
 

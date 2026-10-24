@@ -128,6 +128,7 @@ export function usePlaceEditorActions(context: any) {
       }
       owner.pending.value = true;
       dispatched = true;
+      if (creation) owner.creationUncertain.value = true;
       // Combined edits stay one lifecycle PUT. A failed protected PATCH never falls back to that writer.
       const result = conditional
         ? await updatePlaceConditional(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, conditional)
@@ -135,7 +136,10 @@ export function usePlaceEditorActions(context: any) {
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, complete)
           : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
       if (!currentAttempt()) return;
-      if (creation) validatePlaceCreation(result, context.props.state.tripId, creation);
+      if (creation) {
+        validatePlaceCreation(result, context.props.state.tripId, creation);
+        owner.creationUncertain.value = false;
+      }
       else validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
       owner.acknowledge(result.data, conditional?.changes ?? complete);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
@@ -147,6 +151,7 @@ export function usePlaceEditorActions(context: any) {
       if (!currentAttempt()) return;
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (creation && rejected) owner.creationUncertain.value = false;
       if (dispatched && !rejected) {
         owner.uncertain.value = true;
         if (!placeId) owner.creationUncertain.value = true;

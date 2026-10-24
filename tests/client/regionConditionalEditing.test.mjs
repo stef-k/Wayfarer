@@ -33,7 +33,7 @@ const mount = (initial = region()) => {
   const dirty = [];
   const handlers = new Map();
   const active = ref(null);
-  const props = shallowReactive({ state: { regionsById: { [initial.id]: initial }, regionOrder: [initial.id],
+  const props = shallowReactive({ state: { tripId: 'trip', regionsById: { [initial.id]: initial }, regionOrder: [initial.id],
     placesById: {}, placeOrderByRegionId: {}, areasById: {}, areaOrderByRegionId: {}, options: { areaDefaults: { fillHex: '#ff6600' } } },
     editorSurface: { isTargetActive: target => active.value?.identity === target.identity,
       activateTarget: async target => { active.value = target; return true; },
@@ -203,7 +203,7 @@ for (const reason of ['missing originals', 'unsupported route', 'deletion held']
   }));
 }
 
-test('numeric center/Clear remain paired and creation retains the existing POST', () => withGlobals(async () => {
+test('numeric center/Clear remain paired and creation sends pinned originals', () => withGlobals(async () => {
   const owner = mount();
   const calls = [];
   globalThis.fetch = async (url, init) => { calls.push([url, init.method, JSON.parse(init.body)]); return saved(region({ center: null, coverImage: null })); };
@@ -224,8 +224,60 @@ test('numeric center/Clear remain paired and creation retains the existing POST'
     owner.editor.draft.notesHtml = 'Created notes';
     await owner.editor.saveDraft();
     assert.equal(calls[1][1], 'POST');
-    assert.equal(calls[1][0], '/api/trips/trip/editor/regions');
-    assert.equal(calls[1][2].notesHtml, 'Created notes');
-    assert.equal(Object.hasOwn(calls[1][2], 'expected'), false);
+    assert.equal(calls[1][0], '/api/trips/trip/editor/regions/conditional');
+    assert.equal(calls[1][2].value.notesHtml, 'Created notes');
+    assert.deepEqual(calls[1][2].expected, { regions: [{ id: 'region', displayOrder: 1, isCanonical: false }] });
   } finally { owner.dispose(); }
 }));
+
+const createdRegionId = '20000000-0000-0000-0000-000000000002';
+/** Mirrors the committed creation projection, including exact membership effects and originals. */
+const createdRegionReply = () => {
+  const data = region({ id: createdRegionId, name: 'New Region', notesHtml: '', coverImage: null, center: null,
+    displayOrder: 2, capabilities: { canEdit: true, canDelete: true, canAddChildren: true } });
+  return { contract: 'bd2-1', success: true, data, affected: { metadata: null, regions: [data], regionOrder: ['region', createdRegionId],
+    places: [], placeOrdersByRegionId: { [createdRegionId]: [] }, areas: [], areaOrdersByRegionId: { [createdRegionId]: [] },
+    segments: [], segmentOrder: null, tags: [], tagOrder: null, visitProgress: null, options: null },
+    deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] };
+};
+for (const outcome of ['success', 'network', 'malformed', 'newer', 'retired']) {
+  test(`Region creation ${outcome} validates before adoption and retains pinned originals`, () => withGlobals(async () => {
+    const owner = mount();
+    try {
+      await owner.editor.openCreate();
+      const pending = deferred();
+      const calls = [];
+      globalThis.fetch = async (url, init) => { calls.push([url, JSON.parse(init.body)]); return pending.promise; };
+      const save = owner.editor.saveDraft();
+      if (outcome === 'newer') owner.editor.draft.name = 'Newer creation intent';
+      if (outcome === 'retired') {
+        await owner.props.editorSurface.closeActiveTarget();
+        await owner.editor.openEdit(owner.props.state.regionsById.region);
+        owner.editor.draft.name = 'Retired reply must preserve me';
+      }
+      owner.update(region({ displayOrder: 11 }));
+      await nextTick();
+      const result = createdRegionReply();
+      pending.resolve(outcome === 'network' ? Promise.reject(new Error('Lost reply'))
+        : new Response(JSON.stringify(outcome === 'malformed' ? { success: true, data: { id: createdRegionId } } : result)));
+      await save;
+      await nextTick();
+      assert.deepEqual(calls[0][1].expected, { regions: [{ id: 'region', displayOrder: 1, isCanonical: false }] });
+      if (outcome === 'success' || outcome === 'newer') {
+        assert.equal(owner.editor.draft.id, createdRegionId);
+        assert.equal(owner.props.state.regionsById[createdRegionId].name, 'New Region');
+        assert.equal(owner.editor.regionDirty, outcome === 'newer');
+        if (outcome === 'newer') assert.equal(owner.editor.draft.name, 'Newer creation intent');
+      } else {
+        assert.equal(owner.props.state.regionsById[createdRegionId], undefined);
+        assert.equal(owner.editor.regionDraftState.creationUncertain.value, true);
+        assert.equal(owner.editor.regionDirty, true);
+        if (outcome !== 'retired') {
+          owner.editor.resetDraft();
+          await owner.editor.saveDraft();
+          assert.equal(calls.length, 1);
+        } else assert.equal(owner.editor.draft.name, 'Retired reply must preserve me');
+      }
+    } finally { owner.dispose(); }
+  }));
+}

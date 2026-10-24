@@ -21,7 +21,7 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
             region.UserId = userId;
             region.DisplayOrder = Next(regions.Where(r => r.Name != "Unassigned Places").Select(r => (int?)r.DisplayOrder));
             db.Regions.Add(region);
-            await SaveAsync(tripId, token);
+            await db.SaveChangesAsync(token);
             return await project(region, regions.Append(region).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray());
         }, authority, token);
 
@@ -53,7 +53,7 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
             if (!request.RegionId.HasValue) place.Region = destination;
             place.DisplayOrder = Next(siblings.Select(p => p.DisplayOrder));
             db.Places.Add(place);
-            await SaveAsync(tripId, token);
+            await db.SaveChangesAsync(token);
             return await project(place);
         }, authority, token);
 
@@ -106,16 +106,6 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
         }
     }
 
-    /// <summary>Uses the existing narrow Trip stamping owner and excludes caller-owned dirty work.</summary>
-    private async Task SaveAsync(Guid tripId, CancellationToken token)
-    {
-        if (db.ChangeTracker.Entries().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
-            throw new InvalidOperationException("Creation cannot save unrelated tracked changes.");
-        await db.SaveChangesAsync(token);
-        var now = DateTime.UtcNow;
-        await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
-    }
-
     /// <summary>Canonical identity and order are dependencies; unrelated sibling content is not.</summary>
     private static void CompareRegions(CreationConditionalRequest request, Region[] regions, string userId)
     {
@@ -134,9 +124,11 @@ internal sealed class CheckedCreationService(ApplicationDbContext db)
     /// <summary>Reuses the exact canonical uniqueness recovery boundary, but never adopts a concurrent winner as an original.</summary>
     private static bool IsUnappliedContention(Exception failure)
     {
-        var postgres = failure as PostgresException ?? (failure as DbUpdateException)?.InnerException as PostgresException;
-        return postgres is { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }
-            or { SqlState: PostgresErrorCodes.UniqueViolation, SchemaName: "public", TableName: "Regions", ConstraintName: RegionConfiguration.UnassignedIndex };
+        for (var cause = failure; cause != null; cause = cause.InnerException)
+            if (cause is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }
+                or PostgresException { SqlState: PostgresErrorCodes.UniqueViolation, SchemaName: "public", TableName: "Regions", ConstraintName: RegionConfiguration.UnassignedIndex })
+                return true;
+        return false;
     }
 
     /// <summary>Conceals missing and foreign Trip scope.</summary>

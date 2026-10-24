@@ -620,8 +620,8 @@ public partial class TripsController : BaseApiController
 
     /// <summary>Rejects creation without the supported original-membership contract.</summary>
     [HttpPost("{tripId}/regions")]
-    public Task<IActionResult> CreateRegion(Guid tripId, [FromBody] RegionCreateRequestDto request) =>
-        Task.FromResult<IActionResult>(GetUserFromToken() == null ? Unauthorized() : CreationConditionalRequest.Invalid("Use the conditional Region creation contract.").ToActionResult());
+    public IActionResult RejectUnconditionalRegionCreation(Guid tripId) =>
+        GetUserFromToken() == null ? Unauthorized() : CreationConditionalRequest.Invalid("Use the conditional Region creation contract.").ToActionResult();
 
     /// <summary>
     /// Updates an existing trip's metadata (name, notes) by ID.
@@ -1186,14 +1186,6 @@ public partial class TripsController : BaseApiController
             _logger.LogError(ex, "Failed to clone trip {TripId} for user {UserId}", id, user.Id);
             return StatusCode(500, new { error = "Failed to clone trip. Please try again." });
         }
-    }
-
-    private async Task<int> GetNextRegionOrder(Guid tripId)
-    {
-        var max = await _dbContext.Regions
-            .Where(r => r.TripId == tripId && r.Name != ShadowRegionName)
-            .MaxAsync(r => (int?)r.DisplayOrder) ?? 0;
-        return Math.Max(max + 1, 1);
     }
 
     /// <summary>

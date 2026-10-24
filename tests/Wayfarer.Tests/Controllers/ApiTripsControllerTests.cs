@@ -258,24 +258,6 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
-    [Fact]
-    public async Task CreatePlace_ReturnsNotFound_ForDifferentOwner()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner");
-        var other = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = owner.Id, Name = "R1" };
-        db.Users.Add(owner);
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 1, Longitude = 2 });
-
-        Assert.IsType<NotFoundObjectResult>(result);
-    }
 
     [Fact]
     public async Task UpdateRegion_ReturnsUnauthorized_ForDifferentOwner()
@@ -440,74 +422,9 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.True(db.Trips.Any(t => t.Id == clonedId && t.UserId == requester.Id));
     }
 
-    [Fact]
-    public async Task CreateRegion_ReturnsNotFound_WhenTripMissing()
-    {
-        var db = CreateDbContext();
-        SeedUserWithToken(db, "tok");
-        var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreateRegion(Guid.NewGuid(), new RegionCreateRequestDto { Name = "R1" });
 
-        Assert.IsType<NotFoundObjectResult>(result);
-    }
 
-    [Fact]
-    public async Task CreateRegion_Succeeds_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "R1" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.True(db.Regions.Any(r => r.TripId == trip.Id && r.Name == "R1"));
-    }
-
-    [Fact]
-    public async Task CreatePlace_Succeeds_WhenCoordsOptional()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id });
-
-        Assert.IsType<OkObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task CreatePlace_Succeeds_WithValidData()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto
-        {
-            Name = "P1",
-            RegionId = region.Id,
-            Latitude = 10,
-            Longitude = 20
-        });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        Assert.True(db.Places.Any(p => p.RegionId == region.Id && p.Name == "P1"));
-    }
 
     [Fact]
     public async Task UpdatePlace_UpdatesCoordinates_ForOwner()
@@ -605,42 +522,7 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
-    [Fact]
-    public async Task CreatePlace_ValidatesCoordinateRange()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 91, Longitude = 181 });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task CreatePlace_UsesDefaultIcon_WhenNotProvided()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreatePlace(trip.Id, new PlaceCreateRequestDto { Name = "P1", RegionId = region.Id, Latitude = 10, Longitude = 20 });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var place = db.Places.First(p => p.Name == "P1");
-        Assert.Equal("marker", place.IconName);
-        Assert.Equal("bg-blue", place.MarkerColor);
-    }
 
     [Fact]
     public async Task CloneTrip_CopiesRegionsAndPlaces()
@@ -1163,37 +1045,7 @@ public partial class ApiTripsControllerTests : TestBase
 
     #endregion
 
-    [Fact]
-    public async Task CreateRegion_ReturnsBadRequest_WhenReservedName()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
 
-        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "Unassigned Places" });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task CreateRegion_ReturnsNotFound_ForDifferentOwner()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner");
-        SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Trip" };
-        db.Users.Add(owner);
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "R1" });
-
-        Assert.IsType<NotFoundObjectResult>(result);
-    }
 
     [Fact]
     public async Task GetTripBoundary_Unauthorized_ForPrivateTrip()

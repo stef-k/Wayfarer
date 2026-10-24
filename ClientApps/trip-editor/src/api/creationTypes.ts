@@ -34,8 +34,10 @@ export const placeCreationOriginals = (state: EditorTripState): Record<string, P
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 const guid = (id: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/.test(id);
-const order = (ids: string[], originals: string[], added: string): boolean => Array.isArray(ids)
-  && new Set(ids).size === ids.length && ids.length === originals.length + 1 && ids.includes(added) && originals.every(id => ids.includes(id));
+/** Uses stored nullable order and GUID tie-breaks, including nulls after the new numeric append. */
+const orderedIds = (rows: { id: string; displayOrder: number | null }[]): string[] => [...rows].sort((a, b) =>
+  a.displayOrder === null ? b.displayOrder === null ? a.id.localeCompare(b.id) : 1
+    : b.displayOrder === null ? -1 : a.displayOrder - b.displayOrder || a.id.localeCompare(b.id)).map(row => row.id);
 const empty = (value: unknown): boolean => Array.isArray(value) && value.length === 0;
 
 /** Checks the operation contract and exact acknowledged creation footprint before any state adoption. */
@@ -52,11 +54,11 @@ export const validateRegionCreation = (result: EditorMutationResult<EditorRegion
     || typeof next.notesHtml !== 'string' || next.displayOrder !== expectedOrder
     || !next.originalValues || next.originalValues.name !== next.name || (next.originalValues.notesHtml ?? '') !== next.notesHtml
     || !nullableText(next.originalValues.notesHtml) || !same(next.center, submitted.value.center)
-    || !same(next.originalValues.center, next.center) || !same(next.originalValues.coverImage, submitted.value.coverImage)
+    || !same(next.originalValues.center, next.center) || !same(next.originalValues.coverImage, submitted.value.coverImage?.rawUrl?.trim() ? { rawUrl: submitted.value.coverImage.rawUrl.trim() } : null)
     || (next.coverImage?.rawUrl ?? null) !== (submitted.value.coverImage?.rawUrl?.trim() || null)
     || !next.capabilities || !['canEdit', 'canDelete', 'canAddChildren'].every(key => typeof next.capabilities[key as keyof typeof next.capabilities] === 'boolean')
     || !Array.isArray(affected?.regions) || affected.regions.length !== 1 || !same(affected.regions[0], next)
-    || !order(affected.regionOrder!, ids, next.id)
+    || !same(affected.regionOrder, orderedIds([...originals, { id: next.id, displayOrder: expectedOrder }]))
     || !same(affected.placeOrdersByRegionId, { [next.id]: [] }) || !same(affected.areaOrdersByRegionId, { [next.id]: [] })
     || !['places', 'areas', 'segments', 'tags'].every(key => empty(affected[key as keyof typeof affected]))
     || [affected.metadata, affected.segmentOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value !== null)
@@ -73,7 +75,7 @@ export const validatePlaceCreation = (result: EditorMutationResult<EditorPlace>,
   const expectedOrder = (orders.length ? Math.max(...orders) : 0) + 1;
   if (result.contract !== 'bd2-1' || !guid(result.data.id) || ids.includes(result.data.id)
     || result.data.displayOrder !== expectedOrder || result.data.originalValues?.displayOrder !== expectedOrder
-    || !order(result.affected.placeOrdersByRegionId[submitted.expected.regionId], ids, result.data.id)
+    || !same(result.affected.placeOrdersByRegionId[submitted.expected.regionId], orderedIds([...originals, { id: result.data.id, displayOrder: expectedOrder }]))
     || result.data.name !== submitted.value.name.trim() || !same(result.data.location, submitted.value.location)
     || result.data.iconName !== submitted.value.iconName || result.data.markerColor !== submitted.value.markerColor)
     throw new Error('The Place creation acknowledgement is incomplete. Keep the draft; the creation outcome is unknown.');

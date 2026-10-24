@@ -99,11 +99,15 @@ export function useRegionEditorActions(context: any) {
       }
       owner.pending.value = true;
       dispatched = true;
+      if (creation) owner.creationUncertain.value = true;
       const result = regionId
         ? await updateRegion(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted)
         : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!);
       if (!currentAttempt()) return;
-      if (creation) validateRegionCreation(result, context.props.state.tripId, creation);
+      if (creation) {
+        validateRegionCreation(result, context.props.state.tripId, creation);
+        owner.creationUncertain.value = false;
+      }
       // Acknowledge before emitting: Vue schedules the parent's authoritative props for a later tick.
       context.regionDraftState.acknowledge(result.data, submitted);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
@@ -115,6 +119,7 @@ export function useRegionEditorActions(context: any) {
       // A transport/server failure is not evidence of no effect. Preserve even a newer reversal to the old base.
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (creation && rejected) owner.creationUncertain.value = false;
       if (dispatched && !rejected) {
         owner.uncertain.value = true;
         if (!regionId) owner.creationUncertain.value = true;

@@ -89,7 +89,7 @@ internal sealed record CreationConditionalRequest(JsonElement Value, IReadOnlyLi
         ? value.EnumerateArray() : throw Invalid("A complete original membership array is required.");
 
     /// <summary>Shares the published safe request-rejection envelope.</summary>
-    internal static TripMetadataMutationRejected Invalid(string message) => new(400, "mutation-request-invalid", message);
+    internal static TripMetadataMutationRejected Invalid(string message) => new(400, "mutation-request-invalid", message, new() { ["request"] = [message] });
 }
 
 /// <summary>Region content is not an append dependency, except its exact canonical identity.</summary>

@@ -18,9 +18,9 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>Proves routed Region name validation and action-level partial update behavior.</summary>
 public partial class ApiTripsControllerTests
 {
-    /// <summary>Automatic MVC validation rejects an empty name before action-level token/ownership checks.</summary>
+    /// <summary>The supported creation route rejects an empty name before any checked append transaction.</summary>
     [Fact]
-    public async Task CreateRegion_EmptyName_ReturnsMvcValidationError_WithoutCreatingRegion()
+    public async Task CreateRegion_EmptyName_ReturnsRequestValidationError_WithoutCreatingRegion()
     {
         using var db = CreateDbContext();
         var owner = SeedUserWithToken(db, "tok");
@@ -33,13 +33,13 @@ public partial class ApiTripsControllerTests
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "tok");
 
-        using var response = await client.PostAsJsonAsync($"/api/trips/{trip.Id}/regions",
-            new RegionCreateRequestDto { Name = "" });
+        using var response = await client.PostAsJsonAsync($"/api/trips/{trip.Id}/conditional/regions",
+            new { expected = new { regions = Array.Empty<object>() }, value = new { name = "", notes = (string?)null } });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.NotNull(problem);
-        Assert.True(problem.Errors.TryGetValue(nameof(RegionCreateRequestDto.Name), out var errors));
+        Assert.True(problem.Errors.TryGetValue("request", out var errors));
         Assert.NotEmpty(errors!);
         db.ChangeTracker.Clear();
         Assert.Equal(regionCount, await db.Regions.CountAsync());
