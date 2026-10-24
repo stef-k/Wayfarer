@@ -243,23 +243,6 @@ public sealed partial class TripEditorController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a normal region for an owned trip.
-    /// </summary>
-    [HttpPost("regions")]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> CreateRegion(Guid tripId, CancellationToken cancellationToken)
-    {
-        var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _regionMutations.CreateRegionAsync(tripId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
-    }
-
-    /// <summary>
     /// Updates a normal region for an owned trip.
     /// </summary>
     [HttpPut("regions/{regionId:guid}")]

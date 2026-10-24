@@ -1,3 +1,5 @@
+import { regionCreationOriginals, type RegionCreationOriginal } from '../api/creationTypes';
+import type { EditorTripState } from '../types';
 import { reactive, ref } from 'vue';
 import type { EditorRegion, EditorRegionConditionalRequest, EditorRegionOriginalValues } from '../types';
 import { buildRegionRequest, emptyRegionDraft, toRegionDraft, type RegionDraft } from './regionPlaceDrafts';
@@ -23,6 +25,11 @@ export const createRegionDraftState = () => {
   const originals = reactive<Partial<EditorRegionOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
+  const creationUncertain = ref(false);
+  const creationOriginals = ref<RegionCreationOriginal[] | null>(null);
+  const session = ref(0);
+  /** Pins creation originals once at explicit open/reset; ordinary refresh cannot replace them. */
+  const beginCreate = (state: EditorTripState): void => { creationOriginals.value = regionCreationOriginals(state); };
 
   /** Adopts a clean field without synthesizing absent originals from display values. */
   const adopt = (field: Field, incoming: RegionDraft, next: EditorRegion): void => {
@@ -35,7 +42,8 @@ export const createRegionDraftState = () => {
 
   /** Explicit open/reset/discard replaces the base; unrelated props never invoke this operation. */
   const reset = (next: EditorRegion | null): void => {
-    uncertain.value = false;
+    session.value++;
+    pending.value = uncertain.value = false;
     Object.assign(draft, toRegionDraft(next));
     Object.assign(baseline, toRegionDraft(next));
     for (const field of fields) delete originals[field];
@@ -81,5 +89,5 @@ export const createRegionDraftState = () => {
     baseline.id = next.id;
   };
 
-  return { draft, baseline, pending, uncertain, reset, refresh, request, acknowledge };
+  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, request, acknowledge, session: () => session.value };
 };

@@ -80,6 +80,8 @@ export interface ExternalRouteProposal {
 
 /** Exact server comparison values, preserving nullable storage independently of the rendered defaults. */
 export interface EditorPlaceOriginalValues {
+  /** Exact nullable stored order; display order can use a rendered default. */
+  displayOrder?: number | null;
   regionId: Guid;
   name: string;
   notesHtml: string | null;
@@ -369,6 +371,7 @@ export interface EditorSegmentConflict {
 }
 
 export interface EditorMutationResult<TData> {
+  contract?: string | null;
   success: true;
   data: TData;
   affected: EditorAffectedSlices;

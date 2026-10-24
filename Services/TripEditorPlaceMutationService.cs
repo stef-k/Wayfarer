@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationProviders;
@@ -56,48 +57,36 @@ public sealed class TripEditorPlaceMutationService
         Stream requestBody,
         CancellationToken cancellationToken)
     {
-        var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
-        if (trip == null)
-        {
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(r => r.Id == regionId && r.TripId == tripId && r.UserId == userId && r.Trip.UserId == userId, cancellationToken))
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var region = trip.Regions.FirstOrDefault(r => r.Id == regionId);
-        if (region == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var parsed = await ParseAndValidateCreateAsync(requestBody, cancellationToken);
-        if (parsed.ValidationErrors != null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(parsed.ValidationErrors);
-        }
-
+        var request = await CreationConditionalRequest.ReadAsync(requestBody, true, cancellationToken);
+        if (request.RegionId != regionId) throw CreationConditionalRequest.Invalid("The original destination must match the path.");
+        CreationConditionalRequest.ValidateValue(request.Value, true, true);
+        if (!EditorPlaceRequestParser.TryParseCreate(request.Value, IconNames(), MarkerColors(), out var value, out var errors))
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(errors);
         var place = new Place
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            RegionId = region.Id,
-            Region = region,
-            Name = parsed.Value!.Name.Trim(),
-            Notes = parsed.Value.NotesHtml ?? string.Empty,
-            IconName = parsed.Value.IconName,
-            MarkerColor = parsed.Value.MarkerColor,
-            Location = ToPoint(parsed.Value.Location),
-            DisplayOrder = NextPlaceOrder(region)
+            RegionId = regionId,
+            Name = value.Name.Trim(),
+            Notes = value.NotesHtml ?? string.Empty,
+            IconName = value.IconName,
+            MarkerColor = value.MarkerColor,
+            Location = ToPoint(value.Location)
         };
-        var address = await ResolveAddressAsync(userId, place.Id, parsed.Value.Address, parsed.Value.Location, parsed.Value.ReverseGeocode, cancellationToken);
+        var address = await ResolveAddressAsync(userId, place.Id, value.Address, value.Location, value.ReverseGeocode, cancellationToken);
         place.Address = address.Value;
         ApplyAddressEnrichment(place, address);
 
-        _dbContext.Places.Add(place);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await new CheckedCreationService(_dbContext).PlaceAsync(tripId, userId, request, place, async created =>
+        {
 
-        var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
-        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, new[] { region.Id }, null, null, true, cancellationToken);
-        return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
-            new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings));
+            var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
+            var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, new[] { created.RegionId }, null, null, true, cancellationToken);
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
+                new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings) { Contract = "bd2-1" });
+        }, null, cancellationToken);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
-import { onUnmounted } from 'vue';
+import { onUnmounted, watch } from 'vue';
+import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
 import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, Guid } from '../types';
 import { createRegionDeletionController, heldRegionDeletionKey } from './regionDeletionState';
@@ -9,6 +10,13 @@ import { buildRegionRequest, emptyAreaDraft, emptyPlaceDraft } from './regionPla
 /// Coordinates region-specific editor actions while RegionManager owns shared draft state.
 export function useRegionEditorActions(context: any) {
   let editorAlive = true;
+  const owner = context.regionDraftState;
+  let savingSession: number | null = null;
+  watch(() => owner.session(), () => {
+    if (savingSession === null) return;
+    savingSession = null;
+    context.isSaving.value = false;
+  }, { flush: 'sync' });
   onUnmounted(() => { editorAlive = false; });
   /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
   const held = (): boolean => {
@@ -24,6 +32,7 @@ export function useRegionEditorActions(context: any) {
     }
 
     context.regionDraftState.reset(null);
+    owner.beginCreate(context.props.state);
     Object.assign(context.placeDraft, emptyPlaceDraft());
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.draft.name = 'New Region';
@@ -52,6 +61,7 @@ export function useRegionEditorActions(context: any) {
   const resetDraft = (): void => {
     if (!context.draft.id) {
       context.regionDraftState.reset(null);
+      owner.beginCreate(context.props.state);
       context.draft.name = 'New Region';
       context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
     } else {
@@ -66,42 +76,56 @@ export function useRegionEditorActions(context: any) {
 
   const saveDraft = async (): Promise<void> => {
     if (context.isSaving.value) return;
-    if (context.regionDraftState.uncertain.value) {
-      context.applyError(new Error('The earlier Region save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.'), 'Region save held.');
+    if (owner.uncertain.value || !context.draft.id && owner.creationUncertain.value) {
+      context.applyError(new Error('The earlier Region save has an unknown outcome. Keep your draft, review current state and an ordinary refresh cannot establish whether creation committed. Do not replay an uncertain creation.'), 'Region save held.');
       return;
     }
     if (held()) { context.applyError(new Error('An earlier Region deletion has an unresolved outcome. Reconcile it before changing Regions.'), 'Region operation held.'); return; }
+    const regionId = context.draft.id;
+    const session = owner.session();
+    const currentAttempt = (): boolean => editorAlive && owner.session() === session;
+    let dispatched = false;
+    let creation: RegionCreationRequest | null = null;
+    savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
 
     try {
-      const regionId = context.draft.id;
       const submitted = regionId ? context.regionDraftState.request() : { expected: {}, changes: buildRegionRequest(context.draft) };
       if (regionId && Object.keys(submitted.changes).length === 0) return;
-      context.regionDraftState.pending.value = Boolean(regionId);
+      if (!regionId) {
+        if (!owner.creationOriginals.value) throw new Error('Original Region membership is unavailable. Explicitly review a new starting view.');
+        creation = { expected: { regions: owner.creationOriginals.value }, value: submitted.changes } as RegionCreationRequest;
+      }
+      owner.pending.value = true;
+      dispatched = true;
       const result = regionId
         ? await updateRegion(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted)
-        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, submitted.changes);
-      if (!editorAlive) return;
-      if (context.draft.id !== regionId) {
-        context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-        return;
-      }
+        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!);
+      if (!currentAttempt()) return;
+      if (creation) validateRegionCreation(result, context.props.state.tripId, creation);
       // Acknowledge before emitting: Vue schedules the parent's authoritative props for a later tick.
       context.regionDraftState.acknowledge(result.data, submitted);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.regionCreateBaselineRequest.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activeRegionTarget.value);
-      context.markSaved();
+      if (Object.keys(owner.request().changes).length === 0) context.markSaved();
     } catch (error) {
+      if (!currentAttempt()) return;
       // A transport/server failure is not evidence of no effect. Preserve even a newer reversal to the old base.
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
-        || error instanceof EditorMutationHttpError && error.status >= 400 && error.status < 500;
-      if (context.regionDraftState.pending.value && !rejected) context.regionDraftState.uncertain.value = true;
+        || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (dispatched && !rejected) {
+        owner.uncertain.value = true;
+        if (!regionId) owner.creationUncertain.value = true;
+      }
       context.applyError(error, 'Region save failed.');
     } finally {
-      context.regionDraftState.pending.value = false;
-      context.isSaving.value = false;
+      if (currentAttempt() && savingSession === session) {
+        savingSession = null;
+        owner.pending.value = false;
+        context.isSaving.value = false;
+      }
     }
   };
 

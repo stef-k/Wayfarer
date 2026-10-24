@@ -1,3 +1,4 @@
+import type { RegionCreationRequest, PlaceCreationRequest } from './creationTypes';
 import type {
   EditorMutationResult,
   EditorLifecycleConflict,
@@ -214,8 +215,8 @@ export const suggestTags = async (query: string, take: number): Promise<TagSugge
 export const createRegion = async (
   endpoint: string,
   antiforgeryToken: string,
-  request: EditorRegionSaveRequest
-): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions`, 'POST', antiforgeryToken, request, 'region create');
+  request: RegionCreationRequest
+): Promise<EditorMutationResult<EditorRegion>> => sendMutation(`${endpoint}/regions/conditional`, 'POST', antiforgeryToken, request, 'region create');
 
 /// Uses pinned originals; an unsupported server never receives a fallback PUT.
 export const updateRegion = async (
@@ -251,8 +252,8 @@ export const createPlace = async (
   endpoint: string,
   regionId: string,
   antiforgeryToken: string,
-  request: EditorPlaceSaveRequest
-): Promise<EditorMutationResult<EditorPlace>> => sendMutation(`${endpoint}/regions/${regionId}/places`, 'POST', antiforgeryToken, request, 'place create');
+  request: PlaceCreationRequest
+): Promise<EditorMutationResult<EditorPlace>> => sendMutation(`${endpoint}/regions/${regionId}/places/conditional`, 'POST', antiforgeryToken, request, 'place create');
 
 /// Updates or moves a place through the same-origin editor API.
 export const updatePlace = async (

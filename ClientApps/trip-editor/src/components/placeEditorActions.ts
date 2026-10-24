@@ -1,3 +1,4 @@
+import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
 import { nextTick, onUnmounted, watch } from 'vue';
 import { createPlace, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
@@ -42,6 +43,7 @@ export function usePlaceEditorActions(context: any) {
 
     Object.assign(context.draft, emptyRegionDraft());
     owner.reset(null);
+    owner.beginCreate(context.props.state);
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
     context.placeDraft.name = result ? searchResultName(result) : 'New Place';
@@ -83,6 +85,7 @@ export function usePlaceEditorActions(context: any) {
     if (context.isSaving.value) return;
     if (!context.placeDraft.id) {
       owner.reset(null);
+      owner.beginCreate(context.props.state);
       Object.assign(context.placeDraft, context.placeCreateBaselineDraft.value ?? emptyPlaceDraft(context.placeDraft.regionId));
     } else {
       owner.reset(context.activePlace.value);
@@ -101,14 +104,15 @@ export function usePlaceEditorActions(context: any) {
 
   const savePlaceDraft = async (): Promise<void> => {
     if (context.isSaving.value || !context.placeDraft.regionId) return;
-    if (owner.uncertain.value) {
-      context.applyError(new Error('The earlier Place save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.'), 'Place save held.');
+    if (owner.uncertain.value || !context.placeDraft.id && owner.creationUncertain.value) {
+      context.applyError(new Error('The earlier Place save has an unknown outcome. Keep your draft, review current state and an ordinary refresh cannot establish whether creation committed. Do not replay an uncertain creation.'), 'Place save held.');
       return;
     }
     const placeId = context.placeDraft.id;
     const session = owner.session();
     const currentAttempt = (): boolean => alive && session === owner.session();
     let dispatched = false;
+    let creation: PlaceCreationRequest | null = null;
     savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
@@ -117,6 +121,11 @@ export function usePlaceEditorActions(context: any) {
       const scalar = Boolean(placeId) && !owner.structural();
       const conditional = scalar ? owner.request() : null;
       if (conditional && Object.keys(conditional.changes).length === 0) return;
+      if (!placeId) {
+        const originals = owner.creationOriginals.value?.[complete.regionId!];
+        if (!originals) throw new Error('Original creation destination is unavailable. Keep the draft and explicitly review a new starting view.');
+        creation = { expected: { regionId: complete.regionId!, places: originals }, value: withoutRegionId(complete) };
+      }
       owner.pending.value = true;
       dispatched = true;
       // Combined edits stay one lifecycle PUT. A failed protected PATCH never falls back to that writer.
@@ -124,20 +133,24 @@ export function usePlaceEditorActions(context: any) {
         ? await updatePlaceConditional(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, conditional)
         : placeId
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, complete)
-          : await createPlace(context.props.editorEndpoint, context.placeDraft.regionId, context.props.antiforgeryToken, withoutRegionId(complete));
+          : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
       if (!currentAttempt()) return;
-      validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
+      if (creation) validatePlaceCreation(result, context.props.state.tripId, creation);
+      else validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
       owner.acknowledge(result.data, conditional?.changes ?? complete);
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.placeCreateBaselineRequest.value = null;
       context.placeCreateBaselineDraft.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
-      context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
+      if (!owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
     } catch (error) {
       if (!currentAttempt()) return;
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
-      if (dispatched && !rejected) owner.uncertain.value = true;
+      if (dispatched && !rejected) {
+        owner.uncertain.value = true;
+        if (!placeId) owner.creationUncertain.value = true;
+      }
       context.applyError(error, 'Place save failed.');
     } finally {
       if (currentAttempt() && savingSession === session) {
