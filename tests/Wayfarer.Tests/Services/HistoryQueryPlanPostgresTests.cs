@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using NetTopologySuite.Geometries;
+using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -51,9 +53,41 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
                 Assert.Equal(-90 + index % grid * 180.0 / grid, bounds.GetProperty("south").GetDouble());
                 Assert.Equal("1", cells[index].GetProperty("recordCount").GetString());
                 Assert.True(cells[index].GetProperty("singleton").GetProperty("locationId").GetInt32() > 0);
+                Assert.Equal(JsonValueKind.Null, cells[index].GetProperty("singleton").GetProperty("uuid").ValueKind);
             }
         }
         Assert.Throws<HistoryRequestException>(() => HistoryQueryTests.Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&grid=17", true));
+    }
+
+    /// <summary>Singleton IDs resolve their own nullable UUIDs; multiple records, unmapped positions and foreign owners stay distinct.</summary>
+    [PostgresFact]
+    public async Task OverviewSingletonIdentityKeepsNullsAndOwnerIsolation()
+    {
+        var owner = await fixture.CreateUserAsync(); var foreign = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var instant = new DateTime(2025, 1, 2, 0, 0, 0, DateTimeKind.Utc);
+        var uuid = Guid.NewGuid();
+        var rows = new[] { (-150.0, (Guid?)null), (-60.0, (Guid?)uuid), (30.0, (Guid?)Guid.NewGuid()), (30.0, (Guid?)null), (double.NaN, (Guid?)Guid.NewGuid()) }
+            .Select(pair => new Location { UserId = owner.Id, Timestamp = instant, LocalTimestamp = instant, TimeZoneId = "UTC",
+                Coordinates = new Point(pair.Item1, double.IsNaN(pair.Item1) ? double.NaN : 10) { SRID = 4326 }, IdempotencyKey = pair.Item2 }).ToArray();
+        db.AddRange(rows);
+        // Owner-scoped portable aliases may coincide; neither that alias nor the foreign cell can become this owner's identity.
+        db.Add(new Location { UserId = foreign.Id, Timestamp = instant, LocalTimestamp = instant, TimeZoneId = "UTC",
+            Coordinates = new Point(-150, 10) { SRID = 4326 }, IdempotencyKey = uuid });
+        await db.SaveChangesAsync();
+        var query = HistoryQueryTests.Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&grid=4", true);
+        var result = JsonSerializer.SerializeToElement(await new HistoryReadService(db, new HistoryCursor(new EphemeralDataProtectionProvider()))
+            .OverviewAsync(owner.Id, query, default));
+        Assert.Equal("5", result.GetProperty("knownMatchCount").GetString());
+        Assert.Equal("4", result.GetProperty("mappedMatchCount").GetString());
+        Assert.Equal("1", result.GetProperty("unmappedMatchCount").GetString());
+        var cells = result.GetProperty("cells").EnumerateArray().ToArray(); Assert.Equal(3, cells.Length);
+        var singletons = cells.Where(cell => cell.GetProperty("recordCount").GetString() == "1")
+            .Select(cell => cell.GetProperty("singleton")).ToDictionary(row => row.GetProperty("locationId").GetInt32());
+        Assert.Equal(new[] { rows[0].Id, rows[1].Id }, singletons.Keys.Order());
+        Assert.Equal(JsonValueKind.Null, singletons[rows[0].Id].GetProperty("uuid").ValueKind);
+        Assert.Equal(uuid.ToString("D"), singletons[rows[1].Id].GetProperty("uuid").GetString());
+        Assert.Equal(JsonValueKind.Null, Assert.Single(cells, cell => cell.GetProperty("recordCount").GetString() == "2").GetProperty("singleton").ValueKind);
     }
 
     /// <summary>Owner/time, persisted wall-time, folded text and geometry paths remain eligible after exact residuals.</summary>

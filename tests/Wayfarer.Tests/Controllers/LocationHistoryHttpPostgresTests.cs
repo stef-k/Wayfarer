@@ -340,14 +340,16 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         await ErrorAsync(client, Route + "/" + rows[0].Id + "?viewerZone=UTC&q=wrong", 400, "parametersInvalid");
     }
 
-    /// <summary>A concurrent delete after counting cannot mix count/rows; an authorized read may finish after revocation.</summary>
-    [PostgresFact]
-    public async Task SnapshotIsCoherentAndReadsHaveNoPersistentEffects()
+    /// <summary>A concurrent delete after counting cannot mix rows, counts or singleton UUIDs; an authorized read may finish after revocation.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SnapshotIsCoherentAndReadsHaveNoPersistentEffects(bool overview)
     {
-        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 2);
+        var owner = await OwnerAsync(); var rows = await SeedAsync(owner, overview ? 1 : 2);
         var gate = new ReadGate();
         await using var app = await HostAsync(gate); using var client = Client(app, owner);
-        var pending = client.GetAsync(Route + "?" + Utc);
+        var pending = client.GetAsync(Route + (overview ? "/overview" : "") + "?" + Utc);
         await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
         try
         {
@@ -358,7 +360,14 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         finally { gate.Release.TrySetResult(); }
         using var response = await pending; Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
-        Assert.Equal(2, Ids(body).Length);
+        if (overview)
+        {
+            Assert.Equal("1", body.GetProperty("knownMatchCount").GetString());
+            var singleton = Assert.Single(body.GetProperty("cells").EnumerateArray()).GetProperty("singleton");
+            Assert.Equal(rows[0].Id, singleton.GetProperty("locationId").GetInt32());
+            Assert.Equal(rows[0].IdempotencyKey!.Value.ToString("D"), singleton.GetProperty("uuid").GetString());
+        }
+        else Assert.Equal(2, Ids(body).Length);
         Assert.DoesNotContain("HistorySearchText", body.GetRawText());
         Assert.Empty(gate.Writes);
         await ErrorAsync(client, Route + "?" + Utc, 401);
