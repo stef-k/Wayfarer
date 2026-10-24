@@ -708,8 +708,11 @@ A five-second collection end-to-end budget (detail thirty seconds) covers lookup
 SQL, projection and buffered JSON before success; remaining-time cancellation also
 reaches SQL. These are initial protective engineering defaults, not a production
 latency/capacity promise. Disconnects cancel work; incomplete evaluation never
-becomes a partial successful page/overview. Ordinary multi-year and long detail
-qualification remains explicitly I918-C, not inferred from SQL plan timings.
+becomes a partial successful page/overview. I918-C proves the complete large-detail
+witness above, but its 1,051,200-record ordinary broad overview exceeds this budget.
+Backend #918 acceptance remains unsupported pending a separately assigned correction;
+see the [measured readiness limitation](../maintainer/history-preparation.md#routed-qualification-and-readiness-limitation-918-i918-c).
+Small-fixture plan timings and successful chronology pages do not override it.
 
 Controlled 400 codes are `parametersInvalid`, `activityInvalid`,
 `continuationInvalid`. Owner admission is 429 `historyOwnerAdmissionExceeded` with

@@ -6,9 +6,10 @@ title: History derivation and upgrade preparation
 
 Issue #918 package I918-A supplies internal data and upgrade readiness. It does
 not by itself deliver the history routes or complete #918.
-I918-B supplies [routed reads and dependent-operation gates](../development/api.md#personal-history-bearer-reads-918-i918-b); I918-C retains final routed
-qualification and consumer composition documentation. #604 owns any actual M6/maintainer
-instance work. This procedure grants no production operation authority.
+I918-B supplies [routed reads and dependent-operation gates](../development/api.md#personal-history-bearer-reads-918-i918-b).
+I918-C documents backend composition/fidelity and the measured performance limitation
+below; backend #918 acceptance is not yet supported. #604 owns actual M6/maintainer
+instance qualification. This procedure grants no production operation authority.
 
 ## Authorities and upgrade boundary
 
@@ -96,7 +97,7 @@ package and the serving NodaTime TZDB identity. Text identity includes extractio
 folding version, AngleSharp assembly identity, .NET runtime and invariant Unicode/
 [Unicode sort version and identity](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.sortversion?view=net-10.0). Deploy identical qualified runtime/globalization artifacts across
 writers/readers; an identity change requires the affected rebuild. Never relabel
-old facts as new rules. Future collection cursors must bind these identities.
+old facts as new rules. Collection cursors bind these identities.
 
 Pending time has null version/status/facts; a mismatched version is also pending.
 Resolved time carries the coordinate-derived IANA zone, wall timestamp and historical
@@ -137,12 +138,12 @@ the eleven authorized fields normalizes independently, then joins with newline.
 A normalized query cannot contain that delimiter, so phrases cannot cross fields.
 Original Notes/address fields are never rewritten by preparation.
 
-Store search text with C collation. Future queries use ordinal literal substring:
+Store search text with C collation. Collection queries use ordinal literal substring:
 parameterized LIKE with escaped backslash/percent/underscore for useful trigrams;
 exact `strpos` for short/punctuation-only terms. No minimum phrase length or raw-Notes
 application scan is needed. The qualification checks LIKE/strpos parity with the
 accent-folded representation and confirms the GIN path; common terms may legitimately
-scan broadly. Routed predicate/performance qualification belongs to I918-B/C.
+scan broadly. I918-B qualifies exact routed predicates; I918-C records scale performance below.
 
 ## Writer coverage and canonical isolation
 
@@ -196,4 +197,40 @@ Focused tests cover folded scripts, safe visible Notes, historical folds/gaps/no
 offsets, final partial edits, both fenced publication branches, import original/dedup
 preservation, real checkpoints, interruption after a derived UPDATE, concurrent
 edit/delete, all-owner accounting and independent rebuilds. Consumer/native/browser,
-production population/headroom, and later routed performance remain unqualified here.
+production population/headroom remain separate. I918-C routed evidence follows below.
+
+## Routed qualification and readiness limitation (#918 I918-C)
+
+The actual routed trial at production revision
+`c4196b94fe10b5bdfdeba471ea2cc6e5b8d01c5d` exposes an unmet performance requirement:
+the 1,051,200-record owner's ordinary full-period UTC overview returned
+503 `historyBudgetExceeded` in all three first/warm observations (about five
+seconds each). Its first chronology page completed around 0.42 seconds. A fast
+page therefore does not qualify the independently usable complete overview.
+No filter, sparse destination, result or protective limit was weakened.
+
+The fixture has 210,240 and 1,051,200-record synthetic owners plus 210,240 unrelated
+rows, distinct Notes/address content, all retained production indexes, PostgreSQL
+18.6/PostGIS 3.6.4 and the actual registered bearer MVC routes. This is local Debug
+TestServer evidence on WSL2, with warm OS cache and no true disk-cold, network,
+production-host or sustained-load qualification. Prepared fixture insertion is not
+measured backfill throughput. Affected ordinary workloads cannot yet be declared
+accepted merely because the preparation command reports data ready.
+
+A data-ready receipt verifies versions, pending rows, writers and physical indexes;
+it is not a performance/capacity receipt. Preserve its normal gates during any
+subsequent correction. The reviewed finite year-0001 capture limitation remains
+honestly unresolved, with UTC/viewer/detail facts retained. Production fixes require
+a separate assignment; do not raise deadlines, omit exceptional candidates, narrow
+ranges, sample cells or add an index solely to conceal this counterexample.
+
+Retained reproducible commands, raw requests/responses, timings/plans and the
+acceptance matrix are in
+`/home/stef/.local/share/wayfarer-investigations/918-20261024/i918-c/`.
+See also [testing and evidence classification](../development/testing.md#personal-history-reads-918-i918-bc).
+The I918-A actual preparation/write/storage receipts above are reused, not rerun.
+Their physical MVCC/GIN allocation, WAL and the independent disposable-only
+compaction experiment do not prescribe production compaction or a per-row disk
+multiplier. #604 must measure its authorized restored population, target release,
+index-build temporary headroom, WAL retention and migration/recovery duration.
+Mobile/native and deployed qualification remain separate; #853 C4 is untouched.

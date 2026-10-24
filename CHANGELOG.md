@@ -4,19 +4,26 @@
 
 ### Added
 
+- Qualify #918 I918-C backend map-first composition and complete multilingual
+  Notes/address/provenance responses, with reproducible API examples and routed
+  synthetic scale evidence. Record the unmet broad-overview performance requirement;
+  backend acceptance, independent review and mobile/deployed qualification remain
+  outstanding. No production behavior or protective limit changes.
 - Add active-owner bearer personal history pages, independently paged unresolved
   inspection, complete owner detail and independent complete geographic overview
   (#918 I918-B). Share exact PostgreSQL time/text/activity/area predicates,
   version-bound protected cursors, honest live coverage and dependent preparation
   gates; preserve no-store, request-time authority and independent detail admission.
   [API contract](docs/development/api.md#personal-history-bearer-reads-918-i918-b);
-  final full-DTO/map-first and named scale/concurrency qualification remains I918-C.
+  I918-C records full-DTO/map-first and named scale/concurrency qualification,
+  including the unresolved broad-overview deadline limitation.
 
 - Add internal versioned capture-local facts and accent-insensitive visible history
   text, atomic Location writer maintenance, four initial access paths and resumable
   operator preparation with independent time/text readiness and rebuilds
   ([upgrade procedure](docs/maintainer/history-preparation.md), #918 I918-A).
-  I918-B supplies read endpoints; final consumer/routed qualification remains I918-C.
+  I918-B supplies read endpoints; I918-C documents routed evidence and remaining
+  performance readiness limits. Mobile/deployed qualification remains separate.
 
 - Add paired protected Place Name/Notes/icon/marker-color PATCH routes for Web
   scalar-only edits and opt-in bearer clients. Compare exact nullable originals
