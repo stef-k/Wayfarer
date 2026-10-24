@@ -75,4 +75,3 @@ export interface EditorSegmentDraft {
   /** Pinned at authoritative open/reset, independently of nullable Notes originals. */
   originalRouteToken: string | null;
 }
-
