@@ -6,9 +6,9 @@
 
 - Qualify #918 I918-C backend map-first composition and complete multilingual
   Notes/address/provenance responses, with reproducible API examples and routed
-  synthetic scale evidence. Record unmet overview and concurrent-read performance requirements;
-  backend acceptance, independent review and mobile/deployed qualification remain
-  outstanding. No production behavior or protective limit changes.
+  synthetic scale evidence. Record the bounded query correction and remaining
+  sub-second target misses; backend acceptance, independent review and
+  mobile/deployed qualification remain outstanding.
 - Add active-owner bearer personal history pages, independently paged unresolved
   inspection, complete owner detail and independent complete geographic overview
   (#918 I918-B). Share exact PostgreSQL time/text/activity/area predicates,
@@ -16,7 +16,7 @@
   gates; preserve no-store, request-time authority and independent detail admission.
   [API contract](docs/development/api.md#personal-history-bearer-reads-918-i918-b);
   I918-C records full-DTO/map-first and named scale/concurrency qualification,
-  including the unresolved broad-overview deadline limitation.
+  including the remaining sub-second performance limitations.
 
 - Add internal versioned capture-local facts and accent-insensitive visible history
   text, atomic Location writer maintenance, four initial access paths and resumable
@@ -112,6 +112,13 @@
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed
+
+- Reduce #918 overview planning/JIT and coordinate work with streaming numeric
+  projections before exact shared-edge comparisons; check all-owner collection
+  readiness without unused operator totals. Comparable routed qualification has
+  zero failures in 158 requests, including twenty concurrent reads, while retaining
+  the five-second deadline and full contracts. Report remaining sub-second misses,
+  large-query spills and resource observations in the history runbook.
 
 - Retain unresolved Trip Settings sharing attempts and the latest choice even
   when a newer disable matches the old baseline. Preserve navigation protection,

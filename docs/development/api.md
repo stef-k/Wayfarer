@@ -709,11 +709,15 @@ SQL, projection and buffered JSON before success; remaining-time cancellation al
 reaches SQL. These are initial protective engineering defaults, not a production
 latency/capacity promise. Disconnects cancel work; incomplete evaluation never
 becomes a partial successful page/overview. I918-C proves the complete large-detail
-witness above, but ordinary full-period overviews at both agreed owner scales
-(210,240 and 1,051,200 records) exceed this budget.
-Backend #918 acceptance remains unsupported pending a separately assigned correction;
-see the [measured readiness limitation](../maintainer/history-preparation.md#routed-qualification-and-readiness-limitation-918-i918-c).
-Small-fixture plan timings and successful chronology pages do not override it.
+witness above. The bounded query correction completes all 158 repeated routed
+observations, including full-period overviews at both agreed scales and all twenty
+concurrent reads. Warm broad overviews take 570–580 ms for 210,240 records and
+1,892–1,918 ms for 1,051,200 records. The under-one-second target remains partly
+unmet: 78 observations exceed it, including recurring/combined workloads and all
+concurrent/post-write observations. Backend #918 performance acceptance remains
+pending that measured limitation and the separate review/CI/maintainer gates;
+see the [full results and resource observations](../maintainer/history-preparation.md#routed-qualification-and-readiness-limitation-918-i918-c).
+Five-second completion and small-fixture plans do not override the target misses.
 
 Controlled 400 codes are `parametersInvalid`, `activityInvalid`,
 `continuationInvalid`. Owner admission is 429 `historyOwnerAdmissionExceeded` with

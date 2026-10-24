@@ -365,7 +365,7 @@ not a production database. Scale seeding generates prepared synthetic values and
 checks representative samples against production derivation; it is not backfill
 throughput. The independent I918-A preparation/write/storage trial is reused.
 
-Report routed request duration/bytes separately from companion calls to unchanged
+Report routed request duration/bytes separately from companion calls to serving
 production preparation/query/projection and JSON serialization stages. EF
 execute-reader/drain timings are client observations; natural EXPLAIN ANALYZE is
 separately replayed database execution, not a subtractable component of that same

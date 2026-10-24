@@ -204,49 +204,94 @@ production population/headroom remain separate. I918-C routed evidence follows b
 
 ## Routed qualification and readiness limitation (#918 I918-C)
 
-The actual routed trial at production revision
-`c4196b94fe10b5bdfdeba471ea2cc6e5b8d01c5d` exposes an unmet performance requirement:
-both 210,240 and 1,051,200-record owners' ordinary full-period UTC overviews
-returned 503 `historyBudgetExceeded` in all three first/warm observations (about
-five seconds each). The corrected five-minute fixture verifies all requested owner
-rows lie within that period. A fast
-page therefore does not qualify the independently usable complete overview.
-No filter, sparse destination, result or protective limit was weakened.
+The bounded performance correction retains the existing routes, prepared-data
+architecture, shared representable partition edges, complete filters, uncertainty
+and five-second cancellation. Overview SQL streams numeric extraction and validation
+through subquery boundaries before exact edge comparisons; the actual grouping
+plan no longer expands PostGIS conversion/validation into every comparison.
+Collection readiness uses one all-owner pending-row existence check for required
+generations instead of unused operator totals. Physical index, target/active/writer
+version and scanning/checkpoint guarantees remain in the response snapshot.
 
-The fixture has 210,240 and 1,051,200-record synthetic owners plus 210,240 unrelated
-rows, distinct Notes/address content, all retained production indexes, PostgreSQL
-18.6/PostGIS 3.6.4 and the actual registered bearer MVC routes. This is local Debug
-TestServer evidence on WSL2, with warm OS cache and no true disk-cold, network,
-production-host or sustained-load qualification. Prepared fixture insertion is not
-measured backfill throughput. Affected ordinary workloads cannot yet be declared
-accepted merely because the preparation command reports data ready.
+Fresh comparable before/after trials use the retained 210,240 and 1,051,200-record
+owners plus 210,240 unrelated rows, distinct Notes and all eleven searchable fields,
+five-minute events, PostgreSQL 18.6/PostGIS 3.6.4, Debug and actual bearer MVC routes.
+Each selection has first use plus two warm observations. This is local WSL2
+TestServer evidence with warm OS cache; no disk-cold, network, sustained-load or
+production-host guarantee. Prepared fixture insertion is not backfill throughput.
+The under-one-second target remains an engineering target on these workloads.
 
-The captured 210,240-owner broad aggregate's separate natural plan took 7.73 seconds,
-including 6.82 seconds of PostgreSQL JIT compilation. The larger aggregate takes
-28.44 seconds, including 7.00 seconds of JIT, so compilation is not its only cost.
-The pure four-read rounds return nine 503s across sixteen requests. A separate
-diagnostic round and one console-recovered log observation are classified in the
-retained report. After 500 tracked address edits without vacuum, the count plan
-reports 716 heap fetches versus zero prepared; all post-write broad reads still
-time out. Readiness also performs
-all-owner operational counts on collection requests. These are measured query costs;
-prior prototype timings do not qualify these endpoints. A separate correction must
-retain complete predicates, uncertainty and the reviewed exact partition edges.
+| Warm routed request | 210,240 before → after ms | 1,051,200 before → after ms |
+| --- | --- | --- |
+| Full-period UTC overview | 503 at 5,016–5,018 → 570–580 | 503 at 5,017–5,018 → 1,892–1,918 |
+| First broad chronology page | 98–101 → 107–113 | 439–444 → 423–451 |
+| Capture day overview | 1,205–1,249 → 665–698 | 1,304–1,332 → 835–912 |
+| Recurring capture hours/common phrase overview | 2,656–2,923 → 1,300–1,325 | 503 at 5,010–5,016 → 2,321–2,384 |
+| Combined Tokyo/year/activity/common overview | 1,613–1,631 → 1,152–1,193 | 2,455–2,536 → 2,275–2,423 |
+| Absent short phrase (`zz`) overview | 3,354–3,504 → 891–903 | 3,558–3,732 → 1,427–1,459 |
+| Complete long detail | 45–48 → 48–49 | 44–47 → 43–51 |
 
-A data-ready receipt verifies versions, pending rows, writers and physical indexes;
-it is not a performance/capacity receipt. Preserve its normal gates during any
-subsequent correction. The reviewed finite year-0001 capture limitation remains
-honestly unresolved, with UTC/viewer/detail facts retained. Production fixes require
-a separate assignment; do not raise deadlines, omit exceptional candidates, narrow
-ranges, sample cells or add an index solely to conceal this counterexample.
+All 158 corrected requests return 200, versus 25 failures before correction. All
+five pure four-read rounds complete: zero failures in twenty requests versus nine
+in twenty before, at 2,091–3,725 ms after correction. Both receipts retain exactly
+158 unique intact observations; appends are serialized and no concurrent round
+contains diagnostic replays. The original qualification's nine failures in sixteen
+clean requests and logging collision/recovery remain separate historical evidence.
 
-Retained reproducible commands, raw requests/responses, timings/plans and the
-acceptance matrix are in
+**The sub-second target is not fully met:** 80 corrected requests are under one
+second and 78 miss it, including every concurrent and post-write request. Warm
+narrow days/months, broad chronology, rare/absent long phrases, detail, small-owner
+broad overview and small-owner absent short text succeed under one second. Recurring
+hours with/without common text, combined Tokyo scopes and punctuation overviews
+miss at both sizes; large broad/short-text overviews and absent-short-text pages
+also miss. The first small-owner day overview takes 1,050 ms. Completion inside
+five seconds alone does not establish I918-C performance acceptance.
+
+Natural broad aggregate replays improve from 7,201/30,785 ms to 456/1,559 ms for
+small/large owners. JIT stays enabled: its totals fall from 5,998/9,120 ms to
+34/35 ms, while planning falls from 3.128/6.189 ms to 0.871/0.840 ms. Grouping keys
+shrink from 35,181 characters to about 3,480 without repeated coordinate expressions.
+Execution work improves as well as compilation. The large aggregate still examines
+the 1,471,680-row relation and reads about 247,913 shared blocks. Its external sort
+writes 15,973 temporary 8 KiB blocks (about 125 MiB), up from 10,061 before; the
+small aggregate no longer spills. This remaining spill is not hidden by the latency
+improvement or by changing work_mem.
+
+Readiness remains a required all-owner scan: the combined pending probe takes
+about 361 ms in the large recurring/common plan. Its exact uncertainty count still
+takes about 1,085 ms and the complete aggregate about 931 ms in separate natural
+replays. The Tokyo candidate plan has lossy bitmap rechecks; its count takes about
+1,232 ms. These are remaining concrete query-work costs, not serialization costs.
+Further target work needs a separately bounded investigation of those repeated
+required scans and aggregation spill/access paths; no new indexes, fused query
+architecture or weakened readiness is approved by this correction.
+
+The equal-shape concurrent trial uses 169.15 → 110.90 PostgreSQL CPU seconds over
+25.16 → 16.18 wall seconds. Application peak RSS is 393 → 436 MiB; summed cluster
+PostgreSQL peak RSS is 2,664 → 2,730 MiB. The latter double-counts shared pages and
+is an upper bound, not private allocation. Sampling is every 250 ms and includes
+cluster background work. CPU falls with slightly higher memory peaks and unchanged
+admission/worker/memory settings; no memory reduction or sustained capacity is claimed.
+
+After the same 500 tracked address edits without explicit vacuum, all corrected
+post-write routes succeed: broad overview 1,933–2,013 ms, recurring/common
+2,380–2,480 ms. The count's covering index has 716 heap fetches versus two in the
+prepared observation. The separate post-write broad aggregate takes 1,567 ms and
+retains the large sort spill. These do not qualify write throughput improvements.
+Complete long detail remains 1,203,344/1,203,347 response bytes; the observed
+serialization work is about 2–3 ms, with no truncation or invented unavailable facts.
+
+Retained raw requests/responses, first/warm tables, CPU/RSS samples, stage timings,
+SQL/plans/buffers/rechecks and reproducible commands are in
+`/home/stef/.local/share/wayfarer-investigations/918-performance-20261024/`.
+The original failure report remains at
 `/home/stef/.local/share/wayfarer-investigations/918-20261024/i918-c/`.
-See also [testing and evidence classification](../development/testing.md#personal-history-reads-918-i918-bc).
-The I918-A actual preparation/write/storage receipts above are reused, not rerun.
-Their physical MVCC/GIN allocation, WAL and the independent disposable-only
-compaction experiment do not prescribe production compaction or a per-row disk
-multiplier. #604 must measure its authorized restored population, target release,
-index-build temporary headroom, WAL retention and migration/recovery duration.
-Mobile/native and deployed qualification remain separate; #853 C4 is untouched.
+See [testing and evidence classification](../development/testing.md#personal-history-reads-918-i918-bc).
+
+A data-ready receipt proves generation/index/pending prerequisites, not performance.
+The reviewed finite year-0001 capture limitation remains honestly unresolved while
+UTC/viewer/detail facts are retained. Fresh exact-head independent review, applicable
+CI, maintainer acceptance and disposition of the measured target misses remain
+outstanding. #918 stays open. Reuse I918-A's preparation/write/storage receipts;
+#604 still owns restored-population headroom, WAL/index-build/migration/recovery
+qualification. Mobile/deployed acceptance and #853 C4 remain separate.
