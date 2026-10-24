@@ -362,3 +362,68 @@ CI, maintainer acceptance and disposition of the measured target misses remain
 outstanding. #918 stays open. Reuse I918-A's preparation/write/storage receipts;
 #604 still owns restored-population headroom, WAL/index-build/migration/recovery
 qualification. Mobile/deployed acceptance and #853 C4 remain separate.
+
+### Deferred singleton UUID follow-up
+
+Overview now aggregates singleton IDs before retrieving their nullable UUIDs by
+owner and primary key in the same SQL statement. This removes the noncovered UUID
+from broad aggregation inputs, allowing the existing `IX_Location_HistoryUtc`
+covering path. Every matching row still contributes to exact cell membership,
+counts and extrema. Response shape, shared edges/drill-down, uncertainty,
+readiness, cancellation, repeatable-read snapshot and deadlines are unchanged.
+There is no application query per cell, added index or combined-scan experiment.
+
+The compiled delivery repeat uses the same research seed and two owner scales,
+plus 210,240 unrelated-owner rows. All 30 routed reads return 200/no-store, and
+all five complete response pairs agree except root observation time. Three
+observations per variant cover only broad and recurring/common-text overviews at
+both scales and one large-owner post-write broad control. Candidate SQL is unchanged
+production SQL; reconstructed baseline SQL is checked against retained commands.
+Use `qualified/` in the receipt below: the initial comparison attempt failed its
+strict reconstruction check on a missing final newline, was preserved, and was
+corrected once with all five SQL shapes checked before seeding again.
+
+| Fresh warm routed overview, ms | Baseline | Deferred UUID |
+| --- | ---: | ---: |
+| Broad, 210,240 rows | 544–568 | 254–256 |
+| Broad, 1,051,200 rows | 1,871–1,874 | 1,048–1,190 |
+| Recurring/common, 210,240 rows | 1,364–1,393 | 1,364–1,662 |
+| Recurring/common, 1,051,200 rows | 2,334–2,374 | 2,314–2,323 |
+| Post-write broad, 1,051,200 rows | 1,937–2,013 | 1,932–2,030 |
+
+Prepared broad aggregate plans examine 210,240 / 1,051,200 owner index entries
+instead of all 1,471,680 heap rows, with zero prepared index heap fetches and two
+singleton UUIDs recovered. Inclusive root shared-block references fall from
+247,915 → 3,847 small and 247,918 → 19,244 large. After 500 tracked address edits
+without vacuum, they fall from 247,995 → 19,454, with 680 covering-scan heap fetches.
+Natural aggregate execution is 483 → 165 ms small, 1,466 → 717 ms large and
+1,403 → 1,092 ms post-write. These are separate diagnostics; shared-block reads
+do not establish physical disk reads. Broad temporary writes remain zero, with a
+32/40 KiB one-batch hash and 25 KiB six-cell output sort.
+
+The large filtered routed control shows no material regression in this selection.
+Filtered improvement is not established: the small candidate has a 1,662 ms
+observation, and separate query/projection companions are slower at both sizes.
+Its slow request includes slower unchanged readiness and uncertainty commands as
+well as aggregation. Filtered heap access remains; large aggregate spill falls
+from 668 to 494 temporary write blocks, but that separate replay takes 918 →
+1,206 ms. Post-write warm routed latency overlaps baseline despite lower broad
+buffer work. These observations limit any latency claim; no additional run or
+optimization is authorized by this receipt.
+
+Separate candidate query-plus-projection is 227 ms for small broad (**meets** the
+one-second target), 1,028 ms for large broad, 1,611/2,562 ms for small/large
+recurring/common and 1,854 ms for large post-write broad (**misses**). Serialization
+is below 0.4 ms for these compact responses. Five-second completion does not waive
+these misses. Full first-use/warm observations, commands, plans, typed parameters,
+parity and both attempts are retained at
+`/home/stef/.local/share/wayfarer-investigations/918-singleton-delivery-20261024/`.
+Both guarded fixtures completed cleanup. The wider named workload, lower-seam
+semantics, preparation/write/storage and four-read evidence above are reused;
+there is no newly measured concurrency gain.
+
+This is a bounded broad-query resource improvement. **I918-C and #918 remain
+incomplete.** Independent exact-head review and an explicit measured maintainer
+readiness decision remain required; filtered workloads and universal sub-second
+performance are unresolved. No further optimization campaign is automatically
+authorized. Production/mobile/deployed acceptance remains separate.

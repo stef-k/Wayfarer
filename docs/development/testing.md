@@ -401,3 +401,26 @@ with only the previous two-key grouping reconstructed on the same guarded fixtur
 Do not repeat the unaffected broad matrix or attribute whole-cluster CPU/RSS to
 these queries. Keep raw plan temporary I/O, query time and routed time separate;
 the five-second deadline and every match/filter/readiness rule remain unchanged.
+
+The deferred singleton UUID follow-up retains its bounded delivery receipt at
+`/home/stef/.local/share/wayfarer-investigations/918-singleton-delivery-20261024/`.
+It reuses the research seed and selects broad and recurring/common-text overviews
+at both scales, plus one large-owner post-write broad control. Candidate commands
+are unchanged compiled production SQL; the baseline aggregate is reconstructed
+and checked against the retained pre-change production SQL before execution.
+Use `qualified/` for the comparable results; the preserved root attempt failed
+its baseline reconstruction check on a missing final newline. The corrected
+driver verifies all five SQL shapes before creating the replacement fixture.
+Three routed observations, one separate query/projection/serialization companion
+and one natural plan per variant/scope retain complete response parity and resource
+evidence. The wider workload, preparation/write/storage and four-read concurrency
+receipts are explicitly reused; no new concurrency improvement is claimed.
+
+`OverviewSingletonIdentityKeepsNullsAndOwnerIsolation` checks real singleton
+IDs/nullable UUIDs, a foreign owner sharing a portable alias, multi-record cells
+and unmapped accounting. All-grid checks include null singleton UUIDs. The routed
+snapshot test now also deletes a singleton after the response snapshot is taken,
+then verifies that both its ID and UUID remain visible together. Exact shared-edge,
+drill-down, uncertainty, readiness, cancellation and deadline regressions remain
+in the focused selection above. This incremental optimization does not complete
+I918-C or waive its measured performance target misses.

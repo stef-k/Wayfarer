@@ -80,6 +80,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
     /// Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.
     /// Streaming OFFSET 0 boundaries reuse numeric extraction and range validation before edge comparisons
     /// during planning/JIT. They neither limit matches nor materialize an all-match temporary store.
+    /// Resolve UUIDs only for completed singleton groups, allowing covered overview inputs to avoid heap access.
     /// </summary>
     internal async Task<object> OverviewAsync(string owner, HistoryQuery query, CancellationToken token)
     {
@@ -91,17 +92,18 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         var latitudes = PartitionEdges(area.South, area.North, area.North - area.South, query.Grid, false);
         var x = CellIndex(predicate, longitudes, true); var y = CellIndex(predicate, latitudes, false);
         var west = predicate.Add(area.West);
+        var singletonOwner = predicate.Add(owner);
         // Geography storage is point-typed; retain the empty/SRID guard before extracting either ordinate.
         var point = "CASE WHEN NOT ST_IsEmpty(l.\"Coordinates\"::geometry) AND ST_SRID(l.\"Coordinates\"::geometry) = 4326 THEN l.\"Coordinates\"::geometry END";
         const string valid = "raw_lon BETWEEN -180 AND 180 AND raw_lat BETWEEN -90 AND 90";
         var sql = $"""
             WITH matches AS (
-                SELECT l."Id", l."IdempotencyKey", l."LocalTimestamp",
+                SELECT l."Id", l."LocalTimestamp",
                     ST_X({point}) AS raw_lon, ST_Y({point}) AS raw_lat
                 FROM "Locations" l WHERE {predicate.Where} AND {predicate.Matches}
                 OFFSET 0
             ), positions AS (
-                SELECT "Id", "IdempotencyKey", "LocalTimestamp",
+                SELECT "Id", "LocalTimestamp",
                     CASE WHEN {valid} THEN CASE WHEN raw_lon = 180 THEN -180.0 ELSE raw_lon END END AS lon,
                     CASE WHEN {valid} THEN raw_lat END AS lat
                 FROM matches OFFSET 0
@@ -113,12 +115,16 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
                 -- HistoryQuery caps grids at 16: null/0..15 become digits 0..16, with unique int keys 0..288.
                 -- Keep radix 17 aligned with that cap; decode only after the original exact edge decisions.
                 SELECT *, (coalesce(x,-1)+1)*17+coalesce(y,-1)+1 AS cell_id FROM cells OFFSET 0
+            ), grouped AS (
+                SELECT nullif(cell_id/17-1,-1) AS "X", nullif(cell_id%17-1,-1) AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
+                    min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
+                    CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId"
+                FROM keyed GROUP BY cell_id
             )
-            SELECT nullif(cell_id/17-1,-1) AS "X", nullif(cell_id%17-1,-1) AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
-                min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
-                CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId",
-                CASE WHEN count(*) = 1 THEN min("IdempotencyKey"::text) END AS "SingletonUuid"
-            FROM keyed GROUP BY cell_id ORDER BY "X" NULLS LAST,"Y" NULLS LAST
+            -- One statement keeps UUID lookup in the aggregate snapshot; null singleton IDs need no matching row.
+            SELECT grouped.*, (SELECT l2."IdempotencyKey"::text FROM "Locations" l2
+                WHERE l2."Id" = grouped."SingletonId" AND l2."UserId" = {singletonOwner}) AS "SingletonUuid"
+            FROM grouped ORDER BY "X" NULLS LAST,"Y" NULLS LAST
             """;
         var rows = await db.Database.SqlQueryRaw<HistoryCellRow>(sql, predicate.CopyParameters()).ToListAsync(token);
         var cells = new List<object>();
