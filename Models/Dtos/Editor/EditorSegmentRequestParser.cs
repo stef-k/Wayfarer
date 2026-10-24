@@ -7,7 +7,7 @@ namespace Wayfarer.Models.Dtos.Editor;
 /// <summary>
 /// Parses and validates segment mutation JSON while preserving ownership-first request handling.
 /// </summary>
-internal static class EditorSegmentRequestParser
+internal static partial class EditorSegmentRequestParser
 {
     private static readonly string[] ServerOwnedFields = { "id", "tripId", "displayOrder", "capabilities" };
     /// <summary>
@@ -35,10 +35,16 @@ internal static class EditorSegmentRequestParser
             : ReadIgnoredRequiredNumber(request, "estimatedDurationMinutes", errors);
         if (durationSource == EstimatedDurationSource.Manual && !duration.HasValue && !errors.ContainsKey("estimatedDurationMinutes"))
             errors["estimatedDurationMinutes"] = ["Manual duration is required."];
-        var notesHtml = ReadRequiredNullableString(request, "notesHtml", errors);
+        var independent = request.TryGetProperty("contract", out _)
+            || request.TryGetProperty("originalRouteToken", out _) || request.TryGetProperty("expected", out _)
+            || request.TryGetProperty("changes", out _);
+        var notesIntent = independent ? ReadIndependentIntent(request, errors) : null;
+        var notesHtml = independent ? null : ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
         var proposal = ReadProposal(request, errors);
-        var aggregateToken = ReadRequiredNullableString(request, "aggregateConcurrencyToken", errors);
+        var aggregateToken = independent ? null : ReadRequiredNullableString(request, "aggregateConcurrencyToken", errors);
+        var routeToken = independent ? ReadRequiredNullableString(request, "originalRouteToken", errors) : null;
+        if (independent && string.IsNullOrWhiteSpace(routeToken)) errors["originalRouteToken"] = ["Original route evidence is required."];
         if (waypointPlaceIds.Count != waypointIndices.Count)
             errors["waypointRouteVertexIndices"] = ["Waypoint IDs and route vertex indices must have matching lengths."];
         if (route == null)
@@ -64,7 +70,7 @@ internal static class EditorSegmentRequestParser
             durationSource,
             EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             route,
-            aggregateToken, proposal);
+            aggregateToken, proposal, routeToken, notesIntent);
         return true;
     }
 

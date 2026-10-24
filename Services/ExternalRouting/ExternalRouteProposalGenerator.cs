@@ -36,7 +36,7 @@ public sealed class ExternalRouteProposalGenerator
     /// <summary>Reloads authoritative inputs for one explicitly selected provider-native mode.</summary>
     public async Task<ExternalRouteGenerationResult> GenerateAsync(
         string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, bool independentRoute = false)
     {
         using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var operationTimer = _timeProvider.CreateTimer(
@@ -44,7 +44,7 @@ public sealed class ExternalRouteProposalGenerator
         try
         {
             var result = await GenerateCoreAsync(
-                userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationTimeout.Token);
+                userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, independentRoute, operationTimeout.Token);
             return operationTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
                 ? ExternalRouteGenerationResult.Failure("routing-timeout") : result;
         }
@@ -55,12 +55,12 @@ public sealed class ExternalRouteProposalGenerator
     }
 
     private async Task<ExternalRouteGenerationResult> GenerateCoreAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode,
+        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode, bool independentRoute,
         CancellationToken operationToken)
     {
         if (providerMode != null && !ProviderDirectionsCatalog.TryParse("geoapify", providerMode, out _))
             return ExternalRouteGenerationResult.Failure("unsupported-provider-mode");
-        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
+        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, independentRoute, operationToken);
         if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
         if (RoutingProviderAnchorPolicy.Validate(context.Execution!, context.Anchors!) is { } anchorError)
             return ExternalRouteGenerationResult.Failure(anchorError);
@@ -68,12 +68,12 @@ public sealed class ExternalRouteProposalGenerator
             return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
 
         var providerResult = await _client!.RouteAsync(context.Execution!, context.Anchors!,
-            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, token), operationToken);
+            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, independentRoute, token), operationToken);
         if (!providerResult.Succeeded) return ExternalRouteGenerationResult.Failure(providerResult.ErrorCode!);
         var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, operationToken);
         if (!validated.Succeeded) return ExternalRouteGenerationResult.Failure(validated.ErrorCode!);
 
-        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
+        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, independentRoute, operationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
             || finalContext.TransportProfileId != context.TransportProfileId
             || !SameAuthority(finalContext.Execution, context.Execution))
@@ -83,13 +83,13 @@ public sealed class ExternalRouteProposalGenerator
         var geometryHash = ExternalRouteProposalContextService.GeometryHash(validated.Geometry!, validated.WaypointIndices!);
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId,
-            aggregateConcurrencyToken,
+            independentRoute ? string.Empty : aggregateConcurrencyToken,
             providerResult.DistanceMetres, providerResult.DurationSeconds, providerResult.Instructions,
             context.Execution!.ProviderKey,
             context.Execution.Profile, _timeProvider.GetUtcNow(),
             context.Execution.Attribution, "persistent", context.Execution.AuthoritySelectionGeneration,
             context.Execution.CredentialGeneration, context.Execution.RoutingGeneration,
-            context.Execution.CatalogVersion);
+            context.Execution.CatalogVersion, independentRoute ? aggregateConcurrencyToken : null);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,
@@ -101,24 +101,26 @@ public sealed class ExternalRouteProposalGenerator
 
     private async Task<bool> IsCurrentAsync(
         GenerationContext original, string userId, Guid tripId, Guid segmentId, string aggregateToken,
-        string? providerMode, CancellationToken cancellationToken)
+        string? providerMode, bool independentRoute, CancellationToken cancellationToken)
     {
-        var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, providerMode, cancellationToken);
+        var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, providerMode, independentRoute, cancellationToken);
         return current.Succeeded && SameAuthority(current.Execution, original.Execution)
             && current.TransportProfileId == original.TransportProfileId && current.Fingerprint == original.Fingerprint;
     }
 
     private async Task<GenerationContext> LoadContextAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateToken, string? providerMode,
+        string userId, Guid tripId, Guid segmentId, string aggregateToken, string? providerMode, bool independentRoute,
         CancellationToken cancellationToken)
     {
         var segment = await _dbContext!.Set<Segment>().AsNoTracking()
-            .Include(item => item.FromPlace).Include(item => item.ToPlace)
-            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(item => item.Place)
+            .Include(item => item.FromPlace).ThenInclude(p => p!.Region).Include(item => item.ToPlace).ThenInclude(p => p!.Region)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(item => item.Place).ThenInclude(p => p.Region)
             .SingleOrDefaultAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, cancellationToken);
         if (segment == null) return GenerationContext.Failure("segment-not-found");
-        if (!_aggregateTokens!.TryRead(aggregateToken, userId, tripId, segmentId, out var rowVersion)
-            || rowVersion != segment.RowVersion) return GenerationContext.Failure("segment-aggregate-stale");
+        var current = independentRoute
+            ? _aggregateTokens!.MatchesRoute(aggregateToken, userId, tripId, segment)
+            : _aggregateTokens!.TryRead(aggregateToken, userId, tripId, segmentId, out var rowVersion) && rowVersion == segment.RowVersion;
+        if (!current) return GenerationContext.Failure(independentRoute ? "segment-route-stale" : "segment-aggregate-stale");
         // Planning identity is retained for stale checks, not provider routing eligibility.
         if (providerMode == null) return GenerationContext.Failure("provider-mode-required");
         var resolution = await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);

@@ -125,7 +125,16 @@ public sealed record EditorSegmentSaveRequest(
     string? NotesHtml,
     NetTopologySuite.Geometries.LineString? Route,
     string? AggregateConcurrencyToken,
-    EditorSegmentProposalEnvelope? Proposal = null);
+    EditorSegmentProposalEnvelope? Proposal = null,
+    string? OriginalRouteToken = null,
+    EditorSegmentNotesIntent? NotesIntent = null)
+{
+    /// <summary>Distinguishes strict independently protected route requests from conservative complete drafts.</summary>
+    public bool IndependentRoute => OriginalRouteToken != null;
+}
+
+/// <summary>Authored Notes with exact nullable original; absent intent never assigns Notes.</summary>
+public sealed record EditorSegmentNotesIntent(string? Expected, string Desired);
 
 /// <summary>
 /// Complete desired trip-level segment order.

@@ -8,7 +8,7 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Protects immutable proposal geometry and authoritative generation context.</summary>
 public sealed class ExternalRouteProposalContextService
 {
-    private const int ContractVersion = 3;
+    private const int ContractVersion = 4;
     private static readonly TimeSpan ProposalLifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly TimeProvider _timeProvider;
@@ -24,7 +24,7 @@ public sealed class ExternalRouteProposalContextService
     public ProtectedProposalContext Issue(ExternalRouteProposalBinding binding)
     {
         var expiresAt = _timeProvider.GetUtcNow().Add(ProposalLifetime);
-        var payload = new ProposalPayload(ContractVersion, binding, expiresAt);
+        var payload = new ProposalPayload(binding.OriginalRouteToken == null ? 3 : ContractVersion, binding, expiresAt);
         return new ProtectedProposalContext(_protector.Protect(JsonSerializer.Serialize(payload)), expiresAt);
     }
 
@@ -36,7 +36,9 @@ public sealed class ExternalRouteProposalContextService
         try
         {
             var payload = JsonSerializer.Deserialize<ProposalPayload>(_protector.Unprotect(token));
-            if (payload == null || payload.Version != ContractVersion || payload.ExpiresAt <= _timeProvider.GetUtcNow()) return false;
+            if (payload == null || payload.Version is not (3 or ContractVersion) || payload.ExpiresAt <= _timeProvider.GetUtcNow()) return false;
+            if (payload.Version == 3 && payload.Binding.OriginalRouteToken != null) return false;
+            if (payload.Version == ContractVersion && string.IsNullOrWhiteSpace(payload.Binding.OriginalRouteToken)) return false;
             binding = payload.Binding;
             return true;
         }
@@ -60,7 +62,8 @@ public sealed record ExternalRouteProposalBinding(
     IReadOnlyList<RouteInstruction>? Instructions = null, string? ProviderKey = null, string? MappingMode = null,
     DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null,
     int AuthoritySelectionGeneration = 0, int AuthorityCredentialGeneration = 0,
-    int AuthorityRoutingGeneration = 0, int CatalogVersion = 0);
+    int AuthorityRoutingGeneration = 0, int CatalogVersion = 0,
+    string? OriginalRouteToken = null);
 
 /// <summary>Returns the protected context and its initial ten-minute expiry.</summary>
 public sealed record ProtectedProposalContext(string Token, DateTimeOffset ExpiresAt);

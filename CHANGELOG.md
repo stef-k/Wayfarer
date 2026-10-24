@@ -4,6 +4,16 @@
 
 ### Changed
 
+- Separate current Web Segment route evidence from independently authored Notes
+  (#853 package R / C4). Protected disjoint saves now survive either order and
+  queued waits; route-only saves preserve untouched nullable Notes, while combined
+  saves compare both originals and commit atomically. Proposal generation,
+  acceptance and explicit route-clear consent share the route boundary and retain
+  their original expiry. Preserve later route/proposal/Notes drafts and unknown
+  outcome holds. The strict new request dialect fails closed on older servers;
+  old aggregate requests remain conservative and legacy bearer Notes remain
+  unconditional pending the separate compatibility policy. No migration.
+
 - Include `HistoryTimeStatus` in the existing UTC history index payload (#918),
   matching the EF model with an atomic maintenance-window replacement migration.
   Capture uncertainty and aggregation can use covered scans; preparation and query

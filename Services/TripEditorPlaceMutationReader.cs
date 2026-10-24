@@ -96,12 +96,12 @@ public sealed class TripEditorPlaceMutationReader
         IReadOnlyList<Guid> ids, Guid tripId, string userId, CancellationToken cancellationToken)
     {
         var segments = await _dbContext.Segments.AsNoTracking()
-            .Include(item => item.FromPlace).Include(item => item.ToPlace)
-            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+            .Include(item => item.FromPlace).ThenInclude(p => p!.Region).Include(item => item.ToPlace).ThenInclude(p => p!.Region)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place).ThenInclude(p => p.Region)
             .Where(s => ids.Contains(s.Id) && s.TripId == tripId && s.UserId == userId).ToListAsync(cancellationToken);
         var byId = segments.ToDictionary(s => s.Id);
         return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id],
-            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true)).ToList();
+            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true, originalRouteToken: _aggregateTokens.IssueRoute(userId, tripId, byId[id]))).ToList();
     }
 
     /// <summary>

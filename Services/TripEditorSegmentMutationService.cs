@@ -31,6 +31,14 @@ public sealed partial class TripEditorSegmentMutationService
     public string IssueAggregateToken(string userId, Guid tripId, Segment segment) =>
         _aggregateTokens.Issue(userId, tripId, segment.Id, segment.RowVersion);
 
+    /// <summary>Issues separately scoped route evidence from an authoritative route/dependency view.</summary>
+    public string IssueRouteToken(string userId, Guid tripId, Segment segment) =>
+        _aggregateTokens.IssueRoute(userId, tripId, segment);
+
+    /// <summary>Publishes both independent proofs from the same authoritative Segment view.</summary>
+    public (string Aggregate, string Route) IssueEditorTokens(string userId, Guid tripId, Segment segment) =>
+        (IssueAggregateToken(userId, tripId, segment), IssueRouteToken(userId, tripId, segment));
+
     private TripEditorSegmentMutationService(
         ApplicationDbContext dbContext,
         (SegmentAggregateTokenService Tokens, SegmentRouteClearConfirmation Confirmation) services)
@@ -98,7 +106,7 @@ public sealed partial class TripEditorSegmentMutationService
 
         if (parsed.Value!.Proposal != null) return ProposalFailed("route-proposal-altered");
 
-        if (parsed.Value!.AggregateConcurrencyToken != null)
+        if (parsed.Value!.IndependentRoute || parsed.Value.AggregateConcurrencyToken != null)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                 new() { ["aggregateConcurrencyToken"] = ["Create requires an explicit null aggregate token."] },
                 "segment-aggregate-token-invalid");
@@ -184,7 +192,10 @@ public sealed partial class TripEditorSegmentMutationService
                 parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
 
-        if (parsed.Value!.Proposal != null) return ProposalFailed("route-proposal-transaction-required");
+        if (parsed.Value!.IndependentRoute)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                new() { ["originalRouteToken"] = ["Protected route edits require the relational transaction."] }, "segment-route-transaction-required");
+        if (parsed.Value.Proposal != null) return ProposalFailed("route-proposal-transaction-required");
 
         var submittedVersion = segment.RowVersion;
 
@@ -208,7 +219,7 @@ public sealed partial class TripEditorSegmentMutationService
 
         if (RequiresRouteClearConfirmation(segment, parsed.Value!))
         {
-            var fingerprint = BuildConfirmationFingerprint(userId, tripId, segment, parsed.Value!, mode.Value.ProfileId);
+            var fingerprint = SegmentRouteClearConfirmation.Fingerprint(userId, tripId, segment, parsed.Value!, mode.Value.ProfileId);
             if (!_routeConfirmation.IsValid(confirmationToken, segmentId, fingerprint))
             {
                 var issued = _routeConfirmation.Issue(segmentId, fingerprint);
@@ -384,21 +395,21 @@ public sealed partial class TripEditorSegmentMutationService
     private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, string userId, CancellationToken cancellationToken)
     {
         var segment = await _dbContext.Segments.AsNoTracking()
-            .Include(item => item.FromPlace).Include(item => item.ToPlace)
-            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+            .Include(item => item.FromPlace).ThenInclude(p => p!.Region).Include(item => item.ToPlace).ThenInclude(p => p!.Region)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place).ThenInclude(p => p.Region)
             .SingleAsync(s => s.Id == segmentId, cancellationToken);
-        return EditorTripStateMapper.ToSegment(tripId, segment, _aggregateTokens.Issue(userId, tripId, segmentId, segment.RowVersion), true);
+        return EditorTripStateMapper.ToSegment(tripId, segment, _aggregateTokens.Issue(userId, tripId, segmentId, segment.RowVersion), true, originalRouteToken: _aggregateTokens.IssueRoute(userId, tripId, segment));
     }
 
     private async Task<IReadOnlyList<EditorSegmentDto>> LoadSegmentDtosAsync(
         IReadOnlyList<Guid> ids, Guid tripId, string userId, CancellationToken cancellationToken)
     {
-        var segments = await _dbContext.Segments.AsNoTracking().Include(item => item.FromPlace).Include(item => item.ToPlace)
-            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place)
+        var segments = await _dbContext.Segments.AsNoTracking().Include(item => item.FromPlace).ThenInclude(p => p!.Region).Include(item => item.ToPlace).ThenInclude(p => p!.Region)
+            .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(waypoint => waypoint.Place).ThenInclude(p => p.Region)
             .Where(s => ids.Contains(s.Id)).ToListAsync(cancellationToken);
         var byId = segments.ToDictionary(s => s.Id);
         return ids.Select(id => EditorTripStateMapper.ToSegment(tripId, byId[id],
-            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true)).ToList();
+            _aggregateTokens.Issue(userId, tripId, id, byId[id].RowVersion), true, originalRouteToken: _aggregateTokens.IssueRoute(userId, tripId, byId[id]))).ToList();
     }
 
     private async Task<EditorAffectedSlicesDto> BuildAffectedAsync(
@@ -469,19 +480,6 @@ public sealed partial class TripEditorSegmentMutationService
         foreach (var id in current)
             if (cursor < proposed.Count && proposed[cursor] == id) cursor++;
         return cursor == proposed.Count;
-    }
-
-    private static string BuildConfirmationFingerprint(string userId, Guid tripId, Segment current,
-        EditorSegmentSaveRequest proposed, Guid? profileId)
-    {
-        var geometryIdentity = current.RouteGeometry == null
-            ? "none"
-            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(current.RouteGeometry.AsBinary()));
-        var currentState = new SegmentRouteClearState(current.RowVersion, current.FromPlaceId, current.ToPlaceId,
-            current.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray(), current.TransportProfileId, geometryIdentity);
-        var proposedState = new SegmentRouteClearState(current.RowVersion, proposed.FromPlaceId, proposed.ToPlaceId,
-            proposed.WaypointPlaceIds, profileId, geometryIdentity);
-        return SegmentRouteClearConfirmation.Fingerprint(userId, tripId, currentState, proposedState);
     }
 
     private static (SegmentAggregateTokenService Tokens, SegmentRouteClearConfirmation Confirmation) CreateFallbackServices()

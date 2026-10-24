@@ -11,6 +11,8 @@ const props = defineProps<{
   draftMode: string;
   draftTransportProfileId: Guid | null;
   draftContextKey: string;
+  /** Pinned original from the active draft, never refreshed from parent Segment props. */
+  originalRouteToken: string | null;
   segment: EditorSegment;
   tripId: Guid;
 }>();
@@ -62,7 +64,7 @@ async function generate(): Promise<void> {
   emit('previewChanged', null);
   try {
     const proposal = await generateExternalRouteProposal(
-      props.tripId, segmentId, props.antiforgeryToken, props.segment.aggregateConcurrencyToken,
+      props.tripId, segmentId, props.antiforgeryToken, props.originalRouteToken,
       selectedProviderMode.value, controller.signal);
     if (proposalStore.complete(segmentId, requestId, proposal)) emit('previewChanged', proposal);
   } catch (error) {

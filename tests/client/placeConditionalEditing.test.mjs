@@ -405,7 +405,7 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   result.affected.segments = [{ id: 'segment', tripId: 'trip', fromPlaceId: 'place', toPlaceId: null,
     waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: 'walk', transportProfileId: null, hasCustomRoute: false,
     estimatedDistanceKm: null, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic', notesHtml: '',
-    route: null, effectiveRoute: null, aggregateConcurrencyToken: 'refreshed-aggregate', displayOrder: 1,
+    route: null, effectiveRoute: null, originalRouteToken: 'refreshed-route', aggregateConcurrencyToken: 'refreshed-aggregate', displayOrder: 1,
     capabilities: { canEdit: true, canDelete: true }, originalValues: { notesHtml: null } }];
   result.affected.segmentOrder = ['concurrent-segment', 'segment'];
   result.affected.visitProgress = { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0,

@@ -67,7 +67,7 @@ public sealed partial class SegmentConditionalPostgresTests
     [PostgresTheory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task QueuedAggregateAndNotes_NoSilentOverwrite(bool notesFirst)
+    public async Task QueuedRouteAndNotes_PreserveBoth(bool notesFirst)
     {
         var seed = await SeedAsync();
         var probe = new SegmentProbe();
@@ -81,7 +81,7 @@ public sealed partial class SegmentConditionalPostgresTests
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {seed.SegmentId} FOR UPDATE");
         Task<HttpResponseMessage> Save(bool notes) => notes
             ? PatchAsync(bearer, seed, false, dto.NotesHtml, "Mobile notes")
-            : web.PutAsJsonAsync(WebUrl(seed), FullRequest(dto, duration: 123));
+            : web.PutAsJsonAsync(WebUrl(seed), RouteRequest(dto, duration: 123));
         var first = Save(notesFirst);
         Task<HttpResponseMessage>? second = null;
         try
@@ -93,14 +93,14 @@ public sealed partial class SegmentConditionalPostgresTests
             using var one = await first.WaitAsync(TimeSpan.FromSeconds(10));
             using var two = await second.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(HttpStatusCode.OK, one.StatusCode);
-            Assert.Equal(notesFirst ? HttpStatusCode.Conflict : HttpStatusCode.OK, two.StatusCode);
+            Assert.True(two.StatusCode == HttpStatusCode.OK, await two.Content.ReadAsStringAsync());
             await using var verify = fixture.CreateContext();
             var stored = await ReadAsync(verify, seed);
             Assert.Equal("Mobile notes", stored.Notes);
-            Assert.Equal(notesFirst ? dto.EstimatedDurationMinutes : 123, stored.EstimatedDuration!.Value.TotalMinutes);
+            Assert.Equal(123, stored.EstimatedDuration!.Value.TotalMinutes);
             Assert.Equal(dto.WaypointPlaceIds, stored.Waypoints.Select(w => w.PlaceId));
             Assert.Equal(dto.WaypointRouteVertexIndices, stored.Waypoints.Select(w => w.RouteVertexIndex));
-            output.WriteLine($"Two routed physical Segment waits; notesFirst={notesFirst}; aggregate stale conflict={notesFirst}; no silent Notes overwrite.");
+            output.WriteLine($"Two routed physical Segment waits; notesFirst={notesFirst}; both independent edits committed; no silent Notes overwrite.");
         }
         finally
         {

@@ -194,17 +194,19 @@ async function saveDraft(): Promise<void> {
 }
 
 /** Shares complete-save adoption between normal and explicitly confirmed aggregate requests. */
-function acceptSavedSegment(result: EditorMutationResult<EditorSegment>, request: EditorSegmentSaveRequest, wasCreate: boolean): void {
-  const savedDraft = notes.acceptComplete(result.data, request);
-  routeProposalDraft.preview(null);
+function acceptSavedSegment(result: EditorMutationResult<EditorSegment>, wasCreate: boolean): void {
+  const savedDraft = notes.acceptComplete(result.data);
+  if (!notes.retainRoute()) routeProposalDraft.preview(null);
   if (wasCreate) {
-    emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(savedDraft), work: null });
+    emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(notes.retainRoute() ? draft : savedDraft), work: null });
     emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
   }
   emit('mutationApplied', result);
-  createBaselineRequest.value = null; semanticTaint.resetFromAuthoritativeBaseline();
+  createBaselineRequest.value = null;
+  if (!notes.retainRoute()) semanticTaint.resetFromAuthoritativeBaseline();
   props.editorSurface.replaceActiveTarget(buildSegmentEditTarget(result.data, segmentLabel(result.data)));
-  emit('routeDraftPreviewChanged', null);
+  if (notes.retainRoute()) syncRouteDraftPreview();
+  else emit('routeDraftPreviewChanged', null);
   publishPresentation();
   markSaved();
 }

@@ -1372,13 +1372,13 @@ combined coordinate/Address/Name edit restoring stale Notes. Slice 7 therefore
 protects the paired scalar operations, not every Web ↔ Mobile writer. Structural
 Place proofs, legacy policy and #853 C1–C5 remain outstanding; #907 is separate.
 
-## Protected Segment Notes (#853 Slice 6)
+## Protected Segment Notes (#853 Slice 6 and C4)
 
 | Writer | Route | Selected intent |
 | --- | --- | --- |
 | Opt-in bearer | `PATCH /api/trips/{tripId}/conditional/segments/{segmentId}` | `expected.notes` and `changes.notes`; current active incoming token/account and owned Segment → Trip. |
 | Current Web Notes-only form | `PATCH /api/trips/{tripId}/editor/segments/{segmentId}/conditional` | `expected.notesHtml` and `changes.notesHtml`; User cookie, current active account/ownership and antiforgery. |
-| Current Web complete edit | `PUT /api/trips/{tripId}/editor/segments/{segmentId}` | Existing single aggregate transaction and opaque `aggregateConcurrencyToken`, including combined Notes + route/proposal/waypoint/profile/measurement edits. |
+| Current Web route/combined edit | `PUT /api/trips/{tripId}/editor/segments/{segmentId}` | Strict `segment-route-notes-1` dialect with `originalRouteToken` and optional authored Notes; one existing transaction. |
 | Legacy bearer | `PUT /api/trips/segments/{segmentId}` | Compatible unconditional Notes; no original-base guarantee. |
 
 ~~~json
@@ -1411,7 +1411,7 @@ Bearer success returns `contract: "bd2-1"`, `success`, `applied` and `segment`
 containing exact `id` and canonical `notes`. A matching desired value can return
 `applied:false` without SQL writes. Web keeps `EditorMutationResult` with the
 complete Segment in `data`/`affected.segments`, no order replacement, exact nullable
-originals and a fresh opaque aggregate token. Tokens expose no raw xmin and are
+originals, a fresh opaque aggregate token and separate `originalRouteToken`. Tokens expose no raw xmin and are
 neither authorization nor durable receipts; token strings can differ even when
 their protected row versions match.
 
@@ -1429,7 +1429,7 @@ Complete create/PUT acknowledgements, including the confirmed route-clear PUT,
 must validate the entire Segment mutation envelope before adopting any draft,
 proposal, preview, parent or Saved state. The complete `data` must match the
 authoritative `affected.segments` entry, expected Trip/target, nullable Notes
-originals and opaque aggregate token. Any supplied Segment order must contain
+originals, opaque aggregate token and nonempty original route token. Any supplied Segment order must contain
 unique IDs; creation requires an order containing the created ID exactly once.
 The authoritative order is not compared with possibly stale client membership.
 Missing or inconsistent acknowledgements are unknown outcomes even with
@@ -1439,19 +1439,93 @@ original dependency token, and require explicit review/reset before another save
 If route, proposal or semantic edits begin during a Notes PATCH, their desired
 state and original dependency token remain pinned. The acknowledgement holds
 further saves for explicit review/reset rather than silently rebasing that route
-intent. Existing complete edits stay one aggregate PUT, retaining route-clear
-confirmation and proposal provenance; combined edits are never split into PATCH
-plus PUT. An intervening Notes write changes Segment xmin, so an old complete
-Web draft must return 409 with zero route/measurement/waypoint effects.
+intent. The same hold preserves later route/proposal edits and reversals begun
+during a complete PUT, including through delayed acknowledgements and parent
+refresh. The older acknowledgement can publish its committed parent slice but
+cannot replace later intent or silently supply it a new route base.
 
-**Transitional disjointness debt:** a Notes-first write can conservatively reject
-an otherwise disjoint full Web route edit. A route-first edit preserving original
-Notes permits the subsequent conditional Notes save. A full Web edit that also
-changes Notes conflicts with a stale Notes original. Legacy bearer PUT remains
-unconditional. These limits, later Segment route/structural disposition, Place
-operations, legacy policy, #907 and the held Trip-sharing lost-reply obligation
-remain open; Slice 6 does not establish final BD2 acceptance or native runtime
-qualification. No schema migration is required.
+## Independent Segment route and Notes (#853 package R / C4)
+
+The current Web editor sends route/combined edits to the existing PUT using this
+strict dialect. Creation retains its complete-draft contract. No bearer route
+authoring endpoint is added.
+
+~~~json
+{
+  "contract": "segment-route-notes-1",
+  "originalRouteToken": "server-issued-original-route-proof",
+  "fromPlaceId": null,
+  "toPlaceId": null,
+  "waypointPlaceIds": [],
+  "waypointRouteVertexIndices": [],
+  "mode": null,
+  "estimatedDistanceKm": null,
+  "estimatedDurationMinutes": 12,
+  "estimatedDurationSource": "Manual",
+  "route": null,
+  "expected": {"notesHtml": null},
+  "changes": {"notesHtml": "<p>Independently authored Notes</p>"}
+}
+~~~
+
+`originalRouteToken` is purpose/version/user/Trip/Segment-bound evidence from the
+original authoritative view. Its fixed material projection covers Segment scope
+and order, endpoints, ordered waypoint identities/positions/vertex indices,
+geometry, mode/profile identity, exact saved distance/duration/source, complete
+provider provenance, and saved anchor Region/Trip scope and geometry. It excludes
+Notes and physical xmin. Current profile eligibility/calculation inputs and
+proposed anchors still undergo the existing locked validation. A later parent
+refresh or proposal preparation never exchanges an old draft's route base.
+
+Notes use their independently pinned exact nullable `originalValues.notesHtml`.
+Omit `expected`/`changes` for route-only saves. Missing/omitted/null desired Notes
+is Unchanged and never assigns or normalizes stored Notes, including historical
+null. A desired string is Set; `""` explicitly clears. Both require an independently
+present exact nullable original. Originals are not sanitized into a match;
+desired HTML uses the existing sanitizer and rejects embedded data images.
+
+Route and authored Notes originals are compared before mutation in the existing
+Serializable transaction with the established lock order and current owner/account
+checks. Independent route and protected Notes edits from one original view can
+commit in either order, including queued lock waits. Combined edits commit route
+effects, Notes and required freshness once. Stale route/dependency evidence returns
+`409 segment-route-stale`; stale authored Notes returns `409 segment-notes-stale`.
+Either conflict, validation failure, proposal/consent failure or rolled-back
+application failure leaves both sides, children and freshness unchanged. Keep the
+draft and explicitly review/reset the authoritative base before resolving a
+conflict. No automatic rebase or PATCH-then-PUT decomposition occurs.
+
+The new proposal-generation POST uses `contract`, `originalRouteToken` and
+`providerMode`, omitting `aggregateConcurrencyToken`. Generation, protected proposal
+contexts and final acceptance use the same route boundary. Notes alone preserves
+valid generation/proposal/clear authority; material drift still rejects. Geometry,
+indices, provider selection/credential/routing generations, catalog, trusted
+measurements/provenance and the proposal's original ten-minute expiry remain
+protected. Destructive route clearing still requires explicit consent bound to the
+original route and exact submitted destructive intent, with its original
+five-minute expiry. Confirmation resubmits the captured request, retaining any
+later client draft. New evidence is never inferred from old contexts.
+
+A maximum of three transaction attempts is allowed only for PostgreSQL-proven
+serialization/deadlock aborts after successful rollback and tracker recovery.
+Every restart retains identical intent, original route/Notes evidence and original
+proposal/consent expiry. Exhaustion is known-unapplied `409 segment-write-conflict`.
+Transport, commit acknowledgement and HTTP uncertainty never trigger replay;
+unknown outcomes retain the client hold even when desired content is later reversed.
+
+**Compatibility:** the new PUT rejects unsupported contracts, missing originals,
+unknown/duplicate/wrong-case fields and mixed legacy fields with 400. It omits the
+old required top-level `notesHtml` and `aggregateConcurrencyToken`, so older servers
+reject it rather than ignore its conditions. Missing new acknowledgement evidence
+also retains an unknown-outcome hold. Reload an older editor after upgrading;
+there is no unconditional fallback. Old complete-draft PUT requests and old
+proposal contexts retain conservative xmin protection, including Notes-first
+conflicts. Protected Notes PATCH routes and legacy bearer PUT semantics are
+unchanged; explicitly supplied legacy bearer Notes remain unconditional. C1 endpoint
+coverage, C2 legacy policy, C4 delivery acceptance, structural packages and C5 final
+#853 acceptance remain open. #907 is separately complete via #917; C3 sharing
+lost-reply behavior was accepted via #919. No schema migration or native Mobile
+qualification is part of C4.
 
 ## Saved Trip measurements and native KML
 

@@ -27,7 +27,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
         }; export default __component;` };
     });
     builder.onLoad({ filter: /leafletAdapter\.ts$/ }, () => ({ contents: `export const createTripEditorMap = () => ({
-      render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {}, setSegmentDraftPreview() {},
+      render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {}, setSegmentDraftPreview: (_state, preview) => { globalThis.segmentRoutePreview = preview; },
       setPlaceDraftPreview() {}, setSegmentRouteWorkState() {},
       startSegmentRouteWork: options => { globalThis.segmentMapWork = options; return () => {}; } });
       export const hasAnyGeometry = () => true; export const hasSavedTripView = () => false;
@@ -43,7 +43,7 @@ const segment = (overrides = {}) => {
   const value = { id: 'segment', tripId: 'trip', fromPlaceId: 'from', toPlaceId: 'to', waypointPlaceIds: ['waypoint'],
     waypointRouteVertexIndices: [1], mode: 'walk', transportProfileId: 'profile', hasCustomRoute: true,
     estimatedDistanceKm: 20, estimatedDurationMinutes: 90, estimatedDurationSource: 'Manual', notesHtml: '',
-    route, effectiveRoute: route, aggregateConcurrencyToken: 'original-aggregate', displayOrder: 1,
+    route, effectiveRoute: route, originalRouteToken: 'original-route', aggregateConcurrencyToken: 'original-aggregate', displayOrder: 1,
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
   value.originalValues ??= { notesHtml: value.notesHtml || null };
   return value;
@@ -90,6 +90,7 @@ const withApp = async action => {
     await nextTick();
     Object.assign(globalThis, previous);
     delete globalThis.segmentMapWork;
+    delete globalThis.segmentRoutePreview;
   }
 };
 
@@ -259,8 +260,12 @@ test('combined Notes/manual route/proposal remains one aggregate PUT and keeps o
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/trips/trip/editor/segments/segment');
   assert.equal(calls[0][1].method, 'PUT');
-  assert.equal(calls[0][2].aggregateConcurrencyToken, 'original-aggregate');
-  assert.equal(calls[0][2].notesHtml, 'Combined');
+  assert.equal(calls[0][2].contract, 'segment-route-notes-1');
+  assert.equal(calls[0][2].originalRouteToken, 'original-route');
+  assert.equal(calls[0][2].aggregateConcurrencyToken, undefined);
+  assert.equal(calls[0][2].notesHtml, undefined);
+  assert.deepEqual(calls[0][2].expected, { notesHtml: null });
+  assert.deepEqual(calls[0][2].changes, { notesHtml: 'Combined' });
   assert.equal(calls[0][2].estimatedDurationMinutes, 120);
   assert.deepEqual(calls[0][2].proposal, { proposalId: 'proposal', protectedContext: 'proof', manualDurationOverride: true });
   await nextTick();
@@ -436,6 +441,7 @@ for (const [name, corrupt] of [
   ['affected duration', result => { result.affected.segments[0].estimatedDurationMinutes = 180; }],
   ['affected token', result => { result.affected.segments[0].aggregateConcurrencyToken = 'different-token'; }],
   ['foreign Trip', result => { result.data.tripId = result.affected.segments[0].tripId = 'other-trip'; }],
+  ['missing route original', result => { delete result.data.originalRouteToken; }],
   ['missing Notes original', result => { delete result.data.originalValues; delete result.affected.segments[0].originalValues; }],
   ['wrong Notes original', result => { result.data.originalValues = result.affected.segments[0].originalValues = { notesHtml: null }; }],
   ['missing parent-consumed slice', result => { delete result.affected.places; }],
@@ -628,4 +634,109 @@ test('discarded complete acknowledgement cannot release or mutate a newer pendin
   assert.equal(editor.draft.aggregateConcurrencyToken, 'new-token');
   assert.equal(parent.state.segmentsById.segment.notesHtml, 'New current Notes');
   assert.equal(editor.isDirty, false);
+}));
+
+// C4 keeps both independent originals while the mounted production owners process saves and parent refreshes.
+test('route-only PUT omits Notes intent and retains its pinned route original across a Notes refresh', () => withApp(async ({ parent, editor }) => {
+  const calls = [];
+  await editor.openEdit(parent.state.segmentsById.segment);
+  editor.draft.estimatedDurationMinutes = 120;
+  parent.applyMutation(envelope(segment({ notesHtml: 'Other device', originalRouteToken: 'fresh-equivalent-proof' })));
+  await nextTick();
+  globalThis.fetch = async (_url, init) => {
+    calls.push(JSON.parse(init.body));
+    return saved(segment({ notesHtml: 'Other device', estimatedDurationMinutes: 120, originalRouteToken: 'saved-route' }));
+  };
+  await editor.saveDraft();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].originalRouteToken, 'original-route');
+  assert.equal(calls[0].contract, 'segment-route-notes-1');
+  for (const field of ['notesHtml', 'aggregateConcurrencyToken', 'expected', 'changes']) assert.equal(field in calls[0], false);
+  assert.equal(editor.draft.notesHtml, 'Other device');
+  assert.equal(editor.draft.originalRouteToken, 'saved-route');
+  assert.equal(editor.isDirty, false);
+}));
+
+for (const later of ['route', 'proposal', 'reversal']) {
+  test(`delayed complete acknowledgement preserves later ${later} intent and original proof through refresh`, () => withApp(async ({ parent, editor, sidebar }) => {
+    const reply = deferred();
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return reply.promise; };
+    await editor.openEdit(parent.state.segmentsById.segment);
+    editor.draft.estimatedDurationMinutes = 120;
+    editor.draft.notesHtml = 'Submitted';
+    editor.previewRouteProposal({ proposalId: 'submitted', protectedContext: 'submitted-context',
+      geometry: route.coordinates.map(([longitude, latitude]) => ({ longitude, latitude })), waypointIndices: [0, 1, 2] });
+    const saving = editor.saveDraft();
+    if (later !== 'proposal') editor.draft.estimatedDurationMinutes = later === 'reversal' ? 90 : 140;
+    editor.draft.notesHtml = '';
+    if (later === 'proposal') editor.previewRouteProposal({ proposalId: 'newer', protectedContext: 'newer-context',
+      geometry: route.coordinates.map(([longitude, latitude]) => ({ longitude, latitude })), waypointIndices: [0, 1, 2] });
+    const newer = editor.routeProposalDraft.buildRequest();
+    reply.resolve(saved(segment({ notesHtml: 'Submitted', estimatedDurationMinutes: 120, originalRouteToken: 'ack-route' })));
+    await saving;
+    parent.applyMutation(envelope(segment({ notesHtml: 'Later parent', estimatedDurationMinutes: 180, originalRouteToken: 'parent-route' })));
+    await nextTick();
+    assert.equal(parent.state.segmentsById.segment.originalRouteToken, 'parent-route');
+    assert.equal(editor.draft.notesHtml, '');
+    assert.equal(editor.draft.originalRouteToken, 'original-route');
+    assert.equal(editor.persistedBaseline.originalRouteToken, 'original-route');
+    assert.equal(editor.persistedBaseline.notesHtml, 'Submitted');
+    assert.equal(editor.routeProposalDraft.hasProposal.value, true);
+    assert.equal(globalThis.segmentRoutePreview?.kind, 'proposal');
+    assert.deepEqual(editor.routeProposalDraft.buildRequest(), newer);
+    assert.equal(editor.isDirty, true);
+    assert.equal(sidebar.hasAnyDraftChanges, true);
+    await editor.saveDraft();
+    assert.equal(calls, 1);
+    assert.match(editor.saveError, /route.*review|review.*route/i);
+  }));
+}
+
+test('unsupported strict PUT fails closed without legacy replay or PATCH decomposition', () => withApp(async ({ parent, editor }) => {
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init.method, JSON.parse(init.body)]);
+    return new Response(JSON.stringify({ title: 'Unsupported contract', errors: { contract: ['Reload the editor.'] } }), { status: 400 });
+  };
+  await editor.openEdit(parent.state.segmentsById.segment);
+  editor.draft.estimatedDurationMinutes = 120;
+  editor.draft.notesHtml = 'Combined';
+  await editor.saveDraft();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1], 'PUT');
+  assert.equal(calls[0][2].contract, 'segment-route-notes-1');
+  assert.equal(calls[0][2].aggregateConcurrencyToken, undefined);
+  assert.deepEqual(calls[0][2].expected, { notesHtml: null });
+  assert.equal(editor.draft.originalRouteToken, 'original-route');
+  assert.equal(editor.isDirty, true);
+  assert.equal(parent.state.segmentsById.segment.notesHtml, '');
+}));
+
+// Creation keeps its existing wire contract while sharing the acknowledgement/session owner.
+test('later route intent during create retains its draft under the created identity and review hold', () => withApp(async ({ parent, editor }) => {
+  const reply = deferred();
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return reply.promise; };
+  await editor.openCreate();
+  editor.draft.fromPlaceId = 'from';
+  editor.draft.toPlaceId = 'to';
+  editor.draft.mode = 'walk';
+  editor.draft.estimatedDurationSource = 'Manual';
+  editor.draft.estimatedDurationMinutes = 120;
+  const saving = editor.saveDraft();
+  editor.draft.estimatedDurationMinutes = 140;
+  const result = envelope(segment({ id: 'created', estimatedDurationMinutes: 120, originalRouteToken: 'created-route' }));
+  result.affected.segmentOrder = ['segment', 'created'];
+  reply.resolve(new Response(JSON.stringify(result)));
+  await saving;
+  await nextTick();
+  assert.equal(editor.draft.id, 'created');
+  assert.equal(editor.draft.estimatedDurationMinutes, 140);
+  assert.equal(editor.draft.originalRouteToken, null);
+  assert.equal(parent.state.segmentsById.created.estimatedDurationMinutes, 120);
+  assert.equal(editor.isDirty, true);
+  await editor.saveDraft();
+  assert.equal(calls, 1);
+  assert.match(editor.saveError, /review/i);
 }));

@@ -172,9 +172,11 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         selection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
         var planningProfile = db.Set<TransportProfile>().First(item => item.Key == "car");
         var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Personal route" };
-        var from = Place(userId, 23.7, 37.9);
-        var via = Place(userId, 23.75, 37.95);
-        var to = Place(userId, 23.8, 38.0);
+        // Route originals include the real owning Region/Trip dependency; keep this fixture relationally valid.
+        var region = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = userId, Name = "Anchors" };
+        var from = Place(userId, region, 23.7, 37.9);
+        var via = Place(userId, region, 23.75, 37.95);
+        var to = Place(userId, region, 23.8, 38.0);
         var segment = new Segment
         {
             Id = Guid.NewGuid(), UserId = userId, Trip = trip, TripId = trip.Id, Mode = planningProfile.Key,
@@ -195,9 +197,9 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
             new AuthoritativeRoutingProviderResolver(db, credentials), anchors);
     }
 
-    private static Place Place(string userId, double longitude, double latitude) => new()
+    private static Place Place(string userId, Region region, double longitude, double latitude) => new()
     {
-        Id = Guid.NewGuid(), UserId = userId,
+        Id = Guid.NewGuid(), UserId = userId, Region = region, RegionId = region.Id,
         Location = new Point(longitude, latitude) { SRID = 4326 }
     };
 

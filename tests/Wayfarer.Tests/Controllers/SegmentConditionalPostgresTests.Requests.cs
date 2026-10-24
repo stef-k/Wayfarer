@@ -167,4 +167,20 @@ public sealed partial class SegmentConditionalPostgresTests
         Assert.Equal(mixed ? HttpStatusCode.Conflict : HttpStatusCode.OK, mobileAfter.StatusCode);
         output.WriteLine($"Complete Web mixed={mixed}: stale token rejected with zero effects; deliberate refreshed retry retained single aggregate commit.");
     }
+    /// <summary>Builds the strict C4 dialect without the fields an older server requires.</summary>
+    private static JsonObject RouteRequest(Wayfarer.Models.Dtos.Editor.EditorSegmentDto dto, string? notes = null, double? duration = null)
+    {
+        var request = JsonSerializer.SerializeToNode(FullRequest(dto, duration: duration), new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+        request.Remove("notesHtml");
+        request.Remove("aggregateConcurrencyToken");
+        request["contract"] = "segment-route-notes-1";
+        request["originalRouteToken"] = dto.OriginalRouteToken;
+        if (notes != null)
+        {
+            request["expected"] = new JsonObject { ["notesHtml"] = dto.OriginalValues!.NotesHtml };
+            request["changes"] = new JsonObject { ["notesHtml"] = notes };
+        }
+        return request;
+    }
+
 }
