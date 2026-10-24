@@ -4,6 +4,12 @@
 
 ### Added
 
+- Raise #918 history/page and overview evaluation ceilings to fifteen seconds at
+  maintainer direction, preserving the separate thirty-second detail budget,
+  transaction-local SQL timeout, admission and disconnect cancellation. Document
+  the bounded 25-year operating-range qualification and retained latency limits;
+  the sub-second target and independent-review/maintainer acceptance remain.
+
 - Defer #918 overview UUID retrieval until singleton IDs are known, using one
   owner-scoped SQL statement and the existing covering history index for broad
   aggregation. Preserve nullable identities, every match/count, exact cell edges,
