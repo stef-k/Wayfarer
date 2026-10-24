@@ -411,7 +411,9 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         var owner = await OwnerAsync(); await SeedAsync(owner, 1);
         var gate = new ReadGate(delayInPostgres: true, delaySeconds: 6);
         await using var app = await HostAsync(gate); using var client = Client(app, owner);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         await GetAsync(client, Route + suffix + "?" + Utc);
+        Assert.True(clock.Elapsed.TotalSeconds >= 5.5);
         Assert.Equal(0, LocationHistoryController.Collections.IdentityCount);
     }
 
