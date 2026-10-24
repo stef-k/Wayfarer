@@ -1050,7 +1050,7 @@ namespace Wayfarer.Migrations
                     b.HasIndex("UserId", "LocalTimestamp", "Id")
                         .HasDatabaseName("IX_Location_HistoryUtc");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserId", "LocalTimestamp", "Id"), new[] { "Coordinates", "CaptureLocalTimestamp", "ActivityTypeId" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserId", "LocalTimestamp", "Id"), new[] { "Coordinates", "CaptureLocalTimestamp", "ActivityTypeId", "HistoryTimeStatus" });
 
                     b.HasIndex(new[] { "UserId", "PresenceObservedAtUtc", "Id" }, "IX_Location_UserId_PresenceObservedAtUtc_Id");
 

@@ -2,7 +2,21 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Include `HistoryTimeStatus` in the existing UTC history index payload (#918),
+  matching the EF model with an atomic maintenance-window replacement migration.
+  Capture uncertainty and aggregation can use covered scans; preparation and query
+  semantics remain unchanged. See the [upgrade procedure](docs/maintainer/history-preparation.md#utc-index-status-coverage-correction)
+  and [bounded qualification](docs/development/history-final-qualification.md#status-coverage-delivery).
+
 ### Added
+
+- Raise #918 history/page and overview evaluation ceilings to fifteen seconds at
+  maintainer direction, preserving the separate thirty-second detail budget,
+  transaction-local SQL timeout, admission and disconnect cancellation. Document
+  the bounded 25-year operating-range qualification and retained latency limits;
+  the sub-second target and independent-review/maintainer acceptance remain.
 
 - Defer #918 overview UUID retrieval until singleton IDs are known, using one
   owner-scoped SQL statement and the existing covering history index for broad

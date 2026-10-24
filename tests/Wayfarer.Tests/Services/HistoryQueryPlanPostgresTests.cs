@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
@@ -17,6 +19,50 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture fixture, ITestOutputHelper output) : IClassFixture<PostgresMigrationTestFixture>
 {
+    /// <summary>Fresh creation and reversible upgrade retain the UTC keys and add only the supported status payload.</summary>
+    [PostgresFact]
+    public async Task UtcCoverageMigrationMatchesModelAndPreservesRows()
+    {
+        const string original = "CREATE INDEX \"IX_Location_HistoryUtc\" ON public.\"Locations\" USING btree (\"UserId\", \"LocalTimestamp\", \"Id\") INCLUDE (\"Coordinates\", \"CaptureLocalTimestamp\", \"ActivityTypeId\")";
+        var corrected = original.Replace("\"ActivityTypeId\")", "\"ActivityTypeId\", \"HistoryTimeStatus\")");
+        var owner = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        db.Add(new Location { UserId = owner.Id, TimeZoneId = "UTC", Coordinates = new Point(23.7, 38) { SRID = 4326 },
+            LocalTimestamp = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+        await db.SaveChangesAsync();
+        var before = await db.Database.SqlQuery<string>($"""
+            SELECT row_to_json(l)::text AS "Value" FROM "Locations" l WHERE "UserId"={owner.Id}
+            """).SingleAsync();
+        Assert.Equal(corrected, await UtcIndexDefinitionAsync(db));
+        Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
+        Assert.False(db.Database.HasPendingModelChanges());
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261023175322_LocationHistoryPreparation");
+        try
+        {
+            Assert.Equal(original, await UtcIndexDefinitionAsync(db));
+            Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
+            await migrator.MigrateAsync();
+            Assert.Equal(corrected, await UtcIndexDefinitionAsync(db));
+            Assert.True(await new LocationHistoryPreparation(db).IndexesReadyAsync(default));
+            Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+            var after = await db.Database.SqlQuery<string>($"""
+                SELECT row_to_json(l)::text AS "Value" FROM "Locations" l WHERE "UserId"={owner.Id}
+                """).SingleAsync();
+            Assert.Equal(before, after);
+            Assert.True(await db.Database.SqlQueryRaw<bool>("""
+                SELECT indisvalid AND indisready AND indpred IS NULL AS "Value" FROM pg_index
+                WHERE indexrelid='public."IX_Location_HistoryUtc"'::regclass
+                """).SingleAsync());
+        }
+        finally { await migrator.MigrateAsync(); }
+    }
+
+    /// <summary>Inspect the actual provider index rather than inferring it from generated migration text.</summary>
+    private static Task<string> UtcIndexDefinitionAsync(ApplicationDbContext db) => db.Database.SqlQueryRaw<string>("""
+        SELECT pg_get_indexdef('public."IX_Location_HistoryUtc"'::regclass) AS "Value"
+        """).SingleAsync();
+
     /// <summary>Every supported grid retains all distinct cells, decoded bounds/order, singletons and an unmapped bucket.</summary>
     [PostgresFact]
     public async Task OverviewRetainsEveryCellAcrossAllSupportedGridSizes()

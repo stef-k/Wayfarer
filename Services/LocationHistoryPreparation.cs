@@ -170,7 +170,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                 || textScanning && row.Id > textLastId), token);
     }
 
-    /// <summary>Checks valid/ready physical index definitions, not just names, and the required trigram extension.</summary>
+    /// <summary>Checks exact valid/ready indexes; both UTC payloads support preparation, while migrations own status coverage.</summary>
     internal Task<bool> IndexesReadyAsync(CancellationToken token) => db.Database.SqlQueryRaw<bool>("""
         SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_trgm')
             AND EXISTS (SELECT FROM pg_attribute a JOIN pg_collation col ON col.oid = a.attcollation
@@ -179,6 +179,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
              JOIN pg_am am ON am.oid = c.relam
              JOIN (VALUES
                ('IX_Location_HistoryUtc', 'btree', 3, 6, '"UserId", "LocalTimestamp", "Id", "Coordinates", "CaptureLocalTimestamp", "ActivityTypeId"'),
+               ('IX_Location_HistoryUtc', 'btree', 3, 7, '"UserId", "LocalTimestamp", "Id", "Coordinates", "CaptureLocalTimestamp", "ActivityTypeId", "HistoryTimeStatus"'),
                ('IX_Location_HistoryCapture', 'btree', 3, 3, '"UserId", "CaptureLocalTimestamp", "Id"'),
                ('IX_Location_HistoryText', 'gin', 1, 1, '"HistorySearchText"'),
                ('IX_Location_HistoryGeometry', 'gist', 1, 1, '("Coordinates"::geometry)')

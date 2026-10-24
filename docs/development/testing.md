@@ -424,3 +424,21 @@ then verifies that both its ID and UUID remain visible together. Exact shared-ed
 drill-down, uncertainty, readiness, cancellation and deadline regressions remain
 in the focused selection above. This incremental optimization does not complete
 I918-C or waive its measured performance target misses.
+
+### Final history operating-range qualification (#918)
+
+The approved collection evaluation ceiling is now **15 seconds** for both history
+and overview; detail keeps its separate 30 seconds. The remaining-time database
+timeout stays local to the read transaction. Admission and disconnect cancellation
+are unchanged. `CollectionsCanCompleteAfterFormerDeadline` exercises both real
+routes with six seconds of database work; the deadline regression verifies a
+controlled 503 near fifteen seconds without a partial success. Earlier reports'
+five-second settings are historical, not the current ceiling.
+
+The [final bounded qualification](history-final-qualification.md) records the new
+2,628,000-record owner, equivalent-selectivity text selections on the shipped
+Notes/address OR predicate, warm/post-write observations, ordinary reads and durable
+location ingestion alongside heavy searches. Reuse the retained single-purpose
+routed fixture/receipt; this is a local qualification, not a CI benchmark, load
+framework or 25-active-user capacity claim. Keep the sub-second target, the
+protective ceiling and the maintainer acceptance decision distinct.

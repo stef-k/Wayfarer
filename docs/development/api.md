@@ -394,6 +394,14 @@ resolution. WayfarerApp integration remains a separate acceptance gate; unfamili
 
 ## Personal history bearer reads (#918 I918-B)
 
+The UTC history index includes capture status after migration
+`20261024172605_LocationHistoryUtcStatusCoverage`, enabling covered capture
+membership/uncertainty reads where the planner selects them. This changes no
+request, response, filter, coverage, readiness or timeout semantics. Use the
+[maintenance procedure](../maintainer/history-preparation.md#utc-index-status-coverage-correction)
+and [bounded measurements](history-final-qualification.md#status-coverage-delivery);
+the sub-second performance target remains pending maintainer disposition.
+
 `GET /api/location/history`, `GET /api/location/history/overview` and
 `GET /api/location/history/{locationId:int}` require one strict `Bearer` header
 and the current active owner. Cookies cannot authorize them and there is no owner
@@ -704,11 +712,16 @@ current-version unresolved evidence instead returns labelled incomplete 200.
 
 Collections use separate nonwaiting admission at two reads per owner/four globally,
 independently of ingestion. Detail has an independent four-owner/sixteen-global pool.
-A five-second collection end-to-end budget (detail thirty seconds) covers lookup,
+A fifteen-second collection end-to-end budget (detail thirty seconds) covers lookup,
 SQL, projection and buffered JSON before success; remaining-time cancellation also
-reaches SQL. These are initial protective engineering defaults, not a production
+reaches SQL through a transaction-local statement timeout. This ceiling follows the
+24 October 2026 maintainer decision in #918; the sub-second query-plus-projection
+target remains unchanged. These are protective engineering limits, not a production
 latency/capacity promise. Disconnects cancel work; incomplete evaluation never
-becomes a partial successful page/overview. I918-C proves the complete large-detail
+becomes a partial successful page/overview. The
+[final operating-range report](history-final-qualification.md) records the
+new 25-year fixture and modest mixed use. Earlier five-second performance receipts
+below remain historical evidence. I918-C proves the complete large-detail
 witness above. The bounded query correction completes all 158 repeated routed
 observations, including full-period overviews at both agreed scales and all twenty
 concurrent reads. Warm broad overviews take 570–580 ms for 210,240 records and
