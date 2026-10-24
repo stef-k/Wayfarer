@@ -469,6 +469,15 @@ environment debt. Application/test build, pending-model check, generated migrati
 transaction inspection, version consistency and diff hygiene pass. Existing
 dependency/analyzer advisories remain; no full-suite or hosted CI success is claimed.
 
+Complete-branch Code Guard returns REVIEW only: the existing cohesive routed fixture
+is 589 LOC; the canonical API reference and chronological changelog exceed Markdown
+document limits, and the existing changelog Fixed section exceeds its section limit.
+These remain navigable owners; mechanical splitting would not improve this bounded
+change. No policy, threshold, exclusion or baseline is relaxed; no FAIL, INCOMPLETE
+or configuration error remains. The external deterministic summarizer's complexity
+REVIEW is accepted for its explicit fixed-receipt loops/assertions; it performs no
+database operations and preserves one auditable comparison sequence.
+
 Fresh independent review must pin the new exact live #924 base/head and inspect
 the complete combined change: the prior deadline/tests plus this model/migration,
 exact dual-shape readiness metadata, focused regression and documentation. Audit
