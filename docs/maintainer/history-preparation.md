@@ -428,7 +428,6 @@ readiness decision remain required; filtered workloads and universal sub-second
 performance are unresolved. No further optimization campaign is automatically
 authorized. Production/mobile/deployed acceptance remains separate.
 
-
 ## Final protective ceiling and operating range
 
 The 24 October 2026 maintainer decision in

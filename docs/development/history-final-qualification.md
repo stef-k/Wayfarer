@@ -48,9 +48,8 @@ prepared inserts are not backfill/preparation throughput measurements. The seed
 checks 220 samples per seeded owner against production time/text derivation,
 including observations spread across the date range.
 
-Notes are distinct within each owner; owners share numbered templates. Changing
-diary/address vocabulary and all eleven
-searchable fields are populated. Geography is about 80% dense Athens, 10% Tokyo, 5% New
+Notes are distinct within each owner; owners share numbered templates. Each row
+has varied diary/address vocabulary and all eleven searchable fields populated. Geography is about 80% dense Athens, 10% Tokyo, 5% New
 York and 5% London, plus sparse Sydney/Honolulu records. Activities vary, including
 unassigned records. Coordinates and city sequences are repetitive and do not model
 real travel continuity or arbitrary global spread. Rich-text/address lengths are
@@ -180,7 +179,7 @@ For one actual warm common-hours request, EF ExecuteReader spans are readiness
 738 ms, uncertainty 2,459 ms and aggregate 1,895 ms within 5,125 ms routed total.
 The Notes-marker request has uncertainty/aggregate spans of 3,372/4,459 ms within
 8,696 ms. These belong to their respective routed requests, unlike plan replays.
-The first four plan bundles' aggregate JIT totals are 612–1,124 ms; parallel JIT
+The captured aggregate plans' JIT totals are 612–1,124 ms; parallel JIT
 accounting is not directly subtractable wall time. Broad already has no spill, so
 raising memory cannot address all remaining cost.
 

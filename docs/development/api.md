@@ -710,7 +710,8 @@ reaches SQL through a transaction-local statement timeout. This ceiling follows 
 24 October 2026 maintainer decision in #918; the sub-second query-plus-projection
 target remains unchanged. These are protective engineering limits, not a production
 latency/capacity promise. Disconnects cancel work; incomplete evaluation never
-becomes a partial successful page/overview. The [final operating-range report](history-final-qualification.md) records the
+becomes a partial successful page/overview. The
+[final operating-range report](history-final-qualification.md) records the
 new 25-year fixture and modest mixed use. Earlier five-second performance receipts
 below remain historical evidence. I918-C proves the complete large-detail
 witness above. The bounded query correction completes all 158 repeated routed

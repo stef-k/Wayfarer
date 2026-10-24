@@ -425,7 +425,6 @@ drill-down, uncertainty, readiness, cancellation and deadline regressions remain
 in the focused selection above. This incremental optimization does not complete
 I918-C or waive its measured performance target misses.
 
-
 ### Final history operating-range qualification (#918)
 
 The approved collection evaluation ceiling is now **15 seconds** for both history
