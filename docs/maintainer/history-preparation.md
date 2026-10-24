@@ -317,8 +317,9 @@ The modest latency gain leaves the query-plus-projection target unmet. Filtered
 recurring/common aggregation still spills 668 temporary blocks, and readiness and
 uncertainty scans remain material. No gain is claimed for the selective shapes.
 
-Reuse the investigation's 126 exact aggregate parity receipts, 50 complete routed
-response pairs and unchanged lower-seam time/text/filter evidence. Its five
+Reuse the investigation's 36 compact-key aggregate parity receipts (plus 90 for
+rejected alternatives), 50 complete routed response pairs and unchanged lower-seam
+time/text/filter evidence. Its five
 alternating four-read rounds all succeed, but summed makespans are 16.15 → 16.65 s;
 the compact key demonstrates no concurrency/throughput improvement. No attributable
 PostgreSQL CPU/private-memory reduction is established. These read-only prototype
@@ -326,6 +327,33 @@ results motivated the delivery change; they are not independent review or I918-C
 acceptance. The bounded production repeat, commands, response parity and plans are
 retained separately in
 `/home/stef/.local/share/wayfarer-investigations/918-compact-cell-20261024/`.
+
+That production repeat has 48/48 successful routed reads with no-store and eight
+exact overview response pairs (only response observation time excluded). Its eight
+reconstructed baseline commands equal the retained previous production SQL exactly;
+the candidate commands are unchanged production SQL. The same seed/versions/settings
+and 1,471,680-row shape are used. Three routed observations per shape and one separate
+natural plan replay suffice here; the unaffected matrix and concurrency are reused.
+
+| Fresh warm routed overview, ms | Previous grouping | Compact key |
+| --- | ---: | ---: |
+| Broad, 210,240 rows | 560–590 | 517–568 |
+| Broad, 1,051,200 rows | 1,928–1,956 | about 1,801 |
+| Recurring/common, 1,051,200 rows | 2,241–2,287 | 2,304–2,343 |
+| Tokyo/activity/area, 1,051,200 rows | 1,711–1,713 | 1,689–1,771 |
+| Post-write broad, 1,051,200 rows | 1,961–2,018 | 1,570–1,765 |
+
+The separate fresh large broad SQL replay takes 1,633 → 1,295 ms, with the same
+247,918 shared blocks and 15,973 → zero temporary writes. After 500 tracked address
+edits without vacuum, it takes 1,576 → 1,159 ms, with identical 247,995 shared blocks
+and 15,973 → zero temporary writes; both uncertainty counts have 680 heap fetches.
+The candidate retains the 40 KiB one-batch hash and 25 KiB six-row output sort.
+Large recurring/common aggregation still writes 668 temporary blocks. Companion
+query-plus-projection remains 2,004 → 1,688 ms for large broad and 1,801 → 1,597 ms
+post-write; selective results remain variable. Serialization is below 0.4 ms.
+The roughly 7% warm broad routed gain is modest and does not meet the sub-second
+target. Direct-probe sampled RSS is about 300 → 301 MiB; no CPU/private database
+memory or new concurrency improvement is claimed. The owned fixture is cleaned up.
 
 A data-ready receipt proves generation/index/pending prerequisites, not performance.
 The reviewed finite year-0001 capture limitation remains honestly unresolved while
