@@ -119,7 +119,7 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
 }
 
 export function emptySegmentDraft(): EditorSegmentDraft {
-  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], waypointRows: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null };
+  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], waypointRows: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null, originalRouteToken: null };
 }
 
 export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
@@ -143,7 +143,8 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
     notesHtml: normalizeNotesHtml(segment.notesHtml),
     route: cloneGeometry(segment.route),
     effectiveRoute: cloneGeometry(segment.effectiveRoute),
-    aggregateConcurrencyToken: segment.aggregateConcurrencyToken
+    aggregateConcurrencyToken: segment.aggregateConcurrencyToken,
+    originalRouteToken: segment.originalRouteToken
   };
 }
 

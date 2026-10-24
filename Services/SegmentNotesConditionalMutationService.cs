@@ -47,8 +47,8 @@ internal sealed class SegmentNotesConditionalMutationService(ApplicationDbContex
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
             }
             // Capture complete published state and its fresh xmin while the Segment lock still excludes other writers.
-            var saved = await db.Segments.AsNoTracking().Include(s => s.FromPlace).Include(s => s.ToPlace)
-                .Include(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+            var saved = await db.Segments.AsNoTracking().Include(s => s.FromPlace).ThenInclude(p => p!.Region).Include(s => s.ToPlace).ThenInclude(p => p!.Region)
+                .Include(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place).ThenInclude(p => p.Region)
                 .SingleAsync(s => s.Id == segmentId, token);
             commitStarted = true;
             await transaction.CommitAsync(token);

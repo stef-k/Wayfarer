@@ -1,5 +1,5 @@
 import type { EditorSegment } from './api/segmentTypes';
-export type { EditorSegment, EditorSegmentNotesConditionalRequest } from './api/segmentTypes';
+export type { EditorSegment, EditorSegmentNotesConditionalRequest, EditorSegmentSaveRequest, EditorSegmentDraft } from './api/segmentTypes';
 import type { EditorMetadataOriginalValues } from './api/metadataTypes';
 import type { EditorRegionOriginalValues } from './api/regionTypes';
 import type { EditorAreaOriginalValues } from './api/areaTypes';
@@ -320,21 +320,6 @@ export interface EditorAreaDeleteResult {
   areaId: Guid;
 }
 
-export interface EditorSegmentSaveRequest {
-  proposal?: { proposalId: Guid; protectedContext: string; manualDurationOverride: boolean };
-  fromPlaceId: Guid | null;
-  toPlaceId: Guid | null;
-  waypointPlaceIds: Guid[];
-  waypointRouteVertexIndices: Array<number | null>;
-  mode: string | null;
-  estimatedDistanceKm: number | null;
-  estimatedDurationMinutes: number | null;
-  estimatedDurationSource: 'Automatic' | 'Manual';
-  notesHtml: string | null;
-  route: GeoJsonLineString | null;
-  aggregateConcurrencyToken: string | null;
-}
-
 export interface EditorSegmentOrderRequest {
   segmentIds: Guid[];
 }
@@ -367,25 +352,6 @@ export interface EditorAreaDraft {
   notesHtml: string;
   fillHex: string;
   geometry: GeoJsonPolygon | null;
-}
-
-export interface EditorSegmentDraft {
-  id: Guid | null;
-  fromPlaceId: Guid | null;
-  toPlaceId: Guid | null;
-  waypointPlaceIds: Guid[];
-  waypointRouteVertexIndices: Array<number | null>;
-  /** Client-only logical rows; identifiers never cross the API boundary. */
-  waypointRows: EditorSegmentWaypointDraftRow[];
-  mode: string;
-  transportProfileId: Guid | null;
-  estimatedDistanceKm: string | number;
-  estimatedDurationMinutes: string | number;
-  estimatedDurationSource: 'Automatic' | 'Manual';
-  notesHtml: string;
-  route: GeoJsonLineString | null;
-  effectiveRoute: GeoJsonLineString | null;
-  aggregateConcurrencyToken: string | null;
 }
 
 export interface EditorSegmentWaypointDraftRow {

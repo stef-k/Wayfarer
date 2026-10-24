@@ -92,9 +92,9 @@ public sealed partial class TripEditorController : ControllerBase
             .AsNoTracking()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
-            .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
-            .Include(t => t.Segments).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+            .Include(t => t.Segments).ThenInclude(s => s.FromPlace).ThenInclude(p => p!.Region)
+            .Include(t => t.Segments).ThenInclude(s => s.ToPlace).ThenInclude(p => p!.Region)
+            .Include(t => t.Segments).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place).ThenInclude(p => p.Region)
             .Include(t => t.Tags)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
@@ -137,7 +137,7 @@ public sealed partial class TripEditorController : ControllerBase
                 await BuildOptionsAsync(cancellationToken),
                 publicUrl,
                 progressPublicUrl,
-                segment => _segmentMutations.IssueAggregateToken(userId, tripId, segment),
+                segment => _segmentMutations.IssueEditorTokens(userId, tripId, segment),
                 segment => routingCapabilities.GetValueOrDefault(segment.Id)));
         }
         catch (EditorInvalidAreaGeometryException ex)

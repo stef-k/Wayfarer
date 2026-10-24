@@ -18,6 +18,7 @@ export const completeSegment = (next: EditorSegment): boolean => {
     || value?.type === 'LineString' && Array.isArray(value.coordinates) && value.coordinates.length >= 2
       && value.coordinates.every(c => Array.isArray(c) && c.length === 2 && c.every(n => typeof n === 'number' && Number.isFinite(n)));
   return typeof next?.id === 'string' && typeof next.tripId === 'string' && typeof next.notesHtml === 'string'
+    && typeof next.originalRouteToken === 'string' && next.originalRouteToken.length > 0
     && typeof next.aggregateConcurrencyToken === 'string' && next.aggregateConcurrencyToken.length > 0
     && Array.isArray(next.waypointPlaceIds) && Array.isArray(next.waypointRouteVertexIndices)
     && nullableString(next.fromPlaceId) && nullableString(next.toPlaceId) && nullableString(next.transportProfileId)
@@ -92,6 +93,7 @@ export const createSegmentNotesDraft = (options: {
   const session = ref(0);
   let original: string | null | undefined;
   let routeChangedDuringSave = false;
+  let submittedNotes: string | null | undefined;
 
   /** Takes only server-origin evidence, never inferring null from the displayed blank editor. */
   const pin = (segment: EditorSegment | null): void => {
@@ -106,7 +108,10 @@ export const createSegmentNotesDraft = (options: {
     pin(segment);
   };
 
-  watch([() => routeIntent(draft), options.routeAuthored], () => {
+  watch([() => routeIntent(draft), options.routeAuthored, () => {
+    const { notesHtml: _notes, aggregateConcurrencyToken: _token, ...route } = options.buildRequest();
+    return JSON.stringify(route);
+  }], () => {
     if (pending.value) routeChangedDuringSave = true;
   }, { flush: 'sync' });
   watch(options.current, next => {
@@ -189,9 +194,17 @@ export const createSegmentNotesDraft = (options: {
   /** Adopts only a validated complete acknowledgement, retaining any newer Notes obligation. */
   const acceptComplete = (next: EditorSegment, submitted: EditorSegmentSaveRequest): EditorSegmentDraft => {
     const incoming = toSegmentDraft(next);
-    const newer = buildSegmentRequest(draft).notesHtml !== submitted.notesHtml ? draft.notesHtml : null;
-    baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
-    Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
+    const newer = buildSegmentRequest(draft).notesHtml !== submittedNotes ? draft.notesHtml : null;
+    pending.value = false;
+    if (routeChangedDuringSave) {
+      // Later route/proposal work retains its original evidence until explicit review/reset.
+      baseline.value.notesHtml = incoming.notesHtml;
+      draft.notesHtml = newer ?? incoming.notesHtml;
+      routeHeld.value = true;
+    } else {
+      baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
+      Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
+    }
     pin(next);
     return incoming;
   };
@@ -203,7 +216,23 @@ export const createSegmentNotesDraft = (options: {
     const attempt = session.value;
     const currentAttempt = (): boolean => attempt === session.value;
     const request = options.buildRequest();
+    submittedNotes = buildSegmentRequest(draft).notesHtml;
     const segmentId = draft.id;
+    if (segmentId) {
+      if (!draft.originalRouteToken || original === undefined) {
+        options.applyError(new Error('Original Segment evidence is unavailable. Keep your draft and reload before saving.'), 'Reload the editor.');
+        return;
+      }
+      request.contract = 'segment-route-notes-1';
+      request.originalRouteToken = draft.originalRouteToken;
+      if (submittedNotes !== buildSegmentRequest(baseline.value).notesHtml) {
+        request.expected = { notesHtml: original };
+        request.changes = { notesHtml: submittedNotes ?? '' };
+      }
+      delete request.notesHtml;
+      delete request.aggregateConcurrencyToken;
+    }
+    routeChangedDuringSave = false;
     const tripId = options.tripId();
     // Every complete response crosses this boundary before draft, proposal, preview, parent or Saved adoption.
     const accept = (result: EditorMutationResult<EditorSegment>): void => {
@@ -252,5 +281,5 @@ export const createSegmentNotesDraft = (options: {
     }
   };
 
-  return { held, save, reset, acceptComplete };
+  return { held, save, reset, acceptComplete, retainRoute: () => routeHeld.value };
 };

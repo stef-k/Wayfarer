@@ -97,10 +97,15 @@ public sealed partial class TripEditorSegmentMutationService
         SegmentEditorTrackerSnapshot? trackerSnapshot = null)
     {
         trackerSnapshot ??= SegmentEditorTrackerSnapshot.Capture(_dbContext);
-        if (!_aggregateTokens.TryRead(request.AggregateConcurrencyToken, userId, candidateTrip.Id, candidateSegment.Id, out var submittedVersion))
+        var originalRequest = request;
+        uint submittedVersion = 0;
+        var validEvidence = request.IndependentRoute
+            ? _aggregateTokens.TryReadRoute(request.OriginalRouteToken, userId, candidateTrip.Id, candidateSegment.Id, out _)
+            : _aggregateTokens.TryRead(request.AggregateConcurrencyToken, userId, candidateTrip.Id, candidateSegment.Id, out submittedVersion);
+        if (!validEvidence)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
-                new() { ["aggregateConcurrencyToken"] = ["The aggregate token is missing, malformed, or scoped to another Segment."] },
-                "segment-aggregate-token-invalid");
+                new() { [request.IndependentRoute ? "originalRouteToken" : "aggregateConcurrencyToken"] = ["Original evidence is missing, malformed, or scoped to another Segment."] },
+                request.IndependentRoute ? "segment-route-token-invalid" : "segment-aggregate-token-invalid");
 
         var mode = await ResolveModeAsync(request.Mode, candidateSegment, cancellationToken);
         if (mode == null)
@@ -110,6 +115,7 @@ public sealed partial class TripEditorSegmentMutationService
         var profileIds = new[] { candidateSegment.TransportProfileId, mode.Value.ProfileId }
             .Where(item => item.HasValue).Select(item => item!.Value).Distinct().Order().ToArray();
         var aggregateTokenCompared = false;
+        var commitStarted = false;
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         try
         {
@@ -149,7 +155,18 @@ public sealed partial class TripEditorSegmentMutationService
 
             var canonicalTrip = await _dbContext.Trips.AsNoTracking()
                 .Include(item => item.Regions).ThenInclude(item => item.Places)
-                .SingleAsync(item => item.Id == candidateTrip.Id && item.UserId == userId, cancellationToken);
+                .SingleOrDefaultAsync(item => item.Id == candidateTrip.Id && item.UserId == userId, cancellationToken);
+            if (canonicalTrip == null)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.NotFound();
+            }
+            if (request.IndependentRoute)
+            {
+                var active = await _dbContext.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {userId} AND \"IsActive\" FOR SHARE")
+                    .AsNoTracking().ToListAsync(cancellationToken);
+                if (active.Count == 0) throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
+            }
             var referenceErrors = ValidatePlaceReferences(request, canonicalTrip, validateRouteCoordinates: false);
             if (referenceErrors.Count > 0)
             {
@@ -161,6 +178,7 @@ public sealed partial class TripEditorSegmentMutationService
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 DetachTargetAggregate(canonical.Id);
+                await transaction.DisposeAsync();
                 if (lockAttempt < 3)
                     return await UpdateRelationalAsync(
                         candidateTrip, canonical, request, userId, confirmationToken, cancellationToken,
@@ -171,16 +189,26 @@ public sealed partial class TripEditorSegmentMutationService
                         "The Segment profile changed while waiting. Reload before saving.", null, null));
             }
 
-            if (submittedVersion != canonical.RowVersion)
+            if (request.IndependentRoute
+                ? !_aggregateTokens.MatchesRoute(request.OriginalRouteToken, userId, canonical.TripId, canonical)
+                : submittedVersion != canonical.RowVersion)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 var current = EditorTripStateMapper.ToSegment(canonical.TripId, canonical,
-                    _aggregateTokens.Issue(userId, canonical.TripId, canonical.Id, canonical.RowVersion), true);
+                    _aggregateTokens.Issue(userId, canonical.TripId, canonical.Id, canonical.RowVersion), true, originalRouteToken: _aggregateTokens.IssueRoute(userId, canonical.TripId, canonical));
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
-                    new EditorSegmentConflictDto("segment-aggregate-stale", "update", current,
+                    new EditorSegmentConflictDto(request.IndependentRoute ? "segment-route-stale" : "segment-aggregate-stale", "update", current,
                         "The Segment changed. Reload its authoritative state before saving.", null, null));
             }
             aggregateTokenCompared = true;
+            if (request.NotesIntent is { } notes && !string.Equals(notes.Expected, Wayfarer.Util.RichNotes.Normalize(canonical.Notes), StringComparison.Ordinal))
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
+                    new EditorSegmentConflictDto("segment-notes-stale", "update",
+                        await LoadSegmentDtoAsync(canonical.Id, canonical.TripId, userId, cancellationToken),
+                        "Segment Notes changed. Keep your draft and explicitly review current Notes before saving.", null, null));
+            }
 
             if (binding != null && await _proposalValidator!.ValidateFinalAsync(
                 binding, canonical, request, mode.Value.ProfileId, cancellationToken) is { } proposalError)
@@ -192,14 +220,14 @@ public sealed partial class TripEditorSegmentMutationService
 
             if (RequiresRouteClearConfirmation(canonical, request))
             {
-                var fingerprint = BuildConfirmationFingerprint(userId, candidateTrip.Id, canonical, request, mode.Value.ProfileId);
+                var fingerprint = SegmentRouteClearConfirmation.Fingerprint(userId, candidateTrip.Id, canonical, request, mode.Value.ProfileId);
                 if (!_routeConfirmation.IsValid(confirmationToken, canonical.Id, fingerprint))
                 {
                     var issued = _routeConfirmation.Issue(canonical.Id, fingerprint);
                     var code = string.IsNullOrWhiteSpace(confirmationToken)
                         ? "segment-route-clear-confirmation-required" : "segment-route-clear-confirmation-stale";
                     var current = EditorTripStateMapper.ToSegment(canonical.TripId, canonical,
-                        _aggregateTokens.Issue(userId, canonical.TripId, canonical.Id, canonical.RowVersion), true);
+                        _aggregateTokens.Issue(userId, canonical.TripId, canonical.Id, canonical.RowVersion), true, originalRouteToken: _aggregateTokens.IssueRoute(userId, canonical.TripId, canonical));
                     await transaction.RollbackAsync(CancellationToken.None);
                     return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
                         new EditorSegmentConflictDto(code, "update", current,
@@ -235,16 +263,24 @@ public sealed partial class TripEditorSegmentMutationService
                 ApplyProposalProvenance(canonical, binding);
             }
             await _dbContext.SaveChangesAsync(cancellationToken);
+            commitStarted = true;
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (Exception conflict) when (IsWriteConflict(conflict))
+        catch (Exception conflict) when (IsWriteConflict(conflict) && (!commitStarted || IsTransactionAbort(conflict)))
         {
             await CleanupRelationalFailureAsync(transaction, candidateSegment.Id, trackerSnapshot, conflict);
+            // Only PostgreSQL's definitive abort plus successful rollback/recovery permits a bounded identical restart.
+            if (request.IndependentRoute && IsTransactionAbort(conflict) && lockAttempt < 3)
+            {
+                await transaction.DisposeAsync();
+                return await UpdateRelationalAsync(candidateTrip, candidateSegment, originalRequest, userId,
+                    confirmationToken, cancellationToken, lockAttempt + 1, trackerSnapshot);
+            }
             var currentVersion = await _dbContext.Segments.AsNoTracking()
                 .Where(item => item.Id == candidateSegment.Id)
                 .Select(item => item.RowVersion)
                 .SingleAsync(CancellationToken.None);
-            if (!aggregateTokenCompared && submittedVersion != currentVersion)
+            if (!request.IndependentRoute && !aggregateTokenCompared && submittedVersion != currentVersion)
             {
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
                     new EditorSegmentConflictDto("segment-aggregate-stale", "update",
@@ -276,6 +312,14 @@ public sealed partial class TripEditorSegmentMutationService
             if (current is DbUpdateConcurrencyException
                 || current is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
                 return true;
+        return false;
+    }
+
+    /// <summary>Recognizes only server-proven aborted transactions, never a transport or uncertain commit failure.</summary>
+    private static bool IsTransactionAbort(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+            if (current is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }) return true;
         return false;
     }
 

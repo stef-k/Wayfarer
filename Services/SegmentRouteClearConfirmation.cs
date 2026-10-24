@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
+using Wayfarer.Models;
+using Wayfarer.Models.Dtos.Editor;
 
 namespace Wayfarer.Services;
 
@@ -47,6 +49,30 @@ public sealed class SegmentRouteClearConfirmation
         {
             return false;
         }
+    }
+
+    /// <summary>Binds original route authority and exact destructive intent, retaining conservative old-dialect xmin consent.</summary>
+    public static string Fingerprint(string userId, Guid tripId, Segment current,
+        EditorSegmentSaveRequest proposed, Guid? profileId)
+    {
+        if (proposed.IndependentRoute)
+        {
+            var intent = new { proposed.FromPlaceId, proposed.ToPlaceId, proposed.WaypointPlaceIds,
+                proposed.WaypointRouteVertexIndices, proposed.Mode, profileId, proposed.EstimatedDurationSource,
+                proposed.EstimatedDurationMinutes, Geometry = proposed.Route == null ? null : Convert.ToHexString(proposed.Route.AsBinary()),
+                proposed.Proposal };
+            var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new
+                { Contract = "segment-route-notes-1", userId, tripId, Original = SegmentAggregateTokenService.RouteFingerprint(current), intent });
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(json));
+        }
+        var geometryIdentity = current.RouteGeometry == null
+            ? "none"
+            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(current.RouteGeometry.AsBinary()));
+        var currentState = new SegmentRouteClearState(current.RowVersion, current.FromPlaceId, current.ToPlaceId,
+            current.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId).ToArray(), current.TransportProfileId, geometryIdentity);
+        var proposedState = new SegmentRouteClearState(current.RowVersion, proposed.FromPlaceId, proposed.ToPlaceId,
+            proposed.WaypointPlaceIds, profileId, geometryIdentity);
+        return SegmentRouteClearConfirmation.Fingerprint(userId, tripId, currentState, proposedState);
     }
 
     private sealed record Payload(int Version, Guid SegmentId, string Fingerprint, DateTimeOffset ExpiresAt);

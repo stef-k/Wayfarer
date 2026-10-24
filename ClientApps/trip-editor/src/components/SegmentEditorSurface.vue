@@ -80,7 +80,7 @@ defineEmits<{
         @clear-error="$emit('clearError', $event)"
         @semantic-edits-unsafe="$emit('semanticEditsUnsafe')"
       />
-      <SegmentRouteProposal
+      <SegmentRouteProposal :original-route-token="draft.originalRouteToken"
         v-if="activeSegment && activeSegment.externalRouting?.available"
         :antiforgery-token="antiforgeryToken"
         :draft-context-key="draftContextKey"

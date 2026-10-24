@@ -165,6 +165,9 @@ public sealed record EditorSegmentDto(
 {
     /// <summary>Exact nullable published Notes, independent of display defaults and opaque route-aggregate evidence.</summary>
     public EditorSegmentNotesOriginalDto? OriginalValues { get; init; }
+
+    /// <summary>Server-issued material route/dependency evidence independent of Notes and xmin.</summary>
+    public string OriginalRouteToken { get; init; } = string.Empty;
 }
 
 /// <summary>Preserves null versus empty for conditional Segment Notes.</summary>

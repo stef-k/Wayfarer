@@ -42,7 +42,7 @@ public sealed partial class TripEditorController
                 : await _externalRoutingCapabilities.ProjectAsync(userId!, [result.Segment], cancellationToken);
             var dto = EditorTripStateMapper.ToSegment(tripId, result.Segment,
                 _segmentMutations.IssueAggregateToken(userId!, tripId, result.Segment), true,
-                capabilities?.GetValueOrDefault(segmentId));
+                capabilities?.GetValueOrDefault(segmentId), _segmentMutations.IssueRouteToken(userId!, tripId, result.Segment));
             var affected = new EditorAffectedSlicesDto(null, [], null, [], new Dictionary<Guid, IReadOnlyList<Guid>>(),
                 [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [dto], null, [], null, null, null);
             return Ok(new EditorMutationResult<EditorSegmentDto>(true, dto, affected, EditorDeletedIdsDto.Empty, []));

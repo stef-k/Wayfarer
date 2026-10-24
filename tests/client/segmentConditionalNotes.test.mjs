@@ -43,7 +43,7 @@ const segment = (overrides = {}) => {
   const value = { id: 'segment', tripId: 'trip', fromPlaceId: 'from', toPlaceId: 'to', waypointPlaceIds: ['waypoint'],
     waypointRouteVertexIndices: [1], mode: 'walk', transportProfileId: 'profile', hasCustomRoute: true,
     estimatedDistanceKm: 20, estimatedDurationMinutes: 90, estimatedDurationSource: 'Manual', notesHtml: '',
-    route, effectiveRoute: route, aggregateConcurrencyToken: 'original-aggregate', displayOrder: 1,
+    route, effectiveRoute: route, originalRouteToken: 'original-route', aggregateConcurrencyToken: 'original-aggregate', displayOrder: 1,
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
   value.originalValues ??= { notesHtml: value.notesHtml || null };
   return value;
@@ -259,8 +259,12 @@ test('combined Notes/manual route/proposal remains one aggregate PUT and keeps o
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/trips/trip/editor/segments/segment');
   assert.equal(calls[0][1].method, 'PUT');
-  assert.equal(calls[0][2].aggregateConcurrencyToken, 'original-aggregate');
-  assert.equal(calls[0][2].notesHtml, 'Combined');
+  assert.equal(calls[0][2].contract, 'segment-route-notes-1');
+  assert.equal(calls[0][2].originalRouteToken, 'original-route');
+  assert.equal(calls[0][2].aggregateConcurrencyToken, undefined);
+  assert.equal(calls[0][2].notesHtml, undefined);
+  assert.deepEqual(calls[0][2].expected, { notesHtml: null });
+  assert.deepEqual(calls[0][2].changes, { notesHtml: 'Combined' });
   assert.equal(calls[0][2].estimatedDurationMinutes, 120);
   assert.deepEqual(calls[0][2].proposal, { proposalId: 'proposal', protectedContext: 'proof', manualDurationOverride: true });
   await nextTick();

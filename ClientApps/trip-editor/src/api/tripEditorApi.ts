@@ -43,13 +43,13 @@ export class ExternalRouteProposalError extends Error {
 
 /** Generates a proposal using only the opaque aggregate token as browser input. */
 export const generateExternalRouteProposal = async (
-  tripId: string, segmentId: string, antiforgeryToken: string, aggregateConcurrencyToken: string,
+  tripId: string, segmentId: string, antiforgeryToken: string, originalRouteToken: string | null,
   providerMode: string, signal: AbortSignal
 ): Promise<ExternalRouteProposal> => {
   const response = await fetch(`/api/trip-editor/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(segmentId)}/route-proposals`, {
     method: 'POST', credentials: 'same-origin', signal,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
-    body: JSON.stringify({ aggregateConcurrencyToken, providerMode })
+    body: JSON.stringify({ contract: 'segment-route-notes-1', originalRouteToken, providerMode })
   });
   requireSession(response);
   if (!response.ok) {

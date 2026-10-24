@@ -22,7 +22,7 @@ public static class EditorTripStateMapper
         EditorOptionsDto options,
         string? publicUrl,
         string? progressPublicUrl,
-        Func<Segment, string>? aggregateTokenFactory = null,
+        Func<Segment, (string Aggregate, string Route)>? tokenFactory = null,
         Func<Segment, EditorExternalRoutingCapabilityDto?>? externalRoutingFactory = null)
     {
         ArgumentNullException.ThrowIfNull(trip);
@@ -31,6 +31,7 @@ public static class EditorTripStateMapper
         var places = regions.SelectMany(r => r.Places.Select(p => (Region: r, Place: p))).ToList();
         var areas = regions.SelectMany(r => r.Areas.Select(a => (Region: r, Area: a))).ToList();
         var segments = trip.Segments.OrderBy(s => s.DisplayOrder).ThenBy(s => s.Id).ToList();
+        var tokens = segments.ToDictionary(s => s.Id, s => tokenFactory?.Invoke(s) ?? (Aggregate: string.Empty, Route: string.Empty));
         var visitSummaries = BuildVisitSummaries(places.Select(p => p.Place), visitsByPlaceId);
 
         return new EditorTripStateDto
@@ -49,7 +50,7 @@ public static class EditorTripStateMapper
             AreasById = areas.ToDictionary(a => a.Area.Id, a => ToArea(trip.Id, a.Region.Id, a.Area)),
             AreaOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).Select(a => a.Id).ToList()),
             SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s,
-                aggregateTokenFactory?.Invoke(s) ?? string.Empty, true, externalRoutingFactory?.Invoke(s))),
+                tokens[s.Id].Aggregate, true, externalRoutingFactory?.Invoke(s), tokens[s.Id].Route)),
             SegmentOrder = segments.Select(s => s.Id).ToList(),
             TagsBySlug = trip.Tags.OrderBy(t => t.Name).ToDictionary(t => t.Slug, t => new EditorTagDto(t.Id, t.Name, t.Slug)),
             TagOrder = trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug).ToList(),
@@ -127,7 +128,7 @@ public static class EditorTripStateMapper
     /// </summary>
     public static EditorSegmentDto ToSegment(
         Guid tripId, Segment segment, string aggregateConcurrencyToken = "", bool waypointsAuthoritative = false,
-        EditorExternalRoutingCapabilityDto? externalRouting = null)
+        EditorExternalRoutingCapabilityDto? externalRouting = null, string originalRouteToken = "")
     {
         if (!waypointsAuthoritative)
             throw new InvalidOperationException("Authoritative Segment mapping requires explicitly loaded waypoint children.");
@@ -152,7 +153,8 @@ public static class EditorTripStateMapper
             EditableLeafCapabilities(),
             externalRouting)
         {
-            OriginalValues = new(RichNotes.Normalize(segment.Notes))
+            OriginalValues = new(RichNotes.Normalize(segment.Notes)),
+            OriginalRouteToken = originalRouteToken
         };
     }
 
