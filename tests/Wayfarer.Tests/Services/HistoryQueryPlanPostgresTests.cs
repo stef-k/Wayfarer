@@ -15,6 +15,47 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture fixture, ITestOutputHelper output) : IClassFixture<PostgresMigrationTestFixture>
 {
+    /// <summary>Every supported grid retains all distinct cells, decoded bounds/order, singletons and an unmapped bucket.</summary>
+    [PostgresFact]
+    public async Task OverviewRetainsEveryCellAcrossAllSupportedGridSizes()
+    {
+        var owner = await fixture.CreateUserAsync(); await using var db = fixture.CreateContext();
+        await db.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO "Locations" ("UserId","Timestamp","LocalTimestamp","TimeZoneId","Coordinates")
+            SELECT {{owner.Id}}, '2025-01-01Z'::timestamptz+g*interval '1 day',
+                '2025-01-01Z'::timestamptz+g*interval '1 day', 'UTC',
+                ST_SetSRID(ST_MakePoint(-180+(x+0.5)*360/g,-90+(y+0.5)*180/g),4326)::geography
+            FROM generate_series(1,16) g CROSS JOIN LATERAL generate_series(0,g-1) x
+                CROSS JOIN LATERAL generate_series(0,g-1) y
+            UNION ALL
+            SELECT {{owner.Id}}, '2025-01-01Z'::timestamptz+g*interval '1 day',
+                '2025-01-01Z'::timestamptz+g*interval '1 day', 'UTC', 'POINT EMPTY'::geography
+            FROM generate_series(1,16) g
+            """);
+        var service = new HistoryReadService(db, new HistoryCursor(new EphemeralDataProtectionProvider()));
+        for (var grid = 1; grid <= 16; grid++)
+        {
+            var start = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(grid);
+            var query = HistoryQueryTests.Parse($"?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc={HistoryQuery.Utc(start)}&endUtc={HistoryQuery.Utc(start.AddDays(1))}&grid={grid}", true);
+            var result = JsonSerializer.SerializeToElement(await service.OverviewAsync(owner.Id, query, default));
+            Assert.Equal((grid * grid + 1).ToString(), result.GetProperty("knownMatchCount").GetString());
+            Assert.Equal((grid * grid).ToString(), result.GetProperty("mappedMatchCount").GetString());
+            Assert.Equal("1", result.GetProperty("unmappedMatchCount").GetString());
+            var cells = result.GetProperty("cells").EnumerateArray().ToArray();
+            Assert.Equal(grid * grid, cells.Length);
+            Assert.Equal(cells.Length, cells.Select(cell => cell.GetProperty("cellKey").GetString()).Distinct().Count());
+            for (var index = 0; index < cells.Length; index++)
+            {
+                var bounds = cells[index].GetProperty("bounds");
+                Assert.Equal(-180 + index / grid * 360.0 / grid, bounds.GetProperty("west").GetDouble());
+                Assert.Equal(-90 + index % grid * 180.0 / grid, bounds.GetProperty("south").GetDouble());
+                Assert.Equal("1", cells[index].GetProperty("recordCount").GetString());
+                Assert.True(cells[index].GetProperty("singleton").GetProperty("locationId").GetInt32() > 0);
+            }
+        }
+        Assert.Throws<HistoryRequestException>(() => HistoryQueryTests.Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&grid=17", true));
+    }
+
     /// <summary>Owner/time, persisted wall-time, folded text and geometry paths remain eligible after exact residuals.</summary>
     [PostgresFact]
     public async Task ProductionPredicatesRetainIndexPathsAndBoundedDatabaseWork()

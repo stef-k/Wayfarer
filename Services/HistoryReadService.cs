@@ -109,12 +109,16 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
                 SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM positions
             ), cells AS (
                 SELECT *, {x} AS x, {y} AS y FROM unwrapped
+            ), keyed AS (
+                -- HistoryQuery caps grids at 16: null/0..15 become digits 0..16, with unique int keys 0..288.
+                -- Keep radix 17 aligned with that cap; decode only after the original exact edge decisions.
+                SELECT *, (coalesce(x,-1)+1)*17+coalesce(y,-1)+1 AS cell_id FROM cells OFFSET 0
             )
-            SELECT x AS "X", y AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
+            SELECT nullif(cell_id/17-1,-1) AS "X", nullif(cell_id%17-1,-1) AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
                 min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
                 CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId",
                 CASE WHEN count(*) = 1 THEN min("IdempotencyKey"::text) END AS "SingletonUuid"
-            FROM cells GROUP BY x,y ORDER BY x NULLS LAST,y NULLS LAST
+            FROM keyed GROUP BY cell_id ORDER BY "X" NULLS LAST,"Y" NULLS LAST
             """;
         var rows = await db.Database.SqlQueryRaw<HistoryCellRow>(sql, predicate.CopyParameters()).ToListAsync(token);
         var cells = new List<object>();
