@@ -129,7 +129,7 @@ export const createSegmentNotesDraft = (options: {
   const blocked = (): boolean => {
     const message = uncertain.value
       ? 'The earlier Segment save has an unknown outcome. Keep your draft and explicitly review current saved state before saving again.'
-      : routeHeld.value ? 'Route edits began during the Notes save. Keep your route draft and explicitly review/reset current saved state before saving.' : null;
+      : routeHeld.value ? 'Route edits began during the earlier Segment save. Keep your route draft and explicitly review/reset current saved state before saving.' : null;
     if (message) options.applyError(new Error(message), message);
     return message !== null;
   };
