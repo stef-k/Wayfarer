@@ -321,8 +321,16 @@ No browser or provider is needed. The disposable migration fixture owns its data
 The plan probe prepares 10,000 distinct synthetic records through I918-A, then
 records parameterized production predicates, natural EXPLAIN ANALYZE/BUFFERS for
 UTC/viewer/capture/text/geometry and whole-scope uncertainty, plus separately labelled
-forced index eligibility. It makes no endpoint timing or capacity assertion. Retain
+forced index eligibility. Its actual executed overview plan also checks that
+grouping uses compact numeric coordinates instead of expanding PostGIS validation
+and conversion into every edge comparison. It makes no endpoint timing or capacity assertion. Retain
 detailed xUnit output with `--logger 'console;verbosity=detailed'`.
+
+`CollectionReadinessRetainsAllOwnerAndSnapshotGuarantees` checks the request gate
+against another owner's stale generations, terminal unresolved evidence, scanning
+checkpoints, writer identity, missing physical indexes and a concurrent edit across
+a repeatable-read snapshot. Operator totals remain separately covered by the
+existing preparation tests.
 
 I918-C extends the existing routed fixture, without a browser or a benchmark
 framework. `IndependentOverviewRetainsDistantAndCoincidentRecords` qualifies the
@@ -364,3 +372,15 @@ separately replayed database execution, not a subtractable component of that sam
 request. Raw Npgsql detail bypasses EF interception. Cache/JIT, Debug build,
 background activity and in-process TestServer transport must remain explicit.
 Neither a bounded response nor fast first page qualifies complete overview work.
+
+The bounded performance correction repeats the retained workload in
+`/home/stef/.local/share/wayfarer-investigations/918-performance-20261024/`.
+Its `before/` and `after/` use identical probe/seed source and fresh guarded databases;
+`commands.md` records conditions and reproduction. Each contains exactly 158 unique
+intact routed observations. Receipt appends are serialized, and all five four-read
+rounds exclude diagnostic replays. Keep the older collision/recovery and failed
+results as historical evidence. Compare complete routed requests with complete
+routed requests; separate stage calls and natural plan replays retain their own
+labels. Bounded 250 ms application/whole-cluster CPU/RSS sampling includes an explicit
+shared-page caveat for summed PostgreSQL RSS. Report the under-one-second target's
+successes and misses separately from five-second cancellation success.

@@ -110,9 +110,12 @@ imported `TimeZoneId` are preserved; the imported zone does not override coordin
 
 Readiness requires matching target/active/writer identities, valid indexes and zero
 pending rows across every owner. Current-version unresolved time is terminal
-classified evidence, counted separately from pending. I918-B inspects status
-in the response snapshot: capture predicates depend on time readiness, nonempty
-search on text readiness. Affected operations return `historyPreparationRequired`;
+classified evidence, counted separately from pending. Collection reads check the
+required generation identities, physical prerequisites and a single all-owner
+pending-row existence predicate in the response snapshot. They do not compute
+unused operator totals; `history-data status` retains its full progress accounting.
+Capture predicates depend on time readiness, nonempty search on text readiness.
+Affected operations return `historyPreparationRequired`;
 unaffected UTC/viewer/nontext reads and direct detail retain their contracts.
 I918-A exposes no routes or readiness/capability advertisement to consumers.
 
