@@ -19,7 +19,7 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Proves personal routing authority is serialized with proposal Save in PostgreSQL.</summary>
 [Collection(PostgresMigrationTestCollection.Name)]
-public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture fixture)
+public sealed partial class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture fixture)
 {
     [PostgresFact(Timeout = 30_000)]
     public async Task SelectionMutationCommitsFirstAndConcurrentSaveRejectsWithoutChangingSegment()

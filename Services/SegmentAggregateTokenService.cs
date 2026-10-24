@@ -68,7 +68,7 @@ public sealed class SegmentAggregateTokenService
     /// <summary>Only anchor identity, owning scope and exact geometry affect the original route boundary.</summary>
     private static object? Anchor(Place? place) => place == null ? null : new
     {
-        place.Id, place.RegionId, TripId = place.Region?.TripId,
+        place.Id, place.UserId, place.RegionId, TripId = place.Region?.TripId, RegionUserId = place.Region?.UserId,
         Location = place.Location == null ? null : Convert.ToHexString(place.Location.AsBinary())
     };
 

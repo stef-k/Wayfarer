@@ -174,7 +174,7 @@ public sealed partial class SegmentConditionalPostgresTests
         request.Remove("notesHtml");
         request.Remove("aggregateConcurrencyToken");
         request["contract"] = "segment-route-notes-1";
-        request["originalRouteToken"] = JsonSerializer.SerializeToNode(dto, new JsonSerializerOptions(JsonSerializerDefaults.Web))?["originalRouteToken"]?.GetValue<string>() ?? "";
+        request["originalRouteToken"] = dto.OriginalRouteToken;
         if (notes != null)
         {
             request["expected"] = new JsonObject { ["notesHtml"] = dto.OriginalValues!.NotesHtml };

@@ -41,7 +41,7 @@ export class ExternalRouteProposalError extends Error {
   constructor(readonly code: string) { super(code); }
 }
 
-/** Generates a proposal using only the opaque aggregate token as browser input. */
+/** Generates a proposal from pinned route evidence in the strict C4 dialect. */
 export const generateExternalRouteProposal = async (
   tripId: string, segmentId: string, antiforgeryToken: string, originalRouteToken: string | null,
   providerMode: string, signal: AbortSignal

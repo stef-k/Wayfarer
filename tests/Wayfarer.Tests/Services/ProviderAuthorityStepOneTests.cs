@@ -68,7 +68,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         };
 
         var result = await controller.Generate(Guid.NewGuid(), Guid.NewGuid(),
-            new ExternalRouteGenerationRequest("token"), default);
+            System.Text.Json.JsonSerializer.SerializeToElement(new { aggregateConcurrencyToken = "token" }), default);
 
         var rejected = Assert.IsType<UnprocessableEntityObjectResult>(result);
         Assert.Equal("provider-mode-required", Assert.IsType<ExternalRouteErrorDto>(rejected.Value).Code);

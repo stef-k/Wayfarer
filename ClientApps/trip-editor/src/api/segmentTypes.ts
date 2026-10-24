@@ -33,6 +33,7 @@ export interface EditorSegmentNotesConditionalRequest {
   changes: { notesHtml: string };
 }
 
+/** Route/create wire fields; the save owner selects the strict dialect and optional authored Notes. */
 export interface EditorSegmentSaveRequest {
   proposal?: { proposalId: Guid; protectedContext: string; manualDurationOverride: boolean };
   fromPlaceId: Guid | null;
@@ -53,6 +54,7 @@ export interface EditorSegmentSaveRequest {
   changes?: { notesHtml: string };
 }
 
+/** Component-owned route and Notes draft with independently pinned route evidence. */
 export interface EditorSegmentDraft {
   id: Guid | null;
   fromPlaceId: Guid | null;

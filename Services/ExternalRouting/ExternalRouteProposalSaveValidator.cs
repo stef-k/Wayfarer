@@ -47,11 +47,15 @@ public sealed class ExternalRouteProposalSaveValidator(
         Guid? submittedProfileId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Compare the proposal's original route boundary without renewing expiry or accepting a dialect downgrade.
+        var currentOriginal = request.IndependentRoute
+            ? binding.OriginalRouteToken != null && aggregateTokens.MatchesRoute(binding.OriginalRouteToken, segment.UserId, segment.TripId, segment)
+            : binding.OriginalRouteToken == null && aggregateTokens.TryRead(binding.AggregateConcurrencyToken,
+                segment.UserId, segment.TripId, segment.Id, out var version) && version == segment.RowVersion;
         // Compare nullable planning identity without requiring an active catalog choice.
         if (segment.TransportProfileId != binding.TransportProfileId || submittedProfileId != binding.TransportProfileId
             || (binding.TransportProfileId == null && TransportProfile.NormalizeKey(request.Mode) != TransportProfile.NormalizeKey(segment.Mode))
-            || !aggregateTokens.TryRead(binding.AggregateConcurrencyToken, segment.UserId, segment.TripId, segment.Id, out var version)
-            || version != segment.RowVersion)
+            || !currentOriginal)
             return Task.FromResult<string?>("route-proposal-stale");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();

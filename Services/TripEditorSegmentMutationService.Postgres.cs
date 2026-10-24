@@ -223,7 +223,9 @@ public sealed partial class TripEditorSegmentMutationService
                 var fingerprint = SegmentRouteClearConfirmation.Fingerprint(userId, candidateTrip.Id, canonical, request, mode.Value.ProfileId);
                 if (!_routeConfirmation.IsValid(confirmationToken, canonical.Id, fingerprint))
                 {
-                    var issued = _routeConfirmation.Issue(canonical.Id, fingerprint);
+                    // A stale new-dialect consent never receives renewed expiry on the failed attempt.
+                    (string Token, DateTimeOffset ExpiresAt)? issued = !request.IndependentRoute || string.IsNullOrWhiteSpace(confirmationToken)
+                        ? _routeConfirmation.Issue(canonical.Id, fingerprint) : null;
                     var code = string.IsNullOrWhiteSpace(confirmationToken)
                         ? "segment-route-clear-confirmation-required" : "segment-route-clear-confirmation-stale";
                     var current = EditorTripStateMapper.ToSegment(canonical.TripId, canonical,
@@ -231,7 +233,7 @@ public sealed partial class TripEditorSegmentMutationService
                     await transaction.RollbackAsync(CancellationToken.None);
                     return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(
                         new EditorSegmentConflictDto(code, "update", current,
-                            "Saving this anchor change requires clearing the custom route.", issued.ExpiresAt, issued.Token));
+                            "Saving this anchor change requires clearing the custom route.", issued?.ExpiresAt, issued?.Token));
                 }
                 request = request with { Route = null, WaypointRouteVertexIndices = request.WaypointRouteVertexIndices.Select(_ => (int?)null).ToArray() };
             }

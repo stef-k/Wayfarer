@@ -148,20 +148,22 @@ test('one Generate with existing geometry requests a preview without confirmatio
   const { default: component, render } = await loadProposalComponent();
   let requests = 0;
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (_url, init) => {
     requests++;
+    assert.deepEqual(JSON.parse(init.body), { contract: 'segment-route-notes-1', originalRouteToken: 'pinned-original', providerMode: 'drive' });
     return { ok: true, json: async () => ({ segmentId: 'segment', geometry: [
       { longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }] }) };
   };
   let bindings;
   const props = { segment: { id: 'segment', mode: 'Fish', externalRouting: { available: true, modes: [] } },
-    draftMode: 'Fish', draftHasRoute: true, draftContextKey: 'context' };
+    draftMode: 'Fish', draftHasRoute: true, draftContextKey: 'context', originalRouteToken: 'pinned-original' };
   try {
     const html = await renderToString(createSSRApp({ setup() {
       bindings = proxyRefs(component.setup(props, { expose() {}, emit() {} }));
       bindings.selectedProviderMode = 'drive';
       return () => render({}, [], props, bindings, {}, {});
     } }));
+    props.segment.originalRouteToken = 'later-parent-proof';
     const pending = bindings.generate();
     // A confirmation would suspend generation before the production API boundary.
     assert.equal(requests, 1);

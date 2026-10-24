@@ -5,8 +5,8 @@ import { buildSegmentRequest, toSegmentDraft } from './regionPlaceDrafts';
 import { confirm } from '../composables/useConfirmDialog';
 
 /** Existing aggregate fields remain a single intent with their pinned route token, separate from Notes display/originals. */
-const routeIntent = (draft: EditorSegmentDraft): string => {
-  const { notesHtml: _notes, aggregateConcurrencyToken: _token, ...route } = buildSegmentRequest(draft);
+const routeIntent = (draft: EditorSegmentDraft, request = buildSegmentRequest(draft)): string => {
+  const { notesHtml: _notes, aggregateConcurrencyToken: _token, ...route } = request;
   return JSON.stringify({ ...route, transportProfileId: draft.transportProfileId });
 };
 
@@ -82,7 +82,7 @@ export const createSegmentNotesDraft = (options: {
   applied: (result: EditorMutationResult<EditorSegment>) => void;
   saved: () => void;
   buildRequest: () => EditorSegmentSaveRequest;
-  accepted: (result: EditorMutationResult<EditorSegment>, request: EditorSegmentSaveRequest, wasCreate: boolean) => void;
+  accepted: (result: EditorMutationResult<EditorSegment>, wasCreate: boolean) => void;
   showConflict: (conflict: EditorSegmentConflict) => void;
   formId: string;
 }) => {
@@ -108,10 +108,7 @@ export const createSegmentNotesDraft = (options: {
     pin(segment);
   };
 
-  watch([() => routeIntent(draft), options.routeAuthored, () => {
-    const { notesHtml: _notes, aggregateConcurrencyToken: _token, ...route } = options.buildRequest();
-    return JSON.stringify(route);
-  }], () => {
+  watch([() => routeIntent(draft, options.buildRequest()), options.routeAuthored], () => {
     if (pending.value) routeChangedDuringSave = true;
   }, { flush: 'sync' });
   watch(options.current, next => {
@@ -192,11 +189,13 @@ export const createSegmentNotesDraft = (options: {
   };
 
   /** Adopts only a validated complete acknowledgement, retaining any newer Notes obligation. */
-  const acceptComplete = (next: EditorSegment, submitted: EditorSegmentSaveRequest): EditorSegmentDraft => {
+  const acceptComplete = (next: EditorSegment): EditorSegmentDraft => {
     const incoming = toSegmentDraft(next);
     const newer = buildSegmentRequest(draft).notesHtml !== submittedNotes ? draft.notesHtml : null;
     pending.value = false;
     if (routeChangedDuringSave) {
+      // Creation installs only its persisted identity; later route work still requires explicit review/reset.
+      if (!draft.id) draft.id = baseline.value.id = next.id;
       // Later route/proposal work retains its original evidence until explicit review/reset.
       baseline.value.notesHtml = incoming.notesHtml;
       draft.notesHtml = newer ?? incoming.notesHtml;
@@ -237,7 +236,7 @@ export const createSegmentNotesDraft = (options: {
     // Every complete response crosses this boundary before draft, proposal, preview, parent or Saved adoption.
     const accept = (result: EditorMutationResult<EditorSegment>): void => {
       validateComplete(result, tripId, segmentId);
-      options.accepted(result, request, segmentId === null);
+      options.accepted(result, segmentId === null);
     };
     const rows = draft.waypointRows.map(row => ({ ...row }));
     pending.value = isSaving.value = true;

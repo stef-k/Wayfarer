@@ -22,6 +22,10 @@ internal static partial class EditorSegmentRequestParser
         var hasExpected = request.TryGetProperty("expected", out var expected);
         var hasChanges = request.TryGetProperty("changes", out var changes);
         if (hasExpected) StrictFields(expected, ["notesHtml"], errors);
+        var original = default(JsonElement);
+        var hasOriginal = hasExpected && expected.ValueKind == JsonValueKind.Object && expected.TryGetProperty("notesHtml", out original);
+        if (hasOriginal && original.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
+            errors["notesHtml"] = ["Original Notes must be a string or null."];
         if (!hasChanges) return null;
         StrictFields(changes, ["notesHtml"], errors);
         if (changes.ValueKind != JsonValueKind.Object || !changes.TryGetProperty("notesHtml", out var desired)) return null;
@@ -31,8 +35,7 @@ internal static partial class EditorSegmentRequestParser
             errors["notesHtml"] = ["Notes must be a string or null."];
             return null;
         }
-        if (!hasExpected || expected.ValueKind != JsonValueKind.Object || !expected.TryGetProperty("notesHtml", out var original)
-            || original.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
+        if (!hasOriginal || original.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
         {
             errors["notesHtml"] = ["Authored Notes require the exact nullable original."];
             return null;

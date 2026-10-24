@@ -192,7 +192,10 @@ public sealed partial class TripEditorSegmentMutationService
                 parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
 
-        if (parsed.Value!.Proposal != null) return ProposalFailed("route-proposal-transaction-required");
+        if (parsed.Value!.IndependentRoute)
+            return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
+                new() { ["originalRouteToken"] = ["Protected route edits require the relational transaction."] }, "segment-route-transaction-required");
+        if (parsed.Value.Proposal != null) return ProposalFailed("route-proposal-transaction-required");
 
         var submittedVersion = segment.RowVersion;
 
