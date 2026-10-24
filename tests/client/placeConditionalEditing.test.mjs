@@ -60,8 +60,11 @@ const createdId = '10000000-0000-0000-0000-000000000001';
 const creationReply = (overrides = {}) => {
   const next = place({ id: createdId, name: 'New Place', displayOrder: 2, ...overrides });
   next.visitSummary = { ...next.visitSummary, placeId: next.id };
+  next.capabilities = { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: true, canAddChildren: false, canTargetForSearchAdd: false };
   const result = envelope(next);
   result.contract = 'bd2-1';
+  result.affected.visitProgress = { totalPlaces: 2, visitedPlaces: 0, percentVisited: 0,
+    placeSummariesByPlaceId: { place: place().visitSummary, [next.id]: next.visitSummary }, historyRows: [] };
   result.affected.placeOrdersByRegionId.region = ['place', createdId];
   return result;
 };

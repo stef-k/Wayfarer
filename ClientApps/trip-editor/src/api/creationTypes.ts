@@ -39,6 +39,7 @@ const orderedIds = (rows: { id: string; displayOrder: number | null }[]): string
   a.displayOrder === null ? b.displayOrder === null ? a.id.localeCompare(b.id) : 1
     : b.displayOrder === null ? -1 : a.displayOrder - b.displayOrder || a.id.localeCompare(b.id)).map(row => row.id);
 const empty = (value: unknown): boolean => Array.isArray(value) && value.length === 0;
+const capabilityFields = ['canEdit', 'canRename', 'canDelete', 'canReorder', 'canMove', 'canAddChildren', 'canTargetForSearchAdd'] as const;
 
 /** Checks the operation contract and exact acknowledged creation footprint before any state adoption. */
 export const validateRegionCreation = (result: EditorMutationResult<EditorRegion>, tripId: string, submitted: RegionCreationRequest): void => {
@@ -56,13 +57,15 @@ export const validateRegionCreation = (result: EditorMutationResult<EditorRegion
     || !nullableText(next.originalValues.notesHtml) || !same(next.center, submitted.value.center)
     || !same(next.originalValues.center, next.center) || !same(next.originalValues.coverImage, submitted.value.coverImage?.rawUrl?.trim() ? { rawUrl: submitted.value.coverImage.rawUrl.trim() } : null)
     || (next.coverImage?.rawUrl ?? null) !== (submitted.value.coverImage?.rawUrl?.trim() || null)
-    || !next.capabilities || !['canEdit', 'canDelete', 'canAddChildren'].every(key => typeof next.capabilities[key as keyof typeof next.capabilities] === 'boolean')
+    || !(next.coverImage === null || next.coverImage && typeof next.coverImage.rawUrl === 'string' && typeof next.coverImage.proxiedUrl === 'string')
+    || !next.capabilities || !capabilityFields.every(key => typeof next.capabilities[key] === 'boolean')
     || !Array.isArray(affected?.regions) || affected.regions.length !== 1 || !same(affected.regions[0], next)
     || !same(affected.regionOrder, orderedIds([...originals, { id: next.id, displayOrder: expectedOrder }]))
     || !same(affected.placeOrdersByRegionId, { [next.id]: [] }) || !same(affected.areaOrdersByRegionId, { [next.id]: [] })
     || !['places', 'areas', 'segments', 'tags'].every(key => empty(affected[key as keyof typeof affected]))
     || [affected.metadata, affected.segmentOrder, affected.tagOrder, affected.visitProgress, affected.options].some(value => value !== null)
-    || !Object.values(result.deletedIds ?? {}).every(empty) || Object.keys(result.deletedIds ?? {}).length !== 5
+    || !['regions', 'places', 'areas', 'segments', 'tags'].every(key => empty(result.deletedIds?.[key as keyof typeof result.deletedIds]))
+    || Object.keys(result.deletedIds ?? {}).length !== 5
     || !empty(result.warnings)) throw new Error('The Region creation acknowledgement is incomplete. Keep the draft; the creation outcome is unknown.');
 };
 
@@ -74,6 +77,8 @@ export const validatePlaceCreation = (result: EditorMutationResult<EditorPlace>,
   const orders = originals.map(place => place.displayOrder).filter(value => value !== null);
   const expectedOrder = (orders.length ? Math.max(...orders) : 0) + 1;
   if (result.contract !== 'bd2-1' || !guid(result.data.id) || ids.includes(result.data.id)
+    || !capabilityFields.every(key => typeof result.data.capabilities[key] === 'boolean')
+    || !result.affected.visitProgress || !same(result.affected.visitProgress.placeSummariesByPlaceId[result.data.id], result.data.visitSummary)
     || result.data.displayOrder !== expectedOrder || result.data.originalValues?.displayOrder !== expectedOrder
     || !same(result.affected.placeOrdersByRegionId[submitted.expected.regionId], orderedIds([...originals, { id: result.data.id, displayOrder: expectedOrder }]))
     || result.data.name !== submitted.value.name.trim() || !same(result.data.location, submitted.value.location)

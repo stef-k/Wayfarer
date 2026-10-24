@@ -105,7 +105,10 @@ export function usePlaceEditorActions(context: any) {
   const savePlaceDraft = async (): Promise<void> => {
     if (context.isSaving.value || !context.placeDraft.regionId) return;
     if (owner.uncertain.value || !context.placeDraft.id && owner.creationUncertain.value) {
-      context.applyError(new Error('The earlier Place save has an unknown outcome. Keep your draft, review current state and an ordinary refresh cannot establish whether creation committed. Do not replay an uncertain creation.'), 'Place save held.');
+      const message = !context.placeDraft.id && owner.creationUncertain.value
+        ? 'The earlier Place creation has an unknown outcome and may have committed. Keep your draft. A refresh cannot prove noncommit; do not replay this creation.'
+        : 'The earlier Place save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.';
+      context.applyError(new Error(message), 'Place save held.');
       return;
     }
     const placeId = context.placeDraft.id;
@@ -146,7 +149,7 @@ export function usePlaceEditorActions(context: any) {
       context.placeCreateBaselineRequest.value = null;
       context.placeCreateBaselineDraft.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
-      if (!owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
+      if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
     } catch (error) {
       if (!currentAttempt()) return;
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError

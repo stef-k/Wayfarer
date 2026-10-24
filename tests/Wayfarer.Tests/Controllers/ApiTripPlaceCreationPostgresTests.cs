@@ -36,6 +36,7 @@ public sealed class ApiTripPlaceCreationPostgresTests(PostgresImportTestFixture 
         await using var app = await StartAsync(db);
         using var client = await ClientAsync(app, region.UserId, web);
         var regions = await RegionOriginalsAsync(region.TripId);
+        var before = await FootprintAsync(region.UserId);
         using var createRegion = await client.PostAsJsonAsync(RegionUrl(region, web), new { expected = new { regions }, value = RegionValue(web) });
         Assert.True(createRegion.IsSuccessStatusCode, await createRegion.Content.ReadAsStringAsync());
         var regionReply = await createRegion.Content.ReadFromJsonAsync<JsonElement>();
@@ -43,13 +44,18 @@ public sealed class ApiTripPlaceCreationPostgresTests(PostgresImportTestFixture 
         var regionId = regionReply.GetProperty(web ? "data" : "region").GetProperty("id").GetGuid();
         Assert.DoesNotContain(regions, original => original.Id == regionId);
         var places = await PlaceOriginalsAsync(region.Id);
-        var before = await FootprintAsync(region.UserId);
         var originalStamp = await db.Trips.AsNoTracking().Where(t => t.Id == region.TripId).Select(t => t.UpdatedAt).SingleAsync();
         using var createPlace = await client.PostAsJsonAsync(PlaceUrl(region, web), new { expected = new { regionId = region.Id, places }, value = PlaceValue(web, region.Id) });
         Assert.True(createPlace.IsSuccessStatusCode, await createPlace.Content.ReadAsStringAsync());
         var placeReply = await createPlace.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("bd2-1", placeReply.GetProperty("contract").GetString());
         var placeId = placeReply.GetProperty(web ? "data" : "place").GetProperty("id").GetGuid();
+        if (web)
+        {
+            Assert.Equal(4, placeReply.GetProperty("affected").GetProperty("visitProgress").GetProperty("totalPlaces").GetInt32());
+            Assert.Equal(placeId, placeReply.GetProperty("affected").GetProperty("placeOrdersByRegionId").GetProperty(region.Id.ToString())[2].GetGuid());
+        }
+        else Assert.Equal(placeId, placeReply.GetProperty("placeOrder")[2].GetProperty("id").GetGuid());
         await using var fresh = fixture.CreateContext();
         var stored = await fresh.Places.SingleAsync(p => p.Id == placeId);
         Assert.Equal((region.Id, "Created Place", 5, "marker", "bg-blue", 0d, 0d),
@@ -371,7 +377,7 @@ public sealed class ApiTripPlaceCreationPostgresTests(PostgresImportTestFixture 
             RouteProvider = "retained", RouteAttribution = "Existing attribution", EstimatedDistanceKm = 12.5, EstimatedDuration = TimeSpan.FromMinutes(17), EstimatedDurationSource = EstimatedDurationSource.Manual };
         segment.Waypoints.Add(new SegmentWaypoint { Segment = segment, Place = siblings[2], Position = 0, RouteVertexIndex = 1 });
         db.Segments.Add(segment);
-        db.Locations.Add(new Wayfarer.Models.Location { UserId = user.Id, TimeZoneId = "UTC", Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified), Coordinates = new Point(2, 3) { SRID = 4326 }, Address = "History address" });
+        db.Locations.Add(new Wayfarer.Models.Location { UserId = user.Id, TimeZoneId = "UTC", Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, Coordinates = new Point(2, 3) { SRID = 4326 }, Address = "History address" });
         db.ApiTokens.Add(new ApiToken { UserId = user.Id, User = null!, Name = "853 creation", TokenHash = ApiTokenService.HashToken(user.Id) });
         await db.SaveChangesAsync();
         return region;

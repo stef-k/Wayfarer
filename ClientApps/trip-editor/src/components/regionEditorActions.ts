@@ -77,7 +77,10 @@ export function useRegionEditorActions(context: any) {
   const saveDraft = async (): Promise<void> => {
     if (context.isSaving.value) return;
     if (owner.uncertain.value || !context.draft.id && owner.creationUncertain.value) {
-      context.applyError(new Error('The earlier Region save has an unknown outcome. Keep your draft, review current state and an ordinary refresh cannot establish whether creation committed. Do not replay an uncertain creation.'), 'Region save held.');
+      const message = !context.draft.id && owner.creationUncertain.value
+        ? 'The earlier Region creation has an unknown outcome and may have committed. Keep your draft. A refresh cannot prove noncommit; do not replay this creation.'
+        : 'The earlier Region save has an unknown outcome. Keep your draft, review current state and explicitly reset before another attempt.';
+      context.applyError(new Error(message), 'Region save held.');
       return;
     }
     if (held()) { context.applyError(new Error('An earlier Region deletion has an unresolved outcome. Reconcile it before changing Regions.'), 'Region operation held.'); return; }
@@ -113,7 +116,7 @@ export function useRegionEditorActions(context: any) {
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.regionCreateBaselineRequest.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activeRegionTarget.value);
-      if (Object.keys(owner.request().changes).length === 0) context.markSaved();
+      if (!owner.creationUncertain.value && Object.keys(owner.request().changes).length === 0) context.markSaved();
     } catch (error) {
       if (!currentAttempt()) return;
       // A transport/server failure is not evidence of no effect. Preserve even a newer reversal to the old base.

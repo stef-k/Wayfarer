@@ -234,7 +234,7 @@ const createdRegionId = '20000000-0000-0000-0000-000000000002';
 /** Mirrors the committed creation projection, including exact membership effects and originals. */
 const createdRegionReply = () => {
   const data = region({ id: createdRegionId, name: 'New Region', notesHtml: '', coverImage: null, center: null,
-    displayOrder: 2, capabilities: { canEdit: true, canDelete: true, canAddChildren: true } });
+    displayOrder: 2, capabilities: { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: false, canAddChildren: true, canTargetForSearchAdd: true } });
   return { contract: 'bd2-1', success: true, data, affected: { metadata: null, regions: [data], regionOrder: ['region', createdRegionId],
     places: [], placeOrdersByRegionId: { [createdRegionId]: [] }, areas: [], areaOrdersByRegionId: { [createdRegionId]: [] },
     segments: [], segmentOrder: null, tags: [], tagOrder: null, visitProgress: null, options: null },
