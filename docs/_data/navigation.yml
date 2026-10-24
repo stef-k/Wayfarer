@@ -24,6 +24,8 @@ sections:
     items:
       - title: Start here
         url: /self-hosting/
+      - title: Hardware and history performance
+        url: /self-hosting/performance.html
       - title: Operations
         url: /self-hosting/operations.html
       - title: Troubleshooting

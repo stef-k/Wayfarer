@@ -46,6 +46,10 @@ Prepare a host with:
 Remote Docker contexts, Docker Desktop and rootless Docker are outside the accepted
 production topology.
 
+For host sizing, measured history latency, protective limits and index-upgrade
+requirements, read [Hardware and history performance](performance.md). Its local
+workstation measurements do not establish minimum hardware or production capacity.
+
 For **managed HTTPS**, also prepare a public DNS hostname that resolves to the host
 and make 80/TCP, 443/TCP and 443/UDP available. If you already operate a reverse
 proxy, use external mode instead.

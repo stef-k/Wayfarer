@@ -25,6 +25,7 @@ with the [User Guide](user/index.md) for accounts, privacy and your first action
 For installing and operating your own instance, start with the
 [Self-hosting guide](self-hosting/index.md).
 
+- [Hardware and history performance](self-hosting/performance.md): measured workloads, host planning, protective limits and upgrade requirements.
 - [Operations](self-hosting/operations.md): status, lifecycle, logs, account recovery, backup, update and restore.
 - [Troubleshooting](self-hosting/troubleshooting.md): symptom-first safe checks and recovery paths.
 - [wayfarerctl reference](self-hosting/wayfarerctl.md): exact commands and refusal/recovery semantics.
