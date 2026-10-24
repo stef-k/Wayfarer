@@ -142,6 +142,34 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
             state?.Prepared ?? 0, state?.LastId ?? 0, indexes, state?.LastFailure);
     }
 
+    /// <summary>
+    /// Checks only collection prerequisites in the caller's snapshot. A single all-owner pending probe covers
+    /// both required generations; operator totals and terminal unresolved counts are not needed to admit a read.
+    /// </summary>
+    internal async Task<bool> IsReadyAsync(bool time, bool text, CancellationToken token)
+    {
+        if (!time && !text) return true;
+        var states = await db.HistoryPreparationStates.AsNoTracking()
+            .Where(state => time && state.Kind == "time" || text && state.Kind == "text").ToListAsync(token);
+        foreach (var kind in new[] { "time", "text" })
+        {
+            if (kind == "time" ? !time : !text) continue;
+            var state = states.SingleOrDefault(item => item.Kind == kind);
+            if (state?.Ready != true || state.ActiveVersion != Version(kind) || state.TargetVersion != Version(kind)
+                || state.WriterVersion != WriterVersion) return false;
+        }
+        if (!await IndexesReadyAsync(token)) return false;
+        var timeState = states.SingleOrDefault(state => state.Kind == "time");
+        var textState = states.SingleOrDefault(state => state.Kind == "text");
+        var timeScanning = timeState?.Scanning ?? false; var timeLastId = timeState?.LastId ?? 0;
+        var textScanning = textState?.Scanning ?? false; var textLastId = textState?.LastId ?? 0;
+        return !await db.Locations.AnyAsync(row =>
+            time && (row.HistoryTimeVersion == null || row.HistoryTimeVersion != LocationHistoryDerivation.TimeVersion
+                || timeScanning && row.Id > timeLastId)
+            || text && (row.HistoryTextVersion == null || row.HistoryTextVersion != LocationHistoryDerivation.TextVersion
+                || textScanning && row.Id > textLastId), token);
+    }
+
     /// <summary>Checks valid/ready physical index definitions, not just names, and the required trigram extension.</summary>
     internal Task<bool> IndexesReadyAsync(CancellationToken token) => db.Database.SqlQueryRaw<bool>("""
         SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_trgm')

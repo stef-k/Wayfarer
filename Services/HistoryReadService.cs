@@ -21,8 +21,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         }
         cursors.Read(owner, query, HistoryCursor.ScopeKey(owner, query.Scope));
         var preparation = new LocationHistoryPreparation(db);
-        if (query.Scope.TimeBasis == "capture" && !(await preparation.StatusAsync("time", token)).Ready
-            || query.Scope.Q.Length != 0 && !(await preparation.StatusAsync("text", token)).Ready)
+        if (!await preparation.IsReadyAsync(query.Scope.TimeBasis == "capture", query.Scope.Q.Length != 0, token))
             throw new HistoryRequestException("historyPreparationRequired", 503);
     }
 
@@ -77,7 +76,11 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         return result;
     }
 
-    /// <summary>Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.</summary>
+    /// <summary>
+    /// Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.
+    /// Streaming OFFSET 0 boundaries reuse numeric extraction and range validation before edge comparisons
+    /// during planning/JIT. They neither limit matches nor materialize an all-match temporary store.
+    /// </summary>
     internal async Task<object> OverviewAsync(string owner, HistoryQuery query, CancellationToken token)
     {
         var key = HistoryCursor.ScopeKey(owner, query.Scope);
@@ -88,22 +91,34 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         var latitudes = PartitionEdges(area.South, area.North, area.North - area.South, query.Grid, false);
         var x = CellIndex(predicate, longitudes, true); var y = CellIndex(predicate, latitudes, false);
         var west = predicate.Add(area.West);
+        // Geography storage is point-typed; retain the empty/SRID guard before extracting either ordinate.
+        var point = "CASE WHEN NOT ST_IsEmpty(l.\"Coordinates\"::geometry) AND ST_SRID(l.\"Coordinates\"::geometry) = 4326 THEN l.\"Coordinates\"::geometry END";
+        const string valid = "raw_lon BETWEEN -180 AND 180 AND raw_lat BETWEEN -90 AND 90";
         var sql = $"""
             WITH matches AS (
                 SELECT l."Id", l."IdempotencyKey", l."LocalTimestamp",
-                    CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS lon,
-                    CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Latitude} END AS lat
+                    ST_X({point}) AS raw_lon, ST_Y({point}) AS raw_lat
                 FROM "Locations" l WHERE {predicate.Where} AND {predicate.Matches}
+                OFFSET 0
+            ), positions AS (
+                SELECT "Id", "IdempotencyKey", "LocalTimestamp",
+                    CASE WHEN {valid} THEN CASE WHEN raw_lon = 180 THEN -180.0 ELSE raw_lon END END AS lon,
+                    CASE WHEN {valid} THEN raw_lat END AS lat
+                FROM matches OFFSET 0
             ), unwrapped AS (
-                SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM matches
+                SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM positions
             ), cells AS (
                 SELECT *, {x} AS x, {y} AS y FROM unwrapped
+            ), keyed AS (
+                -- HistoryQuery caps grids at 16: null/0..15 become digits 0..16, with unique int keys 0..288.
+                -- Keep radix 17 aligned with that cap; decode only after the original exact edge decisions.
+                SELECT *, (coalesce(x,-1)+1)*17+coalesce(y,-1)+1 AS cell_id FROM cells OFFSET 0
             )
-            SELECT x AS "X", y AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
+            SELECT nullif(cell_id/17-1,-1) AS "X", nullif(cell_id%17-1,-1) AS "Y", count(*) AS "Count", min(ux) AS "West", max(ux) AS "East",
                 min(lat) AS "South", max(lat) AS "North", min("LocalTimestamp") AS "Earliest", max("LocalTimestamp") AS "Latest",
                 CASE WHEN count(*) = 1 THEN min("Id") END AS "SingletonId",
                 CASE WHEN count(*) = 1 THEN min("IdempotencyKey"::text) END AS "SingletonUuid"
-            FROM cells GROUP BY x,y ORDER BY x NULLS LAST,y NULLS LAST
+            FROM keyed GROUP BY cell_id ORDER BY "X" NULLS LAST,"Y" NULLS LAST
             """;
         var rows = await db.Database.SqlQueryRaw<HistoryCellRow>(sql, predicate.CopyParameters()).ToListAsync(token);
         var cells = new List<object>();
