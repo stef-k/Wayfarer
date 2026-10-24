@@ -323,7 +323,11 @@ records parameterized production predicates, natural EXPLAIN ANALYZE/BUFFERS for
 UTC/viewer/capture/text/geometry and whole-scope uncertainty, plus separately labelled
 forced index eligibility. Its actual executed overview plan also checks that
 grouping uses compact numeric coordinates instead of expanding PostGIS validation
-and conversion into every edge comparison. It makes no endpoint timing or capacity assertion. Retain
+and conversion into every edge comparison. `OverviewRetainsEveryCellAcrossAllSupportedGridSizes`
+checks every occupied cell, decoded bounds/order, singleton and unmapped accounting
+at each supported grid from 1 through 16, and rejects a grid beyond that bound.
+The nullable digits fit radix 17 and keys 0–288 in PostgreSQL's integer type.
+These checks make no endpoint timing or capacity assertion. Retain
 detailed xUnit output with `--logger 'console;verbosity=detailed'`.
 
 `CollectionReadinessRetainsAllOwnerAndSnapshotGuarantees` checks the request gate
@@ -384,3 +388,16 @@ routed requests; separate stage calls and natural plan replays retain their own
 labels. Bounded 250 ms application/whole-cluster CPU/RSS sampling includes an explicit
 shared-page caveat for summed PostgreSQL RSS. Report the under-one-second target's
 successes and misses separately from five-second cancellation success.
+
+The compact-cell follow-up retains the read-only query-shape investigation at
+`/home/stef/.local/share/wayfarer-investigations/918-query-shape-20261024/`.
+Its full response/filter/detail and five four-read comparisons remain reusable;
+the compact key did not demonstrate a concurrency improvement. The bounded
+production repeat is in
+`/home/stef/.local/share/wayfarer-investigations/918-compact-cell-20261024/`:
+broad, recurring/common-text and combined Tokyo overviews at both retained scales,
+plus the same 500-row post-write control. It compares unchanged production SQL
+with only the previous two-key grouping reconstructed on the same guarded fixture.
+Do not repeat the unaffected broad matrix or attribute whole-cluster CPU/RSS to
+these queries. Keep raw plan temporary I/O, query time and routed time separate;
+the five-second deadline and every match/filter/readiness rule remain unchanged.

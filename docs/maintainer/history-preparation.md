@@ -204,7 +204,7 @@ production population/headroom remain separate. I918-C routed evidence follows b
 
 ## Routed qualification and readiness limitation (#918 I918-C)
 
-The bounded performance correction retains the existing routes, prepared-data
+The earlier timeout correction retains the existing routes, prepared-data
 architecture, shared representable partition edges, complete filters, uncertainty
 and five-second cancellation. Overview SQL streams numeric extraction and validation
 through subquery boundaries before exact edge comparisons; the actual grouping
@@ -254,8 +254,8 @@ shrink from 35,181 characters to about 3,480 without repeated coordinate express
 Execution work improves as well as compilation. The large aggregate still examines
 the 1,471,680-row relation and reads about 247,913 shared blocks. Its external sort
 writes 15,973 temporary 8 KiB blocks (about 125 MiB), up from 10,061 before; the
-small aggregate no longer spills. This remaining spill is not hidden by the latency
-improvement or by changing work_mem.
+small aggregate no longer spills. These are the earlier correction's measurements;
+the compact-cell follow-up below removes the remaining broad spill without changing work_mem.
 
 Readiness remains a required all-owner scan: the combined pending probe takes
 about 361 ms in the large recurring/common plan. Its exact uncertainty count still
@@ -263,21 +263,21 @@ takes about 1,085 ms and the complete aggregate about 931 ms in separate natural
 replays. The Tokyo candidate plan has lossy bitmap rechecks; its count takes about
 1,232 ms. These are remaining concrete query-work costs, not serialization costs.
 Further target work needs a separately bounded investigation of those repeated
-required scans and aggregation spill/access paths; no new indexes, fused query
-architecture or weakened readiness is approved by this correction.
+required scans and filtered aggregation spill/access paths; no new indexes, fused
+query architecture or weakened readiness is approved by either correction.
 
-The equal-shape concurrent trial uses 169.15 → 110.90 PostgreSQL CPU seconds over
-25.16 → 16.18 wall seconds. Application peak RSS is 393 → 436 MiB; summed cluster
-PostgreSQL peak RSS is 2,664 → 2,730 MiB. The latter double-counts shared pages and
-is an upper bound, not private allocation. Sampling is every 250 ms and includes
-cluster background work. CPU falls with slightly higher memory peaks and unchanged
-admission/worker/memory settings; no memory reduction or sustained capacity is claimed.
+Historical whole-cluster samples retain 169.15 → 110.90 PostgreSQL CPU seconds and
+2,664 → 2,730 MiB summed RSS over 25.16 → 16.18 wall seconds. They include background
+work and double-count shared pages, so they are excluded from attributable query
+CPU/private-memory claims. Direct application peak RSS is 393 → 436 MiB. Admission,
+worker and memory settings are unchanged; no memory reduction or sustained capacity
+is established. The compact key's separate concurrency result below remains unproven.
 
 After the same 500 tracked address edits without explicit vacuum, all corrected
 post-write routes succeed: broad overview 1,933–2,013 ms, recurring/common
 2,380–2,480 ms. The count's covering index has 716 heap fetches versus two in the
 prepared observation. The separate post-write broad aggregate takes 1,567 ms and
-retains the large sort spill. These do not qualify write throughput improvements.
+retains the large sort spill at that stage. These do not qualify write throughput improvements.
 Complete long detail remains 1,203,344/1,203,347 response bytes; the observed
 serialization work is about 2–3 ms, with no truncation or invented unavailable facts.
 
@@ -287,6 +287,45 @@ SQL/plans/buffers/rechecks and reproducible commands are in
 The original failure report remains at
 `/home/stef/.local/share/wayfarer-investigations/918-20261024/i918-c/`.
 See [testing and evidence classification](../development/testing.md#personal-history-reads-918-i918-bc).
+
+### Compact cell grouping follow-up
+
+The subsequent change groups the existing exact X/Y decisions by one reversible
+integer key, then decodes and sorts the completed cells with the original null
+ordering. Nullable positions become digits 0–16 in radix 17; keys 0–288 are unique
+and safely fit PostgreSQL integers for every supported grid (1–16). Exact shared
+edges, every match/count/extremum, sparse geography, singleton facts, uncertainty,
+all-owner readiness, response snapshots, authority and deadlines remain unchanged.
+There is no epsilon, sampling, new index, schema or planner-setting change.
+
+The retained query-shape investigation is
+`/home/stef/.local/share/wayfarer-investigations/918-query-shape-20261024/`.
+Its final three-repetition SQL comparison has large broad medians 1,508 → 1,295 ms
+(about 14%); the small broad median is essentially unchanged, 403 → 402 ms.
+The large broad plan changes from sorting all 1,051,200 matches to a one-batch
+40 KiB hash aggregate and a 25 KiB sort of six completed cells. Temporary writes
+fall from 15,973 8 KiB blocks (124.79 MiB) to zero; the former sort's peak disk
+footprint is 63,816 KiB, a different measure. All 1,471,680 relation rows are still
+examined and 247,914 shared blocks touched. Buffer reads do not prove disk reads.
+
+The investigation's warm large broad routed range is 1,846–1,879 → 1,656–1,705 ms.
+Sequential measurements straddle a background memory release, so this full
+latency difference cannot be attributed solely to the key. Its paired post-write
+large broad SQL observation is 1,485 → 1,237 ms with identical shared-block totals
+and 15,973 → zero temporary writes; routed ranges are 1,873–1,918 → 1,722–1,795 ms.
+The modest latency gain leaves the query-plus-projection target unmet. Filtered
+recurring/common aggregation still spills 668 temporary blocks, and readiness and
+uncertainty scans remain material. No gain is claimed for the selective shapes.
+
+Reuse the investigation's 126 exact aggregate parity receipts, 50 complete routed
+response pairs and unchanged lower-seam time/text/filter evidence. Its five
+alternating four-read rounds all succeed, but summed makespans are 16.15 → 16.65 s;
+the compact key demonstrates no concurrency/throughput improvement. No attributable
+PostgreSQL CPU/private-memory reduction is established. These read-only prototype
+results motivated the delivery change; they are not independent review or I918-C
+acceptance. The bounded production repeat, commands, response parity and plans are
+retained separately in
+`/home/stef/.local/share/wayfarer-investigations/918-compact-cell-20261024/`.
 
 A data-ready receipt proves generation/index/pending prerequisites, not performance.
 The reviewed finite year-0001 capture limitation remains honestly unresolved while

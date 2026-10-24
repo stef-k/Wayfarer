@@ -117,8 +117,10 @@
   projections before exact shared-edge comparisons; check all-owner collection
   readiness without unused operator totals. Comparable routed qualification has
   zero failures in 158 requests, including twenty concurrent reads, while retaining
-  the five-second deadline and full contracts. Report remaining sub-second misses,
-  large-query spills and resource observations in the history runbook.
+  the five-second deadline and full contracts. A subsequent reversible integer
+  cell key removes the representative large broad overview's temporary-sort spill,
+  with modest latency improvement. Sub-second misses and filtered spills remain;
+  concurrency improvement from the cell key is unproven. See the history runbook.
 
 - Retain unresolved Trip Settings sharing attempts and the latest choice even
   when a newer disable matches the old baseline. Preserve navigation protection,
