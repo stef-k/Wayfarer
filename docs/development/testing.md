@@ -349,7 +349,9 @@ guarded disposable migration fixture and actual registered MVC routes, with
 single-purpose probe/source, exact commands, raw response examples, stage timings,
 parameterized SQL/plans and failed attempts are preserved under
 `/home/stef/.local/share/wayfarer-investigations/918-20261024/i918-c/`.
-The receipt's `commands.md` explains reproduction; only its project-reference
+The corrected scale receipt is in `qualified/`; superseded root-level attempts
+are explicitly excluded from agreed full-period qualification. The receipt's
+`commands.md` explains reproduction; only its project-reference
 checkout path needs adjustment. It requires the established guarded connection,
 not a production database. Scale seeding generates prepared synthetic values and
 checks representative samples against production derivation; it is not backfill

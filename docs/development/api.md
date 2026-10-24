@@ -709,7 +709,8 @@ SQL, projection and buffered JSON before success; remaining-time cancellation al
 reaches SQL. These are initial protective engineering defaults, not a production
 latency/capacity promise. Disconnects cancel work; incomplete evaluation never
 becomes a partial successful page/overview. I918-C proves the complete large-detail
-witness above, but its 1,051,200-record ordinary broad overview exceeds this budget.
+witness above, but ordinary full-period overviews at both agreed owner scales
+(210,240 and 1,051,200 records) exceed this budget.
 Backend #918 acceptance remains unsupported pending a separately assigned correction;
 see the [measured readiness limitation](../maintainer/history-preparation.md#routed-qualification-and-readiness-limitation-918-i918-c).
 Small-fixture plan timings and successful chronology pages do not override it.

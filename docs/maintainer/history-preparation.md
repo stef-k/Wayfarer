@@ -203,9 +203,10 @@ production population/headroom remain separate. I918-C routed evidence follows b
 
 The actual routed trial at production revision
 `c4196b94fe10b5bdfdeba471ea2cc6e5b8d01c5d` exposes an unmet performance requirement:
-the 1,051,200-record owner's ordinary full-period UTC overview returned
-503 `historyBudgetExceeded` in all three first/warm observations (about five
-seconds each). Its first chronology page completed around 0.42 seconds. A fast
+both 210,240 and 1,051,200-record owners' ordinary full-period UTC overviews
+returned 503 `historyBudgetExceeded` in all three first/warm observations (about
+five seconds each). The corrected five-minute fixture verifies all requested owner
+rows lie within that period. A fast
 page therefore does not qualify the independently usable complete overview.
 No filter, sparse destination, result or protective limit was weakened.
 
@@ -216,6 +217,18 @@ TestServer evidence on WSL2, with warm OS cache and no true disk-cold, network,
 production-host or sustained-load qualification. Prepared fixture insertion is not
 measured backfill throughput. Affected ordinary workloads cannot yet be declared
 accepted merely because the preparation command reports data ready.
+
+The captured 210,240-owner broad aggregate's separate natural plan took 7.73 seconds,
+including 6.82 seconds of PostgreSQL JIT compilation. The larger aggregate takes
+28.44 seconds, including 7.00 seconds of JIT, so compilation is not its only cost.
+The pure four-read rounds return nine 503s across sixteen requests. A separate
+diagnostic round and one console-recovered log observation are classified in the
+retained report. After 500 tracked address edits without vacuum, the count plan
+reports 716 heap fetches versus zero prepared; all post-write broad reads still
+time out. Readiness also performs
+all-owner operational counts on collection requests. These are measured query costs;
+prior prototype timings do not qualify these endpoints. A separate correction must
+retain complete predicates, uncertainty and the reviewed exact partition edges.
 
 A data-ready receipt verifies versions, pending rows, writers and physical indexes;
 it is not a performance/capacity receipt. Preserve its normal gates during any

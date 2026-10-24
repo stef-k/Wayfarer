@@ -6,7 +6,7 @@
 
 - Qualify #918 I918-C backend map-first composition and complete multilingual
   Notes/address/provenance responses, with reproducible API examples and routed
-  synthetic scale evidence. Record the unmet broad-overview performance requirement;
+  synthetic scale evidence. Record unmet overview and concurrent-read performance requirements;
   backend acceptance, independent review and mobile/deployed qualification remain
   outstanding. No production behavior or protective limit changes.
 - Add active-owner bearer personal history pages, independently paged unresolved
