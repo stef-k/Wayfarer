@@ -21,8 +21,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         }
         cursors.Read(owner, query, HistoryCursor.ScopeKey(owner, query.Scope));
         var preparation = new LocationHistoryPreparation(db);
-        if (query.Scope.TimeBasis == "capture" && !(await preparation.StatusAsync("time", token)).Ready
-            || query.Scope.Q.Length != 0 && !(await preparation.StatusAsync("text", token)).Ready)
+        if (!await preparation.IsReadyAsync(query.Scope.TimeBasis == "capture", query.Scope.Q.Length != 0, token))
             throw new HistoryRequestException("historyPreparationRequired", 503);
     }
 
@@ -77,7 +76,11 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         return result;
     }
 
-    /// <summary>Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.</summary>
+    /// <summary>
+    /// Groups every definite coordinate in PostgreSQL; geography is independent of chronology traversal.
+    /// The streaming OFFSET 0 boundary keeps validated numeric coordinates from expanding into every edge
+    /// comparison during planning/JIT. It neither limits matches nor materializes an all-match temporary store.
+    /// </summary>
     internal async Task<object> OverviewAsync(string owner, HistoryQuery query, CancellationToken token)
     {
         var key = HistoryCursor.ScopeKey(owner, query.Scope);
@@ -94,6 +97,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
                     CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END AS lon,
                     CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Latitude} END AS lat
                 FROM "Locations" l WHERE {predicate.Where} AND {predicate.Matches}
+                OFFSET 0
             ), unwrapped AS (
                 SELECT *, CASE WHEN lon < {west} THEN lon + 360 ELSE lon END AS ux FROM matches
             ), cells AS (

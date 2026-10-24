@@ -126,6 +126,58 @@ public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fi
         Assert.False(await db.Locations.AnyAsync(item => item.Id == row.Id));
     }
 
+    /// <summary>Collection gates retain all-owner generations, scanning checkpoints, physical indexes and snapshot isolation.</summary>
+    [PostgresFact]
+    public async Task CollectionReadinessRetainsAllOwnerAndSnapshotGuarantees()
+    {
+        var owner = await fixture.CreateUserAsync(); var other = await fixture.CreateUserAsync();
+        var row = Row(other.Id); row.Coordinates = new Point(double.NaN, double.NaN) { SRID = 4326 };
+        await using var db = fixture.CreateContext(); db.AddRange(Row(owner.Id), row); await db.SaveChangesAsync();
+        var service = new LocationHistoryPreparation(db);
+        foreach (var kind in new[] { "time", "text" })
+        {
+            await service.BeginAsync(kind, false, default);
+            while (!await service.PrepareBatchAsync(kind, default)) { }
+        }
+        Assert.True(await service.IsReadyAsync(true, true, default)); // Current unresolved evidence is terminal, not pending.
+        await using (var snapshot = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead))
+        {
+            Assert.True(await service.IsReadyAsync(true, true, default));
+            await using var edit = fixture.CreateContext();
+            await edit.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.HistoryTimeVersion, "old").SetProperty(item => item.HistoryTextVersion, "old"));
+            Assert.True(await service.IsReadyAsync(true, true, default));
+            await snapshot.RollbackAsync();
+        }
+        Assert.False(await service.IsReadyAsync(true, false, default));
+        Assert.False(await service.IsReadyAsync(false, true, default));
+        Assert.True(await service.IsReadyAsync(false, false, default));
+        foreach (var kind in new[] { "time", "text" })
+            while (!await service.PrepareBatchAsync(kind, default)) { }
+        await using (var changed = await db.Database.BeginTransactionAsync())
+        {
+            await db.HistoryPreparationStates.Where(state => state.Kind == "time").ExecuteUpdateAsync(setters => setters
+                .SetProperty(state => state.Scanning, true).SetProperty(state => state.LastId, 0));
+            Assert.False(await service.IsReadyAsync(true, true, default));
+            Assert.True(await service.IsReadyAsync(false, true, default));
+            await changed.RollbackAsync();
+        }
+        await using (var changed = await db.Database.BeginTransactionAsync())
+        {
+            await db.HistoryPreparationStates.Where(state => state.Kind == "text").ExecuteUpdateAsync(setters => setters
+                .SetProperty(state => state.WriterVersion, "old-writers"));
+            Assert.False(await service.IsReadyAsync(false, true, default));
+            await changed.RollbackAsync();
+        }
+        await using (var missing = await db.Database.BeginTransactionAsync())
+        {
+            await db.Database.ExecuteSqlRawAsync("DROP INDEX \"IX_Location_HistoryText\"");
+            Assert.False(await service.IsReadyAsync(true, true, default));
+            await missing.RollbackAsync();
+        }
+        Assert.True(await service.IsReadyAsync(true, true, default));
+    }
+
     [PostgresFact]
     public async Task DerivedOnlyPreparationDoesNotBecomeCanonicalApiConflict()
     {

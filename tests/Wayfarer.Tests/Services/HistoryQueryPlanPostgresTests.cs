@@ -1,5 +1,9 @@
+using System.Data.Common;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -55,6 +59,36 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
             Assert.Contains(natural.Concat(eligible), line => line.Contains(expected));
             Assert.DoesNotContain(natural, line => line.Contains("external merge"));
             await transaction.RollbackAsync();
+        }
+        // Inspect the executed overview, rather than a simpler stand-in aggregation.
+        var tap = new OverviewCapture();
+        await using var overviewDb = fixture.CreateContext(tap);
+        var overview = HistoryQueryTests.Parse(utc.Replace("2025-07-28", "2025-01-01").Replace("2025-07-29", "2026-12-31"), true);
+        await new HistoryReadService(overviewDb, new HistoryCursor(new EphemeralDataProtectionProvider()))
+            .OverviewAsync(owner.Id, overview, default);
+        var plan = await db.Database.SqlQueryRaw<string>("EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + tap.Sql, tap.Parameters).ToListAsync();
+        output.WriteLine("Executed overview: " + string.Join(Environment.NewLine, plan));
+        var grouping = Assert.Single(plan, line => line.Contains("Group Key:"));
+        Assert.DoesNotContain("st_x", grouping, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("st_y", grouping, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("st_isempty", grouping, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(plan, line => line.Contains("external merge"));
+    }
+
+    /// <summary>Retain the actual production command and typed values for a natural plan replay.</summary>
+    private sealed class OverviewCapture : DbCommandInterceptor
+    {
+        internal string Sql { get; private set; } = "";
+        internal object[] Parameters { get; private set; } = [];
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData data, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("WITH matches AS"))
+            {
+                Sql = command.CommandText;
+                Parameters = command.Parameters.Cast<NpgsqlParameter>().Select(parameter => (object)parameter.Clone()).ToArray();
+            }
+            return ValueTask.FromResult(result);
         }
     }
 }
