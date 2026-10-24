@@ -308,7 +308,7 @@ Code Guard complements compilers, tests, linters, security analysis and review; 
 - A green broad suite does not replace a focused regression proof when a practical seam exists.
 - Do not add higher-layer evidence merely to duplicate behavior already proven at the owning lower seam.
 
-### Personal history reads (#918 I918-B)
+### Personal history reads (#918 I918-B/C)
 
 Use the existing guarded PostgreSQL 18/PostGIS prerequisite above. The focused
 selection is `HistoryQueryTests`, `HistoryCursorTests`, `HistoryPredicatePostgresTests`,
@@ -322,6 +322,43 @@ The plan probe prepares 10,000 distinct synthetic records through I918-A, then
 records parameterized production predicates, natural EXPLAIN ANALYZE/BUFFERS for
 UTC/viewer/capture/text/geometry and whole-scope uncertainty, plus separately labelled
 forced index eligibility. It makes no endpoint timing or capacity assertion. Retain
-detailed xUnit output with `--logger 'console;verbosity=detailed'`. I918-C retains
-full DTO/consumer composition and named 210,240/1,051,200-owner routed workloads,
-four-read concurrency, post-write plans and end-to-end bytes/timing qualification.
+detailed xUnit output with `--logger 'console;verbosity=detailed'`.
+
+I918-C extends the existing routed fixture, without a browser or a benchmark
+framework. `IndependentOverviewRetainsDistantAndCoincidentRecords` qualifies the
+map-first journey: full-period dense home plus sparse destinations, repeated
+refinement using the exact returned bounds, bounded coincident choices, direct
+detail, then independent chronology pages with the same scope/identities.
+`CompleteDetailPreservesFieldsAndClassifiesUnrepresentableValues` checks full
+multilingual Notes (873,632 UTF-8 bytes), all address/provenance fields, original
+identity/clocks and known-null versus unavailable publication. The existing
+`CandidateCoverageAndPendingPreparationAreDifferent` owns incomplete coverage,
+candidate inspection, preparation gates and unaffected reads.
+
+With the guarded connection attached, reproduce those focused product contracts:
+
+~~~sh
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj \
+  --filter 'FullyQualifiedName~LocationHistoryHttpPostgresTests' \
+  --logger 'console;verbosity=detailed' --logger trx
+~~~
+
+The retained I918-C scale receipt is separate from ordinary CI. It uses the same
+guarded disposable migration fixture and actual registered MVC routes, with
+210,240 and 1,051,200-record owners plus 210,240 unrelated-owner records. Its
+single-purpose probe/source, exact commands, raw response examples, stage timings,
+parameterized SQL/plans and failed attempts are preserved under
+`/home/stef/.local/share/wayfarer-investigations/918-20261024/i918-c/`.
+The receipt's `commands.md` explains reproduction; only its project-reference
+checkout path needs adjustment. It requires the established guarded connection,
+not a production database. Scale seeding generates prepared synthetic values and
+checks representative samples against production derivation; it is not backfill
+throughput. The independent I918-A preparation/write/storage trial is reused.
+
+Report routed request duration/bytes separately from companion calls to unchanged
+production preparation/query/projection and JSON serialization stages. EF
+execute-reader/drain timings are client observations; natural EXPLAIN ANALYZE is
+separately replayed database execution, not a subtractable component of that same
+request. Raw Npgsql detail bypasses EF interception. Cache/JIT, Debug build,
+background activity and in-process TestServer transport must remain explicit.
+Neither a bounded response nor fast first page qualifies complete overview work.

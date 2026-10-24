@@ -513,7 +513,49 @@ keeping time/text/activity, then use direct detail. This works with chronology
 closed. These requests create an explicit new area scope; a page never changes
 map geography. Consumers fence stale session/query/viewport replies and preserve
 selection by identity independently of matching. No automatic camera reset follows
-refresh. Full map-first consumer composition/scale qualification remains I918-C.
+refresh. The routed composition below qualifies backend responses; consumer camera,
+selection/merge fences and native interaction remain separately owned.
+
+### Map-first composition and reproducible choices (#918 I918-C)
+
+`IndependentOverviewRetainsDistantAndCoincidentRecords` executes the production MVC
+routes against PostgreSQL with the main chronology initially unused. Its unchanged
+2025 fixture has 65 Athens home records, three coincident Tokyo records and one
+New York record. World `grid=4` returns three occupied cells, with counts `65`, `3`,
+`1`; known/mapped counts are `69` and unmapped is `0`. Both sparse destinations
+survive. Tokyo's returned bounds are successively refined with grid 4 and 16:
+
+~~~http
+GET /api/location/history/overview?timeBasis=utc&timeMode=interval&viewerZone=Europe%2FAthens&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&grid=4
+GET /api/location/history/overview?timeBasis=utc&timeMode=interval&viewerZone=Europe%2FAthens&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&west=90&south=0&east=180&north=45&grid=4
+GET /api/location/history/overview?timeBasis=utc&timeMode=interval&viewerZone=Europe%2FAthens&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&west=135&south=33.75&east=157.5&north=45&grid=16
+GET /api/location/history?timeBasis=utc&timeMode=interval&viewerZone=Europe%2FAthens&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z&west=139.21875&south=35.15625&east=140.625&north=35.859375&pageSize=2
+~~~
+
+Send `Authorization: Bearer <active-owner-token>` on every request. These numeric
+bounds are the actual fixture's returned `bounds`, not its coincident
+`occupiedBounds`. In general, copy all four returned numbers without rounding,
+padding or reconstructing edges. Keep the other common filters. Follow the exact
+choice page's URL-encoded `nextContinuation` with the same page size and scope;
+this yields the third Tokyo identity. Coincident points still produce one cell
+with count `3` and `singleton:null`; further spatial zoom cannot choose a record.
+Choose an actual `items[].locationId`, then request:
+
+~~~http
+GET /api/location/history/<selected-locationId>?viewerZone=Europe%2FAthens
+~~~
+
+The complete detail example below is a captured fixture response. Fixture IDs,
+UUIDs, subject, scope hashes, observation time and continuations vary per run.
+After detail, the test opens chronology with those same final bounds and page size
+1. Its independently obtained pages return the same three IDs exactly once in
+order, retain the choice `scopeKey`, and leave refreshed overview count `3`.
+Changing page size requires a new first page, not reuse of a differently bound
+cursor. This demonstrates backend composition, not a mounted UI or native client.
+
+Counts/choices agree because no writes occur between these calls. Real later
+requests can observe inserts, edits or deletes; refresh and identity deduplication
+remain necessary. A selected detail's `not-evaluated` does not add it to counts.
 
 ### Profiles and complete owner detail
 
@@ -553,6 +595,102 @@ published. Detail can select an out-of-filter ID; `not-evaluated` proves neither
 matching nor outside status. Consumers preserve originating scope, richer retained
 facts, immutable originals, drafts and absorbing known-key deletion under their
 session/query/record fences. Detail must not add a selected record into filter counts.
+
+A complete `owner-detail-1` example from the map-first fixture (all declared fields
+are present, including known nulls):
+
+~~~json
+{
+  "subjectId": "migration-fixture-869fc504af0548c39d018ac9f9269d98",
+  "profile": "owner-detail-1",
+  "observedAtUtc": "2026-10-24T06:20:46.970730Z",
+  "derivationVersions": {
+    "time": "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026c (mapping: 48.2)",
+    "text": "history-text-1;RichNotes-2;AngleSharp-1.7.1.0;runtime-10.0.13;unicode-31129-0000799900000000000000000000007f",
+    "interpretation": "history-query-1"
+  },
+  "record": {
+    "locationId": 69,
+    "uuid": "93ff5f6c-ec4c-4dce-bd30-a106ba7c005b",
+    "storedTimeZoneId": "imported-zone",
+    "coordinateOrigin": null,
+    "observedAgeAtEventMs": null,
+    "locationType": null,
+    "activityTypeId": null,
+    "address": "Tokyo station",
+    "fullAddress": null,
+    "providerAddressLine1": null,
+    "addressNumber": null,
+    "streetName": null,
+    "postCode": null,
+    "place": null,
+    "region": null,
+    "country": null,
+    "resolvedFeatureName": null,
+    "resolvedFeatureType": null,
+    "reverseGeocodingProvider": null,
+    "reverseGeocodingStorageMode": null,
+    "source": "import",
+    "isUserInvoked": null,
+    "provider": null,
+    "appVersion": null,
+    "appBuild": null,
+    "deviceModel": null,
+    "osVersion": null,
+    "batteryLevel": null,
+    "isCharging": null,
+    "eventUtc": "2025-10-10T03:00:00.123456Z",
+    "storedTimestampUtc": "2026-01-01T00:00:00.000000Z",
+    "observedAtUtc": null,
+    "presenceObservedAtUtc": null,
+    "reverseGeocodedAt": null,
+    "accuracy": null,
+    "altitude": null,
+    "speed": null,
+    "bearing": null,
+    "notesHtml": "<p>café station</p>",
+    "activityName": null,
+    "position": {
+      "status": "available",
+      "longitude": 139.76,
+      "latitude": 35.68
+    },
+    "captureTime": {
+      "status": "available",
+      "local": "2025-10-10T12:00:00.123456",
+      "zoneId": "Asia/Tokyo",
+      "offsetSeconds": 32400,
+      "version": "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026c (mapping: 48.2)"
+    },
+    "viewerTime": {
+      "status": "available",
+      "local": "2025-10-10T06:00:00.123456",
+      "zoneId": "Europe/Athens",
+      "offsetSeconds": 10800,
+      "version": "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026c (mapping: 48.2)"
+    }
+  },
+  "unavailableFields": {},
+  "filterMembership": "not-evaluated"
+}
+~~~
+
+`CompleteDetailPreservesFieldsAndClassifiesUnrepresentableValues` separately proves
+873,632 UTF-8 bytes of distinct multilingual Notes survive complete publication
+(1,203,277 response bytes with JSON escaping). It also checks every stored address
+component, retained feature/provider/storage/time provenance, UUID, event/fix/
+admission clocks and the imported zone. This is an observed supported payload,
+not a maximum Notes size or a promise about arbitrary process memory capacity.
+
+In its exceptional legacy witness, `speed:null` is a known null; nonfinite
+`accuracy` and an unrepresentable `storedTimestampUtc` are absent from `record`
+and instead appear as `"accuracy":"unrepresentableStoredValue"` and
+`"storedTimestampUtc":"unrepresentableStoredValue"` in `unavailableFields`.
+A stale capture generation produces `captureTime.status:"pendingPreparation"`,
+without overwriting the canonical event, UUID or stored zone. The distinct candidate/
+preparation test qualifies incomplete counts and 503 gates. The reviewed inherited
+finite year-0001 capture derivation limitation remains classified as unresolved;
+valid UTC/viewer/detail facts remain usable. No broader fix is claimed here.
 
 ### Preparation and protective limits
 

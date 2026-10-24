@@ -94,9 +94,11 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         var owner = await OwnerAsync(); var rows = await SeedAsync(owner, 69);
         await using (var edit = fixture.CreateContext())
         {
-            foreach (var row in rows.Take(65))
+            for (var i = 0; i < 65; i++)
             {
+                var row = rows[i];
                 edit.Attach(row); row.Coordinates = new Point(23.73, 37.98) { SRID = 4326 };
+                row.LocalTimestamp = row.LocalTimestamp.AddDays(-i * 4);
             }
             edit.Attach(rows[68]); rows[68].Coordinates = new Point(-74, 40.7) { SRID = 4326 };
             await edit.SaveChangesAsync();
@@ -122,6 +124,8 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
             Assert.Equal(JsonValueKind.Null, journey.GetProperty("singleton").ValueKind);
             output.WriteLine("Refinement: " + refined.GetRawText());
         }
+        scope = Utc + "&" + string.Join("&", journey.GetProperty("bounds").EnumerateObject()
+            .Select(edge => edge.Name + "=" + edge.Value.GetRawText()));
         var choices = await GetAsync(client, Route + "?" + scope + "&pageSize=2");
         var next = await GetAsync(client, Route + "?" + scope + "&pageSize=2&continuation="
             + Uri.EscapeDataString(choices.GetProperty("nextContinuation").GetString()!));
@@ -130,6 +134,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(JsonValueKind.Null, next.GetProperty("nextContinuation").ValueKind);
         var detail = await GetAsync(client, Route + "/" + selected + "?viewerZone=Europe%2FAthens");
         Assert.Equal(selected, detail.GetProperty("record").GetProperty("locationId").GetInt32());
+        Assert.Equal("2026-01-01T00:00:00.000000Z", detail.GetProperty("record").GetProperty("storedTimestampUtc").GetString());
         Assert.Equal("not-evaluated", detail.GetProperty("filterMembership").GetString());
         Assert.Equal("owner-detail-1", detail.GetProperty("profile").GetString());
         // Main chronology is opened only after selected detail; it uses the refined scope independently.
@@ -137,6 +142,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         var ids = new List<int>(Ids(first)); var page = first;
         while (page.GetProperty("nextContinuation").GetString() is { } cursor)
         {
+            Assert.True(ids.Count < 3, "Coincident choices must terminate after all three identities.");
             page = await GetAsync(client, Route + "?" + scope + "&pageSize=1&continuation=" + Uri.EscapeDataString(cursor));
             Assert.Equal(first.GetProperty("scopeKey").GetString(), page.GetProperty("scopeKey").GetString());
             ids.AddRange(Ids(page));
@@ -446,6 +452,8 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
             row.ReverseGeocodingProvider = "geoapify"; row.ReverseGeocodingStorageMode = "permanent";
             row.ReverseGeocodedAt = new DateTimeOffset(2025, 10, 11, 1, 2, 3, TimeSpan.Zero);
             row.CoordinateOrigin = "sensor"; row.ObservedAgeAtEventMs = 1250;
+            row.ObservedAtUtc = new DateTimeOffset(2025, 10, 10, 2, 59, 58, TimeSpan.Zero);
+            row.PresenceObservedAtUtc = new DateTime(2025, 10, 11, 3, 0, 0, DateTimeKind.Utc);
             row.Accuracy = double.NaN; row.Altitude = 123.25; await edit.SaveChangesAsync();
             await edit.Locations.Where(row => row.Id == rows[0].Id).ExecuteUpdateAsync(setters => setters
                 .SetProperty(row => row.HistoryTimeVersion, "previous-time-generation").SetProperty(row => row.Timestamp, DateTime.MinValue));
@@ -472,6 +480,8 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
                      ("reverseGeocodingProvider", "geoapify"), ("reverseGeocodingStorageMode", "permanent"), ("coordinateOrigin", "sensor") })
             Assert.Equal(value, record.GetProperty(field).GetString());
         Assert.Equal(1250, record.GetProperty("observedAgeAtEventMs").GetInt64());
+        Assert.Equal("2025-10-10T02:59:58.000000Z", record.GetProperty("observedAtUtc").GetString());
+        Assert.Equal("2025-10-11T03:00:00.000000Z", record.GetProperty("presenceObservedAtUtc").GetString());
         Assert.Equal("2025-10-11T01:02:03.000000Z", record.GetProperty("reverseGeocodedAt").GetString());
         output.WriteLine($"Complete Notes: {System.Text.Encoding.UTF8.GetByteCount(notes)} UTF-8 bytes; detail: {System.Text.Encoding.UTF8.GetByteCount(detail.GetRawText())} bytes.");
         Assert.DoesNotContain("historySearchText", detail.GetRawText(), StringComparison.OrdinalIgnoreCase);
