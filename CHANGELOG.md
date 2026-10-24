@@ -4,6 +4,12 @@
 
 ### Added
 
+- Defer #918 overview UUID retrieval until singleton IDs are known, using one
+  owner-scoped SQL statement and the existing covering history index for broad
+  aggregation. Preserve nullable identities, every match/count, exact cell edges,
+  uncertainty and response snapshots. Record the bounded before/after and
+  post-write evidence; sub-second performance and I918-C readiness remain
+  unresolved pending independent review and explicit maintainer disposition.
 - Qualify #918 I918-C backend map-first composition and complete multilingual
   Notes/address/provenance responses, with reproducible API examples and routed
   synthetic scale evidence. Record the bounded query correction and remaining

@@ -408,6 +408,9 @@ It reuses the research seed and selects broad and recurring/common-text overview
 at both scales, plus one large-owner post-write broad control. Candidate commands
 are unchanged compiled production SQL; the baseline aggregate is reconstructed
 and checked against the retained pre-change production SQL before execution.
+Use `qualified/` for the comparable results; the preserved root attempt failed
+its baseline reconstruction check on a missing final newline. The corrected
+driver verifies all five SQL shapes before creating the replacement fixture.
 Three routed observations, one separate query/projection/serialization companion
 and one natural plan per variant/scope retain complete response parity and resource
 evidence. The wider workload, preparation/write/storage and four-read concurrency
