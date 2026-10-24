@@ -427,3 +427,20 @@ incomplete.** Independent exact-head review and an explicit measured maintainer
 readiness decision remain required; filtered workloads and universal sub-second
 performance are unresolved. No further optimization campaign is automatically
 authorized. Production/mobile/deployed acceptance remains separate.
+
+
+## Final protective ceiling and operating range
+
+The 24 October 2026 maintainer decision in
+[#918](https://github.com/stef-k/Wayfarer/issues/918#issuecomment-6384111392)
+sets history/page and overview evaluation to fifteen seconds, retaining the separate
+thirty-second selected-detail ceiling. The SQL timeout remains transaction-local;
+application-wide and database-wide defaults, preparation timeouts, admission and
+disconnect handling are unchanged. Prior five-second observations above retain
+their original provenance.
+
+See the [final bounded performance/resource qualification](../development/history-final-qualification.md)
+for the 25-year synthetic owner, field-distribution comparisons and mixed-use
+results. Sub-second target misses require an explicit measured maintainer
+disposition. No automatic acceptance, production sizing, issue closure or further
+optimization authorization follows from raising the protective ceiling.
