@@ -402,13 +402,28 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
         Assert.Equal(0, LocationHistoryController.Collections.IdentityCount);
     }
 
-    /// <summary>Unfinished work reaches a controlled deadline error, without a successful partial collection.</summary>
+    /// <summary>Both collections can finish beyond the former ceiling before the approved deadline.</summary>
+    [PostgresTheory]
+    [InlineData("")]
+    [InlineData("/overview")]
+    public async Task CollectionsCanCompleteAfterFormerDeadline(string suffix)
+    {
+        var owner = await OwnerAsync(); await SeedAsync(owner, 1);
+        var gate = new ReadGate(delayInPostgres: true, delaySeconds: 6);
+        await using var app = await HostAsync(gate); using var client = Client(app, owner);
+        await GetAsync(client, Route + suffix + "?" + Utc);
+        Assert.Equal(0, LocationHistoryController.Collections.IdentityCount);
+    }
+
+    /// <summary>Unfinished work reaches the approved ceiling without a successful partial collection.</summary>
     [PostgresFact]
     public async Task CollectionDeadlineCancelsEvaluationBeforeSuccess()
     {
         var owner = await OwnerAsync(); await SeedAsync(owner, 1); var gate = new ReadGate(delayInPostgres: true);
         await using var app = await HostAsync(gate); using var client = Client(app, owner);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         var body = await ErrorAsync(client, Route + "/overview?" + Utc, 503, "historyBudgetExceeded");
+        Assert.InRange(clock.Elapsed.TotalSeconds, 14, 25);
         Assert.DoesNotContain("coverage", body); Assert.DoesNotContain("cells", body);
         Assert.True(gate.Reached.Task.IsCompleted);
         Assert.Equal(0, LocationHistoryController.Collections.IdentityCount);
@@ -564,7 +579,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
     }
 
     /// <summary>Hold the production count SELECT to witness snapshot/cancellation; record any attempted mutation command.</summary>
-    private sealed class ReadGate(bool delayInPostgres = false) : DbCommandInterceptor
+    private sealed class ReadGate(bool delayInPostgres = false, int delaySeconds = 30) : DbCommandInterceptor
     {
         internal TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -578,7 +593,7 @@ public sealed class LocationHistoryHttpPostgresTests(PostgresMigrationTestFixtur
                 Reached.TrySetResult();
                 if (delayInPostgres)
                 {
-                    command.CommandText = "SELECT pg_sleep(30); " + command.CommandText;
+                    command.CommandText = $"SELECT pg_sleep({delaySeconds}); " + command.CommandText;
                     return result;
                 }
                 try { await Release.Task.WaitAsync(cancellationToken); cancellationToken.ThrowIfCancellationRequested(); }

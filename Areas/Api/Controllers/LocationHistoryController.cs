@@ -41,7 +41,8 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
     {
         Response.OnStarting(() => { Response.Headers.CacheControl = "no-store"; return Task.CompletedTask; });
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(disconnect);
-        var duration = id == null ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(30);
+        // The collection ceiling is protective; the sub-second performance target is qualified separately.
+        var duration = id == null ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(30);
         var clock = Stopwatch.StartNew();
         budget.CancelAfter(duration);
         var token = budget.Token;
