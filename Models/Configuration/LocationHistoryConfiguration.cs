@@ -12,9 +12,10 @@ public sealed class LocationHistoryConfiguration : IEntityTypeConfiguration<Loca
         builder.Metadata.Model.GetOrAddPostgresExtension(null, "pg_trgm", null);
         builder.Property(row => row.CaptureLocalTimestamp).HasColumnType("timestamp without time zone");
         builder.Property(row => row.HistorySearchText).UseCollation("C");
+        // Status completes capture membership coverage without changing the UTC search keys.
         NpgsqlIndexBuilderExtensions.IncludeProperties(
             builder.HasIndex(row => new { row.UserId, row.LocalTimestamp, row.Id }),
-            row => new { row.Coordinates, row.CaptureLocalTimestamp, row.ActivityTypeId })
+            row => new { row.Coordinates, row.CaptureLocalTimestamp, row.ActivityTypeId, row.HistoryTimeStatus })
             .HasDatabaseName("IX_Location_HistoryUtc");
         builder.HasIndex(row => new { row.UserId, row.CaptureLocalTimestamp, row.Id }).HasDatabaseName("IX_Location_HistoryCapture");
         builder.HasIndex(row => row.HistorySearchText).HasMethod("gin").HasOperators("gin_trgm_ops")
