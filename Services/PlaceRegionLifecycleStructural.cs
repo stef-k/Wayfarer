@@ -10,6 +10,15 @@ namespace Wayfarer.Services;
 
 public sealed partial class PlaceRegionLifecycleService
 {
+    /// <summary>Shares only the bounded Region-order owner and existing confirmation authority, without a generic ordering layer.</summary>
+    internal async Task<object> OrderRegionsAsync(Guid tripId, string userId, RegionOrderRequest request, bool web,
+        bool prepare, Func<CancellationToken, Task<bool>>? authority, CancellationToken token)
+    {
+        var service = new RegionOrderingService(_dbContext, _confirmation);
+        return prepare ? await service.PrepareAsync(tripId, userId, request, web, token)
+            : await service.ApplyAsync(tripId, userId, request, web, authority, token);
+    }
+
     /// <summary>Compares retained public originals and prepares a coherent, explicitly reviewed private dependency base.</summary>
     internal async Task<object> PreparePlaceStructureAsync(Guid tripId, Guid targetId, string userId, PlaceStructuralRequest request,
         IReadOnlySet<string> icons, IReadOnlySet<string> colors, CancellationToken token)

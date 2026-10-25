@@ -294,8 +294,8 @@ public sealed partial class TripEditorController : ControllerBase
             return authFailure;
         }
 
-        var outcome = await _regionMutations.OrderRegionsAsync(tripId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
+        try { return Ok(await _regionMutations.OrderRegionsAsync(tripId, userId!, Request.Body, false, cancellationToken)); }
+        catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
     }
 
     /// <summary>

@@ -55,7 +55,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace
         Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
         Api.TripEditor.PreparePlaceUpdate Api.TripEditor.PrepareEditorPlaceOrder
-        Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace
+        Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.PrepareEditorRegionOrder Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace
         Api.TripEditor.UpdatePlace Api.TripEditor.DeletePlace Api.TripEditor.OrderPlaces Api.TripEditor.CreateSegment
         Api.TripEditor.UpdateSegment Api.TripEditor.DeleteSegment Api.TripEditor.OrderSegments Api.TripEditor.PutTags
         Api.TripEditor.PatchShareProgress Api.Users.DeleteAllUserLocations Api.Visit.BulkDelete
@@ -74,7 +74,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea
         Api.Trips.PatchConditionalSegmentNotes Api.Trips.PatchConditionalPlace
         Api.Trips.PreparePlaceCoordinates Api.Trips.ApplyPlaceCoordinates Api.Trips.PreparePlaceMove Api.Trips.ApplyPlaceMove
-        Api.Trips.PreparePlaceOrder Api.Trips.ApplyPlaceOrder
+        Api.Trips.PreparePlaceOrder Api.Trips.ApplyPlaceOrder Api.Trips.PrepareRegionOrder Api.Trips.ApplyRegionOrder
         """;
 
     // Unsafe verbs used only for queries remain deliberate, enumerated exceptions.

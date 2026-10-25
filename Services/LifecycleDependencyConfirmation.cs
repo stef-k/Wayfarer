@@ -16,6 +16,7 @@ public sealed class LifecycleDependencyConfirmation
     private readonly IDataProtector _coordinateProtector;
     private readonly IDataProtector _moveProtector;
     private readonly IDataProtector _orderProtector;
+    private readonly IDataProtector _regionOrderProtector;
     private readonly TimeProvider _timeProvider;
     /// <summary>Uses the application protector for fresh affected Segment aggregate tokens.</summary>
     internal SegmentAggregateTokenService RegionDeletionAggregateTokens { get; }
@@ -28,6 +29,7 @@ public sealed class LifecycleDependencyConfirmation
         _coordinateProtector = provider.CreateProtector("Wayfarer.PlaceCoordinates.Conditions.v1");
         _moveProtector = provider.CreateProtector("Wayfarer.PlaceMove.Conditions.v1");
         _orderProtector = provider.CreateProtector("Wayfarer.PlaceOrder.Conditions.v1");
+        _regionOrderProtector = provider.CreateProtector("Wayfarer.RegionOrder.Conditions.v1");
         _timeProvider = timeProvider ?? TimeProvider.System;
         RegionDeletionAggregateTokens = new(provider);
     }
@@ -44,6 +46,22 @@ public sealed class LifecycleDependencyConfirmation
         {
             var value = JsonSerializer.Deserialize<PlaceStructurePayload>(PlaceProtector(operation).Unprotect(token));
             return value == new PlaceStructurePayload(1, operation, userId, tripId, targetId, intent, fingerprint);
+        }
+        catch (Exception error) when (error is CryptographicException or JsonException) { return false; }
+    }
+
+    /// <summary>Region ordering has a distinct purpose and typed Trip scope; Place/deletion proofs cannot authorize it.</summary>
+    internal string IssueRegionOrder(string userId, Guid tripId, string intent, string fingerprint) =>
+        _regionOrderProtector.Protect(JsonSerializer.Serialize(new PlaceStructurePayload(1, "region-order", userId, tripId, tripId, intent, fingerprint)));
+
+    /// <summary>Checks exact retained Region originals and desired vector without refreshing an expired/stale base.</summary>
+    internal bool MatchesRegionOrder(string? token, string userId, Guid tripId, string intent, string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        try
+        {
+            return JsonSerializer.Deserialize<PlaceStructurePayload>(_regionOrderProtector.Unprotect(token))
+                == new PlaceStructurePayload(1, "region-order", userId, tripId, tripId, intent, fingerprint);
         }
         catch (Exception error) when (error is CryptographicException or JsonException) { return false; }
     }

@@ -1,6 +1,7 @@
+import { regionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
 import { onUnmounted, watch } from 'vue';
 import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
-import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, updateRegion } from '../api/tripEditorApi';
+import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, prepareRegionOrder, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, Guid } from '../types';
 import { createRegionDeletionController, heldRegionDeletionKey } from './regionDeletionState';
 import { confirm } from '../composables/useConfirmDialog';
@@ -76,6 +77,7 @@ export function useRegionEditorActions(context: any) {
 
   const saveDraft = async (): Promise<void> => {
     if (context.isSaving.value) return;
+    if (owner.orderUncertain.value) { context.applyError(new Error('The earlier Region order has an unknown outcome. Keep your draft; do not replay it.'), 'Region operation held.'); return; }
     if (owner.uncertain.value || !context.draft.id && owner.creationUncertain.value) {
       const message = !context.draft.id && owner.creationUncertain.value
         ? 'The earlier Region creation has an unknown outcome and may have committed. Keep your draft. A refresh cannot prove noncommit; do not replay this creation.'
@@ -138,7 +140,7 @@ export function useRegionEditorActions(context: any) {
   };
 
   const deleteDraftRegion = async (): Promise<void> => {
-    if (!context.activeRegion.value || !context.activeRegion.value.capabilities.canDelete) {
+    if (owner.orderUncertain.value || owner.orderingPending.value || !context.activeRegion.value || !context.activeRegion.value.capabilities.canDelete) {
       return;
     }
 
@@ -169,37 +171,61 @@ export function useRegionEditorActions(context: any) {
   };
 
   const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
-    if (context.isOrdering.value || held()) {
+    if (context.isOrdering.value || held() || owner.orderUncertain.value) {
+      if (owner.orderUncertain.value) context.applyError(new Error('The earlier Region order may have committed. Keep your order; refresh/reset cannot prove noncommit. Do not replay it. Explicitly leave without saving if you choose to abandon this page.'), 'Region order held.');
       await context.restoreRegionOrder(previousIds);
       return;
     }
-
+    // Pin the full operation base before any await can replace props or authored intent.
+    let request: import('../types').EditorRegionOrderRequest;
+    try { request = { expected: regionOrderOriginals(context.props.state, previousIds, ids), regionIds: [...ids] }; }
+    catch (error) { context.applyError(error, 'Region order held.'); await context.restoreRegionOrder(previousIds); return; }
     if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering?'))) {
       await context.restoreRegionOrder(previousIds);
       return;
     }
-
-    if (context.isDirty.value) {
-      context.clearAllDraftsAndBaselines();
-    }
-
-    if (context.isOrdering.value) {
-      await context.restoreRegionOrder(previousIds);
-      return;
-    }
-
+    if (context.isDirty.value) context.clearAllDraftsAndBaselines();
+    if (context.isOrdering.value) { await context.restoreRegionOrder(previousIds); return; }
+    const tripId = context.props.state.tripId;
+    const session = owner.session();
+    const currentAttempt = (): boolean => editorAlive && owner.session() === session;
+    let dispatched = false;
     context.isOrdering.value = true;
+    owner.orderingPending.value = true;
     context.resetFeedback();
     try {
-      const result = await orderRegions(context.props.editorEndpoint, context.props.antiforgeryToken, { regionIds: ids });
+      const preview = await prepareRegionOrder(context.props.editorEndpoint, context.props.antiforgeryToken, request);
+      if (!currentAttempt()) return;
+      validateRegionOrderPreview(preview, tripId, request.expected);
+      if (!(await confirm({ title: 'Review Region order', message: `Apply this complete order to ${ids.length} Regions using their reviewed content?`,
+        confirmLabel: 'Apply reviewed order', cancelLabel: 'Keep current order', variant: 'default' }))) {
+        if (currentAttempt()) await context.restoreRegionOrder(previousIds);
+        return;
+      }
+      if (!currentAttempt()) return;
+      request = { ...request, conditionToken: preview.conditionToken, reviewed: true };
+      owner.orderIntent.value = request;
+      owner.orderUncertain.value = true;
+      dispatched = true;
+      const result = await orderRegions(context.props.editorEndpoint, context.props.antiforgeryToken, request);
+      validateRegionOrderAcknowledgement(result, tripId, request);
+      owner.orderUncertain.value = false;
+      owner.orderIntent.value = null;
+      owner.orderingPending.value = false;
+      if (!currentAttempt()) return;
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      context.regionDraftState.reset(null);
-      context.markSaved();
+      // Reordering does not acknowledge or reset a newer scalar draft.
+      if (Object.keys(owner.request().changes).length === 0 && !context.isDirty.value) context.markSaved();
     } catch (error) {
-      context.applyError(error, 'Region reorder failed.');
+      const rejected = error instanceof EditorValidationError || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (rejected || !dispatched) { owner.orderUncertain.value = false; owner.orderIntent.value = null; }
+      if (!currentAttempt()) return;
+      const heldError = dispatched && !rejected ? new Error('The Region order could not be confirmed and may have committed. Your intent is retained. Do not replay it; refresh/reset cannot prove noncommit. Explicitly leave without saving to abandon this page.') : error;
+      context.applyError(heldError, 'Region reorder failed.');
       await context.restoreRegionOrder(previousIds);
     } finally {
-      context.isOrdering.value = false;
+      owner.orderingPending.value = false;
+      if (editorAlive) context.isOrdering.value = false;
     }
   };
 

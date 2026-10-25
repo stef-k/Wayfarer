@@ -722,6 +722,10 @@ public partial class TripsController : BaseApiController
         if (!isReserved && string.Equals(name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
             return BadRequest("Region name is reserved.");
 
+        // An individual update cannot bypass complete original-bound Region ordering; identical orders are not written.
+        if (!isReserved && request.DisplayOrder.HasValue && request.DisplayOrder.Value != region.DisplayOrder)
+            return new TripMetadataMutationRejected(400, "mutation-request-invalid", "Use the protected complete Region-order contract.").ToActionResult();
+
         // Validate and construct the center before applying any partial fields.
         NetTopologySuite.Geometries.Point? center = null;
         if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
@@ -747,12 +751,6 @@ public partial class TripsController : BaseApiController
         if (center != null)
         {
             region.Center = center;
-            anyChange = true;
-        }
-
-        if (!isReserved && request.DisplayOrder.HasValue)
-        {
-            region.DisplayOrder = request.DisplayOrder.Value;
             anyChange = true;
         }
 

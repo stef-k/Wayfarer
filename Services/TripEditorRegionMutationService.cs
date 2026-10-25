@@ -199,85 +199,14 @@ public sealed class TripEditorRegionMutationService
         CancellationToken cancellationToken) =>
         DeleteRegionAsync(tripId, regionId, userId, null, cancellationToken);
 
-    /// <summary>
-    /// Persists the complete desired order for normal regions.
-    /// </summary>
-    public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>> OrderRegionsAsync(
-        Guid tripId,
-        string userId,
-        Stream requestBody,
-        CancellationToken cancellationToken)
+    /// <summary>Prepares or applies one original-bound complete Region vector using the shared protected authority.</summary>
+    public async Task<object> OrderRegionsAsync(Guid tripId, string userId, Stream requestBody,
+        bool prepare, CancellationToken cancellationToken)
     {
-        var trip = await _dbContext.Trips
-            .Include(t => t.Regions)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-        if (trip == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.NotFound();
-        }
-
-        var request = await ParseJsonBodyAsync(requestBody, "Region order request must be valid JSON.", cancellationToken);
-        if (request.ValidationErrors != null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.ValidationFailed(request.ValidationErrors);
-        }
-
-        if (!EditorRegionRequestParser.TryParseOrder(request.Value!.Value, out var orderRequest, out var errors))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.ValidationFailed(errors);
-        }
-
-        var shadow = trip.Regions.FirstOrDefault(IsShadowRegion);
-        if (shadow != null && orderRequest.RegionIds.Contains(shadow.Id))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.Forbidden("The shadow region cannot be reordered.");
-        }
-
-        var normalRegions = trip.Regions.Where(r => !IsShadowRegion(r)).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToList();
-        var normalIds = normalRegions.Select(r => r.Id).ToList();
-        if (orderRequest.RegionIds.Count != normalIds.Count
-            || orderRequest.RegionIds.Distinct().Count() != orderRequest.RegionIds.Count
-            || orderRequest.RegionIds.Any(id => !normalIds.Contains(id)))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.ValidationFailed(new Dictionary<string, string[]>
-            {
-                ["regionIds"] = new[] { "Region IDs must include every normal region in this trip exactly once." }
-            });
-        }
-
-        if (shadow != null)
-        {
-            shadow.DisplayOrder = 0;
-        }
-
-        var byId = normalRegions.ToDictionary(r => r.Id);
-        for (var i = 0; i < orderRequest.RegionIds.Count; i++)
-        {
-            byId[orderRequest.RegionIds[i]].DisplayOrder = i + 1;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var regionOrder = await LoadRegionOrderAsync(tripId, userId, cancellationToken);
-        var updatedRegions = await LoadRegionsByIdsAsync(orderRequest.RegionIds, cancellationToken);
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            updatedRegions,
-            regionOrder,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>>(),
-            Array.Empty<EditorSegmentDto>(),
-            null,
-            Array.Empty<EditorTagDto>(),
-            null,
-            null,
-            null);
-        var data = new EditorRegionOrderResult(regionOrder);
-
-        return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionOrderResult>>.Succeeded(
-            new EditorMutationResult<EditorRegionOrderResult>(true, data, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
+        if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken))
+            throw new TripMetadataMutationRejected(404, "mutation-scope-unavailable", "Trip not found.");
+        var request = await RegionOrderRequest.ReadAsync(requestBody, cancellationToken);
+        return await _lifecycle.OrderRegionsAsync(tripId, userId, request, true, prepare, null, cancellationToken);
     }
 
     private async Task<IReadOnlyList<Guid>> LoadRegionOrderAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>

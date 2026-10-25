@@ -243,10 +243,14 @@ export interface EditorRegionSaveRequest {
 }
 
 export interface EditorRegionOrderRequest {
+  expected: import('./components/regionOrdering').RegionOrderOriginals;
+  conditionToken?: string;
+  reviewed?: boolean;
   regionIds: Guid[];
 }
 
 export interface EditorRegionOrderResult {
+  tripId: Guid;
   regionOrder: Guid[];
 }
 
