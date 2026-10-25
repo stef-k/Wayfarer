@@ -227,26 +227,31 @@ export function usePlaceEditorActions(context: any) {
     const deletedTarget = context.activePlaceTarget.value;
     const current = (): boolean => alive && owner.session() === session;
     const unchanged = (): boolean => current() && JSON.stringify(context.placeDraft) === intent;
+    const mount = document.getElementById('trip-editor-app');
+    const account = mount?.dataset.accountId;
+    const scopeCurrent = (): boolean => current() && document.getElementById('trip-editor-app') === mount
+      && mount?.dataset.accountId === account;
     const attemptId = `delete:${place.id}:${crypto.randomUUID()}`;
     const release = (): void => { owner.structuralHolds.value = owner.structuralHolds.value.filter((h: { intent: string }) => h.intent !== attemptId); };
     let dispatched = false;
+    savingSession = session;
     context.isSaving.value = true;
     owner.pending.value = true;
     context.resetFeedback();
     try {
       const preview = await previewPlaceDeletion(context.props.editorEndpoint, place.id, context.props.antiforgeryToken);
-      if (!unchanged()) return;
+      if (!scopeCurrent() || !unchanged()) return;
       validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
       // Opening/cancelling consent preserves every draft. Only this approved target may be cleared after success.
       const approved = await confirm({ title: 'Delete Place?', message: placeDeletionMessage(preview),
         confirmLabel: 'Permanently delete Place', cancelLabel: 'Keep Place and drafts', variant: 'danger' });
-      if (!approved || !unchanged()) return;
+      if (!approved || !scopeCurrent() || !unchanged()) return;
       validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
       owner.structuralHolds.value.push({ targetId: place.id, regionIds: [place.regionId], intent: attemptId });
       dispatched = true;
       const result = await deletePlace(context.props.editorEndpoint, place.id, context.props.antiforgeryToken, preview.confirmation.token);
       validatePlaceDeletionAcknowledgement(result, preview);
-      if (!current()) return;
+      if (!scopeCurrent()) return;
       const clearTarget = unchanged();
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       release();
@@ -264,7 +269,7 @@ export function usePlaceEditorActions(context: any) {
         context.applyError(new Error('Place deletion outcome unknown. Refresh to inspect current facts; keep this attempt held without retry. Leaving does not undo the request.'), 'Place deletion held.');
       } else context.applyError(error, 'Place deletion rejected. Review a fresh preview and confirm again.');
     } finally {
-      if (current()) { context.isSaving.value = false; owner.pending.value = false; }
+      if (current()) { savingSession = null; context.isSaving.value = false; owner.pending.value = false; }
     }
   };
 

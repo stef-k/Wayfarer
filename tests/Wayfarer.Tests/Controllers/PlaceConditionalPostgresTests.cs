@@ -175,11 +175,13 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
     }
 
     /// <summary>Uses established routing/identity fixtures and fresh scoped database contexts; only external work is mocked.</summary>
-    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null) =>
+    private Task<WebApplication> StartAsync(ApplicationDbContext db, IInterceptor[]? interceptors = null, TimeProvider? clock = null) =>
         IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
             services.AddScoped(_ => fixture.CreateContext(interceptors ?? []));
             services.AddSingleton(_warmup.Object);
+            if (clock != null) services.AddScoped(sp => new LifecycleDependencyConfirmation(
+                sp.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(), clock));
             var webRoot = CreateTestDirectory();
             var icons = Path.Combine(webRoot, "icons", "wayfarer-map-icons", "dist", "marker");
             Directory.CreateDirectory(icons);

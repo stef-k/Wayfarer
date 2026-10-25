@@ -832,6 +832,8 @@ public partial class TripsController : BaseApiController
         if (user == null) return Unauthorized("Missing or invalid API token.");
 
         if (!await _dbContext.Regions.AsNoTracking().AnyAsync(p => p.Id == regionId && p.UserId == user.Id && p.Trip.UserId == user.Id)) return NotFound();
+        if (await _dbContext.Regions.AnyAsync(r => r.Id == regionId && r.Name == "Unassigned Places"))
+            return new TripMetadataMutationRejected(403, "forbidden", "Unassigned Places cannot be deleted.").ToActionResult();
         return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
             "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }

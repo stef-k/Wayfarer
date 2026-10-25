@@ -273,6 +273,8 @@ public sealed partial class TripEditorController : ControllerBase
         }
 
         if (!await _dbContext.Regions.AsNoTracking().AnyAsync(p => p.Id == regionId && p.UserId == userId && p.TripId == tripId && p.Trip.UserId == userId, cancellationToken)) return NotFound();
+        if (await _dbContext.Regions.AnyAsync(r => r.Id == regionId && r.Name == "Unassigned Places", cancellationToken))
+            return new TripMetadataMutationRejected(403, "forbidden", "Unassigned Places cannot be deleted.").ToActionResult();
         return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
             "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }

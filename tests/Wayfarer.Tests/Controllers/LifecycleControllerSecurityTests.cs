@@ -12,7 +12,7 @@ public sealed class LifecycleControllerSecurityTests
     [Fact]
     public void TripEditorLifecycleMutations_RetainAntiforgery()
     {
-        foreach (var methodName in new[] { "UpdatePlace", "DeletePlace", "UpdateRegion", "DeleteRegion", "PreparePlaceUpdate", "PrepareEditorPlaceOrder", "OrderPlaces", "PrepareEditorRegionOrder", "OrderRegions" })
+        foreach (var methodName in new[] { "UpdatePlace", "DeletePlace", "UpdateRegion", "DeleteRegion", "PreviewPlaceDeletion", "ConfirmPlaceDeletion", "PreviewRegionDeletion", "ConfirmRegionDeletion", "PreparePlaceUpdate", "PrepareEditorPlaceOrder", "OrderPlaces", "PrepareEditorRegionOrder", "OrderRegions" })
             Assert.NotEmpty(typeof(TripEditorController).GetMethod(methodName)!
                 .GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), true));
     }

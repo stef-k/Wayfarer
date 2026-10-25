@@ -3,8 +3,15 @@ import test from 'node:test';
 import { createRegionDeletionController, regionDeletionLabel, heldRegionDeletionKey } from '../../ClientApps/trip-editor/src/components/regionDeletionState.ts';
 
 const preview = (places = 'keep', areas = 'keep', token = 'approval') => ({ contractVersion: 1, tripId: 'trip', sourceRegionId: 'source', sourceRegionName: 'Source', places, areas,
-  destination: { mode: 'existing', regionId: 'dest', name: 'Unassigned Places' }, consequences: {}, confirmation: { token, expiresAt: new Date(Date.now() + 600000).toISOString() } });
+  destination: { mode: 'not-required', regionId: null, name: null }, consequences: Object.fromEntries(['movedPlaces','deletedPlaces','movedAreas','deletedAreas','deletedSegments','updatedSegments','detachedWaypoints'].map(key => [key, { count: 0, ids: [], hasMore: false }])), confirmation: { token, expiresAt: new Date(Date.now() + 600000).toISOString() } });
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
+/** Complete empty-source success; full four-way effects remain owned by the accepted PostgreSQL matrix. */
+const success = () => ({ success: true, data: { tripId: 'trip', sourceRegionId: 'source', places: 'keep', areas: 'keep', destinationRegionId: null,
+  movedPlaceIds: [], movedAreaIds: [], updatedSegmentIds: [], detachedWaypointAssociations: [] },
+  affected: { metadata: { updatedAt: '2026-10-25T00:00:00Z' }, regions: [], regionOrder: [], places: [], areas: [], segments: [], tags: [],
+    placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, segmentOrder: null, tagOrder: null, options: null, visitProgress: {} },
+  deletedIds: { regions: ['source'], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
+
 const setup = (fetch) => {
   const values = new Map(); const applied = [];
   const storage = { getItem: k => values.get(k) ?? null, setItem: (k,v) => values.set(k,v), removeItem: k => values.delete(k) };
@@ -52,7 +59,7 @@ test('double submit is suppressed and authoritative slices apply while the attem
   const s = setup(async url => url.endsWith('deletion-preview') ? response(preview()) : (dispatches++, pending.promise));
   await s.controller.refresh(); const first = s.controller.submit(); assert.equal(await s.controller.submit(), false);
   assert.equal(s.values.size, 1);
-  pending.resolve(response({ success: true, data: { tripId: 'trip', sourceRegionId: 'source', places: 'keep', areas: 'keep' }, affected: {}, deletedIds: {} }));
+  pending.resolve(response(success()));
   assert.equal(await first, true); assert.equal(dispatches, 1); assert.equal(s.applied.length, 1); assert.equal(s.values.size, 0);
 });
 
@@ -91,4 +98,15 @@ test('refresh restores the original dispositions of a held destructive intent', 
   await reopened.select('places', 'keep');
   assert.equal(reopened.state.places, 'delete');
   assert.equal(await reopened.submit(), false);
+});
+
+for (const mismatch of ['deleted scope', 'destination', 'missing order', 'unrelated slice']) test(`incomplete Region ${mismatch} acknowledgement retains the hold`, async () => {
+  const result = success();
+  if (mismatch === 'deleted scope') result.deletedIds.places.push('unapproved');
+  if (mismatch === 'destination') result.data.destinationRegionId = 'foreign';
+  if (mismatch === 'missing order') result.affected.regionOrder = null;
+  if (mismatch === 'unrelated slice') result.affected.tags.push({ id: 'unrelated' });
+  const s = setup(async url => response(url.endsWith('deletion-preview') ? preview() : result));
+  await s.controller.refresh(); assert.equal(await s.controller.submit(), false);
+  assert.equal(s.controller.state.held, true); assert.equal(s.applied.length, 0); assert.equal(s.values.size, 1);
 });

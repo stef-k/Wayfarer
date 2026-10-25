@@ -906,10 +906,10 @@ synchronization cursor is promised.
 | Create Region | `POST /api/trips/{tripId}/conditional/regions` | Complete original Region/canonical identity/order set and `value`; see [checked creation](trip-creation.md). |
 | Update Region | `PUT /api/trips/regions/{regionId}` | Optional scalar fields above; Trip association cannot change and submitted order changes reject. |
 | Order Regions | Prepared `PUT /api/trips/{tripId}/conditional/regions/order` | Complete original normal-Region material/vector and canonical identity/order; see [protected Region ordering](trip-region-order.md). |
-| Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
+| Delete Region | Preview/confirmed POST `/api/trips/{tripId}/regions/{regionId}/deletion-preview` and `/deletion` | Explicit four-way Place/Area disposition and expiring content approval; see [Region deletion](region-deletion.md). |
 | Create Place | `POST /api/trips/{tripId}/conditional/places` | Original destination and complete nullable Place order set; absent fallback additionally needs Region-set proof. See [checked creation](trip-creation.md). |
 | Update Place | Conditional scalar PATCH or prepared coordinate/move/order actions | [Supported Place contracts](trip-place-structure.md); unconditional Place PUT rejects without mutation. |
-| Delete Place | `DELETE /api/trips/places/{placeId}` | No body; dependency confirmation may be required. |
+| Delete Place | Preview/confirmed POST `/api/trips/{tripId}/conditional/places/{placeId}/deletion-preview` and `/deletion` | Content-bound confirmation even without dependents; see [Place deletion](trip-place-deletion.md). |
 
 The supported Web and bearer creation contracts, examples, acknowledgement rules,
 atomic footprints and unknown-outcome holds are documented in
@@ -954,9 +954,8 @@ The reserved Region permits normalized `notes`, `coverImageUrl` (including an
 empty string), and paired valid center coordinates, including zeroes. Invalid
 center input applies no fields. Empty/null-only payloads and identical protected
 fields alone return 200 with `success`, `message: "No changes applied."` and the
-Region DTO, without saving or scheduling cache warm-up. Reserved deletion always
-returns 400 (`Cannot delete the Unassigned Places region.`), even with a dependency
-confirmation header. The cookie Trip Editor retains its separate restriction on
+Region DTO, without saving or scheduling cache warm-up. Reserved deletion is
+forbidden (403), including on the rejected unconditional adapter. The cookie Trip Editor retains its separate restriction on
 all reserved Region edits.
 
 Region PUT uses null/omitted values as unchanged; empty Notes clears the text.
@@ -965,16 +964,15 @@ move, complete vector and combined Web contracts, atomic effects and safe
 conflict/unknown semantics are documented in [conditional Place structure](trip-place-structure.md).
 No supported client falls back to an unconditional Place writer.
 
-Destructive Place/Region operations can return **409** with affected dependencies,
-an opaque `confirmationToken` and expiry. Review the warning, then explicitly
-retry the same delete with `X-Wayfarer-Dependency-Confirmation: <confirmationToken>`
-if that destruction is intended. The token is bound to owner, operation, target,
-Trip and exact dependency state; changed/expired state requires a fresh warning.
-Prepared Place updates have their own conditional conflict categories. Never treat
-a 409 as an unconditional no-body delete success.
-
-See [checked creation examples](trip-creation.md) and
-[prepared Place examples](trip-place-structure.md) for supported mobile requests.
+Place and Region destruction require nonmutating preview followed by an explicit
+confirmed POST, including targets without dependents. Approval binds material
+content, ordering and actual lifecycle effects, and expires after ten minutes.
+The participating unconditional DELETE adapters reject without mutation; an
+identity-only header cannot authorize them. Known precommit rejection requires
+fresh review; lost/unclassified replies remain unknown without blind replay.
+See [Place deletion and mobile requests](trip-place-deletion.md),
+[four-way Region deletion](region-deletion.md), [checked creation examples](trip-creation.md)
+and [prepared Place examples](trip-place-structure.md).
 
 Other existing bearer capabilities include limited Trip metadata, Segment notes
 and Area metadata edits, public discovery and public-Trip cloning. Mobile Group,

@@ -394,7 +394,7 @@ const sendMutation = async <TData>(
   if (response.status === 409) {
     const conflict = await response.json() as EditorLifecycleConflict | EditorSegmentConflict;
     // Scalar conflicts offer review guidance rather than a structural confirmation dialog.
-    if (String(conflict.code).startsWith('mutation-'))
+    if (String(conflict.code).startsWith('mutation-') || String(conflict.code).startsWith('place-deletion-'))
       throw new EditorMutationHttpError((conflict as { detail?: string }).detail ?? 'Keep your draft and review the current values before saving.', response.status);
     if (String(conflict.code).startsWith('segment-'))
       throw new EditorSegmentConflictError(conflict as EditorSegmentConflict, response.headers.get('X-Wayfarer-Clear-Route-Confirmation'));

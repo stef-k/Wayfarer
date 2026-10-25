@@ -413,3 +413,36 @@ for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 
     } finally { owner.dispose(); }
   }));
 }
+
+for (const newer of [false, true]) test(`Region deletion preserves a ${newer ? 'superseding session' : 'newer draft'} after checked success`, () => withGlobals(async held => {
+  const element = { dataset: { accountId: 'account', tripId: 'trip' } };
+  globalThis.document.getElementById = () => element;
+  globalThis.localStorage = { getItem: key => held.get(key) ?? null, setItem: (key, value) => held.set(key, value), removeItem: key => held.delete(key) };
+  globalThis.window = { fetch: (...args) => globalThis.fetch(...args), dispatchEvent() {} };
+  let dialog;
+  globalThis.regionConfirm = async options => { dialog = options; return false; };
+  const sample = () => ({ count: 0, ids: [], hasMore: false });
+  const preview = { contractVersion: 1, tripId: 'trip', sourceRegionId: 'region', sourceRegionName: 'Original', places: 'keep', areas: 'keep',
+    destination: { mode: 'not-required', regionId: null, name: null }, consequences: Object.fromEntries(['movedPlaces','deletedPlaces','movedAreas','deletedAreas','deletedSegments','updatedSegments','detachedWaypoints'].map(key => [key, sample()])),
+    confirmation: { token: 'consent', expiresAt: new Date(Date.now() + 600000).toISOString() } };
+  const result = { success: true, data: { tripId: 'trip', sourceRegionId: 'region', places: 'keep', areas: 'keep', destinationRegionId: null,
+    movedPlaceIds: [], movedAreaIds: [], updatedSegmentIds: [], detachedWaypointAssociations: [] }, deletedIds: { regions: ['region'], places: [], areas: [], segments: [], tags: [] }, warnings: [],
+    affected: { metadata: { updatedAt: '2026-10-25T00:00:00Z' }, regions: [], regionOrder: [], places: [], areas: [], segments: [], tags: [],
+      placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, segmentOrder: null, tagOrder: null, options: null, visitProgress: {} } };
+  const pending = deferred();
+  globalThis.fetch = async url => url.endsWith('deletion-preview') ? new Response(JSON.stringify(preview)) : pending.promise;
+  const owner = mount();
+  try {
+    await owner.editor.openEdit(owner.props.state.regionsById.region);
+    await owner.editor.deleteDraftRegion();
+    for (let tick = 0; tick < 5; tick++) await new Promise(done => setImmediate(done));
+    const submitting = dialog.regionDeletion.submit();
+    if (newer) owner.editor.regionDraftState.reset(region({ id: 'later' }));
+    owner.editor.draft.name = 'Newer intent';
+    pending.resolve(new Response(JSON.stringify(result)));
+    assert.equal(await submitting, true);
+    assert.equal(owner.editor.draft.name, 'Newer intent');
+    assert.equal(owner.editor.draft.id, newer ? 'later' : 'region');
+    assert.equal(owner.applied.length, 1); assert.equal(held.size, 0);
+  } finally { owner.dispose(); }
+}));
