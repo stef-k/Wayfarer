@@ -288,14 +288,70 @@ const orderCapabilities = { canEdit: true, canRename: true, canDelete: true, can
 const orderReply = request => {
   const regions = request.regionIds.map((id, index) => {
     const original = request.expected.regions.find(r => r.id === id);
-    return region({ id, name: original.name, notesHtml: original.notes ?? '', displayOrder: index + 1, capabilities: orderCapabilities,
-      coverImage: original.coverImageUrl === null ? null : { rawUrl: original.coverImageUrl, proxiedUrl: '/image' }, center: original.center });
+    // The mapper hides blank covers in display data but preserves exact storage in originalValues.
+    const next = region({ id, name: original.name, notesHtml: original.notes ?? '', displayOrder: index + 1, capabilities: orderCapabilities,
+      coverImage: original.coverImageUrl === null || /^\p{White_Space}*$/u.test(original.coverImageUrl)
+        ? null : { rawUrl: original.coverImageUrl, proxiedUrl: '/image' }, center: original.center });
+    next.originalValues.coverImage = original.coverImageUrl === null ? null : { rawUrl: original.coverImageUrl };
+    return next;
   });
-  return { contract: 'bd2-1', success: true, data: { tripId: 'trip', regionOrder: [...request.regionIds, 'canonical'] },
-    affected: { metadata: null, regions, regionOrder: [...request.regionIds, 'canonical'], places: [], placeOrdersByRegionId: {},
+  const order = [...request.regionIds, ...(request.expected.canonical ? [request.expected.canonical.id] : [])];
+  return { contract: 'bd2-1', success: true, data: { tripId: 'trip', regionOrder: order },
+    affected: { metadata: null, regions, regionOrder: order, places: [], placeOrdersByRegionId: {},
       areas: [], areaOrdersByRegionId: {}, segments: [], segmentOrder: null, tags: [], tagOrder: null, visitProgress: null, options: null },
     deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] };
 };
+
+// Exercise display/original separation through the mounted production prepare/apply/adoption owner.
+for (const [label, cover, outcome] of [
+  ['empty', '', 'success'], ['whitespace', ' ', 'success'], ['null', null, 'success'],
+  ['Unicode whitespace', '\t\u0085', 'success'], ['padded URL', ' https://old.test/a.jpg ', 'success'],
+  ['normalized original', ' ', 'normalized'], ['blank display object', '', 'display'], ['missing display', '', 'missing']
+]) {
+  test(`Region order cover ${label} preserves exact evidence and validates projection`, () => withGlobals(async () => {
+    const initial = region({ displayOrder: 33, capabilities: orderCapabilities,
+      coverImage: cover === null || /^\p{White_Space}*$/u.test(cover) ? null : { rawUrl: cover, proxiedUrl: '/image' } });
+    initial.originalValues.coverImage = cover === null ? null : { rawUrl: cover };
+    const owner = mount(initial);
+    const originals = { regions: [{ id: initial.id, displayOrder: initial.displayOrder, name: initial.originalValues.name,
+      notes: initial.originalValues.notesHtml, coverImageUrl: cover, center: initial.originalValues.center }], canonical: null };
+    const calls = [];
+    globalThis.regionConfirm = async () => true;
+    globalThis.fetch = async (url, init) => {
+      const request = JSON.parse(init.body); calls.push(request);
+      if (url.endsWith('/prepare')) return new Response(JSON.stringify({ contract: 'bd2-1', operation: 'region-order', tripId: 'trip',
+        requiresReview: true, conditionToken: 'conditions', ...request.expected }));
+      const reply = orderReply(request);
+      if (outcome === 'normalized') reply.affected.regions[0].originalValues.coverImage = null;
+      if (outcome === 'display') reply.affected.regions[0].coverImage = { rawUrl: '', proxiedUrl: '/image' };
+      if (outcome === 'missing') delete reply.affected.regions[0].coverImage;
+      return new Response(JSON.stringify(reply));
+    };
+    try {
+      await owner.editor.openEdit(initial);
+      await owner.editor.reorderRegions([initial.id], [initial.id], originals);
+      await nextTick();
+      assert.equal(calls.length, 2);
+      assert.deepEqual(calls.map(request => request.expected), [originals, originals]);
+      const accepted = outcome === 'success';
+      assert.equal(owner.applied.length, accepted ? 1 : 0);
+      assert.equal(owner.editor.regionDraftState.orderUncertain.value, !accepted);
+      assert.equal(owner.editor.regionDirty, !accepted);
+      assert.deepEqual(owner.props.state.regionsById.region.originalValues.coverImage, initial.originalValues.coverImage);
+      if (accepted) {
+        assert.equal(owner.props.state.regionsById.region.displayOrder, 1);
+        assert.match(owner.editor.statusText, /^Saved/);
+      } else {
+        assert.equal(owner.props.state.regionsById.region.displayOrder, 33);
+        assert.doesNotMatch(owner.editor.statusText, /^Saved/);
+        owner.editor.resetDraft();
+        await owner.editor.reorderRegions([initial.id], [initial.id], originals);
+        assert.equal(calls.length, 2, 'malformed replies retain the unknown hold without replay');
+        assert.equal(owner.editor.regionDirty, true);
+      }
+    } finally { owner.dispose(); }
+  }));
+}
 
 for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 'wrong-material', 'unrelated-effects', 'rejected']) {
   test(`Region order ${outcome}: pinned originals, guarded adoption and page-local unknown hold`, () => withGlobals(async () => {

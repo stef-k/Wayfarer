@@ -60,12 +60,16 @@ export const validateRegionOrderAcknowledgement = (result: EditorMutationResult<
   if (result?.contract !== 'bd2-1' || result.success !== true || result.data?.tripId !== tripId || !same(result.data.regionOrder, order)
     || !same(affected?.regionOrder, order) || !Array.isArray(affected.regions) || affected.regions.length !== regionIds.length
     || new Set(affected.regions.map(r => r.id)).size !== regionIds.length
-    || affected.regions.some(r => r.tripId !== tripId || !regionIds.includes(r.id) || r.isShadow !== false || typeof r.notesHtml !== 'string'
+    || affected.regions.some(r => {
+      // Match ToImageReference's blank-as-null display without changing the exact material originals below.
+      const coverUrl = r.originalValues?.coverImage?.rawUrl ?? null;
+      return r.tripId !== tripId || !regionIds.includes(r.id) || r.isShadow !== false || typeof r.notesHtml !== 'string'
       || (r.originalValues?.notesHtml ?? '') !== r.notesHtml || r.originalValues?.name !== r.name || !same(r.originalValues.center, r.center)
       || !(r.coverImage === null || r.coverImage && typeof r.coverImage.rawUrl === 'string' && typeof r.coverImage.proxiedUrl === 'string')
-      || (r.coverImage?.rawUrl ?? null) !== (r.originalValues?.coverImage?.rawUrl ?? null)
+      || (r.coverImage?.rawUrl ?? null) !== (coverUrl === null || /^\p{White_Space}*$/u.test(coverUrl) ? null : coverUrl)
       || !r.capabilities || !capabilities.every(key => typeof r.capabilities[key] === 'boolean')
-      || !same(material(r), { ...expected.regions.find(o => o.id === r.id), displayOrder: regionIds.indexOf(r.id) + 1 }))
+      || !same(material(r), { ...expected.regions.find(o => o.id === r.id), displayOrder: regionIds.indexOf(r.id) + 1 });
+    })
     || !['places', 'areas', 'segments', 'tags'].every(key => empty(affected[key as keyof typeof affected]))
     || Object.keys(affected.placeOrdersByRegionId ?? { invalid: [] }).length !== 0
     || Object.keys(affected.areaOrdersByRegionId ?? { invalid: [] }).length !== 0
