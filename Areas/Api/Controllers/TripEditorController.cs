@@ -260,7 +260,7 @@ public sealed partial class TripEditorController : ControllerBase
     }
 
     /// <summary>
-    /// Deletes a normal region and returns authoritative deleted IDs and affected slices.
+    /// Rejects unconditional Region deletion; the four-way content-confirmed POST owns all effects.
     /// </summary>
     [HttpDelete("regions/{regionId:guid}")]
     [ValidateAntiForgeryToken]
@@ -272,13 +272,11 @@ public sealed partial class TripEditorController : ControllerBase
             return authFailure;
         }
 
-        var outcome = await _regionMutations.DeleteRegionAsync(
-            tripId,
-            regionId,
-            userId!,
-            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
-            cancellationToken);
-        return ToActionResult(outcome);
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(p => p.Id == regionId && p.UserId == userId && p.TripId == tripId && p.Trip.UserId == userId, cancellationToken)) return NotFound();
+        if (await _dbContext.Regions.AnyAsync(r => r.Id == regionId && r.Name == "Unassigned Places", cancellationToken))
+            return new TripMetadataMutationRejected(403, "forbidden", "Unassigned Places cannot be deleted.").ToActionResult();
+        return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
+            "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }
 
     /// <summary>

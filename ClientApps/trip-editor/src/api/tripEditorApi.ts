@@ -269,13 +269,13 @@ export const preparePlaceStructure = async (endpoint: string, path: string, anti
   request: PlaceStructureRequest | EditorPlaceOrderRequest): Promise<PlaceStructurePreview> =>
   await sendMutation(`${endpoint}/${path}/prepare`, 'POST', antiforgeryToken, request, 'Place preparation') as unknown as PlaceStructurePreview;
 
-/// Deletes a place through the same-origin editor API.
-export const deletePlace = async (
-  endpoint: string,
-  placeId: string,
-  antiforgeryToken: string,
-  confirmationToken?: string
-): Promise<EditorMutationResult<EditorPlaceDeleteResult>> => sendMutation(`${endpoint}/places/${placeId}`, 'DELETE', antiforgeryToken, null, 'place delete', confirmationToken);
+/** A nonmutating content preview is required even for a Place without dependents. */
+export const previewPlaceDeletion = async (endpoint: string, placeId: string, antiforgeryToken: string): Promise<import('../components/placeDeletion').PlaceDeletionPreview> =>
+  await sendMutation(`${endpoint}/places/${placeId}/deletion-preview`, 'POST', antiforgeryToken, {}, 'Place deletion preview') as unknown as import('../components/placeDeletion').PlaceDeletionPreview;
+
+/** Dispatches one explicitly approved deletion; callers retain unknown outcomes without replay. */
+export const deletePlace = async (endpoint: string, placeId: string, antiforgeryToken: string, confirmationToken: string): Promise<EditorMutationResult<import('../components/placeDeletion').PlaceDeletionResult>> =>
+  sendMutation(`${endpoint}/places/${placeId}/deletion`, 'POST', antiforgeryToken, { confirmationToken }, 'Place deletion');
 
 /** Prepares the retained original Region vector for explicit review without adopting a new base. */
 export const prepareRegionOrder = async (endpoint: string, antiforgeryToken: string, request: EditorRegionOrderRequest): Promise<import('../components/regionOrdering').RegionOrderPreview> =>
@@ -394,7 +394,7 @@ const sendMutation = async <TData>(
   if (response.status === 409) {
     const conflict = await response.json() as EditorLifecycleConflict | EditorSegmentConflict;
     // Scalar conflicts offer review guidance rather than a structural confirmation dialog.
-    if (String(conflict.code).startsWith('mutation-'))
+    if (String(conflict.code).startsWith('mutation-') || String(conflict.code).startsWith('place-deletion-'))
       throw new EditorMutationHttpError((conflict as { detail?: string }).detail ?? 'Keep your draft and review the current values before saving.', response.status);
     if (String(conflict.code).startsWith('segment-'))
       throw new EditorSegmentConflictError(conflict as EditorSegmentConflict, response.headers.get('X-Wayfarer-Clear-Route-Confirmation'));

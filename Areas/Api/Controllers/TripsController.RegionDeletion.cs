@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -14,11 +15,13 @@ public partial class TripsController
     public Task<IActionResult> ConfirmRegionDeletion(Guid tripId, Guid regionId, CancellationToken token) =>
         RegionDeletionAsync(tripId, regionId, true, token);
 
-    private Task<IActionResult> RegionDeletionAsync(Guid tripId, Guid regionId, bool mutation, CancellationToken token)
+    private async Task<IActionResult> RegionDeletionAsync(Guid tripId, Guid regionId, bool mutation, CancellationToken token)
     {
         Response.Headers.CacheControl = "no-store";
-        var user = GetUserFromToken();
-        return user == null ? Task.FromResult<IActionResult>(Unauthorized())
-            : RegionDeletionEndpoint.ExecuteAsync(this, _dbContext, _lifecycle, tripId, regionId, user.Id, mutation, token);
+        var authority = IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext);
+        var user = await authority.ResolveAsync(HttpContext, token);
+        return user == null ? Unauthorized()
+            : await RegionDeletionEndpoint.ExecuteAsync(this, _dbContext, _lifecycle, tripId, regionId, user.Id, mutation, token,
+                ct => authority.RevalidateMutationAsync(HttpContext, user.Id, ct));
     }
 }

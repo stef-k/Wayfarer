@@ -146,6 +146,8 @@ export function useRegionEditorActions(context: any) {
 
     const region = context.activeRegion.value;
     const deletedTarget = context.activeRegionTarget.value;
+    const draftSession = owner.session();
+    const draftIntent = JSON.stringify(context.draft);
     const mount = document.getElementById('trip-editor-app');
     const account = mount?.dataset.accountId;
     if (!account) { context.applyError(new Error('Reload the editor to verify your account.'), 'Account unavailable.'); return; }
@@ -157,10 +159,12 @@ export function useRegionEditorActions(context: any) {
       onSuccess: result => {
         context.emit('mutationApplied', result as EditorMutationResult<unknown>);
         // Only the deleted Region's own draft is cleared, after authoritative slices have been applied.
-        context.regionDraftState.reset(null);
-        context.regionCreateBaselineRequest.value = null;
-        context.props.editorSurface.clearActiveTarget(deletedTarget);
-        context.markSaved();
+        if (owner.session() === draftSession && JSON.stringify(context.draft) === draftIntent) {
+          context.regionDraftState.reset(null);
+          context.regionCreateBaselineRequest.value = null;
+          context.props.editorSurface.clearActiveTarget(deletedTarget);
+          context.markSaved();
+        }
       }
     });
     const settled = confirm({ title: `Delete Region ‘${region.name}’?`,

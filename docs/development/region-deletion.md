@@ -61,9 +61,10 @@ Slices are projected before commit; success is returned only after commit.
 | 409 | `unassigned_region_conflict` | Reconcile malformed affected ownership/canonical state |
 
 Cookie antiforgery rejection retains framework behavior. Definite pre-commit
-rejections make no domain change. Legacy DELETE routes, their dependency header,
-empty-Region behavior and response shapes are unchanged. The new purpose-separated
-token cannot authorize legacy DELETE, nor can a legacy token authorize this POST.
+rejections make no domain change. Participating unconditional Web/bearer DELETE
+adapters reject with 409 `mutation-confirmation-required`; the canonical Region
+remains forbidden (403). Identity-only headers cannot authorize deletion. Use
+these explicit POSTs; never fall back to DELETE.
 
 ## Transaction, confirmation and recovery
 
@@ -78,7 +79,9 @@ Mutation discovers candidates and holds deterministic row locks through commit:
 profiles → Segments → Places → Areas → Regions → Trip, IDs sorted within classes.
 Region/Trip and Segment/Place FK parent barriers cover membership insertion, including
 legacy writers. Final persisted rediscovery after waits must match the approval
-and need no additional earlier-class locks. Changes conflict without retry.
+and need no additional earlier-class locks. The locked active account and incoming
+bearer credential are checked again before writes, consistently with protected
+ordering/move writers. Changes conflict without retry.
 
 Only the exact name `Unassigned Places` elects a canonical Region, independent of
 historical order. Wrong ownership fails closed. Missing destinations are created
@@ -90,7 +93,7 @@ types; normalize Segment order only when endpoint deletion occurs.
 Caller EF state is isolated from saving the operation. Pre-commit recovery restores
 Areas, siblings, destination absence and caller pending work; later saves cannot
 resurrect staged changes. The current locked Trip is stamped by property through a
-narrow save path, preserving independent Trip metadata. This guarantee applies to
+narrow save path with nondecreasing freshness, preserving independent Trip metadata. This guarantee applies to
 this new operation; #853 retains ownership of broader writer correction.
 
 ## Unknown outcomes and editor behavior
@@ -99,7 +102,9 @@ Vue never probes with DELETE or automatically replays a mutation. Each selection
 change invalidates the token; superseded previews cannot replace current evidence.
 Final activation is disabled until a matching fresh preview arrives. Cancellation
 before dispatch performs no mutation and leaves drafts intact. Successful slices
-apply before the deleted Region selection/draft is cleared.
+apply only after returned effect identities and affected scope are checked. Only the
+same unchanged deleted Region draft/selection is cleared; newer sessions/intent
+and unrelated drafts remain intact.
 
 Before dispatch, Vue retains minimal intent in local browser storage scoped to
 server/account/Trip/source. It includes dispositions and an attempt ID, without
@@ -116,3 +121,7 @@ ordered within the canonical Region using complete-membership validation. Direct
 Area creation and the canonical Region's metadata/reorder/delete remain protected.
 Issue #847 separately owns Unassigned Place endpoint/waypoint picker eligibility;
 full integrated Segment picker UX acceptance remains dependent on that issue.
+
+BD2-13 reuses this delivered four-way matrix and conservative content consent,
+including kept children. Its current protected-writer integration and fresh versus
+reused qualification boundary are documented with [BD2-12/13](trip-place-deletion.md#bd2-13-integration-evidence-boundary).

@@ -54,6 +54,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace
         Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
+        Api.TripEditor.PreviewPlaceDeletion Api.TripEditor.ConfirmPlaceDeletion
         Api.TripEditor.PreparePlaceUpdate Api.TripEditor.PrepareEditorPlaceOrder
         Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.PrepareEditorRegionOrder Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace
         Api.TripEditor.UpdatePlace Api.TripEditor.DeletePlace Api.TripEditor.OrderPlaces Api.TripEditor.CreateSegment
@@ -71,6 +72,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Trips.RejectUnconditionalRegionCreation Api.Trips.RejectUnconditionalPlaceCreation
         Api.Trips.UpdateRegion Api.Trips.UpdateArea Api.Trips.DeleteRegion Api.Trips.CloneTrip
         Api.Trips.PreviewRegionDeletion Api.Trips.ConfirmRegionDeletion
+        Api.Trips.PreviewPlaceDeletion Api.Trips.ConfirmPlaceDeletion
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea
         Api.Trips.PatchConditionalSegmentNotes Api.Trips.PatchConditionalPlace
         Api.Trips.PreparePlaceCoordinates Api.Trips.ApplyPlaceCoordinates Api.Trips.PreparePlaceMove Api.Trips.ApplyPlaceMove

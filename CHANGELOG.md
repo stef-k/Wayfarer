@@ -4,6 +4,18 @@
 
 ### Changed
 
+- Require content-bound Place deletion preview/confirmation on both Web and bearer,
+  including Places without dependents (#853 BD2-12). Recheck full material target,
+  parent/order and route/waypoint/profile/provenance dependencies under lifecycle
+  locks; commit deletion, route/order/visit effects and current-safe freshness
+  atomically. Preserve drafts and hold uncertain outcomes without replay. Integrate
+  #848 Region deletion with current authority and protected move/order writers,
+  validate acknowledgement scope, retain newer intent and close participating
+  unconditional deletion bypasses (BD2-13). The accepted four Place/Area choices,
+  kept-child consent and canonical lifecycle remain intact. See
+  [supported deletion contracts and mobile examples](docs/development/trip-place-deletion.md).
+  No migration.
+
 - Protect complete normal-Region ordering with paired Web/bearer originals,
   reviewed conditions and final Region/Trip locks (#853 BD2-11). Compare material
   content, membership, stored orders and canonical identity/order; atomically write

@@ -34,13 +34,11 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
     await deleteButton.click();
 
-    const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+    const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveAccessibleDescription(
-      `This deletes ${fixture.waypointOnlyPlace.endpointSegments} connected segment(s) and updates ${fixture.waypointOnlyPlace.waypointOnlySegments} waypoint route(s).`
-    );
-    await expect(dialog.getByRole('button', { name: 'Keep place' })).toBeFocused();
-    await dialog.getByRole('button', { name: 'Keep place' }).click();
+    await expect(dialog).toContainText(`Delete ${fixture.waypointOnlyPlace.endpointSegments} endpoint Segment(s), update ${fixture.waypointOnlyPlace.waypointOnlySegments} surviving waypoint route(s)`);
+    await expect(dialog.getByRole('button', { name: 'Keep Place and drafts' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Keep Place and drafts' }).click();
 
     await expect(dialog).toHaveCount(0);
     await expect(placeRow(page, fixture.waypointOnlyPlace.id)).toBeVisible();
@@ -50,12 +48,11 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     const survivingSegment = fixture.segmentIds[0];
     const requests = collectDeleteRequests(page, fixture.waypointOnlyPlace.id);
     await deleteButton.click();
-    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
     await expect(placeRow(page, fixture.waypointOnlyPlace.id)).toHaveCount(0);
     await expect(segmentRow(page, survivingSegment)).toBeVisible();
-    expect(requests()).toHaveLength(2);
-    expect(requests()[0].confirmation).toBeFalsy();
-    expect(requests()[1].confirmation).toBeTruthy();
+    expect(requests()).toHaveLength(1);
+    expect(requests()[0].confirmation).toBeTruthy();
     await expectDeletedPlace(page, fixture.waypointOnlyPlace.id);
     await expectMeaningfulFocus(page);
   });
@@ -95,23 +92,25 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     const requests = collectDeleteRequests(page, fixture.stalePlace.id);
     await placeRow(page, fixture.stalePlace.id).getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
-    const first = page.getByRole('dialog', { name: 'Delete place?' });
-    await expect(first).toContainText('updates 1 waypoint route(s)');
+    const first = page.getByRole('dialog', { name: 'Delete Place?' });
+    await expect(first).toContainText('update 1 surviving waypoint route(s)');
     applyFixtureDrift();
-    await first.getByRole('button', { name: 'Delete', exact: true }).click();
+    await first.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
 
-    const refreshed = page.getByRole('dialog', { name: 'Dependencies changed' });
-    await expect(refreshed).toContainText('updates 2 waypoint route(s)');
-    await expect(refreshed.getByRole('button', { name: 'Keep place' })).toBeFocused();
-    await refreshed.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.locator('.trip-editor-form-error[role="alert"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
+    await expect(refreshed).toContainText('update 2 surviving waypoint route(s)');
+    await expect(refreshed.getByRole('button', { name: 'Keep Place and drafts' })).toBeFocused();
+    await refreshed.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
     await expect(placeRow(page, fixture.stalePlace.id)).toHaveCount(0);
-    expect(requests()).toHaveLength(3);
+    expect(requests()).toHaveLength(2);
+    expect(requests()[0].confirmation).toBeTruthy();
     expect(requests()[1].confirmation).toBeTruthy();
-    expect(requests()[2].confirmation).toBeTruthy();
     await expectMeaningfulFocus(page);
   });
 
-  test('provider failure preserves visible state, prevents duplicate confirmation, and permits retry', async ({ page }, testInfo) => {
+  test('provider failure preserves visible state and holds deletion without replay', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const timing = (event: string): void => {
       const description = `${new Date().toISOString()} ${event}`;
@@ -124,9 +123,9 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
     const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
     await deleteButton.click();
-    const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+    const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Delete', exact: true })).toBeEnabled();
+    await expect(dialog.getByRole('button', { name: 'Permanently delete Place', exact: true })).toBeEnabled();
     timing('Delete button actionable before stop');
     timing('warning dialog visible');
     timing('PostgreSQL stop command start');
@@ -135,24 +134,24 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     await expect.poll(postgresPortIsOpen, { timeout: 15_000 }).toBe(false);
     timing('port closure confirmed');
     try {
-      const confirmDelete = dialog.getByRole('button', { name: 'Delete', exact: true });
+      const confirmDelete = dialog.getByRole('button', { name: 'Permanently delete Place', exact: true });
       await expect(dialog).toBeVisible();
       await expect(confirmDelete).toBeVisible();
       await expect(confirmDelete).toBeEnabled();
       timing('Delete button actionable after stop');
-      const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
-      const dispatched = page.waitForRequest(candidate => candidate.method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
+      const response = page.waitForResponse(candidate => candidate.request().method() === 'POST' && candidate.url().endsWith(`/places/${target.id}/deletion`));
+      const dispatched = page.waitForRequest(candidate => candidate.method() === 'POST' && candidate.url().endsWith(`/places/${target.id}/deletion`));
       timing('confirmation click');
       await confirmDelete.click();
       await dispatched;
-      timing('DELETE request dispatched');
+      timing('confirmed POST dispatched');
       timing('confirmation click completed');
       await expect(dialog).toHaveCount(0);
       await expect(deleteButton).toBeDisabled();
       await expect(page.getByRole('status').filter({ hasText: 'Saving' }).first()).toBeVisible();
       expect((await response).status()).toBe(500);
       timing('HTTP 500 response');
-      expect(requests()).toHaveLength(2);
+      expect(requests()).toHaveLength(1);
     } finally {
       timing('PostgreSQL restart start');
       startPostgres();
@@ -165,13 +164,10 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
 
     await expect(placeRow(page, target.id)).toBeVisible();
     await expect(segmentRow(page, fixture.segmentIds[7])).toBeVisible();
-    await expect(page.locator('.trip-editor-form-error[role="alert"]')).toContainText('place delete returned 500');
-    timing('retry request start');
+    await expect(page.locator('.trip-editor-form-error[role="alert"]')).toContainText('outcome unknown');
     await deleteButton.click();
-    await page.getByRole('dialog', { name: 'Delete place?' }).getByRole('button', { name: 'Delete', exact: true }).click();
-    await expect(placeRow(page, target.id)).toHaveCount(0);
-    timing('retry success response');
-    expect(requests()).toHaveLength(4);
+    await expect(page.getByRole('dialog', { name: 'Delete Place?' })).toHaveCount(0);
+    expect(requests()).toHaveLength(1);
     await expectMeaningfulFocus(page);
   });
 
@@ -246,19 +242,17 @@ async function expectDeletedPlace(page: Page, placeId: string): Promise<void> {
 async function deletePlace(page: Page, target: LifecycleFixture['mixedPlace']): Promise<void> {
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
-  await expect(dialog).toHaveAccessibleDescription(
-    `This deletes ${target.endpointSegments} connected segment(s) and updates ${target.waypointOnlySegments} waypoint route(s).`
-  );
-  await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
+  await expect(dialog).toContainText(`Delete ${target.endpointSegments} endpoint Segment(s), update ${target.waypointOnlySegments} surviving waypoint route(s)`);
+  await dialog.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
 }
 
-/** Records exact lifecycle DELETE requests without replacing application traffic. */
+/** Records exact confirmed lifecycle POST requests without replacing application traffic. */
 function collectDeleteRequests(page: Page, targetId: string): () => Array<{ confirmation?: string }> {
   const requests: Array<{ confirmation?: string }> = [];
   page.on('request', request => {
-    if (request.method() === 'DELETE' && request.url().endsWith(`/places/${targetId}`)) {
-      requests.push({ confirmation: request.headers()['x-wayfarer-dependency-confirmation'] });
+    if (request.method() === 'POST' && request.url().endsWith(`/places/${targetId}/deletion`)) {
+      requests.push({ confirmation: request.postDataJSON().confirmationToken });
     }
   });
   return () => requests;
@@ -320,10 +314,10 @@ function requiredEnvironment(name: string): string {
 async function assertPhonePlaceWarning(page: Page, target: LifecycleFixture['phoneFailurePlace'], viewport: { width: number; height: number }): Promise<void> {
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+  const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(dialog, viewport);
-  await expect(dialog).toContainText('connected segment(s)');
-  await dialog.getByRole('button', { name: 'Keep place' }).click();
+  await expect(dialog).toContainText('endpoint Segment(s)');
+  await dialog.getByRole('button', { name: 'Keep Place and drafts' }).click();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();
 }
 
@@ -346,30 +340,32 @@ async function assertPhoneStaleRefresh(page: Page, viewport: { width: number; he
   const target = fixture.phoneStalePlace;
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  const first = page.getByRole('dialog', { name: 'Delete place?' });
-  await expect(first).toContainText('updates 1 waypoint route(s)');
+  const first = page.getByRole('dialog', { name: 'Delete Place?' });
+  await expect(first).toContainText('update 1 surviving waypoint route(s)');
   runFixtureHelper('phone-drift');
-  await first.getByRole('button', { name: 'Delete', exact: true }).click();
-  const refreshed = page.getByRole('dialog', { name: 'Dependencies changed' });
+  await first.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
+  await expect(page.locator('.trip-editor-form-error[role="alert"]')).toBeVisible();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(refreshed, viewport);
-  await expect(refreshed).toContainText('updates 2 waypoint route(s)');
-  await refreshed.getByRole('button', { name: 'Keep place' }).click();
+  await expect(refreshed).toContainText('update 2 surviving waypoint route(s)');
+  await refreshed.getByRole('button', { name: 'Keep Place and drafts' }).click();
   await expect(placeRow(page, target.id)).toBeVisible();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();
 }
 
-/** Proves provider rollback and retry availability at phone width without deleting the target. */
+/** Holds an uncertain provider outcome without retry at phone width without deleting the target. */
 async function assertPhoneFailureRollback(page: Page, viewport: { width: number; height: number }): Promise<void> {
   const target = fixture.phoneFailurePlace;
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   const deleteButton = page.getByRole('button', { name: 'Delete', exact: true });
   await deleteButton.click();
-  const dialog = page.getByRole('dialog', { name: 'Delete place?' });
+  const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(dialog, viewport);
   stopPostgres();
   try {
-    const response = page.waitForResponse(candidate => candidate.request().method() === 'DELETE' && candidate.url().endsWith(`/places/${target.id}`));
-    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    const response = page.waitForResponse(candidate => candidate.request().method() === 'POST' && candidate.url().endsWith(`/places/${target.id}/deletion`));
+    await dialog.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
     await expect(deleteButton).toBeDisabled();
     expect((await response).status()).toBe(500);
   } finally {
@@ -377,9 +373,8 @@ async function assertPhoneFailureRollback(page: Page, viewport: { width: number;
   }
   await expect(placeRow(page, target.id)).toBeVisible();
   await deleteButton.click();
-  const retry = page.getByRole('dialog', { name: 'Delete place?' });
-  await assertContainedDialog(retry, viewport);
-  await retry.getByRole('button', { name: 'Keep place' }).click();
+  await expect(page.getByRole('dialog', { name: 'Delete Place?' })).toHaveCount(0);
+  await expect(page.locator('.trip-editor-form-error[role="alert"]')).toContainText('unknown outcome');
 }
 
 /** Asserts required content and touch controls remain inside the visual viewport. */

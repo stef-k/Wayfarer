@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Services;
 
@@ -23,7 +24,7 @@ public sealed partial class TripEditorController
     }
 
     /// <summary>
-    /// Deletes a place and endpoint segments that reference it.
+    /// Rejects unconditional Place deletion; use the content preview and confirmed POST.
     /// </summary>
     [HttpDelete("places/{placeId:guid}")]
     [ValidateAntiForgeryToken]
@@ -35,13 +36,9 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _placeMutations.DeletePlaceAsync(
-            tripId,
-            placeId,
-            userId!,
-            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
-            cancellationToken);
-        return ToActionResult(outcome);
+        if (!await _dbContext.Places.AsNoTracking().AnyAsync(p => p.Id == placeId && p.UserId == userId && p.Region.TripId == tripId && p.Region.UserId == userId && p.Region.Trip.UserId == userId, cancellationToken)) return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
+            "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }
 
     /// <summary>

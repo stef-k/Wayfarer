@@ -19,7 +19,7 @@ public sealed partial class PlaceRegionLifecycleService
 
     /// <summary>Executes exactly one approved four-way operation, without destructive retry or legacy-token reuse.</summary>
     public async Task<EditorMutationResult<RegionDeletionResultDto>> ConfirmRegionDeletionAsync(
-        Guid tripId, Guid regionId, string userId, RegionDeletionRequestDto request, CancellationToken token)
+        Guid tripId, Guid regionId, string userId, RegionDeletionRequestDto request, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null)
     {
         if (string.IsNullOrWhiteSpace(request.ConfirmationToken))
             throw new RegionDeletionRejectedException(409, "region-deletion-confirmation-required", "Review and confirm the current consequences.",
@@ -39,6 +39,7 @@ public sealed partial class PlaceRegionLifecycleService
         try
         {
             await LockRegionDeletionAsync(candidates, token);
+            await LockDeletionAuthorityAsync(tripId, userId, authority, token);
             var current = await ReadRegionDeletionAsync(tripId, regionId, userId, request,
                 approval.Destination.RegionId ?? Guid.NewGuid(), token);
             if (_confirmation.IsRegionDeletionExpired(approval) || current.Locks.RequiresLocksOutside(candidates.Locks) || current.AreaIds.Except(candidates.AreaIds).Any()
@@ -134,9 +135,9 @@ public sealed partial class PlaceRegionLifecycleService
             .OrderBy(r => r.Name == "Unassigned Places" ? 0 : 1).ThenBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToArray();
         var nextOrder = 1;
         foreach (var region in regionOrder) region.DisplayOrder = region.Name == "Unassigned Places" ? 0 : nextOrder++;
-        // Save the isolated footprint through EF's explicit overload. The broad timestamp override
-        // marks whole Trips modified; this operation owns only a fresh UpdatedAt property change.
-        _dbContext.Entry(s.Trip).Property(t => t.UpdatedAt).CurrentValue = DateTime.UtcNow;
+        // Save only this operation's locked footprint and current-safe freshness.
+        var now = DateTime.UtcNow;
+        _dbContext.Entry(s.Trip).Property(t => t.UpdatedAt).CurrentValue = s.Trip.UpdatedAt > now ? s.Trip.UpdatedAt : now;
         _dbContext.Entry(s.Trip).Property(t => t.UpdatedAt).IsModified = true;
         await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
         return await ProjectRegionDeletionAsync(s, userId, request, orderedPlaces, orderedAreas, regionOrder,

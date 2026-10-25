@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Verifies legacy token API lifecycle confirmation and stable success compatibility.</summary>
+/// <summary>Verifies token authority and rejection of unconditional deletion bypasses.</summary>
 public sealed class LegacyApiLifecycleControllerTests : TestBase
 {
     /// <summary>Requires token authentication before Place or Region lifecycle discovery.</summary>
@@ -28,73 +28,33 @@ public sealed class LegacyApiLifecycleControllerTests : TestBase
         Assert.IsType<UnauthorizedObjectResult>(await controller.DeleteRegion(seeded.RegionId));
     }
 
-    /// <summary>Returns the shared bounded 409 contract and mutates nothing without Place confirmation.</summary>
-    [Fact]
-    public async Task DeletePlace_MissingConfirmation_ReturnsStableWarningWithoutMutation()
+    /// <summary>Neither an absent nor legacy identity-only header can authorize the retired unconditional delete adapters.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task UnconditionalDeletion_RequiresContentPreview(bool region, bool header)
     {
         var db = CreateDbContext();
         var seeded = Seed(db);
         var controller = BuildController(db, seeded.Token);
-
-        var conflict = Assert.IsType<ConflictObjectResult>(await controller.DeletePlace(seeded.WaypointId));
-        var warning = Assert.IsType<EditorLifecycleConflictDto>(conflict.Value);
-
-        Assert.Equal("place-delete-dependencies", warning.Code);
-        Assert.True(db.Places.Any(item => item.Id == seeded.WaypointId));
-    }
-
-    /// <summary>Returns a fresh stale warning and preserves state when the supplied Place token is invalid.</summary>
-    [Fact]
-    public async Task DeletePlace_InvalidConfirmation_ReturnsFreshStableWarningWithoutMutation()
-    {
-        var db = CreateDbContext();
-        var seeded = Seed(db);
-        var controller = BuildController(db, seeded.Token);
-        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = "malformed";
-
-        var conflict = Assert.IsType<ConflictObjectResult>(await controller.DeletePlace(seeded.WaypointId));
-        var warning = Assert.IsType<EditorLifecycleConflictDto>(conflict.Value);
-
-        Assert.Equal("lifecycle-confirmation-stale", warning.Code);
-        Assert.False(string.IsNullOrWhiteSpace(warning.ConfirmationToken));
-        Assert.True(db.Places.Any(item => item.Id == seeded.WaypointId));
-    }
-
-    /// <summary>Accepts header-only Place confirmation and preserves the established anonymous success shape.</summary>
-    [Fact]
-    public async Task DeletePlace_ValidHeaderConfirmation_PreservesLegacySuccessShape()
-    {
-        var db = CreateDbContext();
-        var seeded = Seed(db);
-        var controller = BuildController(db, seeded.Token);
-        var challenge = Assert.IsType<EditorLifecycleConflictDto>(
-            Assert.IsType<ConflictObjectResult>(await controller.DeletePlace(seeded.WaypointId)).Value);
-        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
-
-        var ok = Assert.IsType<OkObjectResult>(await controller.DeletePlace(seeded.WaypointId));
-
-        Assert.True(Property<bool>(ok.Value!, "success"));
-        Assert.Equal(seeded.WaypointId, Property<Guid>(ok.Value!, "placeId"));
-        Assert.False(db.Places.Any(item => item.Id == seeded.WaypointId));
-    }
-
-    /// <summary>Uses the same 409 protocol for Region deletion and preserves its established success shape.</summary>
-    [Fact]
-    public async Task DeleteRegion_ConfirmationRoundTrip_PreservesLegacySuccessShape()
-    {
-        var db = CreateDbContext();
-        var seeded = Seed(db);
-        var controller = BuildController(db, seeded.Token);
-        var challengeResult = Assert.IsType<ConflictObjectResult>(await controller.DeleteRegion(seeded.RegionId));
-        var challenge = Assert.IsType<EditorLifecycleConflictDto>(challengeResult.Value);
-        Assert.Equal("region-delete-dependencies", challenge.Code);
-        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
-
-        var ok = Assert.IsType<OkObjectResult>(await controller.DeleteRegion(seeded.RegionId));
-
-        Assert.True(Property<bool>(ok.Value!, "success"));
-        Assert.Equal(seeded.RegionId, Property<Guid>(ok.Value!, "regionId"));
-        Assert.False(db.Regions.Any(item => item.Id == seeded.RegionId));
+        var tripId = db.Regions.Single(r => r.Id == seeded.RegionId).TripId;
+        if (header)
+        {
+            var confirmation = new LifecycleDependencyConfirmation(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
+            var lifecycle = new PlaceRegionLifecycleService(db, confirmation);
+            var dependencies = region ? await lifecycle.DiscoverRegionDependenciesAsync(tripId, seeded.RegionId, "legacy-lifecycle-owner", default)
+                : await lifecycle.DiscoverPlaceDependenciesAsync(tripId, seeded.WaypointId, "legacy-lifecycle-owner", default);
+            // Even an authentic legacy confirmation is not a content-bound operation approval.
+            controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = confirmation.Create("legacy", region ? "region-delete" : "place-delete",
+                "legacy-lifecycle-owner", tripId, region ? seeded.RegionId : seeded.WaypointId, dependencies!).ConfirmationToken;
+        }
+        var result = Assert.IsType<ObjectResult>(region ? await controller.DeleteRegion(seeded.RegionId) : await controller.DeletePlace(seeded.WaypointId));
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal("mutation-confirmation-required", Assert.IsAssignableFrom<ProblemDetails>(result.Value).Extensions["code"]);
+        Assert.True(db.Places.Any(p => p.Id == seeded.WaypointId));
+        Assert.True(db.Regions.Any(r => r.Id == seeded.RegionId));
     }
 
     private static TripsController BuildController(ApplicationDbContext db, string? token = null)

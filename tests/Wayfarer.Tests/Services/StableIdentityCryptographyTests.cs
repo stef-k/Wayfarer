@@ -154,6 +154,7 @@ public sealed class StableIdentityCryptographyTests
             "Wayfarer.LocationHistory.Continuation.v1",
             "Wayfarer.LocationProviders.PersonalCredentials.v1",
             "Wayfarer.PlaceCoordinates.Conditions.v1",
+            "Wayfarer.PlaceDeletion.Content.v1",
             "Wayfarer.PlaceMove.Conditions.v1",
             "Wayfarer.PlaceOrder.Conditions.v1",
             "Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1",

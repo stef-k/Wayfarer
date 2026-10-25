@@ -43,10 +43,12 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         await AssertUnchangedAsync(original);
 
         using var deletion = await client.DeleteAsync($"/api/trips/regions/{original.Id}");
-        await AssertErrorAsync(deletion, HttpStatusCode.BadRequest, "Cannot delete the Unassigned Places region.");
+        Assert.Equal(HttpStatusCode.Forbidden, deletion.StatusCode);
+        Assert.Equal("forbidden", (await deletion.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         client.DefaultRequestHeaders.Add("X-Wayfarer-Dependency-Confirmation", "not-a-bypass");
         using var confirmedDeletion = await client.DeleteAsync($"/api/trips/regions/{original.Id}");
-        await AssertErrorAsync(confirmedDeletion, HttpStatusCode.BadRequest, "Cannot delete the Unassigned Places region.");
+        Assert.Equal(HttpStatusCode.Forbidden, confirmedDeletion.StatusCode);
+        Assert.Equal("forbidden", (await confirmedDeletion.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         await AssertUnchangedAsync(original);
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
@@ -175,7 +177,8 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         using var update = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { notes = "Rejected", name = "Renamed" });
         await AssertErrorAsync(update, HttpStatusCode.Unauthorized, "Not your region.");
         using var deletion = await client.DeleteAsync($"/api/trips/regions/{original.Id}");
-        await AssertErrorAsync(deletion, HttpStatusCode.Unauthorized, "Not your region.");
+        Assert.Equal(HttpStatusCode.NotFound, deletion.StatusCode);
+        Assert.DoesNotContain("Unassigned Places", await deletion.Content.ReadAsStringAsync());
         await AssertUnchangedAsync(original);
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }

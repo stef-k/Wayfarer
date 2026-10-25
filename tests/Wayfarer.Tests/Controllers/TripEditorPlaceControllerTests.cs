@@ -64,27 +64,16 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
     }
 
     [Fact]
-    public async Task DeletePlaceDeletesEndpointSegmentsAndReturnsDeletedIds()
+    public async Task UnconditionalPlaceDeleteRejectsWithoutMutation()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
-        var deleted = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
-        var deletedSegmentIds = trip.Segments.Where(s => s.FromPlaceId == deleted.Id || s.ToPlaceId == deleted.Id).Select(s => s.Id).OrderBy(id => id).ToArray();
+        var place = trip.Regions.Single(r => r.Name == "Athens").Places.Single();
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var challengeResult = await controller.DeletePlace(trip.Id, deleted.Id, CancellationToken.None);
-        var challenge = Assert.IsType<EditorLifecycleConflictDto>(Assert.IsType<ConflictObjectResult>(challengeResult).Value);
-        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
-        var result = await controller.DeletePlace(trip.Id, deleted.Id, CancellationToken.None);
-
-        var envelope = AssertMutation<EditorPlaceDeleteResult>(result);
-        Assert.Equal(deleted.Id, envelope.Data.PlaceId);
-        Assert.Equal(new[] { deleted.Id }, envelope.DeletedIds.Places);
-        Assert.Equal(deletedSegmentIds, envelope.DeletedIds.Segments.OrderBy(id => id));
-        Assert.Empty(envelope.Affected.PlaceOrdersByRegionId[deleted.RegionId]);
-        Assert.Single(envelope.Affected.SegmentOrder!);
-        Assert.Empty(db.Segments.Where(s => deletedSegmentIds.Contains(s.Id)));
+        var result = Assert.IsType<ObjectResult>(await controller.DeletePlace(trip.Id, place.Id, CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+        Assert.Contains(db.Places, p => p.Id == place.Id);
     }
 
     [Fact]
@@ -206,7 +195,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
 
         var result = await controller.DeletePlace(trip.Id, waypoint.Id, CancellationToken.None);
 
-        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Contains(db.Places, place => place.Id == waypoint.Id);
         Assert.Contains(db.Set<SegmentWaypoint>(), item => item.PlaceId == waypoint.Id);
     }

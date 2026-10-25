@@ -125,7 +125,7 @@ export const createPlaceDraftState = () => {
 };
 
 /** Complete Place saves may refresh visit progress; scalar acknowledgements cannot publish it. */
-const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolean(progress
+export const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolean(progress
   && Number.isInteger(progress.totalPlaces) && progress.totalPlaces >= 0
   && Number.isInteger(progress.visitedPlaces) && progress.visitedPlaces >= 0 && progress.visitedPlaces <= progress.totalPlaces
   && Number.isFinite(progress.percentVisited) && progress.percentVisited >= 0 && progress.percentVisited <= 100

@@ -43,41 +43,17 @@ public sealed class TripEditorRegionControllerTests : TestBase
     }
 
     [Fact]
-    public async Task DeleteRegionRemovesChildrenEndpointSegmentsAndReturnsExplicitAffectedSlices()
+    public async Task UnconditionalRegionDeleteRejectsWithoutMutation()
     {
         using var db = CreateDbContext();
         var trip = SeedTripWithDeleteGraph(db, "owner-user");
-        var deletedRegion = trip.Regions.Single(r => r.Name == "Delete Me");
-        var keptRegion = trip.Regions.Single(r => r.Name == "Keep Me");
-        var deletedPlaceIds = deletedRegion.Places.Select(p => p.Id).OrderBy(id => id).ToArray();
-        var deletedAreaIds = deletedRegion.Areas.Select(a => a.Id).OrderBy(id => id).ToArray();
-        var deletedSegmentIds = trip.Segments
-            .Where(s => deletedPlaceIds.Contains(s.FromPlaceId!.Value) || deletedPlaceIds.Contains(s.ToPlaceId!.Value))
-            .Select(s => s.Id)
-            .OrderBy(id => id)
-            .ToArray();
+        var region = trip.Regions.Single(r => r.Name == "Delete Me");
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var challengeResult = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
-        var challenge = Assert.IsType<EditorLifecycleConflictDto>(Assert.IsType<ConflictObjectResult>(challengeResult).Value);
-        controller.Request.Headers["X-Wayfarer-Dependency-Confirmation"] = challenge.ConfirmationToken;
-        var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
-
-        var envelope = AssertMutation<EditorRegionDto?>(result);
-        Assert.Null(envelope.Data);
-        Assert.Equal(new[] { deletedRegion.Id }, envelope.DeletedIds.Regions);
-        Assert.Equal(deletedPlaceIds, envelope.DeletedIds.Places.OrderBy(id => id));
-        Assert.Equal(deletedAreaIds, envelope.DeletedIds.Areas.OrderBy(id => id));
-        Assert.Equal(deletedSegmentIds, envelope.DeletedIds.Segments.OrderBy(id => id));
-        Assert.Empty(envelope.Affected.Regions);
-        Assert.Equal(new[] { trip.Regions.Single(r => r.Name == "Unassigned Places").Id, keptRegion.Id }, envelope.Affected.RegionOrder);
-        Assert.Single(envelope.Affected.SegmentOrder!);
-        Assert.NotNull(envelope.Affected.VisitProgress);
-        Assert.Equal(1, envelope.Affected.VisitProgress!.TotalPlaces);
-        Assert.Empty(db.Places.Where(p => deletedPlaceIds.Contains(p.Id)));
-        Assert.Empty(db.Areas.Where(a => deletedAreaIds.Contains(a.Id)));
-        Assert.Empty(db.Segments.Where(s => deletedSegmentIds.Contains(s.Id)));
+        var result = Assert.IsType<ObjectResult>(await controller.DeleteRegion(trip.Id, region.Id, CancellationToken.None));
+        Assert.Equal(409, result.StatusCode);
+        Assert.Contains(db.Regions, r => r.Id == region.Id);
+        Assert.Contains(db.Places, p => p.RegionId == region.Id);
     }
 
     [Fact]
@@ -91,7 +67,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
 
         var result = await controller.DeleteRegion(trip.Id, deletedRegion.Id, CancellationToken.None);
 
-        Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Contains(db.Regions, region => region.Id == deletedRegion.Id);
         Assert.Contains(db.Places, place => place.RegionId == deletedRegion.Id);
         Assert.Contains(db.Areas, area => area.RegionId == deletedRegion.Id);
