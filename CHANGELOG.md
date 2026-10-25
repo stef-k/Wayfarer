@@ -4,6 +4,17 @@
 
 ### Changed
 
+- Protect complete normal-Region ordering with paired Web/bearer originals,
+  reviewed conditions and final Region/Trip locks (#853 BD2-11). Compare material
+  content, membership, stored orders and canonical identity/order; atomically write
+  only normal orders and current-safe freshness, preserving children and historical
+  canonical order. Guard acknowledgement scope and newer drafts; hold unknown
+  outcomes without replay or false Saved. Accept blank-as-null cover display
+  projections while preserving exact stored cover originals. Close unconditional
+  reorder bypasses.
+  See [supported Region order contract](docs/development/trip-region-order.md).
+  No migration.
+
 - Protect Place coordinates, same-Trip moves and complete Place ordering with
   paired Web/bearer originals, reviewed preparation and final lifecycle locks
   (#853 BD2-08/09/10). Combined Web edits commit once with atomic route/order

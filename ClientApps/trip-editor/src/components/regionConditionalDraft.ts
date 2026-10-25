@@ -26,6 +26,10 @@ export const createRegionDraftState = () => {
   const pending = ref(false);
   const uncertain = ref(false);
   const creationUncertain = ref(false);
+  // These Trip-scoped obligations survive draft reset and session retirement; refresh cannot prove noncommit.
+  const orderingPending = ref(false);
+  const orderUncertain = ref(false);
+  const orderIntent = ref<import('../types').EditorRegionOrderRequest | null>(null);
   const creationOriginals = ref<RegionCreationOriginal[] | null>(null);
   const session = ref(0);
   /** Pins creation originals once at explicit open/reset; ordinary refresh cannot replace them. */
@@ -89,5 +93,5 @@ export const createRegionDraftState = () => {
     baseline.id = next.id;
   };
 
-  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, request, acknowledge, session: () => session.value };
+  return { draft, baseline, pending, uncertain, creationUncertain, orderingPending, orderUncertain, orderIntent, creationOriginals, beginCreate, reset, refresh, request, acknowledge, session: () => session.value };
 };

@@ -112,7 +112,7 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
 
     /// <summary>An ordinary zero-order Region still accepts notes-only updates and trimmed names/negative orders.</summary>
     [PostgresFact]
-    public async Task OrdinaryRegionPartialUpdatesRemainCompatible()
+    public async Task OrdinaryRegionPartialUpdatesCannotBypassProtectedOrdering()
     {
         var original = await SeedRegionAsync("Ordinary");
         await using var db = fixture.CreateContext();
@@ -140,12 +140,12 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         await AssertUnchangedAsync(updated);
 
         using var identity = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { name = "  Renamed  ", displayOrder = -2 });
-        Assert.Equal(HttpStatusCode.OK, identity.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, identity.StatusCode);
         await using var fresh = fixture.CreateContext();
         var renamed = await fresh.Regions.SingleAsync(item => item.Id == original.Id);
-        Assert.Equal("Renamed", renamed.Name);
-        Assert.Equal(-2, renamed.DisplayOrder);
-        warmup.Verify(item => item.ScheduleWarmupAsync(original.TripId, false), Times.Exactly(2));
+        Assert.Equal(original.Name, renamed.Name);
+        Assert.Equal(original.DisplayOrder, renamed.DisplayOrder);
+        warmup.Verify(item => item.ScheduleWarmupAsync(original.TripId, false), Times.Once);
         warmup.VerifyNoOtherCalls();
     }
 

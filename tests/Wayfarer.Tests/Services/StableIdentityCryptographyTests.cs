@@ -158,6 +158,7 @@ public sealed class StableIdentityCryptographyTests
             "Wayfarer.PlaceOrder.Conditions.v1",
             "Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1",
             "Wayfarer.RegionDeletion.Content.v1",
+            "Wayfarer.RegionOrder.Conditions.v1",
             "Wayfarer.TripEditor.SegmentAggregate.v1",
             // Transient C4 route evidence binds user/Trip/Segment independently of Notes and xmin.
             "Wayfarer.TripEditor.SegmentRoute.v1",

@@ -56,51 +56,6 @@ internal static class EditorRegionRequestParser
         return true;
     }
 
-    /// <summary>
-    /// Attempts to parse a region order request.
-    /// </summary>
-    public static bool TryParseOrder(
-        JsonElement request,
-        out EditorRegionOrderRequest update,
-        out Dictionary<string, string[]> errors)
-    {
-        errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        update = new EditorRegionOrderRequest(Array.Empty<Guid>());
-
-        if (request.ValueKind != JsonValueKind.Object)
-        {
-            errors["request"] = new[] { "Region order request must be a JSON object." };
-            return false;
-        }
-
-        if (!request.TryGetProperty("regionIds", out var regionIdsProperty))
-        {
-            errors["regionIds"] = new[] { "The field is required." };
-            return false;
-        }
-
-        if (regionIdsProperty.ValueKind != JsonValueKind.Array)
-        {
-            errors["regionIds"] = new[] { "Region IDs must be an array." };
-            return false;
-        }
-
-        var regionIds = new List<Guid>();
-        foreach (var item in regionIdsProperty.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.String || !Guid.TryParse(item.GetString(), out var id))
-            {
-                errors["regionIds"] = new[] { "Every region ID must be a GUID string." };
-                return false;
-            }
-
-            regionIds.Add(id);
-        }
-
-        update = new EditorRegionOrderRequest(regionIds);
-        return true;
-    }
-
     private static void RejectServerOwnedFields(JsonElement request, Dictionary<string, string[]> errors)
     {
         foreach (var field in ServerOwnedFields)

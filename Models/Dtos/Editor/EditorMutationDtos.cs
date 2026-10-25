@@ -35,15 +35,8 @@ public sealed record EditorRegionSaveRequest(
     EditorImageUpdateRequest? CoverImage,
     EditorCoordinateDto? Center);
 
-/// <summary>
-/// Complete desired order for normal editor regions.
-/// </summary>
-public sealed record EditorRegionOrderRequest(IReadOnlyList<Guid> RegionIds);
-
-/// <summary>
-/// Region order data returned by the region order endpoint.
-/// </summary>
-public sealed record EditorRegionOrderResult(IReadOnlyList<Guid> RegionOrder);
+/// <summary>Committed complete Region sequence bound to its Trip scope for protected acknowledgement.</summary>
+public sealed record EditorRegionOrderResult(Guid TripId, IReadOnlyList<Guid> RegionOrder);
 
 /// <summary>
 /// Complete-draft request for creating a place from the same-origin editor.

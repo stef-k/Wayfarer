@@ -277,6 +277,10 @@ export const deletePlace = async (
   confirmationToken?: string
 ): Promise<EditorMutationResult<EditorPlaceDeleteResult>> => sendMutation(`${endpoint}/places/${placeId}`, 'DELETE', antiforgeryToken, null, 'place delete', confirmationToken);
 
+/** Prepares the retained original Region vector for explicit review without adopting a new base. */
+export const prepareRegionOrder = async (endpoint: string, antiforgeryToken: string, request: EditorRegionOrderRequest): Promise<import('../components/regionOrdering').RegionOrderPreview> =>
+  await sendMutation(`${endpoint}/regions/order/prepare`, 'POST', antiforgeryToken, request, 'Region order preparation') as unknown as import('../components/regionOrdering').RegionOrderPreview;
+
 /// Persists the complete place order for one normal region.
 export const orderPlaces = async (
   endpoint: string,
