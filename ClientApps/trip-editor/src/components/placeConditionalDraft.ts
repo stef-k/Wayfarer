@@ -4,6 +4,8 @@ import { reactive, ref } from 'vue';
 import type { EditorMutationResult, EditorPlace, EditorPlaceConditionalRequest, EditorPlaceDraft, EditorPlaceOriginalValues, EditorPlaceSaveRequest, EditorPlaceVisitSummary, EditorVisitProgress } from '../types';
 import { buildPlaceRequest, emptyPlaceDraft, toPlaceDraft } from './regionPlaceDrafts';
 import { completeSegment } from './segmentNotesDraft';
+import { placeMaterialOriginal, placeOrderOriginals, placeStructureRequest, type PlaceMaterialOriginal } from './placeStructuralEditing';
+import type { PlaceStructureRequest } from './placeStructuralEditing';
 
 const scalars = ['name', 'notesHtml', 'iconName', 'markerColor'] as const;
 const fields = [...scalars, 'regionId', 'address', 'location', 'reverseGeocode'] as const;
@@ -25,6 +27,19 @@ export const createPlaceDraftState = () => {
   const uncertain = ref(false);
   const creationUncertain = ref(false);
   const creationOriginals = ref<Record<string, PlaceCreationOriginal[]> | null>(null);
+  const material = ref<PlaceMaterialOriginal | null>(null);
+  const structuralOrders = ref<ReturnType<typeof placeOrderOriginals> | null>(null);
+  // Attempt facts survive draft reset/retirement; refresh/equality cannot establish noncommit.
+  const structuralHolds = ref<{ targetId: string; regionIds: string[]; intent: string }[]>([]);
+  const held = (targetId: string, regionId: string): boolean => structuralHolds.value.some(h => h.targetId === targetId || h.regionIds.includes(regionId));
+  const beginStructure = (state: EditorTripState): void => {
+    try { structuralOrders.value = placeOrderOriginals(state); }
+    catch { structuralOrders.value = null; }
+  };
+  const structuralRequest = () => {
+    if (!material.value || !structuralOrders.value) throw new Error('Original structural values are unavailable. Keep your draft and explicitly review a fresh starting view.');
+    return placeStructureRequest(buildPlaceRequest(draft), buildPlaceRequest(baseline), material.value, structuralOrders.value);
+  };
   /** Destination selection uses the authoritative view captured when this creation draft began. */
   const beginCreate = (state: EditorTripState): void => { creationOriginals.value = placeCreationOriginals(state); };
   const session = ref(0);
@@ -49,15 +64,20 @@ export const createPlaceDraftState = () => {
     Object.assign(baseline, toPlaceDraft(next, null));
     for (const key of Object.keys(originals)) delete originals[key as keyof EditorPlaceOriginalValues];
     if (next?.originalValues) Object.assign(originals, next.originalValues);
+    try { material.value = next ? placeMaterialOriginal(next) : null; }
+    catch { material.value = null; }
   };
 
   /** Clean fields follow refreshed props; dirty values and the original parent remain pinned. */
   const refresh = (next: EditorPlace | null): void => {
-    if (!next || next.id !== draft.id || next.regionId !== baseline.regionId || pending.value || uncertain.value) return;
+    if (!next || next.id !== draft.id || next.regionId !== baseline.regionId || pending.value || uncertain.value || structural()) return;
     const current = buildPlaceRequest(draft);
     const before = buildPlaceRequest(baseline);
     const incoming = toPlaceDraft(next, null);
     for (const field of fields) if (field !== 'regionId' && same(current[field], before[field])) adopt(field, incoming, next);
+    if (same(current, before)) {
+      try { material.value = placeMaterialOriginal(next); } catch { material.value = null; }
+    }
   };
 
   /** Structural intent retains one complete lifecycle PUT, with any simultaneously authored scalars. */
@@ -96,9 +116,11 @@ export const createPlaceDraftState = () => {
     }
     draft.id = baseline.id = next.id;
     originals.regionId = next.originalValues!.regionId;
+    try { material.value = placeMaterialOriginal(next); } catch { material.value = null; }
   };
 
-  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge, session: () => session.value };
+  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge,
+    structuralHolds, held, beginStructure, structuralRequest, structuralOrders, session: () => session.value };
 };
 
 /** Checks visit projections used by both the Place and optional complete-save progress slice. */
@@ -119,7 +141,7 @@ const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolea
     && (row.durationMinutes === null || Number.isFinite(row.durationMinutes))));
 
 /** Requires the complete Place shape before any parent, baseline, preview or Saved adoption. */
-const completePlace = (value: EditorPlace): boolean => {
+export const completePlace = (value: EditorPlace): boolean => {
   const original = value?.originalValues;
   const coordinate = value?.location;
   const visit = value?.visitSummary;
@@ -142,7 +164,7 @@ const completePlace = (value: EditorPlace): boolean => {
 
 /** Place saves never publish Region/Area/Tag changes; only complete saves may publish lifecycle effects. */
 export const validatePlaceAcknowledgement = (result: EditorMutationResult<EditorPlace>, tripId: string,
-  placeId: string | null, regionId: string, scalar: boolean): void => {
+  placeId: string | null, regionId: string, scalar: boolean, structure: PlaceStructureRequest | null = null, segmentIds: string[] = []): void => {
   const next = result?.data;
   const affected = result?.affected;
   const unrelated = ['regions', 'areas', 'tags'] as const;
@@ -152,6 +174,7 @@ export const validatePlaceAcknowledgement = (result: EditorMutationResult<Editor
   /** Create publishes its target; update may publish a live source/target pair with the Place only in target. */
   const validPlaceOrders = (orders: Record<string, string[]>): boolean => {
     if (!validOrders(orders)) return false;
+    if (structure) return same(orders, structure.placeIdsByRegion ?? {});
     const regionIds = Object.keys(orders);
     // The server's current source may differ from the client's pinned source after a concurrent move.
     if (placeId !== null && regionIds.length === 0) return true;
@@ -161,7 +184,13 @@ export const validatePlaceAcknowledgement = (result: EditorMutationResult<Editor
   };
   if (result?.success !== true || !completePlace(next) || !next.id || next.tripId !== tripId || next.regionId !== regionId
     || placeId !== null && next.id !== placeId
-    || !Array.isArray(affected?.places) || affected.places.length !== 1 || !same(affected.places[0], next)
+    || !Array.isArray(affected?.places) || !affected.places.some(p => same(p, next))
+    || affected.places.some(p => !completePlace(p) || p.tripId !== tripId)
+    || new Set(affected.places.map(p => p.id)).size !== affected.places.length
+    || (!structure && affected.places.length !== 1)
+    || structure && (result.contract !== 'bd2-1' || !same([...new Set(Object.values(structure.placeIdsByRegion ?? {}).flat().concat(next.id))].sort(), affected.places.map(p => p.id).sort())
+      || !same([...segmentIds].sort(), affected.segments.map(s => s.id).sort())
+      || affected.places.some(p => structure.placeIdsByRegion && (p.displayOrder !== structure.placeIdsByRegion[p.regionId]?.indexOf(p.id)! + 1)))
     || !validPlaceOrders(affected.placeOrdersByRegionId) || !validOrders(affected.areaOrdersByRegionId)
     || unrelated.some(key => !Array.isArray(affected[key]) || affected[key].length !== 0)
     || Object.keys(affected.areaOrdersByRegionId).length !== 0

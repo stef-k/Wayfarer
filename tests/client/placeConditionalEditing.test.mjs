@@ -45,12 +45,12 @@ const place = (overrides = {}) => {
     location: { latitude: 10, longitude: 20 }, iconName: 'marker', markerColor: 'bg-blue', displayOrder: 1,
     visitSummary: { placeId: 'place', visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
-  value.originalValues ??= { displayOrder: value.displayOrder, regionId: value.regionId, name: value.name, notesHtml: value.notesHtml || null, iconName: null, markerColor: null };
+  value.originalValues ??= { address: value.address, displayOrder: value.displayOrder, regionId: value.regionId, name: value.name, notesHtml: value.notesHtml || null, iconName: null, markerColor: null };
   if (overrides.iconName && !overrides.originalValues) value.originalValues.iconName = value.iconName;
   if (overrides.markerColor && !overrides.originalValues) value.originalValues.markerColor = value.markerColor;
   return value;
 };
-const envelope = data => ({ success: true, data, affected: { metadata: null, regions: [], places: data ? [data] : [], areas: [],
+const envelope = data => ({ contract: 'bd2-1', success: true, data, affected: { metadata: null, regions: [], places: data ? [data] : [], areas: [],
   segments: [], tags: [], placeOrdersByRegionId: {}, areaOrdersByRegionId: {},
   regionOrder: null, segmentOrder: null, tagOrder: null, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
@@ -74,7 +74,7 @@ const withApp = async action => {
     placeConfirm: globalThis.placeConfirm, capturePlaceComponent: globalThis.capturePlaceComponent };
   const captured = {};
   globalThis.capturePlaceComponent = (name, bindings) => { captured[name] = proxyRefs(bindings); };
-  globalThis.placeConfirm = async () => false;
+  globalThis.placeConfirm = async () => true;
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
   globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
@@ -108,7 +108,17 @@ const withApp = async action => {
     const editor = captured['RegionManager.vue'];
     assert.ok(editor, 'actual production Place owner mounted through App and TripSidebar');
     parent.editorSurface.clearActiveTarget();
-    await action({ parent, editor, sidebar: captured['TripSidebar.vue'] });
+    const prepared = (apply, segments = []) => async (url, init) => {
+      if (url.endsWith('/prepare')) {
+        const request = JSON.parse(init.body);
+        const order = url.includes('/places/order/');
+        return new Response(JSON.stringify({ contract: 'bd2-1', operation: order ? 'order' : 'web-update', tripId: 'trip',
+          targetId: order ? url.split('/regions/')[1].split('/')[0] : 'place', requiresReview: true, conditionToken: 'conditions',
+          place: order ? null : { id: 'place', name: 'Original' }, placesByRegion: {}, affectedSegmentIds: segments }));
+      }
+      return apply(url, init);
+    };
+    await action({ prepared, parent, editor, sidebar: captured['TripSidebar.vue'] });
   } finally {
     await nextTick();
     await nextTick();
@@ -121,9 +131,9 @@ const withApp = async action => {
 };
 
 // These observations run through the production App affected-slice owner and its asynchronous Vue children.
-test('Place scalar PATCH pins null/default originals, adopts clean refreshes and drives marker preview', () => withApp(async ({ parent, editor, sidebar }) => {
+test('Place scalar PATCH pins null/default originals, adopts clean refreshes and drives marker preview', () => withApp(async ({ parent, editor, sidebar, prepared }) => {
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); return saved(place({ name: 'Refreshed', notesHtml: 'Mine', iconName: 'star' })); };
+  globalThis.fetch = prepared(async (url, init) => { calls.push([url, init]); return saved(place({ name: 'Refreshed', notesHtml: 'Mine', iconName: 'star' })); });
   await editor.openPlaceEdit(parent.state.placesById.place);
   editor.placeDraft.notesHtml = 'Mine';
   editor.placeDraft.iconName = 'star';
@@ -146,7 +156,7 @@ test('Place scalar PATCH pins null/default originals, adopts clean refreshes and
 
 // Cancel discards only temporary map work, even after App has refreshed the clean coordinate baseline.
 for (const authored of [false, true]) {
-  test(`Place coordinate Cancel preserves refreshed or intentionally edited coordinates: ${authored}`, () => withApp(async ({ parent, editor }) => {
+  test(`Place coordinate Cancel preserves refreshed or intentionally edited coordinates: ${authored}`, () => withApp(async ({ parent, editor, prepared }) => {
     await editor.openPlaceEdit(parent.state.placesById.place);
     if (authored) {
       editor.placeDraft.latitude = 11;
@@ -167,8 +177,8 @@ for (const authored of [false, true]) {
     assert.deepEqual(parent.activePlaceDraftPreview.coordinate, authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 });
     editor.placeDraft.name = 'Name after Cancel';
     const calls = [];
-    globalThis.fetch = async (_url, init) => { calls.push(init); return saved(place({ name: 'Name after Cancel',
-      notesHtml: authored ? 'Keep my notes' : '', location: authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 } })); };
+    globalThis.fetch = prepared(async (_url, init) => { calls.push(init); return saved(place({ name: 'Name after Cancel',
+      notesHtml: authored ? 'Keep my notes' : '', location: authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 } })); });
     await editor.savePlaceDraft();
     assert.equal(calls.length, 1);
     assert.equal(calls[0].method, authored ? 'PUT' : 'PATCH');
@@ -178,7 +188,7 @@ for (const authored of [false, true]) {
 
 // Both demonstrated malformed 200 replies must hold before any production parent or comparison adoption.
 for (const scalar of [true, false]) {
-  test(`Place malformed ${scalar ? 'scalar projection' : 'combined footprint'} holds before adoption`, () => withApp(async ({ parent, editor, sidebar }) => {
+  test(`Place malformed ${scalar ? 'scalar projection' : 'combined footprint'} holds before adoption`, () => withApp(async ({ parent, editor, sidebar, prepared }) => {
     await editor.openPlaceEdit(parent.state.placesById.place);
     editor.placeDraft.name = 'Submitted';
     if (!scalar) editor.placeDraft.address = 'New address';
@@ -188,7 +198,7 @@ for (const scalar of [true, false]) {
       ...(scalar ? { resolvedFeatureType: { bad: 'type' } } : {}) }));
     if (!scalar) result.affected.regionOrder = ['region', 'region'];
     let calls = 0;
-    globalThis.fetch = async (_url, init) => { calls++; assert.equal(init.method, scalar ? 'PATCH' : 'PUT'); return new Response(JSON.stringify(result)); };
+    globalThis.fetch = prepared(async (_url, init) => { calls++; assert.equal(init.method, scalar ? 'PATCH' : 'PUT'); return new Response(JSON.stringify(result)); });
     await editor.savePlaceDraft();
     await nextTick();
     assert.equal(JSON.stringify({ parent: parent.state, baseline: editor.placeDraftState.baseline, preview: parent.activePlaceDraftPreview }), before);
@@ -213,7 +223,7 @@ for (const [operation, orders] of [
   ['update extra Region', { region: ['place'], source: [], other: ['b', 'a'] }],
   ['create extra Region', { region: ['place'], other: ['b', 'a'] }]
 ]) {
-  test(`Place complete ${operation} order map holds before adoption`, () => withApp(async ({ parent, editor, sidebar }) => {
+  test(`Place complete ${operation} order map holds before adoption`, () => withApp(async ({ parent, editor, sidebar, prepared }) => {
     parent.state.regionsById.other = { ...region, id: 'other', name: 'Other Region' };
     parent.state.regionOrder.push('other');
     for (const [index, id] of ['a', 'b'].entries()) parent.state.placesById[id] = place({ id, regionId: 'other',
@@ -228,7 +238,7 @@ for (const [operation, orders] of [
     const result = envelope(place({ name: 'Submitted', address: 'New address' }));
     result.affected.placeOrdersByRegionId = orders;
     let calls = 0;
-    globalThis.fetch = async (_url, init) => { calls++; assert.equal(init.method, operation.startsWith('create') ? 'POST' : 'PUT'); return new Response(JSON.stringify(result)); };
+    globalThis.fetch = prepared(async (_url, init) => { calls++; assert.equal(init.method, operation.startsWith('create') ? 'POST' : 'PUT'); return new Response(JSON.stringify(result)); });
     await editor.savePlaceDraft();
     await nextTick();
     assert.deepEqual(parent.state.placeOrderByRegionId.other, ['a', 'b']);
@@ -248,7 +258,7 @@ for (const [operation, orders] of [
 }
 
 for (const reversal of [false, true]) {
-  test(`newer Place intent and old-baseline reversal survive delayed acknowledgement and later refresh: ${reversal}`, () => withApp(async ({ parent, editor }) => {
+  test(`newer Place intent and old-baseline reversal survive delayed acknowledgement and later refresh: ${reversal}`, () => withApp(async ({ parent, editor, prepared }) => {
     const reply = deferred();
     const calls = [];
     globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
@@ -278,7 +288,7 @@ for (const reversal of [false, true]) {
 }
 
 for (const status of [400, 409, 405]) {
-  test(`Place ${status} preserves dirty content and originals without unconditional fallback`, () => withApp(async ({ parent, editor }) => {
+  test(`Place ${status} preserves dirty content and originals without unconditional fallback`, () => withApp(async ({ parent, editor, prepared }) => {
     const calls = [];
     globalThis.fetch = async (_url, init) => { calls.push(init); return new Response(JSON.stringify(status === 400 ? { errors: { name: ['Correct this name'] } } : { code: 'mutation-base-stale', detail: 'Review current values' }), { status }); };
     await editor.openPlaceEdit(parent.state.placesById.place);
@@ -302,7 +312,7 @@ for (const status of [400, 409, 405]) {
 }
 
 for (const outcome of ['network', '408', '500', 'incomplete', 'affected mismatch', 'original mismatch', 'missing deletedIds', 'unrelated slice']) {
-  test(`Place ${outcome} retains newer content under an unknown hold before any parent adoption`, () => withApp(async ({ parent, editor }) => {
+  test(`Place ${outcome} retains newer content under an unknown hold before any parent adoption`, () => withApp(async ({ parent, editor, prepared }) => {
     const reply = deferred();
     let calls = 0;
     globalThis.fetch = async () => { calls++; return reply.promise; };
@@ -336,7 +346,7 @@ for (const outcome of ['network', '408', '500', 'incomplete', 'affected mismatch
 }
 
 for (const outcome of [200, 400, 409, 500]) {
-  test(`discarded Place late ${outcome} cannot contaminate a newer Region or Place session`, () => withApp(async ({ parent, editor, sidebar }) => {
+  test(`discarded Place late ${outcome} cannot contaminate a newer Region or Place session`, () => withApp(async ({ parent, editor, sidebar, prepared }) => {
     const reply = deferred();
     let calls = 0;
     globalThis.fetch = async () => { calls++; return reply.promise; };
@@ -366,7 +376,7 @@ for (const outcome of [200, 400, 409, 500]) {
 
 // An ordinary update has no order slice; a concurrent move can change the server's source before this PUT.
 for (const concurrentSource of [false, true]) {
-  test(`Place complete update accepts its authoritative lifecycle order footprint: ${concurrentSource}`, () => withApp(async ({ parent, editor }) => {
+  test(`Place checked update rejects unrelated order footprints: ${concurrentSource}`, () => withApp(async ({ parent, editor, prepared }) => {
     parent.state.regionsById.source = { ...region, id: 'source', name: 'Live source' };
     parent.state.regionOrder.push('source');
     if (concurrentSource) parent.state.placeOrderByRegionId.region.push('stale-client-member');
@@ -377,21 +387,20 @@ for (const concurrentSource of [false, true]) {
     // Neither the changed source nor concurrent/stale vector membership is client comparison evidence.
     result.affected.placeOrdersByRegionId = concurrentSource ? { source: [], region: ['concurrent-place', 'place'] } : {};
     const calls = [];
-    globalThis.fetch = async (_url, init) => { calls.push(init); return new Response(JSON.stringify(result)); };
+    globalThis.fetch = prepared(async (_url, init) => { calls.push(init); return new Response(JSON.stringify(result)); });
     await editor.savePlaceDraft();
     await nextTick();
     assert.equal(calls.length, 1);
     assert.equal(calls[0].method, 'PUT');
-    assert.equal(parent.state.placesById.place.name, 'Submitted');
-    assert.equal(editor.placeDraftState.baseline.address, 'New address');
-    assert.equal(editor.placeDraftState.uncertain.value, false);
-    assert.equal(editor.placeDirty, false);
-    if (concurrentSource) assert.deepEqual(parent.state.placeOrderByRegionId, { region: ['place'], source: [] });
-    assert.match(editor.statusText, /^Place saved/);
+    assert.equal(parent.state.placesById.place.name, concurrentSource ? 'Original' : 'Submitted');
+    assert.equal(editor.placeDraftState.baseline.address, concurrentSource ? 'Original address' : 'New address');
+    assert.equal(editor.placeDraftState.uncertain.value, concurrentSource);
+    assert.equal(editor.placeDirty, concurrentSource);
+    if (!concurrentSource) assert.match(editor.statusText, /^Place saved/);
   }));
 }
 
-test('Place coordinate picker Cancel/Done and combined scalar/address/move save retain one complete PUT', () => withApp(async ({ parent, editor }) => {
+test('Place coordinate picker Cancel/Done and combined scalar/address/move save retain one complete PUT', () => withApp(async ({ parent, editor, prepared }) => {
   const calls = [];
   parent.state.regionsById.target = { ...region, id: 'target', name: 'Target' };
   parent.state.regionOrder.push('target');
@@ -414,7 +423,7 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   // Mirror the reader's legitimate move/coordinate effects, including authoritative orders beyond stale client membership.
   const result = envelope(place({ regionId: 'target', name: 'Combined', address: 'Combined address',
     resolvedFeatureName: null, resolvedFeatureType: 'museum', location: { latitude: 30, longitude: 40 } }));
-  result.affected.placeOrdersByRegionId = { region: [], target: ['concurrent-place', 'place'] };
+  result.affected.placeOrdersByRegionId = { region: [], target: ['place'] };
   result.affected.segments = [{ id: 'segment', tripId: 'trip', fromPlaceId: 'place', toPlaceId: null,
     waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: 'walk', transportProfileId: null, hasCustomRoute: false,
     estimatedDistanceKm: null, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic', notesHtml: '',
@@ -424,14 +433,18 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   result.affected.visitProgress = { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0,
     placeSummariesByPlaceId: { place: result.data.visitSummary }, historyRows: [{ visitId: 'visit', placeId: 'place',
       regionId: 'target', startedAt: '2026-10-22T00:00:00Z', endedAt: null, durationMinutes: null }] };
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); return new Response(JSON.stringify(result)); };
+  globalThis.fetch = prepared(async (url, init) => { calls.push([url, init]); return new Response(JSON.stringify(result)); }, ['segment']);
   await editor.savePlaceDraft();
   await nextTick();
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], '/api/trips/trip/editor/places/place');
   assert.equal(calls[0][1].method, 'PUT');
-  assert.deepEqual(JSON.parse(calls[0][1].body), { regionId: 'target', name: 'Combined', notesHtml: '', address: 'Combined address',
-    location: { latitude: 30, longitude: 40 }, iconName: 'marker', markerColor: 'bg-blue', reverseGeocode: false });
+  const sent = JSON.parse(calls[0][1].body);
+  assert.equal(sent.reviewed, true);
+  assert.equal(sent.conditionToken, 'conditions');
+  assert.equal(sent.expected.place.regionId, 'region');
+  assert.deepEqual(sent.placeIdsByRegion, { region: [], target: ['place'] });
+  assert.deepEqual(sent.changes, { regionId: 'target', name: 'Combined', address: 'Combined address', location: { latitude: 30, longitude: 40 } });
   assert.equal(editor.placeDirty, false);
   assert.deepEqual(parent.state.placeOrderByRegionId, { region: [], target: ['place'] });
   assert.equal(parent.state.segmentsById.segment.aggregateConcurrencyToken, 'refreshed-aggregate');
@@ -441,7 +454,7 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   assert.match(editor.statusText, /^Place saved/);
 }));
 
-test('Place map and search creation pins originals and adopts a checked acknowledgement', () => withApp(async ({ parent, editor }) => {
+test('Place map and search creation pins originals and adopts a checked acknowledgement', () => withApp(async ({ parent, editor, prepared }) => {
   await editor.openPlaceCreate(region);
   assert.equal(editor.placeDraft.latitude, 10);
   assert.equal(editor.placeDraft.longitude, 20);
@@ -452,7 +465,7 @@ test('Place map and search creation pins originals and adopts a checked acknowle
   assert.equal(editor.draft.id, null);
   assert.equal(editor.areaDraft.id, null);
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); const result = creationReply({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } }); return new Response(JSON.stringify(result)); };
+  globalThis.fetch = prepared(async (url, init) => { calls.push([url, init]); const result = creationReply({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } }); return new Response(JSON.stringify(result)); });
   await editor.savePlaceDraft();
   await nextTick();
   assert.equal(calls.length, 1);
@@ -462,7 +475,7 @@ test('Place map and search creation pins originals and adopts a checked acknowle
   assert.equal(editor.placeDirty, false);
 }));
 
-test('discarded same-Place reply cannot release a newer pending save or change an Area session', () => withApp(async ({ parent, editor }) => {
+test('discarded same-Place reply cannot release a newer pending save or change an Area session', () => withApp(async ({ parent, editor, prepared }) => {
   const first = deferred();
   const second = deferred();
   let calls = 0;
@@ -494,11 +507,11 @@ test('discarded same-Place reply cannot release a newer pending save or change a
 }));
 
 for (const outcome of ['network', 'malformed', 'newer', 'retired']) {
-  test(`Place creation ${outcome} preserves intent and admits no blind replay`, () => withApp(async ({ parent, editor }) => {
+  test(`Place creation ${outcome} preserves intent and admits no blind replay`, () => withApp(async ({ parent, editor, prepared }) => {
     await editor.openPlaceCreate(region);
     const pending = deferred();
     const calls = [];
-    globalThis.fetch = async (url, init) => { calls.push([url, JSON.parse(init.body)]); return pending.promise; };
+    globalThis.fetch = prepared(async (url, init) => { calls.push([url, JSON.parse(init.body)]); return pending.promise; });
     const save = editor.savePlaceDraft();
     editor.placeDraft.name = 'Newer creation intent';
     if (outcome === 'retired') {

@@ -161,6 +161,7 @@ public sealed class TripEditorPlaceMutationService
     /// <summary>Prepares the same lifecycle operation without adopting a newer edit base or contacting a provider.</summary>
     internal async Task<object> PrepareStructureAsync(Guid tripId, Guid targetId, string userId, Stream body, string operation, CancellationToken token)
     {
+        await RequireStructureOwnerAsync(tripId, targetId, userId, operation, token);
         var request = await PlaceStructuralRequest.ReadAsync(body, operation, true, token);
         return await _lifecycle.PreparePlaceStructureAsync(tripId, targetId, userId, request, IconNames(), MarkerColors(), token);
     }
@@ -169,19 +170,29 @@ public sealed class TripEditorPlaceMutationService
     private async Task<EditorMutationResult<object>> ApplyStructureAsync(Guid tripId, Guid targetId, string userId,
         Stream body, string operation, CancellationToken token)
     {
+        await RequireStructureOwnerAsync(tripId, targetId, userId, operation, token);
         var request = await PlaceStructuralRequest.ReadAsync(body, operation, true, token);
-        async Task<(string Address, EditorPlaceMetadataDirective Metadata)> Resolve(Place place)
+        async Task<PlaceStructuralAddress> Resolve(Place place)
         {
             var location = request.Changes.TryGetProperty("location", out _) ? request.Location : place.Location;
             var manual = request.Changes.TryGetProperty("address", out var address) ? address.GetString() : place.Address;
             var result = await ResolveAddressAsync(userId, targetId, manual, PlaceStructuralRequest.Pair(location), true, token);
-            return (result.Value, result.Metadata.HasValue ? new(EditorPlaceMetadataPolicy.Replace, result.Metadata.Value)
-                : new(EditorPlaceMetadataPolicy.RetainCompatible));
+            return new(result.Value, result.Metadata.HasValue ? new(EditorPlaceMetadataPolicy.Replace, result.Metadata.Value)
+                : new(EditorPlaceMetadataPolicy.RetainCompatible), result.Warnings);
         }
         var explicitProvider = request.Changes.ValueKind == JsonValueKind.Object
             && request.Changes.TryGetProperty("reverseGeocode", out var reverse) && reverse.GetBoolean();
         return await _lifecycle.ApplyPlaceStructureAsync(tripId, targetId, userId, request, IconNames(), MarkerColors(), null,
             explicitProvider ? Resolve : null, token);
+    }
+
+    /// <summary>Conceals missing/foreign targets before parsing any body or contacting a provider.</summary>
+    private async Task RequireStructureOwnerAsync(Guid tripId, Guid targetId, string userId, string operation, CancellationToken token)
+    {
+        var owned = operation == "order"
+            ? await _dbContext.Regions.AsNoTracking().AnyAsync(r => r.Id == targetId && r.TripId == tripId && r.UserId == userId && r.Trip.UserId == userId, token)
+            : await _dbContext.Places.AsNoTracking().AnyAsync(p => p.Id == targetId && p.UserId == userId && p.Region.TripId == tripId && p.Region.UserId == userId && p.Region.Trip.UserId == userId, token);
+        if (!owned) throw new TripMetadataMutationRejected(404, "mutation-scope-unavailable", "Place or Region not found.");
     }
 
     /// <summary>Resolves the address once and freezes successful provenance before lifecycle retries.</summary>

@@ -124,6 +124,8 @@ public sealed record EditorPlaceOriginalDto(Guid RegionId, string Name, string? 
 {
     /// <summary>Exact stored nullable order for checked creation; display zero is not a null original.</summary>
     public int? DisplayOrder { get; init; }
+    /// <summary>Exact nullable Address for intentional Web structural edits; display empty is not original null.</summary>
+    public string? Address { get; init; }
 }
 
 /// <summary>Area DTO with GeoJSON object geometry.</summary>

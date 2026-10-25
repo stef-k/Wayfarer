@@ -29,15 +29,16 @@ public sealed partial class PlaceRegionLifecycleService
     internal async Task<EditorMutationResult<object>> ApplyPlaceStructureAsync(Guid tripId, Guid targetId, string userId,
         PlaceStructuralRequest request, IReadOnlySet<string> icons, IReadOnlySet<string> colors,
         Func<CancellationToken, Task<bool>>? revalidateBearer,
-        Func<Place, Task<(string Address, EditorPlaceMetadataDirective Metadata)>>? explicitAddress,
+        Func<Place, Task<PlaceStructuralAddress>>? explicitAddress,
         CancellationToken token)
     {
         var candidates = await ReadPlaceStructureAsync(tripId, targetId, userId, request, token);
         ValidatePlaceStructure(candidates, request, icons, colors);
         if (!request.Reviewed || string.IsNullOrWhiteSpace(request.ConditionToken))
             throw new TripMetadataMutationRejected(409, "mutation-review-required", "Keep your draft. Review the prepared dependency base before applying this operation.");
-        var address = explicitAddress == null ? ((string Address, EditorPlaceMetadataDirective Metadata)?)null
-            : await explicitAddress(candidates.Place!);
+        if (!_confirmation.MatchesPlaceStructure(request.ConditionToken, request.Operation, userId, tripId, targetId,
+            request.IntentFingerprint(), PlaceStructureFingerprint(candidates, request))) throw PlaceStructureStale();
+        var address = explicitAddress == null ? null : await explicitAddress(candidates.Place!);
         var tracker = LifecycleTrackerSnapshot.Capture(_dbContext);
         var scope = new LifecycleRecoveryScope(candidates.Locks.PlaceIds, candidates.Locks.RegionIds, candidates.Locks.SegmentIds);
         var isolated = false;
@@ -46,8 +47,9 @@ public sealed partial class PlaceRegionLifecycleService
         try
         {
             await LockAsync(candidates.Locks, token);
-            await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {tripId} FOR UPDATE", token);
-            var active = await _dbContext.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {userId} AND \"IsActive\" FOR SHARE")
+            if (_dbContext.Database.IsRelational())
+                await _dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {tripId} FOR UPDATE", token);
+            var active = !_dbContext.Database.IsRelational() || await _dbContext.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {userId} AND \"IsActive\" FOR SHARE")
                 .AsNoTracking().AnyAsync(token);
             if (!active || revalidateBearer != null && !await revalidateBearer(token))
                 throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
@@ -66,7 +68,8 @@ public sealed partial class PlaceRegionLifecycleService
         }
         catch (Exception original)
         {
-            await RecoverUnappliedRegionDeletionAsync(original, transaction);
+            try { await RecoverUnappliedRegionDeletionAsync(original, transaction); }
+            catch { isolated = false; throw; }
             if (!commitStarted && original is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
                 throw new TripMetadataMutationRejected(409, "mutation-contention", "Contention prevented this operation. Keep your draft and review current state.");
             throw;

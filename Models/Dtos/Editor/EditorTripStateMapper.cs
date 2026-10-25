@@ -192,7 +192,7 @@ public static class EditorTripStateMapper
             visitSummary,
             EditableLeafCapabilities())
         {
-            OriginalValues = new(regionId, place.Name, RichNotes.Normalize(place.Notes), place.IconName, place.MarkerColor) { DisplayOrder = place.DisplayOrder }
+            OriginalValues = new(regionId, place.Name, RichNotes.Normalize(place.Notes), place.IconName, place.MarkerColor) { DisplayOrder = place.DisplayOrder, Address = place.Address }
         };
 
     /// <summary>

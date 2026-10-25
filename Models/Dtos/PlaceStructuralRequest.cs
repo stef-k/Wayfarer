@@ -20,6 +20,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         try
         {
             using var document = await JsonDocument.ParseAsync(body, cancellationToken: token);
+            RejectDuplicateMembers(document.RootElement);
             var root = Fields(document.RootElement, "expected", "changes", "location", "destinationRegionId", "placeIdsByRegion", "placeIds", "conditionToken", "reviewed");
             if (!root.TryGetValue("expected", out var expected)) throw Invalid();
             var changes = root.GetValueOrDefault("changes");
@@ -98,6 +99,22 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         return fields;
     }
 
+    /// <summary>Rejects ambiguous originals and vectors too, including objects nested inside arrays.</summary>
+    private static void RejectDuplicateMembers(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Object)
+        {
+            HashSet<string> names = new(StringComparer.Ordinal);
+            foreach (var property in value.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw Invalid();
+                RejectDuplicateMembers(property.Value);
+            }
+        }
+        else if (value.ValueKind == JsonValueKind.Array)
+            foreach (var child in value.EnumerateArray()) RejectDuplicateMembers(child);
+    }
+
     private static void RequireOnly(Dictionary<string, JsonElement> fields, params string[] allowed)
     {
         if (fields.Keys.Except(allowed).Any()) throw Invalid();
@@ -138,5 +155,5 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         _ => element
     };
 
-    internal static TripMetadataMutationRejected Invalid() => new(400, "mutation-request-invalid", "Provide complete Place originals and a valid operation vector.");
+    internal static TripMetadataMutationRejected Invalid() => new(400, "mutation-request-invalid", "Provide complete Place originals and a valid operation vector.", new() { ["request"] = ["Complete original evidence and valid operation fields are required."] });
 }

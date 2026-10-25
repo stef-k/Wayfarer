@@ -1,4 +1,5 @@
 import type { RegionCreationRequest, PlaceCreationRequest } from './creationTypes';
+import type { PlaceStructureRequest, PlaceStructurePreview } from '../components/placeStructuralEditing';
 import type {
   EditorMutationResult,
   EditorLifecycleConflict,
@@ -260,8 +261,13 @@ export const updatePlace = async (
   endpoint: string,
   placeId: string,
   antiforgeryToken: string,
-  request: EditorPlaceSaveRequest
+  request: PlaceStructureRequest
 ): Promise<EditorMutationResult<EditorPlace>> => sendMutation(`${endpoint}/places/${placeId}`, 'PUT', antiforgeryToken, request, 'place update');
+
+/** Read-only preparation returns conditions for explicit review, never an adopted edit base. */
+export const preparePlaceStructure = async (endpoint: string, path: string, antiforgeryToken: string,
+  request: PlaceStructureRequest | EditorPlaceOrderRequest): Promise<PlaceStructurePreview> =>
+  await sendMutation(`${endpoint}/${path}/prepare`, 'POST', antiforgeryToken, request, 'Place preparation') as unknown as PlaceStructurePreview;
 
 /// Deletes a place through the same-origin editor API.
 export const deletePlace = async (

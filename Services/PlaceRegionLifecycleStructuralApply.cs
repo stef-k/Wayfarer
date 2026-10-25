@@ -10,7 +10,7 @@ public sealed partial class PlaceRegionLifecycleService
 {
     /// <summary>Applies prepared intent with existing scalar/enrichment and locked Segment reconciliation owners.</summary>
     private async Task<EditorMutationResult<object>> ApplyLockedPlaceStructureAsync(PlaceStructuralSnapshot snapshot,
-        PlaceStructuralRequest request, (string Address, EditorPlaceMetadataDirective Metadata)? address, CancellationToken token)
+        PlaceStructuralRequest request, PlaceStructuralAddress? address, CancellationToken token)
     {
         var tripId = snapshot.Trip.Id;
         var userId = snapshot.Trip.UserId;
@@ -37,7 +37,7 @@ public sealed partial class PlaceRegionLifecycleService
                         _ => update
                     };
             }
-            if (address.HasValue) update = update with { Address = address.Value.Address, EditorMetadata = address.Value.Metadata };
+            if (address != null) update = update with { Address = address.Address, EditorMetadata = address.Metadata };
             locationChanged = !CoordinatesEqual(place.Location, update.Location);
             var affected = locationChanged ? await LoadAffectedSegmentsAsync(tripId, userId, [place.Id], token) : [];
             if (update.Location == null && affected.Any(s => s.Waypoints.Count > 0)) throw PlaceStructuralRequest.Invalid();
@@ -66,8 +66,15 @@ public sealed partial class PlaceRegionLifecycleService
         // Explicit overload saves only the isolated operation tracker; current-safe freshness is in this same transaction.
         await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
         var now = DateTime.UtcNow;
-        await _dbContext.Trips.Where(t => t.Id == tripId && t.UserId == userId)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
+        if (_dbContext.Database.IsRelational())
+            await _dbContext.Trips.Where(t => t.Id == tripId && t.UserId == userId)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
+        else
+        {
+            var trip = await _dbContext.Trips.SingleAsync(t => t.Id == tripId, token);
+            trip.UpdatedAt = trip.UpdatedAt > now ? trip.UpdatedAt : now;
+            await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
+        }
         var reader = new TripEditorPlaceMutationReader(_dbContext, _confirmation.RegionDeletionAggregateTokens);
         var changedIds = orders.Count > 0 ? orders.Values.SelectMany(v => v).Distinct().ToArray() : new[] { place!.Id };
         var dtos = await reader.LoadPlaceDtosAsync(changedIds, tripId, userId, token);
@@ -76,6 +83,9 @@ public sealed partial class PlaceRegionLifecycleService
             locationChanged ? await reader.LoadSegmentOrderAsync(tripId, userId, token) : null, locationChanged, token);
         object data = request.Operation == "order" ? new EditorPlaceOrderResult(snapshot.Regions.Single().Id, orders.Values.Single())
             : dtos.Single(p => p.Id == place!.Id);
-        return new(true, data, affectedSlices, EditorDeletedIdsDto.Empty, []) { Contract = "bd2-1" };
+        return new(true, data, affectedSlices, EditorDeletedIdsDto.Empty, address?.Warnings ?? []) { Contract = "bd2-1" };
     }
 }
+
+/// <summary>Frozen explicit Web enrichment result, including the existing provider fallback warning.</summary>
+internal sealed record PlaceStructuralAddress(string Address, EditorPlaceMetadataDirective Metadata, IReadOnlyList<EditorWarningDto> Warnings);

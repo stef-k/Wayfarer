@@ -48,7 +48,7 @@ public sealed partial class PlaceRegionLifecycleService
     private string PlaceStructureFingerprint(PlaceStructuralSnapshot snapshot, PlaceStructuralRequest request)
     {
         object Scalars(object entity) => _dbContext.Model.FindEntityType(entity.GetType())!.GetProperties()
-            .Where(p => !p.IsShadowProperty() && p.Name != nameof(Segment.RowVersion)).OrderBy(p => p.Name, StringComparer.Ordinal)
+            .Where(p => !p.IsShadowProperty() && (entity is not Segment || p.Name is not (nameof(Segment.RowVersion) or nameof(Segment.Notes)))).OrderBy(p => p.Name, StringComparer.Ordinal)
             .Select(p => new { p.Name, Value = FingerprintValue(p.PropertyInfo!.GetValue(entity)) }).ToArray();
         var place = snapshot.Place;
         return PlaceStructuralRequest.Hash(new

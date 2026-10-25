@@ -37,9 +37,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None),
-            Body(seed.TargetRegionId, "Manual replacement", 14, 22, reverseGeocode)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.TargetRegionId, "Manual replacement", 14, 22, reverseGeocode)));
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -74,9 +72,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None),
-            Body(seed.RegionId, "Fallback", 14, 22, true)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.RegionId, "Fallback", 14, 22, true)));
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -122,8 +118,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         ConfigureControllerWithUserRole(controller, seed.UserId);
         var submitted = compatible ? "Concurrent address" : "Old address";
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None), Body(seed.RegionId, submitted, 11, 21, false)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(stale, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.RegionId, submitted, 11, 21, false)));
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -152,9 +147,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, credentials == null ? null : Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var thrown = await Record.ExceptionAsync(() => SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, cancellation.Token),
-            Body(seed.TargetRegionId, "Rejected fallback", 14, 22, replace)));
+        var thrown = await Record.ExceptionAsync(() => SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, cancellation.Token, Body(seed.TargetRegionId, "Rejected fallback", 14, 22, replace)));
 
         Assert.Same(original, thrown);
         Assert.Single(probe.Attempts);
@@ -180,8 +173,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, cancellation.Token), Body(seed.RegionId, "Rejected", 14, 22, true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, cancellation.Token, Body(seed.RegionId, "Rejected", 14, 22, true)));
 
         Assert.Equal(1, handler.Requests);
         await db.SaveChangesAsync(CancellationToken.None);
