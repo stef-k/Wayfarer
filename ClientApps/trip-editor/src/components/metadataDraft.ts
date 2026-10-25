@@ -182,7 +182,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
 
   /** Acknowledges submitted fields without erasing later manual edits or explicit sharing choices. */
   const acknowledge = (next: EditorTripMetadata, submitted: EditorMetadataConditionalRequest, sharingEditedDuringSave: boolean): void => {
-    if (metadataAttempt.value?.request !== submitted || !validMetadataAcknowledgement(next, tripId))
+    if (metadataAttempt.value?.request !== submitted || !validMetadataAcknowledgement(next, tripId) ||
+        !matchesSubmittedMetadata(next.originalValues!, submitted))
       throw new Error('Trip settings acknowledgement is incomplete or belongs to another attempt.');
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
@@ -248,8 +249,30 @@ const validMetadataAcknowledgement = (next: EditorTripMetadata, tripId: string):
     coordinate(original.center) && coordinate(next.center) && same(projectedCenter, next.center) &&
     (original.zoom === null || typeof original.zoom === 'number' && Number.isFinite(original.zoom)) && original.zoom === next.zoom &&
     (original.coverImage === null || original.coverImage?.rawUrl === null || typeof original.coverImage?.rawUrl === 'string') &&
-    (original.coverImage?.rawUrl?.trim() ? original.coverImage.rawUrl : '') === (next.coverImage?.rawUrl ?? '');
+    (original.coverImage?.rawUrl == null || /^\p{White_Space}*$/u.test(original.coverImage.rawUrl) ? '' : original.coverImage.rawUrl) ===
+      (next.coverImage?.rawUrl ?? '');
 };
+
+/** Match .NET Trim/IsNullOrWhiteSpace as in Region ordering; U+0085 is whitespace, U+FEFF is material. */
+const trimServerWhitespace = (value: string): string => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+
+/** Check only submitted fields after server normalization; disjoint edits and derived sharing remain admissible. */
+const matchesSubmittedMetadata = (original: EditorMetadataOriginalValues, submitted: EditorMetadataConditionalRequest): boolean =>
+  metadataFields.every(field => {
+    if (!Object.hasOwn(submitted.changes, field)) return true;
+    const changes = submitted.changes;
+    switch (field) {
+      case 'name': return original.name === trimServerWhitespace(changes.name!);
+      // Null desired Notes is Unchanged; explicit empty remains distinct from an original null.
+      case 'notesHtml': return changes.notesHtml === null || original.notesHtml ===
+        trimServerWhitespace(normalizeNotesHtml(trimServerWhitespace(changes.notesHtml!)));
+      case 'coverImage': return (original.coverImage?.rawUrl ?? null) ===
+        (changes.coverImage?.rawUrl == null ? null : trimServerWhitespace(changes.coverImage.rawUrl) || null);
+      case 'center': return (original.center?.latitude ?? null) === (changes.center?.latitude ?? null) &&
+        (original.center?.longitude ?? null) === (changes.center?.longitude ?? null);
+      default: return original[field] === changes[field];
+    }
+  });
 
 /** Trim and deduplicate tags in their entered order. */
 export function normalizeTagNames(values: string[]): string[] {

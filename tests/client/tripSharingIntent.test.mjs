@@ -616,3 +616,88 @@ test('F2: valid metadata acknowledgement retains exact nullable originals behind
   assert.deepEqual(editor.draftState.request().expected.center, { latitude: null, longitude: 23 });
   assert.deepEqual(owner.navigations, ['/User/Trip']);
 }));
+
+// Mirror the retained routed U+0085/U+FEFF envelopes and ordinary mapper cover projections.
+for (const [label, rawUrl, displayUrl] of [
+  ['null', null, null], ['empty', '', null], ['whitespace', ' \t\r\n', null],
+  ['U+0085', '\u0085', null], ['U+FEFF', '\uFEFF', '\uFEFF'],
+  ['nonblank', ' https://example.test/cover.jpg ', ' https://example.test/cover.jpg ']
+]) test(`F2: valid Name acknowledgement with ${label} cover adopts and retains the exact original`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  const coverImage = displayUrl === null ? null : { rawUrl: displayUrl, proxiedUrl: '/Public/ProxyImage' };
+  const originalCover = rawUrl === null ? null : { rawUrl };
+  parent.applyMetadata({ ...metadata(), coverImage, originalValues: { ...metadata().originalValues, coverImage: originalCover } });
+  await nextTick();
+  const saved = { ...parent.state.metadata, name: 'Saved name',
+    originalValues: { ...parent.state.metadata.originalValues, name: 'Saved name' } };
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+  editor.draft.name = 'Saved name';
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.name, 'Saved name');
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.notEqual(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+  editor.draft.coverImageRawUrl = 'https://example.test/replacement.jpg';
+  assert.deepEqual(editor.draftState.request().expected.coverImage, originalCover);
+}));
+
+// Defensive M1 counterexamples: internally consistent replies still must match this immutable submission.
+for (const field of ['name', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'])
+  test(`M1: same-Trip acknowledgement contradicting submitted ${field} stays held`, () => withApp(async owner => {
+    const { editor, parent } = owner;
+    const gate = deferred();
+    const changes = { name: 'Requested name', notesHtml: 'Requested notes', isPublic: false,
+      coverImage: { rawUrl: 'https://example.test/requested.jpg' }, center: { latitude: 1, longitude: 2 }, zoom: 3 };
+    const unrelated = { name: 'Unrelated result', notesHtml: 'Unrelated notes', isPublic: true,
+      coverImage: { rawUrl: 'https://example.test/unrelated.jpg' }, center: { latitude: 4, longitude: 5 }, zoom: 6 };
+    const saved = { ...metadata(), ...changes, [field]: unrelated[field],
+      originalValues: { ...metadata().originalValues, ...changes, [field]: unrelated[field] } };
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; await gate.promise; return new Response(reply(false, saved)); };
+    Object.assign(editor.draft, { name: changes.name, notesHtml: changes.notesHtml, isPublic: false,
+      coverImageRawUrl: changes.coverImage.rawUrl, centerLatitude: 1, centerLongitude: 2, zoom: 3 });
+    const saving = editor.saveAndExit();
+    const submitted = editor.draftState.metadataAttempt.value.request;
+    // A later draft matching the wrong response cannot authorize adoption of that response.
+    if (field === 'name') editor.draft.name = unrelated.name;
+    gate.resolve();
+    await saving;
+    assert.equal(parent.state.metadata.name, 'Trip');
+    assert.equal(editor.metadataUnconfirmed, true);
+    assert.equal(editor.draftState.metadataAttempt.value.request, submitted);
+    assert.equal(submitted.changes.name, 'Requested name');
+    assert.equal(editor.isDirty, true);
+    assert.equal(editor.lastSavedAt, null);
+    await editor.saveAndExit();
+    assert.equal(calls, 1);
+    assert.deepEqual(owner.navigations, []);
+  }));
+
+// Name/cover use .NET whitespace; making private derives a sharing disable; clear center publishes nullable originals.
+for (const clear of [false, true]) test(`M1: normalized submitted values and ${clear ? 'clears' : 'derived sharing'} are acknowledged`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  parent.applyMetadata({ ...metadata(true), notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
+    coverImage: { rawUrl: 'https://example.test/old.jpg', proxiedUrl: '/Public/ProxyImage' },
+    originalValues: { ...metadata(true).originalValues, notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
+      coverImage: { rawUrl: 'https://example.test/old.jpg' } } });
+  await nextTick();
+  const saved = { ...metadata(), name: '\uFEFFSaved name\uFEFF', notesHtml: clear ? '' : 'Normalized notes', isPublic: false,
+    center: clear ? null : { latitude: 1, longitude: 2 }, zoom: clear ? null : 3,
+    coverImage: clear ? null : { rawUrl: 'https://example.test/new.jpg', proxiedUrl: '/Public/ProxyImage' } };
+  saved.originalValues = { name: saved.name, notesHtml: saved.notesHtml, isPublic: false,
+    center: clear ? { latitude: null, longitude: null } : saved.center, zoom: saved.zoom,
+    coverImage: clear ? null : { rawUrl: saved.coverImage.rawUrl } };
+  globalThis.fetch = async () => new Response(reply(false, saved));
+  Object.assign(editor.draft, { name: '\u0085 \uFEFFSaved name\uFEFF \u0085', notesHtml: clear ? '' : '\u0085Normalized notes\u0085', isPublic: false,
+    coverImageRawUrl: clear ? '' : '\u0085 https://example.test/new.jpg \u0085',
+    centerLatitude: clear ? '' : 1, centerLongitude: clear ? '' : 2, zoom: clear ? '' : 3 });
+  await editor.saveAndExit();
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.equal(parent.state.metadata.shareProgressEnabled, false);
+  assert.equal(parent.state.metadata.name, saved.name);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
