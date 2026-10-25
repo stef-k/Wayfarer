@@ -26,8 +26,14 @@ The existing unconditional bearer Place PUT returns 409
 Scalar Name/Notes/icon/color edits continue to use their existing conditional
 PATCH with selected originals, without prepare or any structural fallback.
 Scalar edits omit location intent and preserve absent or historical non-finite
-stored locations. The editor response projects a historical non-finite Place
-location as null without repairing its stored point or enrichment.
+stored locations. Editor reads, structural originals, prepare previews and
+mutation responses project a historical non-finite Place location as null.
+This public projection never repairs the stored point or clears enrichment;
+private conditions retain raw geometry, distinguishing invalid geography from
+absence and detecting drift even when both publicly project as null. Unrelated
+Address edits remain permitted under the existing metadata policy. Explicit
+provider authoring requires a finite effective location; invalid new coordinates
+continue to reject with controlled validation errors.
 
 ## Originals, preparation and explicit review
 
@@ -172,6 +178,10 @@ required; coordinate intent includes original nullable location. With a move,
 use the move's complete `expected.place`, `expected.placesByRegion` and vectors;
 put the desired destination in `changes.regionId`. It compares all applicable
 originals and commits once, without PATCH followed by PUT.
+`placeIdsByRegion` is forbidden without a move, including an empty map. Move
+vectors must prove exactly the original source/destination membership within
+the owned Trip; unrelated Regions or members reject before writes or affected
+membership projection. This evidence is checked again under the apply locks.
 
 Web retains explicit Address and metadata choices. Manual Address is trimmed,
 null means empty, and the established RetainCompatible policy clears the tuple

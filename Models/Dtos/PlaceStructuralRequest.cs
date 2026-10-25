@@ -57,7 +57,11 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
                 if (values.TryGetValue("address", out var address)
                     && (address.ValueKind is not (JsonValueKind.String or JsonValueKind.Null) || address.GetString()?.Contains('\0') == true)) throw Invalid();
                 if (values.TryGetValue("reverseGeocode", out var reverse) && reverse.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw Invalid();
-                if (root.TryGetValue("placeIdsByRegion", out var vectors)) orders = OrderVectors(vectors);
+                if (root.TryGetValue("placeIdsByRegion", out var vectors))
+                {
+                    if (!destination.HasValue) throw Invalid();
+                    orders = OrderVectors(vectors);
+                }
             }
             else throw Invalid();
             if (operation == "move" || destination.HasValue) Fields(expected, "place", "placesByRegion");
@@ -84,8 +88,9 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     /// <summary>Compares values semantically while preserving missing versus explicit null.</summary>
     internal static bool Equal(JsonElement original, object? current) => JsonElement.DeepEquals(original, JsonSerializer.SerializeToElement(current, Json));
 
-    /// <summary>Produces a finite nullable WGS84 pair without geometry serialization conventions.</summary>
-    internal static EditorCoordinateDto? Pair(Point? point) => point == null ? null : new(point.Y, point.X);
+    /// <summary>Projects historical non-finite geography as null; private fingerprints retain the raw stored geometry.</summary>
+    internal static EditorCoordinateDto? Pair(Point? point) => point is not null && double.IsFinite(point.X) && double.IsFinite(point.Y)
+        ? new(point.Y, point.X) : null;
 
     /// <summary>Computes a deterministic private fingerprint without exposing private snapshot fields.</summary>
     internal static string Hash(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value, Json)));

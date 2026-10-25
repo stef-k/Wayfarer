@@ -96,7 +96,7 @@ public sealed partial class PlaceRegionLifecycleService
         if (request.Operation == "order")
         {
             if (!expected.TryGetProperty("places", out var originals) || !OriginalPlacesMatch(originals, snapshot.Siblings)) throw PlaceStructureStale();
-            if (!request.Orders[Guid.Empty].Order().SequenceEqual(snapshot.Siblings.Select(p => p.Id).Order())) throw PlaceStructuralRequest.Invalid();
+            ValidatedPlaceOrders(snapshot, request);
             return;
         }
         if (request.Destination.HasValue)
@@ -104,7 +104,6 @@ public sealed partial class PlaceRegionLifecycleService
             if (request.Destination == place!.RegionId || !expected.TryGetProperty("place", out var original)
                 || !PlaceStructuralRequest.Equal(original, PlaceStructuralRequest.Original(place))) throw PlaceStructureStale();
             if (!expected.TryGetProperty("placesByRegion", out var regions) || !OriginalOrdersMatch(regions, snapshot)) throw PlaceStructureStale();
-            ValidateMoveVectors(snapshot, request);
         }
         else
         {
@@ -112,6 +111,7 @@ public sealed partial class PlaceRegionLifecycleService
             if (!fields.TryGetValue("regionId", out var region) || !PlaceStructuralRequest.Equal(region, place!.RegionId)) throw PlaceStructureStale();
             if (snapshot.Coordinates && (!fields.TryGetValue("location", out var location) || !PlaceStructuralRequest.Equal(location, PlaceStructuralRequest.Pair(place.Location)))) throw PlaceStructureStale();
         }
+        ValidatedPlaceOrders(snapshot, request);
         if (request.Operation != "web-update") return;
         foreach (var field in request.Changes.EnumerateObject())
         {
@@ -132,7 +132,7 @@ public sealed partial class PlaceRegionLifecycleService
         }
         if (request.Changes.TryGetProperty("reverseGeocode", out var reverse) && reverse.GetBoolean())
         {
-            if (request.Changes.TryGetProperty("location", out _) ? request.Location == null : place!.Location == null)
+            if (PlaceStructuralRequest.Pair(request.Changes.TryGetProperty("location", out _) ? request.Location : place!.Location) == null)
                 throw PlaceStructuralRequest.Invalid();
             var originals = request.Destination.HasValue ? expected.GetProperty("place") : expected;
             if (!originals.TryGetProperty("address", out var address) || !PlaceStructuralRequest.Equal(address, place!.Address)
@@ -162,9 +162,20 @@ public sealed partial class PlaceRegionLifecycleService
         catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or FormatException) { throw PlaceStructuralRequest.Invalid(); }
     }
 
-    /// <summary>A move transfers only its selected Place; every other membership and each complete vector stays exact.</summary>
-    private static void ValidateMoveVectors(PlaceStructuralSnapshot snapshot, PlaceStructuralRequest request)
+    /// <summary>Binds every order key/member to the owned snapshot scope, reused before comparison and locked writes/response reads.</summary>
+    private static Dictionary<Guid, Guid[]> ValidatedPlaceOrders(PlaceStructuralSnapshot snapshot, PlaceStructuralRequest request)
     {
+        if (request.Operation == "order")
+        {
+            if (request.Orders.Count != 1 || !request.Orders.TryGetValue(Guid.Empty, out var vector)
+                || !vector.Order().SequenceEqual(snapshot.Siblings.Select(p => p.Id).Order())) throw PlaceStructuralRequest.Invalid();
+            return new() { [snapshot.Regions.Single().Id] = vector };
+        }
+        if (!request.Destination.HasValue)
+        {
+            if (request.Orders.Count != 0) throw PlaceStructuralRequest.Invalid();
+            return [];
+        }
         var source = snapshot.Place!.RegionId;
         var destination = request.Destination!.Value;
         if (request.Orders.Count != 2 || !request.Orders.ContainsKey(source) || !request.Orders.ContainsKey(destination)) throw PlaceStructuralRequest.Invalid();
@@ -174,6 +185,7 @@ public sealed partial class PlaceRegionLifecycleService
                 .Concat(regionId == destination ? new[] { snapshot.Place.Id } : []).Order();
             if (!ids.Order().SequenceEqual(required)) throw PlaceStructuralRequest.Invalid();
         }
+        return snapshot.Regions.ToDictionary(r => r.Id, r => request.Orders[r.Id]);
     }
 
     /// <summary>Recognizes nested PostgreSQL aborts only after successful rollback and before commit starts.</summary>

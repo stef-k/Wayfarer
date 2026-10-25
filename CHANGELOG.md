@@ -12,8 +12,10 @@
   retain them. Preserve canonical/sparse-order rules, newer drafts and unknown
   holds; reject participating unconditional Place updates. See
   [supported Place contracts](docs/development/trip-place-structure.md). No migration.
-  Protected scalar edits safely project historical non-finite Place locations as
-  null while preserving stored geography and enrichment.
+  Reject unproved Web order vectors before writes or membership projection.
+  Scalar and structural edits safely project historical non-finite Place
+  locations as null while preserving stored geography and applying only
+  explicitly authored Address/coordinate enrichment changes.
 
 - Protect Region and Place creation in the new Web and bearer contracts (#853,
   BD2-06/07). Compare client starting-view membership, stored orders and canonical

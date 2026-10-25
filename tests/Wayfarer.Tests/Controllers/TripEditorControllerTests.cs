@@ -186,7 +186,7 @@ public sealed class TripEditorControllerTests : TestBase
         Assert.True(regionOrder.IndexOf(earlierRegion.Id) < regionOrder.IndexOf(laterRegion.Id));
         Assert.Equal(regionOrder, ItineraryPresentation.OrderRegions(trip.Regions).Select(region => region.Id));
         var expectedPlaceOrder = new[] { earlierPlace.Id, laterPlace.Id, gapPlace.Id, earlierNullPlace.Id, laterNullPlace.Id };
-        var mutationReaderOrder = await new TripEditorPlaceMutationReader(db).LoadPlaceOrderAsync(laterRegion.Id, CancellationToken.None);
+        var mutationReaderOrder = await new TripEditorPlaceMutationReader(db).LoadPlaceOrderAsync(laterRegion.Id, trip.Id, "owner-user", CancellationToken.None);
         Assert.Equal(expectedPlaceOrder, state.PlaceOrderByRegionId[laterRegion.Id]);
         Assert.Equal(expectedPlaceOrder, ItineraryPresentation.OrderPlaces(laterRegion.Places).Select(place => place.Id));
         Assert.Equal(expectedPlaceOrder, mutationReaderOrder);

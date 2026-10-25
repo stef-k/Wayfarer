@@ -166,6 +166,35 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Empty(probe.Updates);
     }
 
+    /// <summary>Order evidence is rediscovered under the move locks; membership committed during a Place wait cannot be overwritten.</summary>
+    [PostgresFact]
+    public async Task Move_RevalidatesOrderScopeAfterPlaceWait()
+    {
+        var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        var outsideRegion = await db.Places.Where(p => p.Id == graph.OutsidePlaceId).Select(p => p.RegionId).SingleAsync();
+        var probe = new PlaceProbe();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, place.UserId);
+        var request = await MoveRequestAsync(place, graph.DestinationId!.Value, true);
+        await PrepareStructureAsync(web, place, true, "move", request);
+        await using var blocker = fixture.CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {place.Id} FOR UPDATE");
+        var pending = web.PutAsJsonAsync(StructurePath(place, true, "move"), request);
+        await WaitForLockAsync(probe, 0);
+        await blocker.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, outsideRegion));
+        await transaction.CommitAsync();
+        var before = await StoredStructureRowsAsync(graph.TripId);
+        using var response = await pending;
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("mutation-dependency-stale", await response.Content.ReadAsStringAsync());
+        Assert.Equal(before, await StoredStructureRowsAsync(graph.TripId));
+        Assert.Empty(probe.Updates);
+        Assert.Empty(_warmup.Invocations);
+    }
+
     /// <summary>A single Web save combines coordinate, membership, Address and selected scalars; SQL failure rolls every effect back.</summary>
     [PostgresTheory]
     [InlineData(false)]

@@ -308,6 +308,31 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Empty(_warmup.Invocations);
     }
 
+    /// <summary>Explicit provider authoring requires a finite effective location; rejecting it leaves historical storage untouched.</summary>
+    [PostgresFact]
+    public async Task HistoricalNonFinite_ProviderRequiresValidLocation()
+    {
+        var place = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(p => p.Location, new Point(22, double.NaN) { SRID = 4326 })
+            .SetProperty(p => p.ResolvedFeatureName, "Retain enrichment"));
+        var before = await StoredStructureRowsAsync(place.Region.TripId);
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, place.UserId);
+        var request = new { expected = new { regionId = place.RegionId, address = place.Address, location = (object?)null },
+            changes = new { reverseGeocode = true } };
+        using var prepare = await web.PostAsJsonAsync(StructurePath(place, true, "coordinates") + "/prepare", request);
+        using var apply = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        foreach (var response in new[] { prepare, apply })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains("mutation-request-invalid", await response.Content.ReadAsStringAsync());
+        }
+        Assert.Equal(before, await StoredStructureRowsAsync(place.Region.TripId));
+        Assert.Empty(_warmup.Invocations);
+    }
+
     /// <summary>Reads complete fresh persisted Place/Region/Trip rows, including ordering, geometry and freshness, outside request trackers.</summary>
     private async Task<string?> StoredStructureRowsAsync(params Guid[] tripIds)
     {

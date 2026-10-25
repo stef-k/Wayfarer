@@ -632,3 +632,39 @@ test('structural acknowledgement preserves a newer coordinate reversal and unsen
   assert.equal(editor.placeDirty, true);
   assert.equal(editor.placeDraftState.structuralHolds.value.length, 0);
 }));
+
+// A historical null projection reaches the actual Address save owner; malformed non-finite previews still stop dispatch.
+for (const invalidPreview of [false, true]) {
+  test(`historical Address edit ${invalidPreview ? 'rejects a non-finite preview' : 'saves with null geography'}`, () => withApp(async ({ parent, editor }) => {
+    parent.state.placesById.place = place({ location: null, resolvedFeatureName: 'Historical enrichment' });
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.placeDraft.address = 'Authored address';
+    const calls = [];
+    globalThis.fetch = async (url, init) => {
+      const request = JSON.parse(init.body);
+      calls.push([url, init.method, request]);
+      if (url.endsWith('/prepare')) return new Response(JSON.stringify({
+        contract: 'bd2-1', operation: 'web-update', tripId: 'trip', targetId: 'place', requiresReview: true,
+        place: { id: 'place', regionId: 'region', name: 'Original', notes: null, address: 'Original address',
+          location: invalidPreview ? { latitude: 'NaN', longitude: 22 } : null,
+          iconName: 'marker', markerColor: 'bg-blue', displayOrder: 1,
+          resolvedFeatureName: 'Historical enrichment', resolvedFeatureType: null },
+        placesByRegion: {}, affectedSegmentIds: [], conditionToken: 'conditions'
+      }));
+      return saved(place({ location: null, address: 'Authored address', resolvedFeatureName: null, resolvedFeatureType: null }));
+    };
+    await editor.savePlaceDraft();
+    await nextTick();
+    assert.deepEqual(calls[0], ['/api/trips/trip/editor/places/place/prepare', 'POST', {
+      expected: { regionId: 'region', address: 'Original address' }, changes: { address: 'Authored address' }
+    }]);
+    assert.equal(calls.length, invalidPreview ? 1 : 2);
+    if (!invalidPreview) assert.deepEqual(calls[1], ['/api/trips/trip/editor/places/place', 'PUT', {
+      ...calls[0][2], conditionToken: 'conditions', reviewed: true
+    }]);
+    assert.equal(parent.state.placesById.place.address, invalidPreview ? 'Original address' : 'Authored address');
+    assert.equal(parent.state.placesById.place.location, null);
+    assert.equal(editor.placeDirty, invalidPreview);
+    assert.equal(editor.placeDraftState.structuralHolds.value.length, 0);
+  }));
+}

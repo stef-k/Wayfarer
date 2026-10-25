@@ -9,6 +9,7 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripEditorPlaceOrderingPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Retains canonical ordering while refusing membership from another Trip or owner.</summary>
     [PostgresFact]
     public async Task MutationReaderOrdersNullableDisplayOrderAfterOrderedPlaces()
     {
@@ -35,9 +36,12 @@ public sealed class TripEditorPlaceOrderingPostgresTests(PostgresImportTestFixtu
         await context.SaveChangesAsync();
         fixture.RegisterTrip(trip.Id);
 
-        var actual = await new TripEditorPlaceMutationReader(context).LoadPlaceOrderAsync(region.Id, CancellationToken.None);
+        var reader = new TripEditorPlaceMutationReader(context);
+        var actual = await reader.LoadPlaceOrderAsync(region.Id, trip.Id, user.Id, CancellationToken.None);
 
         Assert.Equal(expected, actual);
+        Assert.Empty(await reader.LoadPlaceOrderAsync(region.Id, Guid.NewGuid(), user.Id, CancellationToken.None));
+        Assert.Empty(await reader.LoadPlaceOrderAsync(region.Id, trip.Id, "another-owner", CancellationToken.None));
     }
 
     private static Place Place(Guid id, string userId, Region region, string name, int? displayOrder) =>

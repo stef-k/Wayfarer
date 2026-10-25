@@ -14,6 +14,7 @@ public sealed partial class PlaceRegionLifecycleService
     {
         var tripId = snapshot.Trip.Id;
         var userId = snapshot.Trip.UserId;
+        var orders = ValidatedPlaceOrders(snapshot, request);
         var changedSegments = Array.Empty<Guid>();
         var locationChanged = false;
         Place? place = null;
@@ -44,7 +45,8 @@ public sealed partial class PlaceRegionLifecycleService
             ApplyScalarUpdate(place, update);
             if (request.Destination.HasValue)
             {
-                var region = await _dbContext.Regions.SingleAsync(r => r.Id == request.Destination, token);
+                var region = await _dbContext.Regions.SingleAsync(r => r.Id == request.Destination
+                    && r.TripId == tripId && r.UserId == userId && r.Trip.UserId == userId, token);
                 place.RegionId = region.Id;
                 place.Region = region;
             }
@@ -55,11 +57,12 @@ public sealed partial class PlaceRegionLifecycleService
             }
             changedSegments = affected.Select(s => s.Id).ToArray();
         }
-        var orders = request.Operation == "order" ? new Dictionary<Guid, Guid[]> { [snapshot.Regions.Single().Id] = request.Orders[Guid.Empty] } : request.Orders;
         if (orders.Count > 0)
         {
             var ids = orders.Values.SelectMany(ids => ids).ToArray();
-            var places = await _dbContext.Places.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, token);
+            var places = await _dbContext.Places.Where(p => ids.Contains(p.Id) && p.UserId == userId
+                && p.Region.UserId == userId && p.Region.TripId == tripId && p.Region.Trip.UserId == userId).ToDictionaryAsync(p => p.Id, token);
+            if (places.Count != ids.Length) throw PlaceStructureStale();
             foreach (var (_, vector) in orders)
                 for (var index = 0; index < vector.Length; index++) places[vector[index]].DisplayOrder = index + 1;
         }
