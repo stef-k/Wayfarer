@@ -1035,6 +1035,28 @@ A missing route/original-value contract holds the save without falling back to
 an unconditional endpoint. A lost reply or cancellation does **not** prove no
 effect and must not trigger blind replay.
 
+The metadata owner retains an immutable snapshot of each submitted conditional
+request separately from confirmed originals and the latest authored fields
+(#853 F2). Pending or uncertain metadata keeps the draft/navigation obligation
+even when a newer reversal equals the old baseline. Transport/server failures,
+unreadable bodies and unusable or wrong-Trip acknowledgements show **Trip settings
+change not confirmed**. Save, Save & Exit and Cancel / Reset are held; parent
+refresh and closing/reopening settings cannot erase the attempt or latest values.
+A fresh read cannot establish that the predecessor is terminal. A valid reply
+correlated with that request advances confirmed originals and preserves newer
+edits, which can then be saved explicitly. Validation, authentication,
+authorization, unavailable-route/scope and conditional-conflict rejections from
+this endpoint are definitive no-write failures and remain correctable. No
+automatic retry or synthesized originals are used.
+
+**Leave without saving** explicitly abandons retained metadata and other unsaved
+edits after a warning: the earlier request may still finish, and leaving does
+not undo it. Staying retains the hold. Refresh/reset is not abandonment. This
+state exists only in the mounted editor; leaving/reloading loses it, with no
+durable cross-reload recovery. A superseded Save & Exit continuation cannot
+navigate over another draft, even when its delayed acknowledgement succeeds.
+The conditional metadata endpoint and database transaction are unchanged.
+
 The existing Web Trip Settings sharing owner also retains its submitted sharing
 attempt separately from the confirmed baseline and latest checkbox choice
 (#853 C3). An in-flight or uncertain attempt keeps navigation protection active
@@ -1088,7 +1110,7 @@ route/Notes combined saves retain their single protected transaction. Rejecting
 these seven adapters does not widen bearer fields or change excluded standalone
 Area geometry behavior. There is no old-client compatibility adapter or notice.
 
-F2 metadata uncertainty remains a separate correction. This F1 disposition alone
+F2's mounted-client correction is described above. The F1 route disposition alone
 does not accept C1/C2/C5 or close #853; fresh independent review remains required.
 
 ## Protected Region scalars (#853 Slice 4)

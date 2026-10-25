@@ -28,7 +28,7 @@ const withOriginals = metadata => ({ ...metadata, originalValues: { name: metada
 // Mount the real draft owner under a reactive parent so Vue schedules child prop updates.
 const mountDraft = () => {
   let editor;
-  const props = shallowReactive({ metadata: withOriginals({ name: 'Trip', isPublic: false, notesHtml: '',
+  const props = shallowReactive({ metadata: withOriginals({ id: 'trip', name: 'Trip', isPublic: false, shareProgressEnabled: false, notesHtml: '',
     center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 }),
     capturedMapView: null, tagsBySlug: {}, tagOrder: [], tagOptions: {}, hasRegionDraftChanges: false,
     tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', antiforgeryToken: 'test-token', editorSurface: {
@@ -426,6 +426,9 @@ for (const outcome of ['publication conflict', 'publication failure', 'sharing f
         if (outcome === 'sharing failure') {
           assert.equal(owner.editor.statusText, 'Sharing change not confirmed');
           assert.equal(owner.editor.sharingUnconfirmed, true);
+        } else if (outcome === 'publication failure') {
+          assert.equal(owner.editor.statusText, 'Trip settings change not confirmed');
+          assert.equal(owner.editor.metadataUnconfirmed, true);
         } else {
           assert.equal(owner.editor.statusText, 'Save failed');
           assert.ok(owner.editor.saveError);

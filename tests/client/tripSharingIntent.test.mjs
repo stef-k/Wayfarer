@@ -50,7 +50,7 @@ const initial = { tripId: 'trip', metadata: metadata(), regionsById: {}, regionO
   visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] },
   options: { iconNames: [], markerColorClasses: [], transportModes: [], areaDefaults: { fillHex: '#ff6600' }, tag: { maxTags: 10, suggestionTake: 5 } },
   permissions: { canEditMetadata: true } };
-const reply = enabled => JSON.stringify({ success: true, data: metadata(enabled), affected: { metadata: metadata(enabled),
+const reply = (enabled, saved = metadata(enabled)) => JSON.stringify({ success: true, data: saved, affected: { metadata: saved,
   regions: [], places: [], areas: [], segments: [], tags: [], regionOrder: null, segmentOrder: null, tagOrder: null,
   placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
@@ -478,4 +478,141 @@ test('F2: newer metadata reversal retains its obligation after reply loss and ca
   editor.confirmUnload(event);
   assert.equal(event.prevented, true);
   assert.equal(owner.parent.editorSurface.isActiveTargetDirty(), true);
+}));
+
+// Refresh/reset and editor switching are not evidence that a submitted request cannot still commit.
+test('F2: uncertain metadata survives refresh, reset, close/reopen and explicit abandonment', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new TypeError('Lost reply'); };
+  editor.draft.name = 'Earlier request';
+  await editor.save(false);
+  const attempt = editor.draftState.metadataAttempt.value;
+  editor.draft.name = 'Trip';
+  editor.draft.notesHtml = 'Newer notes';
+  for (const name of ['Earlier request', 'Trip']) {
+    parent.applyMetadata({ ...metadata(), name, originalValues: { ...metadata().originalValues, name } });
+    await nextTick();
+    editor.resetDraft();
+    assert.equal(editor.draft.name, 'Trip');
+    assert.equal(editor.draft.notesHtml, 'Newer notes');
+    assert.equal(editor.persistedDraft.name, 'Trip');
+    assert.equal(editor.draftState.metadataAttempt.value, attempt);
+  }
+  owner.approve(true);
+  await parent.editorSurface.closeActiveTarget();
+  await editor.openMetadata();
+  await nextTick();
+  assert.equal(editor.draft.notesHtml, 'Newer notes');
+  assert.equal(parent.editorSurface.isActiveTargetDirty(), true);
+  assert.equal(owner.button('Save & Continue').props.disabled, true);
+  assert.equal(owner.button('Save & Exit').props.disabled, true);
+  assert.equal(owner.button('Cancel / Reset').props.disabled, true);
+  assert.match(owner.visibleText(), /could not confirm.*settings.*retained/i);
+  owner.approve(false);
+  await owner.button('Leave without saving').props.onClick();
+  assert.deepEqual(owner.navigations, []);
+  assert.match(owner.confirmations.at(-1).message, /does not undo/i);
+  owner.approve(true);
+  await owner.button('Leave without saving').props.onClick();
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+  assert.equal(calls, 1);
+  assert.equal(editor.lastSavedAt, null);
+}));
+
+// Reuse the accepted delayed-navigation control with the metadata operation in the same production owner.
+for (const newerRegion of [false, true]) test(`F2: delayed metadata success preserves ${newerRegion ? 'a newer Region session' : 'a reversal and its next explicit save'}`, () => withApp(async owner => {
+  const { editor, parent, regionEditor } = owner;
+  const gate = deferred();
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push(body);
+    const saved = { ...metadata(), ...body.changes, originalValues: { ...metadata().originalValues, ...body.changes } };
+    await gate.promise;
+    return new Response(reply(false, saved));
+  };
+  editor.draft.name = 'Earlier request';
+  const pending = editor.saveAndExit();
+  if (newerRegion) {
+    owner.approve(true);
+    await regionEditor.openCreate();
+    regionEditor.draft.name = 'Newer Region';
+  } else {
+    editor.draft.name = 'Trip';
+    editor.resetDraft(); // A pending attempt and reversal also survive explicit reset.
+    assert.equal(editor.isDirty, true);
+  }
+  gate.resolve();
+  await pending;
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(parent.state.metadata.name, 'Earlier request');
+  assert.deepEqual(owner.navigations, []);
+  if (newerRegion) {
+    assert.equal(regionEditor.draft.name, 'Newer Region');
+    assert.equal(regionEditor.regionDirty, true);
+    assert.equal(owner.confirmations.length, 1, 'old Save & Exit permission is revoked');
+  } else {
+    assert.equal(editor.draft.name, 'Trip');
+    assert.equal(editor.isDirty, true);
+    await editor.saveAndExit();
+    assert.deepEqual(requests[1], { expected: { name: 'Earlier request' }, changes: { name: 'Trip' } });
+    assert.equal(editor.isDirty, false);
+    assert.deepEqual(owner.navigations, ['/User/Trip']);
+  }
+}));
+
+// Missing/malformed or mis-scoped acknowledgements cannot resolve the request or mutate parent state.
+for (const invalid of ['body', 'scope', 'originals']) test(`F2: unusable metadata ${invalid} reply holds the corresponding attempt`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  const saved = { ...metadata(), name: 'Earlier request', originalValues: { ...metadata().originalValues, name: 'Earlier request' } };
+  if (invalid === 'scope') saved.id = 'another-trip';
+  if (invalid === 'originals') delete saved.originalValues;
+  globalThis.fetch = async () => { calls++; return new Response(invalid === 'body' ? '{' : reply(false, saved)); };
+  editor.draft.name = 'Earlier request';
+  await editor.saveAndExit();
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.name, 'Trip');
+  assert.equal(editor.draft.name, 'Earlier request');
+  assert.equal(editor.metadataUnconfirmed, true);
+  assert.equal(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, []);
+}));
+
+// Definitive refusal resolves only this attempt; authored edits can still be saved explicitly.
+for (const status of [400, 409]) test(`F2: metadata rejection ${status} permits a corrected explicit save`, () => withApp(async owner => {
+  const { editor } = owner;
+  let calls = 0;
+  const saved = { ...metadata(), name: 'Corrected', originalValues: { ...metadata().originalValues, name: 'Corrected' } };
+  globalThis.fetch = async () => ++calls === 1
+    ? new Response(JSON.stringify({ title: 'Review name', errors: { name: ['Review name'] }, code: 'mutation-base-stale' }), { status })
+    : new Response(reply(false, saved));
+  editor.draft.name = 'Earlier request';
+  await editor.saveAndExit();
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, true);
+  editor.draft.name = 'Corrected';
+  await editor.saveAndExit();
+  assert.equal(calls, 2);
+  assert.equal(editor.isDirty, false);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// Historical partial centers and blank cover originals have intentionally lossy display projections.
+test('F2: valid metadata acknowledgement retains exact nullable originals behind display defaults', () => withApp(async owner => {
+  const { editor } = owner;
+  const saved = { ...metadata(), name: 'Saved', originalValues: { ...metadata().originalValues,
+    name: 'Saved', center: { latitude: null, longitude: 23 }, coverImage: { rawUrl: '  ' } } };
+  globalThis.fetch = async () => new Response(reply(false, saved));
+  editor.draft.name = 'Saved';
+  await editor.saveAndExit();
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(editor.isDirty, false);
+  editor.draft.centerLatitude = 38;
+  editor.draft.centerLongitude = 24;
+  assert.deepEqual(editor.draftState.request().expected.center, { latitude: null, longitude: 23 });
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
 }));

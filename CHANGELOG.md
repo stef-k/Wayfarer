@@ -4,12 +4,20 @@
 
 ### Changed
 
+- Retain submitted Trip metadata attempts separately from confirmed originals and
+  latest edits (#853 F2). Uncertain replies hold Save, Save & Exit, reset and
+  navigation even when a newer reversal equals the old baseline. Preserve intent
+  through refresh and settings close/reopen; accept only correlated usable replies
+  or definitive rejection. Offer explicit Leave without saving without promising
+  rollback, automatic retry or cross-reload recovery. Preserve sharing and newer
+  draft navigation controls. No backend change or migration.
+
 - Reject the seven unconditional Trip metadata, Region, Area and bearer Segment
   Notes writers that could erase protected edits (#853 reconciliation F1).
   Require the existing client-original-aware contracts; preserve current Web
   authoring, atomic combined saves, authority and antiforgery. See the
   [route dispositions](docs/development/api.md#rejected-unconditional-writers-853-reconciliation-f1).
-  F2 metadata uncertainty and final C1/C2/C5 acceptance remain separate. No migration.
+  Final C1/C2/C5 acceptance remains separate. No migration.
 
 - Require content-bound Place deletion preview/confirmation on both Web and bearer,
   including Places without dependents (#853 BD2-12). Recheck full material target,
