@@ -171,7 +171,8 @@ async function mapView(page: Page): Promise<{ latitude: number; longitude: numbe
 }
 
 async function savePlaceThroughRealEndpoint(page: Page, regionId: string): Promise<string> {
-  const endpoint = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/regions/${regionId}/places/?$`, 'i');
+  // Observe the protected creation request emitted by the production Place owner.
+  const endpoint = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/regions/${regionId}/places/conditional/?$`, 'i');
   const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' && endpoint.test(new URL(response.url()).pathname));
   await page.getByRole('button', { name: 'Save Place' }).click();
   const response = await responsePromise;

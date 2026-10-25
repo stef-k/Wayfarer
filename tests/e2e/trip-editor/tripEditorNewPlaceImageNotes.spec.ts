@@ -42,7 +42,7 @@ test.describe('Trip Editor new-place notes image URL parity', () => {
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].method).toBe('POST');
     expect(requests[0].url).toContain('/places');
-    expectCanonicalNotes(requests[0].body.notesHtml, [imageUrl]);
+    expectCanonicalNotes(requests[0].body.value.notesHtml, [imageUrl]);
   });
 
   test('new place notes remove failed image URL previews without saving broken proxy markup', async ({ page }) => {
@@ -119,10 +119,13 @@ async function routeEditorState(route: Route, state: MutableEditorState, request
 }
 
 function applyMutation(state: MutableEditorState, method: string, url: string, body: Record<string, any>): Record<string, any> {
-  if (method !== 'POST' || !url.includes(`/regions/${regionId}/places`)) {
+  if (method !== 'POST' || !url.endsWith(`/regions/${regionId}/places/conditional`)) {
     throw new Error(`Unexpected new-place image-note mutation ${method} ${url}`);
   }
 
+  // The mocked destination is empty; acknowledge the complete protected creation shape.
+  expect(body.expected).toEqual({ regionId, places: [] });
+  const { name, notesHtml, address, location, iconName, markerColor } = body.value;
   const place = {
     id: newPlaceId,
     tripId: state.tripId,
@@ -130,11 +133,17 @@ function applyMutation(state: MutableEditorState, method: string, url: string, b
     displayOrder: 1,
     visitSummary: { placeId: newPlaceId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
     capabilities: editableCapabilities(),
-    ...body
+    name, notesHtml, address, location, iconName, markerColor,
+    originalValues: { regionId, name, notesHtml, iconName, markerColor, displayOrder: 1 }
   };
   state.placesById[newPlaceId] = place;
   state.placeOrderByRegionId[regionId] = [newPlaceId];
-  return mutationResult(place, { places: [place], placeOrdersByRegionId: { [regionId]: state.placeOrderByRegionId[regionId] } });
+  const totalPlaces = state.visitProgress.totalPlaces + 1;
+  state.visitProgress = { ...state.visitProgress, totalPlaces,
+    percentVisited: state.visitProgress.visitedPlaces / totalPlaces * 100,
+    placeSummariesByPlaceId: { ...state.visitProgress.placeSummariesByPlaceId, [newPlaceId]: place.visitSummary } };
+  return mutationResult(place, { places: [place], placeOrdersByRegionId: { [regionId]: state.placeOrderByRegionId[regionId] },
+    visitProgress: state.visitProgress });
 }
 
 function editableCapabilities(): Record<string, boolean> {
@@ -151,6 +160,7 @@ function editableCapabilities(): Record<string, boolean> {
 
 function mutationResult(data: Record<string, any>, affected: Record<string, any>): Record<string, any> {
   return {
+    contract: 'bd2-1',
     success: true,
     data,
     affected: {
