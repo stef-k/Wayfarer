@@ -4,6 +4,15 @@
 
 ### Changed
 
+- Correct #915's demonstrated certificate trust paths: hash-bound pip bootstrap
+  before both CI dependency installs, patched immutable build Node, explicit
+  signed Rust/.NET build and final-runtime CA packages, patched Node for the
+  version-matched Playwright installer, and corrected immutable managed Caddy.
+  Check existing native Node/host roots and preserve retained bundle authority
+  and the unchanged-proxy update gate. Future application-image/bundle replacement
+  needs a separately accepted release and proxy compatibility path; no version or
+  database change is selected. See [trust boundaries](docs/development/security.md#build-and-runtime-certificate-trust-915).
+
 - Preserve instruction boundary vertices when budgeting provider routes and remap
   instruction indices to the exact returned geometry, including anchor insertion
   and simplification (#930). Mobile routes and protected Trip Editor proposals

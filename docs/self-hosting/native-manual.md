@@ -47,11 +47,23 @@ A practical native host needs:
 - a dedicated service account;
 - .NET 10 runtime (SDK on the build host);
 - PostgreSQL + PostGIS;
-- Node 24/npm on the build host;
+- Node 24.22.1+ within Node 24/npm on the build host and browser-provisioning host;
 - Rust 1.90.0, C/C++, CMake and NASM on the native build host for the image helper;
 - `util-linux` providing `/usr/bin/prlimit` on the runtime host;
 - a reverse proxy such as Nginx;
 - enough disk for application data, caches, imports, logs and backups.
+
+Before HTTPS acquisition, update the host's CA package through the distribution's
+signed package manager, including existing hosts. Noble requires at least
+`20260816ubuntu0.24.04.1`; Bookworm requires at least `20250419~deb12u2`.
+Other distributions require their incident-corrected package. Native .NET and
+self-contained operator/recovery executables use host trust on Linux; replacing
+the executable does not replace that store. Run `bash deployment/check-trust.sh`
+on runtime hosts and `bash deployment/check-trust.sh --node` on build/provisioning
+hosts before NuGet, Cargo, npm or browser downloads. The check rejects G3 and
+requires ISRG Root X1 as a positive control; custom trust policies require their
+own qualification. Existing Node/npm installations are checked too; repair an old
+installation rather than accepting it merely because it is on PATH.
 
 ## Create a service identity
 
@@ -266,8 +278,13 @@ that includes it before using these instructions.
 Install Linux OS libraries with root privileges, then download the matched bundle:
 
 ```sh
-sudo dotnet /var/www/wayfarer/Wayfarer.dll playwright install-deps chromium
+bash deployment/check-trust.sh --node
+# Use an absolute patched Node path available to root; keep the release's own CLI.
+provisioning_node="$(command -v node)"
+sudo env PLAYWRIGHT_NODEJS_PATH="$provisioning_node" \
+  dotnet /var/www/wayfarer/Wayfarer.dll playwright install-deps chromium
 sudo env PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers \
+  PLAYWRIGHT_NODEJS_PATH="$provisioning_node" \
   dotnet /var/www/wayfarer/Wayfarer.dll playwright install chromium
 ```
 

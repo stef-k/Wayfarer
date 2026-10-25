@@ -97,6 +97,38 @@ public sealed class ReleaseBundleTests : IDisposable
         Assert.Throws<IOException>(() => ReleaseContract.RequireUse(manifest, "1.9.18"));
     }
 
+    /// <summary>Refresh selects corrected proxy bytes while retained releases keep exact recovery authority.</summary>
+    [Theory]
+    [InlineData(ReleaseContract.CaddyDigest)]
+    [InlineData(ReleaseContract.LegacyCaddyDigest)]
+    public void ProxyIdentityFollowsTheFingerprintBoundBundle(string digest)
+    {
+        var manifest = Manifest();
+        Save(manifest with { Images = manifest.Images with { CaddyDigest = digest } });
+        var bundle = ReleaseBundle.Validate(directory);
+        var config = new Deployment
+        {
+            Bundle = directory, Release = ReleaseAuthority.From(bundle), Platform = bundle.Manifest.Platform,
+            AppDigest = bundle.Manifest.Images.PlatformDigest, DbDigest = bundle.Manifest.Images.DatabaseDigest
+        };
+        Assert.Equal(digest, config.CaddyDigest);
+        var services = new
+        {
+            wayfarer = new { image = "ghcr.io/stef-k/wayfarer@" + config.AppDigest, platform = config.RuntimePlatform },
+            db = new { image = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, platform = config.RuntimePlatform },
+            caddy = new { image = "caddy@" + digest, platform = config.RuntimePlatform }
+        };
+        var text = JsonSerializer.Serialize(new { services });
+        using var matched = JsonDocument.Parse(text);
+        Preflight.VerifyImages(config, matched.RootElement);
+        using var wrong = JsonDocument.Parse(text.Replace("caddy@" + digest, "caddy@sha256:" + new string('f', 64)));
+        Assert.Throws<UsageException>(() => Preflight.VerifyImages(config, wrong.RootElement));
+        Assert.Equal(ReleaseContract.LegacyCaddyDigest, (config with { Release = null }).CaddyDigest);
+        Assert.Throws<IOException>(() => (config with { Release = config.Release with { Fingerprint = new string('f', 64) } }).CaddyDigest);
+        Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest with
+        { Images = manifest.Images with { CaddyDigest = "sha256:" + new string('f', 64) } }));
+    }
+
     [Fact]
     public void ExtraFileLinkAndWrongModeAreRejected()
     {
@@ -229,6 +261,8 @@ public sealed class ReleaseBundleTests : IDisposable
         } };
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target));
         Assert.Equal(boundary, UpdateOptions.Boundary(source, target, candidates: true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
+            target with { Manifest = target.Manifest with { Images = target.Manifest.Images with { CaddyDigest = ReleaseContract.LegacyCaddyDigest } } }, true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
             target with { Manifest = target.Manifest with { Sources = [boundary with { Fingerprint = new string('f', 64) }] } }, true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,

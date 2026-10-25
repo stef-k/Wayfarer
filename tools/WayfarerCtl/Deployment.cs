@@ -38,7 +38,6 @@ public sealed record Deployment
             if (Release is null) return ReleaseContract.LegacyCaddyDigest;
             var bundle = ReleaseBundle.Validate(Bundle);
             if (ReleaseAuthority.From(bundle) != Release) throw new IOException("Proxy release authority changed.");
-            bundle.Corroborate(this);
             return bundle.Manifest.Images.CaddyDigest;
         }
     }

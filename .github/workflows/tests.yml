@@ -4,6 +4,13 @@ on:
   pull_request:
     branches: [main]
 
+# Setup actions have a separate runner-owned Node. Use the verified host OpenSSL
+# store rather than its potentially old bundled roots; normal TLS stays enabled.
+env:
+  NODE_OPTIONS: --use-openssl-ca
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  SSL_CERT_DIR: /etc/ssl/certs
+
 jobs:
   # Classify the exact PR diff once; every downstream job consumes these outputs.
   classify:
@@ -72,6 +79,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify host trust before setup downloads
+        run: bash deployment/check-trust.sh
 
       - name: Setup Python for Code Guard
         uses: actions/setup-python@v5
@@ -348,6 +358,8 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify host trust before setup downloads
+        run: bash deployment/check-trust.sh
       # A local immutable image-store digest is integration evidence, not GHCR publication evidence.
       - name: Use a disposable Docker daemon with the containerd image store
         if: needs.classify.outputs.run_app_image == 'true'
