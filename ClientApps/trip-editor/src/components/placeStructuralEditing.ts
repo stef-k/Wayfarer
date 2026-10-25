@@ -34,6 +34,7 @@ export interface PlaceMaterialOriginal {
   resolvedFeatureName: string | null; resolvedFeatureType: string | null;
 }
 
+/** Exact combined intent and retained originals submitted unchanged through preparation and apply. */
 export interface PlaceStructureRequest {
   expected: Record<string, unknown>;
   changes: Partial<EditorPlaceSaveRequest>;
@@ -42,6 +43,7 @@ export interface PlaceStructureRequest {
   reviewed?: boolean;
 }
 
+/** Coherent public review projection plus opaque private conditions; never a replacement baseline. */
 export interface PlaceStructurePreview {
   contract: string; operation: string; tripId: string; targetId: string; requiresReview: boolean;
   conditionToken: string; place: PlaceMaterialOriginal | null;

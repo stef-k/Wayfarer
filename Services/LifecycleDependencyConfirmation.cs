@@ -48,7 +48,7 @@ public sealed class LifecycleDependencyConfirmation
         catch (Exception error) when (error is CryptographicException or JsonException) { return false; }
     }
 
-    /// <summary>Combined Web membership and coordinate intent uses move purpose plus its complete intent/material hash.</summary>
+    /// <summary>Combined Web intent has its own fixed operation tag and complete intent/material hash within coordinate protection.</summary>
     private IDataProtector PlaceProtector(string operation) => operation switch
     {
         "coordinates" or "web-update" => _coordinateProtector,

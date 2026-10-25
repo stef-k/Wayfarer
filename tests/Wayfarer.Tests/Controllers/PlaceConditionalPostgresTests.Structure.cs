@@ -124,6 +124,7 @@ public sealed partial class PlaceConditionalPostgresTests
         using var web = await WebAsync(app, place.UserId);
         using var bearer = Bearer(app, place.UserId);
         var request = CoordinateRequest(place, webStructural, 15, 23);
+        if (webStructural) request["changes"] = new { location = new { latitude = 15, longitude = 23 }, notesHtml = (string?)null };
         await PrepareStructureAsync(webStructural ? web : bearer, place, webStructural, "coordinates", request);
         async Task Scalar()
         {

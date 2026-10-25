@@ -115,7 +115,8 @@ public sealed partial class PlaceRegionLifecycleService
         if (request.Operation != "web-update") return;
         foreach (var field in request.Changes.EnumerateObject())
         {
-            if (field.Name is "regionId" or "location" or "reverseGeocode") continue;
+            if (field.Name is "regionId" or "location" or "reverseGeocode"
+                || field.Name == "notesHtml" && field.Value.ValueKind == JsonValueKind.Null) continue;
             var originalKey = field.Name == "notesHtml" && request.Destination.HasValue ? "notes" : field.Name;
             var originals = request.Destination.HasValue ? expected.GetProperty("place") : expected;
             if (!originals.TryGetProperty(originalKey, out var original)) throw PlaceStructuralRequest.Invalid();
@@ -139,9 +140,11 @@ public sealed partial class PlaceRegionLifecycleService
         }
     }
 
+    /// <summary>Compares complete scoped material originals independently of enumeration order.</summary>
     private static bool OriginalPlacesMatch(JsonElement originals, Place[] places) => originals.ValueKind == JsonValueKind.Array
         && PlaceStructuralRequest.Equal(OrderedOriginalEntries(originals), places.OrderBy(p => p.Id).Select(PlaceStructuralRequest.Original).ToArray());
 
+    /// <summary>Requires the complete source/destination membership and exact stored nullable orders.</summary>
     private static bool OriginalOrdersMatch(JsonElement originals, PlaceStructuralSnapshot snapshot)
     {
         if (originals.ValueKind != JsonValueKind.Object) return false;
@@ -173,6 +176,7 @@ public sealed partial class PlaceRegionLifecycleService
         }
     }
 
+    /// <summary>Recognizes nested PostgreSQL aborts only after successful rollback and before commit starts.</summary>
     private static bool IsPlaceStructureContention(Exception error)
     {
         for (Exception? current = error; current != null; current = current.InnerException)

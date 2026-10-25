@@ -12,6 +12,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     JsonElement Changes, Guid? Destination, Dictionary<Guid, Guid[]> Orders, Point? Location,
     string? ConditionToken, bool Reviewed)
 {
+    /// <summary>Uses the published camel-case wire shape for private hashes and public original comparisons.</summary>
     internal static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     /// <summary>Parses the bounded coordinate, move, combined Web, or complete-vector contract.</summary>
@@ -115,13 +116,16 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
             foreach (var child in value.EnumerateArray()) RejectDuplicateMembers(child);
     }
 
+    /// <summary>Rejects fields belonging to another operation before any preparation or provider contact.</summary>
     private static void RequireOnly(Dictionary<string, JsonElement> fields, params string[] allowed)
     {
         if (fields.Keys.Except(allowed).Any()) throw Invalid();
     }
 
+    /// <summary>Requires a nonempty typed target/member identity.</summary>
     private static Guid Id(JsonElement value) => value.ValueKind == JsonValueKind.String && value.TryGetGuid(out var id) && id != Guid.Empty ? id : throw Invalid();
 
+    /// <summary>Parses a desired vector without silently dropping duplicate members.</summary>
     private static Guid[] Ids(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Array) throw Invalid();
@@ -129,6 +133,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         return ids.Distinct().Count() == ids.Length ? ids : throw Invalid();
     }
 
+    /// <summary>Keeps both exact desired Region scopes, rejecting alias/duplicate keys.</summary>
     private static Dictionary<Guid, Guid[]> OrderVectors(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Object) throw Invalid();
@@ -138,6 +143,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         return result;
     }
 
+    /// <summary>Validates the entire WGS84 pair, retaining Web-only nullable coordinate intent.</summary>
     private static Point? Coordinate(JsonElement value, bool nullable)
     {
         if (nullable && value.ValueKind == JsonValueKind.Null) return null;
@@ -147,6 +153,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         return new(lon, lat) { SRID = 4326 };
     }
 
+    /// <summary>Canonicalizes object keys and original identity sets without reordering desired vectors.</summary>
     private static object? Canonical(JsonElement element) => element.ValueKind switch
     {
         JsonValueKind.Undefined => null,
@@ -157,5 +164,6 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
         _ => element
     };
 
+    /// <summary>Reports a known-unapplied request error without reflecting submitted or private content.</summary>
     internal static TripMetadataMutationRejected Invalid() => new(400, "mutation-request-invalid", "Provide complete Place originals and a valid operation vector.", new() { ["request"] = ["Complete original evidence and valid operation fields are required."] });
 }

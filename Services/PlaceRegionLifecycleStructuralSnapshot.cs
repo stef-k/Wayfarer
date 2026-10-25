@@ -75,6 +75,7 @@ public sealed partial class PlaceRegionLifecycleService
 internal sealed record PlaceStructuralSnapshot(Trip Trip, Place? Place, Region[] Regions, Place[] Siblings,
     Segment[] Segments, Place[] Anchors, TransportProfile[] Profiles, bool Coordinates)
 {
+    /// <summary>Includes every target/sibling/anchor barrier before Regions and the Trip are locked.</summary>
     internal LifecycleLockCandidates Locks => new(Profiles.Select(p => p.Id).Order().ToArray(), Segments.Select(s => s.Id).Order().ToArray(),
         Siblings.Concat(Anchors).Concat(Place == null ? [] : new[] { Place }).Select(p => p.Id).Distinct().Order().ToArray(),
         Regions.Select(r => r.Id).Concat(Anchors.Select(p => p.RegionId)).Distinct().Order().ToArray());
