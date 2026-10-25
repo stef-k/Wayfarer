@@ -308,6 +308,6 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
     {
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> anchors,
             ProviderRouteResult providerRoute, CancellationToken cancellationToken) =>
-            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null);
+            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null, providerRoute.Instructions);
     }
 }

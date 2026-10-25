@@ -168,6 +168,28 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 
 The Trip Editor controller is intentionally split across `TripEditorController.cs` and partial files for areas, places, segments and tag/share-progress behavior. Add an editor endpoint to that cohesive family rather than creating an unrelated controller.
 
+## Mobile routing geometry and instructions (#930)
+
+`POST /api/mobile/routing/route` returns instruction `fromIndex` and `toIndex` as
+zero-based, inclusive positions in the exact returned `geometry`. Each span satisfies
+`0 <= fromIndex <= toIndex < geometry.length`; point/destination instructions may
+have equal indices. Optional provider instructions may be absent; instruction
+coverage need not partition the entire route.
+
+Leg flattening, exact anchor restoration, anchor insertion, repeated-coordinate
+removal and simplification preserve instruction boundary identity. Required
+instruction vertices are retained alongside anchors, then indices are remapped
+without changing instruction text, type, distance or duration. Interior boundaries
+retain their coordinates; boundaries at snapped semantic anchors follow the existing
+exact requested-anchor restoration contract.
+
+The existing geometry limits remain: simplify above 1,000 coordinates, prefer 500,
+never return more than 1,000, and keep deviation within 25 metres. If required
+boundaries and fidelity cannot fit, return `succeeded:false`, `outcome:"invalid-response"`
+without partial geometry or instructions. Already consumed provider credit remains
+consumed. Trip Editor route proposals and their protected contexts use the same
+remapped instructions and existing `provider-route-budget-unsatisfied` failure.
+
 ## Trip Editor Place address metadata
 
 `PUT /api/trips/{tripId}/editor/places/{placeId}` uses the prepared, original-aware

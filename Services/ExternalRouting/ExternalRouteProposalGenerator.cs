@@ -84,7 +84,7 @@ public sealed class ExternalRouteProposalGenerator
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId,
             independentRoute ? string.Empty : aggregateConcurrencyToken,
-            providerResult.DistanceMetres, providerResult.DurationSeconds, providerResult.Instructions,
+            providerResult.DistanceMetres, providerResult.DurationSeconds, validated.Instructions,
             context.Execution!.ProviderKey,
             context.Execution.Profile, _timeProvider.GetUtcNow(),
             context.Execution.Attribution, "persistent", context.Execution.AuthoritySelectionGeneration,
@@ -93,7 +93,7 @@ public sealed class ExternalRouteProposalGenerator
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,
-            providerResult.DurationSeconds, providerResult.Instructions,
+            providerResult.DurationSeconds, validated.Instructions,
             context.Execution.ProviderKey,
             context.Execution.Attribution);
         return new ExternalRouteGenerationResult(true, null, proposal);
@@ -167,18 +167,19 @@ public sealed record ExternalRouteProposalDto(
     string ProtectedContext, DateTimeOffset ExpiresAt, double? DistanceMetres = null, double? DurationSeconds = null,
     IReadOnlyList<RouteInstruction>? Instructions = null, string? Provider = null, string? Attribution = null);
 
-/// <summary>Validates and budgets untrusted provider geometry while preserving every exact anchor.</summary>
+/// <summary>Validates and budgets provider geometry while preserving anchors and instruction boundaries.</summary>
 public interface IProviderRouteGeometryValidator
 {
-    /// <summary>Returns a complete protected-anchor route or a bounded failure.</summary>
+    /// <summary>Returns coherent geometry, anchor indices and remapped instructions, or a bounded failure.</summary>
     ProviderRouteValidationResult Validate(
         IReadOnlyList<RouteCoordinate> anchors, ProviderRouteResult providerRoute, CancellationToken cancellationToken);
 }
 
-/// <summary>Contains validated budgeted geometry and complete waypoint indices.</summary>
+/// <summary>Contains budgeted geometry with waypoint and instruction indices into that exact geometry.</summary>
 public sealed record ProviderRouteValidationResult(
-    bool Succeeded, IReadOnlyList<RouteCoordinate>? Geometry, IReadOnlyList<int>? WaypointIndices, string? ErrorCode)
+    bool Succeeded, IReadOnlyList<RouteCoordinate>? Geometry, IReadOnlyList<int>? WaypointIndices, string? ErrorCode,
+    IReadOnlyList<RouteInstruction> Instructions)
 {
     /// <summary>Creates a bounded validation failure.</summary>
-    public static ProviderRouteValidationResult Failure(string code) => new(false, null, null, code);
+    public static ProviderRouteValidationResult Failure(string code) => new(false, null, null, code, []);
 }
