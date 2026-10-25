@@ -77,8 +77,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Verify host trust before setup downloads
-        run: bash deployment/check-trust.sh
+      # APT authenticates metadata/packages with the runner's existing distribution keys.
+      # This precedes workflow tool downloads, not runner action/checkout/service acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
 
       - name: Setup Python for Code Guard
         uses: actions/setup-python@v5
@@ -360,8 +365,12 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Verify host trust before setup downloads
-        run: bash deployment/check-trust.sh
+      # Signed distribution authority establishes roots before guarded HTTPS downloads.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       # A local immutable image-store digest is integration evidence, not GHCR publication evidence.
       - name: Use a disposable Docker daemon with the containerd image store
         if: needs.classify.outputs.run_app_image == 'true'
@@ -489,11 +498,22 @@ jobs:
       contents: read
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
+    # Apply the same host-root selection and prerequisite ordering on native ARM64.
+    env:
+      NODE_OPTIONS: --use-openssl-ca
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_DIR: /etc/ssl/certs
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Earlier runner action/checkout acquisition is outside this workflow's guard.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - name: Use a disposable native Docker daemon with the containerd image store
         if: needs.classify.outputs.run_arm64 == 'true' && needs.classify.outputs.run_app_image == 'true'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4

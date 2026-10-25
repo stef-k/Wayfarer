@@ -8,7 +8,9 @@
   before both CI dependency installs, patched immutable build Node, explicit
   signed Rust/.NET build and final-runtime CA packages, patched Node for the
   version-matched Playwright installer, and corrected immutable managed Caddy.
-  Check existing native Node/host roots and preserve retained bundle authority
+  Check selected Node defaults including extra CAs, correct signed runner CA
+  packages before guarded setup downloads on AMD64/ARM64, and check existing
+  native Node/host roots. Preserve retained bundle authority
   and the unchanged-proxy update gate. Future application-image/bundle replacement
   needs a separately accepted release and proxy compatibility path; no version or
   database change is selected. See [trust boundaries](docs/development/security.md#build-and-runtime-certificate-trust-915).

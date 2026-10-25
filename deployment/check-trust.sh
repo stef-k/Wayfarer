@@ -34,9 +34,9 @@ const [major, minor, patch] = process.versions.node.split('.').map(Number);
 if (major !== 24 || minor < 22 || (minor === 22 && patch < 1)) {
   throw new Error('Build/provisioning requires Node 24.22.1+ within Node 24.');
 }
-// OpenSSL defaults are loaded lazily and omitted by getCACertificates('default').
-const certificates = process.env.NODE_OPTIONS?.includes('--use-openssl-ca')
-  ? tls.getCACertificates('system') : tls.getCACertificates('default');
+// Defaults include enabled bundled/system roots and NODE_EXTRA_CA_CERTS. Add the
+// required host store too: OpenSSL's lazy defaults are absent from the default view.
+const certificates = [...tls.getCACertificates('default'), ...tls.getCACertificates('system')];
 const roots = certificates.map(pem => new X509Certificate(pem).fingerprint256.replaceAll(':', '').toLowerCase());
 if (roots.includes('86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b') ||
     !roots.includes('96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6')) {

@@ -183,7 +183,8 @@ class Stack:
         self.sql('UPDATE "ApplicationSettings" SET "ProxyImageRateLimitEnabled"=true, "ProxyImageRateLimitPerMinute"=1, "UploadSizeLimitMB"=1;')
         self.compose('up', '-d', '--wait', '--wait-timeout', '180')
         self.connect()
-        assert self.compose('exec', '-T', 'caddy', 'caddy', 'version').stdout.startswith('v2.11.4 ')
+        # Match the corrected immutable Caddy selected by the production substrate.
+        assert self.compose('exec', '-T', 'caddy', 'caddy', 'version').stdout.startswith('v2.11.7 ')
         for service in ['db', 'caddy']:
             info = json.loads(run('docker', 'inspect', self.container(service)).stdout)[0]
             image_info = json.loads(run('docker', 'image', 'inspect', info['Image']).stdout)[0]

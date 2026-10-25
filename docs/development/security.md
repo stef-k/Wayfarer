@@ -255,13 +255,30 @@ standalone recovery/operator binaries solely because of this CA incident.
 New bundles will naturally include the operator's updated binding checks.
 Native hosts still require their own CA remediation and provisioning checks.
 
+The native/build Node guard inspects its selected default certificates, including
+`NODE_EXTRA_CA_CERTS`, together with the required host store. Node's default view
+omits lazily loaded OpenSSL roots, so neither view alone proves effective trust.
+Valid extra certificates remain supported; G3 additions and missing ISRG X1
+positive controls fail closed. See [Node's CA source API](https://nodejs.org/api/tls.html#tlsgetcacertificatestype).
+
 Artifact inspection is distinct from native execution on each architecture and
-from public distribution acceptance. CI setup actions use `NODE_OPTIONS=--use-openssl-ca` to select host roots
-instead of their separate bundled roots. Host checks precede setup downloads.
-A Node selector alone cannot qualify the action that acquires it. The first
-checkout, action acquisition and runner service-image pulls remain runner-owned
-prerequisites; their exact bytes require actual runner evidence. #474/#877 and the broader dependency audit keep their
-separate gates.
+from public distribution acceptance. In the ordinary test, AMD64 image and native
+ARM64 image jobs, APT updates signed metadata and installs `ca-certificates`
+through existing distribution keys before the host guard runs. This authenticates
+the CA correction independently of the stale TLS root store; no verification is
+disabled. Setup actions then use `NODE_OPTIONS=--use-openssl-ca` and explicit
+`SSL_CERT_FILE`/`SSL_CERT_DIR` paths to select the checked host roots for their
+subsequent tool downloads. The Ubuntu correction is documented in
+[USN-8944-1](https://ubuntu.com/security/notices/USN-8944-1).
+
+The first checkout, action archive acquisition, runner-provided executables
+(including rustup's own verifier/bootstrap) and service-image pulls precede or sit
+outside this guarded download boundary. Classification/cleanup jobs are not host
+acquisition qualification either. A later correction cannot protect those earlier
+downloads or qualify arbitrary private bundles; actual runner/action/runtime trust
+evidence remains required. Source ordering and local AMD64 package controls do not
+prove execution on the hosted runners or ARM64. #474/#877 and the broader dependency
+audit keep their separate gates.
 
 ## Data Protection and provider credentials
 
