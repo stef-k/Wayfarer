@@ -563,12 +563,15 @@ for (const newerRegion of [false, true]) test(`F2: delayed metadata success pres
 }));
 
 // Missing/malformed or mis-scoped acknowledgements cannot resolve the request or mutate parent state.
-for (const invalid of ['body', 'scope', 'originals']) test(`F2: unusable metadata ${invalid} reply holds the corresponding attempt`, () => withApp(async owner => {
+for (const invalid of ['body', 'scope', 'originals', 'notes-type', 'notes-original-type', 'notes-inconsistent']) test(`F2: unusable metadata ${invalid} reply holds the corresponding attempt`, () => withApp(async owner => {
   const { editor, parent } = owner;
   let calls = 0;
   const saved = { ...metadata(), name: 'Earlier request', originalValues: { ...metadata().originalValues, name: 'Earlier request' } };
   if (invalid === 'scope') saved.id = 'another-trip';
   if (invalid === 'originals') delete saved.originalValues;
+  if (invalid === 'notes-type') saved.notesHtml = null;
+  if (invalid === 'notes-original-type') saved.originalValues.notesHtml = {};
+  if (invalid === 'notes-inconsistent') saved.notesHtml = '<p>Different Notes</p>';
   globalThis.fetch = async () => { calls++; return new Response(invalid === 'body' ? '{' : reply(false, saved)); };
   editor.draft.name = 'Earlier request';
   await editor.saveAndExit();
