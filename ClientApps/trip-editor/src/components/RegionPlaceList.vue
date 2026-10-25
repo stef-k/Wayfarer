@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { regionOrderOriginals, type RegionOrderOriginals } from './regionOrdering';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { placeMarkerIconUrl, placeMarkerLabel } from '../displayHelpers';
 import type { EditorArea, EditorPlace, EditorRegion, EditorTripState, Guid } from '../types';
@@ -38,7 +39,7 @@ const emit = defineEmits<{
   selectPlace: [place: EditorPlace];
   areaReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
   placeReorder: [regionId: Guid, ids: Guid[], previousIds: Guid[]];
-  regionReorder: [ids: Guid[], previousIds: Guid[]];
+  regionReorder: [ids: Guid[], previousIds: Guid[], originals: RegionOrderOriginals | null];
 }>();
 
 const regionList = ref<HTMLElement | null>(null);
@@ -49,7 +50,7 @@ const optimisticPlaceIdsByRegionId = ref<Record<Guid, Guid[]>>({});
 const placeSortables = new Map<string, { destroy: () => void }>();
 const areaSortables = new Map<string, { destroy: () => void }>();
 let sortable: { destroy: () => void } | null = null;
-let reorderSnapshotIds: Guid[] | null = null;
+let reorderOriginals: RegionOrderOriginals | null = null;
 let placeReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 let areaReorderSnapshot: { regionId: Guid; ids: Guid[] } | null = null;
 let reorderEmissionLocked = false;
@@ -147,26 +148,27 @@ function attachRegionSortable(): void {
     handle: '.trip-editor-drag-handle',
     onStart: () => {
       if (reorderLocked()) {
-        reorderSnapshotIds = null;
+        reorderOriginals = null;
         return;
       }
 
-      reorderSnapshotIds = normalRegionIds();
+      // One snapshot retains gesture membership, material content and actual stored orders together.
+      reorderOriginals = regionOrderOriginals(props.state);
     },
     onEnd: () => {
       if (reorderLocked() || !regionList.value) {
-        reorderSnapshotIds = null;
+        reorderOriginals = null;
         return;
       }
 
-      const previousIds = reorderSnapshotIds ?? normalRegionIds();
-      reorderSnapshotIds = null;
+      const previousIds = reorderOriginals?.regions.map(region => region.id) ?? [];
       const ids = Array.from(regionList.value.querySelectorAll<HTMLElement>('[data-region-id][data-reorderable="true"]')).map(element => element.dataset.regionId!);
       if (ids.join('|') !== previousIds.join('|')) {
         reorderEmissionLocked = true;
         optimisticRegionIds.value = ids;
-        emit('regionReorder', ids, previousIds);
+        emit('regionReorder', ids, previousIds, reorderOriginals);
       }
+      reorderOriginals = null;
     }
   });
 }
@@ -256,10 +258,6 @@ function attachAreaSortables(): void {
 function destroyAreaSortables(): void {
   areaSortables.forEach(instance => instance.destroy());
   areaSortables.clear();
-}
-
-function normalRegionIds(): Guid[] {
-  return props.state.regionOrder.filter(id => !props.state.regionsById[id]?.isShadow);
 }
 
 /// Blocks same-turn callbacks before the parent ordering prop has rendered.

@@ -303,8 +303,9 @@ public static class EditorTripStateMapper
         return new EditorImageReferenceDto(rawUrl, $"/Public/ProxyImage?url={Uri.EscapeDataString(rawUrl)}");
     }
 
+    /// <summary>Canonical identity is the stored name; historical order never grants normal-Region reorder capability.</summary>
     private static bool IsShadowRegion(Region region) =>
-        region.DisplayOrder == 0 && string.Equals(region.Name, EditorRegionRequestParser.ShadowRegionName, StringComparison.Ordinal);
+        string.Equals(region.Name, EditorRegionRequestParser.ShadowRegionName, StringComparison.Ordinal);
 
     private static EditorEntityCapabilitiesDto ShadowCapabilities() =>
         new(false, false, false, false, false, false, true);

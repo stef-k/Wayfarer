@@ -98,7 +98,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
     }
 
     [Fact]
-    public async Task OrderRegionsForOwnerPersistsShadowAtZeroAndNormalRegionsFromOne()
+    public async Task UnconditionalRegionOrderRejectsWithoutWrites()
     {
         using var db = CreateDbContext();
         var trip = SeedTripWithRegions(db, "owner-user");
@@ -112,12 +112,10 @@ public sealed class TripEditorRegionControllerTests : TestBase
         { "regionIds": [ "{{second.Id}}", "{{first.Id}}" ] }
         """);
 
-        var envelope = AssertMutation<EditorRegionOrderResult>(result);
-        Assert.Equal(new[] { shadow.Id, second.Id, first.Id }, envelope.Data.RegionOrder);
-        Assert.Equal(envelope.Data.RegionOrder, envelope.Affected.RegionOrder);
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal(0, db.Regions.Single(r => r.Id == shadow.Id).DisplayOrder);
-        Assert.Equal(1, db.Regions.Single(r => r.Id == second.Id).DisplayOrder);
-        Assert.Equal(2, db.Regions.Single(r => r.Id == first.Id).DisplayOrder);
+        Assert.Equal(1, db.Regions.Single(r => r.Id == first.Id).DisplayOrder);
+        Assert.Equal(2, db.Regions.Single(r => r.Id == second.Id).DisplayOrder);
     }
 
     [Theory]
@@ -194,7 +192,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
 
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(updateShadow).StatusCode);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(deleteShadow).StatusCode);
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(orderShadow).StatusCode);
+        Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ObjectResult>(orderShadow).StatusCode);
         Assert.Contains("name", AssertValidationProblem(reservedName).Errors.Keys);
     }
 
@@ -245,7 +243,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
 
         var result = await SendJson(controller, c => c.OrderRegions(trip.Id, CancellationToken.None), body);
 
-        Assert.Contains("regionIds", AssertValidationProblem(result).Errors.Keys);
+        Assert.Contains("request", AssertValidationProblem(result).Errors.Keys);
     }
 
     private static Trip SeedTripWithRegions(ApplicationDbContext db, string userId)

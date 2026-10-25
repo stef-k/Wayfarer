@@ -904,7 +904,8 @@ synchronization cursor is promised.
 | Operation | Route | JSON input |
 | --- | --- | --- |
 | Create Region | `POST /api/trips/{tripId}/conditional/regions` | Complete original Region/canonical identity/order set and `value`; see [checked creation](trip-creation.md). |
-| Update Region | `PUT /api/trips/regions/{regionId}` | Optional fields above; Trip association cannot change. |
+| Update Region | `PUT /api/trips/regions/{regionId}` | Optional scalar fields above; Trip association cannot change and submitted order changes reject. |
+| Order Regions | Prepared `PUT /api/trips/{tripId}/conditional/regions/order` | Complete original normal-Region material/vector and canonical identity/order; see [protected Region ordering](trip-region-order.md). |
 | Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
 | Create Place | `POST /api/trips/{tripId}/conditional/places` | Original destination and complete nullable Place order set; absent fallback additionally needs Region-set proof. See [checked creation](trip-creation.md). |
 | Update Place | Conditional scalar PATCH or prepared coordinate/move/order actions | [Supported Place contracts](trip-place-structure.md); unconditional Place PUT rejects without mutation. |
@@ -1135,8 +1136,10 @@ receipt, cross-reload recovery or settlement of the separate Trip-sharing debt.
 `PUT /api/trips/{tripId}/editor/regions/{id}` keep their unconditional payloads and
 responses for old clients/tabs. They can still overwrite overlapping protected
 edits. Current Vue updates use only the new PATCH and fail closed for missing
-original evidence or an unsupported route. Region reorder and deletion
-and four-way consent remain unchanged. This slice does not complete #853, settle
+original evidence or an unsupported route. Region ordering now uses the
+[paired BD2-11 contract](trip-region-order.md); unconditional vector requests and
+individual bearer order changes reject. Deletion/four-way integration remains
+assigned to the following batch. This slice does not complete #853, settle
 legacy-client policy or the retained sharing lost-reply obligation, implement
 #907, or qualify Place/Area/Segment/structural or native Mobile writes.
 

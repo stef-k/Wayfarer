@@ -243,17 +243,6 @@ public sealed class TripEditorRegionMutationService
             .Select(s => s.Id)
             .ToListAsync(cancellationToken);
 
-    private async Task<IReadOnlyList<EditorRegionDto>> LoadRegionsByIdsAsync(IReadOnlyList<Guid> regionIds, CancellationToken cancellationToken)
-    {
-        var regions = await _dbContext.Regions
-            .AsNoTracking()
-            .Where(r => regionIds.Contains(r.Id))
-            .ToListAsync(cancellationToken);
-        var byId = regions.ToDictionary(r => r.Id);
-
-        return regionIds.Select(id => EditorTripStateMapper.ToRegion(byId[id])).ToList();
-    }
-
     private async Task<EditorVisitProgressDto> LoadVisitProgressAsync(Guid tripId, string userId, CancellationToken cancellationToken)
     {
         var regions = await _dbContext.Regions
@@ -275,28 +264,6 @@ public sealed class TripEditorRegionMutationService
         var summaries = EditorTripStateMapper.ToVisitSummaries(places.Select(p => p.Place), visitsByPlaceId);
 
         return EditorTripStateMapper.ToVisitProgress(places, summaries, visitsByPlaceId);
-    }
-
-    private async Task NormalizeRegionOrdersAsync(Guid tripId, string userId, CancellationToken cancellationToken)
-    {
-        var regions = await _dbContext.Regions
-            .Where(r => r.TripId == tripId && r.UserId == userId)
-            .OrderBy(r => r.DisplayOrder)
-            .ThenBy(r => r.Id)
-            .ToListAsync(cancellationToken);
-        var shadow = regions.FirstOrDefault(IsShadowRegion);
-        if (shadow != null)
-        {
-            shadow.DisplayOrder = 0;
-        }
-
-        var order = 1;
-        foreach (var region in regions.Where(r => !IsShadowRegion(r)))
-        {
-            region.DisplayOrder = order++;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task NormalizeSegmentOrdersAsync(Guid tripId, string userId, CancellationToken cancellationToken)

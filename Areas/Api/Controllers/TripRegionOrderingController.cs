@@ -28,7 +28,7 @@ public partial class TripsController
             var result = await _lifecycle.OrderRegionsAsync(tripId, user.Id, request, false, prepare,
                 current => authority.RevalidateMutationAsync(HttpContext, user.Id, current), token);
             if (prepare) return Ok(result);
-            var applied = (Wayfarer.Models.Dtos.Editor.EditorMutationResult<object>)result;
+            var applied = (Wayfarer.Models.Dtos.Editor.EditorMutationResult<Wayfarer.Models.Dtos.Editor.EditorRegionOrderResult>)result;
             return Ok(new { applied.Contract, applied.Success, applied = true, applied.Data, applied.Affected, applied.DeletedIds, applied.Warnings });
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }

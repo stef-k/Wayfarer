@@ -31,6 +31,7 @@ const region = (overrides = {}) => {
 const mount = (initial = region()) => {
   let editor;
   const dirty = [];
+  const applied = [];
   const handlers = new Map();
   const active = ref(null);
   const props = shallowReactive({ state: { tripId: 'trip', regionsById: { [initial.id]: initial }, regionOrder: [initial.id],
@@ -51,10 +52,10 @@ const mount = (initial = region()) => {
   } };
   const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => ({}), nextSibling: () => null });
   const app = renderer.createApp({ setup: () => () => h(child, { ...props,
-    onMutationApplied: result => { for (const next of result.affected.regions) update(next); },
+    onMutationApplied: result => { applied.push(result); for (const next of result.affected.regions) update(next); if (result.affected.regionOrder) props.state = { ...props.state, regionOrder: result.affected.regionOrder }; },
     onDirtyStateChanged: value => dirty.push(value) }) });
   app.mount({});
-  return { editor, props, update, dirty, handlers, dispose: () => app.unmount() };
+  return { editor, props, update, dirty, applied, handlers, dispose: () => app.unmount() };
 };
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const saved = data => new Response(JSON.stringify({ success: true, data, affected: { regions: [data] }, warnings: [] }));
@@ -277,6 +278,81 @@ for (const outcome of ['success', 'network', 'malformed', 'newer', 'retired']) {
           await owner.editor.saveDraft();
           assert.equal(calls.length, 1);
         } else assert.equal(owner.editor.draft.name, 'Retired reply must preserve me');
+      }
+    } finally { owner.dispose(); }
+  }));
+}
+
+const orderCapabilities = { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: false, canAddChildren: true, canTargetForSearchAdd: true };
+/** Complete committed order envelope, preserving material and returning no unrelated effects. */
+const orderReply = request => {
+  const regions = request.regionIds.map((id, index) => {
+    const original = request.expected.regions.find(r => r.id === id);
+    return region({ id, name: original.name, notesHtml: original.notes ?? '', displayOrder: index + 1, capabilities: orderCapabilities,
+      coverImage: original.coverImageUrl === null ? null : { rawUrl: original.coverImageUrl, proxiedUrl: '/image' }, center: original.center });
+  });
+  return { contract: 'bd2-1', success: true, data: { tripId: 'trip', regionOrder: [...request.regionIds, 'canonical'] },
+    affected: { metadata: null, regions, regionOrder: [...request.regionIds, 'canonical'], places: [], placeOrdersByRegionId: {},
+      areas: [], areaOrdersByRegionId: {}, segments: [], segmentOrder: null, tags: [], tagOrder: null, visitProgress: null, options: null },
+    deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] };
+};
+
+for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 'wrong-material', 'unrelated-effects', 'rejected']) {
+  test(`Region order ${outcome}: pinned originals, guarded adoption and page-local unknown hold`, () => withGlobals(async () => {
+    const owner = mount(region({ capabilities: orderCapabilities }));
+    globalThis.regionConfirm = async () => true;
+    const pending = deferred();
+    const calls = [];
+    try {
+      owner.props.state = { ...owner.props.state, regionOrder: ['region', 'second', 'canonical'], regionsById: {
+        region: owner.props.state.regionsById.region, second: region({ id: 'second', displayOrder: 8, capabilities: orderCapabilities }),
+        canonical: region({ id: 'canonical', name: 'Unassigned Places', displayOrder: 17, isShadow: true }) } };
+      await nextTick();
+      await owner.editor.openEdit(owner.props.state.regionsById.region);
+      globalThis.fetch = async (url, init) => {
+        const request = JSON.parse(init.body); calls.push([url, request]);
+        if (url.endsWith('/prepare')) return new Response(JSON.stringify({ contract: 'bd2-1', operation: 'region-order', tripId: 'trip',
+          requiresReview: true, conditionToken: 'conditions', ...request.expected }));
+        return pending.promise;
+      };
+      const originals = { regions: ['region', 'second'].map(id => {
+        const r = owner.props.state.regionsById[id];
+        return { id, displayOrder: r.displayOrder, name: r.originalValues.name, notes: r.originalValues.notesHtml,
+          coverImageUrl: r.originalValues.coverImage?.rawUrl ?? null, center: r.originalValues.center };
+      }), canonical: { id: 'canonical', displayOrder: 17 } };
+      owner.update(region({ name: 'Refresh after gesture start', displayOrder: 41, capabilities: orderCapabilities }));
+      await nextTick();
+      const saving = owner.editor.reorderRegions(['second', 'region'], ['region', 'second'], originals);
+      for (let turn = 0; calls.length < 2 && turn < 50; turn++) await new Promise(resolve => setImmediate(resolve));
+      assert.equal(calls.length, 2);
+      assert.equal(owner.editor.regionDirty, true, 'pending orders fence navigation');
+      if (outcome === 'newer') owner.editor.draft.name = 'Newer scalar intent';
+      if (outcome === 'retired') owner.editor.resetDraft();
+      owner.update(region({ name: 'Refresh during apply', capabilities: orderCapabilities }));
+      await nextTick();
+      const result = orderReply(calls[1][1]);
+      if (outcome === 'wrong-scope') result.data.tripId = 'foreign-trip';
+      if (outcome === 'wrong-material') result.affected.regions[0].originalValues.notesHtml = 'Unexpected';
+      if (outcome === 'unrelated-effects') result.affected.placeOrdersByRegionId.foreign = [];
+      pending.resolve(outcome === 'network' ? Promise.reject(new Error('Lost committed reply')) : outcome === 'rejected'
+        ? new Response(JSON.stringify({ title: 'Stale base', code: 'mutation-base-stale' }), { status: 409 }) : new Response(JSON.stringify(result)));
+      await saving; await nextTick();
+      assert.deepEqual(calls[1][1].expected.canonical, { id: 'canonical', displayOrder: 17 });
+      assert.equal(calls[1][1].expected.regions.find(r => r.id === 'region').name, 'Original');
+      assert.deepEqual(calls[1][1].regionIds, ['second', 'region']);
+      const accepted = outcome === 'success' || outcome === 'newer';
+      const unknown = ['network', 'wrong-scope', 'wrong-material', 'unrelated-effects'].includes(outcome);
+      assert.equal(owner.applied.length, accepted ? 1 : 0);
+      assert.equal(owner.editor.regionDraftState.orderUncertain.value, unknown);
+      if (outcome === 'newer') { assert.equal(owner.editor.draft.name, 'Newer scalar intent'); assert.equal(owner.editor.regionDirty, true); }
+      if (outcome === 'success') { assert.equal(owner.editor.regionDirty, false); assert.match(owner.editor.statusText, /^Saved/); }
+      if (unknown) {
+        assert.deepEqual(owner.editor.regionDraftState.orderIntent.value.regionIds, ['second', 'region']);
+        assert.equal(owner.editor.regionDirty, true); assert.doesNotMatch(owner.editor.statusText, /^Saved/);
+        owner.editor.resetDraft();
+        await owner.editor.reorderRegions(['second', 'region'], ['region', 'second'], originals);
+        assert.equal(calls.length, 2, 'no blind replay after reset or refresh');
+        assert.equal(owner.editor.regionDirty, true);
       }
     } finally { owner.dispose(); }
   }));

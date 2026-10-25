@@ -174,11 +174,6 @@ public sealed partial class RegionConditionalPostgresTests
             InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             Record(command);
-            if (command.CommandText.Contains("\"Regions\"") && command.CommandText.Contains("FOR UPDATE"))
-            {
-                ProcessId = ((NpgsqlConnection)command.Connection!).ProcessID;
-                LockStarted.TrySetResult();
-            }
             return ValueTask.FromResult(result);
         }
 
@@ -192,6 +187,11 @@ public sealed partial class RegionConditionalPostgresTests
         /// <summary>Captures property footprints without sensitive parameter values.</summary>
         private void Record(DbCommand command)
         {
+            if (command.CommandText.Contains("\"Regions\"") && command.CommandText.Contains("FOR UPDATE"))
+            {
+                ProcessId = ((NpgsqlConnection)command.Connection!).ProcessID;
+                LockStarted.TrySetResult();
+            }
             if (command.CommandText.StartsWith("UPDATE ")) Updates.Add(command.CommandText);
         }
     }

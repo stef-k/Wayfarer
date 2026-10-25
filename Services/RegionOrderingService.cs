@@ -23,7 +23,7 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
     }
 
     /// <summary>Locks sorted Regions before Trip, rediscovers scope/authority, then writes normal orders and freshness atomically.</summary>
-    internal async Task<EditorMutationResult<object>> ApplyAsync(Guid tripId, string userId, RegionOrderRequest request, bool web,
+    internal async Task<EditorMutationResult<EditorRegionOrderResult>> ApplyAsync(Guid tripId, string userId, RegionOrderRequest request, bool web,
         Func<CancellationToken, Task<bool>>? authority, CancellationToken token)
     {
         if (db.ChangeTracker.Entries().Any(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
@@ -62,7 +62,7 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
             var orderIds = current.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray();
             var affected = new EditorAffectedSlicesDto(null, normal.Values.Select(EditorTripStateMapper.ToRegion).ToArray(), orderIds,
                 [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], null, [], null, null, null);
-            var result = new EditorMutationResult<object>(true, new { tripId, regionOrder = orderIds }, affected, EditorDeletedIdsDto.Empty, []) { Contract = "bd2-1" };
+            var result = new EditorMutationResult<EditorRegionOrderResult>(true, new(tripId, orderIds), affected, EditorDeletedIdsDto.Empty, []) { Contract = "bd2-1" };
             commitStarted = true;
             await transaction.CommitAsync(token);
             return result;

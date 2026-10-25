@@ -29,17 +29,16 @@ const material = (region: EditorRegion): RegionOrderMaterial => {
 };
 
 /** Captures the full authoritative state synchronously before a prompt, preparation or later prop refresh. */
-export const regionOrderOriginals = (state: EditorTripState, previousIds: string[], ids: string[]): RegionOrderOriginals => {
+export const regionOrderOriginals = (state: EditorTripState): RegionOrderOriginals | null => {
   const regions = Object.values(state.regionsById);
-  const normals = regions.filter(r => r.name !== 'Unassigned Places');
   const canonical = regions.filter(r => r.name === 'Unassigned Places');
   if (canonical.length > 1 || regions.some(r => r.tripId !== state.tripId) || regions.length !== state.regionOrder.length
-    || new Set(state.regionOrder).size !== regions.length || regions.some(r => !state.regionOrder.includes(r.id))
-    || previousIds.length !== normals.length || ids.length !== normals.length || new Set(previousIds).size !== normals.length
-    || new Set(ids).size !== normals.length || normals.some(r => !ids.includes(r.id) || !previousIds.includes(r.id)))
-    throw new Error('The complete original Region membership is unavailable. Keep the order and review a fresh starting view.');
-  return JSON.parse(JSON.stringify({ regions: sorted(normals.map(material)),
-    canonical: canonical.length ? { id: canonical[0].id, displayOrder: canonical[0].displayOrder } : null }));
+    || new Set(state.regionOrder).size !== regions.length || regions.some(r => !state.regionOrder.includes(r.id))) return null;
+  try {
+    // Preserve the visible starting sequence as well as exact content; later props cannot supply a missing original.
+    return JSON.parse(JSON.stringify({ regions: state.regionOrder.map(id => state.regionsById[id]).filter(r => r.name !== 'Unassigned Places').map(material),
+      canonical: canonical.length ? { id: canonical[0].id, displayOrder: canonical[0].displayOrder } : null }));
+  } catch { return null; }
 };
 
 /** Scope and echoed originals must match before the opaque prepared token can be used. */

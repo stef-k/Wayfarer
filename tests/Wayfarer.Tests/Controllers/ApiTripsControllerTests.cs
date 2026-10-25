@@ -375,12 +375,12 @@ public partial class ApiTripsControllerTests : TestBase
         db.SaveChanges();
         var controller = BuildController(db, token: "tok");
 
-        var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New Name", DisplayOrder = 5 });
+        var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New Name" });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var updated = db.Regions.First(r => r.Id == region.Id);
         Assert.Equal("New Name", updated.Name);
-        Assert.Equal(5, updated.DisplayOrder);
+        Assert.Equal(0, updated.DisplayOrder);
     }
 
     [Fact]

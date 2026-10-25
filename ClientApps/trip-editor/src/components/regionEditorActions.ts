@@ -1,4 +1,4 @@
-import { regionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
+import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
 import { onUnmounted, watch } from 'vue';
 import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
 import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, prepareRegionOrder, updateRegion } from '../api/tripEditorApi';
@@ -170,7 +170,7 @@ export function useRegionEditorActions(context: any) {
     await settled;
   };
 
-  const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
+  const reorderRegions = async (ids: Guid[], previousIds: Guid[], originals: RegionOrderOriginals | null): Promise<void> => {
     if (context.isOrdering.value || held() || owner.orderUncertain.value) {
       if (owner.orderUncertain.value) context.applyError(new Error('The earlier Region order may have committed. Keep your order; refresh/reset cannot prove noncommit. Do not replay it. Explicitly leave without saving if you choose to abandon this page.'), 'Region order held.');
       await context.restoreRegionOrder(previousIds);
@@ -178,7 +178,13 @@ export function useRegionEditorActions(context: any) {
     }
     // Pin the full operation base before any await can replace props or authored intent.
     let request: import('../types').EditorRegionOrderRequest;
-    try { request = { expected: regionOrderOriginals(context.props.state, previousIds, ids), regionIds: [...ids] }; }
+    try {
+      if (!originals || originals.regions.length !== previousIds.length || new Set(previousIds).size !== previousIds.length
+        || new Set(ids).size !== previousIds.length || ids.length !== previousIds.length
+        || originals.regions.some(r => !previousIds.includes(r.id) || !ids.includes(r.id)))
+        throw new Error('The original Region order is unavailable. Keep the order and explicitly review a fresh starting view.');
+      request = { expected: JSON.parse(JSON.stringify(originals)), regionIds: [...ids] };
+    }
     catch (error) { context.applyError(error, 'Region order held.'); await context.restoreRegionOrder(previousIds); return; }
     if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering?'))) {
       await context.restoreRegionOrder(previousIds);
