@@ -3,9 +3,7 @@ using System;
 namespace Wayfarer.Models.Dtos
 {
     /// <summary>
-    /// Request body to update an existing Region. Trip association is immutable.
-    /// Null or omitted fields preserve stored values. Reserved name/order values can only be resubmitted unchanged.
-    /// A null or omitted coordinate pair preserves the stored center.
+    /// Payload for the rejected unconditional Region PUT; use original-aware scalar or order contracts.
     /// </summary>
     public class RegionUpdateRequestDto
     {

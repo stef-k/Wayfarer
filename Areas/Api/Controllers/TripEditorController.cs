@@ -358,25 +358,6 @@ public sealed partial class TripEditorController : ControllerBase
             : Array.Empty<string>();
     }
 
-    private static HashSet<string> BuildTripExternalImageSet(string? coverImageUrl, string? notesHtml)
-    {
-        var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(coverImageUrl))
-        {
-            urls.Add(coverImageUrl.Trim());
-        }
-
-        foreach (var url in HtmlHelpers.ExtractExternalImageUrls(notesHtml))
-        {
-            urls.Add(url);
-        }
-
-        return urls;
-    }
-
-    private static string? NormalizeOptionalUrl(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
     private IActionResult ToActionResult<T>(EditorRegionMutationOutcome<T> outcome) =>
         outcome.Status switch
         {

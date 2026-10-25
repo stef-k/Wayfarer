@@ -920,11 +920,12 @@ are not durable retry receipts.
 
 Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
 related Region. Same-Trip Place moves, coordinates and complete ordering use
-[prepared conditional actions](trip-place-structure.md). Region PUT uses `centerLatitude`/`centerLongitude`. Values must be finite and in
-inclusive WGS84 bounds. A null/omitted pair preserves the stored point on PUT;
-a partial pair rejects before any supplied metadata/move/order writes. Returned
-coordinate arrays use `[longitude, latitude]`; absent or historically nonfinite
-Points project as null without repairing storage.
+[prepared conditional actions](trip-place-structure.md). Web conditional Region
+center edits use one `center` coordinate pair with its
+original evidence. Values must be finite and in inclusive WGS84 bounds. Bearer
+Region scalars select Name/Notes only. Returned coordinate arrays use
+`[longitude, latitude]`; absent or historically nonfinite Points project as null
+without repairing storage.
 
 PostgreSQL enforces one exact-name `Unassigned Places` Region per Trip,
 independently of owner/order. Creation preserves existing canonical stored order;
@@ -941,24 +942,12 @@ rejects such malformed source aggregates before creating a destination. Native
 v2/v3 and clone compatibility still permit missing fallbacks; existing canonical
 orders, metadata and ordinary Region names retain their meaning.
 
-Legacy Region PUT recognizes an existing **Unassigned Places** Region by its
-stored name, case-insensitively, regardless of display order. Its stored name and
-order are protected: a supplied name must exactly match the stored spelling after
-trimming, and a supplied `displayOrder` must equal the stored value. Identical
-protected values are no-ops. Any actual name/order change rejects the whole
-request with 400: `Cannot change the Unassigned Places region name or display order.`
-This includes case-only/blank names and mixed metadata payloads. Ordinary Regions
-still cannot adopt the reserved name (`Region name is reserved.`).
+Unconditional Region PUT rejects all owned payloads with 409
+`mutation-originals-required`, including canonical metadata and empty/no-op
+requests. Supported bearer conditional Region editing permits canonical Notes
+while protecting its name and order. The Web editor retains its restriction on
+canonical Region edits; canonical deletion remains forbidden (403).
 
-The reserved Region permits normalized `notes`, `coverImageUrl` (including an
-empty string), and paired valid center coordinates, including zeroes. Invalid
-center input applies no fields. Empty/null-only payloads and identical protected
-fields alone return 200 with `success`, `message: "No changes applied."` and the
-Region DTO, without saving or scheduling cache warm-up. Reserved deletion is
-forbidden (403), including on the rejected unconditional adapter. The cookie Trip Editor retains its separate restriction on
-all reserved Region edits.
-
-Region PUT uses null/omitted values as unchanged; empty Notes clears the text.
 Place scalar edits use selected originals and exact dirty intent. Coordinate,
 move, complete vector and combined Web contracts, atomic effects and safe
 conflict/unknown semantics are documented in [conditional Place structure](trip-place-structure.md).
@@ -975,8 +964,9 @@ See [Place deletion and mobile requests](trip-place-deletion.md),
 and [prepared Place examples](trip-place-structure.md).
 
 Supported bearer scalar edits use the original-aware Trip metadata, Region,
-Area Notes and Segment Notes contracts below; public discovery and public-Trip cloning. Mobile Group,
-recent-visit, hosted-routing and SSE families retain membership, ownership,
+Area Notes and Segment Notes contracts below. Public discovery, public-Trip
+cloning, Mobile Group, recent-visit, hosted-routing and SSE families retain
+membership, ownership,
 visibility and provider gates. These are limited API contracts, not unrestricted
 account access or full Web editor parity; Web invitations, provider backfill,
 account/admin tools and editor mutations keep their cookie/role/antiforgery rules.

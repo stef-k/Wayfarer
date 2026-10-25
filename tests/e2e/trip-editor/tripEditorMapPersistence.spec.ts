@@ -22,7 +22,7 @@ test('drag and zoom capture the draft, real Save persists it, and clean reload u
     await page.getByLabel('Center Latitude').fill('37.9838');
     await page.getByLabel('Center Longitude').fill('23.7275');
     await page.getByRole('spinbutton', { name: 'Zoom' }).fill('9');
-    const seeded = page.waitForResponse(response => response.url().toLowerCase().endsWith(`${endpoint}/metadata`) && response.request().method() === 'PATCH', { timeout: 10_000 });
+    const seeded = page.waitForResponse(response => response.url().toLowerCase().endsWith(`${endpoint}/metadata/conditional`) && response.request().method() === 'PATCH', { timeout: 10_000 });
     await page.getByRole('button', { name: 'Save & Continue' }).click();
     expect((await seeded).ok()).toBeTruthy();
     await page.goto(absoluteUrl(`${path}?context=viewport-proof#settings`));
@@ -33,7 +33,7 @@ test('drag and zoom capture the draft, real Save persists it, and clean reload u
     const before = await readViewport(page);
     const patches: unknown[] = [];
     page.on('request', request => {
-      if (request.url().toLowerCase().endsWith(`${endpoint}/metadata`) && request.method() === 'PATCH') patches.push(request.postDataJSON());
+      if (request.url().toLowerCase().endsWith(`${endpoint}/metadata/conditional`) && request.method() === 'PATCH') patches.push(request.postDataJSON());
     });
 
     // Capture while Settings is closed, then show the draft owner and save through its actual UI.
@@ -53,12 +53,12 @@ test('drag and zoom capture the draft, real Save persists it, and clean reload u
     expect(await page.evaluate(() => history.length)).toBe(historyLength);
     await page.screenshot({ fullPage: true, path: testInfo.outputPath('screenshots', 'drag-zoom-dirty.png') });
 
-    const saved = page.waitForResponse(response => response.url().toLowerCase().endsWith(`${endpoint}/metadata`) && response.request().method() === 'PATCH', { timeout: 10_000 });
+    const saved = page.waitForResponse(response => response.url().toLowerCase().endsWith(`${endpoint}/metadata/conditional`) && response.request().method() === 'PATCH', { timeout: 10_000 });
     await page.getByRole('button', { name: 'Save & Continue' }).click();
     const response = await saved;
     expect(response.ok()).toBeTruthy();
     expect(patches).toHaveLength(1);
-    expect(patches[0]).toMatchObject({ center: { latitude: Number(captured.latitude), longitude: Number(captured.longitude) }, zoom: Number(captured.zoom) });
+    expect(patches[0]).toMatchObject({ changes: { center: { latitude: Number(captured.latitude), longitude: Number(captured.longitude) }, zoom: Number(captured.zoom) } });
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-save-state')).toContainText('Saved');
     const reread = await page.request.get(absoluteUrl(endpoint));
     expect(reread.ok()).toBeTruthy();

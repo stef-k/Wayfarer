@@ -38,8 +38,8 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
 
         using var rejected = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}",
             new { name, displayOrder = order });
-        await AssertErrorAsync(rejected, HttpStatusCode.BadRequest,
-            "Cannot change the Unassigned Places region name or display order.");
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        Assert.Equal("mutation-originals-required", (await rejected.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         await AssertUnchangedAsync(original);
 
         using var deletion = await client.DeleteAsync($"/api/trips/regions/{original.Id}");
@@ -53,9 +53,12 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
-    /// <summary>Accepted reserved metadata commits once; null/empty payloads and a rejected mixed update preserve it.</summary>
-    [PostgresFact]
-    public async Task ReservedMetadataAndNoOpPayloadsRetainPartialContract()
+    /// <summary>Complete, null and empty original-free canonical updates reject with no persistence or warm-up.</summary>
+    [PostgresTheory]
+    [InlineData("{}")]
+    [InlineData("{\"notes\":null,\"name\":null}")]
+    [InlineData("{\"name\":\"Unassigned Places\",\"notes\":\"\",\"coverImageUrl\":\"\",\"centerLatitude\":0,\"centerLongitude\":0}")]
+    public async Task ReservedMetadataAndNoOpPayloadsRejectWithoutMutation(string payload)
     {
         var original = await SeedRegionAsync("Unassigned Places");
         await using var db = fixture.CreateContext();
@@ -67,52 +70,15 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         });
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.UserId);
-
-        using var accepted = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new
-        {
-            name = "  Unassigned Places  ", displayOrder = 0,
-            notes = "<p onclick='bad()'>Updated</p><script>bad()</script>", coverImageUrl = "updated-cover",
-            centerLatitude = 0, centerLongitude = 0
-        });
-        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
-        using var document = JsonDocument.Parse(await accepted.Content.ReadAsStringAsync());
-        Assert.True(document.RootElement.GetProperty("success").GetBoolean());
-        Assert.False(document.RootElement.TryGetProperty("message", out _));
-        var responseRegion = document.RootElement.GetProperty("region");
-        Assert.Equal(original.Id, responseRegion.GetProperty("id").GetGuid());
-        Assert.Equal("<p>Updated</p>", responseRegion.GetProperty("notes").GetString());
-        Assert.Equal(new[] { 0d, 0d }, responseRegion.GetProperty("center").EnumerateArray().Select(item => item.GetDouble()));
-        await using var verify = fixture.CreateContext();
-        var committed = await verify.Regions.Include(item => item.Trip).SingleAsync(item => item.Id == original.Id);
-        Assert.Equal("Unassigned Places", committed.Name);
-        Assert.Equal(0, committed.DisplayOrder);
-        Assert.Equal("<p>Updated</p>", committed.Notes);
-        Assert.Equal("updated-cover", committed.CoverImageUrl);
-        Assert.Equal((0d, 0d, 4326), (committed.Center!.X, committed.Center.Y, committed.Center.SRID));
-        Assert.True(committed.Trip.UpdatedAt > original.Trip.UpdatedAt);
-
-        foreach (var payload in new[] { "{}", """{"name":null,"displayOrder":null,"notes":null,"coverImageUrl":null,"centerLatitude":null,"centerLongitude":null}""" })
-        {
-            using var noOp = await client.PutAsync($"/api/trips/regions/{original.Id}",
-                new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
-            Assert.Equal(HttpStatusCode.OK, noOp.StatusCode);
-            using var noOpDocument = JsonDocument.Parse(await noOp.Content.ReadAsStringAsync());
-            Assert.Equal("No changes applied.", noOpDocument.RootElement.GetProperty("message").GetString());
-        }
-
-        using var rejected = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new
-        {
-            name = "Renamed", displayOrder = 7, notes = "Rejected", coverImageUrl = "rejected-cover",
-            centerLatitude = 1, centerLongitude = 1
-        });
-        await AssertErrorAsync(rejected, HttpStatusCode.BadRequest,
-            "Cannot change the Unassigned Places region name or display order.");
-        await AssertUnchangedAsync(committed);
-        warmup.Verify(item => item.ScheduleWarmupAsync(original.TripId, false), Times.Once);
-        warmup.VerifyNoOtherCalls();
+        using var response = await client.PutAsync($"/api/trips/regions/{original.Id}",
+            new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("mutation-originals-required", (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        await AssertUnchangedAsync(original);
+        Assert.Empty(warmup.Invocations);
     }
 
-    /// <summary>An ordinary zero-order Region still accepts notes-only updates and trimmed names/negative orders.</summary>
+    /// <summary>A protected Notes save succeeds; unconditional identity/order attempts cannot bypass it.</summary>
     [PostgresFact]
     public async Task OrdinaryRegionPartialUpdatesCannotBypassProtectedOrdering()
     {
@@ -127,7 +93,8 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.UserId);
 
-        using var notes = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { notes = "<p>Partial</p>" });
+        using var notes = await client.PatchAsJsonAsync($"/api/trips/{original.TripId}/conditional/regions/{original.Id}",
+            new { expected = new { notes = original.Notes }, changes = new { notes = "<p>Partial</p>" } });
         Assert.Equal(HttpStatusCode.OK, notes.StatusCode);
         await using var verify = fixture.CreateContext();
         var updated = await verify.Regions.Include(item => item.Trip).SingleAsync(item => item.Id == original.Id);
@@ -138,11 +105,11 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         Assert.Equal((23d, 37d, 4326), (updated.Center!.X, updated.Center.Y, updated.Center.SRID));
 
         using var reservedName = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { name = "  uNassigned PLaces  " });
-        await AssertErrorAsync(reservedName, HttpStatusCode.BadRequest, "Region name is reserved.");
+        Assert.Equal(HttpStatusCode.Conflict, reservedName.StatusCode);
         await AssertUnchangedAsync(updated);
 
         using var identity = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { name = "  Renamed  ", displayOrder = -2 });
-        Assert.Equal(HttpStatusCode.BadRequest, identity.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, identity.StatusCode);
         await using var fresh = fixture.CreateContext();
         var renamed = await fresh.Regions.SingleAsync(item => item.Id == original.Id);
         Assert.Equal(original.Name, renamed.Name);
@@ -151,7 +118,7 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         warmup.VerifyNoOtherCalls();
     }
 
-    /// <summary>Missing bearer and a real second account retain existing 401 responses before reserved-field policy.</summary>
+    /// <summary>Missing bearer rejects; a real second account receives the same concealed missing-scope result.</summary>
     [PostgresFact]
     public async Task ReservedRegionStillRequiresItsBearerOwner()
     {
@@ -175,7 +142,7 @@ public sealed class ApiRegionProtectionPostgresTests(PostgresImportTestFixture f
         await AssertErrorAsync(unauthenticated, HttpStatusCode.Unauthorized, "Missing or invalid API token.");
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", other.Id);
         using var update = await client.PutAsJsonAsync($"/api/trips/regions/{original.Id}", new { notes = "Rejected", name = "Renamed" });
-        await AssertErrorAsync(update, HttpStatusCode.Unauthorized, "Not your region.");
+        await AssertErrorAsync(update, HttpStatusCode.NotFound, "Region not found.");
         using var deletion = await client.DeleteAsync($"/api/trips/regions/{original.Id}");
         Assert.Equal(HttpStatusCode.NotFound, deletion.StatusCode);
         Assert.DoesNotContain("Unassigned Places", await deletion.Content.ReadAsStringAsync());

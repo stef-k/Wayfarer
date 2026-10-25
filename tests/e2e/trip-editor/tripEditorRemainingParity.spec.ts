@@ -128,7 +128,7 @@ async function setPublicState(page: Page, enabled: boolean): Promise<{ method: s
     return null;
   }
 
-  const response = waitForEditorMutation(page, '/metadata', 'PATCH');
+  const response = waitForEditorMutation(page, '/metadata/conditional', 'PATCH');
   if (enabled) {
     await publicTrip.check();
   } else {

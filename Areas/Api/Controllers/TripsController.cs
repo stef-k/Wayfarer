@@ -49,6 +49,7 @@ public partial class TripsController : BaseApiController
     }
 
 
+    private const string ShadowRegionName = "Unassigned Places";
 
     /// <summary>
     /// Returns a list of trips owned by the authenticated user.

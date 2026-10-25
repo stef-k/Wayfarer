@@ -1,7 +1,7 @@
 namespace Wayfarer.Models.Dtos
 {
     /// <summary>
-    /// Request body to update an existing Segment's notes.
+    /// Payload for the rejected unconditional Segment Notes PUT; use the protected Notes contract.
     /// </summary>
     public class SegmentUpdateRequestDto
     {

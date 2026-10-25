@@ -91,10 +91,9 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
         try
         {
             await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            using var hidden = await writer.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/metadata", new
+            using var hidden = await writer.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/metadata/conditional", new
             {
-                name = trip.Name, notesHtml = (string?)null, isPublic = false,
-                coverImage = (object?)null, center = (object?)null, zoom = (int?)null
+                expected = new { isPublic = trip.IsPublic }, changes = new { isPublic = false }
             });
             Assert.True(hidden.StatusCode == HttpStatusCode.OK, gate.Failure?.ToString() ?? await hidden.Content.ReadAsStringAsync());
             using var edited = await WriteCheckedPlaceAsync(writer, trip, "PRIVATE-SENTINEL-852", false);

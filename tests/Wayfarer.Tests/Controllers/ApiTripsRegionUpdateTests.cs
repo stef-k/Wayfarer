@@ -66,8 +66,7 @@ public partial class ApiTripsControllerTests
             CenterLatitude = 0, CenterLongitude = 0
         });
 
-        var rejected = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Cannot change the Unassigned Places region name or display order.", rejected.Value);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal(storedName, region.Name);
         Assert.Equal(storedOrder, region.DisplayOrder);
         Assert.Equal("<p>Original</p>", region.Notes);
@@ -79,10 +78,10 @@ public partial class ApiTripsControllerTests
 
     /// <summary>Invalid paired/range center input cannot dirty earlier supplied identity or metadata fields.</summary>
     [Theory]
-    [InlineData("Unassigned Places", 0d, null, "Both centerLatitude and centerLongitude must be provided together.")]
-    [InlineData("Ordinary", 91d, 10d, "Center latitude or longitude is out of range.")]
+    [InlineData("Unassigned Places", 0d, null)]
+    [InlineData("Ordinary", 91d, 10d)]
     public async Task UpdateRegion_InvalidCenterRejectsBeforeTrackedAssignments(
-        string storedName, double? latitude, double? longitude, string error)
+        string storedName, double? latitude, double? longitude)
     {
         using var db = CreateDbContext();
         var region = await SeedRegionUpdateTargetAsync(db, storedName, 0);

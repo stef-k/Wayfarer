@@ -1,8 +1,7 @@
 namespace Wayfarer.Models.Dtos
 {
     /// <summary>
-    /// Request body to update an existing Trip's metadata.
-    /// Only provided fields will be updated (partial update).
+    /// Payload for the rejected unconditional Trip PUT; use the original-aware metadata contract.
     /// </summary>
     public class TripUpdateRequestDto
     {
