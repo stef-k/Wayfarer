@@ -260,7 +260,7 @@ public sealed partial class TripEditorController : ControllerBase
     }
 
     /// <summary>
-    /// Deletes a normal region and returns authoritative deleted IDs and affected slices.
+    /// Rejects unconditional Region deletion; the four-way content-confirmed POST owns all effects.
     /// </summary>
     [HttpDelete("regions/{regionId:guid}")]
     [ValidateAntiForgeryToken]

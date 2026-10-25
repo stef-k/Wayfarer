@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
+using Wayfarer.Services;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
@@ -137,6 +141,40 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(!committed, await verify.Places.AnyAsync(p => p.Id == place.Id));
         if (!committed) { Assert.Equal(before, await GraphStateAsync(g.TripId)); Assert.Equal(rows, await StoredStructureRowsAsync(g.TripId)); }
         else Assert.Null((await verify.PlaceVisitEvents.SingleAsync(v => v.TripIdSnapshot == g.TripId)).PlaceId);
+    }
+
+    /// <summary>A real committed envelope can be lost in HTTP transport; graph absence supplies no deletion receipt.</summary>
+    [PostgresFact]
+    public async Task Deletion_LostHttpReplyAfterActualCommit()
+    {
+        var place = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var dispatches = 0;
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddScoped(_ => fixture.CreateContext());
+            services.AddSingleton(_warmup.Object);
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+        }, host => host.Use(async (context, next) =>
+        {
+            await next(context);
+            if (context.Request.Path.Value!.EndsWith("/deletion", StringComparison.Ordinal) && context.Response.StatusCode == 200)
+            {
+                dispatches++;
+                throw new IOException("Injected HTTP reply loss after actual deletion commit.");
+            }
+        }));
+        using var client = Bearer(app, place.UserId);
+        var path = DeletionPath(place, false);
+        var preview = await DeletionPreviewAsync(client, path);
+        var failure = await Record.ExceptionAsync(async () =>
+        {
+            using var response = await client.PostAsJsonAsync(path + "/deletion", new { confirmationToken = preview.Confirmation.Token });
+            await response.Content.ReadAsStringAsync();
+        });
+        Assert.NotNull(failure); Assert.Equal(1, dispatches);
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Places.AnyAsync(p => p.Id == place.Id));
     }
 
     private static string DeletionPath(Place p, bool web) => $"/api/trips/{p.Region.TripId}/{(web ? "editor" : "conditional")}/places/{p.Id}";

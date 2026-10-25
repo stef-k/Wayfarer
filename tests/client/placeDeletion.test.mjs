@@ -11,7 +11,7 @@ const preview = (overrides = {}) => ({ contractVersion: 1, tripId: 'trip', place
 const reply = () => {
   const result = envelope({ tripId: 'trip', placeId: 'place', regionId: 'region', updatedSegmentIds: [], detachedWaypointAssociations: [] });
   result.affected.places = [];
-  result.affected.metadata = { updatedAt: '2026-10-25T12:00:00Z' };
+  result.affected.metadata = { id: 'trip', name: 'Trip', notesHtml: '', isPublic: false, shareProgressEnabled: false, center: null, zoom: null, coverImage: null, publicUrl: null, progressPublicUrl: null, updatedAt: '2026-10-25T12:00:00Z', originalValues: { name: 'Trip', notesHtml: null } };
   result.affected.placeOrdersByRegionId = { region: [] };
   result.affected.visitProgress = { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] };
   result.deletedIds.places = ['place'];

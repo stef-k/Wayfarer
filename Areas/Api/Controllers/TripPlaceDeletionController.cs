@@ -18,6 +18,7 @@ public partial class TripsController
 
     private async Task<IActionResult> PlaceDeletionAsync(Guid tripId, Guid placeId, bool mutation, CancellationToken token)
     {
+        Response.Headers.CacheControl = "no-store";
         var authority = IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext);
         var user = await authority.ResolveAsync(HttpContext, token);
         return user == null ? Unauthorized() : await PlaceDeletionEndpoint.ExecuteAsync(this, _dbContext, _lifecycle,
@@ -50,6 +51,7 @@ public sealed partial class TripEditorController
 /// <summary>Strict shared wire adapter; authority and owned target checks precede parsing or private proof reads.</summary>
 internal static class PlaceDeletionEndpoint
 {
+    /// <summary>Checks concealed ownership before strict parsing, then dispatches only the selected preview or approved operation.</summary>
     internal static async Task<IActionResult> ExecuteAsync(ControllerBase controller, ApplicationDbContext db,
         PlaceRegionLifecycleService lifecycle, Guid tripId, Guid placeId, string userId, bool mutation,
         CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null)

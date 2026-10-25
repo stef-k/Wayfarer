@@ -427,8 +427,8 @@ for (const newer of [false, true]) test(`Region deletion preserves a ${newer ? '
     confirmation: { token: 'consent', expiresAt: new Date(Date.now() + 600000).toISOString() } };
   const result = { success: true, data: { tripId: 'trip', sourceRegionId: 'region', places: 'keep', areas: 'keep', destinationRegionId: null,
     movedPlaceIds: [], movedAreaIds: [], updatedSegmentIds: [], detachedWaypointAssociations: [] }, deletedIds: { regions: ['region'], places: [], areas: [], segments: [], tags: [] }, warnings: [],
-    affected: { metadata: { updatedAt: '2026-10-25T00:00:00Z' }, regions: [], regionOrder: [], places: [], areas: [], segments: [], tags: [],
-      placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, segmentOrder: null, tagOrder: null, options: null, visitProgress: {} } };
+    affected: { metadata: { id: 'trip', name: 'Trip', notesHtml: '', isPublic: false, shareProgressEnabled: false, center: null, zoom: null, coverImage: null, publicUrl: null, progressPublicUrl: null, updatedAt: '2026-10-25T00:00:00Z', originalValues: { name: 'Trip', notesHtml: null } }, regions: [], regionOrder: [], places: [], areas: [], segments: [], tags: [],
+      placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, segmentOrder: null, tagOrder: null, options: null, visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] } } };
   const pending = deferred();
   globalThis.fetch = async url => url.endsWith('deletion-preview') ? new Response(JSON.stringify(preview)) : pending.promise;
   const owner = mount();

@@ -70,9 +70,12 @@ public sealed partial class PlaceRegionLifecycleService
 internal sealed record PlaceDeletionSnapshot(Trip Trip, Place Place, Place[] Siblings, Segment[] Segments,
     Segment[] SegmentOrders, Place[] Anchors, TransportProfile[] Profiles, Guid[] EndpointIds, Guid[] Visits, Guid[] Candidates)
 {
+    /// <summary>Only waypoint-dependent survivors require route reconciliation.</summary>
     internal Segment[] Survivors => Segments.Where(s => !EndpointIds.Contains(s.Id)).ToArray();
+    /// <summary>Complete association effects, excluding endpoint Segments which are deleted outright.</summary>
     internal EditorLifecycleWaypointAssociationDto[] Detached => Survivors.SelectMany(s => s.Waypoints.Where(w => w.PlaceId == Place.Id)
         .Select(w => new EditorLifecycleWaypointAssociationDto(s.Id, w.PlaceId))).OrderBy(w => w.SegmentId).ToArray();
+    /// <summary>Sorted global lock classes fence affected route, sibling and parent membership.</summary>
     internal LifecycleLockCandidates Locks => new(Profiles.Select(p => p.Id).Order().ToArray(),
         Segments.Concat(SegmentOrders).Select(s => s.Id).Distinct().Order().ToArray(),
         Siblings.Concat(Anchors).Select(p => p.Id).Distinct().Order().ToArray(),

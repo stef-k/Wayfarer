@@ -545,7 +545,7 @@ public partial class TripsController : BaseApiController
     }
 
     /// <summary>
-    /// Deletes a place by ID.
+    /// Rejects unconditional Place deletion; the content preview and confirmed POST own destruction.
     /// </summary>
     [HttpDelete("places/{placeId}")]
     public async Task<IActionResult> DeletePlace(Guid placeId)
@@ -822,8 +822,8 @@ public partial class TripsController : BaseApiController
     }
 
     /// <summary>
-    /// Deletes a region by ID and all its children (places, areas). The reserved
-    /// "Unassigned Places" region cannot be deleted.
+    /// Rejects unconditional Region deletion; use the four-way content preview and confirmed POST.
+    /// The canonical Unassigned Places Region remains forbidden.
     /// </summary>
     [HttpDelete("regions/{regionId}")]
     public async Task<IActionResult> DeleteRegion(Guid regionId)

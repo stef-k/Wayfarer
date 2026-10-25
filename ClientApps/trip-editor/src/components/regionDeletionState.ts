@@ -1,4 +1,8 @@
 import { reactive } from 'vue';
+import { completePlace } from './placeStructuralEditing';
+import { completeSegment } from './segmentNotesDraft';
+import { completeVisitProgress } from './placeConditionalDraft';
+import { completeDeletionMetadata } from './placeDeletion';
 import type { EditorMutationResult, Guid } from '../types';
 
 export type Disposition = 'keep' | 'delete';
@@ -167,21 +171,20 @@ export const validateRegionDeletionAcknowledgement = (result: EditorMutationResu
     || !same(a.regions.map(r => r.id), a.regionOrder) || a.regionOrder.includes(p.sourceRegionId)
     || a.regions.some(r => r.tripId !== p.tripId || typeof r.name !== 'string' || typeof r.notesHtml !== 'string' || !Number.isInteger(r.displayOrder) || !r.capabilities || !r.originalValues)
     || destination !== null && !a.regions.some(r => r.id === destination && r.name === 'Unassigned Places')
-    || !Array.isArray(a.places) || !ids(a.places.map(x => x.id)) || a.places.some(x => x.tripId !== p.tripId || x.regionId !== destination
-      || typeof x.name !== 'string' || typeof x.notesHtml !== 'string' || !x.visitSummary || !x.originalValues || !x.capabilities)
+    || !Array.isArray(a.places) || !ids(a.places.map(x => x.id)) || a.places.some(x => !completePlace(x) || x.tripId !== p.tripId || x.regionId !== destination)
     || !Array.isArray(a.areas) || !ids(a.areas.map(x => x.id)) || a.areas.some(x => x.tripId !== p.tripId || x.regionId !== destination
-      || typeof x.name !== 'string' || typeof x.notesHtml !== 'string' || !x.geometry || !x.originalValues || !x.capabilities)
+      || typeof x.name !== 'string' || typeof x.notesHtml !== 'string' || x.geometry?.type !== 'Polygon' || !Array.isArray(x.geometry.coordinates) || typeof x.fillHex !== 'string'
+      || !x.originalValues || !['regionId', 'name', 'notesHtml', 'fillHex', 'geometry'].every(key => Object.hasOwn(x.originalValues!, key)) || !x.capabilities)
     || !a.placeOrdersByRegionId || !a.areaOrdersByRegionId
     || ![...Object.keys(a.placeOrdersByRegionId), ...Object.keys(a.areaOrdersByRegionId)].every(id => id === destination)
     || !d.movedPlaceIds.every(id => a.places.some(x => x.id === id)) || !d.movedAreaIds.every(id => a.areas.some(x => x.id === id))
     || !same(d.movedPlaceIds.length ? { [destination!]: a.places.map(x => x.id) } : {}, a.placeOrdersByRegionId)
     || !same(d.movedAreaIds.length ? { [destination!]: a.areas.map(x => x.id) } : {}, a.areaOrdersByRegionId)
-    || !Array.isArray(a.segments) || !ids(a.segments.map(x => x.id)) || a.segments.some(x => x.tripId !== p.tripId
-      || !x.aggregateConcurrencyToken || !x.originalRouteToken || !x.capabilities || deleted.segments.includes(x.id))
+    || !Array.isArray(a.segments) || !ids(a.segments.map(x => x.id)) || a.segments.some(x => !completeSegment(x) || x.tripId !== p.tripId || deleted.segments.includes(x.id))
     || !d.updatedSegmentIds.every(id => a.segments.some(x => x.id === id))
     || (deleted.segments.length === 0 ? a.segmentOrder !== null || !same(a.segments.map(x => x.id).sort(), [...d.updatedSegmentIds].sort())
       : !ids(a.segmentOrder) || !same([...a.segmentOrder].sort(), a.segments.map(x => x.id).sort()))
-    || !a.metadata || !Number.isFinite(Date.parse(a.metadata.updatedAt)) || !a.visitProgress
+    || !completeDeletionMetadata(a.metadata, p.tripId) || !completeVisitProgress(a.visitProgress!)
     || !same(a.tags, []) || [a.tagOrder, a.options].some(x => x !== null) || !same(result.warnings, []))
     throw new Error('Region deletion acknowledgement is incomplete. Outcome unknown; keep the operation held without replay.');
 };

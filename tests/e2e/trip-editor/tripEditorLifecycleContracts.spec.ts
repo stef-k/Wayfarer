@@ -316,7 +316,7 @@ async function assertPhonePlaceWarning(page: Page, target: LifecycleFixture['pho
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(dialog, viewport);
-  await expect(dialog).toContainText('connected segment(s)');
+  await expect(dialog).toContainText('endpoint Segment(s)');
   await dialog.getByRole('button', { name: 'Keep Place and drafts' }).click();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();
 }
@@ -345,8 +345,8 @@ async function assertPhoneStaleRefresh(page: Page, viewport: { width: number; he
   runFixtureHelper('phone-drift');
   await first.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
   await expect(page.locator('.trip-editor-form-error[role="alert"]')).toBeVisible();
-    await page.getByRole('button', { name: 'Delete', exact: true }).click();
-    const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(refreshed, viewport);
   await expect(refreshed).toContainText('update 2 surviving waypoint route(s)');
   await refreshed.getByRole('button', { name: 'Keep Place and drafts' }).click();

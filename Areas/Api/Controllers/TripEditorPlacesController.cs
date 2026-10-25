@@ -24,7 +24,7 @@ public sealed partial class TripEditorController
     }
 
     /// <summary>
-    /// Deletes a place and endpoint segments that reference it.
+    /// Rejects unconditional Place deletion; use the content preview and confirmed POST.
     /// </summary>
     [HttpDelete("places/{placeId:guid}")]
     [ValidateAntiForgeryToken]

@@ -1,4 +1,4 @@
-import type { EditorMutationResult } from '../types';
+import type { EditorMutationResult, EditorTripMetadata } from '../types';
 import { completePlace } from './placeStructuralEditing';
 import { completeSegment } from './segmentNotesDraft';
 import { completeVisitProgress } from './placeConditionalDraft';
@@ -52,7 +52,7 @@ export const validatePlaceDeletionAcknowledgement = (result: EditorMutationResul
     || !Array.isArray(a.segments) || !setEqual(a.segments.map(x => x.id), projectedSegments)
     || a.segments.some(x => !completeSegment(x) || x.tripId !== p.tripId || [x.fromPlaceId, x.toPlaceId, ...x.waypointPlaceIds].includes(p.placeId))
     || !same(a.segmentOrder, p.segmentOrderIds) || !completeVisitProgress(a.visitProgress!)
-    || !a.metadata || !Number.isFinite(Date.parse(a.metadata.updatedAt))
+    || !completeDeletionMetadata(a.metadata, p.tripId)
     || !['regions', 'areas', 'tags'].every(key => same(a[key as 'regions'], [])) || !same(a.areaOrdersByRegionId, {})
     || [a.regionOrder, a.tagOrder, a.options].some(x => x !== null) || !same(result.warnings, []))
     throw new Error('The deletion acknowledgement is incomplete. Outcome unknown; keep the operation held without retry.');
@@ -61,3 +61,13 @@ export const validatePlaceDeletionAcknowledgement = (result: EditorMutationResul
 /** Consequences describe route destruction, retained history and anonymous custom vertices explicitly. */
 export const placeDeletionMessage = (p: PlaceDeletionPreview): string =>
   `Permanently delete “${p.placeName}” and its saved content. Delete ${p.deletedSegments.count} endpoint Segment(s), update ${p.updatedSegments.count} surviving waypoint route(s), and detach ${p.detachedWaypoints.count} waypoint association(s). Custom route vertices remain anonymous. Retain and unlink ${p.unlinkedVisits} visit history record(s); remove ${p.deletedCandidates} visit candidate(s). Remaining Place and affected Segment ordering will be reconciled. This cannot be undone.`;
+
+/** Destructive envelopes publish current metadata, never a foreign or partially shaped Trip baseline. */
+export const completeDeletionMetadata = (value: EditorTripMetadata | null, tripId: string): boolean => Boolean(value
+  && value.id === tripId && typeof value.name === 'string' && typeof value.notesHtml === 'string'
+  && typeof value.isPublic === 'boolean' && typeof value.shareProgressEnabled === 'boolean'
+  && Number.isFinite(Date.parse(value.updatedAt)) && (value.zoom === null || Number.isFinite(value.zoom))
+  && (value.center === null || value.center && Number.isFinite(value.center.latitude) && Number.isFinite(value.center.longitude))
+  && (value.coverImage === null || value.coverImage && typeof value.coverImage.rawUrl === 'string' && typeof value.coverImage.proxiedUrl === 'string')
+  && [value.publicUrl, value.progressPublicUrl].every(url => url === null || typeof url === 'string')
+  && value.originalValues && value.originalValues.name === value.name && (value.originalValues.notesHtml ?? '') === value.notesHtml);
