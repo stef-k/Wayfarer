@@ -181,15 +181,22 @@ public sealed partial class PlaceConditionalPostgresTests
         await PrepareStructureAsync(web, place, true, "move", request);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
-        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {place.Id} FOR UPDATE");
+        // Hold the row this writer changes; holding the target can deadlock against an earlier sibling lock.
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {graph.PlaceIds[1]} FOR UPDATE");
         var pending = web.PutAsJsonAsync(StructurePath(place, true, "move"), request);
         await WaitForLockAsync(probe, 0);
+        Assert.False(pending.IsCompleted);
+        output.WriteLine("Routed move reached a physical PostgreSQL Place wait before the sibling membership change.");
         await blocker.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, outsideRegion));
         await transaction.CommitAsync();
         var before = await StoredStructureRowsAsync(graph.TripId);
         using var response = await pending;
+        var body = await response.Content.ReadAsStringAsync();
+        output.WriteLine("Complete conflict response: " + body);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Contains("mutation-dependency-stale", await response.Content.ReadAsStringAsync());
+        Assert.Equal("mutation-dependency-stale", JsonSerializer.Deserialize<JsonElement>(body).GetProperty("code").GetString());
+        Assert.DoesNotContain(graph.PlaceIds[1].ToString(), body);
+        Assert.DoesNotContain(outsideRegion.ToString(), body);
         Assert.Equal(before, await StoredStructureRowsAsync(graph.TripId));
         Assert.Empty(probe.Updates);
         Assert.Empty(_warmup.Invocations);
