@@ -21,14 +21,14 @@ const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${impor
 const component = (await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=editor-exit-test.mjs').toString('base64')}`)).default;
 
 // Model the server's compatible display projection plus exact original-value evidence.
-const withOriginals = metadata => ({ ...metadata, originalValues: { name: metadata.name, notesHtml: metadata.notesHtml ?? null,
+const withOriginals = metadata => ({ ...metadata, coverImage: metadata.coverImage ?? null, originalValues: { name: metadata.name, notesHtml: metadata.notesHtml ?? null,
   isPublic: metadata.isPublic, coverImage: metadata.coverImage ? { rawUrl: metadata.coverImage.rawUrl } : null,
   center: metadata.center ?? { latitude: null, longitude: null }, zoom: metadata.zoom ?? null } });
 
 // Mount the real draft owner under a reactive parent so Vue schedules child prop updates.
 const mountDraft = () => {
   let editor;
-  const props = shallowReactive({ metadata: withOriginals({ name: 'Trip', isPublic: false, notesHtml: '',
+  const props = shallowReactive({ metadata: withOriginals({ id: 'trip', name: 'Trip', isPublic: false, shareProgressEnabled: false, notesHtml: '',
     center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 }),
     capturedMapView: null, tagsBySlug: {}, tagOrder: [], tagOptions: {}, hasRegionDraftChanges: false,
     tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', antiforgeryToken: 'test-token', editorSurface: {
@@ -426,6 +426,9 @@ for (const outcome of ['publication conflict', 'publication failure', 'sharing f
         if (outcome === 'sharing failure') {
           assert.equal(owner.editor.statusText, 'Sharing change not confirmed');
           assert.equal(owner.editor.sharingUnconfirmed, true);
+        } else if (outcome === 'publication failure') {
+          assert.equal(owner.editor.statusText, 'Trip settings change not confirmed');
+          assert.equal(owner.editor.metadataUnconfirmed, true);
         } else {
           assert.equal(owner.editor.statusText, 'Save failed');
           assert.ok(owner.editor.saveError);

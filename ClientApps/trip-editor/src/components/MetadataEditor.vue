@@ -55,15 +55,18 @@ let editSession = 0;
 /// Distinguishes explicit sharing input during this save from privacy-driven clearing.
 let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
-const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
+const isMetadataDirty = computed(() => draftState.metadataAttempt.value !== null || JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
 const isShareProgressDirty = computed(() => draftState.sharingAttempt.value !== null || normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
 const sharingUnconfirmed = computed(() => draftState.sharingAttempt.value?.outcome === 'unknown');
+const metadataUnconfirmed = computed(() => draftState.metadataAttempt.value?.outcome === 'unknown');
+const saveUnconfirmed = computed(() => metadataUnconfirmed.value || sharingUnconfirmed.value);
 /// Explain the held choice and explicit abandonment without promising remote rollback or settlement.
 const sharingHoldMessage = computed(() =>
   `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? 'Enabled' : 'Disabled'}) is retained in this editor. ` +
   'Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. ' +
   'Leaving or reloading loses the retained choice and does not undo the earlier change.');
+const metadataHoldMessage = 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.';
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
 /// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
@@ -102,6 +105,7 @@ const statusText = computed(() => {
   }
 
   if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
+  if (metadataUnconfirmed.value) return 'Trip settings change not confirmed';
 
   if (saveError.value) {
     return 'Save failed';
@@ -191,7 +195,7 @@ const saveAndExit = async (): Promise<void> => {
 };
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
-  if (isSaving.value || sharingUnconfirmed.value) return;
+  if (isSaving.value || saveUnconfirmed.value) return;
   const savingSession = editSession;
   shareProgressEditedDuringSave = false;
   isSaving.value = true;
@@ -204,11 +208,11 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 
   try {
     if (isMetadataDirty.value) {
-      const submitted = draftState.request();
+      const submitted = draftState.beginMetadata();
       const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, submitted);
       savedMetadata = result.affected.metadata ?? result.data;
-      warnings.value = result.warnings;
       draftState.acknowledge(savedMetadata, submitted, shareProgressEditedDuringSave);
+      warnings.value = result.warnings ?? [];
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
@@ -233,6 +237,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     }
   } catch (error) {
     failed = true;
+    if (draftState.failMetadata(error)) return;
     // Only explicit pre-write rejection retires this attempt. Transport/server/body failures remain unknown.
     if (draftState.sharingAttempt.value) {
       if (error instanceof EditorValidationError || (error instanceof EditorMutationHttpError && [401, 403].includes(error.status))) {
@@ -294,9 +299,9 @@ function confirmUnload(event: BeforeUnloadEvent): void {
 
 /// Confirms before discarding Trip Editor drafts that are not saved by the current action.
 function confirmDiscardTripEditorChanges(): Promise<boolean> {
-  if (sharingUnconfirmed.value) return confirm({
+  if (saveUnconfirmed.value) return confirm({
     title: 'Leave without saving?',
-    message: 'The sharing change is not confirmed. The earlier change may still finish. Leaving will lose your retained sharing choice and any other unsaved edits; it will not undo the earlier change.',
+    message: metadataUnconfirmed.value ? metadataHoldMessage : 'The sharing change is not confirmed. The earlier change may still finish. Leaving will lose your retained sharing choice and any other unsaved edits; it will not undo the earlier change.',
     confirmLabel: 'Leave without saving',
     cancelLabel: 'Keep editing',
     variant: 'warning'
@@ -371,6 +376,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
       <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
       <p>Share progress: {{ shareProgressSummary }}</p>
       <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
+      <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
       <div v-if="metadata.publicUrl || summaryProgressUrl" class="trip-editor-editor-summary__links">
         <a v-if="metadata.publicUrl" :href="metadata.publicUrl" target="_blank" rel="noopener">Open public trip</a>
         <a v-if="summaryProgressUrl" :href="summaryProgressUrl" target="_blank" rel="noopener">Open progress URL</a>
@@ -383,6 +389,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     <template #body>
       <form id="trip-editor-metadata-form" class="trip-editor-metadata" @submit.prevent="save(false)">
         <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
+        <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
 
         <div v-if="warnings.length > 0" class="trip-editor-form-warning" role="status">
           <p v-for="warning in warnings" :key="warning.code">{{ warning.message }}</p>
@@ -475,10 +482,10 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     </template>
 
     <template #footer>
-      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || sharingUnconfirmed">Save &amp; Continue</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || sharingUnconfirmed" @click="saveAndExit">Save &amp; Exit</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || sharingUnconfirmed || !isDirty" @click="resetDraft">Cancel / Reset</button>
-      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ sharingUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">Save &amp; Continue</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">Save &amp; Exit</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">Cancel / Reset</button>
+      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
     </template>
   </EditorSurface>
 </template>

@@ -172,11 +172,11 @@ export const patchMetadata = async (
   }
 
   if (response.status === 409) {
-    throw new Error('Trip fields changed on another device. Your draft is retained. Review current Trip values before choosing a new base and saving.');
+    throw new EditorMutationHttpError('Trip fields changed on another device. Your draft is retained. Review current Trip values before choosing a new base and saving.', 409);
   }
 
   if (!response.ok) {
-    throw new Error(`Trip settings could not be confirmed (${response.status}). Keep your draft and review current values before saving again.`);
+    throw new EditorMutationHttpError(`Trip settings could not be confirmed (${response.status}). Keep your draft and review current values before saving again.`, response.status);
   }
 
   return (await response.json()) as EditorMutationResult<EditorTripMetadata>;

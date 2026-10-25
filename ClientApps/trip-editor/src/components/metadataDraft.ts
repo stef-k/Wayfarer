@@ -1,4 +1,5 @@
-import { reactive, ref } from 'vue';
+import { reactive, ref, shallowRef } from 'vue';
+import { EditorMutationHttpError, EditorValidationError } from '../api/tripEditorApi';
 import type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { normalizeNotesHtml } from '../notes/notesHtml';
@@ -103,9 +104,12 @@ function assignField(target: MetadataDraft, source: MetadataDraft, field: Metada
 
 /** Owns per-field originals and acknowledgements so refreshes and older replies cannot erase authored intent. */
 export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder: string[], tagsBySlug: Record<string, EditorTag>) {
+  const tripId = metadata.id;
   const draft = reactive(toDraft(metadata, tagOrder, tagsBySlug));
   const baseline = reactive(toDraft(metadata, tagOrder, tagsBySlug));
   const originals = reactive<Partial<EditorMetadataOriginalValues>>({ ...metadata.originalValues });
+  // Request identity correlates its one reply; snapshots never follow parent props or later input.
+  const metadataAttempt = shallowRef<{ request: EditorMetadataConditionalRequest; outcome: 'pending' | 'unknown' } | null>(null);
   // A submitted sharing write is an obligation even when a newer choice equals the old baseline.
   const sharingAttempt = ref<{ enabled: boolean; outcome: 'pending' | 'unknown' } | null>(null);
 
@@ -115,12 +119,12 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     const before = buildMetadataRequest(baseline);
     const incoming = toDraft(next, order, tags);
     for (const field of metadataFields) {
-      if (same(current[field], before[field])) adopt(field, incoming, next);
+      if (!metadataAttempt.value && same(current[field], before[field])) adopt(field, incoming, next);
     }
     if (same(normalizeTagNames(draft.tags), normalizeTagNames(baseline.tags))) {
       draft.tags = [...incoming.tags]; baseline.tags = [...incoming.tags];
     }
-    if (!sharingAttempt.value && draft.shareProgressEnabled === baseline.shareProgressEnabled) {
+    if (!metadataAttempt.value && !sharingAttempt.value && draft.shareProgressEnabled === baseline.shareProgressEnabled) {
       draft.shareProgressEnabled = incoming.shareProgressEnabled;
       baseline.shareProgressEnabled = incoming.shareProgressEnabled;
     }
@@ -138,6 +142,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
 
   /** Builds the protected request from dirty intent; older server payloads fail closed. */
   const request = (): EditorMetadataConditionalRequest => {
+    if (metadataAttempt.value) throw new Error('The earlier Trip settings change is not confirmed. Keep this editor open or leave without saving.');
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
     const expected: Partial<EditorMetadataOriginalValues> = {};
@@ -151,8 +156,35 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     return { expected, changes };
   };
 
+  /** Pins immutable submitted originals/changes independently of both confirmed and latest values. */
+  const beginMetadata = (): EditorMetadataConditionalRequest => {
+    const submitted = JSON.parse(JSON.stringify(request())) as EditorMetadataConditionalRequest;
+    for (const values of [submitted.expected, submitted.changes]) {
+      for (const value of Object.values(values)) if (value && typeof value === 'object') Object.freeze(value);
+      Object.freeze(values);
+    }
+    Object.freeze(submitted);
+    metadataAttempt.value = { request: submitted, outcome: 'pending' };
+    return submitted;
+  };
+
+  /** Only this route's definitive pre-write refusals retire a failed attempt; all other failures hold. */
+  const failMetadata = (error: unknown): boolean => {
+    if (!metadataAttempt.value) return false;
+    if (error instanceof EditorValidationError ||
+        (error instanceof EditorMutationHttpError && [401, 403, 404, 409].includes(error.status))) {
+      metadataAttempt.value = null;
+      return false;
+    }
+    metadataAttempt.value = { ...metadataAttempt.value, outcome: 'unknown' };
+    return true;
+  };
+
   /** Acknowledges submitted fields without erasing later manual edits or explicit sharing choices. */
   const acknowledge = (next: EditorTripMetadata, submitted: EditorMetadataConditionalRequest, sharingEditedDuringSave: boolean): void => {
+    if (metadataAttempt.value?.request !== submitted || !validMetadataAcknowledgement(next, tripId) ||
+        !matchesSubmittedMetadata(next.originalValues!, submitted))
+      throw new Error('Trip settings acknowledgement is incomplete or belongs to another attempt.');
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
     const sharingWasClean = draft.shareProgressEnabled === baseline.shareProgressEnabled;
@@ -169,6 +201,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       if (sharingWasClean && !sharingEditedDuringSave) draft.shareProgressEnabled = next.shareProgressEnabled;
       baseline.shareProgressEnabled = next.shareProgressEnabled;
     }
+    metadataAttempt.value = null;
   };
 
   /** A correlated sharing reply advances the confirmed base without erasing the latest choice. */
@@ -181,8 +214,9 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     sharingAttempt.value = null;
   };
 
-  /** Discard ordinary fields; reset/close/reopen cannot settle or retire an unresolved sharing write. */
+  /** Reset/close/reopen cannot discard an unresolved metadata attempt or any newer metadata intent. */
   const reset = (next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
+    if (metadataAttempt.value) return;
     const retainedSharing = sharingAttempt.value ? { desired: draft.shareProgressEnabled, confirmed: baseline.shareProgressEnabled } : null;
     Object.assign(draft, toDraft(next, order, tags));
     Object.assign(baseline, toDraft(next, order, tags));
@@ -194,8 +228,53 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     Object.assign(originals, next.originalValues ?? {});
   };
 
-  return { draft, baseline, sharingAttempt, refresh, request, acknowledge, acknowledgeSharing, reset };
+  return { draft, baseline, metadataAttempt, sharingAttempt, refresh, request, beginMetadata, failMetadata, acknowledge, acknowledgeSharing, reset };
 }
+
+/** A usable scoped reply supplies complete typed originals before any field or parent can advance. */
+const validMetadataAcknowledgement = (next: EditorTripMetadata, tripId: string): boolean => {
+  if (!next || next.id !== tripId || typeof next.name !== 'string' || typeof next.notesHtml !== 'string' ||
+      typeof next.isPublic !== 'boolean' || typeof next.shareProgressEnabled !== 'boolean' ||
+      (!next.isPublic && next.shareProgressEnabled) || !next.originalValues) return false;
+  const original = next.originalValues;
+  const coordinate = (value: EditorMetadataOriginalValues['center']): boolean => value === null ||
+    Boolean(value && ['latitude', 'longitude'].every(key => {
+      const number = value[key as keyof typeof value];
+      return number === null || typeof number === 'number' && Number.isFinite(number);
+    }));
+  const projectedCenter = original.center?.latitude != null && original.center?.longitude != null ? original.center : null;
+  return metadataFields.every(field => Object.hasOwn(original, field)) && original.name === next.name &&
+    (original.notesHtml === null || typeof original.notesHtml === 'string') &&
+    normalizeNotesHtml(original.notesHtml ?? '') === normalizeNotesHtml(next.notesHtml) && original.isPublic === next.isPublic &&
+    coordinate(original.center) && coordinate(next.center) && same(projectedCenter, next.center) &&
+    (original.zoom === null || typeof original.zoom === 'number' && Number.isFinite(original.zoom)) && original.zoom === next.zoom &&
+    (original.coverImage === null || original.coverImage?.rawUrl === null || typeof original.coverImage?.rawUrl === 'string') &&
+    (next.coverImage === null || next.coverImage && typeof next.coverImage.rawUrl === 'string' && typeof next.coverImage.proxiedUrl === 'string') &&
+    (original.coverImage?.rawUrl == null || /^\p{White_Space}*$/u.test(original.coverImage.rawUrl) ? null : original.coverImage.rawUrl) ===
+      (next.coverImage?.rawUrl ?? null);
+};
+
+/** Match .NET Trim/IsNullOrWhiteSpace as in Region ordering; U+0085 is whitespace, U+FEFF is material. */
+const trimServerWhitespace = (value: string): string => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
+
+/** Compare submitted values where the contract permits it; disjoint edits and derived sharing remain admissible. */
+const matchesSubmittedMetadata = (original: EditorMetadataOriginalValues, submitted: EditorMetadataConditionalRequest): boolean =>
+  metadataFields.every(field => {
+    if (!Object.hasOwn(submitted.changes, field)) return true;
+    const changes = submitted.changes;
+    switch (field) {
+      case 'name': return original.name === trimServerWhitespace(changes.name!);
+      // RichNotes applies a different HTML policy. This reply has no canonical submitted echo;
+      // only explicit Clear has predictable equality. Other Notes rely on the correlated attempt
+      // and validated display/original consistency, not a second sanitizer.
+      case 'notesHtml': return changes.notesHtml !== '' || original.notesHtml === '';
+      case 'coverImage': return (original.coverImage?.rawUrl ?? null) ===
+        (changes.coverImage?.rawUrl == null ? null : trimServerWhitespace(changes.coverImage.rawUrl) || null);
+      case 'center': return (original.center?.latitude ?? null) === (changes.center?.latitude ?? null) &&
+        (original.center?.longitude ?? null) === (changes.center?.longitude ?? null);
+      default: return original[field] === changes[field];
+    }
+  });
 
 /** Trim and deduplicate tags in their entered order. */
 export function normalizeTagNames(values: string[]): string[] {

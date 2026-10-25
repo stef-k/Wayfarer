@@ -50,7 +50,7 @@ const initial = { tripId: 'trip', metadata: metadata(), regionsById: {}, regionO
   visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] },
   options: { iconNames: [], markerColorClasses: [], transportModes: [], areaDefaults: { fillHex: '#ff6600' }, tag: { maxTags: 10, suggestionTake: 5 } },
   permissions: { canEditMetadata: true } };
-const reply = enabled => JSON.stringify({ success: true, data: metadata(enabled), affected: { metadata: metadata(enabled),
+const reply = (enabled, saved = metadata(enabled)) => JSON.stringify({ success: true, data: saved, affected: { metadata: saved,
   regions: [], places: [], areas: [], segments: [], tags: [], regionOrder: null, segmentOrder: null, tagOrder: null,
   placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
@@ -66,6 +66,7 @@ const deferred = () => {
 // Reuse the host renderer from placeConditionalEditing; production templates and parent event scheduling run unchanged.
 const withApp = async action => {
   const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, CSS: globalThis.CSS,
+    Document: globalThis.Document, ShadowRoot: globalThis.ShadowRoot,
     c3Confirm: globalThis.c3Confirm, captureC3Component: globalThis.captureC3Component };
   const captured = {};
   const navigations = [];
@@ -73,6 +74,9 @@ const withApp = async action => {
   let approved = false;
   globalThis.captureC3Component = (name, bindings) => { captured[name] = proxyRefs(bindings); };
   globalThis.c3Confirm = async options => { confirmations.push(options); return approved; };
+  // Vue text-model directives inspect the input root even in this non-DOM host.
+  globalThis.Document = class {};
+  globalThis.ShadowRoot = class {};
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
   globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
@@ -84,7 +88,8 @@ const withApp = async action => {
   };
   const teleportBody = { children: [] };
   const renderer = createRenderer({ createElement: tag => ({ tagName: tag.toUpperCase(), style: {}, children: [],
-    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {} }), createText: text => ({ text }), createComment: () => ({}),
+    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {},
+    getRootNode: () => globalThis.document }), createText: text => ({ text }), createComment: () => ({}),
     insert(node, parent, anchor) {
       remove(node);
       parent.children ??= [];
@@ -432,5 +437,321 @@ test('C3 confirmed validation rejection permits a later explicit sharing save', 
   assert.equal(calls, 2);
   assert.equal(parent.state.metadata.shareProgressEnabled, true);
   assert.equal(editor.isDirty, false);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// F2 regressions converted from the retained C5 metadata counterexamples; only transport is controlled.
+test('F2: lost metadata reply blocks an identical blind replay on another Save', () => withApp(async owner => {
+  const { editor } = owner;
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    throw new TypeError('Lost reply; submitted metadata may still commit');
+  };
+  editor.draft.name = 'Earlier request';
+  await editor.save(false);
+  assert.equal(requests.length, 1);
+  await editor.save(false);
+  assert.equal(requests.length, 1, 'an unresolved conditional request must not be replayed');
+  assert.equal(editor.isDirty, true);
+  assert.match(editor.statusText, /not confirmed/i);
+  assert.deepEqual(owner.navigations, []);
+}));
+
+test('F2: newer metadata reversal retains its obligation after reply loss and cannot report Saved or exit', () => withApp(async owner => {
+  const { editor } = owner;
+  const gate = deferred();
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; await gate.promise; return new Response('{}', { status: 500 }); };
+  editor.draft.name = 'Earlier request';
+  const pending = editor.saveAndExit();
+  assert.equal(requests, 1);
+  editor.draft.name = 'Trip';
+  gate.resolve();
+  await pending;
+  assert.equal(editor.isDirty, true, 'old-baseline equality cannot settle a newer reversal');
+  await editor.saveAndExit();
+  assert.equal(requests, 1);
+  assert.equal(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, []);
+  const event = { prevented: false, preventDefault() { this.prevented = true; } };
+  editor.confirmUnload(event);
+  assert.equal(event.prevented, true);
+  assert.equal(owner.parent.editorSurface.isActiveTargetDirty(), true);
+}));
+
+// Refresh/reset and editor switching are not evidence that a submitted request cannot still commit.
+test('F2: uncertain metadata survives refresh, reset, close/reopen and explicit abandonment', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new TypeError('Lost reply'); };
+  editor.draft.name = 'Earlier request';
+  await editor.save(false);
+  const attempt = editor.draftState.metadataAttempt.value;
+  editor.draft.name = 'Trip';
+  editor.draft.notesHtml = 'Newer notes';
+  for (const name of ['Earlier request', 'Trip']) {
+    parent.applyMetadata({ ...metadata(), name, originalValues: { ...metadata().originalValues, name } });
+    await nextTick();
+    editor.resetDraft();
+    assert.equal(editor.draft.name, 'Trip');
+    assert.equal(editor.draft.notesHtml, 'Newer notes');
+    assert.equal(editor.persistedDraft.name, 'Trip');
+    assert.equal(editor.draftState.metadataAttempt.value, attempt);
+  }
+  owner.approve(true);
+  await parent.editorSurface.closeActiveTarget();
+  await editor.openMetadata();
+  await nextTick();
+  assert.equal(editor.draft.notesHtml, 'Newer notes');
+  assert.equal(parent.editorSurface.isActiveTargetDirty(), true);
+  assert.equal(owner.button('Save & Continue').props.disabled, true);
+  assert.equal(owner.button('Save & Exit').props.disabled, true);
+  assert.equal(owner.button('Cancel / Reset').props.disabled, true);
+  assert.match(owner.visibleText(), /could not confirm.*settings.*retained/i);
+  owner.approve(false);
+  await owner.button('Leave without saving').props.onClick();
+  assert.deepEqual(owner.navigations, []);
+  assert.match(owner.confirmations.at(-1).message, /does not undo/i);
+  owner.approve(true);
+  await owner.button('Leave without saving').props.onClick();
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+  assert.equal(calls, 1);
+  assert.equal(editor.lastSavedAt, null);
+}));
+
+// Reuse the accepted delayed-navigation control with the metadata operation in the same production owner.
+for (const newerRegion of [false, true]) test(`F2: delayed metadata success preserves ${newerRegion ? 'a newer Region session' : 'a reversal and its next explicit save'}`, () => withApp(async owner => {
+  const { editor, parent, regionEditor } = owner;
+  const gate = deferred();
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push(body);
+    const saved = { ...metadata(), ...body.changes, originalValues: { ...metadata().originalValues, ...body.changes } };
+    await gate.promise;
+    return new Response(reply(false, saved));
+  };
+  editor.draft.name = 'Earlier request';
+  const pending = editor.saveAndExit();
+  if (newerRegion) {
+    owner.approve(true);
+    await regionEditor.openCreate();
+    regionEditor.draft.name = 'Newer Region';
+  } else {
+    editor.draft.name = 'Trip';
+    editor.resetDraft(); // A pending attempt and reversal also survive explicit reset.
+    assert.equal(editor.isDirty, true);
+  }
+  gate.resolve();
+  await pending;
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(parent.state.metadata.name, 'Earlier request');
+  assert.deepEqual(owner.navigations, []);
+  if (newerRegion) {
+    assert.equal(regionEditor.draft.name, 'Newer Region');
+    assert.equal(regionEditor.regionDirty, true);
+    assert.equal(owner.confirmations.length, 1, 'old Save & Exit permission is revoked');
+  } else {
+    assert.equal(editor.draft.name, 'Trip');
+    assert.equal(editor.isDirty, true);
+    await editor.saveAndExit();
+    assert.deepEqual(requests[1], { expected: { name: 'Earlier request' }, changes: { name: 'Trip' } });
+    assert.equal(editor.isDirty, false);
+    assert.deepEqual(owner.navigations, ['/User/Trip']);
+  }
+}));
+
+// Missing/malformed or mis-scoped acknowledgements cannot resolve the request or mutate parent state.
+for (const invalid of ['body', 'scope', 'originals', 'notes-type', 'notes-original-type', 'notes-inconsistent']) test(`F2: unusable metadata ${invalid} reply holds the corresponding attempt`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  let calls = 0;
+  const saved = { ...metadata(), name: 'Earlier request', originalValues: { ...metadata().originalValues, name: 'Earlier request' } };
+  if (invalid === 'scope') saved.id = 'another-trip';
+  if (invalid === 'originals') delete saved.originalValues;
+  if (invalid === 'notes-type') saved.notesHtml = null;
+  if (invalid === 'notes-original-type') saved.originalValues.notesHtml = {};
+  if (invalid === 'notes-inconsistent') saved.notesHtml = '<p>Different Notes</p>';
+  globalThis.fetch = async () => { calls++; return new Response(invalid === 'body' ? '{' : reply(false, saved)); };
+  editor.draft.name = 'Earlier request';
+  await editor.saveAndExit();
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.name, 'Trip');
+  assert.equal(editor.draft.name, 'Earlier request');
+  assert.equal(editor.metadataUnconfirmed, true);
+  assert.equal(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, []);
+}));
+
+// Definitive refusal resolves only this attempt; authored edits can still be saved explicitly.
+for (const status of [400, 409]) test(`F2: metadata rejection ${status} permits a corrected explicit save`, () => withApp(async owner => {
+  const { editor } = owner;
+  let calls = 0;
+  const saved = { ...metadata(), name: 'Corrected', originalValues: { ...metadata().originalValues, name: 'Corrected' } };
+  globalThis.fetch = async () => ++calls === 1
+    ? new Response(JSON.stringify({ title: 'Review name', errors: { name: ['Review name'] }, code: 'mutation-base-stale' }), { status })
+    : new Response(reply(false, saved));
+  editor.draft.name = 'Earlier request';
+  await editor.saveAndExit();
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, true);
+  editor.draft.name = 'Corrected';
+  await editor.saveAndExit();
+  assert.equal(calls, 2);
+  assert.equal(editor.isDirty, false);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// Historical partial centers and blank cover originals have intentionally lossy display projections.
+test('F2: valid metadata acknowledgement retains exact nullable originals behind display defaults', () => withApp(async owner => {
+  const { editor } = owner;
+  const saved = { ...metadata(), name: 'Saved', originalValues: { ...metadata().originalValues,
+    name: 'Saved', center: { latitude: null, longitude: 23 }, coverImage: { rawUrl: '  ' } } };
+  globalThis.fetch = async () => new Response(reply(false, saved));
+  editor.draft.name = 'Saved';
+  await editor.saveAndExit();
+  assert.equal(editor.draftState.metadataAttempt.value, null);
+  assert.equal(editor.isDirty, false);
+  editor.draft.centerLatitude = 38;
+  editor.draft.centerLongitude = 24;
+  assert.deepEqual(editor.draftState.request().expected.center, { latitude: null, longitude: 23 });
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// Mirror the retained routed U+0085/U+FEFF envelopes and ordinary mapper cover projections.
+for (const [label, rawUrl, displayUrl] of [
+  ['null', null, null], ['empty', '', null], ['whitespace', ' \t\r\n', null],
+  ['U+0085', '\u0085', null], ['U+FEFF', '\uFEFF', '\uFEFF'],
+  ['nonblank', ' https://example.test/cover.jpg ', ' https://example.test/cover.jpg ']
+]) test(`F2: valid Name acknowledgement with ${label} cover adopts and retains the exact original`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  const coverImage = displayUrl === null ? null : { rawUrl: displayUrl, proxiedUrl: '/Public/ProxyImage' };
+  const originalCover = rawUrl === null ? null : { rawUrl };
+  parent.applyMetadata({ ...metadata(), coverImage, originalValues: { ...metadata().originalValues, coverImage: originalCover } });
+  await nextTick();
+  const saved = { ...parent.state.metadata, name: 'Saved name',
+    originalValues: { ...parent.state.metadata.originalValues, name: 'Saved name' } };
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+  editor.draft.name = 'Saved name';
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.name, 'Saved name');
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.notEqual(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+  editor.draft.coverImageRawUrl = 'https://example.test/replacement.jpg';
+  assert.deepEqual(editor.draftState.request().expected.coverImage, originalCover);
+}));
+
+// Defensive M1 checks use immutable intent; only explicit empty Clear has predictable Notes equality.
+for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'])
+  test(`M1: same-Trip acknowledgement contradicting submitted ${scenario} stays held`, () => withApp(async owner => {
+    const { editor, parent } = owner;
+    const field = scenario === 'newerName' ? 'name' : scenario;
+    const gate = deferred();
+    const desired = { name: 'Requested name', notesHtml: '', isPublic: false,
+      coverImage: { rawUrl: 'https://example.test/requested.jpg' }, center: { latitude: 1, longitude: 2 }, zoom: 3 };
+    const changes = { [field]: desired[field] };
+    const unrelated = { name: 'Unrelated result', notesHtml: 'Unrelated notes', isPublic: true,
+      coverImage: { rawUrl: 'https://example.test/unrelated.jpg' }, center: { latitude: 4, longitude: 5 }, zoom: 6 };
+    const saved = { ...metadata(), ...changes, [field]: unrelated[field],
+      originalValues: { ...metadata().originalValues, ...changes, [field]: unrelated[field] } };
+    if (field === 'coverImage') saved.coverImage = { ...unrelated.coverImage, proxiedUrl: '/Public/ProxyImage' };
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; await gate.promise; return new Response(reply(false, saved)); };
+    const draftChanges = { name: { name: desired.name }, notesHtml: { notesHtml: desired.notesHtml }, isPublic: { isPublic: false },
+      coverImage: { coverImageRawUrl: desired.coverImage.rawUrl }, center: { centerLatitude: 1, centerLongitude: 2 }, zoom: { zoom: 3 } };
+    // Make Notes dirty before testing an explicit Clear against unrelated nonempty returned Notes.
+    if (field === 'notesHtml') {
+      parent.applyMetadata({ ...metadata(), notesHtml: 'Previous notes',
+        originalValues: { ...metadata().originalValues, notesHtml: 'Previous notes' } });
+      await nextTick();
+    }
+    Object.assign(editor.draft, draftChanges[field]);
+    const saving = editor.saveAndExit();
+    const submitted = editor.draftState.metadataAttempt.value.request;
+    // A later draft matching the wrong response cannot authorize adoption of that response.
+    if (scenario === 'newerName') editor.draft.name = unrelated.name;
+    gate.resolve();
+    await saving;
+    assert.equal(parent.state.metadata.name, 'Trip');
+    assert.equal(editor.metadataUnconfirmed, true);
+    assert.equal(editor.draftState.metadataAttempt.value.request, submitted);
+    assert.deepEqual(submitted.changes, changes);
+    assert.equal(editor.isDirty, true);
+    assert.equal(editor.lastSavedAt, null);
+    await editor.saveAndExit();
+    assert.equal(calls, 1);
+    assert.deepEqual(owner.navigations, []);
+  }));
+
+// Mirror the genuine routed SMS normalization; the real sanitizer/Quill seam is covered in Playwright.
+test('F2: server-normalized Notes acknowledgement adopts before Saved and exit', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  const saved = { ...metadata(), notesHtml: '<p><a>Contact</a></p>',
+    originalValues: { ...metadata().originalValues, notesHtml: '<p><a>Contact</a></p>' } };
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+  editor.draft.notesHtml = '<p><a href="sms:+1234">Contact</a></p>';
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.notesHtml, saved.notesHtml);
+  assert.equal(editor.draft.notesHtml, saved.notesHtml);
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.notEqual(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// Blank display must be null, and nonblank display must preserve exact material, as in Region ordering.
+for (const invalid of ['missing', 'blank-object', 'U+0085-object', 'U+FEFF-null'])
+  test(`F2: malformed ${invalid} cover acknowledgement holds without replay or Saved`, () => withApp(async owner => {
+    const { editor, parent } = owner;
+    const rawUrl = invalid === 'U+FEFF-null' ? '\uFEFF' : '\u0085';
+    const saved = { ...metadata(), name: 'Saved name',
+      originalValues: { ...metadata().originalValues, name: 'Saved name', coverImage: { rawUrl } } };
+    if (invalid === 'missing') delete saved.coverImage;
+    if (invalid === 'blank-object') saved.coverImage = { rawUrl: '', proxiedUrl: '/Public/ProxyImage' };
+    if (invalid === 'U+0085-object') saved.coverImage = { rawUrl, proxiedUrl: '/Public/ProxyImage' };
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+    editor.draft.name = 'Saved name';
+    await editor.saveAndExit();
+    await editor.saveAndExit();
+    assert.equal(calls, 1);
+    assert.equal(parent.state.metadata.name, 'Trip');
+    assert.equal(editor.draft.name, 'Saved name');
+    assert.equal(editor.metadataUnconfirmed, true);
+    assert.equal(editor.lastSavedAt, null);
+    assert.deepEqual(owner.navigations, []);
+  }));
+
+// Name/cover use .NET whitespace; making private derives a sharing disable; clear center publishes nullable originals.
+for (const clear of [false, true]) test(`M1: normalized submitted values and ${clear ? 'clears' : 'derived sharing'} are acknowledged`, () => withApp(async owner => {
+  const { editor, parent } = owner;
+  parent.applyMetadata({ ...metadata(true), notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
+    coverImage: { rawUrl: 'https://example.test/old.jpg', proxiedUrl: '/Public/ProxyImage' },
+    originalValues: { ...metadata(true).originalValues, notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
+      coverImage: { rawUrl: 'https://example.test/old.jpg' } } });
+  await nextTick();
+  const saved = { ...metadata(), name: '\uFEFFSaved name\uFEFF', notesHtml: clear ? '' : 'Normalized notes', isPublic: false,
+    center: clear ? null : { latitude: 1, longitude: 2 }, zoom: clear ? null : 3,
+    coverImage: clear ? null : { rawUrl: 'https://example.test/new.jpg', proxiedUrl: '/Public/ProxyImage' } };
+  saved.originalValues = { name: saved.name, notesHtml: saved.notesHtml, isPublic: false,
+    center: clear ? { latitude: null, longitude: null } : saved.center, zoom: saved.zoom,
+    coverImage: clear ? null : { rawUrl: saved.coverImage.rawUrl } };
+  globalThis.fetch = async () => new Response(reply(false, saved));
+  Object.assign(editor.draft, { name: '\u0085 \uFEFFSaved name\uFEFF \u0085', notesHtml: clear ? '' : '\u0085Normalized notes\u0085', isPublic: false,
+    coverImageRawUrl: clear ? '' : '\u0085 https://example.test/new.jpg \u0085',
+    centerLatitude: clear ? '' : 1, centerLongitude: clear ? '' : 2, zoom: clear ? '' : 3 });
+  await editor.saveAndExit();
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.equal(parent.state.metadata.shareProgressEnabled, false);
+  assert.equal(parent.state.metadata.name, saved.name);
   assert.deepEqual(owner.navigations, ['/User/Trip']);
 }));
