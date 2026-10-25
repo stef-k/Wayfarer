@@ -21,7 +21,7 @@ const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${impor
 const component = (await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=editor-exit-test.mjs').toString('base64')}`)).default;
 
 // Model the server's compatible display projection plus exact original-value evidence.
-const withOriginals = metadata => ({ ...metadata, originalValues: { name: metadata.name, notesHtml: metadata.notesHtml ?? null,
+const withOriginals = metadata => ({ ...metadata, coverImage: metadata.coverImage ?? null, originalValues: { name: metadata.name, notesHtml: metadata.notesHtml ?? null,
   isPublic: metadata.isPublic, coverImage: metadata.coverImage ? { rawUrl: metadata.coverImage.rawUrl } : null,
   center: metadata.center ?? { latitude: null, longitude: null }, zoom: metadata.zoom ?? null } });
 

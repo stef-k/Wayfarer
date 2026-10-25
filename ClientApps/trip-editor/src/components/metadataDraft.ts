@@ -249,8 +249,9 @@ const validMetadataAcknowledgement = (next: EditorTripMetadata, tripId: string):
     coordinate(original.center) && coordinate(next.center) && same(projectedCenter, next.center) &&
     (original.zoom === null || typeof original.zoom === 'number' && Number.isFinite(original.zoom)) && original.zoom === next.zoom &&
     (original.coverImage === null || original.coverImage?.rawUrl === null || typeof original.coverImage?.rawUrl === 'string') &&
-    (original.coverImage?.rawUrl == null || /^\p{White_Space}*$/u.test(original.coverImage.rawUrl) ? '' : original.coverImage.rawUrl) ===
-      (next.coverImage?.rawUrl ?? '');
+    (next.coverImage === null || next.coverImage && typeof next.coverImage.rawUrl === 'string' && typeof next.coverImage.proxiedUrl === 'string') &&
+    (original.coverImage?.rawUrl == null || /^\p{White_Space}*$/u.test(original.coverImage.rawUrl) ? null : original.coverImage.rawUrl) ===
+      (next.coverImage?.rawUrl ?? null);
 };
 
 /** Match .NET Trim/IsNullOrWhiteSpace as in Region ordering; U+0085 is whitespace, U+FEFF is material. */

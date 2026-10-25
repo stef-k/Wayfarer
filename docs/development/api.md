@@ -1044,7 +1044,17 @@ change not confirmed**. Save, Save & Exit and Cancel / Reset are held; parent
 refresh and closing/reopening settings cannot erase the attempt or latest values.
 A fresh read cannot establish that the predecessor is terminal. A valid reply
 correlated with that request advances confirmed originals and preserves newer
-edits, which can then be saved explicitly. Validation, authentication,
+edits, which can then be saved explicitly. Before adoption, the reply must match
+the immutable submitted changes after server normalization: .NET whitespace
+trimming for Name/desired cover, shared Notes normalization, nullable center
+clearing and the derived sharing disable when making private. Unsubmitted fields
+may reflect disjoint concurrent edits; newer draft values never validate an older
+attempt. Submitted-value mismatches retain uncertainty without replay or Saved.
+Cover display validation follows the server's Unicode whitespace rule: U+0085
+projects to null, while U+FEFF remains material. Blank stored covers display as
+null, separately from exact `originalValues.coverImage`; acknowledgement validation never
+normalizes those originals. These checks are defensive client validation, not
+evidence that the server emits inconsistent submitted values. Validation, authentication,
 authorization, unavailable-route/scope and conditional-conflict rejections from
 this endpoint are definitive no-write failures and remain correctable. No
 automatic retry or synthesized originals are used.

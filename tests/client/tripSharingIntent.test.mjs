@@ -645,34 +645,61 @@ for (const [label, rawUrl, displayUrl] of [
 }));
 
 // Defensive M1 counterexamples: internally consistent replies still must match this immutable submission.
-for (const field of ['name', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'])
-  test(`M1: same-Trip acknowledgement contradicting submitted ${field} stays held`, () => withApp(async owner => {
+for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'])
+  test(`M1: same-Trip acknowledgement contradicting submitted ${scenario} stays held`, () => withApp(async owner => {
     const { editor, parent } = owner;
+    const field = scenario === 'newerName' ? 'name' : scenario;
     const gate = deferred();
-    const changes = { name: 'Requested name', notesHtml: 'Requested notes', isPublic: false,
+    const desired = { name: 'Requested name', notesHtml: 'Requested notes', isPublic: false,
       coverImage: { rawUrl: 'https://example.test/requested.jpg' }, center: { latitude: 1, longitude: 2 }, zoom: 3 };
+    const changes = { [field]: desired[field] };
     const unrelated = { name: 'Unrelated result', notesHtml: 'Unrelated notes', isPublic: true,
       coverImage: { rawUrl: 'https://example.test/unrelated.jpg' }, center: { latitude: 4, longitude: 5 }, zoom: 6 };
     const saved = { ...metadata(), ...changes, [field]: unrelated[field],
       originalValues: { ...metadata().originalValues, ...changes, [field]: unrelated[field] } };
+    if (field === 'coverImage') saved.coverImage = { ...unrelated.coverImage, proxiedUrl: '/Public/ProxyImage' };
     let calls = 0;
     globalThis.fetch = async () => { calls++; await gate.promise; return new Response(reply(false, saved)); };
-    Object.assign(editor.draft, { name: changes.name, notesHtml: changes.notesHtml, isPublic: false,
-      coverImageRawUrl: changes.coverImage.rawUrl, centerLatitude: 1, centerLongitude: 2, zoom: 3 });
+    const draftChanges = { name: { name: desired.name }, notesHtml: { notesHtml: desired.notesHtml }, isPublic: { isPublic: false },
+      coverImage: { coverImageRawUrl: desired.coverImage.rawUrl }, center: { centerLatitude: 1, centerLongitude: 2 }, zoom: { zoom: 3 } };
+    Object.assign(editor.draft, draftChanges[field]);
     const saving = editor.saveAndExit();
     const submitted = editor.draftState.metadataAttempt.value.request;
     // A later draft matching the wrong response cannot authorize adoption of that response.
-    if (field === 'name') editor.draft.name = unrelated.name;
+    if (scenario === 'newerName') editor.draft.name = unrelated.name;
     gate.resolve();
     await saving;
     assert.equal(parent.state.metadata.name, 'Trip');
     assert.equal(editor.metadataUnconfirmed, true);
     assert.equal(editor.draftState.metadataAttempt.value.request, submitted);
-    assert.equal(submitted.changes.name, 'Requested name');
+    assert.deepEqual(submitted.changes, changes);
     assert.equal(editor.isDirty, true);
     assert.equal(editor.lastSavedAt, null);
     await editor.saveAndExit();
     assert.equal(calls, 1);
+    assert.deepEqual(owner.navigations, []);
+  }));
+
+// Blank display must be null, and nonblank display must preserve exact material, as in Region ordering.
+for (const invalid of ['missing', 'blank-object', 'U+0085-object', 'U+FEFF-null'])
+  test(`F2: malformed ${invalid} cover acknowledgement holds without replay or Saved`, () => withApp(async owner => {
+    const { editor, parent } = owner;
+    const rawUrl = invalid === 'U+FEFF-null' ? '\uFEFF' : '\u0085';
+    const saved = { ...metadata(), name: 'Saved name',
+      originalValues: { ...metadata().originalValues, name: 'Saved name', coverImage: { rawUrl } } };
+    if (invalid === 'missing') delete saved.coverImage;
+    if (invalid === 'blank-object') saved.coverImage = { rawUrl: '', proxiedUrl: '/Public/ProxyImage' };
+    if (invalid === 'U+0085-object') saved.coverImage = { rawUrl, proxiedUrl: '/Public/ProxyImage' };
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+    editor.draft.name = 'Saved name';
+    await editor.saveAndExit();
+    await editor.saveAndExit();
+    assert.equal(calls, 1);
+    assert.equal(parent.state.metadata.name, 'Trip');
+    assert.equal(editor.draft.name, 'Saved name');
+    assert.equal(editor.metadataUnconfirmed, true);
+    assert.equal(editor.lastSavedAt, null);
     assert.deepEqual(owner.navigations, []);
   }));
 

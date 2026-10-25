@@ -10,7 +10,10 @@
   through refresh and settings close/reopen; accept only correlated usable replies
   or definitive rejection. Offer explicit Leave without saving without promising
   rollback, automatic retry or cross-reload recovery. Preserve sharing and newer
-  draft navigation controls. No backend change or migration.
+  draft navigation controls. Match server cover projection for U+0085/U+FEFF while
+  preserving exact originals; reject replies inconsistent with immutable submitted
+  values after server normalization (#934 R1/M1 defensive hardening). No backend
+  change or migration.
 
 - Reject the seven unconditional Trip metadata, Region, Area and bearer Segment
   Notes writers that could erase protected edits (#853 reconciliation F1).
