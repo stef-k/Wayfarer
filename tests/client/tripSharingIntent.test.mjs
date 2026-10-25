@@ -66,6 +66,7 @@ const deferred = () => {
 // Reuse the host renderer from placeConditionalEditing; production templates and parent event scheduling run unchanged.
 const withApp = async action => {
   const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, CSS: globalThis.CSS,
+    Document: globalThis.Document, ShadowRoot: globalThis.ShadowRoot,
     c3Confirm: globalThis.c3Confirm, captureC3Component: globalThis.captureC3Component };
   const captured = {};
   const navigations = [];
@@ -73,6 +74,9 @@ const withApp = async action => {
   let approved = false;
   globalThis.captureC3Component = (name, bindings) => { captured[name] = proxyRefs(bindings); };
   globalThis.c3Confirm = async options => { confirmations.push(options); return approved; };
+  // Vue text-model directives inspect the input root even in this non-DOM host.
+  globalThis.Document = class {};
+  globalThis.ShadowRoot = class {};
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
   globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
@@ -84,7 +88,8 @@ const withApp = async action => {
   };
   const teleportBody = { children: [] };
   const renderer = createRenderer({ createElement: tag => ({ tagName: tag.toUpperCase(), style: {}, children: [],
-    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {} }), createText: text => ({ text }), createComment: () => ({}),
+    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {},
+    getRootNode: () => globalThis.document }), createText: text => ({ text }), createComment: () => ({}),
     insert(node, parent, anchor) {
       remove(node);
       parent.children ??= [];
@@ -433,4 +438,44 @@ test('C3 confirmed validation rejection permits a later explicit sharing save', 
   assert.equal(parent.state.metadata.shareProgressEnabled, true);
   assert.equal(editor.isDirty, false);
   assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// F2 regressions converted from the retained C5 metadata counterexamples; only transport is controlled.
+test('F2: lost metadata reply blocks an identical blind replay on another Save', () => withApp(async owner => {
+  const { editor } = owner;
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    throw new TypeError('Lost reply; submitted metadata may still commit');
+  };
+  editor.draft.name = 'Earlier request';
+  await editor.save(false);
+  assert.equal(requests.length, 1);
+  await editor.save(false);
+  assert.equal(requests.length, 1, 'an unresolved conditional request must not be replayed');
+  assert.equal(editor.isDirty, true);
+  assert.match(editor.statusText, /not confirmed/i);
+  assert.deepEqual(owner.navigations, []);
+}));
+
+test('F2: newer metadata reversal retains its obligation after reply loss and cannot report Saved or exit', () => withApp(async owner => {
+  const { editor } = owner;
+  const gate = deferred();
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; await gate.promise; return new Response('{}', { status: 500 }); };
+  editor.draft.name = 'Earlier request';
+  const pending = editor.saveAndExit();
+  assert.equal(requests, 1);
+  editor.draft.name = 'Trip';
+  gate.resolve();
+  await pending;
+  assert.equal(editor.isDirty, true, 'old-baseline equality cannot settle a newer reversal');
+  await editor.saveAndExit();
+  assert.equal(requests, 1);
+  assert.equal(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, []);
+  const event = { prevented: false, preventDefault() { this.prevented = true; } };
+  editor.confirmUnload(event);
+  assert.equal(event.prevented, true);
+  assert.equal(owner.parent.editorSurface.isActiveTargetDirty(), true);
 }));
