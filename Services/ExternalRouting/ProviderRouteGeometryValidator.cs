@@ -2,7 +2,7 @@ using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Services.ExternalRouting;
 
-/// <summary>Restores exact semantic anchors and budgets untrusted provider route geometry.</summary>
+/// <summary>Restores exact semantic anchors and budgets geometry while preserving instruction boundaries.</summary>
 public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValidator
 {
     private const double AnchorToleranceMetres = 25;
@@ -15,13 +15,16 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         if (!providerRoute.Succeeded || anchors.Count is < 2 or > 50
             || providerRoute.Waypoints.Count != anchors.Count || providerRoute.Geometry.Count is < 2 or > 100000
             || anchors.Any(anchor => !anchor.IsValid) || providerRoute.Geometry.Any(coordinate => !coordinate.IsValid)
-            || providerRoute.Waypoints.Any(coordinate => !coordinate.IsValid))
+            || providerRoute.Waypoints.Any(coordinate => !coordinate.IsValid)
+            || providerRoute.Instructions.Any(instruction => instruction.FromIndex < 0
+                || instruction.ToIndex < instruction.FromIndex || instruction.ToIndex >= providerRoute.Geometry.Count))
             return ProviderRouteValidationResult.Failure("provider-route-invalid");
         for (var index = 0; index < anchors.Count; index++)
             if (DistanceMetres(anchors[index], providerRoute.Waypoints[index]) > AnchorToleranceMetres)
                 return ProviderRouteValidationResult.Failure("provider-waypoints-incompatible");
 
         var geometry = providerRoute.Geometry.ToList();
+        var instructions = providerRoute.Instructions.ToArray();
         if (providerRoute.StructuralWaypointIndices is { } structuralIndices)
             return ValidateStructuralAnchors(anchors, providerRoute, geometry, structuralIndices, cancellationToken);
 
@@ -32,15 +35,24 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         geometry[0] = anchors[0];
         for (var anchorIndex = 1; anchorIndex < anchors.Count - 1; anchorIndex++)
         {
+            var previousCount = geometry.Count;
             var resolved = ResolveIntermediateAnchor(geometry, providerRoute.Waypoints[anchorIndex], anchors[anchorIndex], protectedIndices[^1]);
             if (resolved < 0) return ProviderRouteValidationResult.Failure("provider-anchor-ambiguous");
+            // An inserted anchor shifts existing instruction positions without creating a new turn.
+            if (geometry.Count != previousCount)
+                for (var index = 0; index < instructions.Length; index++)
+                    instructions[index] = instructions[index] with
+                    {
+                        FromIndex = instructions[index].FromIndex >= resolved ? instructions[index].FromIndex + 1 : instructions[index].FromIndex,
+                        ToIndex = instructions[index].ToIndex >= resolved ? instructions[index].ToIndex + 1 : instructions[index].ToIndex
+                    };
             protectedIndices.Add(resolved);
         }
         geometry[^1] = anchors[^1];
         protectedIndices.Add(geometry.Count - 1);
         if (!StrictlyIncreasing(protectedIndices)) return ProviderRouteValidationResult.Failure("provider-anchor-order-invalid");
 
-        return Budget(anchors, geometry, protectedIndices, cancellationToken);
+        return Budget(anchors, geometry, protectedIndices, instructions, cancellationToken);
     }
 
     private static ProviderRouteValidationResult ValidateStructuralAnchors(
@@ -59,24 +71,35 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
                 return ProviderRouteValidationResult.Failure("provider-route-invalid");
             geometry[indices[anchorIndex]] = anchors[anchorIndex];
         }
-        return Budget(anchors, geometry, indices, cancellationToken);
+        return Budget(anchors, geometry, indices, providerRoute.Instructions, cancellationToken);
     }
 
     private static ProviderRouteValidationResult Budget(
         IReadOnlyList<RouteCoordinate> anchors, IReadOnlyList<RouteCoordinate> geometry,
-        IReadOnlyList<int> protectedIndices, CancellationToken cancellationToken)
+        IReadOnlyList<int> protectedIndices, IReadOnlyList<RouteInstruction> instructions, CancellationToken cancellationToken)
     {
         try
         {
             var source = geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray();
-            var budgeted = RouteGeometryBudgeter.Budget(source, protectedIndices, cancellationToken);
+            var requiredIndices = protectedIndices.Concat(instructions.SelectMany(item => new[] { item.FromIndex, item.ToIndex }))
+                .Distinct().ToArray();
+            var budgeted = RouteGeometryBudgeter.Budget(source, requiredIndices, cancellationToken);
             var result = budgeted.Coordinates.Select(item => new RouteCoordinate(item.X, item.Y)).ToArray();
             var indices = MapProtectedIndices(budgeted.SourceIndices, protectedIndices);
             if (indices == null || budgeted.SourceIndices.Count != result.Length
                 || result.Length > RouteGeometryBudgeter.MaximumPersistedCoordinates || !StrictlyIncreasing(indices)
                 || indices.Where((outputIndex, anchorIndex) => result[outputIndex] != anchors[anchorIndex]).Any())
                 return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
-            return new ProviderRouteValidationResult(true, result, indices, null);
+            // Required instruction vertices survive deduplication and simplification by source identity.
+            var outputIndices = budgeted.SourceIndices.Select((sourceIndex, outputIndex) => (sourceIndex, outputIndex))
+                .ToDictionary(item => item.sourceIndex, item => item.outputIndex);
+            if (requiredIndices.Any(index => !outputIndices.ContainsKey(index)))
+                return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
+            var remapped = instructions.Select(item => item with
+            {
+                FromIndex = outputIndices[item.FromIndex], ToIndex = outputIndices[item.ToIndex]
+            }).ToArray();
+            return new ProviderRouteValidationResult(true, result, indices, null, remapped);
         }
         catch (RouteGeometryBudgetException) { return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied"); }
     }

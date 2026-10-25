@@ -38,6 +38,27 @@ public sealed class ProviderRouteGeometryValidatorTests
         Assert.Equal([0, 1, 2], result.WaypointIndices);
     }
 
+    /// <summary>Shifts original instruction positions across multiple inserted anchors without inventing turns.</summary>
+    [Fact]
+    public void Validate_PreservesInstructionsAcrossAnchorInsertion()
+    {
+        RouteCoordinate[] anchors = [new(0, 0), new(0.001, 0), new(0.002, 0), new(0.004, 0)];
+        RouteCoordinate[] geometry = [anchors[0], new(0.003, 0), anchors[^1]];
+        RouteInstruction[] instructions = [new("Continue", "Straight", 0, 1, 300, 30),
+            new("Finish", "Straight", 1, 2, 100, 10), new("Destination", "Destination", 2, 2, 0, 0)];
+        var route = new ProviderRouteResult(true, geometry, anchors, null, RouteInstructions: instructions);
+
+        var result = _validator.Validate(anchors, route, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([0, 1, 2, 4], result.WaypointIndices);
+        Assert.Equal([instructions[0] with { ToIndex = 3 }, instructions[1] with { FromIndex = 3, ToIndex = 4 },
+            instructions[2] with { FromIndex = 4, ToIndex = 4 }], result.Instructions);
+        Assert.Equal(geometry[1], result.Geometry![result.Instructions[0].ToIndex]);
+        Assert.Equal(geometry[^1], result.Geometry[result.Instructions[^1].ToIndex]);
+        Assert.Equal(1, instructions[0].ToIndex);
+    }
+
     [Fact]
     public void Validate_HandlesExactClosedLoopWithDistinctOrderedIndices()
     {

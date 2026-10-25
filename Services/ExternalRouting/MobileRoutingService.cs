@@ -112,7 +112,7 @@ public sealed class MobileRoutingService(
             userId, transportProfileId, providerMode, execution, selectedProfileAuthorityIdentity, cancellationToken))
             return MobileRouteServiceResult.Failure(selectedProfileAuthorityIdentity is null ? "configuration-changed" : "authority-changed");
         return new(true, "available", validated.Geometry!, route.DistanceMetres, route.DurationSeconds,
-            route.Instructions, clock.GetUtcNow(), "geoapify", execution.PacingIdentity,
+            validated.Instructions, clock.GetUtcNow(), "geoapify", execution.PacingIdentity,
             MappingIdentity(execution, transportProfileId), transportProfileId, points,
             Attributions(), "persistent", selectedProfileAuthorityIdentity, execution.Profile);
     }

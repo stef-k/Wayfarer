@@ -211,7 +211,7 @@ public sealed partial class PersonalRouteSavePostgresTests(PostgresMigrationTest
     {
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> anchors,
             ProviderRouteResult providerRoute, CancellationToken cancellationToken) =>
-            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null);
+            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null, providerRoute.Instructions);
     }
 
     private async Task<SeededAuthority> SeedAsync(string userId, PersonalProviderCredentialService credentials,

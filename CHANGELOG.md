@@ -4,6 +4,13 @@
 
 ### Changed
 
+- Preserve instruction boundary vertices when budgeting provider routes and remap
+  instruction indices to the exact returned geometry, including anchor insertion
+  and simplification (#930). Mobile routes and protected Trip Editor proposals
+  retain coherent instructions or reject the whole result under existing limits.
+  Metrics, attribution, retention rights and provider-credit accounting are
+  unchanged. No migration.
+
 - Retain submitted Trip metadata attempts separately from confirmed originals and
   latest edits (#853 F2). Uncertain replies hold Save, Save & Exit, reset and
   navigation even when a newer reversal equals the old baseline. Preserve intent

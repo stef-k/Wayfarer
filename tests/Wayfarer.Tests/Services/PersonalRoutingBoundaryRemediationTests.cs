@@ -16,6 +16,131 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves the focused personal-provider routing boundaries retained by issue 538 step 3.</summary>
 public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
 {
+    /// <summary>Publishes spans against the returned geometry, preserving leg and instruction boundary positions.</summary>
+    [Theory]
+    [InlineData(5)]
+    [InlineData(601)]
+    public async Task MobileRoute_PreservesInstructionBoundariesAfterBudgeting(int pointsPerLeg)
+    {
+        var fixture = CreateFixture();
+        var route = await InstructedRouteAsync(fixture.Anchors, pointsPerLeg);
+        var client = new CallbackRouteClient(route: route);
+        var service = new MobileRoutingService(fixture.Db, fixture.Resolver, client,
+            new ProviderRouteGeometryValidator(), new RoutingRequestBudget(),
+            new MobileRoutingProfileDiscoveryService(fixture.Db, fixture.Credentials));
+
+        var result = await service.RouteAsync(fixture.UserId, fixture.PlanningProfile.Id, fixture.Anchors,
+            "drive", null, CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.Outcome);
+        Assert.Equal(1, client.Requests);
+        Assert.Equal(route.Instructions.Count, result.Instructions!.Count);
+        if (pointsPerLeg == 5)
+        {
+            Assert.Equal(route.Geometry, result.Geometry);
+            Assert.Equal(route.Instructions, result.Instructions);
+        }
+        else Assert.True(result.Geometry!.Count < route.Geometry.Count);
+        for (var index = 0; index < route.Instructions.Count; index++)
+        {
+            var original = route.Instructions[index];
+            var final = result.Instructions[index];
+            Assert.InRange(final.FromIndex, 0, result.Geometry!.Count - 1);
+            Assert.InRange(final.ToIndex, final.FromIndex, result.Geometry.Count - 1);
+            if (index > 0) Assert.True(final.FromIndex >= result.Instructions[index - 1].ToIndex);
+            Assert.Equal(route.Geometry[original.FromIndex], result.Geometry[final.FromIndex]);
+            Assert.Equal(route.Geometry[original.ToIndex], result.Geometry[final.ToIndex]);
+            Assert.Equal(original, final with { FromIndex = original.FromIndex, ToIndex = original.ToIndex });
+        }
+        Assert.Equal(fixture.Anchors[0], result.Geometry![0]);
+        Assert.Equal(fixture.Anchors[^1], result.Geometry[^1]);
+        Assert.Equal(route.DistanceMetres, result.DistanceMetres);
+        Assert.Equal(route.DurationSeconds, result.DurationSeconds);
+        Assert.Equal("persistent", result.StorageMode);
+        Assert.Equal("geoapify", result.Provider);
+        Assert.Equal(2, result.Attribution!.Count);
+    }
+
+    /// <summary>Rejects the entire response when required instruction vertices alone exceed the existing limit.</summary>
+    [Fact]
+    public async Task MobileRoute_RejectsUnrepresentableInstructionBoundaries()
+    {
+        var fixture = CreateFixture();
+        var route = await InstructedRouteAsync(fixture.Anchors, 601, everyBoundary: true);
+        var client = new CallbackRouteClient(route: route);
+        var service = new MobileRoutingService(fixture.Db, fixture.Resolver, client,
+            new ProviderRouteGeometryValidator(), new RoutingRequestBudget(),
+            new MobileRoutingProfileDiscoveryService(fixture.Db, fixture.Credentials));
+
+        var result = await service.RouteAsync(fixture.UserId, fixture.PlanningProfile.Id, fixture.Anchors,
+            "drive", null, CancellationToken.None);
+
+        Assert.Equal(1, client.Requests);
+        Assert.False(result.Succeeded);
+        Assert.Equal("invalid-response", result.Outcome);
+        Assert.Null(result.Geometry);
+        Assert.Null(result.Instructions);
+        Assert.Null(result.DistanceMetres);
+    }
+
+    /// <summary>Protects the shared proposal consumer and retained instruction binding after simplification.</summary>
+    [Fact]
+    public async Task Generator_ProtectsRemappedInstructionsWithBudgetedGeometry()
+    {
+        var fixture = CreateFixture();
+        var route = await InstructedRouteAsync(fixture.Anchors, 601);
+        var generator = new ExternalRouteProposalGenerator(fixture.Db, fixture.AggregateTokens,
+            new CallbackRouteClient(route: route), new ProviderRouteGeometryValidator(), fixture.ProposalContexts,
+            new RoutingRequestBudget(), fixture.Resolver);
+
+        var result = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "drive", CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.ErrorCode);
+        var proposal = result.Proposal!;
+        Assert.True(proposal.Geometry.Count < route.Geometry.Count);
+        Assert.True(fixture.ProposalContexts.TryRead(proposal.ProtectedContext, out var binding));
+        Assert.Equal(proposal.Instructions, binding!.Instructions);
+        Assert.Equal(route.Instructions.Count, proposal.Instructions!.Count);
+        for (var index = 0; index < route.Instructions.Count; index++)
+        {
+            Assert.Equal(route.Geometry[route.Instructions[index].FromIndex], proposal.Geometry[proposal.Instructions[index].FromIndex]);
+            Assert.Equal(route.Geometry[route.Instructions[index].ToIndex], proposal.Geometry[proposal.Instructions[index].ToIndex]);
+        }
+        Assert.Null(fixture.Segment.RouteGeometry);
+    }
+
+    /// <summary>Parses a local two-leg provider payload, including a repeated boundary vertex and point instruction.</summary>
+    private static async Task<ProviderRouteResult> InstructedRouteAsync(
+        IReadOnlyList<RouteCoordinate> anchors, int pointsPerLeg, bool everyBoundary = false)
+    {
+        var lines = anchors.Zip(anchors.Skip(1), (start, end) =>
+            Enumerable.Range(0, pointsPerLeg).Select(index => index == pointsPerLeg - 1 ? end : new RouteCoordinate(
+                start.Longitude + (end.Longitude - start.Longitude) * index / (pointsPerLeg - 1),
+                start.Latitude + (end.Latitude - start.Latitude) * index / (pointsPerLeg - 1))).ToList()).ToArray();
+        lines[0].Insert(pointsPerLeg - 1, lines[0][pointsPerLeg - 2]);
+        var json = JsonSerializer.Serialize(new
+        {
+            results = new[] { new
+            {
+                distance = 1250, time = 360,
+                geometry = lines.Select(line => line.Select(point => new { lon = point.Longitude, lat = point.Latitude })),
+                legs = lines.Select(line => new
+                {
+                    distance = 625, time = 180,
+                    steps = (everyBoundary ? Enumerable.Range(0, line.Count - 1).Select(index => (index, index + 1))
+                        : new[] { (0, 2), (2, line.Count - 2), (line.Count - 2, line.Count - 1), (line.Count - 1, line.Count - 1) })
+                        .Select(span => new { from_index = span.Item1, to_index = span.Item2, distance = 0, time = 0,
+                            instruction = new { text = "Continue", type = "Straight" } })
+                })
+            } }
+        });
+        using var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(json) };
+        var route = await GeoapifyRoutingAdapter.ParseAsync(response, anchors);
+        Assert.True(route.Succeeded, route.ErrorCode);
+        return route;
+    }
+
     /// <summary>Planning identity is retained context, never permission to request an explicit native mode.</summary>
     [Theory]
     [InlineData(false)]
@@ -211,7 +336,7 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         ExternalRouteProposalContextService ProposalContexts, AuthoritativeRoutingProviderResolver Resolver,
         IReadOnlyList<RouteCoordinate> Anchors);
 
-    private sealed class CallbackRouteClient(Func<CancellationToken, Task>? callback = null) : IProviderRouteClient
+    private sealed class CallbackRouteClient(Func<CancellationToken, Task>? callback = null, ProviderRouteResult? route = null) : IProviderRouteClient
     {
         public int Requests { get; private set; }
         public string? Mode { get; private set; }
@@ -223,6 +348,7 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
             Requests++;
             Mode = execution.Profile;
             if (callback != null) await callback(cancellationToken);
+            if (route != null) return route;
             return new(true, anchors, anchors, null, 1250, 360,
                 [new("Continue", "straight", 0, anchors.Count - 1, 1250, 360)],
                 Enumerable.Range(0, anchors.Count).ToArray());
@@ -233,6 +359,6 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
     {
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> anchors,
             ProviderRouteResult providerRoute, CancellationToken cancellationToken) =>
-            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null);
+            new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null, providerRoute.Instructions);
     }
 }
