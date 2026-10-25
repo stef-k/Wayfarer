@@ -176,6 +176,8 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var db = fixture.CreateContext();
         var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
         var before = await GraphStateAsync(graph.TripId);
+        var originalOrders = await db.Places.AsNoTracking().Where(p => p.Region.TripId == graph.TripId).OrderBy(p => p.Id)
+            .Select(p => new { p.Id, p.RegionId, p.DisplayOrder }).ToArrayAsync();
         await using var app = await StartAsync(db, failCommit ? [new FailPlaceCommit(false)] : []);
         using var web = await WebAsync(app, graph.UserId);
         var request = await MoveRequestAsync(place, graph.DestinationId!.Value, true);
@@ -188,6 +190,8 @@ public sealed partial class PlaceConditionalPostgresTests
         if (failCommit)
         {
             Assert.Equal(before, await GraphStateAsync(graph.TripId));
+            Assert.Equal(JsonSerializer.Serialize(originalOrders), JsonSerializer.Serialize(await verify.Places.AsNoTracking()
+                .Where(p => p.Region.TripId == graph.TripId).OrderBy(p => p.Id).Select(p => new { p.Id, p.RegionId, p.DisplayOrder }).ToArrayAsync()));
             Assert.Equal(JsonSerializer.Serialize(Material(place)), JsonSerializer.Serialize(Material(current)));
             return;
         }

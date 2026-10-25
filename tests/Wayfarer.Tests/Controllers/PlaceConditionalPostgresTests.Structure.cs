@@ -54,6 +54,9 @@ public sealed partial class PlaceConditionalPostgresTests
         var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext();
         var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        place.ResolvedFeatureName = "Retained feature"; place.ResolvedFeatureType = "landmark";
+        place.AddressEnrichmentProvider = "geoapify"; place.AddressEnrichmentStorageMode = "persistent";
+        place.AddressEnrichedAt = new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero);
         await AddCredentialAsync(db, place.UserId);
         var before = await GraphStateAsync(graph.TripId);
         var original = JsonSerializer.Serialize(Material(place));
@@ -195,6 +198,8 @@ public sealed partial class PlaceConditionalPostgresTests
             SELECT string_agg(row, ',' ORDER BY row) FROM (
               SELECT 's:' || to_jsonb(s)::text AS row FROM "Segments" s WHERE s."TripId" = $1
               UNION ALL SELECT 'w:' || to_jsonb(w)::text FROM "SegmentWaypoints" w JOIN "Segments" s ON s."Id" = w."SegmentId" WHERE s."TripId" = $1
+              UNION ALL SELECT 'p:' || (to_jsonb(p) - ARRAY['RegionId', 'DisplayOrder'])::text FROM "Places" p
+                JOIN "Regions" r ON r."Id" = p."RegionId" WHERE r."TripId" = $1
               UNION ALL SELECT 'v:' || to_jsonb(v)::text FROM "PlaceVisitEvents" v WHERE v."TripIdSnapshot" = $1
               UNION ALL SELECT 'a:' || to_jsonb(a)::text FROM "Areas" a JOIN "Regions" r ON r."Id" = a."RegionId" WHERE r."TripId" = $1
               UNION ALL SELECT 'r:' || to_jsonb(r)::text FROM "Regions" r WHERE r."TripId" = $1
