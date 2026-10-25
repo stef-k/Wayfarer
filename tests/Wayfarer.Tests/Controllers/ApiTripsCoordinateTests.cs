@@ -85,7 +85,7 @@ public partial class ApiTripsControllerTests
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
-    /// <summary>Valid and absent pairs retain the success envelope, axis order, SRID and update preservation.</summary>
+    /// <summary>Valid and absent pairs retain the success envelope, axis order and SRID while preserving Region order.</summary>
     [Theory]
     [MemberData(nameof(ValidLegacyCoordinates))]
     public async Task LegacyMutation_ValidCoordinatesRemainCompatible(string action, double? latitude, double? longitude)
@@ -106,6 +106,8 @@ public partial class ApiTripsControllerTests
         Assert.Equal(true, payload.GetType().GetProperty("success")!.GetValue(payload));
         var isPlace = action.EndsWith("place", StringComparison.Ordinal);
         var dto = payload.GetType().GetProperty(isPlace ? "place" : "region")!.GetValue(payload);
+        Assert.Equal(0, Assert.IsType<ApiTripRegionDto>(dto).DisplayOrder);
+        Assert.Equal(0, region.DisplayOrder);
         var coordinates = isPlace ? Assert.IsType<ApiTripPlaceDto>(dto).Location : Assert.IsType<ApiTripRegionDto>(dto).Center;
         var expected = latitude.HasValue ? new[] { longitude!.Value, latitude.Value }
             : action.StartsWith("update", StringComparison.Ordinal) ? new[] { 23d, 37d } : null;
@@ -161,7 +163,7 @@ public partial class ApiTripsControllerTests
             ControllerContext = new ControllerContext { HttpContext = CreateHttpContext("tok") }
         };
 
-    /// <summary>Submits the same numeric pair together with otherwise-valid fields to each real action.</summary>
+    /// <summary>Submits coordinate/metadata changes without an unrelated protected Region-order change.</summary>
     private static Task<IActionResult> MutateCoordinatesAsync(TripsController controller, string action,
         Region region, Region destination, Place place, double? latitude, double? longitude) => action switch
     {
@@ -172,7 +174,7 @@ public partial class ApiTripsControllerTests
         }),
         "update-region" => controller.UpdateRegion(region.Id, new RegionUpdateRequestDto
         {
-            Name = "Changed", Notes = "Changed", CoverImageUrl = "changed", DisplayOrder = 7,
+            Name = "Changed", Notes = "Changed", CoverImageUrl = "changed",
             CenterLatitude = latitude, CenterLongitude = longitude
         }),
         _ => throw new ArgumentOutOfRangeException(nameof(action))

@@ -64,11 +64,11 @@ export const validateRegionOrderAcknowledgement = (result: EditorMutationResult<
       // Match ToImageReference's blank-as-null display without changing the exact material originals below.
       const coverUrl = r.originalValues?.coverImage?.rawUrl ?? null;
       return r.tripId !== tripId || !regionIds.includes(r.id) || r.isShadow !== false || typeof r.notesHtml !== 'string'
-      || (r.originalValues?.notesHtml ?? '') !== r.notesHtml || r.originalValues?.name !== r.name || !same(r.originalValues.center, r.center)
-      || !(r.coverImage === null || r.coverImage && typeof r.coverImage.rawUrl === 'string' && typeof r.coverImage.proxiedUrl === 'string')
-      || (r.coverImage?.rawUrl ?? null) !== (coverUrl === null || /^\p{White_Space}*$/u.test(coverUrl) ? null : coverUrl)
-      || !r.capabilities || !capabilities.every(key => typeof r.capabilities[key] === 'boolean')
-      || !same(material(r), { ...expected.regions.find(o => o.id === r.id), displayOrder: regionIds.indexOf(r.id) + 1 });
+        || (r.originalValues?.notesHtml ?? '') !== r.notesHtml || r.originalValues?.name !== r.name || !same(r.originalValues.center, r.center)
+        || !(r.coverImage === null || r.coverImage && typeof r.coverImage.rawUrl === 'string' && typeof r.coverImage.proxiedUrl === 'string')
+        || (r.coverImage?.rawUrl ?? null) !== (coverUrl === null || /^\p{White_Space}*$/u.test(coverUrl) ? null : coverUrl)
+        || !r.capabilities || !capabilities.every(key => typeof r.capabilities[key] === 'boolean')
+        || !same(material(r), { ...expected.regions.find(o => o.id === r.id), displayOrder: regionIds.indexOf(r.id) + 1 });
     })
     || !['places', 'areas', 'segments', 'tags'].every(key => empty(affected[key as keyof typeof affected]))
     || Object.keys(affected.placeOrdersByRegionId ?? { invalid: [] }).length !== 0

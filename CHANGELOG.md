@@ -9,7 +9,9 @@
   content, membership, stored orders and canonical identity/order; atomically write
   only normal orders and current-safe freshness, preserving children and historical
   canonical order. Guard acknowledgement scope and newer drafts; hold unknown
-  outcomes without replay or false Saved. Close unconditional reorder bypasses.
+  outcomes without replay or false Saved. Accept blank-as-null cover display
+  projections while preserving exact stored cover originals. Close unconditional
+  reorder bypasses.
   See [supported Region order contract](docs/development/trip-region-order.md).
   No migration.
 

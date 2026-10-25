@@ -128,6 +128,12 @@ refresh/reset/session retirement, prevent blind replay and false Saved, and expl
 explicit page abandonment. Ordinary refresh does not establish noncommit. No
 cross-reload recovery is promised.
 
+Cover display follows the existing mapper: null, empty and whitespace-only stored
+URLs project as `coverImage:null`; other URLs project unchanged. Acknowledgement
+validation checks that display projection separately from exact stored
+`originalValues.coverImage` comparison. Blank originals remain distinct from null
+and from other whitespace; no cover storage is normalized by reordering.
+
 Unconditional Web `{regionIds}` bodies reject. Individual bearer Region PUT cannot
 change an ordinary Region's stored order, even in a mixed scalar payload; identical
 submitted orders remain no-ops and are never assigned. Existing canonical identity

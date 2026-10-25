@@ -22,7 +22,7 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
-    /// <summary>One routed NaN witness per action leaves rows, metadata, membership, orders, routes and timestamps intact.</summary>
+    /// <summary>One routed NaN witness per action leaves rows, metadata, membership, orders, routes and timestamps intact; Region order is omitted.</summary>
     [PostgresTheory]
     [InlineData("create-place")]
     [InlineData("update-place")]
@@ -96,7 +96,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
                         center = new { latitude = "NaN", longitude = 10 } }
                 })),
             "update-region" => (HttpMethod.Put, $"/api/trips/regions/{original.Region.Id}",
-                """{"name":"Changed","notes":"Changed","coverImageUrl":"changed","displayOrder":7,"centerLatitude":10,"centerLongitude":"NaN"}"""),
+                """{"name":"Changed","notes":"Changed","coverImageUrl":"changed","centerLatitude":10,"centerLongitude":"NaN"}"""),
             _ => throw new ArgumentOutOfRangeException(nameof(action))
         };
         using var request = new HttpRequestMessage(method, url) { Content = new StringContent(payload, Encoding.UTF8, "application/json") };
