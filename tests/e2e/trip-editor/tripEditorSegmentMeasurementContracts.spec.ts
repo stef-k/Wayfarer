@@ -29,9 +29,22 @@ test('persisted zero-waypoint Segment keeps server-authoritative Automatic and M
   await expectMountedWorkspace(page);
 
   try {
-    regionId = (await mutate(page, 'post', `${editorApiPath}/regions`, { name: regionName, notesHtml: '', coverImage: null, center: null })).data.id;
-    fromId = (await mutate(page, 'post', `${editorApiPath}/regions/${regionId}/places`, placeRequest(fromName, 0, 0))).data.id;
-    toId = (await mutate(page, 'post', `${editorApiPath}/regions/${regionId}/places`, placeRequest(toName, 0, 0.1))).data.id;
+    // Capture complete original evidence before each fixture creation, including the preceding append.
+    const regions = Object.values((await state(page)).regionsById).map((region: any) => ({
+      id: region.id, displayOrder: region.displayOrder, isCanonical: region.name === 'Unassigned Places'
+    }));
+    regionId = (await mutate(page, 'post', `${editorApiPath}/regions/conditional`, {
+      expected: { regions }, value: { name: regionName, notesHtml: '', coverImage: null, center: null }
+    })).data.id;
+    const createPlace = async (name: string, longitude: number): Promise<string> => {
+      const places = Object.values((await state(page)).placesById).filter((place: any) => place.regionId === regionId)
+        .map((place: any) => ({ id: place.id, displayOrder: place.originalValues.displayOrder }));
+      return (await mutate(page, 'post', `${editorApiPath}/regions/${regionId}/places/conditional`, {
+        expected: { regionId, places }, value: placeRequest(name, 0, longitude)
+      })).data.id;
+    };
+    fromId = await createPlace(fromName, 0);
+    toId = await createPlace(toName, 0.1);
     let current = await state(page);
 
     const created = await mutate(page, 'post', `${editorApiPath}/segments`, automaticRequest(fromId, toId, 'walk', 999, 999));

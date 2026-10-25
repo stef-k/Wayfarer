@@ -62,7 +62,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
     /// <summary>
     /// Builds a valid update-place request body for the supplied target region.
     /// </summary>
-    protected static string ValidUpdateBody(Guid regionId, string name, double? latitude = 10, double? longitude = 20) =>
+    protected static string ValidUpdateBody(Guid regionId, string name, double? latitude = 10, double? longitude = 20, bool reverseGeocode = false) =>
         $$"""
         {
           "regionId": "{{regionId}}",
@@ -72,7 +72,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
           "location": {{LocationJson(latitude, longitude)}},
           "iconName": "marker",
           "markerColor": "bg-blue",
-          "reverseGeocode": false
+          "reverseGeocode": {{reverseGeocode.ToString().ToLowerInvariant()}}
         }
         """;
 
@@ -130,7 +130,8 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
     /// </summary>
     protected static ValidationProblemDetails AssertValidationProblem(IActionResult result)
     {
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var badRequest = Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(400, badRequest.StatusCode);
         Assert.Contains("application/problem+json", badRequest.ContentTypes);
         return Assert.IsType<ValidationProblemDetails>(badRequest.Value);
     }

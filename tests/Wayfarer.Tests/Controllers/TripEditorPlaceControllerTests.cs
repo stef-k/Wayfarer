@@ -16,28 +16,6 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTestBase
 {
-    [Fact]
-    public async Task CreatePlaceForOwnerAppendsPlaceAndReturnsAffectedSlices()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTripGraph(db, "owner-user");
-        var region = trip.Regions.Single(r => r.Name == "Athens");
-        var existingPlaceId = region.Places.Single().Id;
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Created"));
-
-        var envelope = AssertMutation<EditorPlaceDto>(result);
-        Assert.True(envelope.Success);
-        Assert.Equal("Created", envelope.Data.Name);
-        Assert.Equal(region.Id, envelope.Data.RegionId);
-        Assert.Equal(2, envelope.Data.DisplayOrder);
-        Assert.Equal(new[] { envelope.Data.Id }, envelope.Affected.Places.Select(p => p.Id));
-        Assert.Equal(new[] { existingPlaceId, envelope.Data.Id }, envelope.Affected.PlaceOrdersByRegionId[region.Id]);
-        Assert.NotNull(envelope.Affected.VisitProgress);
-        Assert.Empty(envelope.DeletedIds.Places);
-    }
 
     [Fact]
     public async Task UpdatePlaceMoveAppendsToNewRegionAndReindexesOldAndNewOrders()
@@ -72,15 +50,17 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var created = AssertMutation<EditorPlaceDto>(await SendJson(controller, c => c.CreatePlace(trip.Id, unassigned.Id, CancellationToken.None), ValidCreateBody("Unassigned")));
-        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, created.Data.Id, CancellationToken.None), ValidUpdateBody(normal.Id, "Assigned"));
+        var created = new Place { Id = Guid.NewGuid(), UserId = trip.UserId, RegionId = unassigned.Id, Name = "Unassigned", DisplayOrder = 1 };
+        db.Places.Add(created);
+        await db.SaveChangesAsync();
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, created.Id, CancellationToken.None), ValidUpdateBody(normal.Id, "Assigned"));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         Assert.Equal(normal.Id, envelope.Data.RegionId);
         Assert.Empty(envelope.Affected.PlaceOrdersByRegionId[unassigned.Id]);
-        Assert.Equal(new[] { existingNormalPlaceId, created.Data.Id }, envelope.Affected.PlaceOrdersByRegionId[normal.Id]);
+        Assert.Equal(new[] { existingNormalPlaceId, created.Id }, envelope.Affected.PlaceOrdersByRegionId[normal.Id]);
         Assert.Equal(1, db.Places.Single(p => p.Id == existingNormalPlaceId).DisplayOrder);
-        Assert.Equal(2, db.Places.Single(p => p.Id == created.Data.Id).DisplayOrder);
+        Assert.Equal(2, db.Places.Single(p => p.Id == created.Id).DisplayOrder);
     }
 
     [Fact]
@@ -268,7 +248,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Geo", reverseGeocode: true));
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         Assert.Equal("Manual address", envelope.Data.Address);
@@ -295,7 +275,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
             NullLogger<BaseApiController>.Instance));
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Geo", reverseGeocode: true));
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         Assert.Equal("Manual address", envelope.Data.Address);
@@ -324,7 +304,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
             NullLogger<BaseApiController>.Instance));
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("Geo", reverseGeocode: true));
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         Assert.Equal("Manual address", envelope.Data.Address);
@@ -355,7 +335,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         ConfigureControllerWithUserRole(controller, "owner-user");
 
         var result = await SendJson(controller,
-            c => c.CreatePlace(trip.Id, region.Id, cancellation.Token), ValidCreateBody("Geo", reverseGeocode: true));
+            c => c.UpdatePlace(trip.Id, region.Places.Single().Id, cancellation.Token), ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         Assert.False(handler.RequestCancellationReachedOutboundHandler);

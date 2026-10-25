@@ -914,78 +914,33 @@ synchronization cursor is promised.
 
 | Operation | Route | JSON input |
 | --- | --- | --- |
-| Create Region | `POST /api/trips/{tripId}/regions` | Required non-empty `name` (MVC validation); optional `notes`, `coverImageUrl`, paired `centerLatitude`/`centerLongitude`, `displayOrder`. |
+| Create Region | `POST /api/trips/{tripId}/conditional/regions` | Complete original Region/canonical identity/order set and `value`; see [checked creation](trip-creation.md). |
 | Update Region | `PUT /api/trips/regions/{regionId}` | Optional fields above; Trip association cannot change. |
 | Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
-| Create Place | `POST /api/trips/{tripId}/places` | Required `name`; optional `regionId`, paired `latitude`/`longitude`, `notes`, `displayOrder`, `iconName`, `markerColor`. |
+| Create Place | `POST /api/trips/{tripId}/conditional/places` | Original destination and complete nullable Place order set; absent fallback additionally needs Region-set proof. See [checked creation](trip-creation.md). |
 | Update Place | `PUT /api/trips/places/{placeId}` | Optional fields above; `clearIcon`/`clearMarkerColor` reset defaults. |
 | Delete Place | `DELETE /api/trips/places/{placeId}` | No body; dependency confirmation may be required. |
 
-Region POST's automatic MVC model validation rejects an empty `name` with HTTP
-400 and a `Name` validation error **before action-level token/ownership checks**.
-With valid action inputs, missing/invalid bearer authority remains 401 and a
-missing/non-owned Trip remains 404. Optional Region PUT names have their separate
-partial-update contract.
+The supported Web and bearer creation contracts, examples, acknowledgement rules,
+atomic footprints and unknown-outcome holds are documented in
+[checked Region/Place creation (BD2-06/07)](trip-creation.md). Both older bearer
+POSTs reject unconditional creation. Current Web uses the protected creation URLs;
+no new client falls back to unconditional creation. Server-generated identities
+are not durable retry receipts.
 
 Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
-related Region. A Place can move only to an owned Region in the **same Trip**.
-Without `regionId`, creation uses the Trip's special **Unassigned Places** Region.
-That Region name is reserved and the special Region cannot be deleted. Supplied
-coordinates must be paired and finite, with inclusive WGS84 bounds of **[-90, 90]**
-for latitude and **[-180, 180]** for longitude; extrema and paired zeroes are valid.
-Input uses decimal degrees, while returned Place `location`/Region `center` arrays
-use `[longitude, latitude]`. A null or omitted pair creates no point on POST and
-preserves the stored point on PUT; exactly one non-null component returns 400.
+related Region. Existing Place PUT may move only to an owned Region in the same
+Trip. Its coordinate update contract still uses paired `latitude`/`longitude`;
+Region PUT uses `centerLatitude`/`centerLongitude`. Values must be finite and in
+inclusive WGS84 bounds. A null/omitted pair preserves the stored point on PUT;
+a partial pair rejects before any supplied metadata/move/order writes. Returned
+coordinate arrays use `[longitude, latitude]`; absent or historically nonfinite
+Points project as null without repairing storage.
 
-Successful Place POST/PUT responses use the canonical Place projection: finite
-Points return numeric `[longitude, latitude]`, and absent Points return explicit
-`location: null`. A successful metadata-only PUT of a historically stored
-non-finite Point also returns `location: null`, meaning no usable position is
-returned in that response. The stored geometry remains unchanged; this API
-projection change does not delete, correct or repair persisted data.
-
-All four mutations reject NaN, positive/negative infinity and finite out-of-range
-pairs with the existing 400 string: `Latitude or Longitude is out of range.` for
-Places, or `Center latitude or longitude is out of range.` for Regions. Incomplete
-pairs retain `Both latitude and longitude must be provided together.` or
-`Both centerLatitude and centerLongitude must be provided together.` Pair errors
-take precedence over numeric errors. JSON binding still permits quoted named
-floating-point literals such as `"NaN"`, which these actions reject; bare NaN is
-invalid JSON and receives the existing automatic MVC validation response.
-
-Coordinate rejection applies no other supplied fields, saves no changes and
-schedules no cache warm-up. Invalid fallback Place creation does not create an
-Unassigned Places Region. Explicit destination/ownership checks and reserved
-Region identity errors retain precedence over coordinates.
-
-A valid Place POST commits the Place, any newly needed fallback Region and the
-Trip's `updatedAt` timestamp together through one relational save. A failed Place
-insert rolls back those changes; existing Regions and Places remain intact.
-Sequential requests reuse the existing fallback's ID, name and stored display
-order. A new fallback has a generated GUID, the token owner's identity and
-display order **0**. A supplied Place `displayOrder` wins; otherwise creation
-appends at `(MAX(DisplayOrder) ?? 0) + 1`, starting at **1** in an empty Region.
-
-Request cancellation is passed through creation reads and the final save.
-Cancellation before commit leaves no partial Region/Place pair; cancellation
-after commit cannot undo it. Losing the connection or response at commit can
-leave the outcome unknown, so an error does not guarantee that nothing committed
-and this endpoint supplies no automatic replay or idempotency guarantee.
-PostgreSQL enforces at most one exact-name `Unassigned Places` Region within each
-Trip, independently of owner/order. A missing-fallback request that receives a
-verified `23505` naming `UX_Regions_Trip_UnassignedPlaces` may recover once after
-EF rolls back its implicit transaction. Recovery uses a fresh DI-owned context,
-revalidates bearer and Trip ownership, resolves exactly one correctly owned
-winner, then inserts only the Place. There are at most two save attempts. Explicit
-Place order is preserved; implicit append order is recomputed at the winner.
-Both legitimate competing requests retain the existing 200/Place DTO response.
-Place orders are not guaranteed unique or gap-free.
-
-Malformed/ambiguous destinations, or an absent winner after collision, return 409:
-`{ "error": "unassigned_region_conflict", "message": "Unassigned Places requires reconciliation." }`.
-No retry occurs for explicit-Region requests, caller-owned transactions, unrelated
-constraints, cancellation, timeout or unknown commit outcomes. Historical repair
-requires separate maintainer approval; see [database rollout](database.md#canonical-unassigned-places-region-rollout-842).
+PostgreSQL enforces one exact-name `Unassigned Places` Region per Trip,
+independently of owner/order. Creation preserves existing canonical stored order;
+historical repair requires separate authority. See
+[database rollout](database.md#canonical-unassigned-places-region-rollout-842).
 
 Web Trip creation commits the Trip and one server-owned order-0 fallback in one
 graph save. Form child graphs are excluded. Failed/cancelled graphs are cleared
@@ -1204,7 +1159,7 @@ receipt, cross-reload recovery or settlement of the separate Trip-sharing debt.
 `PUT /api/trips/{tripId}/editor/regions/{id}` keep their unconditional payloads and
 responses for old clients/tabs. They can still overwrite overlapping protected
 edits. Current Vue updates use only the new PATCH and fail closed for missing
-original evidence or an unsupported route. Region creation, reorder, deletion
+original evidence or an unsupported route. Region reorder and deletion
 and four-way consent remain unchanged. This slice does not complete #853, settle
 legacy-client policy or the retained sharing lost-reply obligation, implement
 #907, or qualify Place/Area/Segment/structural or native Mobile writes.

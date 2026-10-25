@@ -12,7 +12,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Proves the finite, paired, optional coordinate contract at the four legacy mutation actions.</summary>
+/// <summary>Proves the finite, paired, optional coordinate contract at the remaining coordinate update actions.</summary>
 public partial class ApiTripsControllerTests
 {
     /// <summary>Exercises non-finite values in either component, finite range failures and incomplete pairs.</summary>
@@ -26,7 +26,7 @@ public partial class ApiTripsControllerTests
             (-91, 0), (91, 0), (0, -181), (0, 181),
             (0, null), (null, 0), (double.NaN, null), (null, double.NaN)
         };
-        foreach (var action in new[] { "create-place", "update-place", "create-region", "update-region" })
+        foreach (var action in new[] { "update-place", "update-region" })
             foreach (var pair in pairs)
                 yield return [action, pair.Latitude, pair.Longitude];
     }
@@ -38,7 +38,7 @@ public partial class ApiTripsControllerTests
         {
             (-90, -180), (-90, 180), (90, -180), (90, 180), (0, 0), (null, null)
         };
-        foreach (var action in new[] { "create-place", "update-place", "create-region", "update-region" })
+        foreach (var action in new[] { "update-place", "update-region" })
             foreach (var pair in pairs)
                 yield return [action, pair.Latitude, pair.Longitude];
     }
@@ -118,16 +118,6 @@ public partial class ApiTripsControllerTests
         var reserved = await SeedRegionUpdateTargetAsync(db, "Unassigned Places", 0);
         var controller = BuildController(db, token: "tok");
 
-        var place = await controller.CreatePlace(reserved.TripId, new PlaceCreateRequestDto
-        {
-            RegionId = Guid.NewGuid(), Name = "Rejected", Latitude = double.NaN, Longitude = 0
-        });
-        Assert.Equal("Invalid regionId.", Assert.IsType<BadRequestObjectResult>(place).Value);
-        var create = await controller.CreateRegion(reserved.TripId, new RegionCreateRequestDto
-        {
-            Name = "Unassigned Places", CenterLatitude = double.NaN, CenterLongitude = 0
-        });
-        Assert.Equal("Region name is reserved.", Assert.IsType<BadRequestObjectResult>(create).Value);
         var update = await controller.UpdateRegion(reserved.Id, new RegionUpdateRequestDto
         {
             Name = "Renamed", Notes = "Rejected", CenterLatitude = double.NaN, CenterLongitude = 0
@@ -168,20 +158,10 @@ public partial class ApiTripsControllerTests
     private static Task<IActionResult> MutateCoordinatesAsync(TripsController controller, string action,
         Region region, Region destination, Place place, double? latitude, double? longitude) => action switch
     {
-        "create-place" => controller.CreatePlace(region.TripId, new PlaceCreateRequestDto
-        {
-            Name = "Changed", Notes = "Changed", DisplayOrder = 7, IconName = "changed", MarkerColor = "changed",
-            Latitude = latitude, Longitude = longitude
-        }),
         "update-place" => controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto
         {
             RegionId = destination.Id, Name = "Changed", Notes = "Changed", DisplayOrder = 7,
             IconName = "changed", MarkerColor = "changed", Latitude = latitude, Longitude = longitude
-        }),
-        "create-region" => controller.CreateRegion(region.TripId, new RegionCreateRequestDto
-        {
-            Name = "Changed", Notes = "Changed", CoverImageUrl = "changed", DisplayOrder = 7,
-            CenterLatitude = latitude, CenterLongitude = longitude
         }),
         "update-region" => controller.UpdateRegion(region.Id, new RegionUpdateRequestDto
         {

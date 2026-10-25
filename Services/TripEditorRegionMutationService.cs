@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Models.Dtos.Editor;
 
 namespace Wayfarer.Services;
@@ -40,61 +41,43 @@ public sealed class TripEditorRegionMutationService
         Stream requestBody,
         CancellationToken cancellationToken)
     {
-        var trip = await _dbContext.Trips
-            .Include(t => t.Regions)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-        if (trip == null)
-        {
+        if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken))
             return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.NotFound();
-        }
-
-        var request = await ParseJsonBodyAsync(requestBody, "Region save request must be valid JSON.", cancellationToken);
-        if (request.ValidationErrors != null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.ValidationFailed(request.ValidationErrors);
-        }
-
-        if (!EditorRegionRequestParser.TryParseSave(request.Value!.Value, out var update, out var errors))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.ValidationFailed(errors);
-        }
-
-        var normalRegions = trip.Regions.Where(r => !IsShadowRegion(r)).ToList();
+        var request = await CreationConditionalRequest.ReadAsync(requestBody, false, cancellationToken);
+        CreationConditionalRequest.ValidateValue(request.Value, false, true);
+        if (!EditorRegionRequestParser.TryParseSave(request.Value, out var update, out var errors))
+            throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Check the creation fields.", errors);
         var region = new Region
         {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            Trip = trip,
+            TripId = tripId,
             UserId = userId,
             Name = update.Name.Trim(),
             Notes = update.NotesHtml ?? string.Empty,
             CoverImageUrl = NormalizeOptionalUrl(update.CoverImage?.RawUrl),
-            Center = ToPoint(update.Center),
-            DisplayOrder = normalRegions.Count == 0 ? 1 : normalRegions.Max(r => r.DisplayOrder) + 1
+            Center = ToPoint(update.Center)
         };
 
-        _dbContext.Regions.Add(region);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        return await new CheckedCreationService(_dbContext).RegionAsync(tripId, userId, request, region, (created, regionOrder) =>
+        {
+            var dto = EditorTripStateMapper.ToRegion(region);
+            var affected = new EditorAffectedSlicesDto(
+                null,
+                new[] { dto },
+                regionOrder,
+                Array.Empty<EditorPlaceDto>(),
+                new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
+                Array.Empty<EditorAreaDto>(),
+                new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
+                Array.Empty<EditorSegmentDto>(),
+                null,
+                Array.Empty<EditorTagDto>(),
+                null,
+                null,
+                null);
 
-        var regionOrder = await LoadRegionOrderAsync(tripId, userId, cancellationToken);
-        var dto = EditorTripStateMapper.ToRegion(region);
-        var affected = new EditorAffectedSlicesDto(
-            null,
-            new[] { dto },
-            regionOrder,
-            Array.Empty<EditorPlaceDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
-            Array.Empty<EditorAreaDto>(),
-            new Dictionary<Guid, IReadOnlyList<Guid>> { [region.Id] = Array.Empty<Guid>() },
-            Array.Empty<EditorSegmentDto>(),
-            null,
-            Array.Empty<EditorTagDto>(),
-            null,
-            null,
-            null);
-
-        return EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.Succeeded(
-            new EditorMutationResult<EditorRegionDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
+            return Task.FromResult(EditorRegionMutationOutcome<EditorMutationResult<EditorRegionDto>>.Succeeded(
+                new EditorMutationResult<EditorRegionDto>(true, dto, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()) { Contract = "bd2-1" }));
+        }, null, cancellationToken);
     }
 
     /// <summary>

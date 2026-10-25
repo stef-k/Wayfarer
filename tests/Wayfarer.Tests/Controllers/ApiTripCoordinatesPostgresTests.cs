@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -40,17 +43,40 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
                 return context;
             });
             services.AddSingleton(warmup.Object);
+            services.AddSingleton(Mock.Of<IWebHostEnvironment>(environment => environment.WebRootPath == Directory.GetCurrentDirectory()));
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+            services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
         });
         using var client = app.GetTestClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.Region.UserId);
+        // Only the Web Region creation contract accepts a center; bearer Place creation accepts a location.
+        if (action == "create-region")
+        {
+            UserConnectionTokenHttpTests.Cookie(client, app.Services, original.Region.UserId);
+            await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
+        }
+        else client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.Region.UserId);
+        var regions = await db.Regions.AsNoTracking()
+            .Where(item => item.TripId == original.Region.TripId)
+            .Select(item => new { id = item.Id, displayOrder = item.DisplayOrder, isCanonical = item.Name == "Unassigned Places" })
+            .ToArrayAsync();
         var (method, url, payload) = action switch
         {
-            "create-place" => (HttpMethod.Post, $"/api/trips/{original.Region.TripId}/places",
-                """{"name":"Changed","notes":"Changed","latitude":"NaN","longitude":10}"""),
+            "create-place" => (HttpMethod.Post, $"/api/trips/{original.Region.TripId}/conditional/places",
+                JsonSerializer.Serialize(new
+                {
+                    expected = new { regionId = (Guid?)null, places = Array.Empty<object>(), regions },
+                    value = new { regionId = (Guid?)null, name = "Changed", notes = "Changed",
+                        location = new { latitude = "NaN", longitude = 10 }, iconName = "changed", markerColor = "changed" }
+                })),
             "update-place" => (HttpMethod.Put, $"/api/trips/places/{original.Place.Id}",
                 $$"""{"regionId":"{{original.Destination.Id}}","name":"Changed","notes":"Changed","displayOrder":7,"iconName":"changed","markerColor":"changed","latitude":10,"longitude":"NaN"}"""),
-            "create-region" => (HttpMethod.Post, $"/api/trips/{original.Region.TripId}/regions",
-                """{"name":"Changed","notes":"Changed","coverImageUrl":"changed","displayOrder":7,"centerLatitude":"NaN","centerLongitude":10}"""),
+            "create-region" => (HttpMethod.Post, $"/api/trips/{original.Region.TripId}/editor/regions/conditional",
+                JsonSerializer.Serialize(new
+                {
+                    expected = new { regions },
+                    value = new { name = "Changed", notesHtml = "Changed", coverImage = new { rawUrl = "https://example.test/changed.jpg" },
+                        center = new { latitude = "NaN", longitude = 10 } }
+                })),
             "update-region" => (HttpMethod.Put, $"/api/trips/regions/{original.Region.Id}",
                 """{"name":"Changed","notes":"Changed","coverImageUrl":"changed","displayOrder":7,"centerLatitude":10,"centerLongitude":"NaN"}"""),
             _ => throw new ArgumentOutOfRangeException(nameof(action))
@@ -59,16 +85,26 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
 
         using var response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(action.EndsWith("place", StringComparison.Ordinal)
-            ? "Latitude or Longitude is out of range." : "Center latitude or longitude is out of range.",
-            await response.Content.ReadAsStringAsync());
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, await response.Content.ReadAsStringAsync());
+        if (action.StartsWith("create", StringComparison.Ordinal))
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+            Assert.NotNull(problem);
+            Assert.Equal("mutation-request-invalid", problem.Extensions["code"].ToString());
+            var error = Assert.Single(problem.Errors);
+            Assert.Equal(action == "create-place" ? "request" : "center.latitude", error.Key);
+            Assert.Equal(action == "create-place" ? "location requires a finite WGS84 coordinate pair." : "The field must be a finite number.",
+                Assert.Single(error.Value));
+        }
+        else Assert.Equal(action.EndsWith("place", StringComparison.Ordinal)
+                ? "Latitude or Longitude is out of range." : "Center latitude or longitude is out of range.",
+                await response.Content.ReadAsStringAsync());
         await AssertUnchangedAsync(original);
         Assert.Equal(0, saves);
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
-    /// <summary>Real JSON null/omission keeps optional creates and partial edits compatible, including Place provenance.</summary>
+    /// <summary>Explicit null keeps checked creates unlocated; null/omission preserves partial edits and Place provenance.</summary>
     [PostgresFact]
     public async Task OptionalCoordinatesRetainCreateAndPartialUpdateBinding()
     {
@@ -78,22 +114,38 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         {
             services.AddScoped(_ => fixture.CreateContext());
             services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+            services.AddSingleton(Mock.Of<IWebHostEnvironment>(environment => environment.WebRootPath == Directory.GetCurrentDirectory()));
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+            services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
         });
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.Region.UserId);
 
-        using var regionResponse = await client.PostAsync($"/api/trips/{original.Region.TripId}/regions",
-            new StringContent("""{"name":"Optional","centerLatitude":null}""", Encoding.UTF8, "application/json"));
-        Assert.Equal(HttpStatusCode.OK, regionResponse.StatusCode);
+        using var web = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(web, app.Services, original.Region.UserId);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
+        var regions = await db.Regions.AsNoTracking().Where(item => item.TripId == original.Region.TripId)
+            .Select(item => new { id = item.Id, displayOrder = item.DisplayOrder, isCanonical = item.Name == "Unassigned Places" })
+            .ToArrayAsync();
+        using var regionResponse = await web.PostAsJsonAsync($"/api/trips/{original.Region.TripId}/editor/regions/conditional",
+            new { expected = new { regions }, value = new { name = "Optional", notesHtml = (string?)null, coverImage = (object?)null, center = (object?)null } });
+        Assert.True(regionResponse.StatusCode == HttpStatusCode.OK, await regionResponse.Content.ReadAsStringAsync());
         using var regionDocument = JsonDocument.Parse(await regionResponse.Content.ReadAsStringAsync());
         Assert.True(regionDocument.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, regionDocument.RootElement.GetProperty("region").GetProperty("center").ValueKind);
-        using var placeResponse = await client.PostAsync($"/api/trips/{original.Region.TripId}/places",
-            new StringContent($$"""{"name":"Optional","regionId":"{{original.Region.Id}}"}""", Encoding.UTF8, "application/json"));
+        var createdRegion = regionDocument.RootElement.GetProperty("data");
+        var createdRegionId = createdRegion.GetProperty("id").GetGuid();
+        Assert.Equal(JsonValueKind.Null, createdRegion.GetProperty("center").ValueKind);
+        var places = await db.Places.AsNoTracking().Where(item => item.RegionId == original.Region.Id)
+            .Select(item => new { id = item.Id, displayOrder = item.DisplayOrder }).ToArrayAsync();
+        using var placeResponse = await client.PostAsJsonAsync($"/api/trips/{original.Region.TripId}/conditional/places",
+            new { expected = new { regionId = original.Region.Id, places },
+                value = new { regionId = original.Region.Id, name = "Optional", notes = (string?)null, location = (object?)null, iconName = "", markerColor = "" } });
         Assert.Equal(HttpStatusCode.OK, placeResponse.StatusCode);
         Assert.Equal("application/json", placeResponse.Content.Headers.ContentType?.MediaType);
         using var placeDocument = JsonDocument.Parse(await placeResponse.Content.ReadAsStringAsync());
-        var createdPlace = AssertPlaceShape(placeDocument.RootElement);
+        var createdPlace = AssertPlaceShape(placeDocument.RootElement, creation: true);
+        Assert.Equal(original.Region.TripId, placeDocument.RootElement.GetProperty("tripId").GetGuid());
+        Assert.Equal(JsonValueKind.Null, placeDocument.RootElement.GetProperty("createdFallback").ValueKind);
         var createdId = createdPlace.GetProperty("id").GetGuid();
         Assert.NotEqual(Guid.Empty, createdId);
         Assert.Equal("Optional", createdPlace.GetProperty("name").GetString());
@@ -145,6 +197,8 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         await using var verify = fixture.CreateContext();
         var place = await verify.Places.SingleAsync(item => item.Id == original.Place.Id);
         var region = await verify.Regions.SingleAsync(item => item.Id == original.Region.Id);
+        Assert.Null((await verify.Regions.SingleAsync(item => item.Id == createdRegionId)).Center);
+        Assert.Null((await verify.Places.SingleAsync(item => item.Id == createdId)).Location);
         Assert.Equal("Partial", place.Name);
         Assert.Equal("<p>Partial <strong>rich</strong></p>", place.Notes);
         Assert.Equal("Partial", region.Notes);
@@ -234,11 +288,17 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(JsonValueKind.Null, place.GetProperty("location").ValueKind);
     }
 
-    /// <summary>Freezes the successful envelope and ten Place keys without imposing JSON property order.</summary>
-    private static JsonElement AssertPlaceShape(JsonElement root)
+    /// <summary>Freezes each supported success envelope and the shared ten Place keys without imposing JSON property order.</summary>
+    private static JsonElement AssertPlaceShape(JsonElement root, bool creation = false)
     {
-        Assert.Equal(new[] { "place", "success" }, root.EnumerateObject().Select(item => item.Name).Order());
+        Assert.Equal(creation ? new[] { "applied", "contract", "createdFallback", "place", "placeOrder", "success", "tripId" }
+            : new[] { "place", "success" }, root.EnumerateObject().Select(item => item.Name).Order());
         Assert.Equal(JsonValueKind.True, root.GetProperty("success").ValueKind);
+        if (creation)
+        {
+            Assert.Equal("bd2-1", root.GetProperty("contract").GetString());
+            Assert.Equal(JsonValueKind.True, root.GetProperty("applied").ValueKind);
+        }
         var place = root.GetProperty("place");
         Assert.Equal(new[]
         {

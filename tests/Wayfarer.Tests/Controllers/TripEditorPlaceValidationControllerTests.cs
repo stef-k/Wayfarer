@@ -71,7 +71,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
     }
 
     [Fact]
-    public async Task UnassignedPlacesAllowsCreateAndMoveButRejectsOrder()
+    public async Task UnassignedPlacesAllowsMoveButRejectsOrder()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
@@ -81,16 +81,13 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var create = await SendJson(controller, c => c.CreatePlace(trip.Id, unassigned.Id, CancellationToken.None), ValidCreateBody("Unassigned"));
         var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(unassigned.Id, "Moved"));
         var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, unassigned.Id, CancellationToken.None), """{ "placeIds": [] }""");
 
-        var created = AssertMutation<EditorPlaceDto>(create);
-        Assert.Equal(unassigned.Id, created.Data.RegionId);
         var moved = AssertMutation<EditorPlaceDto>(update);
         Assert.Equal(unassigned.Id, moved.Data.RegionId);
         Assert.Empty(moved.Affected.PlaceOrdersByRegionId[normal.Id]);
-        Assert.Equal(new[] { created.Data.Id, place.Id }, moved.Affected.PlaceOrdersByRegionId[unassigned.Id]);
+        Assert.Equal(new[] { place.Id }, moved.Affected.PlaceOrdersByRegionId[unassigned.Id]);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(order).StatusCode);
     }
 
@@ -120,7 +117,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), $$"""
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), $$"""
         {
           "id": "00000000-0000-0000-0000-000000000001",
           "tripId": "00000000-0000-0000-0000-000000000002",
@@ -139,7 +136,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         """);
 
         var problem = AssertValidationProblem(result);
-        foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "visitSummary", "capabilities", "name", "notesHtml", "location.latitude", "location.longitude", "iconName", "markerColor" })
+        foreach (var key in new[] { "id", "tripId", "displayOrder", "visitSummary", "capabilities", "name", "notesHtml", "location.latitude", "location.longitude", "iconName", "markerColor" })
         {
             Assert.Contains(key, problem.Errors.Keys);
         }
@@ -154,7 +151,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), ValidCreateBody("No Location", reverseGeocode: true, latitude: null, longitude: null));
+        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), ValidUpdateBody(region.Id, "No Location", reverseGeocode: true, latitude: null, longitude: null));
 
         Assert.Contains("reverseGeocode", AssertValidationProblem(result).Errors.Keys);
     }

@@ -86,8 +86,8 @@ const activePlaceEditorId = computed(() => (activePlace.value && isPlaceEditOpen
 const isDraftOpen = computed(() => draft.id !== null || Boolean(draft.name || draft.notesHtml || draft.coverImageRawUrl || draft.centerLatitude || draft.centerLongitude));
 const isPlaceDraftOpen = computed(() => placeDraft.regionId !== null || Boolean(placeDraft.name || placeDraft.notesHtml || placeDraft.address || placeDraft.latitude || placeDraft.longitude));
 const isAreaDraftOpen = computed(() => areaDraft.regionId !== null || Boolean(areaDraft.name || areaDraft.notesHtml || areaDraft.geometry));
-const regionDirty = computed(() => regionDraftState.pending.value || regionDraftState.uncertain.value || JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
-const placeDirty = computed(() => placeDraftState.pending.value || placeDraftState.uncertain.value || JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
+const regionDirty = computed(() => regionDraftState.pending.value || regionDraftState.uncertain.value || regionDraftState.creationUncertain.value || JSON.stringify(buildRegionRequest(draft)) !== JSON.stringify(regionBaselineRequest.value));
+const placeDirty = computed(() => placeDraftState.pending.value || placeDraftState.uncertain.value || placeDraftState.creationUncertain.value || JSON.stringify(buildPlaceRequest(placeDraft)) !== JSON.stringify(placeBaselineRequest.value));
 const areaDirty = computed(() => areaDraftState.pending.value || areaDraftState.uncertain.value || JSON.stringify(buildAreaRequest(areaDraft)) !== JSON.stringify(areaBaselineRequest.value));
 const isDirty = computed(() => regionDirty.value || placeDirty.value || areaDirty.value);
 const normalRegions = computed(() => orderedRegions.value.filter(region => !region.isShadow));

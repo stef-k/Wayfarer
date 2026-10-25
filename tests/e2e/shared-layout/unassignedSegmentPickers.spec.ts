@@ -20,10 +20,19 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
     expect(response.ok(), await response.text()).toBeTruthy();
     return (await response.json()).data;
   };
-  const source = await post('/regions', { name: 'Preserved route Places', notesHtml: null, center: null, coverImage: null });
-  const createPlace = (name: string, longitude: number) => post(`/regions/${source.id}/places`, {
-    name, notesHtml: null, address: '', location: { longitude, latitude: 38 }, iconName: 'marker', markerColor: 'bg-blue', reverseGeocode: false
-  });
+  // Fixture setup uses the same complete stored membership/order originals as protected creation.
+  const regions = Object.values((await state()).regionsById).map((region: any) => ({
+    id: region.id, displayOrder: region.displayOrder, isCanonical: region.name === 'Unassigned Places'
+  }));
+  const source = await post('/regions/conditional', { expected: { regions },
+    value: { name: 'Preserved route Places', notesHtml: null, center: null, coverImage: null } });
+  const createPlace = async (name: string, longitude: number) => {
+    const places = Object.values((await state()).placesById).filter((place: any) => place.regionId === source.id)
+      .map((place: any) => ({ id: place.id, displayOrder: place.originalValues.displayOrder }));
+    return post(`/regions/${source.id}/places/conditional`, { expected: { regionId: source.id, places }, value: {
+      name, notesHtml: null, address: '', location: { longitude, latitude: 38 }, iconName: 'marker', markerColor: 'bg-blue', reverseGeocode: false
+    } });
+  };
   const from = await createPlace('Unassigned From', 23);
   const via = await createPlace('Unassigned Via', 23.1);
   const to = await createPlace('Unassigned To', 23.2);

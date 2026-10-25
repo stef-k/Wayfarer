@@ -1,3 +1,5 @@
+import { placeCreationOriginals, type PlaceCreationOriginal } from '../api/creationTypes';
+import type { EditorTripState } from '../types';
 import { reactive, ref } from 'vue';
 import type { EditorMutationResult, EditorPlace, EditorPlaceConditionalRequest, EditorPlaceDraft, EditorPlaceOriginalValues, EditorPlaceSaveRequest, EditorPlaceVisitSummary, EditorVisitProgress } from '../types';
 import { buildPlaceRequest, emptyPlaceDraft, toPlaceDraft } from './regionPlaceDrafts';
@@ -21,6 +23,10 @@ export const createPlaceDraftState = () => {
   const originals = reactive<Partial<EditorPlaceOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
+  const creationUncertain = ref(false);
+  const creationOriginals = ref<Record<string, PlaceCreationOriginal[]> | null>(null);
+  /** Destination selection uses the authoritative view captured when this creation draft began. */
+  const beginCreate = (state: EditorTripState): void => { creationOriginals.value = placeCreationOriginals(state); };
   const session = ref(0);
 
   /** Adopts a clean field without inventing comparison evidence from displayed defaults. */
@@ -92,7 +98,7 @@ export const createPlaceDraftState = () => {
     originals.regionId = next.originalValues!.regionId;
   };
 
-  return { draft, baseline, pending, uncertain, reset, refresh, structural, request, acknowledge, session: () => session.value };
+  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge, session: () => session.value };
 };
 
 /** Checks visit projections used by both the Place and optional complete-save progress slice. */

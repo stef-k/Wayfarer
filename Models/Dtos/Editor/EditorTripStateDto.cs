@@ -120,7 +120,11 @@ public sealed record EditorPlaceDto(
 }
 
 /// <summary>Original Place parent and canonical scalars for selected-field comparison.</summary>
-public sealed record EditorPlaceOriginalDto(Guid RegionId, string Name, string? NotesHtml, string? IconName, string? MarkerColor);
+public sealed record EditorPlaceOriginalDto(Guid RegionId, string Name, string? NotesHtml, string? IconName, string? MarkerColor)
+{
+    /// <summary>Exact stored nullable order for checked creation; display zero is not a null original.</summary>
+    public int? DisplayOrder { get; init; }
+}
 
 /// <summary>Area DTO with GeoJSON object geometry.</summary>
 public sealed record EditorAreaDto(

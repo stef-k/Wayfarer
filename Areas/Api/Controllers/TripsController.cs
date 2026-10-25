@@ -618,66 +618,10 @@ public partial class TripsController : BaseApiController
         return Ok(new { success = true, message = "Place deleted.", placeId });
     }
 
-    /// <summary>
-    /// Creates a Region inside the trip with optional finite WGS84 center coordinates.
-    /// </summary>
+    /// <summary>Rejects creation without the supported original-membership contract.</summary>
     [HttpPost("{tripId}/regions")]
-    public async Task<IActionResult> CreateRegion(Guid tripId, [FromBody] RegionCreateRequestDto request)
-    {
-        var user = GetUserFromToken();
-        if (user == null) return Unauthorized("Missing or invalid API token.");
-        if (request == null) return BadRequest("Invalid request.");
-        if (string.Equals(request.Name?.Trim(), ShadowRegionName, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Region name is reserved.");
-
-        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id);
-        if (trip == null) return NotFound("Trip not found.");
-
-        // Center point
-        NetTopologySuite.Geometries.Point? center = null;
-        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
-        {
-            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
-                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
-            double lat = request.CenterLatitude.Value; double lon = request.CenterLongitude.Value;
-            if (!IsValidCoordinate(lat, lon))
-                return BadRequest("Center latitude or longitude is out of range.");
-            center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
-        }
-
-        // Display order (exclude Unassigned at 0)
-        int displayOrder = request.DisplayOrder ?? await GetNextRegionOrder(tripId);
-
-        var region = new Region
-        {
-            Id = Guid.NewGuid(),
-            TripId = tripId,
-            UserId = user.Id,
-            Name = request.Name!.Trim(),
-            Notes = RichNotes.Normalize(request.Notes),
-            CoverImageUrl = request.CoverImageUrl,
-            Center = center,
-            DisplayOrder = displayOrder
-        };
-
-        _dbContext.Regions.Add(region);
-        await _dbContext.SaveChangesAsync();
-
-        // Return DTO to ensure consistent serialization (center as double[] not GeoJSON)
-        var regionDto = new ApiTripRegionDto
-        {
-            Id = region.Id,
-            Name = region.Name,
-            Notes = RichNotes.Normalize(region.Notes),
-            DisplayOrder = region.DisplayOrder,
-            CoverImageUrl = region.CoverImageUrl,
-            Center = region.Center != null
-                ? new[] { region.Center.X, region.Center.Y }
-                : null
-        };
-
-        return Ok(new { success = true, region = regionDto });
-    }
+    public IActionResult RejectUnconditionalRegionCreation(Guid tripId) =>
+        GetUserFromToken() == null ? Unauthorized() : CreationConditionalRequest.Invalid("Use the conditional Region creation contract.").ToActionResult();
 
     /// <summary>
     /// Updates an existing trip's metadata (name, notes) by ID.
@@ -1242,14 +1186,6 @@ public partial class TripsController : BaseApiController
             _logger.LogError(ex, "Failed to clone trip {TripId} for user {UserId}", id, user.Id);
             return StatusCode(500, new { error = "Failed to clone trip. Please try again." });
         }
-    }
-
-    private async Task<int> GetNextRegionOrder(Guid tripId)
-    {
-        var max = await _dbContext.Regions
-            .Where(r => r.TripId == tripId && r.Name != ShadowRegionName)
-            .MaxAsync(r => (int?)r.DisplayOrder) ?? 0;
-        return Math.Max(max + 1, 1);
     }
 
     /// <summary>

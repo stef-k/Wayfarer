@@ -21,30 +21,6 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorRegionControllerTests : TestBase
 {
-    [Fact]
-    public async Task CreateRegionForOwnerAppendsNormalRegionAndReturnsAffectedSlices()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTripWithRegions(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await SendJson(controller, c => c.CreateRegion(trip.Id, CancellationToken.None), ValidRegionBody("Created Region"));
-
-        var envelope = AssertMutation<EditorRegionDto>(result);
-        Assert.True(envelope.Success);
-        Assert.Equal("Created Region", envelope.Data.Name);
-        Assert.Equal("<p>Notes</p>", envelope.Data.NotesHtml);
-        Assert.Equal("https://cdn.example.test/cover.jpg", envelope.Data.CoverImage!.RawUrl);
-        Assert.Equal(10, envelope.Data.Center!.Latitude);
-        Assert.Equal(20, envelope.Data.Center.Longitude);
-        Assert.Equal(new[] { envelope.Data.Id }, envelope.Affected.Regions.Select(r => r.Id));
-        Assert.Equal(Array.Empty<Guid>(), envelope.Affected.PlaceOrdersByRegionId[envelope.Data.Id]);
-        Assert.Equal(Array.Empty<Guid>(), envelope.Affected.AreaOrdersByRegionId[envelope.Data.Id]);
-        Assert.Contains(envelope.Data.Id, envelope.Affected.RegionOrder!);
-        Assert.Empty(envelope.DeletedIds.Regions);
-        Assert.Equal(3, db.Regions.Single(r => r.Id == envelope.Data.Id).DisplayOrder);
-    }
 
     [Fact]
     public async Task UpdateRegionForOwnerSavesCompleteDraftAndReturnsRegionOnlySlice()
@@ -230,7 +206,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.CreateRegion(trip.Id, CancellationToken.None), """
+        var result = await SendJson(controller, c => c.UpdateRegion(trip.Id, trip.Regions.First(r => r.Name != "Unassigned Places").Id, CancellationToken.None), """
         {
           "id": "00000000-0000-0000-0000-000000000001",
           "tripId": "00000000-0000-0000-0000-000000000002",
@@ -374,7 +350,8 @@ public sealed class TripEditorRegionControllerTests : TestBase
 
     private static ValidationProblemDetails AssertValidationProblem(IActionResult result)
     {
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+        var badRequest = Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(400, badRequest.StatusCode);
         Assert.Contains("application/problem+json", badRequest.ContentTypes);
         return Assert.IsType<ValidationProblemDetails>(badRequest.Value);
     }

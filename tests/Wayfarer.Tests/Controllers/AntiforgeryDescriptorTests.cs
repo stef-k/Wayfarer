@@ -65,8 +65,9 @@ public sealed class AntiforgeryDescriptorTests : TestBase
     private const string BearerActions = """
         Api.Location.KeyStatus
         Api.Location.CheckIn Api.Location.LogLocation Api.Location.Delete Api.MobileGroups.Latest Api.MobileGroups.Query
-        Api.MobileGroups.SetPeerVisibility Api.MobileRouting.Route Api.Trips.CreatePlace Api.Trips.UpdatePlace
-        Api.Trips.DeletePlace Api.Trips.CreateRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes
+        Api.MobileGroups.SetPeerVisibility Api.MobileRouting.Route Api.Trips.CreateConditionalPlace Api.Trips.UpdatePlace
+        Api.Trips.DeletePlace Api.Trips.CreateConditionalRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes
+        Api.Trips.RejectUnconditionalRegionCreation Api.Trips.RejectUnconditionalPlaceCreation
         Api.Trips.UpdateRegion Api.Trips.UpdateArea Api.Trips.DeleteRegion Api.Trips.CloneTrip
         Api.Trips.PreviewRegionDeletion Api.Trips.ConfirmRegionDeletion
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea

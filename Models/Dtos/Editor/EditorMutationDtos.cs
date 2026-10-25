@@ -168,7 +168,12 @@ public sealed record EditorMutationResult<TData>(
     TData Data,
     EditorAffectedSlicesDto Affected,
     EditorDeletedIdsDto DeletedIds,
-    IReadOnlyList<EditorWarningDto> Warnings);
+    IReadOnlyList<EditorWarningDto> Warnings)
+{
+    /// <summary>Present for protected creation acknowledgements; never a durable retry receipt.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Contract { get; init; }
+}
 
 /// <summary>
 /// Concrete editor state slices affected by a mutation.

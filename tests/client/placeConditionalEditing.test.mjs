@@ -39,13 +39,13 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const actualApp = (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default;
-const region = { id: 'region', name: 'Region', notesHtml: '', isShadow: false, capabilities: { canEdit: true, canAddChildren: true, canTargetForSearchAdd: true } };
+const region = { id: 'region', tripId: 'trip', displayOrder: 1, name: 'Region', notesHtml: '', isShadow: false, capabilities: { canEdit: true, canAddChildren: true, canTargetForSearchAdd: true } };
 const place = (overrides = {}) => {
   const value = { id: 'place', tripId: 'trip', regionId: 'region', name: 'Original', notesHtml: '', address: 'Original address',
     location: { latitude: 10, longitude: 20 }, iconName: 'marker', markerColor: 'bg-blue', displayOrder: 1,
     visitSummary: { placeId: 'place', visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
-  value.originalValues ??= { regionId: value.regionId, name: value.name, notesHtml: value.notesHtml || null, iconName: null, markerColor: null };
+  value.originalValues ??= { displayOrder: value.displayOrder, regionId: value.regionId, name: value.name, notesHtml: value.notesHtml || null, iconName: null, markerColor: null };
   if (overrides.iconName && !overrides.originalValues) value.originalValues.iconName = value.iconName;
   if (overrides.markerColor && !overrides.originalValues) value.originalValues.markerColor = value.markerColor;
   return value;
@@ -55,6 +55,19 @@ const envelope = data => ({ success: true, data, affected: { metadata: null, reg
   regionOrder: null, segmentOrder: null, tagOrder: null, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
 const saved = data => new Response(JSON.stringify(envelope(data)));
+const createdId = '10000000-0000-0000-0000-000000000001';
+/** Complete creation response at the mounted production owner seam. */
+const creationReply = (overrides = {}) => {
+  const next = place({ id: createdId, name: 'New Place', displayOrder: 2, ...overrides });
+  next.visitSummary = { ...next.visitSummary, placeId: next.id };
+  next.capabilities = { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: true, canAddChildren: false, canTargetForSearchAdd: false };
+  const result = envelope(next);
+  result.contract = 'bd2-1';
+  result.affected.visitProgress = { totalPlaces: 2, visitedPlaces: 0, percentVisited: 0,
+    placeSummariesByPlaceId: { place: place().visitSummary, [next.id]: next.visitSummary }, historyRows: [] };
+  result.affected.placeOrdersByRegionId.region = ['place', createdId];
+  return result;
+};
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const withApp = async action => {
   const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, CSS: globalThis.CSS,
@@ -428,7 +441,7 @@ test('Place coordinate picker Cancel/Done and combined scalar/address/move save 
   assert.match(editor.statusText, /^Place saved/);
 }));
 
-test('Place map and search create keep the single existing POST and creation draft separation', () => withApp(async ({ parent, editor }) => {
+test('Place map and search creation pins originals and adopts a checked acknowledgement', () => withApp(async ({ parent, editor }) => {
   await editor.openPlaceCreate(region);
   assert.equal(editor.placeDraft.latitude, 10);
   assert.equal(editor.placeDraft.longitude, 20);
@@ -439,13 +452,13 @@ test('Place map and search create keep the single existing POST and creation dra
   assert.equal(editor.draft.id, null);
   assert.equal(editor.areaDraft.id, null);
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init]); const result = envelope(place({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } })); result.affected.placeOrdersByRegionId.region = ['place']; return new Response(JSON.stringify(result)); };
+  globalThis.fetch = async (url, init) => { calls.push([url, init]); const result = creationReply({ name: 'Search place', address: 'Search address', location: { latitude: 11, longitude: 22 } }); return new Response(JSON.stringify(result)); };
   await editor.savePlaceDraft();
   await nextTick();
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], '/api/trips/trip/editor/regions/region/places');
+  assert.equal(calls[0][0], '/api/trips/trip/editor/regions/region/places/conditional');
   assert.equal(calls[0][1].method, 'POST');
-  assert.equal(editor.placeDraft.id, 'place');
+  assert.equal(editor.placeDraft.id, createdId);
   assert.equal(editor.placeDirty, false);
 }));
 
@@ -479,3 +492,45 @@ test('discarded same-Place reply cannot release a newer pending save or change a
   assert.equal(editor.areaDraft.regionId, 'region');
   assert.equal(calls, 2);
 }));
+
+for (const outcome of ['network', 'malformed', 'newer', 'retired']) {
+  test(`Place creation ${outcome} preserves intent and admits no blind replay`, () => withApp(async ({ parent, editor }) => {
+    await editor.openPlaceCreate(region);
+    const pending = deferred();
+    const calls = [];
+    globalThis.fetch = async (url, init) => { calls.push([url, JSON.parse(init.body)]); return pending.promise; };
+    const save = editor.savePlaceDraft();
+    editor.placeDraft.name = 'Newer creation intent';
+    if (outcome === 'retired') {
+      globalThis.placeConfirm = async () => true;
+      await parent.editorSurface.closeActiveTarget();
+      await editor.openPlaceEdit(parent.state.placesById.place);
+      editor.placeDraft.name = 'Retired reply must preserve me';
+    }
+    // A normal refresh cannot replace pinned membership or establish noncommit.
+    parent.state = { ...parent.state, placesById: { ...parent.state.placesById, remote: place({ id: 'remote', displayOrder: null }) },
+      placeOrderByRegionId: { region: ['place', 'remote'] } };
+    await nextTick();
+    const result = creationReply({ location: { latitude: 10, longitude: 20 }, address: '' });
+    pending.resolve(outcome === 'network' ? Promise.reject(new Error('Lost reply'))
+      : new Response(JSON.stringify(outcome === 'malformed' ? { success: true, data: { id: createdId } } : result)));
+    await save;
+    await nextTick();
+    assert.deepEqual(calls[0][1].expected, { regionId: 'region', places: [{ id: 'place', displayOrder: 1 }] });
+    assert.equal(editor.placeDirty, true);
+    assert.notEqual(editor.statusText, 'Place saved');
+    if (outcome === 'newer') {
+      assert.equal(editor.placeDraft.id, createdId);
+      assert.equal(editor.placeDraft.name, 'Newer creation intent');
+      assert.equal(parent.state.placesById[createdId].name, 'New Place');
+    } else {
+      assert.equal(parent.state.placesById[createdId], undefined);
+      assert.equal(editor.placeDraftState.creationUncertain.value, true);
+      if (outcome !== 'retired') {
+        editor.resetPlaceDraft();
+        await editor.savePlaceDraft();
+        assert.equal(calls.length, 1, 'Explicit reset and a refresh do not clear creation uncertainty');
+      } else assert.equal(editor.placeDraft.name, 'Retired reply must preserve me');
+    }
+  }));
+}

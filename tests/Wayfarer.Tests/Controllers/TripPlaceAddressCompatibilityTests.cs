@@ -232,8 +232,8 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var controller = BuildController(db, reverse);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var response = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None),
-            ValidCreateBody("Geo", reverseGeocode: true));
+        var response = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None),
+            ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(response);
         Assert.Empty(envelope.Warnings);
