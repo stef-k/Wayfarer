@@ -73,7 +73,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
 
     /// <summary>Desired actions are bound independently of JSON property order and acknowledgement flags.</summary>
     internal string IntentFingerprint() => Hash(new { Operation, Web, Destination,
-        Location = Pair(Location), Changes = Canonical(Changes), Orders = Orders.OrderBy(p => p.Key).Select(p => new { p.Key, p.Value }) });
+        Location = Pair(Location), Expected = Canonical(Expected), Changes = Canonical(Changes), Orders = Orders.OrderBy(p => p.Key).Select(p => new { p.Key, p.Value }) });
 
     /// <summary>Exact public material content used by move/reorder originals, including nullable stored order.</summary>
     internal static object Original(Place place) => new { place.Id, place.RegionId, place.Name, Notes = RichNotes.Normalize(place.Notes),
@@ -151,7 +151,9 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     {
         JsonValueKind.Undefined => null,
         JsonValueKind.Object => element.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal).ToDictionary(p => p.Name, p => Canonical(p.Value)),
-        JsonValueKind.Array => element.EnumerateArray().Select(Canonical).ToArray(),
+        JsonValueKind.Array => (element.EnumerateArray().All(item => item.ValueKind == JsonValueKind.Object && item.TryGetProperty("id", out _))
+            ? element.EnumerateArray().OrderBy(item => item.GetProperty("id").GetString(), StringComparer.Ordinal)
+            : element.EnumerateArray().AsEnumerable()).Select(Canonical).ToArray(),
         _ => element
     };
 

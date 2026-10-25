@@ -112,26 +112,31 @@ public sealed partial class PlaceConditionalPostgresTests
 
     /// <summary>Paired disjoint scalar/coordinate saves survive either save order; prepare never copies a newer scalar into changes.</summary>
     [PostgresTheory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task CoordinateAndScalar_BothSaveOrders(bool webFirst)
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task CoordinateAndScalar_BothSaveOrders(bool structuralFirst, bool webStructural)
     {
         var place = await SeedAsync();
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db);
         using var web = await WebAsync(app, place.UserId);
         using var bearer = Bearer(app, place.UserId);
-        var request = CoordinateRequest(place, true, 15, 23);
-        await PrepareStructureAsync(web, place, true, "coordinates", request);
+        var request = CoordinateRequest(place, webStructural, 15, 23);
+        await PrepareStructureAsync(webStructural ? web : bearer, place, webStructural, "coordinates", request);
         async Task Scalar()
         {
-            using var response = await PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Mobile notes" });
+            using var response = webStructural
+                ? await PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Mobile notes" })
+                : await PatchAsync(web, place, true, new { notesHtml = place.Notes }, new { notesHtml = "Mobile notes" });
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
-        if (!webFirst) await Scalar();
-        using var coordinates = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        if (!structuralFirst) await Scalar();
+        using var coordinates = webStructural ? await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request)
+            : await bearer.PostAsJsonAsync(StructurePath(place, false, "coordinates"), request);
         Assert.True(coordinates.StatusCode == HttpStatusCode.OK, await coordinates.Content.ReadAsStringAsync());
-        if (webFirst) await Scalar();
+        if (structuralFirst) await Scalar();
         await using var verify = fixture.CreateContext();
         var current = await verify.Places.SingleAsync(p => p.Id == place.Id);
         Assert.Equal(("Mobile notes", 15d, 23d, place.Address), (current.Notes, current.Location!.Y, current.Location.X, current.Address));

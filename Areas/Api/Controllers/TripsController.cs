@@ -522,7 +522,7 @@ public partial class TripsController : BaseApiController
 
     /// <summary>
     /// Partially updates a Place with optional finite WGS84 coordinates.
-    /// Region moves remain within the same owned trip.
+    /// Original-aware scalar, coordinate, move and vector actions own all supported Place updates.
     /// </summary>
     /// <param name="placeId">Place ID</param>
     /// <param name="request">Partial update payload</param>

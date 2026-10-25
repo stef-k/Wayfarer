@@ -121,6 +121,10 @@ export function usePlaceEditorActions(context: any) {
     let creation: PlaceCreationRequest | null = null;
     let structure: PlaceStructureRequest | null = null;
     let segmentIds: string[] = [];
+    let attemptIntent: string | null = null;
+    const releaseAttempt = (): void => {
+      if (attemptIntent) owner.structuralHolds.value = owner.structuralHolds.value.filter((h: { intent: string }) => h.intent !== attemptIntent);
+    };
     savingSession = session;
     context.isSaving.value = true;
     context.resetFeedback();
@@ -150,6 +154,10 @@ export function usePlaceEditorActions(context: any) {
         if (Object.hasOwn(structure.changes, 'location') && JSON.stringify(structure.changes.location) !== JSON.stringify(original?.location ?? structure.expected.location))
           segmentIds = preview.affectedSegmentIds;
       }
+      if (structure) {
+        attemptIntent = JSON.stringify(structure);
+        owner.structuralHolds.value.push({ targetId: placeId!, regionIds: Object.keys(structure.placeIdsByRegion ?? { [completeRegion(structure)]: [] }), intent: attemptIntent });
+      }
       dispatched = true;
       if (creation) owner.creationUncertain.value = true;
       // Prepared combined edits commit once. Scalar requests never fall back to another writer.
@@ -158,12 +166,16 @@ export function usePlaceEditorActions(context: any) {
         : placeId
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, structure!)
           : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
+      if (structure) {
+        validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
+        releaseAttempt();
+      }
       if (!currentAttempt()) return;
       if (creation) {
         validatePlaceCreation(result, context.props.state.tripId, creation);
         owner.creationUncertain.value = false;
       }
-      else validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
+      else if (!structure) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar);
       owner.acknowledge(result.data, conditional?.changes ?? complete);
       for (const [regionId, ids] of Object.entries(result.affected.placeOrdersByRegionId) as [string, string[]][]) {
         if (owner.structuralOrders.value) owner.structuralOrders.value[regionId] = ids.map(id => {
@@ -177,12 +189,12 @@ export function usePlaceEditorActions(context: any) {
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
     } catch (error) {
-      if (!currentAttempt()) return;
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (rejected) releaseAttempt();
+      if (!currentAttempt()) return;
       if (creation && rejected) owner.creationUncertain.value = false;
       if (dispatched && !rejected) {
-        if (structure) owner.structuralHolds.value.push({ targetId: placeId!, regionIds: Object.keys(structure.placeIdsByRegion ?? { [completeRegion(structure)]: [] }), intent: JSON.stringify(structure) });
         owner.uncertain.value = true;
         if (!placeId) owner.creationUncertain.value = true;
       }
@@ -282,7 +294,12 @@ export function usePlaceEditorActions(context: any) {
     const currentAttempt = (): boolean => alive && owner.session() === session;
     let dispatched = false;
     let request: import('../types').EditorPlaceOrderRequest | null = null;
+    let attemptIntent: string | null = null;
+    const releaseAttempt = (): void => {
+      if (attemptIntent) owner.structuralHolds.value = owner.structuralHolds.value.filter((h: { intent: string }) => h.intent !== attemptIntent);
+    };
     context.isOrdering.value = true;
+    owner.orderingPending.value = true;
     context.resetFeedback();
     try {
       const originals = previousIds.map(id => placeMaterialOriginal(context.props.state.placesById[id]));
@@ -297,20 +314,23 @@ export function usePlaceEditorActions(context: any) {
       }
       if (!currentAttempt()) return;
       request = { ...request, conditionToken: preview.conditionToken, reviewed: true };
+      attemptIntent = JSON.stringify(request);
+      owner.structuralHolds.value.push({ targetId: regionId, regionIds: [regionId], intent: attemptIntent });
       dispatched = true;
       const result = await orderPlaces(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, request);
-      if (!currentAttempt()) return;
       validatePlaceOrderAcknowledgement(result, context.props.state.tripId, regionId, ids, originals);
+      releaseAttempt();
+      if (!currentAttempt()) return;
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.markSaved();
     } catch (error) {
       const rejected = error instanceof EditorValidationError || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
-      if (dispatched && !rejected) owner.structuralHolds.value.push({ targetId: regionId, regionIds: [regionId], intent: JSON.stringify(request) });
+      if (rejected || !dispatched) releaseAttempt();
       if (!currentAttempt()) return;
       context.applyError(error, 'Place reorder failed.');
       await context.restoreRegionOrder(previousIds);
     } finally {
-      if (alive) context.isOrdering.value = false;
+      if (alive) { context.isOrdering.value = false; owner.orderingPending.value = false; }
     }
   };
 

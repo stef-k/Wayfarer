@@ -4,7 +4,7 @@ import { reactive, ref } from 'vue';
 import type { EditorMutationResult, EditorPlace, EditorPlaceConditionalRequest, EditorPlaceDraft, EditorPlaceOriginalValues, EditorPlaceSaveRequest, EditorPlaceVisitSummary, EditorVisitProgress } from '../types';
 import { buildPlaceRequest, emptyPlaceDraft, toPlaceDraft } from './regionPlaceDrafts';
 import { completeSegment } from './segmentNotesDraft';
-import { placeMaterialOriginal, placeOrderOriginals, placeStructureRequest, type PlaceMaterialOriginal } from './placeStructuralEditing';
+import { completePlace, completeVisitSummary, placeMaterialOriginal, placeOrderOriginals, placeStructureRequest, type PlaceMaterialOriginal } from './placeStructuralEditing';
 import type { PlaceStructureRequest } from './placeStructuralEditing';
 
 const scalars = ['name', 'notesHtml', 'iconName', 'markerColor'] as const;
@@ -27,6 +27,7 @@ export const createPlaceDraftState = () => {
   const uncertain = ref(false);
   const creationUncertain = ref(false);
   const creationOriginals = ref<Record<string, PlaceCreationOriginal[]> | null>(null);
+  const orderingPending = ref(false);
   const material = ref<PlaceMaterialOriginal | null>(null);
   const structuralOrders = ref<ReturnType<typeof placeOrderOriginals> | null>(null);
   // Attempt facts survive draft reset/retirement; refresh/equality cannot establish noncommit.
@@ -120,13 +121,8 @@ export const createPlaceDraftState = () => {
   };
 
   return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge,
-    structuralHolds, held, beginStructure, structuralRequest, structuralOrders, session: () => session.value };
+    orderingPending, structuralHolds, held, beginStructure, structuralRequest, structuralOrders, session: () => session.value };
 };
-
-/** Checks visit projections used by both the Place and optional complete-save progress slice. */
-const completeVisitSummary = (visit: EditorPlaceVisitSummary): boolean => Boolean(visit && typeof visit.placeId === 'string'
-  && Number.isInteger(visit.visitCount) && visit.visitCount >= 0 && typeof visit.isVisited === 'boolean'
-  && [visit.firstVisitAt, visit.lastVisitAt].every(date => date === null || typeof date === 'string'));
 
 /** Complete Place saves may refresh visit progress; scalar acknowledgements cannot publish it. */
 const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolean(progress
@@ -140,34 +136,14 @@ const completeVisitProgress = (progress: EditorVisitProgress): boolean => Boolea
     && (row.endedAt === null || typeof row.endedAt === 'string')
     && (row.durationMinutes === null || Number.isFinite(row.durationMinutes))));
 
-/** Requires the complete Place shape before any parent, baseline, preview or Saved adoption. */
-export const completePlace = (value: EditorPlace): boolean => {
-  const original = value?.originalValues;
-  const coordinate = value?.location;
-  const visit = value?.visitSummary;
-  return Boolean(value && typeof value.id === 'string' && typeof value.tripId === 'string' && typeof value.regionId === 'string'
-    && ['name', 'notesHtml', 'address', 'iconName', 'markerColor'].every(key => typeof value[key as keyof EditorPlace] === 'string')
-    && ['resolvedFeatureName', 'resolvedFeatureType'].every(key => !Object.hasOwn(value, key)
-      || value[key as keyof EditorPlace] === null || typeof value[key as keyof EditorPlace] === 'string')
-    && Number.isInteger(value.displayOrder) && value.capabilities && typeof value.capabilities.canEdit === 'boolean'
-    && typeof value.capabilities.canDelete === 'boolean'
-    && (coordinate === null || coordinate && Number.isFinite(coordinate.latitude) && Math.abs(coordinate.latitude) <= 90
-      && Number.isFinite(coordinate.longitude) && Math.abs(coordinate.longitude) <= 180)
-    && completeVisitSummary(visit) && visit.placeId === value.id
-    && original && original.regionId === value.regionId && original.name === value.name
-    && ['notesHtml', 'iconName', 'markerColor'].every(key => Object.hasOwn(original, key)
-      && (original[key as keyof EditorPlaceOriginalValues] === null || typeof original[key as keyof EditorPlaceOriginalValues] === 'string'))
-    && (original.notesHtml ?? '') === value.notesHtml
-    && (original.iconName?.trim() ? original.iconName : 'marker') === value.iconName
-    && (original.markerColor?.trim() ? original.markerColor : 'bg-blue') === value.markerColor);
-};
-
 /** Place saves never publish Region/Area/Tag changes; only complete saves may publish lifecycle effects. */
 export const validatePlaceAcknowledgement = (result: EditorMutationResult<EditorPlace>, tripId: string,
   placeId: string | null, regionId: string, scalar: boolean, structure: PlaceStructureRequest | null = null, segmentIds: string[] = []): void => {
   const next = result?.data;
   const affected = result?.affected;
   const unrelated = ['regions', 'areas', 'tags'] as const;
+  const originalLocation = (structure?.expected.place as { location?: unknown } | undefined)?.location ?? structure?.expected.location;
+  const coordinateChanged = Boolean(structure && Object.hasOwn(structure.changes, 'location') && !same(structure.changes.location, originalLocation));
   const validOrder = (ids: string[]): boolean => Array.isArray(ids) && ids.every(id => typeof id === 'string') && new Set(ids).size === ids.length;
   const validOrders = (orders: Record<string, string[]>): boolean => Boolean(orders && typeof orders === 'object' && !Array.isArray(orders)
     && Object.values(orders).every(validOrder));
@@ -188,7 +164,12 @@ export const validatePlaceAcknowledgement = (result: EditorMutationResult<Editor
     || affected.places.some(p => !completePlace(p) || p.tripId !== tripId)
     || new Set(affected.places.map(p => p.id)).size !== affected.places.length
     || (!structure && affected.places.length !== 1)
-    || structure && (result.contract !== 'bd2-1' || !same([...new Set(Object.values(structure.placeIdsByRegion ?? {}).flat().concat(next.id))].sort(), affected.places.map(p => p.id).sort())
+    || structure && (coordinateChanged ? affected.segmentOrder === null || affected.visitProgress === null : affected.segmentOrder !== null || affected.visitProgress !== null)
+    || structure && Object.hasOwn(structure.changes, 'location') && !same(next.location, structure.changes.location)
+    || structure && typeof structure.changes.name === 'string' && next.name !== structure.changes.name.trim()
+    || structure && ['iconName', 'markerColor'].some(key => Object.hasOwn(structure.changes, key) && next[key as 'iconName'] !== structure.changes[key as 'iconName'])
+    || structure && !structure.changes.reverseGeocode && Object.hasOwn(structure.changes, 'address') && next.address !== (structure.changes.address?.trim() ?? '')
+    || structure && (affected.places.some(p => !Object.hasOwn(p.originalValues!, 'address') || !Object.hasOwn(p.originalValues!, 'displayOrder')) || result.contract !== 'bd2-1' || !same([...new Set(Object.values(structure.placeIdsByRegion ?? {}).flat().concat(next.id))].sort(), affected.places.map(p => p.id).sort())
       || !same([...segmentIds].sort(), affected.segments.map(s => s.id).sort())
       || affected.places.some(p => structure.placeIdsByRegion && (p.displayOrder !== structure.placeIdsByRegion[p.regionId]?.indexOf(p.id)! + 1)))
     || !validPlaceOrders(affected.placeOrdersByRegionId) || !validOrders(affected.areaOrdersByRegionId)

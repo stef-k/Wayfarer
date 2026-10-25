@@ -12,6 +12,69 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class PlaceConditionalPostgresTests
 {
+    /// <summary>Move binds full target content/parent; order binds target content while a later disjoint Notes patch remains valid.</summary>
+    [PostgresTheory]
+    [InlineData("move", false, false)]
+    [InlineData("move", false, true)]
+    [InlineData("move", true, false)]
+    [InlineData("move", true, true)]
+    [InlineData("order", false, false)]
+    [InlineData("order", false, true)]
+    [InlineData("order", true, false)]
+    [InlineData("order", true, true)]
+    public async Task MoveAndOrder_ReciprocalNotesSaveOrders(string operation, bool webStructural, bool structuralFirst)
+    {
+        var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        await AddCredentialAsync(db, graph.UserId);
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, graph.UserId); using var bearer = Bearer(app, graph.UserId);
+        var client = webStructural ? web : bearer;
+        var path = operation == "move" ? StructurePath(place, webStructural, operation) : OrderPath(graph.TripId, graph.SourceId, webStructural);
+        var places = await db.Places.AsNoTracking().Where(p => p.RegionId == graph.SourceId).OrderBy(p => p.Id).ToArrayAsync();
+        var request = operation == "move" ? await MoveRequestAsync(place, graph.DestinationId!.Value, webStructural)
+            : new Dictionary<string, object?> { ["expected"] = new { places = places.Select(Material).ToArray() }, ["placeIds"] = places.Select(p => p.Id).Reverse().ToArray() };
+        using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
+        Assert.True(prepare.IsSuccessStatusCode, await prepare.Content.ReadAsStringAsync());
+        request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        async Task<HttpResponseMessage> Structure() => operation == "order" || webStructural
+            ? await client.PutAsJsonAsync(path, request) : await client.PostAsJsonAsync(path, request);
+        Task<HttpResponseMessage> Notes() => webStructural
+            ? PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Opposite Notes" })
+            : PatchAsync(web, place, true, new { notesHtml = place.Notes }, new { notesHtml = "Opposite Notes" });
+        using var first = structuralFirst ? await Structure() : await Notes(); Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        using var second = structuralFirst ? await Notes() : await Structure();
+        Assert.Equal(operation == "order" && structuralFirst ? HttpStatusCode.OK : HttpStatusCode.Conflict, second.StatusCode);
+        await using var verify = fixture.CreateContext(); var current = await verify.Places.SingleAsync(p => p.Id == place.Id);
+        Assert.Equal(structuralFirst && operation == "move" ? place.Notes : "Opposite Notes", current.Notes);
+        Assert.Equal(structuralFirst && operation == "move" ? graph.DestinationId!.Value : graph.SourceId, current.RegionId);
+    }
+
+    /// <summary>Profile dependency changes committed during a real Segment wait cannot be used without their earlier-class lock.</summary>
+    [PostgresFact]
+    public async Task Coordinates_ProfileDriftDuringSegmentWaitRejects()
+    {
+        var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        await AddCredentialAsync(db, graph.UserId);
+        var profile = new TransportProfile { Id = Guid.NewGuid(), Key = "bd2-" + Guid.NewGuid().ToString("N"), Label = "Drift profile", Category = "ground", PlanningSpeedKmh = 5 };
+        fixture.RegisterTransportProfile(profile.Id); db.Add(profile); await db.SaveChangesAsync();
+        var segmentId = await db.Segments.Where(s => s.FromPlaceId == place.Id || s.ToPlaceId == place.Id || s.Waypoints.Any(w => w.PlaceId == place.Id))
+            .OrderBy(s => s.Id).Select(s => s.Id).FirstAsync();
+        var probe = new PlaceProbe("Segments"); await using var app = await StartAsync(db, [probe]); using var bearer = Bearer(app, graph.UserId);
+        var request = CoordinateRequest(place, false, 2.25, 2.25); await PrepareStructureAsync(bearer, place, false, "coordinates", request);
+        await using var blocker = fixture.CreateContext(); await using var transaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Segments\" WHERE \"Id\" = {segmentId} FOR UPDATE");
+        var pending = bearer.PostAsJsonAsync(StructurePath(place, false, "coordinates"), request);
+        await WaitForLockAsync(probe, 0);
+        await blocker.Segments.Where(s => s.Id == segmentId).ExecuteUpdateAsync(s => s.SetProperty(s => s.TransportProfileId, profile.Id).SetProperty(s => s.Mode, profile.Key));
+        await transaction.CommitAsync(); using var result = await pending; Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        await using var verify = fixture.CreateContext(); Assert.Equal(place.Location!.AsText(), (await verify.Places.FindAsync(place.Id))!.Location!.AsText());
+        Assert.Empty(probe.Updates);
+    }
+
     /// <summary>Material route/provenance and enrichment drift after prepare rejects without location or derived partial effects.</summary>
     [PostgresTheory]
     [InlineData(false, "route")]

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.TestHost;
@@ -47,14 +48,19 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
         client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
 
-        using var response = await client.PutAsync($"/api/trips/{trip.Id}/editor/places/{place.Id}",
-            new StringContent(UpdateBody(place.RegionId, "Changed", 37, 23, false), System.Text.Encoding.UTF8, "application/json"));
+        var request = new Dictionary<string, object?> { ["expected"] = new { regionId = place.RegionId, address = place.Address },
+            ["changes"] = new { address = "Changed" } };
+        var path = $"/api/trips/{trip.Id}/editor/places/{place.Id}";
+        using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
+        Assert.Equal(HttpStatusCode.OK, prepare.StatusCode);
+        request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        using var response = await client.PutAsJsonAsync(path, request);
 
         var responseBody = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(responseBody);
         var root = document.RootElement;
-        Assert.Equal(new[] { "affected", "data", "deletedIds", "success", "warnings" }, root.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(new[] { "affected", "contract", "data", "deletedIds", "success", "warnings" }, root.EnumerateObject().Select(property => property.Name).Order().ToArray());
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.Equal("Changed", root.GetProperty("data").GetProperty("address").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("data").GetProperty("resolvedFeatureName").ValueKind);

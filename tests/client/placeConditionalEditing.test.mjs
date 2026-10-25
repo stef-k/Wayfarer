@@ -54,7 +54,15 @@ const envelope = data => ({ contract: 'bd2-1', success: true, data, affected: { 
   segments: [], tags: [], placeOrdersByRegionId: {}, areaOrdersByRegionId: {},
   regionOrder: null, segmentOrder: null, tagOrder: null, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
-const saved = data => new Response(JSON.stringify(envelope(data)));
+const saved = (data, coordinates = false) => {
+  const result = envelope(data);
+  if (coordinates) {
+    result.affected.segmentOrder = [];
+    result.affected.visitProgress = { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0,
+      placeSummariesByPlaceId: { [data.id]: data.visitSummary }, historyRows: [] };
+  }
+  return new Response(JSON.stringify(result));
+};
 const createdId = '10000000-0000-0000-0000-000000000001';
 /** Complete creation response at the mounted production owner seam. */
 const creationReply = (overrides = {}) => {
@@ -114,7 +122,7 @@ const withApp = async action => {
         const order = url.includes('/places/order/');
         return new Response(JSON.stringify({ contract: 'bd2-1', operation: order ? 'order' : 'web-update', tripId: 'trip',
           targetId: order ? url.split('/regions/')[1].split('/')[0] : 'place', requiresReview: true, conditionToken: 'conditions',
-          place: order ? null : { id: 'place', name: 'Original' }, placesByRegion: {}, affectedSegmentIds: segments }));
+          place: order ? null : { id: 'place', regionId: 'region', name: 'Original', notes: null, address: 'Original address', location: { latitude: 10, longitude: 20 }, iconName: null, markerColor: null, displayOrder: 1, resolvedFeatureName: null, resolvedFeatureType: null }, placesByRegion: {}, affectedSegmentIds: segments }));
       }
       return apply(url, init);
     };
@@ -178,7 +186,7 @@ for (const authored of [false, true]) {
     editor.placeDraft.name = 'Name after Cancel';
     const calls = [];
     globalThis.fetch = prepared(async (_url, init) => { calls.push(init); return saved(place({ name: 'Name after Cancel',
-      notesHtml: authored ? 'Keep my notes' : '', location: authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 } })); });
+      notesHtml: authored ? 'Keep my notes' : '', location: authored ? { latitude: 11, longitude: 22 } : { latitude: 30, longitude: 40 } }), authored); });
     await editor.savePlaceDraft();
     assert.equal(calls.length, 1);
     assert.equal(calls[0].method, authored ? 'PUT' : 'PATCH');
@@ -547,3 +555,80 @@ for (const outcome of ['network', 'malformed', 'newer', 'retired']) {
     }
   }));
 }
+
+for (const outcome of ['lost', 'malformed', 'retired']) {
+  test(`structural ${outcome} retains its immutable attempt and newer intent across reset`, () => withApp(async ({ parent, editor, prepared }) => {
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.placeDraft.latitude = 11;
+    const reply = deferred();
+    let calls = 0;
+    globalThis.fetch = prepared(async () => { calls++; return reply.promise; });
+    const saving = editor.savePlaceDraft();
+    for (let tick = 0; tick < 20 && calls === 0; tick++) await new Promise(done => setImmediate(done));
+    assert.equal(calls, 1);
+    editor.placeDraft.latitude = 10;
+    editor.placeDraft.notesHtml = 'Newer corrective intent';
+    if (outcome === 'retired') { await parent.editorSurface.closeActiveTarget(); await editor.openEdit(region); }
+    reply.resolve(outcome === 'malformed' ? new Response(JSON.stringify(envelope(place()))) : new Response('{}', { status: 500 }));
+    await saving;
+    await nextTick();
+    assert.equal(parent.state.placesById.place.location.latitude, 10);
+    assert.equal(editor.placeDraftState.structuralHolds.value.length, 1);
+    if (outcome !== 'retired') assert.equal(editor.placeDraft.notesHtml, 'Newer corrective intent');
+    await editor.openPlaceEdit(parent.state.placesById.place);
+    editor.resetPlaceDraft();
+    editor.placeDraft.latitude = 12;
+    await editor.savePlaceDraft();
+    assert.equal(calls, 1);
+  }));
+}
+
+for (const malformed of [false, true]) {
+  test(`complete order acknowledgement ${malformed ? 'holds unknown' : 'adopts once'} through the mounted owner`, () => withApp(async ({ parent, editor, prepared }) => {
+    let calls = 0;
+    const p = place();
+    const result = envelope(p);
+    result.data = { regionId: 'region', placeOrder: ['place'] };
+    if (malformed) result.data.placeOrder = [];
+    result.affected.placeOrdersByRegionId = { region: ['place'] };
+    globalThis.fetch = prepared(async () => { calls++; return new Response(JSON.stringify(result)); });
+    await editor.reorderPlaces('region', ['place'], ['place']);
+    await nextTick();
+    assert.equal(calls, 1);
+    assert.equal(editor.placeDraftState.structuralHolds.value.length, malformed ? 1 : 0);
+    if (malformed) { await editor.reorderPlaces('region', ['place'], ['place']); assert.equal(calls, 1); }
+    assert.deepEqual(parent.state.placeOrderByRegionId.region, ['place']);
+  }));
+}
+
+test('review cancellation preserves the structural base and sends no apply', () => withApp(async ({ parent, editor, prepared }) => {
+  await editor.openPlaceEdit(parent.state.placesById.place);
+  editor.placeDraft.latitude = 11;
+  let applies = 0;
+  globalThis.placeConfirm = async () => false;
+  globalThis.fetch = prepared(async () => { applies++; return saved(place()); });
+  await editor.savePlaceDraft();
+  assert.equal(applies, 0);
+  assert.equal(editor.placeDraft.latitude, 11);
+  assert.equal(editor.placeDraftState.baseline.latitude, '10');
+  assert.equal(editor.placeDraftState.structuralHolds.value.length, 0);
+}));
+
+test('structural acknowledgement preserves a newer coordinate reversal and unsent Notes', () => withApp(async ({ parent, editor, prepared }) => {
+  await editor.openPlaceEdit(parent.state.placesById.place);
+  editor.placeDraft.latitude = 11;
+  const reply = deferred();
+  let dispatched = false;
+  globalThis.fetch = prepared(async () => { dispatched = true; return reply.promise; });
+  const saving = editor.savePlaceDraft();
+  for (let tick = 0; tick < 20 && !dispatched; tick++) await new Promise(done => setImmediate(done));
+  editor.placeDraft.latitude = 10;
+  editor.placeDraft.notesHtml = 'Newer Notes';
+  reply.resolve(saved(place({ location: { latitude: 11, longitude: 20 } }), true));
+  await saving;
+  assert.equal(parent.state.placesById.place.location.latitude, 11);
+  assert.equal(editor.placeDraft.latitude, 10);
+  assert.equal(editor.placeDraft.notesHtml, 'Newer Notes');
+  assert.equal(editor.placeDirty, true);
+  assert.equal(editor.placeDraftState.structuralHolds.value.length, 0);
+}));

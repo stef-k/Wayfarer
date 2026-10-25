@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
 
@@ -39,16 +40,16 @@ public partial class TripsController
         {
             // Ownership precedes request parsing, concealing foreign/missing resources equally.
             var owned = operation == "order"
-                ? await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(_dbContext.Regions,
+                ? await _dbContext.Regions.AnyAsync(
                     r => r.Id == targetId && r.TripId == tripId && r.UserId == user.Id && r.Trip.UserId == user.Id, token)
-                : await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(_dbContext.Places,
+                : await _dbContext.Places.AnyAsync(
                     p => p.Id == targetId && p.UserId == user.Id && p.Region.TripId == tripId && p.Region.UserId == user.Id && p.Region.Trip.UserId == user.Id, token);
             if (!owned) return NotFound();
             var request = await PlaceStructuralRequest.ReadAsync(Request.Body, operation, false, token);
             if (prepare) return Ok(await _lifecycle.PreparePlaceStructureAsync(tripId, targetId, user.Id, request, new HashSet<string>(), new HashSet<string>(), token));
             var result = await _lifecycle.ApplyPlaceStructureAsync(tripId, targetId, user.Id, request, new HashSet<string>(), new HashSet<string>(),
                 current => authority.RevalidateMutationAsync(HttpContext, user.Id, current), null, token);
-            return Ok(result);
+            return Ok(new { contract = result.Contract, success = result.Success, applied = true, data = result.Data, affected = result.Affected, deletedIds = result.DeletedIds, warnings = result.Warnings });
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
     }

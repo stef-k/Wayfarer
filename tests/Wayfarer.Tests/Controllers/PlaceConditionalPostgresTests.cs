@@ -20,19 +20,19 @@ using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Routed PostgreSQL evidence for paired Place fields, exact scalar originals and retained unconditional writers.</summary>
+/// <summary>Routed PostgreSQL evidence for paired Place fields, exact originals and rejected unconditional writers.</summary>
 [Collection(PostgresImportTestCollection.Name)]
 public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output) : TestBase
 {
     private readonly Mock<ICacheWarmupScheduler> _warmup = new();
 
-    /// <summary>Routed stale complete Web drafts overwrite bearer Notes; scalar PATCH retains them.</summary>
+    /// <summary>Unconditional Web/bearer drafts cannot bypass selected originals; protected scalar changes retain disjoint Notes.</summary>
     [PostgresTheory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task StaleWebDraft_LegacyOverwriteAndProtectedCounterpart(bool conditional, bool protectedBearer)
+    public async Task StaleWebDraft_UnconditionalPathsReject(bool conditional, bool protectedBearer)
     {
         var place = await SeedAsync();
         await using var db = fixture.CreateContext();
@@ -42,7 +42,7 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
         using var mobile = protectedBearer
             ? await PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Newer Mobile notes" })
             : await bearer.PutAsJsonAsync($"/api/trips/places/{place.Id}", new { notes = "Newer Mobile notes" });
-        Assert.Equal(HttpStatusCode.OK, mobile.StatusCode);
+        Assert.Equal(protectedBearer ? HttpStatusCode.OK : HttpStatusCode.Conflict, mobile.StatusCode);
         using var response = conditional
             ? protectedBearer
                 ? await PatchAsync(web, place, true, new { iconName = place.IconName }, new { iconName = "star" })
@@ -50,14 +50,13 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
             : await web.PutAsJsonAsync($"/api/trips/{place.Region.TripId}/editor/places/{place.Id}", new
             { regionId = place.RegionId, name = "Web name", notesHtml = place.Notes, address = place.Address,
                 location = new { latitude = 14, longitude = 22 }, iconName = "marker", markerColor = "bg-blue", reverseGeocode = false });
-        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        Assert.True(response.StatusCode == (conditional ? HttpStatusCode.OK : HttpStatusCode.BadRequest), await response.Content.ReadAsStringAsync());
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.SingleAsync(p => p.Id == place.Id);
-        Assert.Equal(conditional ? "Newer Mobile notes" : place.Notes, stored.Notes);
-        Assert.Equal((conditional && protectedBearer ? place.Name : "Web name", place.Address, place.Location!.AsText(), place.RegionId, place.DisplayOrder),
+        Assert.Equal(protectedBearer ? "Newer Mobile notes" : place.Notes, stored.Notes);
+        Assert.Equal((conditional && !protectedBearer ? "Web name" : place.Name, place.Address, place.Location!.AsText(), place.RegionId, place.DisplayOrder),
             (stored.Name, stored.Address, stored.Location!.AsText(), stored.RegionId, stored.DisplayOrder));
-        output.WriteLine(conditional ? "PROTECTED: scalar Web Name/icon preserves bearer Notes."
-            : "LEGACY OVERWRITE: complete Web PUT restores stale Notes; retained compatibility risk.");
+        output.WriteLine("Protected disjoint fields survive; unsupported unconditional requests do not mutate.");
     }
 
     /// <summary>Disjoint Web Name/icon and bearer Notes/color survive both orders with exact SQL footprints.</summary>

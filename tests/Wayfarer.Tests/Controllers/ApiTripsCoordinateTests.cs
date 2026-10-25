@@ -63,7 +63,8 @@ public partial class ApiTripsControllerTests
         var error = isPlace
             ? paired ? "Latitude or Longitude is out of range." : "Both latitude and longitude must be provided together."
             : paired ? "Center latitude or longitude is out of range." : "Both centerLatitude and centerLongitude must be provided together.";
-        Assert.Equal(error, Assert.IsType<BadRequestObjectResult>(result).Value);
+        if (action == "update-place") Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        else Assert.Equal(error, Assert.IsType<BadRequestObjectResult>(result).Value);
         Assert.Equal("Ordinary", region.Name);
         Assert.Equal(0, region.DisplayOrder);
         Assert.Equal("<p>Original</p>", region.Notes);
@@ -95,6 +96,12 @@ public partial class ApiTripsControllerTests
 
         var result = await MutateCoordinatesAsync(controller, action, region, destination, place, latitude, longitude);
 
+        if (action == "update-place")
+        {
+            Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+            Assert.Equal((23d, 37d), (place.Location!.X, place.Location.Y));
+            return;
+        }
         var payload = Assert.IsType<OkObjectResult>(result).Value!;
         Assert.Equal(true, payload.GetType().GetProperty("success")!.GetValue(payload));
         var isPlace = action.EndsWith("place", StringComparison.Ordinal);

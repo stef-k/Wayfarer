@@ -43,6 +43,7 @@ public sealed partial class PlaceRegionLifecycleService
         var scope = new LifecycleRecoveryScope(candidates.Locks.PlaceIds, candidates.Locks.RegionIds, candidates.Locks.SegmentIds);
         var isolated = false;
         var commitStarted = false;
+        var committed = false;
         await using var transaction = await BeginTransactionAsync(token, IsolationLevel.ReadCommitted);
         try
         {
@@ -64,19 +65,25 @@ public sealed partial class PlaceRegionLifecycleService
             var result = await ApplyLockedPlaceStructureAsync(current, request, address, token);
             commitStarted = true;
             if (transaction != null) await transaction.CommitAsync(token);
+            committed = true;
             return result;
         }
         catch (Exception original)
         {
             try { await RecoverUnappliedRegionDeletionAsync(original, transaction); }
             catch { isolated = false; throw; }
-            if (!commitStarted && original is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+            if (!commitStarted && IsPlaceStructureContention(original))
                 throw new TripMetadataMutationRejected(409, "mutation-contention", "Contention prevented this operation. Keep your draft and review current state.");
             throw;
         }
         finally
         {
-            if (isolated) RestoreAfterRegionDeletion(scope, tracker);
+            if (isolated && committed) RestoreAfterRegionDeletion(scope, tracker);
+            else if (isolated)
+            {
+                foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray()) entry.State = EntityState.Detached;
+                RestoreTracker(scope, tracker);
+            }
         }
     }
 
@@ -124,6 +131,8 @@ public sealed partial class PlaceRegionLifecycleService
         }
         if (request.Changes.TryGetProperty("reverseGeocode", out var reverse) && reverse.GetBoolean())
         {
+            if (request.Changes.TryGetProperty("location", out _) ? request.Location == null : place!.Location == null)
+                throw PlaceStructuralRequest.Invalid();
             var originals = request.Destination.HasValue ? expected.GetProperty("place") : expected;
             if (!originals.TryGetProperty("address", out var address) || !PlaceStructuralRequest.Equal(address, place!.Address)
                 || !originals.TryGetProperty("location", out var location) || !PlaceStructuralRequest.Equal(location, PlaceStructuralRequest.Pair(place.Location))) throw PlaceStructureStale();
@@ -131,8 +140,7 @@ public sealed partial class PlaceRegionLifecycleService
     }
 
     private static bool OriginalPlacesMatch(JsonElement originals, Place[] places) => originals.ValueKind == JsonValueKind.Array
-        && PlaceStructuralRequest.Equal(JsonSerializer.SerializeToElement(originals.EnumerateArray().OrderBy(p => p.GetProperty("id").GetGuid()), PlaceStructuralRequest.Json),
-            places.OrderBy(p => p.Id).Select(PlaceStructuralRequest.Original).ToArray());
+        && PlaceStructuralRequest.Equal(OrderedOriginalEntries(originals), places.OrderBy(p => p.Id).Select(PlaceStructuralRequest.Original).ToArray());
 
     private static bool OriginalOrdersMatch(JsonElement originals, PlaceStructuralSnapshot snapshot)
     {
@@ -140,9 +148,15 @@ public sealed partial class PlaceRegionLifecycleService
         var fields = originals.EnumerateObject().ToArray();
         return fields.Length == snapshot.Regions.Length && fields.Select(f => f.Name).Distinct().Count() == fields.Length
             && snapshot.Regions.All(r => originals.TryGetProperty(r.Id.ToString(), out var values)
-                && values.ValueKind == JsonValueKind.Array && PlaceStructuralRequest.Equal(
-                    JsonSerializer.SerializeToElement(values.EnumerateArray().OrderBy(p => p.GetProperty("id").GetGuid())),
+                && values.ValueKind == JsonValueKind.Array && PlaceStructuralRequest.Equal(OrderedOriginalEntries(values),
                     snapshot.Siblings.Where(p => p.RegionId == r.Id).OrderBy(p => p.Id).Select(p => new { p.Id, p.DisplayOrder }).ToArray()));
+    }
+
+    /// <summary>Original sets are unordered on the wire, while missing/malformed IDs never become a server error.</summary>
+    private static JsonElement OrderedOriginalEntries(JsonElement values)
+    {
+        try { return JsonSerializer.SerializeToElement(values.EnumerateArray().OrderBy(p => p.GetProperty("id").GetGuid()), PlaceStructuralRequest.Json); }
+        catch (Exception error) when (error is InvalidOperationException or KeyNotFoundException or FormatException) { throw PlaceStructuralRequest.Invalid(); }
     }
 
     /// <summary>A move transfers only its selected Place; every other membership and each complete vector stays exact.</summary>
@@ -157,6 +171,13 @@ public sealed partial class PlaceRegionLifecycleService
                 .Concat(regionId == destination ? new[] { snapshot.Place.Id } : []).Order();
             if (!ids.Order().SequenceEqual(required)) throw PlaceStructuralRequest.Invalid();
         }
+    }
+
+    private static bool IsPlaceStructureContention(Exception error)
+    {
+        for (Exception? current = error; current != null; current = current.InnerException)
+            if (current is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }) return true;
+        return false;
     }
 
     /// <summary>Material conflicts prove no write only before commit starts; callers retain drafts instead of rebasing.</summary>

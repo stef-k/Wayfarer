@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
-  absoluteUrl,
+  absoluteUrl, fulfillPlacePreparation, placeMutationFixture, withPlaceOriginals,
   editorApiPath,
   editorPath,
   expectMountedWorkspace,
@@ -25,9 +25,10 @@ test.describe('Trip Editor place reassignment', () => {
     await expect(select).toHaveValue(fixture.normalRegionId);
     await select.selectOption(fixture.unassignedRegionId);
     await page.getByRole('button', { name: 'Save Place' }).click();
+    await page.getByRole('button', { name: 'Apply reviewed save', exact: true }).click();
 
     await expect.poll(() => requests.length).toBe(1);
-    expect(requests[0].regionId).toBe(fixture.unassignedRegionId);
+    expect(requests[0].changes.regionId).toBe(fixture.unassignedRegionId);
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
     await expect(placeRow(page, fixture.unassignedRegionId, fixture.placeId)).toBeVisible();
     await expect(placeRow(page, fixture.normalRegionId, fixture.placeId)).toHaveCount(0);
@@ -35,9 +36,10 @@ test.describe('Trip Editor place reassignment', () => {
 
     await select.selectOption(fixture.normalRegionId);
     await page.getByRole('button', { name: 'Save Place' }).click();
+    await page.getByRole('button', { name: 'Apply reviewed save', exact: true }).click();
 
     await expect.poll(() => requests.length).toBe(2);
-    expect(requests[1].regionId).toBe(fixture.normalRegionId);
+    expect(requests[1].changes.regionId).toBe(fixture.normalRegionId);
     await expect(page.locator('.trip-editor-save-state').filter({ hasText: /Place saved/i }).first()).toBeVisible();
     await expect(placeRow(page, fixture.normalRegionId, fixture.placeId)).toBeVisible();
     await expect(placeRow(page, fixture.unassignedRegionId, fixture.placeId)).toHaveCount(0);
@@ -58,7 +60,7 @@ function withMovablePlace(state: any): { state: any; normalRegionId: string; pla
   clone.placeOrderByRegionId[normalRegionId] = clone.placeOrderByRegionId[normalRegionId] ?? [];
   clone.placeOrderByRegionId[unassignedRegionId] = clone.placeOrderByRegionId[unassignedRegionId] ?? [];
   const placeId = '00000000-0000-0000-0000-000000295901';
-  clone.placesById[placeId] = {
+  clone.placesById[placeId] = withPlaceOriginals({
     id: placeId,
     tripId: clone.tripId,
     regionId: normalRegionId,
@@ -71,7 +73,7 @@ function withMovablePlace(state: any): { state: any; normalRegionId: string; pla
     displayOrder: 1,
     visitSummary: { placeId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
     capabilities: { canEdit: true, canRename: true, canDelete: true, canReorder: true, canMove: true, canAddChildren: false, canTargetForSearchAdd: false }
-  };
+  });
   clone.placeOrderByRegionId[normalRegionId] = [placeId, ...clone.placeOrderByRegionId[normalRegionId].filter((id: string) => id !== placeId)];
   return { state: clone, normalRegionId, placeId, unassignedRegionId };
 }
@@ -86,43 +88,17 @@ async function routeEditorStateWithPlaceMove(page: Page, state: any, requests: A
       return;
     }
 
+    if (request.url().endsWith('/prepare')) { await fulfillPlacePreparation(route, state, placeId); return; }
     const body = request.postDataJSON() as Record<string, any>;
     requests.push(body);
     const previousRegionId = state.placesById[placeId].regionId;
-    const targetRegionId = body.regionId;
-    const place = { ...state.placesById[placeId], ...body, regionId: targetRegionId };
+    const targetRegionId = body.changes.regionId;
+    const place = withPlaceOriginals({ ...state.placesById[placeId], ...body.changes, regionId: targetRegionId });
     state.placesById[placeId] = place;
     state.placeOrderByRegionId[previousRegionId] = (state.placeOrderByRegionId[previousRegionId] ?? []).filter((id: string) => id !== placeId);
     state.placeOrderByRegionId[targetRegionId] = [...(state.placeOrderByRegionId[targetRegionId] ?? []).filter((id: string) => id !== placeId), placeId];
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mutationResult(place, state, previousRegionId, targetRegionId)) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(placeMutationFixture(state, placeId, { [previousRegionId]: state.placeOrderByRegionId[previousRegionId], [targetRegionId]: state.placeOrderByRegionId[targetRegionId] })) });
   });
-}
-
-function mutationResult(place: Record<string, any>, state: any, previousRegionId: string, targetRegionId: string): Record<string, any> {
-  return {
-    success: true,
-    data: place,
-    affected: {
-      metadata: null,
-      regions: [],
-      regionOrder: null,
-      places: [place],
-      placeOrdersByRegionId: previousRegionId === targetRegionId ? {} : {
-        [previousRegionId]: state.placeOrderByRegionId[previousRegionId],
-        [targetRegionId]: state.placeOrderByRegionId[targetRegionId]
-      },
-      areas: [],
-      areaOrdersByRegionId: {},
-      segments: [],
-      segmentOrder: null,
-      tags: [],
-      tagOrder: null,
-      visitProgress: null,
-      options: null
-    },
-    deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] },
-    warnings: []
-  };
 }
 
 function unassignedPlacesRegionId(state: any): string {

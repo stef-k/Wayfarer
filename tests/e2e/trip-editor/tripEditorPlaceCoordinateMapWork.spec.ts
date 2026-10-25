@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import {
-  absoluteUrl,
+  absoluteUrl, fulfillPlacePreparation, placeMutationFixture, withPlaceOriginals,
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
@@ -365,10 +365,9 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
 
   test('Save after Done sends the picked coordinate to a mocked existing place endpoint', async ({ page }) => {
     await signIn(page);
-    await loadWorkspaceWithCoordinateFixture(page);
+    const state = await loadWorkspaceWithCoordinateFixture(page);
     const forbidden = watchForbiddenPickRequests(page);
     const savedRequests: Array<Record<string, any>> = [];
-    const serverCoordinate = { latitude: 12.125, longitude: 22.875 };
     await page.route(editorApiMatcher, async route => {
       const request = route.request();
       if (request.method() === 'GET') {
@@ -376,17 +375,19 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
         return;
       }
 
+      if (request.url().endsWith('/prepare')) { await fulfillPlacePreparation(route, state, editablePlaceId); return; }
       if (request.method() !== 'PUT' || !request.url().endsWith(`/places/${editablePlaceId}`)) {
         throw new Error(`Unexpected editor mutation ${request.method()} ${request.url()}`);
       }
 
       const body = request.postDataJSON() as Record<string, any>;
       savedRequests.push(body);
+      state.placesById[editablePlaceId] = withPlaceOriginals({ ...state.placesById[editablePlaceId], ...body.changes });
       // Fulfilled here to prove picked-coordinate request shape and UI save handling only.
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(editorMutationResult({ ...body, id: editablePlaceId, location: serverCoordinate }))
+        body: JSON.stringify(placeMutationFixture(state, editablePlaceId, {}, true))
       });
     });
 
@@ -398,16 +399,17 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
 
     const picked = await draftCoordinates(page);
     await page.getByRole('button', { name: 'Save Place' }).click();
+    await page.getByRole('button', { name: 'Apply reviewed save', exact: true }).click();
     await expect.poll(() => savedRequests.length).toBe(1);
-    expect(String(savedRequests[0].location.latitude)).toBe(picked.latitude);
-    expect(String(savedRequests[0].location.longitude)).toBe(picked.longitude);
-    await expectDraftCoordinates(page, { latitude: String(serverCoordinate.latitude), longitude: String(serverCoordinate.longitude) });
-    await expectMarkerCoordinate(page, { latitude: String(serverCoordinate.latitude), longitude: String(serverCoordinate.longitude) });
+    expect(String(savedRequests[0].changes.location.latitude)).toBe(picked.latitude);
+    expect(String(savedRequests[0].changes.location.longitude)).toBe(picked.longitude);
+    await expectDraftCoordinates(page, picked);
+    await expectMarkerCoordinate(page, picked);
     expect(forbidden(), 'Saving a picked coordinate must not call geocode/search providers.').toEqual([]);
   });
 });
 
-async function loadWorkspaceWithCoordinateFixture(page: Page): Promise<void> {
+async function loadWorkspaceWithCoordinateFixture(page: Page): Promise<MutableEditorState> {
   await blockTileRequests(page);
   await page.unroute(editorApiMatcher).catch(() => undefined);
   const state = await loadEditorStateFixture(page) as MutableEditorState;
@@ -415,6 +417,7 @@ async function loadWorkspaceWithCoordinateFixture(page: Page): Promise<void> {
   await page.route(editorApiMatcher, async route => routeEditorReadOnly(route, state));
   await page.goto(absoluteUrl(editorPath));
   await expectMountedWorkspace(page);
+  return state;
 }
 
 async function routeEditorReadOnly(route: Route, state: MutableEditorState): Promise<void> {
@@ -437,7 +440,7 @@ function prepareCoordinateState(state: MutableEditorState): void {
 }
 
 function placeFixture(state: MutableEditorState, regionId: string, id: string, name: string, location: Coordinate): Record<string, any> {
-  return {
+  return withPlaceOriginals({
     id,
     tripId: state.tripId,
     regionId,
@@ -450,7 +453,7 @@ function placeFixture(state: MutableEditorState, regionId: string, id: string, n
     displayOrder: 1,
     visitSummary: { placeId: id, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
     capabilities: editableCapabilities()
-  };
+  });
 }
 
 function editableCapabilities(): Record<string, boolean> {
@@ -622,33 +625,4 @@ function watchForbiddenPickRequests(page: Page): () => string[] {
     }
   });
   return () => urls;
-}
-
-function editorMutationResult(place: Record<string, any>): Record<string, any> {
-  return {
-    success: true,
-    data: {
-      ...place,
-      tripId: '00000000-0000-0000-0000-000000000000',
-      visitSummary: { placeId: editablePlaceId, visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
-      capabilities: editableCapabilities()
-    },
-    affected: {
-      metadata: null,
-      regions: [],
-      regionOrder: null,
-      places: [],
-      placeOrdersByRegionId: {},
-      areas: [],
-      areaOrdersByRegionId: {},
-      segments: [],
-      segmentOrder: null,
-      tags: [],
-      tagOrder: null,
-      visitProgress: null,
-      options: null
-    },
-    deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] },
-    warnings: []
-  };
 }

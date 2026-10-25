@@ -137,6 +137,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         JsonElement intent;
         try { intent = JsonSerializer.Deserialize<JsonElement>(authoredIntent); }
         catch (JsonException) { return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), authoredIntent); }
+        if (intent.ValueKind != JsonValueKind.Object) return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), authoredIntent);
         var changes = intent.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
         var destination = changes.TryGetValue("regionId", out var parent) && ((JsonElement)parent!).TryGetGuid(out var id) ? id : place.RegionId;
         if (destination == place.RegionId) changes.Remove("regionId");
@@ -165,7 +166,9 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         Guid tripId, Guid regionId, CancellationToken token, string authoredIntent)
     {
         var places = await db.Places.AsNoTracking().Where(p => p.RegionId == regionId).OrderBy(p => p.Id).ToArrayAsync();
-        var request = JsonSerializer.Deserialize<Dictionary<string, object?>>(authoredIntent)!;
+        Dictionary<string, object?> request;
+        try { request = JsonSerializer.Deserialize<Dictionary<string, object?>>(authoredIntent)!; }
+        catch (JsonException) { return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), authoredIntent); }
         request["expected"] = new { places = places.Select(Material).ToArray() };
         var prepared = await SendJson(controller, c => c.PrepareEditorPlaceOrder(tripId, regionId, token), JsonSerializer.Serialize(request));
         if (prepared is not OkObjectResult ok) return prepared;
@@ -194,7 +197,8 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
     /// </summary>
     protected static EditorMutationResult<T> AssertMutation<T>(IActionResult result)
     {
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.True(result is OkObjectResult, JsonSerializer.Serialize(result));
+        var ok = (OkObjectResult)result;
         return Assert.IsType<EditorMutationResult<T>>(ok.Value);
     }
 

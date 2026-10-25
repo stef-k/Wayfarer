@@ -37,6 +37,12 @@ public partial class ApiTripsControllerTests
             "area" => await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = input }),
             _ => await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = input })
         };
+        if (writer == "place-update")
+        {
+            Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+            Assert.Null(place.Notes);
+            return;
+        }
         Assert.IsType<OkObjectResult>(result);
         var stored = writer switch
         {

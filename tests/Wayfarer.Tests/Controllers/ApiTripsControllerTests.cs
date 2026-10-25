@@ -305,7 +305,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdatePlace_ReturnsBadRequest_WhenLatOrLonMissing()
+    public async Task UpdatePlace_RequiresOriginals_WhenLatOrLonMissing()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -320,11 +320,11 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 10 });
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
     [Fact]
-    public async Task UpdatePlace_MovesToAnotherRegion_ForOwner()
+    public async Task UpdatePlace_RejectsUnconditionalMove()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -340,10 +340,10 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { RegionId = region2.Id, Name = "Moved" });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         var updated = db.Places.First(p => p.Id == place.Id);
-        Assert.Equal(region2.Id, updated.RegionId);
-        Assert.Equal("Moved", updated.Name);
+        Assert.Equal(region1.Id, updated.RegionId);
+        Assert.Equal("P1", updated.Name);
     }
 
     [Fact]
@@ -427,7 +427,7 @@ public partial class ApiTripsControllerTests : TestBase
 
 
     [Fact]
-    public async Task UpdatePlace_UpdatesCoordinates_ForOwner()
+    public async Task UpdatePlace_RejectsUnconditionalCoordinates()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -442,14 +442,14 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 30, Longitude = 40 });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         var updated = db.Places.First(p => p.Id == place.Id);
-        Assert.Equal(30, updated.Location!.Y);
-        Assert.Equal(40, updated.Location!.X);
+        Assert.Equal(20, updated.Location!.Y);
+        Assert.Equal(10, updated.Location!.X);
     }
 
     [Fact]
-    public async Task UpdatePlace_UpdatesIconAndMarkerColor()
+    public async Task UpdatePlace_RejectsUnconditionalMarkerFields()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -464,14 +464,14 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { IconName = "star", MarkerColor = "bg-red" });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         var updated = db.Places.First(p => p.Id == place.Id);
-        Assert.Equal("star", updated.IconName);
-        Assert.Equal("bg-red", updated.MarkerColor);
+        Assert.Equal("marker", updated.IconName);
+        Assert.Equal("bg-blue", updated.MarkerColor);
     }
 
     [Fact]
-    public async Task UpdatePlace_ClearsIcon_WhenClearIconTrue()
+    public async Task UpdatePlace_RejectsUnconditionalMarkerClear()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -486,9 +486,9 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { ClearIcon = true });
 
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         var updated = db.Places.First(p => p.Id == place.Id);
-        Assert.Equal("marker", updated.IconName);
+        Assert.Equal("star", updated.IconName);
     }
 
     [Fact]
@@ -504,7 +504,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdatePlace_ValidatesCoordinateRange()
+    public async Task UpdatePlace_RequiresOriginals_ForCoordinateIntent()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -519,7 +519,7 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 100, Longitude = 200 });
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
 

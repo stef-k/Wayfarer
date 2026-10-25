@@ -1,4 +1,31 @@
-import type { EditorPlace, EditorPlaceOrderResult, EditorPlaceSaveRequest, EditorMutationResult, EditorTripState } from '../types';
+import type { EditorPlace, EditorPlaceOrderResult, EditorPlaceSaveRequest, EditorMutationResult, EditorTripState, EditorPlaceVisitSummary, EditorPlaceOriginalValues } from '../types';
+
+/** Checks visit projections used by both the Place and optional complete-save progress slice. */
+export const completeVisitSummary = (visit: EditorPlaceVisitSummary): boolean => Boolean(visit && typeof visit.placeId === 'string'
+  && Number.isInteger(visit.visitCount) && visit.visitCount >= 0 && typeof visit.isVisited === 'boolean'
+  && [visit.firstVisitAt, visit.lastVisitAt].every(date => date === null || typeof date === 'string'));
+
+/** Requires the complete Place shape before any parent, baseline, preview or Saved adoption. */
+export const completePlace = (value: EditorPlace): boolean => {
+  const original = value?.originalValues;
+  const coordinate = value?.location;
+  const visit = value?.visitSummary;
+  return Boolean(value && typeof value.id === 'string' && typeof value.tripId === 'string' && typeof value.regionId === 'string'
+    && ['name', 'notesHtml', 'address', 'iconName', 'markerColor'].every(key => typeof value[key as keyof EditorPlace] === 'string')
+    && ['resolvedFeatureName', 'resolvedFeatureType'].every(key => !Object.hasOwn(value, key)
+      || value[key as keyof EditorPlace] === null || typeof value[key as keyof EditorPlace] === 'string')
+    && Number.isInteger(value.displayOrder) && value.capabilities && typeof value.capabilities.canEdit === 'boolean'
+    && typeof value.capabilities.canDelete === 'boolean'
+    && (coordinate === null || coordinate && Number.isFinite(coordinate.latitude) && Math.abs(coordinate.latitude) <= 90
+      && Number.isFinite(coordinate.longitude) && Math.abs(coordinate.longitude) <= 180)
+    && completeVisitSummary(visit) && visit.placeId === value.id
+    && original && original.regionId === value.regionId && original.name === value.name
+    && ['notesHtml', 'iconName', 'markerColor'].every(key => Object.hasOwn(original, key)
+      && (original[key as keyof EditorPlaceOriginalValues] === null || typeof original[key as keyof EditorPlaceOriginalValues] === 'string'))
+    && (original.notesHtml ?? '') === value.notesHtml
+    && (original.iconName?.trim() ? original.iconName : 'marker') === value.iconName
+    && (original.markerColor?.trim() ? original.markerColor : 'bg-blue') === value.markerColor);
+};
 
 /** Exact public material base; private route/enrichment facts are reviewed in the prepared conditions. */
 export interface PlaceMaterialOriginal {
@@ -67,6 +94,15 @@ export const placeStructureRequest = (current: EditorPlaceSaveRequest, before: E
 const storedOrder = (a: { id: string; displayOrder: number | null }, b: { id: string; displayOrder: number | null }): number =>
   Number(a.displayOrder === null) - Number(b.displayOrder === null) || (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id.localeCompare(b.id);
 
+/** Checks the full public material projection before it can support explicit dependency review. */
+const validMaterial = (place: PlaceMaterialOriginal): boolean => Boolean(place && typeof place.id === 'string' && place.id
+  && typeof place.regionId === 'string' && place.regionId && typeof place.name === 'string'
+  && ['notes', 'address', 'iconName', 'markerColor', 'resolvedFeatureName', 'resolvedFeatureType'].every(key => Object.hasOwn(place, key)
+    && (place[key as keyof PlaceMaterialOriginal] === null || typeof place[key as keyof PlaceMaterialOriginal] === 'string'))
+  && (place.displayOrder === null || Number.isInteger(place.displayOrder))
+  && (place.location === null || place.location && Number.isFinite(place.location.latitude) && Math.abs(place.location.latitude) <= 90
+    && Number.isFinite(place.location.longitude) && Math.abs(place.location.longitude) <= 180));
+
 /** A malformed prepare acknowledgement never becomes an apply token or an adopted baseline. */
 export const validatePlaceStructurePreview = (value: PlaceStructurePreview, tripId: string, targetId: string, operation: string): void => {
   if (value?.contract !== 'bd2-1' || value.operation !== operation || value.tripId !== tripId || value.targetId !== targetId
@@ -74,8 +110,8 @@ export const validatePlaceStructurePreview = (value: PlaceStructurePreview, trip
     || !Array.isArray(value.affectedSegmentIds) || value.affectedSegmentIds.some(id => typeof id !== 'string')
     || new Set(value.affectedSegmentIds).size !== value.affectedSegmentIds.length
     || !value.placesByRegion || typeof value.placesByRegion !== 'object' || Array.isArray(value.placesByRegion)
-    || Object.values(value.placesByRegion).some(places => !Array.isArray(places))
-    || (operation === 'order' ? value.place !== null : !value.place || value.place.id !== targetId))
+    || Object.values(value.placesByRegion).some(places => !Array.isArray(places) || places.some(p => !validMaterial(p)))
+    || (operation === 'order' ? value.place !== null : !value.place || !validMaterial(value.place) || value.place.id !== targetId))
     throw new Error('The prepared Place conditions are incomplete. Keep your draft; no apply was sent.');
 };
 
@@ -88,7 +124,7 @@ export const validatePlaceOrderAcknowledgement = (result: EditorMutationResult<E
   if (result?.contract !== 'bd2-1' || result.success !== true || result.data?.regionId !== regionId || !same(result.data.placeOrder, ids)
     || !orders || Object.keys(orders).length !== 1 || !same(orders[regionId], ids)
     || !Array.isArray(affected.places) || affected.places.length !== ids.length || new Set(affected.places.map(p => p.id)).size !== ids.length
-    || affected.places.some(p => p.tripId !== tripId || p.regionId !== regionId || !ids.includes(p.id)
+    || affected.places.some(p => !completePlace(p) || p.tripId !== tripId || p.regionId !== regionId || !ids.includes(p.id)
       || p.displayOrder !== ids.indexOf(p.id) + 1 || !same(placeMaterialOriginal(p), { ...originals.find(o => o.id === p.id), displayOrder: ids.indexOf(p.id) + 1 }))
     || ['regions', 'areas', 'segments', 'tags'].some(key => !Array.isArray(affected[key as keyof typeof affected]) || (affected[key as 'regions']).length !== 0)
     || Object.keys(affected.areaOrdersByRegionId ?? { invalid: [] }).length !== 0

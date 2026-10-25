@@ -195,8 +195,6 @@ public sealed partial class PlaceConditionalPostgresTests
             InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             Record(command);
-            if (command.CommandText.Contains($"public.\"{table}\"") && command.CommandText.Contains("FOR UPDATE"))
-                LockProcesses.Enqueue(((NpgsqlConnection)command.Connection!).ProcessID);
             return ValueTask.FromResult(result);
         }
         public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command, CommandEventData data,
@@ -207,6 +205,8 @@ public sealed partial class PlaceConditionalPostgresTests
         }
         private void Record(DbCommand command)
         {
+            if (command.CommandText.Contains($"public.\"{table}\"") && command.CommandText.Contains("FOR UPDATE"))
+                LockProcesses.Enqueue(((NpgsqlConnection)command.Connection!).ProcessID);
             if (command.CommandText.StartsWith("UPDATE ")) Updates.Enqueue(command.CommandText);
         }
     }

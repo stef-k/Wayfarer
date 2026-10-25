@@ -173,10 +173,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(
-            controller,
-            c => c.UpdatePlace(trip.Id, waypoint.Id, CancellationToken.None),
-            ValidUpdateBody(waypoint.RegionId, "Moved waypoint", 38, 24));
+        var result = await SendCheckedPlaceUpdate(db, controller, trip.Id, waypoint.Id, CancellationToken.None, ValidUpdateBody(waypoint.RegionId, "Moved waypoint", 38, 24));
 
         var envelope = AssertMutation<EditorPlaceDto>(result);
         var route = db.Segments.Single(s => s.Id == segment.Id).RouteGeometry!;

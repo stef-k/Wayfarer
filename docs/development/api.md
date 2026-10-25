@@ -170,25 +170,14 @@ The Trip Editor controller is intentionally split across `TripEditorController.c
 
 ## Trip Editor Place address metadata
 
-`PUT /api/trips/{tripId}/editor/places/{placeId}` accepts a complete editor draft
-under the existing User cookie, ownership and antiforgery rules. Without successful
-requested reverse geocoding, the submitted manual address and coordinates are
-compared with the freshly loaded Place inside the lifecycle transaction. Addresses
-are trimmed with null treated as empty; nullable coordinates use exact equality.
-Unchanged values preserve feature name/type, provider, storage mode and the original
-enrichment timestamp, including Region-only edits. Changing or clearing either
-value clears all five metadata fields.
-
-Successful authorized enrichment replaces the address and complete metadata tuple,
-including null feature fields, Geoapify `persistent` or Mapbox `permanent` storage
-mode and one UTC timestamp reused across internal transaction retries. Unavailable
-enrichment saves the manual fallback with the existing `reverse-geocode-unavailable`
-warning and applies the same compatibility rule without a fresh timestamp.
-Place, metadata, dependent routes, measurements and orders share the lifecycle
-commit; a failed save rolls them back. Provider admission remains consumed if
-persistence fails. Complete drafts retain last-writer behavior; a lost commit
-acknowledgement or response can leave an unknown outcome, so refetch authoritative
-state. An HTTP replay may contact the provider again.
+`PUT /api/trips/{tripId}/editor/places/{placeId}` uses the prepared, original-aware
+combined contract documented in [conditional Place structure](trip-place-structure.md).
+Coordinate-only intent preserves Address. Changed coordinates clear the complete
+five-field enrichment tuple; unchanged coordinates retain it. Explicit Web Address
+and trusted metadata choices keep their existing compatibility/replacement rules,
+including consumed provider admission if domain persistence fails. All intended
+and necessary derived effects commit together. Unknown outcomes remain held;
+prepare, refresh and matching values do not establish noncommit.
 
 ## Ownership and role checks
 
@@ -918,7 +907,7 @@ synchronization cursor is promised.
 | Update Region | `PUT /api/trips/regions/{regionId}` | Optional fields above; Trip association cannot change. |
 | Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
 | Create Place | `POST /api/trips/{tripId}/conditional/places` | Original destination and complete nullable Place order set; absent fallback additionally needs Region-set proof. See [checked creation](trip-creation.md). |
-| Update Place | `PUT /api/trips/places/{placeId}` | Optional fields above; `clearIcon`/`clearMarkerColor` reset defaults. |
+| Update Place | Conditional scalar PATCH or prepared coordinate/move/order actions | [Supported Place contracts](trip-place-structure.md); unconditional Place PUT rejects without mutation. |
 | Delete Place | `DELETE /api/trips/places/{placeId}` | No body; dependency confirmation may be required. |
 
 The supported Web and bearer creation contracts, examples, acknowledgement rules,
@@ -929,9 +918,8 @@ no new client falls back to unconditional creation. Server-generated identities
 are not durable retry receipts.
 
 Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
-related Region. Existing Place PUT may move only to an owned Region in the same
-Trip. Its coordinate update contract still uses paired `latitude`/`longitude`;
-Region PUT uses `centerLatitude`/`centerLongitude`. Values must be finite and in
+related Region. Same-Trip Place moves, coordinates and complete ordering use
+[prepared conditional actions](trip-place-structure.md). Region PUT uses `centerLatitude`/`centerLongitude`. Values must be finite and in
 inclusive WGS84 bounds. A null/omitted pair preserves the stored point on PUT;
 a partial pair rejects before any supplied metadata/move/order writes. Returned
 coordinate arrays use `[longitude, latitude]`; absent or historically nonfinite
@@ -970,34 +958,22 @@ returns 400 (`Cannot delete the Unassigned Places region.`), even with a depende
 confirmation header. The cookie Trip Editor retains its separate restriction on
 all reserved Region edits.
 
-These PUT DTOs use null/omitted values as unchanged rather than generic patch
-clear operations. Use a non-null empty notes string to clear notes; Place icon
-and marker-color clear flags restore `marker` and `bg-blue`. Legacy Place PUT
-resolves omissions against the current locked Place, including its current Region
-and coordinates; a Notes-only edit preserves concurrent changes to other fields,
-sibling order and route dependencies. Address is not editable through this DTO;
-its null/empty value and all five enrichment fields remain unchanged. Explicit
-coordinate updates retain the existing route-reconciliation and enrichment policy.
-Explicit fields still write unconditionally: this omission correction provides no
-original-client-base conflict protection or complete bidirectional Web/Mobile
-safety (#853 Slice 2; conditional writes remain later work). Successful mutations
-return 200 with `success` and the corresponding `place`/`region` DTO, or a bounded
-delete success object. Invalid input/destination/reserved names return 400;
-missing resources return 404; missing bearer authority and some non-owner checks
-return 401. Do not assume one universal error envelope.
+Region PUT uses null/omitted values as unchanged; empty Notes clears the text.
+Place scalar edits use selected originals and exact dirty intent. Coordinate,
+move, complete vector and combined Web contracts, atomic effects and safe
+conflict/unknown semantics are documented in [conditional Place structure](trip-place-structure.md).
+No supported client falls back to an unconditional Place writer.
 
 Destructive Place/Region operations can return **409** with affected dependencies,
 an opaque `confirmationToken` and expiry. Review the warning, then explicitly
 retry the same delete with `X-Wayfarer-Dependency-Confirmation: <confirmationToken>`
 if that destruction is intended. The token is bound to owner, operation, target,
 Trip and exact dependency state; changed/expired state requires a fresh warning.
-Place update can also return a lifecycle concurrency 409. Never treat a 409 as
-an unconditional no-body delete success.
+Prepared Place updates have their own conditional conflict categories. Never treat
+a 409 as an unconditional no-body delete success.
 
-For example, create a Region with `{ "name": "Athens" }`, then create a Place
-under that owned Trip with `{ "name": "Museum", "regionId": "<returned-guid>",
-"latitude": 37.98, "longitude": 23.73 }`. Partial notes updates use
-`{ "notes": "Visit in the morning" }` at the corresponding PUT route.
+See [checked creation examples](trip-creation.md) and
+[prepared Place examples](trip-place-structure.md) for supported mobile requests.
 
 Other existing bearer capabilities include limited Trip metadata, Segment notes
 and Area metadata edits, public discovery and public-Trip cloning. Mobile Group,
@@ -1245,8 +1221,8 @@ Trip-sharing lost-reply obligation is included. #853 remains incomplete and open
 | --- | --- | --- |
 | Opt-in bearer | `PATCH /api/trips/{tripId}/conditional/places/{placeId}` | Active incoming bearer and account; selected `name`, `notes`, `iconName`, `markerColor`. |
 | Current Web scalar-only form | `PATCH /api/trips/{tripId}/editor/places/{placeId}/conditional` | User cookie plus antiforgery and current active owner; `notesHtml` maps to the same canonical Notes. |
-| Retained complete Web edit | `PUT /api/trips/{tripId}/editor/places/{placeId}` | One existing lifecycle save for structural/combined intent, including simultaneously authored scalars. |
-| Legacy bearer | `PUT /api/trips/places/{placeId}` | Existing optional fields, null/clear/default-reset and corrected omission semantics; explicit edits remain unconditional. |
+| Current combined Web edit | `PUT /api/trips/{tripId}/editor/places/{placeId}` | [Prepared original-aware lifecycle save](trip-place-structure.md), including authored scalars. |
+| Unconditional bearer Place PUT | `PUT /api/trips/places/{placeId}` | Rejected with `mutation-originals-required`; supported callers use conditional actions. |
 
 ~~~json
 {
@@ -1306,11 +1282,11 @@ when present. All Place saves reject Region/Area/Tag mutations and unrelated
 metadata, options or orders. Complete lifecycle saves may publish unique Place
 orders, dependent Segments, unique Segment order and visit progress; scalar PATCH
 cannot publish those effects. Create requires only its target Region's Place order.
-Complete update permits an empty map or exactly the live source and acknowledged
-target orders; unrelated-only, target-only update and oversized maps reject.
-The acknowledged Place must occur in the target vector and in no non-target vector.
-The live source need not match the client's original Region. Authoritative vector
-membership is not compared with stale client membership. Malformed success replies
+Prepared combined updates require the exact submitted source/destination vectors
+and every changed Place DTO; unrelated-only, omitted-member, duplicate or oversized
+footprints reject. Source membership and the target's full material original must
+match the edited base. Coordinate effects require complete Segment order and visit
+progress projections, even when no Segments are affected. Malformed success replies
 retain intent and the prior comparison baseline under an unknown-outcome hold,
 without Saved or another HTTP attempt.
 
@@ -1319,13 +1295,11 @@ retains originals and content; network/408/500/incomplete-200 outcomes hold the
 draft against blind replay. Explicit Reset/discard never proves an earlier
 operation failed to commit; neither response nor `UpdatedAt` is a durable receipt.
 
-**Retained compatibility limit:** structural/combined Web edits stay a single
-complete lifecycle PUT; they are never decomposed into PATCH plus PUT. That PUT
-and explicit legacy bearer writes can still overwrite overlapping scalars after a
-protected save. Routed PostgreSQL witnesses prove this limitation, including a
-combined coordinate/Address/Name edit restoring stale Notes. Slice 7 therefore
-protects the paired scalar operations, not every Web ↔ Mobile writer. Structural
-Place proofs, legacy policy and #853 C1–C5 remain outstanding; #907 is separate.
+Structural/combined Web saves now use the [BD2-08/09/10 prepared lifecycle
+contract](trip-place-structure.md), compare applicable scalar/parent/content/order
+and material dependency originals, and commit once. Participating unconditional
+Place writers cannot bypass those protections. Final #853 C1/C2/C5 reconciliation,
+independent review and maintainer acceptance remain separate gates.
 
 ## Protected Segment Notes (#853 Slice 6 and C4)
 
