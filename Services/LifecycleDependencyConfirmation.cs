@@ -13,6 +13,7 @@ public sealed class LifecycleDependencyConfirmation
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly IDataProtector _regionDeletionProtector;
+    private readonly IDataProtector _placeDeletionProtector;
     private readonly IDataProtector _coordinateProtector;
     private readonly IDataProtector _moveProtector;
     private readonly IDataProtector _orderProtector;
@@ -26,6 +27,7 @@ public sealed class LifecycleDependencyConfirmation
     {
         _protector = provider.CreateProtector("Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1");
         _regionDeletionProtector = provider.CreateProtector("Wayfarer.RegionDeletion.Content.v1");
+        _placeDeletionProtector = provider.CreateProtector("Wayfarer.PlaceDeletion.Content.v1");
         _coordinateProtector = provider.CreateProtector("Wayfarer.PlaceCoordinates.Conditions.v1");
         _moveProtector = provider.CreateProtector("Wayfarer.PlaceMove.Conditions.v1");
         _orderProtector = provider.CreateProtector("Wayfarer.PlaceOrder.Conditions.v1");
@@ -161,6 +163,29 @@ public sealed class LifecycleDependencyConfirmation
     /// <summary>Checks time with the same authority used to issue the confirmation.</summary>
     internal bool IsRegionDeletionExpired(RegionDeletionApproval approval) => approval.ExpiresAt <= _timeProvider.GetUtcNow();
 
+    /// <summary>Issues expiring full-content Place approval independently of every other operation purpose.</summary>
+    internal RegionDeletionConfirmationDto IssuePlaceDeletion(string userId, Guid tripId, Guid placeId, string fingerprint)
+    {
+        var expires = _timeProvider.GetUtcNow().Add(Lifetime);
+        return new(_placeDeletionProtector.Protect(JsonSerializer.Serialize(new PlaceDeletionApproval(userId, tripId, placeId, fingerprint, expires))), expires);
+    }
+
+    /// <summary>Rejects malformed or cross-purpose consent without exposing its contents.</summary>
+    internal PlaceDeletionApproval ReadPlaceDeletion(string token)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<PlaceDeletionApproval>(_placeDeletionProtector.Unprotect(token)) ?? throw new JsonException();
+        }
+        catch (Exception error) when (error is CryptographicException or JsonException)
+        {
+            throw new TripMetadataMutationRejected(400, "place-deletion-request-invalid", "Confirmation is invalid. Request a new preview.");
+        }
+    }
+
+    /// <summary>Consent expiry is checked again after all lock waits.</summary>
+    internal bool IsPlaceDeletionExpired(PlaceDeletionApproval approval) => approval.ExpiresAt <= _timeProvider.GetUtcNow();
+
     private static EditorLifecycleDependencySampleDto Sample(IEnumerable<Guid> identities)
     {
         var ordered = identities.Distinct().Order().ToArray();
@@ -223,3 +248,6 @@ public sealed record LifecycleDependencies(
 /// <summary>Protected operation/version-scoped approval; only a hash of authored content leaves the server.</summary>
 internal sealed record RegionDeletionApproval(string UserId, Guid TripId, Guid SourceId, string Places, string Areas,
     RegionDeletionDestinationDto Destination, string Fingerprint, DateTimeOffset ExpiresAt);
+
+/// <summary>Transient Place consent is neither authorization nor a durable deletion receipt.</summary>
+internal sealed record PlaceDeletionApproval(string UserId, Guid TripId, Guid PlaceId, string Fingerprint, DateTimeOffset ExpiresAt);

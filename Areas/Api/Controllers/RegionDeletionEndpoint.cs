@@ -11,7 +11,7 @@ internal static class RegionDeletionEndpoint
 {
     /// <summary>Checks ownership before parsing and invokes the same lifecycle implementation for both adapters.</summary>
     internal static async Task<IActionResult> ExecuteAsync(ControllerBase controller, ApplicationDbContext db,
-        PlaceRegionLifecycleService lifecycle, Guid tripId, Guid regionId, string userId, bool mutation, CancellationToken token)
+        PlaceRegionLifecycleService lifecycle, Guid tripId, Guid regionId, string userId, bool mutation, CancellationToken token, Func<CancellationToken, Task<bool>>? authority = null)
     {
         controller.Response.Headers.CacheControl = "no-store";
         if (!await db.Regions.AsNoTracking().AnyAsync(r => r.Id == regionId && r.TripId == tripId
@@ -20,9 +20,10 @@ internal static class RegionDeletionEndpoint
         {
             var request = await RegionDeletionRequestParser.ParseAsync(controller.Request.Body, mutation, token);
             return mutation
-                ? controller.Ok(await lifecycle.ConfirmRegionDeletionAsync(tripId, regionId, userId, request, token))
+                ? controller.Ok(await lifecycle.ConfirmRegionDeletionAsync(tripId, regionId, userId, request, token, authority))
                 : controller.Ok(await lifecycle.PreviewRegionDeletionAsync(tripId, regionId, userId, request, token));
         }
+        catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
         catch (RegionDeletionRejectedException rejection)
         {
             ProblemDetails problem = rejection.Status == 400

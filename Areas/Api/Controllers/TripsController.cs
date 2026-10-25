@@ -553,21 +553,9 @@ public partial class TripsController : BaseApiController
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
 
-        var place = await _dbContext.Places
-            .Include(p => p.Region).ThenInclude(r => r.Trip)
-            .FirstOrDefaultAsync(p => p.Id == placeId);
-        if (place == null) return NotFound("Place not found.");
-        if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
-
-        var result = await _lifecycle.DeletePlaceAsync(
-            place.Region.TripId,
-            placeId,
-            user.Id,
-            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
-            HttpContext.RequestAborted);
-        if (result.Warning != null) return Conflict(result.Warning);
-        if (!result.Succeeded) return NotFound("Place not found.");
-        return Ok(new { success = true, message = "Place deleted.", placeId });
+        if (!await _dbContext.Places.AsNoTracking().AnyAsync(p => p.Id == placeId && p.UserId == user.Id && p.Region.Trip.UserId == user.Id && p.Region.UserId == user.Id)) return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
+            "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }
 
     /// <summary>Rejects creation without the supported original-membership contract.</summary>
@@ -843,25 +831,9 @@ public partial class TripsController : BaseApiController
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
 
-        var region = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == regionId);
-        if (region == null) return NotFound("Region not found.");
-
-        // Verify ownership
-        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == region.TripId);
-        if (trip == null || trip.UserId != user.Id) return Unauthorized("Not your region.");
-
-        if (string.Equals(region.Name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Cannot delete the Unassigned Places region.");
-
-        var result = await _lifecycle.DeleteRegionAsync(
-            region.TripId,
-            regionId,
-            user.Id,
-            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
-            HttpContext.RequestAborted);
-        if (result.Warning != null) return Conflict(result.Warning);
-        if (!result.Succeeded) return NotFound("Region not found.");
-        return Ok(new { success = true, message = "Region deleted.", regionId });
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(p => p.Id == regionId && p.UserId == user.Id && p.Trip.UserId == user.Id)) return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
+            "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }
 
     /// <summary>

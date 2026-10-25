@@ -1,11 +1,12 @@
 import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
 import { nextTick, onUnmounted, watch } from 'vue';
-import { createPlace, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, preparePlaceStructure, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
+import { createPlace, previewPlaceDeletion, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, preparePlaceStructure, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
 import type { EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, Guid } from '../types';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildPlaceCreateTarget, buildPlaceEditTarget } from './regionPlaceEditorTargets';
 import { buildPlaceRequest, defaultPlaceIconName, defaultPlaceMarkerColor, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, withoutRegionId } from './regionPlaceDrafts';
 import { validatePlaceAcknowledgement } from './placeConditionalDraft';
+import { validatePlaceDeletionPreview, validatePlaceDeletionAcknowledgement, placeDeletionMessage } from './placeDeletion';
 import { beginPlaceCoordinateMapWork } from './placeCoordinateMapWork';
 import { placeMaterialOriginal, validatePlaceStructurePreview, validatePlaceOrderAcknowledgement, type PlaceStructureRequest } from './placeStructuralEditing';
 
@@ -215,53 +216,55 @@ export function usePlaceEditorActions(context: any) {
     context.placeCoordinateMapWork);
 
   const deleteDraftPlace = async (): Promise<void> => {
-    if (!context.activePlace.value) {
+    const place = context.activePlace.value as EditorPlace | null;
+    if (!place?.capabilities.canDelete || context.isSaving.value || owner.pending.value) return;
+    if (owner.held(place.id, place.regionId)) {
+      context.applyError(new Error('The earlier Place operation has an unknown outcome. Keep it held without retry. Abandoning this page does not undo a request.'), 'Place deletion held.');
       return;
     }
-
-    if (!(await context.confirmDiscard('Discard unsaved place draft changes before deleting?'))) {
-      return;
-    }
-
+    const session = owner.session();
+    const intent = JSON.stringify(context.placeDraft);
+    const deletedTarget = context.activePlaceTarget.value;
+    const current = (): boolean => alive && owner.session() === session;
+    const unchanged = (): boolean => current() && JSON.stringify(context.placeDraft) === intent;
+    const attemptId = `delete:${place.id}:${crypto.randomUUID()}`;
+    const release = (): void => { owner.structuralHolds.value = owner.structuralHolds.value.filter((h: { intent: string }) => h.intent !== attemptId); };
+    let dispatched = false;
     context.isSaving.value = true;
+    owner.pending.value = true;
     context.resetFeedback();
     try {
-      const deletedTarget = context.activePlaceTarget.value;
-      let confirmationToken: string | undefined;
-      let result: Awaited<ReturnType<typeof deletePlace>> | undefined;
-      for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
-        try {
-          result = await deletePlace(context.props.editorEndpoint, context.activePlace.value.id, context.props.antiforgeryToken, confirmationToken);
-        } catch (error) {
-          if (!(error instanceof EditorLifecycleConfirmationError)) throw error;
-          const warning = error.conflict;
-          // The dependency request is complete while the user decides, so its trigger can receive restored focus.
-          context.isSaving.value = false;
-          const confirmed = await confirm({
-            title: warning.code === 'lifecycle-confirmation-stale' ? 'Dependencies changed' : 'Delete place?',
-            message: `This deletes ${warning.endpointSegments.count} connected segment(s) and updates ${warning.waypointOnlySegments.count} waypoint route(s).`,
-            confirmLabel: 'Delete',
-            cancelLabel: 'Keep place',
-            variant: 'danger'
-          });
-          if (!confirmed) return;
-          context.isSaving.value = true;
-          confirmationToken = warning.confirmationToken;
-        }
-      }
-      if (!result) throw new Error('Place dependencies changed repeatedly. Please retry.');
+      const preview = await previewPlaceDeletion(context.props.editorEndpoint, place.id, context.props.antiforgeryToken);
+      if (!unchanged()) return;
+      validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
+      // Opening/cancelling consent preserves every draft. Only this approved target may be cleared after success.
+      const approved = await confirm({ title: 'Delete Place?', message: placeDeletionMessage(preview),
+        confirmLabel: 'Permanently delete Place', cancelLabel: 'Keep Place and drafts', variant: 'danger' });
+      if (!approved || !unchanged()) return;
+      validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
+      owner.structuralHolds.value.push({ targetId: place.id, regionIds: [place.regionId], intent: attemptId });
+      dispatched = true;
+      const result = await deletePlace(context.props.editorEndpoint, place.id, context.props.antiforgeryToken, preview.confirmation.token);
+      validatePlaceDeletionAcknowledgement(result, preview);
+      if (!current()) return;
+      const clearTarget = unchanged();
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      owner.reset(null);
-      Object.assign(context.areaDraft, emptyAreaDraft());
-      context.placeCreateBaselineRequest.value = null;
-      context.placeCreateBaselineDraft.value = null;
-      context.areaCreateBaselineRequest.value = null;
-      context.props.editorSurface.clearActiveTarget(deletedTarget);
-      context.markSaved();
+      release();
+      if (clearTarget) {
+        owner.reset(null);
+        context.props.editorSurface.clearActiveTarget(deletedTarget);
+        context.markSaved();
+      }
     } catch (error) {
-      context.applyError(error, 'Place delete failed.');
+      const rejected = error instanceof EditorValidationError || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      if (!dispatched || rejected) release();
+      if (!current()) return;
+      if (dispatched && !rejected) {
+        owner.uncertain.value = true;
+        context.applyError(new Error('Place deletion outcome unknown. Refresh to inspect current facts; keep this attempt held without retry. Leaving does not undo the request.'), 'Place deletion held.');
+      } else context.applyError(error, 'Place deletion rejected. Review a fresh preview and confirm again.');
     } finally {
-      context.isSaving.value = false;
+      if (current()) { context.isSaving.value = false; owner.pending.value = false; }
     }
   };
 

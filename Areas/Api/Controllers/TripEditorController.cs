@@ -272,13 +272,9 @@ public sealed partial class TripEditorController : ControllerBase
             return authFailure;
         }
 
-        var outcome = await _regionMutations.DeleteRegionAsync(
-            tripId,
-            regionId,
-            userId!,
-            Request.Headers["X-Wayfarer-Dependency-Confirmation"].FirstOrDefault(),
-            cancellationToken);
-        return ToActionResult(outcome);
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(p => p.Id == regionId && p.UserId == userId && p.TripId == tripId && p.Trip.UserId == userId, cancellationToken)) return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-confirmation-required",
+            "Use the content-bound deletion preview and confirmed POST contract.").ToActionResult();
     }
 
     /// <summary>

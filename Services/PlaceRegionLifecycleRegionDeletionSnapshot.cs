@@ -59,6 +59,7 @@ public sealed partial class PlaceRegionLifecycleService
             throw MalformedDeletionGraph();
         var profileIds = segments.Where(s => s.TransportProfileId.HasValue).Select(s => s.TransportProfileId!.Value).Distinct().ToArray();
         var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking().Where(p => profileIds.Contains(p.Id)).OrderBy(p => p.Id).ToArrayAsync(token);
+        if (profiles.Length != profileIds.Length) throw MalformedDeletionGraph();
         return new(trip, source, regions, places, areas, destination, destinationPlaces, destinationAreas,
             segments, segmentOrders, anchors, profiles, endpointIds);
     }
@@ -74,17 +75,14 @@ public sealed partial class PlaceRegionLifecycleService
     /// <summary>Hashes exact mapped scalar contents, preserving geometry SRID/rings and all route provenance fields.</summary>
     private string RegionDeletionFingerprint(RegionDeletionSnapshot snapshot)
     {
-        object Scalars(object entity) => _dbContext.Model.FindEntityType(entity.GetType())!.GetProperties()
-            .Where(p => !p.IsShadowProperty()).OrderBy(p => p.Name, StringComparer.Ordinal)
-            .Select(p => new { p.Name, Value = FingerprintValue(p.PropertyInfo!.GetValue(entity)) }).ToArray();
         var scope = new
         {
-            Source = Scalars(snapshot.Source),
-            Places = snapshot.Places.Select(Scalars), Areas = snapshot.Areas.Select(Scalars),
-            Segments = snapshot.Segments.Select(s => new { Values = Scalars(s),
-                Waypoints = s.Waypoints.OrderBy(w => w.Position).ThenBy(w => w.PlaceId).Select(Scalars).ToArray() }),
+            Source = DeletionScalars(snapshot.Source),
+            Places = snapshot.Places.Select(DeletionScalars), Areas = snapshot.Areas.Select(DeletionScalars),
+            Segments = snapshot.Segments.Select(s => new { Values = DeletionScalars(s),
+                Waypoints = s.Waypoints.OrderBy(w => w.Position).ThenBy(w => w.PlaceId).Select(DeletionScalars).ToArray() }),
             Anchors = snapshot.Anchors.Select(p => new { p.Id, p.UserId, p.RegionId, Location = FingerprintValue(p.Location) }),
-            Profiles = snapshot.Profiles.Select(Scalars), snapshot.Destination,
+            Profiles = snapshot.Profiles.Select(DeletionScalars), snapshot.Destination,
             DestinationPlaces = snapshot.DestinationPlaces.Select(p => new { p.Id, p.RegionId, p.UserId, p.DisplayOrder }),
             DestinationAreas = snapshot.DestinationAreas.Select(a => new { a.Id, a.RegionId, a.DisplayOrder, a.Name }),
             Regions = snapshot.Regions.Select(r => new { r.Id, r.TripId, r.UserId, r.DisplayOrder, Canonical = r.Name == "Unassigned Places" }),
