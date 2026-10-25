@@ -87,6 +87,8 @@ echo ""
 # Step 1: Navigate to repository
 echo "[1/8] Changing to repository: $APP_DIR"
 cd "$APP_DIR"
+# Qualify the existing host before Git's acquisition, then recheck the selected source before builds.
+bash "$APP_DIR/deployment/check-trust.sh" --node
 
 # Step 2: Fetch latest changes
 echo "[2/8] Fetching latest commits and tags..."
