@@ -11,9 +11,12 @@
   or definitive rejection. Offer explicit Leave without saving without promising
   rollback, automatic retry or cross-reload recovery. Preserve sharing and newer
   draft navigation controls. Match server cover projection for U+0085/U+FEFF while
-  preserving exact originals; reject replies inconsistent with immutable submitted
-  values after server normalization (#934 R1/M1 defensive hardening). No backend
-  change or migration.
+  preserving exact originals; check immutable submitted scalar values (#934 R1/M1).
+  Accept genuine server-normalized Notes (including stripped `sms:` hrefs) using
+  correlated scope and typed display/original consistency; enforce explicit empty
+  Clear. Exact submitted-Notes equality for nonempty HTML remains unproven by the
+  response contract; the client does not duplicate the server sanitizer (#934 R2).
+  No backend change or migration.
 
 - Reject the seven unconditional Trip metadata, Region, Area and bearer Segment
   Notes writers that could erase protected edits (#853 reconciliation F1).

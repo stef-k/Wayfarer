@@ -257,16 +257,17 @@ const validMetadataAcknowledgement = (next: EditorTripMetadata, tripId: string):
 /** Match .NET Trim/IsNullOrWhiteSpace as in Region ordering; U+0085 is whitespace, U+FEFF is material. */
 const trimServerWhitespace = (value: string): string => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
 
-/** Check only submitted fields after server normalization; disjoint edits and derived sharing remain admissible. */
+/** Compare submitted values where the contract permits it; disjoint edits and derived sharing remain admissible. */
 const matchesSubmittedMetadata = (original: EditorMetadataOriginalValues, submitted: EditorMetadataConditionalRequest): boolean =>
   metadataFields.every(field => {
     if (!Object.hasOwn(submitted.changes, field)) return true;
     const changes = submitted.changes;
     switch (field) {
       case 'name': return original.name === trimServerWhitespace(changes.name!);
-      // Null desired Notes is Unchanged; explicit empty remains distinct from an original null.
-      case 'notesHtml': return changes.notesHtml === null || original.notesHtml ===
-        trimServerWhitespace(normalizeNotesHtml(trimServerWhitespace(changes.notesHtml!)));
+      // RichNotes applies a different HTML policy. This reply has no canonical submitted echo;
+      // only explicit Clear has predictable equality. Other Notes rely on the correlated attempt
+      // and validated display/original consistency, not a second sanitizer.
+      case 'notesHtml': return changes.notesHtml !== '' || original.notesHtml === '';
       case 'coverImage': return (original.coverImage?.rawUrl ?? null) ===
         (changes.coverImage?.rawUrl == null ? null : trimServerWhitespace(changes.coverImage.rawUrl) || null);
       case 'center': return (original.center?.latitude ?? null) === (changes.center?.latitude ?? null) &&

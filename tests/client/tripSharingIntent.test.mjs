@@ -647,13 +647,13 @@ for (const [label, rawUrl, displayUrl] of [
   assert.deepEqual(editor.draftState.request().expected.coverImage, originalCover);
 }));
 
-// Defensive M1 counterexamples: internally consistent replies still must match this immutable submission.
+// Defensive M1 checks use immutable intent; only explicit empty Clear has predictable Notes equality.
 for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'])
   test(`M1: same-Trip acknowledgement contradicting submitted ${scenario} stays held`, () => withApp(async owner => {
     const { editor, parent } = owner;
     const field = scenario === 'newerName' ? 'name' : scenario;
     const gate = deferred();
-    const desired = { name: 'Requested name', notesHtml: 'Requested notes', isPublic: false,
+    const desired = { name: 'Requested name', notesHtml: '', isPublic: false,
       coverImage: { rawUrl: 'https://example.test/requested.jpg' }, center: { latitude: 1, longitude: 2 }, zoom: 3 };
     const changes = { [field]: desired[field] };
     const unrelated = { name: 'Unrelated result', notesHtml: 'Unrelated notes', isPublic: true,
@@ -665,6 +665,12 @@ for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImag
     globalThis.fetch = async () => { calls++; await gate.promise; return new Response(reply(false, saved)); };
     const draftChanges = { name: { name: desired.name }, notesHtml: { notesHtml: desired.notesHtml }, isPublic: { isPublic: false },
       coverImage: { coverImageRawUrl: desired.coverImage.rawUrl }, center: { centerLatitude: 1, centerLongitude: 2 }, zoom: { zoom: 3 } };
+    // Make Notes dirty before testing an explicit Clear against unrelated nonempty returned Notes.
+    if (field === 'notesHtml') {
+      parent.applyMetadata({ ...metadata(), notesHtml: 'Previous notes',
+        originalValues: { ...metadata().originalValues, notesHtml: 'Previous notes' } });
+      await nextTick();
+    }
     Object.assign(editor.draft, draftChanges[field]);
     const saving = editor.saveAndExit();
     const submitted = editor.draftState.metadataAttempt.value.request;
@@ -682,6 +688,24 @@ for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImag
     assert.equal(calls, 1);
     assert.deepEqual(owner.navigations, []);
   }));
+
+// Mirror the genuine routed SMS normalization; the real sanitizer/Quill seam is covered in Playwright.
+test('F2: server-normalized Notes acknowledgement adopts before Saved and exit', () => withApp(async owner => {
+  const { editor, parent } = owner;
+  const saved = { ...metadata(), notesHtml: '<p><a>Contact</a></p>',
+    originalValues: { ...metadata().originalValues, notesHtml: '<p><a>Contact</a></p>' } };
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(reply(false, saved)); };
+  editor.draft.notesHtml = '<p><a href="sms:+1234">Contact</a></p>';
+  await editor.saveAndExit();
+  assert.equal(calls, 1);
+  assert.equal(parent.state.metadata.notesHtml, saved.notesHtml);
+  assert.equal(editor.draft.notesHtml, saved.notesHtml);
+  assert.equal(editor.metadataUnconfirmed, false);
+  assert.equal(editor.isDirty, false);
+  assert.notEqual(editor.lastSavedAt, null);
+  assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
 
 // Blank display must be null, and nonblank display must preserve exact material, as in Region ordering.
 for (const invalid of ['missing', 'blank-object', 'U+0085-object', 'U+FEFF-null'])

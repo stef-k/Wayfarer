@@ -1045,11 +1045,22 @@ refresh and closing/reopening settings cannot erase the attempt or latest values
 A fresh read cannot establish that the predecessor is terminal. A valid reply
 correlated with that request advances confirmed originals and preserves newer
 edits, which can then be saved explicitly. Before adoption, the reply must match
-the immutable submitted changes after server normalization: .NET whitespace
-trimming for Name/desired cover, shared Notes normalization, nullable center
-clearing and the derived sharing disable when making private. Unsubmitted fields
+the immutable submitted Name, cover, publication, center and zoom changes with
+.NET whitespace trimming for Name/desired cover, nullable center clearing and
+the derived sharing disable when making private. Unsubmitted fields
 may reflect disjoint concurrent edits; newer draft values never validate an older
-attempt. Submitted-value mismatches retain uncertainty without replay or Saved.
+attempt. Mismatches in these comparable fields retain uncertainty without replay
+or Saved. Notes must supply typed, complete originals consistent with their display
+projection, within the same Trip and correlated immutable attempt. The client and
+server HTML policies differ (for example, Quill/client allow `sms:` links while
+the server removes their `href`; tag and image-proxy canonicalization also differ).
+The response supplies no canonical submitted-Notes echo or digest, so it does not
+establish exact submitted-Notes equality for nonempty HTML. An explicit empty
+Clear must return empty Notes. Otherwise, client validation uses the existing
+display/original consistency check rather than duplicating the server sanitizer.
+For nonempty submissions, an internally consistent unrelated same-Trip Notes
+reply remains a synthetic M1 limitation; no emitting server path is demonstrated. Malformed or
+inconsistent Notes replies still hold before adoption.
 Cover display validation follows the server's Unicode whitespace rule: U+0085
 projects to null, while U+FEFF remains material. Blank stored covers display as
 null, separately from exact `originalValues.coverImage`; acknowledgement validation never
