@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Models;
@@ -118,4 +119,209 @@ public sealed partial class PlaceConditionalPostgresTests
         using var revoked = await bearer.PostAsJsonAsync(StructurePath(place, false, "coordinates"), request);
         Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
     }
+
+    /// <summary>No-move Web vectors cannot authorize writes or disclose membership, including with a genuine prepared token.</summary>
+    [PostgresTheory]
+    [InlineData("same-owner-other-trip")]
+    [InlineData("foreign-region-disclosure")]
+    [InlineData("owned-region")]
+    [InlineData("empty")]
+    public async Task NoMove_RejectsUnprovedOrderScopes(string scope)
+    {
+        var own = await SeedAsync();
+        var other = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        if (scope == "same-owner-other-trip")
+        {
+            await db.Places.Where(p => p.Id == other.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.UserId, own.UserId));
+            await db.Regions.Where(r => r.Id == other.RegionId).ExecuteUpdateAsync(s => s.SetProperty(r => r.UserId, own.UserId));
+            await db.Trips.Where(t => t.Id == other.Region.TripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UserId, own.UserId));
+        }
+        var before = await StoredStructureRowsAsync(own.Region.TripId, other.Region.TripId);
+        var probe = new PlaceProbe();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, own.UserId);
+        var request = new Dictionary<string, object?>
+        {
+            ["expected"] = new { regionId = own.RegionId, name = own.Name },
+            ["changes"] = new { name = "Own edit" }
+        };
+        await PrepareStructureAsync(web, own, true, "coordinates", request);
+        request["placeIdsByRegion"] = scope switch
+        {
+            "same-owner-other-trip" => new Dictionary<Guid, Guid[]> { [own.RegionId] = [own.Id, other.Id] },
+            "foreign-region-disclosure" => new Dictionary<Guid, Guid[]> { [other.RegionId] = [own.Id] },
+            "owned-region" => new Dictionary<Guid, Guid[]> { [own.RegionId] = [own.Id] },
+            _ => new Dictionary<Guid, Guid[]>()
+        };
+        var path = StructurePath(own, true, "coordinates");
+        using var prepare = await web.PostAsJsonAsync(path + "/prepare", request);
+        using var apply = await web.PutAsJsonAsync(path, request);
+        foreach (var response in new[] { prepare, apply })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var reply = await response.Content.ReadAsStringAsync();
+            Assert.Contains("mutation-request-invalid", reply);
+            Assert.DoesNotContain(other.Id.ToString(), reply);
+            Assert.DoesNotContain(other.RegionId.ToString(), reply);
+            Assert.DoesNotContain("placeOrdersByRegionId", reply);
+        }
+        Assert.Equal(before, await StoredStructureRowsAsync(own.Region.TripId, other.Region.TripId));
+        Assert.Empty(probe.Updates);
+        Assert.Empty(_warmup.Invocations);
+    }
+
+    /// <summary>Moves prove exactly two Region scopes and every member; unrelated same-Trip and foreign vectors cannot hitchhike.</summary>
+    [PostgresTheory]
+    [InlineData("extra-region")]
+    [InlineData("unrelated-member")]
+    [InlineData("foreign-member")]
+    public async Task Move_RejectsUnprovedOrderScopes(string scope)
+    {
+        var graph = await RegionDeletionTestGraph.SeedAsync(fixture);
+        var foreign = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        await AddCredentialAsync(db, place.UserId);
+        var before = await StoredStructureRowsAsync(graph.TripId, foreign.Region.TripId);
+        var dependencies = await GraphStateAsync(graph.TripId);
+        var probe = new PlaceProbe();
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, place.UserId);
+        var request = await MoveRequestAsync(place, graph.DestinationId!.Value, true);
+        await PrepareStructureAsync(web, place, true, "move", request);
+        var vectors = (Dictionary<Guid, Guid[]>)request["placeIdsByRegion"]!;
+        if (scope == "extra-region") vectors[foreign.RegionId] = [foreign.Id];
+        else vectors[graph.DestinationId.Value] = vectors[graph.DestinationId.Value]
+            .Append(scope == "foreign-member" ? foreign.Id : graph.OutsidePlaceId).ToArray();
+        var path = StructurePath(place, true, "move");
+        using var prepare = await web.PostAsJsonAsync(path + "/prepare", request);
+        using var apply = await web.PutAsJsonAsync(path, request);
+        foreach (var response in new[] { prepare, apply })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var reply = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(foreign.Id.ToString(), reply);
+            Assert.DoesNotContain("placeOrdersByRegionId", reply);
+        }
+        Assert.Equal(before, await StoredStructureRowsAsync(graph.TripId, foreign.Region.TripId));
+        Assert.Equal(dependencies, await GraphStateAsync(graph.TripId));
+        Assert.Empty(probe.Updates);
+        Assert.Empty(_warmup.Invocations);
+    }
+
+    /// <summary>Historical invalid geography projects safely throughout prepare/apply; only authored changes affect storage or enrichment.</summary>
+    [PostgresTheory]
+    [InlineData("address")]
+    [InlineData("coordinates")]
+    [InlineData("order")]
+    public async Task HistoricalNonFinite_StructuralPrepareAndSave(string operation)
+    {
+        var place = await SeedAsync();
+        var enrichedAt = new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.Zero);
+        await using var db = fixture.CreateContext();
+        await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(p => p.Location, new Point(22, double.NaN) { SRID = 4326 })
+            .SetProperty(p => p.ResolvedFeatureName, "Historical enrichment").SetProperty(p => p.ResolvedFeatureType, "landmark")
+            .SetProperty(p => p.AddressEnrichmentProvider, "geoapify").SetProperty(p => p.AddressEnrichmentStorageMode, "persistent")
+            .SetProperty(p => p.AddressEnrichedAt, enrichedAt));
+        var before = await StoredStructureRowsAsync(place.Region.TripId);
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, place.UserId);
+        using var bearer = Bearer(app, place.UserId);
+        using var read = await web.GetAsync($"/api/trips/{place.Region.TripId}/editor");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        var published = (await read.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("placesById").GetProperty(place.Id.ToString());
+        Assert.Equal(JsonValueKind.Null, published.GetProperty("location").ValueKind);
+        var material = new { id = place.Id, regionId = place.RegionId, name = place.Name, notes = place.Notes,
+            address = place.Address, location = (object?)null, iconName = place.IconName, markerColor = place.MarkerColor,
+            displayOrder = place.DisplayOrder, resolvedFeatureName = "Historical enrichment", resolvedFeatureType = "landmark" };
+        var path = operation == "order" ? OrderPath(place.Region.TripId, place.RegionId, false)
+            : StructurePath(place, operation == "address", "coordinates");
+        var client = operation == "address" ? web : bearer;
+        Dictionary<string, object?> request = operation switch
+        {
+            "address" => new() { ["expected"] = new { regionId = place.RegionId, address = place.Address }, ["changes"] = new { address = "Authored address" } },
+            "coordinates" => new() { ["expected"] = new { regionId = place.RegionId, location = (object?)null }, ["location"] = new { latitude = 15, longitude = 23 } },
+            _ => new() { ["expected"] = new { places = new[] { material } }, ["placeIds"] = new[] { place.Id } }
+        };
+        using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
+        Assert.Equal(HttpStatusCode.OK, prepare.StatusCode);
+        var preview = await prepare.Content.ReadFromJsonAsync<JsonElement>();
+        var previewPlace = operation == "order" ? preview.GetProperty("placesByRegion").GetProperty(place.RegionId.ToString())[0] : preview.GetProperty("place");
+        Assert.Equal(JsonValueKind.Null, previewPlace.GetProperty("location").ValueKind);
+        Assert.Equal(before, await StoredStructureRowsAsync(place.Region.TripId));
+        request["conditionToken"] = preview.GetProperty("conditionToken").GetString();
+        request["reviewed"] = true;
+        using var apply = operation == "coordinates" ? await client.PostAsJsonAsync(path, request) : await client.PutAsJsonAsync(path, request);
+        Assert.True(apply.StatusCode == HttpStatusCode.OK, await apply.Content.ReadAsStringAsync());
+        var result = await apply.Content.ReadFromJsonAsync<JsonElement>();
+        var affected = Assert.Single(result.GetProperty("affected").GetProperty("places").EnumerateArray());
+        Assert.Equal(operation == "coordinates" ? JsonValueKind.Object : JsonValueKind.Null, affected.GetProperty("location").ValueKind);
+        if (operation != "order") Assert.True(JsonElement.DeepEquals(affected, result.GetProperty("data")));
+        else Assert.Equal(place.Id, Assert.Single(result.GetProperty("affected").GetProperty("placeOrdersByRegionId").GetProperty(place.RegionId.ToString()).EnumerateArray()).GetGuid());
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id);
+        Assert.Equal((place.Name, place.Notes, place.RegionId, place.IconName, place.MarkerColor),
+            (stored.Name, stored.Notes, stored.RegionId, stored.IconName, stored.MarkerColor));
+        Assert.Equal(operation == "address" ? "Authored address" : place.Address, stored.Address);
+        Assert.Equal(operation == "order" ? 1 : place.DisplayOrder, stored.DisplayOrder);
+        Assert.Equal(4326, stored.Location!.SRID);
+        if (operation == "coordinates") Assert.Equal((23d, 15d), (stored.Location.X, stored.Location.Y));
+        else { Assert.Equal(22d, stored.Location.X); Assert.True(double.IsNaN(stored.Location.Y)); }
+        if (operation == "order") Assert.Equal(("Historical enrichment", "landmark", "geoapify", "persistent", (DateTimeOffset?)enrichedAt),
+            (stored.ResolvedFeatureName, stored.ResolvedFeatureType, stored.AddressEnrichmentProvider, stored.AddressEnrichmentStorageMode, stored.AddressEnrichedAt));
+        // Authored Address or coordinate changes intentionally clear D3; invalid historical geography alone must never clear it.
+        else Assert.All(new object?[] { stored.ResolvedFeatureName, stored.ResolvedFeatureType, stored.AddressEnrichmentProvider,
+            stored.AddressEnrichmentStorageMode, stored.AddressEnrichedAt }, Assert.Null);
+        Assert.Empty(_warmup.Invocations);
+    }
+
+    /// <summary>Public null cannot exchange invalid raw geography for absence, even across the final Place lock wait.</summary>
+    [PostgresFact]
+    public async Task HistoricalNonFinite_RawGeometryDriftRejectsAfterLock()
+    {
+        var place = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s
+            .SetProperty(p => p.Location, new Point(22, double.NaN) { SRID = 4326 })
+            .SetProperty(p => p.ResolvedFeatureName, "Retain enrichment"));
+        var probe = new PlaceProbe("Places");
+        await using var app = await StartAsync(db, [probe]);
+        using var web = await WebAsync(app, place.UserId);
+        var request = new Dictionary<string, object?> { ["expected"] = new { regionId = place.RegionId, address = place.Address },
+            ["changes"] = new { address = "Must not save" } };
+        await PrepareStructureAsync(web, place, true, "coordinates", request);
+        await using var blocker = fixture.CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {place.Id} FOR UPDATE");
+        var pending = web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        await WaitForLockAsync(probe, 0);
+        await blocker.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Location, (Point?)null));
+        await transaction.CommitAsync();
+        var before = await StoredStructureRowsAsync(place.Region.TripId);
+        using var result = await pending;
+        Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
+        Assert.Contains("mutation-dependency-stale", await result.Content.ReadAsStringAsync());
+        Assert.Equal(before, await StoredStructureRowsAsync(place.Region.TripId));
+        Assert.Empty(probe.Updates);
+        Assert.Empty(_warmup.Invocations);
+    }
+
+    /// <summary>Reads complete fresh persisted Place/Region/Trip rows, including ordering, geometry and freshness, outside request trackers.</summary>
+    private async Task<string?> StoredStructureRowsAsync(params Guid[] tripIds)
+    {
+        await using var connection = fixture.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = new Npgsql.NpgsqlCommand("""
+            SELECT string_agg(row, ',' ORDER BY row) FROM (
+              SELECT 'place:' || to_jsonb(p)::text AS row FROM "Places" p JOIN "Regions" r ON r."Id" = p."RegionId" WHERE r."TripId" = ANY($1)
+              UNION ALL SELECT 'region:' || to_jsonb(r)::text FROM "Regions" r WHERE r."TripId" = ANY($1)
+              UNION ALL SELECT 'trip:' || to_jsonb(t)::text FROM "Trips" t WHERE t."Id" = ANY($1)
+            ) stored
+            """, connection);
+        command.Parameters.AddWithValue(tripIds);
+        return (string?)await command.ExecuteScalarAsync();
+    }
+
 }
