@@ -25,6 +25,9 @@ The existing unconditional bearer Place PUT returns 409
 `mutation-originals-required`; a complete unconditional Web draft is invalid.
 Scalar Name/Notes/icon/color edits continue to use their existing conditional
 PATCH with selected originals, without prepare or any structural fallback.
+Scalar edits omit location intent and preserve absent or historical non-finite
+stored locations. The editor response projects a historical non-finite Place
+location as null without repairing its stored point or enrichment.
 
 ## Originals, preparation and explicit review
 

@@ -169,7 +169,7 @@ public static class EditorTripStateMapper
     }
 
     /// <summary>
-    /// Maps a place into the editor place contract.
+    /// Maps a place into the editor contract, suppressing historical non-finite locations without repairing storage.
     /// </summary>
     public static EditorPlaceDto ToPlace(
         Guid tripId,
@@ -185,7 +185,8 @@ public static class EditorTripStateMapper
             place.Address ?? string.Empty,
             place.ResolvedFeatureName,
             place.ResolvedFeatureType,
-            ToCoordinate(place.Location),
+            place.Location is { } point && double.IsFinite(point.X) && double.IsFinite(point.Y)
+                ? ToCoordinate(point) : null,
             string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName,
             string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor,
             place.DisplayOrder ?? 0,
