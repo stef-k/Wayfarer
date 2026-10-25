@@ -61,8 +61,58 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         Assert.Equal(2, result.Attribution!.Count);
     }
 
+    /// <summary>Rejects the entire response when required instruction vertices alone exceed the existing limit.</summary>
+    [Fact]
+    public async Task MobileRoute_RejectsUnrepresentableInstructionBoundaries()
+    {
+        var fixture = CreateFixture();
+        var route = await InstructedRouteAsync(fixture.Anchors, 601, everyBoundary: true);
+        var client = new CallbackRouteClient(route: route);
+        var service = new MobileRoutingService(fixture.Db, fixture.Resolver, client,
+            new ProviderRouteGeometryValidator(), new RoutingRequestBudget(),
+            new MobileRoutingProfileDiscoveryService(fixture.Db, fixture.Credentials));
+
+        var result = await service.RouteAsync(fixture.UserId, fixture.PlanningProfile.Id, fixture.Anchors,
+            "drive", null, CancellationToken.None);
+
+        Assert.Equal(1, client.Requests);
+        Assert.False(result.Succeeded);
+        Assert.Equal("invalid-response", result.Outcome);
+        Assert.Null(result.Geometry);
+        Assert.Null(result.Instructions);
+        Assert.Null(result.DistanceMetres);
+    }
+
+    /// <summary>Protects the shared proposal consumer and retained instruction binding after simplification.</summary>
+    [Fact]
+    public async Task Generator_ProtectsRemappedInstructionsWithBudgetedGeometry()
+    {
+        var fixture = CreateFixture();
+        var route = await InstructedRouteAsync(fixture.Anchors, 601);
+        var generator = new ExternalRouteProposalGenerator(fixture.Db, fixture.AggregateTokens,
+            new CallbackRouteClient(route: route), new ProviderRouteGeometryValidator(), fixture.ProposalContexts,
+            new RoutingRequestBudget(), fixture.Resolver);
+
+        var result = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "drive", CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.ErrorCode);
+        var proposal = result.Proposal!;
+        Assert.True(proposal.Geometry.Count < route.Geometry.Count);
+        Assert.True(fixture.ProposalContexts.TryRead(proposal.ProtectedContext, out var binding));
+        Assert.Equal(proposal.Instructions, binding!.Instructions);
+        Assert.Equal(route.Instructions.Count, proposal.Instructions!.Count);
+        for (var index = 0; index < route.Instructions.Count; index++)
+        {
+            Assert.Equal(route.Geometry[route.Instructions[index].FromIndex], proposal.Geometry[proposal.Instructions[index].FromIndex]);
+            Assert.Equal(route.Geometry[route.Instructions[index].ToIndex], proposal.Geometry[proposal.Instructions[index].ToIndex]);
+        }
+        Assert.Null(fixture.Segment.RouteGeometry);
+    }
+
     /// <summary>Parses a local two-leg provider payload, including a repeated boundary vertex and point instruction.</summary>
-    private static async Task<ProviderRouteResult> InstructedRouteAsync(IReadOnlyList<RouteCoordinate> anchors, int pointsPerLeg)
+    private static async Task<ProviderRouteResult> InstructedRouteAsync(
+        IReadOnlyList<RouteCoordinate> anchors, int pointsPerLeg, bool everyBoundary = false)
     {
         var lines = anchors.Zip(anchors.Skip(1), (start, end) =>
             Enumerable.Range(0, pointsPerLeg).Select(index => index == pointsPerLeg - 1 ? end : new RouteCoordinate(
@@ -78,7 +128,8 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
                 legs = lines.Select(line => new
                 {
                     distance = 625, time = 180,
-                    steps = new[] { (0, 2), (2, line.Count - 2), (line.Count - 2, line.Count - 1), (line.Count - 1, line.Count - 1) }
+                    steps = (everyBoundary ? Enumerable.Range(0, line.Count - 1).Select(index => (index, index + 1))
+                        : new[] { (0, 2), (2, line.Count - 2), (line.Count - 2, line.Count - 1), (line.Count - 1, line.Count - 1) })
                         .Select(span => new { from_index = span.Item1, to_index = span.Item2, distance = 0, time = 0,
                             instruction = new { text = "Continue", type = "Straight" } })
                 })
