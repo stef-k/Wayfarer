@@ -140,6 +140,19 @@ Cookie-authenticated browser mutations require antiforgery. Trip Editor mutation
 
 Bearer-only APIs do not require MVC antiforgery. For endpoints that support both authorities, preserve cookie priority: `CookieFirstAntiforgeryAttribute` requires a valid antiforgery token whenever an authenticated cookie selected the request, even when a bearer header is present. Only a successfully resolved bearer without selected cookie authority can bypass the cookie token.
 
+## Trip edit write coverage
+
+The [seven unconditional scalar adapters](api.md#rejected-unconditional-writers-853-reconciliation-f1)
+reject owned requests with 409 `mutation-originals-required` and no mutation or
+freshness/cache effects. Missing and foreign scope share 404 without exposing
+current values. Web authentication, User role and antiforgery remain required;
+bearer actions resolve the actual incoming token without cookie fallback.
+Supported scalar edits use the existing mutation owners with genuine client
+originals, selected-field writes, locked current authority and current-safe Trip
+freshness. Segment combined route/Notes saves remain atomic. Standalone Area
+geometry retains its documented exclusion. This F1 correction does not settle F2
+metadata uncertainty or constitute C1/C2/C5 acceptance.
+
 ## Effective client IP and forwarded headers
 
 Forwarded client identity is trusted only through `TrustedProxyConfiguration`. With no configured trusted proxy/network, forwarding is disabled. Configured trust is explicit and limited to one hop.

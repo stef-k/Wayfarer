@@ -38,7 +38,8 @@ public partial class ApiTripsControllerTests
         var state = EditorTripStateMapper.ToEditorState(trip, new Dictionary<Guid, IReadOnlyList<PlaceVisitEvent>>(),
             new EditorOptionsDto([], [], [], [], new("Area", "#ffffff"), new(10, 10, ""), new(10, 2)), null, null);
         Assert.DoesNotContain("bad()", JsonSerializer.Serialize(state));
-        var echo = Assert.IsType<OkObjectResult>(await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto()));
+        var echo = Assert.IsType<ObjectResult>(await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto()));
+        Assert.Equal(409, echo.StatusCode);
         Assert.DoesNotContain("bad()", JsonSerializer.Serialize(echo.Value));
         Assert.Equal(input, trip.Notes);
         Assert.Equal(input, region.Notes);

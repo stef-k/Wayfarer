@@ -49,7 +49,7 @@ test.describe.serial('Trip Editor rich notes real persistence contract', () => {
       await expect(editor.locator('p.ql-align-center').filter({ hasText: 'Centered persisted note' })).toBeVisible();
 
       const saveResponse = page.waitForResponse(response =>
-        response.url().endsWith(`${editorApiPath}/metadata`) && response.request().method() === 'PATCH');
+        response.url().endsWith(`${editorApiPath}/metadata/conditional`) && response.request().method() === 'PATCH');
       await page.getByRole('button', { name: 'Save & Continue' }).click();
       expect((await saveResponse).ok()).toBeTruthy();
       await expectSaved(page);
@@ -121,14 +121,12 @@ async function restoreMetadata(page: Page, metadata: Record<string, any>): Promi
     return;
   }
 
-  const response = await page.request.patch(absoluteUrl(`${editorApiPath}/metadata`), {
+  // Cleanup is an explicit new authoring attempt based on the values this client just read.
+  const current = await loadEditorStateFixture(page) as EditorState;
+  const response = await page.request.patch(absoluteUrl(`${editorApiPath}/metadata/conditional`), {
     data: {
-      name: metadata.name,
-      notesHtml: metadata.notesHtml,
-      isPublic: metadata.isPublic,
-      coverImage: metadata.coverImage,
-      center: metadata.center,
-      zoom: metadata.zoom
+      expected: { notesHtml: current.metadata.originalValues.notesHtml },
+      changes: { notesHtml: metadata.originalValues.notesHtml ?? '' }
     },
     headers: { RequestVerificationToken: token }
   });

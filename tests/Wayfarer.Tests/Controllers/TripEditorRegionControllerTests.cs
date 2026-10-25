@@ -23,7 +23,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
 {
 
     [Fact]
-    public async Task UpdateRegionForOwnerSavesCompleteDraftAndReturnsRegionOnlySlice()
+    public async Task UpdateRegionRejectsCompleteDraftWithoutMutation()
     {
         using var db = CreateDbContext();
         var trip = SeedTripWithRegions(db, "owner-user");
@@ -33,13 +33,9 @@ public sealed class TripEditorRegionControllerTests : TestBase
 
         var result = await SendJson(controller, c => c.UpdateRegion(trip.Id, region.Id, CancellationToken.None), ValidRegionBody("Updated Region"));
 
-        var envelope = AssertMutation<EditorRegionDto>(result);
-        Assert.Equal(region.Id, envelope.Data.Id);
-        Assert.Equal("Updated Region", envelope.Data.Name);
-        Assert.Single(envelope.Affected.Regions);
-        Assert.Null(envelope.Affected.RegionOrder);
-        Assert.Empty(envelope.DeletedIds.Regions);
-        Assert.Equal("Updated Region", db.Regions.Single(r => r.Id == region.Id).Name);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Equal("Athens", region.Name);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 
     [Fact]
@@ -111,7 +107,7 @@ public sealed class TripEditorRegionControllerTests : TestBase
         var order = await SendJson(controller, c => c.OrderRegions(trip.Id, CancellationToken.None), body);
 
         Assert.Contains("request", AssertValidationProblem(create).Errors.Keys);
-        Assert.Contains("request", AssertValidationProblem(update).Errors.Keys);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(update).StatusCode);
         Assert.Contains("request", AssertValidationProblem(order).Errors.Keys);
     }
 
@@ -166,14 +162,15 @@ public sealed class TripEditorRegionControllerTests : TestBase
         """);
         var reservedName = await SendJson(controller, c => c.UpdateRegion(trip.Id, normal.Id, CancellationToken.None), ValidRegionBody(" unassigned places "));
 
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(updateShadow).StatusCode);
+        Assert.Equal(StatusCodes.Status409Conflict, Assert.IsType<ObjectResult>(updateShadow).StatusCode);
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(deleteShadow).StatusCode);
         Assert.Equal(StatusCodes.Status400BadRequest, Assert.IsType<ObjectResult>(orderShadow).StatusCode);
-        Assert.Contains("name", AssertValidationProblem(reservedName).Errors.Keys);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(reservedName).StatusCode);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 
     [Fact]
-    public async Task RegionSaveValidationRejectsInvalidFieldsAndServerOwnedFields()
+    public async Task UnconditionalRegionSaveRejectsInvalidAndServerOwnedFields()
     {
         using var db = CreateDbContext();
         var trip = SeedTripWithRegions(db, "owner-user");
@@ -194,17 +191,8 @@ public sealed class TripEditorRegionControllerTests : TestBase
         }
         """);
 
-        var problem = AssertValidationProblem(result);
-        Assert.Contains("id", problem.Errors.Keys);
-        Assert.Contains("tripId", problem.Errors.Keys);
-        Assert.Contains("displayOrder", problem.Errors.Keys);
-        Assert.Contains("isShadow", problem.Errors.Keys);
-        Assert.Contains("capabilities", problem.Errors.Keys);
-        Assert.Contains("name", problem.Errors.Keys);
-        Assert.Contains("notesHtml", problem.Errors.Keys);
-        Assert.Contains("coverImage.rawUrl", problem.Errors.Keys);
-        Assert.Contains("center.latitude", problem.Errors.Keys);
-        Assert.Contains("center.longitude", problem.Errors.Keys);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 
     [Theory]

@@ -26,33 +26,39 @@ public sealed partial class AreaConditionalPostgresTests(PostgresImportTestFixtu
 {
     private readonly Mock<ICacheWarmupScheduler> _warmup = new();
 
-    /// <summary>The real complete Web PUT still overwrites newer bearer Notes; a protected dirty save preserves them.</summary>
+    /// <summary>Retained F1 protected-first counterexample now requires refusal with every stored field intact.</summary>
     [PostgresTheory]
-    [InlineData(false)]
     [InlineData(true)]
-    public async Task StaleWebDraft_LegacyOverwriteAndProtectedCounterpart(bool conditional)
+    [InlineData(false)]
+    public async Task AreaRetainedWriterRejectsAfterProtectedNotes(bool webLast)
     {
         var area = await SeedAsync();
-        var probe = new AreaProbe();
         await using var db = fixture.CreateContext();
-        await using var app = await StartAsync(db, [probe]);
+        await using var app = await StartAsync(db);
         using var web = await WebAsync(app, area.Region.UserId);
         using var bearer = Bearer(app, area.Region.UserId);
-        using var mobile = await bearer.PutAsJsonAsync($"/api/trips/areas/{area.Id}", new { notes = "Newer Mobile notes" });
-        Assert.Equal(HttpStatusCode.OK, mobile.StatusCode);
-        using var response = conditional
-            ? await PatchAsync(web, area, true, new { name = area.Name }, new { name = "Web name" })
-            : await web.PutAsJsonAsync($"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}", new
-            { name = "Web name", notesHtml = area.Notes, fillHex = area.FillHex, geometry = Geometry(area) });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var first = await PatchAsync(webLast ? bearer : web, area, !webLast,
+            webLast ? new { notes = area.Notes } : (object)new { notesHtml = area.Notes },
+            webLast ? new { notes = "Protected committed Notes" } : (object)new { notesHtml = "Protected committed Notes" });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        await using var before = fixture.CreateContext();
+        var protectedRow = await before.Areas.AsNoTracking().SingleAsync(a => a.Id == area.Id);
+        var protectedValues = before.Entry(protectedRow).CurrentValues.Clone();
+        var protectedStamp = await before.Trips.AsNoTracking().Where(t => t.Id == area.Region.TripId).Select(t => t.UpdatedAt).SingleAsync();
+        using var second = webLast
+            ? await web.PutAsJsonAsync($"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}", new
+            { name = "Unrelated Web name", notesHtml = area.Notes, fillHex = area.FillHex, geometry = Geometry(area) })
+            : await bearer.PutAsJsonAsync($"/api/trips/areas/{area.Id}", new { notes = area.Notes });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var rejection = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("mutation-originals-required", rejection.GetProperty("code").GetString());
         await using var verify = fixture.CreateContext();
-        var stored = await verify.Areas.SingleAsync(a => a.Id == area.Id);
-        Assert.Equal(conditional ? "Newer Mobile notes" : area.Notes, stored.Notes);
-        Assert.Equal("Web name", stored.Name);
-        AssertPolygon(area.Geometry, stored.Geometry);
-        output.WriteLine(conditional ? "PROTECTED: dirty Web Name preserves newer bearer Notes."
-            : "LEGACY OVERWRITE: complete Web PUT restored the original Notes over a committed bearer change; retained old-route risk.");
-        foreach (var sql in probe.Updates) output.WriteLine(sql);
+        var stored = await verify.Areas.AsNoTracking().SingleAsync(a => a.Id == area.Id);
+        Assert.Equal("Protected committed Notes", stored.Notes);
+        var storedValues = verify.Entry(stored).CurrentValues;
+        foreach (var property in protectedValues.Properties)
+            Assert.Equal(protectedValues[property], storedValues[property]);
+        Assert.Equal(protectedStamp, await verify.Trips.AsNoTracking().Where(t => t.Id == area.Region.TripId).Select(t => t.UpdatedAt).SingleAsync());
     }
 
     /// <summary>Web Name/Fill/whole Polygon and bearer Notes survive either save order without replaying parent or order.</summary>

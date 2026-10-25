@@ -26,10 +26,10 @@ test('notes images stay proxied before insertion while local maps and canonical 
     const token = await page.locator('#trip-editor-antiforgery input[name="__RequestVerificationToken"]').inputValue();
     const api = `/api/trips/${tripId}/editor`;
     const state = await (await page.request.get(api)).json();
-    const update = await page.request.patch(`${api}/metadata`, {
+    const update = await page.request.patch(`${api}/metadata/conditional`, {
         headers: { RequestVerificationToken: token }, data: {
-            name: state.metadata.name, notesHtml: notes, isPublic: state.metadata.isPublic,
-            coverImage: state.metadata.coverImage, center: state.metadata.center, zoom: state.metadata.zoom
+            expected: { notesHtml: state.metadata.originalValues.notesHtml },
+            changes: { notesHtml: notes }
         }
     });
     expect(update.ok(), `Metadata fixture returned ${update.status()}: ${await update.text()}`).toBeTruthy();

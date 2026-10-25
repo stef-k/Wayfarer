@@ -22,28 +22,29 @@ namespace Wayfarer.Tests.Models;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output) : TestBase
 {
-    /// <summary>A routed Region update or an untracked-root Place insert preserves a later Web metadata edit.</summary>
+    /// <summary>A tracked-root Region save or untracked-root Place insert preserves a later protected Web metadata edit.</summary>
     [PostgresTheory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ChildSave_PreservesConcurrentWebMetadata(bool routedRegionUpdate)
+    public async Task ChildSave_PreservesConcurrentWebMetadata(bool trackedRegionUpdate)
     {
         var region = await SeedAsync();
         var gate = new StampGate();
         await using var db = fixture.CreateContext(gate);
-        await using var app = await StartAsync(db, gate);
+        await using var app = await StartAsync(db);
         using var web = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(web, app.Services, region.UserId);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
-        using var bearer = app.GetTestClient();
-        bearer.DefaultRequestHeaders.Authorization = new("Bearer", region.UserId);
         var place = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = region.UserId, Name = "New child" };
-        if (!routedRegionUpdate) db.Places.Add(place);
         Assert.Empty(db.ChangeTracker.Entries<Trip>());
+        if (trackedRegionUpdate)
+        {
+            var child = await db.Regions.Include(r => r.Trip).SingleAsync(r => r.Id == region.Id);
+            child.Notes = "Changed child";
+        }
+        else db.Places.Add(place);
 
-        Task pending = routedRegionUpdate
-            ? UpdateRegionAsync(bearer, region.Id)
-            : db.SaveChangesAsync();
+        var pending = db.SaveChangesAsync();
         try
         {
             await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -60,7 +61,7 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
             Assert.Equal([nameof(Trip.UpdatedAt)], gate.DirtyProperties);
             Assert.Contains("UPDATE \"Trips\" SET \"UpdatedAt\" =", gate.TripUpdateSql);
             Assert.DoesNotContain("\"Name\" =", gate.TripUpdateSql);
-            if (routedRegionUpdate)
+            if (trackedRegionUpdate)
                 Assert.Equal("Changed child", (await verification.Regions.FindAsync(region.Id))!.Notes);
             else
                 Assert.True(await verification.Places.AnyAsync(item => item.Id == place.Id));
@@ -84,7 +85,7 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
         var child = await db.Regions.SingleAsync(item => item.Id == region.Id);
         trip.Notes = "Intentional root edit";
         child.Notes = "Changed child";
-        await using var app = await StartAsync(db, gate);
+        await using var app = await StartAsync(db);
         using var web = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(web, app.Services, region.UserId);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
@@ -173,31 +174,25 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
     }
 
     /// <summary>Uses real production MVC/authentication with separate scoped PostgreSQL contexts per request.</summary>
-    private Task<WebApplication> StartAsync(ApplicationDbContext db, StampGate gate) => IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+    private Task<WebApplication> StartAsync(ApplicationDbContext db) => IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
     {
-        services.AddHttpContextAccessor();
-        services.AddScoped(provider => fixture.CreateContext(
-            provider.GetRequiredService<IHttpContextAccessor>().HttpContext?.Request.Method == "PUT" ? [gate] : []));
+        services.AddScoped(_ => fixture.CreateContext());
         services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
         services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
         services.AddSingleton(Mock.Of<ITripEditorGeocodeSearchService>());
     });
 
-    /// <summary>Exercises the actual bearer child action, including its pretracked unchanged Trip.</summary>
-    private static async Task UpdateRegionAsync(HttpClient bearer, Guid regionId)
-    {
-        using var response = await bearer.PutAsJsonAsync($"/api/trips/regions/{regionId}", new { notes = "Changed child" });
-        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-    }
-
-    /// <summary>Commits the actual cookie/antiforgery complete Web draft, then reads its persisted values.</summary>
+    /// <summary>Commits an authored cookie/antiforgery draft with its retained starting values, then rereads persistence.</summary>
     private async Task<RootMetadata> EditWebMetadataAsync(HttpClient web, Guid tripId)
     {
-        using var response = await web.PatchAsJsonAsync($"/api/trips/{tripId}/editor/metadata", new
+        using var response = await web.PatchAsJsonAsync($"/api/trips/{tripId}/editor/metadata/conditional", new
         {
-            name = "Web title", notesHtml = "Web notes", isPublic = false,
-            coverImage = new { rawUrl = "https://example.test/after.jpg" },
-            center = new { latitude = 37.5, longitude = 23.5 }, zoom = 11
+            expected = new { name = "Before", notesHtml = "Before notes", isPublic = true,
+                coverImage = new { rawUrl = "https://example.test/before.jpg" },
+                center = new { latitude = 1, longitude = 2 }, zoom = 3 },
+            changes = new { name = "Web title", notesHtml = "Web notes", isPublic = false,
+                coverImage = new { rawUrl = "https://example.test/after.jpg" },
+                center = new { latitude = 37.5, longitude = 23.5 }, zoom = 11 }
         });
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         await using var db = fixture.CreateContext();

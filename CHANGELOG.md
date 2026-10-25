@@ -4,6 +4,13 @@
 
 ### Changed
 
+- Reject the seven unconditional Trip metadata, Region, Area and bearer Segment
+  Notes writers that could erase protected edits (#853 reconciliation F1).
+  Require the existing client-original-aware contracts; preserve current Web
+  authoring, atomic combined saves, authority and antiforgery. See the
+  [route dispositions](docs/development/api.md#rejected-unconditional-writers-853-reconciliation-f1).
+  F2 metadata uncertainty and final C1/C2/C5 acceptance remain separate. No migration.
+
 - Require content-bound Place deletion preview/confirmation on both Web and bearer,
   including Places without dependents (#853 BD2-12). Recheck full material target,
   parent/order and route/waypoint/profile/provenance dependencies under lifecycle

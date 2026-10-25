@@ -563,89 +563,20 @@ public partial class TripsController : BaseApiController
     public IActionResult RejectUnconditionalRegionCreation(Guid tripId) =>
         GetUserFromToken() == null ? Unauthorized() : CreationConditionalRequest.Invalid("Use the conditional Region creation contract.").ToActionResult();
 
-    /// <summary>
-    /// Updates an existing trip's metadata (name, notes) by ID.
-    /// </summary>
-    /// <param name="tripId">Trip ID (must belong to the token user)</param>
-    /// <param name="request">Partial update payload</param>
-    /// <remarks>
-    /// Requires a valid API token in the Authorization header.
-    /// Only fields that are provided will be updated.
-    ///
-    /// Example: PUT /api/trips/{tripId}
-    /// </remarks>
-    /// <response code="200">Returns success with updated trip info</response>
-    /// <response code="401">If the API token is missing, invalid, or user doesn't own the trip</response>
-    /// <response code="404">If the trip doesn't exist</response>
+    /// <summary>Rejects unconditional Trip metadata; supported edits require client original values.</summary>
     [HttpPut("{tripId}")]
     public async Task<IActionResult> UpdateTrip(Guid tripId, [FromBody] TripUpdateRequestDto request)
     {
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
-
-        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId);
-        if (trip == null) return NotFound("Trip not found.");
-        if (trip.UserId != user.Id) return Unauthorized("Not your trip.");
-
-        bool anyChange = false;
-
-        // Capture prior image state before notes mutation to detect first-time introductions.
-        // Only computed when notes are actually changing to avoid unnecessary regex scans.
-        // Note: CoverImageUrl is not part of TripUpdateRequestDto — if it is added in the
-        // future, the warmup gate below must be updated to also trigger on cover image changes.
-        bool? hadImages = null;
-        if (request.Notes != null)
-        {
-            hadImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
-                || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
-        }
-
-        if (request.Name != null)
-        {
-            trip.Name = request.Name;
-            anyChange = true;
-        }
-
-        if (request.Notes != null)
-        {
-            trip.Notes = RichNotes.Normalize(request.Notes);
-            anyChange = true;
-        }
-
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", trip = new { trip.Id, trip.Name, Notes = RichNotes.Normalize(trip.Notes) } });
-
-        trip.UpdatedAt = DateTime.UtcNow;
-        await _dbContext.SaveChangesAsync();
-
-        // Schedule cache warm-up when notes were updated.
-        // Use immediate mode when images are newly introduced (0 -> some)
-        // for near-instant caching; otherwise use standard debounce.
-        if (request.Notes != null)
-        {
-            bool hasImages = !string.IsNullOrWhiteSpace(trip.CoverImageUrl)
-                || HtmlHelpers.ExtractExternalImageUrls(trip.Notes).Any();
-            bool imagesNewlyIntroduced = !hadImages.GetValueOrDefault() && hasImages;
-            await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
-        }
-
-        return Ok(new { success = true, trip = new { trip.Id, trip.Name, Notes = RichNotes.Normalize(trip.Notes) } });
+        if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == user.Id))
+            return NotFound("Trip not found.");
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Trip metadata contract with client original values.").ToActionResult();
     }
 
-    /// <summary>
-    /// Updates an existing segment's notes by ID.
-    /// </summary>
-    /// <param name="segmentId">Segment ID</param>
-    /// <param name="request">Update payload with notes field</param>
-    /// <remarks>
-    /// Requires a valid API token in the Authorization header.
-    /// User must own the segment's parent trip.
-    ///
-    /// Example: PUT /api/trips/segments/{segmentId}
-    /// </remarks>
-    /// <response code="200">Returns success with updated segment info</response>
-    /// <response code="401">If the API token is missing, invalid, or user doesn't own the segment</response>
-    /// <response code="404">If the segment doesn't exist</response>
+    /// <summary>Rejects unconditional Segment Notes; the protected Notes action preserves the current route.</summary>
     [HttpPut("segments/{segmentId}")]
     public async Task<IActionResult> UpdateSegmentNotes(
         Guid segmentId,
@@ -655,170 +586,36 @@ public partial class TripsController : BaseApiController
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
-
-        var segment = await _dbContext.Segments.AsNoTracking()
-            .Include(s => s.Trip)
-            .FirstOrDefaultAsync(s => s.Id == segmentId);
-        if (segment == null) return NotFound("Segment not found.");
-        if (segment.Trip.UserId != user.Id) return Unauthorized("Not your segment.");
-
-        var notes = RichNotes.Normalize(request.Notes ?? segment.Notes);
-        if (request.Notes != null)
-        {
-            if (_dbContext.Database.IsRelational())
-            {
-                if (!await SegmentNotesMutation.UpdateRelationalAsync(
-                        _dbContext, segment.TripId, segmentId, user.Id, notes!, cancellationToken))
-                    return NotFound("Segment not found.");
-            }
-            else
-            {
-                var notesOnly = _dbContext.ChangeTracker.Entries<Segment>()
-                    .FirstOrDefault(entry => entry.Entity.Id == segmentId)?.Entity
-                    ?? new Segment { Id = segmentId, UserId = user.Id, TripId = segment.TripId };
-                if (_dbContext.Entry(notesOnly).State == EntityState.Detached) _dbContext.Attach(notesOnly);
-                notesOnly.Notes = RichNotes.Normalize(request.Notes);
-                _dbContext.Entry(notesOnly).Property(item => item.Notes).IsModified = true;
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-        }
-
-        return Ok(new { success = true, segment = new { segment.Id, Notes = notes } });
+        if (!await _dbContext.Segments.AsNoTracking().AnyAsync(s => s.Id == segmentId && s.UserId == user.Id && s.Trip.UserId == user.Id, cancellationToken))
+            return NotFound("Segment not found.");
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Segment Notes contract with client original values.").ToActionResult();
     }
 
-    /// <summary>
-    /// Updates a Region with optional finite WGS84 center coordinates. Trip association cannot change.
-    /// Reserved name/order submissions must match stored values; metadata remains editable.
-    /// </summary>
+    /// <summary>Rejects unconditional Region scalars/order; protected scalar and complete-order actions own edits.</summary>
     [HttpPut("regions/{regionId}")]
     public async Task<IActionResult> UpdateRegion(Guid regionId, [FromBody] RegionUpdateRequestDto request)
     {
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
-
-        var region = await _dbContext.Regions.Include(r => r.Trip).FirstOrDefaultAsync(r => r.Id == regionId);
-        if (region == null) return NotFound("Region not found.");
-        if (region.Trip.UserId != user.Id) return Unauthorized("Not your region.");
-
-        // Match DELETE's stored-name predicate before any tracked field can change.
-        bool isReserved = string.Equals(region.Name, ShadowRegionName, StringComparison.OrdinalIgnoreCase);
-        var name = request.Name?.Trim();
-        if (isReserved && ((name != null && !string.Equals(name, region.Name, StringComparison.Ordinal))
-            || (request.DisplayOrder.HasValue && request.DisplayOrder.Value != region.DisplayOrder)))
-            return BadRequest("Cannot change the Unassigned Places region name or display order.");
-        if (!isReserved && string.Equals(name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
-            return BadRequest("Region name is reserved.");
-
-        // An individual update cannot bypass complete original-bound Region ordering; identical orders are not written.
-        if (!isReserved && request.DisplayOrder.HasValue && request.DisplayOrder.Value != region.DisplayOrder)
-            return new TripMetadataMutationRejected(400, "mutation-request-invalid", "Use the protected complete Region-order contract.").ToActionResult();
-
-        // Validate and construct the center before applying any partial fields.
-        NetTopologySuite.Geometries.Point? center = null;
-        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
-        {
-            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
-                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
-            double lat = request.CenterLatitude.Value;
-            double lon = request.CenterLongitude.Value;
-            if (!IsValidCoordinate(lat, lon))
-                return BadRequest("Center latitude or longitude is out of range.");
-            center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
-        }
-
-        bool anyChange = false;
-        if (!isReserved && name != null)
-        {
-            region.Name = name;
-            anyChange = true;
-        }
-
-        if (request.Notes != null) { region.Notes = RichNotes.Normalize(request.Notes); anyChange = true; }
-        if (request.CoverImageUrl != null) { region.CoverImageUrl = request.CoverImageUrl; anyChange = true; }
-        if (center != null)
-        {
-            region.Center = center;
-            anyChange = true;
-        }
-
-        // Return DTO to ensure consistent serialization (center as double[] not GeoJSON)
-        var regionDto = new ApiTripRegionDto
-        {
-            Id = region.Id,
-            Name = region.Name,
-            Notes = RichNotes.Normalize(region.Notes),
-            DisplayOrder = region.DisplayOrder,
-            CoverImageUrl = region.CoverImageUrl,
-            Center = region.Center != null
-                ? new[] { region.Center.X, region.Center.Y }
-                : null
-        };
-
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", region = regionDto });
-
-        await _dbContext.SaveChangesAsync();
-
-        // Schedule background cache warm-up for external images (debounced)
-        await _warmupScheduler.ScheduleWarmupAsync(region.TripId);
-
-        return Ok(new { success = true, region = regionDto });
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(r => r.Id == regionId && r.UserId == user.Id && r.Trip.UserId == user.Id))
+            return NotFound("Region not found.");
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Region scalar or complete-order contract with client original values.").ToActionResult();
     }
 
-    /// <summary>
-    /// Updates an existing area by ID. Region association cannot change.
-    /// </summary>
-    /// <param name="areaId">The area ID to update.</param>
-    /// <param name="request">The update request containing fields to modify.</param>
-    /// <returns>The updated area on success.</returns>
+    /// <summary>Rejects unconditional Area edits; supported Notes saves require client original values.</summary>
     [HttpPut("areas/{areaId}")]
     public async Task<IActionResult> UpdateArea(Guid areaId, [FromBody] AreaUpdateRequestDto request)
     {
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
         if (request == null) return BadRequest("Invalid request.");
-
-        var area = await _dbContext.Areas
-            .Include(a => a.Region)
-            .ThenInclude(r => r.Trip)
-            .FirstOrDefaultAsync(a => a.Id == areaId);
-        if (area == null) return NotFound("Area not found.");
-        if (area.Region.Trip.UserId != user.Id) return Unauthorized("Not your area.");
-
-        bool anyChange = false;
-
-        if (request.Name != null)
-        {
-            area.Name = request.Name.Trim();
-            anyChange = true;
-        }
-
-        if (request.Notes != null)
-        {
-            area.Notes = RichNotes.Normalize(request.Notes);
-            anyChange = true;
-        }
-
-        if (request.FillHex != null)
-        {
-            area.FillHex = request.FillHex;
-            anyChange = true;
-        }
-
-        if (request.DisplayOrder.HasValue)
-        {
-            area.DisplayOrder = request.DisplayOrder.Value;
-            anyChange = true;
-        }
-
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", id = area.Id, notes = RichNotes.Normalize(area.Notes) });
-
-        await _dbContext.SaveChangesAsync();
-
-        // Schedule background cache warm-up for external images (debounced)
-        await _warmupScheduler.ScheduleWarmupAsync(area.Region.TripId);
-
-        return Ok(new { success = true, id = area.Id, notes = RichNotes.Normalize(area.Notes) });
+        if (!await _dbContext.Areas.AsNoTracking().AnyAsync(a => a.Id == areaId && a.Region.UserId == user.Id && a.Region.Trip.UserId == user.Id))
+            return NotFound("Area not found.");
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Area Notes contract with client original values.").ToActionResult();
     }
 
     /// <summary>

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -22,7 +24,7 @@ public sealed partial class TripEditorController
     }
 
     /// <summary>
-    /// Updates complete editable fields for one owned area.
+    /// Rejects complete Area writes without originals; use the conditional scalar/geometry action.
     /// </summary>
     [HttpPut("areas/{areaId:guid}")]
     [ValidateAntiForgeryToken]
@@ -34,8 +36,10 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _areaMutations.UpdateAreaAsync(tripId, areaId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
+        if (!await _dbContext.Areas.AsNoTracking().AnyAsync(a => a.Id == areaId && a.Region.TripId == tripId && a.Region.UserId == userId && a.Region.Trip.UserId == userId, cancellationToken))
+            return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Area contract with client original values.").ToActionResult();
     }
 
     /// <summary>

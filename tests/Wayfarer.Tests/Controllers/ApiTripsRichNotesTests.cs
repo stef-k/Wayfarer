@@ -6,19 +6,19 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Exercises independently supplied legacy note writers with one shared adversarial fixture.</summary>
+/// <summary>Retains unconditional writer bypass rejection across scalar Notes payloads.</summary>
 public partial class ApiTripsControllerTests
 {
+    /// <summary>Unconditional writers never normalize, echo or persist submitted fields.</summary>
     [Theory]
     [InlineData("trip")]
     [InlineData("region-update")]
     [InlineData("place-update")]
     [InlineData("area")]
     [InlineData("segment")]
-    public async Task LegacyWriters_PersistCanonicalNotes(string writer)
+    public async Task UnconditionalWriters_RejectWithoutMutation(string writer)
     {
         const string input = "<p onclick='bad()'>safe</p><script>bad()</script>";
-        const string expected = "<p>safe</p>";
         using var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
@@ -37,21 +37,12 @@ public partial class ApiTripsControllerTests
             "area" => await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = input }),
             _ => await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = input })
         };
-        if (writer == "place-update")
-        {
-            Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
-            Assert.Null(place.Notes);
-            return;
-        }
-        Assert.IsType<OkObjectResult>(result);
-        var stored = writer switch
-        {
-            "trip" => trip.Notes,
-            "region-update" => region.Notes,
-            "place-update" => db.Places.Single(item => item.Id == place.Id).Notes,
-            "area" => area.Notes,
-            _ => segment.Notes
-        };
-        Assert.Equal(expected, stored);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Null(trip.Notes);
+        Assert.Null(region.Notes);
+        Assert.Null(place.Notes);
+        Assert.Null(area.Notes);
+        Assert.Null(segment.Notes);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 }

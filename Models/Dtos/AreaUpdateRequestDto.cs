@@ -1,7 +1,7 @@
 namespace Wayfarer.Models.Dtos
 {
     /// <summary>
-    /// Request body to update an existing Area. Region association is immutable.
+    /// Payload for the rejected unconditional Area PUT; use the protected Area contract.
     /// </summary>
     public class AreaUpdateRequestDto
     {

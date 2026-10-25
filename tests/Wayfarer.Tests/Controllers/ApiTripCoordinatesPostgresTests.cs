@@ -22,12 +22,13 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
-    /// <summary>One routed NaN witness per action leaves rows, metadata, membership, orders, routes and timestamps intact; Region order is omitted.</summary>
+    /// <summary>Supported NaN edits and the retired bearer Region writer leave rows, metadata, membership, orders, routes and timestamps intact.</summary>
     [PostgresTheory]
     [InlineData("create-place")]
     [InlineData("update-place")]
     [InlineData("create-region")]
     [InlineData("update-region")]
+    [InlineData("retired-update-region")]
     public async Task NamedNaNRejectsWithoutPersistingAnySuppliedChanges(string action)
     {
         var original = await SeedAsync();
@@ -49,7 +50,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         });
         using var client = app.GetTestClient();
         // Web admits combined Place edits and Region centers; bearer Place creation admits a location.
-        if (action is "create-region" or "update-place")
+        if (action is "create-region" or "update-region" or "update-place")
         {
             UserConnectionTokenHttpTests.Cookie(client, app.Services, original.Region.UserId);
             await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
@@ -95,7 +96,16 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
                     value = new { name = "Changed", notesHtml = "Changed", coverImage = new { rawUrl = "https://example.test/changed.jpg" },
                         center = new { latitude = "NaN", longitude = 10 } }
                 })),
-            "update-region" => (HttpMethod.Put, $"/api/trips/regions/{original.Region.Id}",
+            "update-region" => (HttpMethod.Patch, $"/api/trips/{original.Region.TripId}/editor/regions/{original.Region.Id}/conditional",
+                JsonSerializer.Serialize(new
+                {
+                    expected = new { name = original.Region.Name, notesHtml = RichNotes.Normalize(original.Region.Notes),
+                        coverImage = new { rawUrl = original.Region.CoverImageUrl },
+                        center = new { latitude = original.Region.Center!.Y, longitude = original.Region.Center.X } },
+                    changes = new { name = "Changed", notesHtml = "Changed", coverImage = new { rawUrl = "https://example.test/changed.jpg" },
+                        center = new { latitude = 10, longitude = "NaN" } }
+                })),
+            "retired-update-region" => (HttpMethod.Put, $"/api/trips/regions/{original.Region.Id}",
                 """{"name":"Changed","notes":"Changed","coverImageUrl":"changed","centerLatitude":10,"centerLongitude":"NaN"}"""),
             _ => throw new ArgumentOutOfRangeException(nameof(action))
         };
@@ -103,19 +113,25 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
 
         using var response = await client.SendAsync(request);
 
-        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, await response.Content.ReadAsStringAsync());
-        if (action != "update-region")
+        if (action == "retired-update-region")
         {
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("mutation-originals-required", problem.GetProperty("code").GetString());
+        }
+        else
+        {
+            Assert.True(response.StatusCode == HttpStatusCode.BadRequest, await response.Content.ReadAsStringAsync());
             var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
             Assert.NotNull(problem);
             Assert.Equal("mutation-request-invalid", problem.Extensions["code"]?.ToString());
             var error = Assert.Single(problem.Errors);
-            Assert.Equal(action == "create-region" ? "center.latitude" : "request", error.Key);
+            Assert.Equal(action == "create-region" ? "center.latitude" : action == "update-region" ? "center.longitude" : "request", error.Key);
             Assert.Equal(action == "create-place" ? "location requires a finite WGS84 coordinate pair."
-                : action == "update-place" ? "Complete original evidence and valid operation fields are required." : "The field must be a finite number.",
+                : action == "update-place" ? "Complete original evidence and valid operation fields are required."
+                : action == "update-region" ? "The coordinate must be finite and between -180 and 180." : "The field must be a finite number.",
                 Assert.Single(error.Value));
         }
-        else Assert.Equal("Center latitude or longitude is out of range.", await response.Content.ReadAsStringAsync());
         await AssertUnchangedAsync(original);
         Assert.Equal(0, saves);
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
@@ -229,8 +245,9 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal("bg-blue", absentPlace.GetProperty("markerColor").GetString());
         foreach (var field in new[] { "resolvedFeatureName", "resolvedFeatureType", "location" })
             Assert.Equal(JsonValueKind.Null, absentPlace.GetProperty(field).ValueKind);
-        using var regionUpdate = await client.PutAsync($"/api/trips/regions/{original.Region.Id}",
-            new StringContent("""{"notes":"Partial","centerLongitude":null}""", Encoding.UTF8, "application/json"));
+        // A Notes-only Web edit supplies its genuine original and omits center intent to preserve the stored pair.
+        using var regionUpdate = await web.PatchAsJsonAsync($"/api/trips/{original.Region.TripId}/editor/regions/{original.Region.Id}/conditional",
+            new { expected = new { notesHtml = RichNotes.Normalize(original.Region.Notes) }, changes = new { notesHtml = "Partial" } });
         Assert.Equal(HttpStatusCode.OK, regionUpdate.StatusCode);
         await using var verify = fixture.CreateContext();
         var place = await verify.Places.SingleAsync(item => item.Id == original.Place.Id);

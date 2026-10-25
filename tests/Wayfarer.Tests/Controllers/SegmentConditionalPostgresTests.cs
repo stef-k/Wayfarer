@@ -25,24 +25,33 @@ public sealed partial class SegmentConditionalPostgresTests(PostgresImportTestFi
 {
     private readonly Mock<ICacheWarmupScheduler> _warmup = new();
 
-    /// <summary>Negative control: the existing bearer PUT has no original compare and can restore stale Notes.</summary>
+    /// <summary>Retained F1 protected-first counterexample now requires refusal with every stored field intact.</summary>
     [PostgresFact]
-    public async Task LegacyBearerNotes_OverwritesInterveningCompleteWebNotes()
+    public async Task SegmentRetainedBearerRejectsAfterProtectedNotes()
     {
         var seed = await SeedAsync();
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db);
         using var web = await WebAsync(app, seed.UserId);
         using var bearer = Bearer(app, seed.UserId);
-        var dto = await PublishedAsync(app, seed);
-        using var updated = await web.PutAsJsonAsync(WebUrl(seed), FullRequest(dto, "Web committed notes"));
-        Assert.True(updated.StatusCode == HttpStatusCode.OK, await updated.Content.ReadAsStringAsync());
+        var original = await PublishedAsync(app, seed);
+        using var first = await PatchAsync(web, seed, true, original.NotesHtml, "Protected committed Notes");
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        await using var before = fixture.CreateContext();
+        var protectedRow = await before.Segments.AsNoTracking().SingleAsync(s => s.Id == seed.SegmentId);
+        var protectedValues = before.Entry(protectedRow).CurrentValues.Clone();
+        var protectedStamp = await before.Trips.AsNoTracking().Where(t => t.Id == seed.TripId).Select(t => t.UpdatedAt).SingleAsync();
+        using var second = await bearer.PutAsJsonAsync($"/api/trips/segments/{seed.SegmentId}", new { notes = original.NotesHtml });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var rejection = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("mutation-originals-required", rejection.GetProperty("code").GetString());
         await using var verify = fixture.CreateContext();
-        Assert.Equal("Web committed notes", (await ReadAsync(verify, seed)).Notes);
-        using var legacy = await bearer.PutAsJsonAsync($"/api/trips/segments/{seed.SegmentId}", new { notes = dto.NotesHtml });
-        Assert.Equal(HttpStatusCode.OK, legacy.StatusCode);
-        Assert.Equal(dto.NotesHtml, (await ReadAsync(verify, seed)).Notes);
-        output.WriteLine("RED CONTROL: real legacy bearer PUT overwrote an intervening complete Web Notes save; no original compare.");
+        var stored = await verify.Segments.AsNoTracking().SingleAsync(s => s.Id == seed.SegmentId);
+        Assert.Equal("Protected committed Notes", stored.Notes);
+        var storedValues = verify.Entry(stored).CurrentValues;
+        foreach (var property in protectedValues.Properties)
+            Assert.Equal(protectedValues[property], storedValues[property]);
+        Assert.Equal(protectedStamp, await verify.Trips.AsNoTracking().Where(t => t.Id == seed.TripId).Select(t => t.UpdatedAt).SingleAsync());
     }
 
     /// <summary>Either protected adapter rejects a stale same-field base with zero SQL writes, then accepts an explicitly adopted base.</summary>

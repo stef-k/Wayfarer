@@ -233,7 +233,8 @@ public sealed partial class RegionConditionalPostgresTests
         using var concealed = await bearer.PutAsJsonAsync(RegionOrderPath(foreign.TripId, false), new { invalid = true });
         Assert.Equal(HttpStatusCode.NotFound, concealed.StatusCode);
         using var bypass = await bearer.PutAsJsonAsync($"/api/trips/regions/{region.Id}", new { displayOrder = 99, notes = "Must not write" });
-        Assert.Equal(HttpStatusCode.BadRequest, bypass.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, bypass.StatusCode);
+        Assert.Equal("mutation-originals-required", (await bypass.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         await PrepareRegionOrderAsync(bearer, region.TripId, false, request);
         await db.ApiTokens.Where(t => t.UserId == region.UserId).ExecuteDeleteAsync();
         using var revoked = await bearer.PutAsJsonAsync(RegionOrderPath(region.TripId, false), request);

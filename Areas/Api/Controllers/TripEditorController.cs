@@ -147,116 +147,30 @@ public sealed partial class TripEditorController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Persists a complete metadata draft for an owned trip and returns the changed metadata slice.
-    /// </summary>
+    /// <summary>Rejects metadata writes without client originals; the conditional action owns supported saves.</summary>
     [HttpPatch("metadata")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchMetadata(Guid tripId, CancellationToken cancellationToken)
     {
-        var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrWhiteSpace(userId) || User?.Identity?.IsAuthenticated != true)
-        {
-            return Unauthorized();
-        }
-
-        if (User?.IsInRole("User") != true)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-
-        // Ownership is checked before request parsing so missing or non-owned trips stay hidden.
-        var trip = await _dbContext.Trips.FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-        if (trip == null)
-        {
+        var authFailure = RequireEditorUser(out var userId);
+        if (authFailure != null) return authFailure;
+        if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken))
             return NotFound();
-        }
-
-        JsonElement request;
-        try
-        {
-            using var document = await JsonDocument.ParseAsync(Request.Body, cancellationToken: cancellationToken);
-            request = document.RootElement.Clone();
-        }
-        catch (JsonException)
-        {
-            return ValidationError(new Dictionary<string, string[]>
-            {
-                ["request"] = new[] { "Metadata update request must be valid JSON." }
-            });
-        }
-
-        if (!EditorTripMetadataUpdateRequestParser.TryParse(request, out var update, out var errors))
-        {
-            return ValidationError(errors);
-        }
-
-        var beforeExternalImages = BuildTripExternalImageSet(trip.CoverImageUrl, trip.Notes);
-        var disableShareProgress = !update.IsPublic && trip.ShareProgressEnabled;
-        var coverImageUrl = NormalizeOptionalUrl(update.CoverImage?.RawUrl);
-        var updatedAt = DateTime.UtcNow;
-
-        trip.Name = update.Name.Trim();
-        trip.IsPublic = update.IsPublic;
-        if (!update.IsPublic)
-        {
-            trip.ShareProgressEnabled = false;
-        }
-
-        trip.Notes = update.NotesHtml ?? string.Empty;
-        trip.CoverImageUrl = coverImageUrl;
-        trip.CenterLat = update.Center?.Latitude;
-        trip.CenterLon = update.Center?.Longitude;
-        trip.Zoom = update.Zoom;
-        trip.UpdatedAt = updatedAt;
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        _thumbnailGenerator.InvalidateThumbnails(tripId, updatedAt);
-
-        var afterExternalImages = BuildTripExternalImageSet(trip.CoverImageUrl, trip.Notes);
-        var imagesNewlyIntroduced = afterExternalImages.Any(url => !beforeExternalImages.Contains(url));
-        await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
-
-        var metadata = EditorTripStateMapper.ToMetadata(
-            trip,
-            trip.IsPublic ? GeneratePublicTripUrl(trip.Id) : null,
-            trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(trip.Id) : null);
-
-        var warnings = disableShareProgress
-            ? new[]
-            {
-                new EditorWarningDto(
-                    "share-progress-disabled",
-                    "Share progress was disabled because the trip is private.",
-                    "trip",
-                    trip.Id.ToString())
-            }
-            : Array.Empty<EditorWarningDto>();
-
-        return Ok(new EditorMutationResult<EditorTripMetadataDto>(
-            true,
-            metadata,
-            EditorAffectedSlicesDto.MetadataOnly(metadata),
-            EditorDeletedIdsDto.Empty,
-            warnings));
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected metadata contract with client original values.").ToActionResult();
     }
 
-    /// <summary>
-    /// Updates a normal region for an owned trip.
-    /// </summary>
+    /// <summary>Rejects complete Region writes without originals; use the conditional scalar action.</summary>
     [HttpPut("regions/{regionId:guid}")]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateRegion(Guid tripId, Guid regionId, CancellationToken cancellationToken)
     {
         var authFailure = RequireEditorUser(out var userId);
-        if (authFailure != null)
-        {
-            return authFailure;
-        }
-
-        var outcome = await _regionMutations.UpdateRegionAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
+        if (authFailure != null) return authFailure;
+        if (!await _dbContext.Regions.AsNoTracking().AnyAsync(r => r.Id == regionId && r.TripId == tripId && r.UserId == userId && r.Trip.UserId == userId, cancellationToken))
+            return NotFound();
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Region scalar contract with client original values.").ToActionResult();
     }
 
     /// <summary>
@@ -443,25 +357,6 @@ public sealed partial class TripEditorController : ControllerBase
             ? Directory.GetFiles(iconDir, "*.svg").Select(Path.GetFileNameWithoutExtension).Where(n => n != null).Cast<string>().OrderBy(n => n).ToList()
             : Array.Empty<string>();
     }
-
-    private static HashSet<string> BuildTripExternalImageSet(string? coverImageUrl, string? notesHtml)
-    {
-        var urls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrWhiteSpace(coverImageUrl))
-        {
-            urls.Add(coverImageUrl.Trim());
-        }
-
-        foreach (var url in HtmlHelpers.ExtractExternalImageUrls(notesHtml))
-        {
-            urls.Add(url);
-        }
-
-        return urls;
-    }
-
-    private static string? NormalizeOptionalUrl(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private IActionResult ToActionResult<T>(EditorRegionMutationOutcome<T> outcome) =>
         outcome.Status switch

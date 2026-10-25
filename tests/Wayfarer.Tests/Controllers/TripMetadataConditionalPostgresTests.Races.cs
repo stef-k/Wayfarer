@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
@@ -220,29 +221,43 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Empty(_warmup.Invocations);
     }
 
-    /// <summary>Retains the known legacy counterexample: a stale full Web draft still overwrites a later bearer Notes edit.</summary>
-    [PostgresFact]
-    public async Task LegacyCompatibility_RemainsUnconditional_WithExplicitOverwriteRisk()
+    /// <summary>Retained F1 protected-first counterexample now requires refusal with every stored field intact.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TripRetainedWriterRejectsAfterProtectedNotes(bool webLast)
     {
         var trip = await SeedAsync();
-        var probe = new MutationProbe();
         await using var db = fixture.CreateContext();
-        await using var app = await StartAsync(db, [probe]);
+        await using var app = await StartAsync(db);
         using var web = await WebAsync(app, trip.UserId);
         using var bearer = Bearer(app, trip.UserId);
-        using var mobile = await bearer.PutAsJsonAsync($"/api/trips/{trip.Id}", new { notes = "Later legacy bearer notes" });
-        Assert.Equal(HttpStatusCode.OK, mobile.StatusCode);
-        using var staleWeb = await web.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/metadata", new
-        {
-            name = trip.Name, notesHtml = trip.Notes, isPublic = true,
-            coverImage = new { rawUrl = "https://example.test/legacy-cover.jpg" }, center = new { latitude = 1, longitude = 2 }, zoom = 3
-        });
-        Assert.Equal(HttpStatusCode.OK, staleWeb.StatusCode);
-        await using var verification = fixture.CreateContext();
-        Assert.Equal(trip.Notes, (await verification.Trips.FindAsync(trip.Id))!.Notes);
-        output.WriteLine("Known unprotected legacy full-draft SQL:");
-        output.WriteLine(probe.Updates.Last());
-        Assert.Contains("\"Notes\" =", probe.Updates.Last());
+        using var first = await PatchAsync(webLast ? bearer : web, trip.Id, !webLast,
+            webLast ? new { notes = trip.Notes } : (object)new { notesHtml = trip.Notes },
+            webLast ? new { notes = "Protected committed Notes" } : (object)new { notesHtml = "Protected committed Notes" });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        await using var before = fixture.CreateContext();
+        var protectedRow = await before.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id);
+        var protectedValues = before.Entry(protectedRow).CurrentValues.Clone();
+        var protectedStamp = await before.Trips.AsNoTracking().Where(t => t.Id == trip.Id).Select(t => t.UpdatedAt).SingleAsync();
+        using var second = webLast
+            ? await web.PatchAsJsonAsync($"/api/trips/{trip.Id}/editor/metadata", new
+            {
+                name = "Unrelated Web name", notesHtml = trip.Notes, isPublic = trip.IsPublic,
+                coverImage = new { rawUrl = trip.CoverImageUrl },
+                center = new { latitude = trip.CenterLat, longitude = trip.CenterLon }, zoom = trip.Zoom
+            })
+            : await bearer.PutAsJsonAsync($"/api/trips/{trip.Id}", new { notes = trip.Notes });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var rejection = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("mutation-originals-required", rejection.GetProperty("code").GetString());
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id);
+        Assert.Equal("Protected committed Notes", stored.Notes);
+        var storedValues = verify.Entry(stored).CurrentValues;
+        foreach (var property in protectedValues.Properties)
+            Assert.Equal(protectedValues[property], storedValues[property]);
+        Assert.Equal(protectedStamp, await verify.Trips.AsNoTracking().Where(t => t.Id == trip.Id).Select(t => t.UpdatedAt).SingleAsync());
     }
 
     /// <summary>Observes a real server-side blocker rather than assuming a command-start callback proves waiting.</summary>
