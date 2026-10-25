@@ -217,6 +217,11 @@ exclude emSign ECC Root CA G3 and retain ISRG Root X1 as a positive control.
 
 The Dockerfile pins Node 24.22.1 at index
 `sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205`.
+The shared `.nvmrc` pins the same verified 24.22.1 for local `nvm` and both CI
+setup-node inputs. Exact selection excludes cached 24.21.0 without latest
+resolution or cache eviction. The native installer retains the NodeSource 24
+channel and checks existing/new installations against the unchanged 24.22.1+
+within-24 minimum and effective-root guard before dependency/browser downloads.
 Signed apt package verification installs Bookworm CA `20250419~deb12u2` before
 Cargo and Noble CA `20260816ubuntu0.24.04.1` before NuGet and in the final runtime.
 The pinned Rust compiler and .NET bases stay unchanged; CA package acquisition

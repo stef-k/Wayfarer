@@ -9,7 +9,8 @@
   signed Rust/.NET build and final-runtime CA packages, patched Node for the
   version-matched Playwright installer, and corrected immutable managed Caddy.
   Check selected Node defaults including extra CAs, correct signed runner CA
-  packages before guarded setup downloads on AMD64/ARM64, and check existing
+  packages before guarded setup downloads on AMD64/ARM64, pin `.nvmrc` to the
+  verified Node 24.22.1 so CI cannot accept cached 24.21.0, and check existing
   native Node/host roots. Preserve retained bundle authority
   and the unchanged-proxy update gate. Future application-image/bundle replacement
   needs a separately accepted release and proxy compatibility path; no version or
