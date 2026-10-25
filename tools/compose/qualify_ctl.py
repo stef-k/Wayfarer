@@ -191,7 +191,7 @@ exec /usr/bin/docker "$@"
         run('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
             '-subj', '/CN=wayfarer.example.org', '-addext', 'subjectAltName=DNS:wayfarer.example.org',
             '-keyout', str(self.bundle / 'caddy/tls.key'), '-out', str(self.bundle / 'caddy/tls.crt'))
-    def start_proxy(self, digest='sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'):
+    def start_proxy(self, digest='sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f'):
         """Route real Identity/health traffic through the existing fixture-controlled HTTPS origin."""
         proxy = self.bundle / 'caddy' / ('ExternalTest-' + self.project)
         self.host('tee', str(proxy), data='{\n auto_https disable_redirects\n}\nhttps://wayfarer.example.org:' + str(self.port) +

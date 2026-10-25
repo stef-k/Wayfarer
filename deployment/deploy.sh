@@ -111,6 +111,8 @@ echo ""
 echo ""
 
 # Step 4: Restore dependencies and tools
+# Recheck existing build hosts before NuGet/Cargo/npm downloads; never infer trust from PATH alone.
+bash "$APP_DIR/deployment/check-trust.sh" --node
 echo "[4/8] Restoring dependencies and tools..."
 dotnet restore Wayfarer.csproj
 dotnet tool restore

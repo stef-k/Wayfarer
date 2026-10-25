@@ -23,7 +23,7 @@ PAYLOADS = ('compose.yaml', 'external.yaml', 'caddy/Caddyfile', 'db/20-wayfarer.
             'config/deployment.env.example', 'compose.sh', 'INSTALL.md', 'wayfarerctl',
             'wayfarer-recovery', 'WayfarerRecoverySource.dll')
 CAPTURE_PAYLOADS = ('capture/wayfarer-recovery', 'capture/WayfarerRecoverySource.dll')
-CADDY = 'sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'
+CADDY = 'sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f'
 
 
 def mode(name: str) -> int:

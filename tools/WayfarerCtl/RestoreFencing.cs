@@ -144,7 +144,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
             updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!.Plan.Target.AppDigest;
         }
         if (image != updateImage && image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
-            image != "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b")
+            image != "caddy@" + config.CaddyDigest)
             throw new IOException("Recorded container image identity changed.");
         var allowed = receipt.Volumes.Concat(new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" }
             .Select(role => ActiveStorage.Volume(config, role))).ToHashSet(StringComparer.Ordinal);

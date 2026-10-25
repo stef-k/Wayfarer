@@ -44,7 +44,10 @@ public static class ReleaseContract
 {
     /// <summary>Historical PG17 serialization fallback; fresh setup requires a canonical native PG18 DB manifest.</summary>
     public const string DatabaseDigest = "sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61";
-    public const string CaddyDigest = "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
+    /// <summary>Corrected system-root artifact for newly assembled bundles.</summary>
+    public const string CaddyDigest = "sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f";
+    /// <summary>Retained historical bundle authority for inspection/recovery; never selected by new assembly.</summary>
+    public const string LegacyCaddyDigest = "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
     public static readonly string[] Payloads = ["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh",
         "config/deployment.env.example", "compose.sh", "INSTALL.md", "wayfarerctl", "wayfarer-recovery", "WayfarerRecoverySource.dll"];
     public static readonly string[] CapturePayloads = ["capture/wayfarer-recovery", "capture/WayfarerRecoverySource.dll"];
@@ -95,7 +98,7 @@ public static class ReleaseContract
             !NativePlatform.Supported(value.Platform)) throw new IOException("Unsupported release identity.");
         var images = value.Images;
         if (images.ApplicationRepository != "ghcr.io/stef-k/wayfarer" || !Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
-            images.OciVersion != value.Version || !Match(images.DatabaseDigest, "sha256:[a-f0-9]{64}") || images.CaddyDigest != CaddyDigest ||
+            images.OciVersion != value.Version || !Match(images.DatabaseDigest, "sha256:[a-f0-9]{64}") || images.CaddyDigest is not (CaddyDigest or LegacyCaddyDigest) ||
             images.PostgreSqlMajor != 18 || images.Postgis != "3.6.4" || images.Citext != "1.8" || images.Encoding != "UTF8" ||
             images.Collation != "C.UTF-8" || images.CharacterType != "C.UTF-8" || images.LocaleProvider != "c")
             throw new IOException("Unsupported release image contract.");

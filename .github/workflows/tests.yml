@@ -81,6 +81,7 @@ jobs:
       - name: Install Code Guard
         run: |
           python -m venv "${{ runner.temp }}/code-guard"
+          bash tools/ci/bootstrap-pip.sh "${{ runner.temp }}/code-guard/bin/python"
           "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.5.0
           echo "${{ runner.temp }}/code-guard/bin" >> "$GITHUB_PATH"
 
@@ -99,7 +100,7 @@ jobs:
         run: echo "PASS test scope; classifier and Code Guard passed, no .NET/browser/frontend owner."
 
       - name: Setup Node
-        if: needs.classify.outputs.run_frontend == 'true'
+        if: needs.classify.outputs.run_frontend == 'true' || needs.classify.outputs.run_playwright == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -108,7 +109,9 @@ jobs:
 
       - name: Install frontend dependencies
         if: needs.classify.outputs.run_frontend == 'true'
-        run: npm ci
+        run: |
+          bash deployment/check-trust.sh --node
+          npm ci
 
       - name: Audit frontend dependencies
         if: needs.classify.outputs.run_frontend == 'true'
@@ -280,7 +283,10 @@ jobs:
       - name: Install .NET Playwright Chromium
         if: needs.classify.outputs.run_playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 5
-        run: dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
+        run: |
+          bash deployment/check-trust.sh --node
+          export PLAYWRIGHT_NODEJS_PATH="$(command -v node)"
+          dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 
@@ -364,6 +370,7 @@ jobs:
         if: needs.classify.outputs.run_release_tooling == 'true'
         run: |
           python3 -m venv "$RUNNER_TEMP/release-tests"
+          bash tools/ci/bootstrap-pip.sh "$RUNNER_TEMP/release-tests/bin/python"
           "$RUNNER_TEMP/release-tests/bin/pip" install pytest==8.3.5
           "$RUNNER_TEMP/release-tests/bin/python" -m pytest tools/release/tests
       - name: Build and qualify production image without publishing
