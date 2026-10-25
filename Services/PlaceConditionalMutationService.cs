@@ -65,7 +65,7 @@ internal sealed class PlaceConditionalMutationService(ApplicationDbContext db, I
     }
 
     /// <summary>Original Notes use the shared publication canonicalization, preserving null separately from empty.</summary>
-    private static object? Current(Place place, string key) => key switch
+    internal static object? Current(Place place, string key) => key switch
     {
         "name" => place.Name, "notes" => RichNotes.Normalize(place.Notes), "iconName" => place.IconName, "markerColor" => place.MarkerColor, _ => throw new InvalidOperationException("Unsupported Place field.")
     };

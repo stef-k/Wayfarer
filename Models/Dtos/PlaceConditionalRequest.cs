@@ -57,7 +57,7 @@ internal sealed record PlaceConditionalRequest(Guid RegionId, Dictionary<string,
     }
 
     /// <summary>Canonicalizes Notes equally for both clients; nullable marker originals retain exact storage identity.</summary>
-    private static string? Value(string key, JsonElement value, bool desired, IReadOnlySet<string> icons, IReadOnlySet<string> colors)
+    internal static string? Value(string key, JsonElement value, bool desired, IReadOnlySet<string> icons, IReadOnlySet<string> colors)
     {
         if (value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
             throw Invalid(key, "The field must be a string or null.");

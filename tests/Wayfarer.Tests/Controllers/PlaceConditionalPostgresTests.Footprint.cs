@@ -11,11 +11,11 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class PlaceConditionalPostgresTests
 {
-    /// <summary>Real coordinate/lifecycle changes do not conflict with scalar edits; later full writers still replay stale Notes.</summary>
+    /// <summary>Coordinates preserve scalar authority, and later stale combined requests are rejected.</summary>
     [PostgresTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PopulatedGraph_ScalarFootprintAndCombinedWriterLimitation(bool combinedWitness)
+    public async Task PopulatedGraph_ScalarFootprintAndCombinedWriterProtection(bool combinedWitness)
     {
         var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext();
@@ -30,9 +30,10 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var app = await StartAsync(db, [probe]);
         using var web = await WebAsync(app, graph.UserId);
         // An actual complete Web coordinate/address edit exercises route, waypoint and enrichment lifecycle behavior.
-        using var structural = await web.PutAsJsonAsync($"/api/trips/{graph.TripId}/editor/places/{place.Id}", new
-        { regionId = place.RegionId, name = place.Name, notesHtml = place.Notes, address = "Updated address",
-            location = new { latitude = 2.25, longitude = 2.25 }, iconName = "marker", markerColor = "bg-blue", reverseGeocode = false });
+        var coordinateRequest = CoordinateRequest(place, true, 2.25, 2.25);
+        coordinateRequest["expected"] = new { regionId = place.RegionId, location = Coordinate(place), address = place.Address };
+        coordinateRequest["changes"] = new { location = new { latitude = 2.25, longitude = 2.25 }, address = "Updated address" };
+        using var structural = await ApplyStructureAsync(web, place, true, "coordinates", coordinateRequest);
         Assert.True(structural.StatusCode == HttpStatusCode.OK, await structural.Content.ReadAsStringAsync());
         await db.Trips.Where(t => t.Id == graph.TripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, future));
         await using var connection = fixture.CreateConnection();
@@ -75,14 +76,15 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(future, (await verify.Trips.FindAsync(graph.TripId))!.UpdatedAt);
         if (combinedWitness)
         {
-            using var combined = await web.PutAsJsonAsync($"/api/trips/{graph.TripId}/editor/places/{place.Id}", new
-            { regionId = place.RegionId, name = "Combined name", notesHtml = staleNotes, address = "Combined address",
-                location = new { latitude = 2.5, longitude = 2.5 }, iconName = "marker", markerColor = "bg-blue", reverseGeocode = false });
-            Assert.Equal(HttpStatusCode.OK, combined.StatusCode);
-            var overwritten = await verify.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id);
-            Assert.Equal(("Combined name", staleNotes, "Combined address", "POINT (2.5 2.5)"),
-                (overwritten.Name, overwritten.Notes, overwritten.Address, overwritten.Location!.AsText()));
-            output.WriteLine("RETAINED RISK: one combined structural/scalar Web PUT overwrote previously committed protected Notes.");
+            using var combined = await web.PostAsJsonAsync($"/api/trips/{graph.TripId}/editor/places/{place.Id}/prepare", new
+            { expected = new { regionId = place.RegionId, notesHtml = staleNotes, name = place.Name, address = "Updated address",
+                    location = new { latitude = 2.25, longitude = 2.25 } },
+                changes = new { name = "Combined name", notesHtml = staleNotes, address = "Combined address", location = new { latitude = 2.5, longitude = 2.5 } } });
+            Assert.Equal(HttpStatusCode.Conflict, combined.StatusCode);
+            var preserved = await verify.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id);
+            Assert.Equal((place.Name, "Protected notes", "Updated address", "POINT (2.25 2.25)"),
+                (preserved.Name, preserved.Notes, preserved.Address, preserved.Location!.AsText()));
+            output.WriteLine("Stale combined Web intent was rejected before any partial write.");
         }
         Assert.Empty(_warmup.Invocations);
         output.WriteLine("SQL/fresh-context proof: scalar PATCH preserved complete geometry, enrichment, membership/order, route, measurement, provider and visit footprint.");

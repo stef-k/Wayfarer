@@ -40,8 +40,7 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
         try
         {
             await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            using var moved = await writer.PutAsJsonAsync($"/api/trips/{trip.Id}/editor/places/{Place(trip).Id}",
-                PlaceDraft(trip, "After", true));
+            using var moved = await WriteCheckedPlaceAsync(writer, trip, "After", true);
             Assert.True(moved.StatusCode == HttpStatusCode.OK, gate.Failure?.ToString() ?? await moved.Content.ReadAsStringAsync());
             gate.Release.TrySetResult();
             using var before = await pending.WaitAsync(TimeSpan.FromSeconds(15));
@@ -98,8 +97,7 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
                 coverImage = (object?)null, center = (object?)null, zoom = (int?)null
             });
             Assert.True(hidden.StatusCode == HttpStatusCode.OK, gate.Failure?.ToString() ?? await hidden.Content.ReadAsStringAsync());
-            using var edited = await writer.PutAsJsonAsync($"/api/trips/{trip.Id}/editor/places/{Place(trip).Id}",
-                PlaceDraft(trip, "PRIVATE-SENTINEL-852", false));
+            using var edited = await WriteCheckedPlaceAsync(writer, trip, "PRIVATE-SENTINEL-852", false);
             Assert.True(edited.StatusCode == HttpStatusCode.OK, gate.Failure?.ToString() ?? await edited.Content.ReadAsStringAsync());
             gate.Release.TrySetResult();
             using var before = await pending.WaitAsync(TimeSpan.FromSeconds(15));
@@ -298,14 +296,31 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
     /// <summary>Returns the seeded mutable anchor.</summary>
     private static Place Place(Trip trip) => trip.Regions.OrderBy(region => region.DisplayOrder).First().Places.Single();
 
-    /// <summary>Supplies the complete real Web editor draft, without external reverse geocoding.</summary>
-    private static object PlaceDraft(Trip trip, string name, bool move) => new
+    /// <summary>Uses the supported prepared atomic writer so snapshot evidence still crosses a real membership/route transaction.</summary>
+    private async Task<HttpResponseMessage> WriteCheckedPlaceAsync(HttpClient writer, Trip trip, string name, bool move)
     {
-        regionId = trip.Regions.OrderBy(region => region.DisplayOrder).ElementAt(move ? 1 : 0).Id,
-        name, notesHtml = (string?)null, address = (string?)null,
-        location = new { latitude = move ? 39d : 37d, longitude = move ? 25d : 23d },
-        iconName = "marker", markerColor = "bg-blue", reverseGeocode = false
-    };
+        var place = Place(trip);
+        var destination = trip.Regions.OrderBy(r => r.DisplayOrder).ElementAt(move ? 1 : 0).Id;
+        var location = new { latitude = place.Location!.Y, longitude = place.Location.X };
+        Dictionary<string, object?> request = new();
+        if (move)
+        {
+            await using var db = fixture.CreateContext();
+            var places = await db.Places.AsNoTracking().Where(p => p.RegionId == place.RegionId || p.RegionId == destination).ToArrayAsync();
+            request["expected"] = new { place = new { id = place.Id, regionId = place.RegionId, name = place.Name,
+                notes = Wayfarer.Util.RichNotes.Normalize(place.Notes), address = place.Address, location, iconName = place.IconName,
+                markerColor = place.MarkerColor, displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType },
+                placesByRegion = new[] { place.RegionId, destination }.ToDictionary(id => id, id => places.Where(p => p.RegionId == id).OrderBy(p => p.Id).Select(p => new { id = p.Id, displayOrder = p.DisplayOrder }).ToArray()) };
+            request["placeIdsByRegion"] = new Dictionary<Guid, Guid[]> { [place.RegionId] = [], [destination] = [place.Id] };
+            request["changes"] = new { regionId = destination, name, location = new { latitude = 39d, longitude = 25d } };
+        }
+        else { request["expected"] = new { regionId = place.RegionId, name = place.Name }; request["changes"] = new { name }; }
+        var path = $"/api/trips/{trip.Id}/editor/places/{place.Id}";
+        using var prepare = await writer.PostAsJsonAsync(path + "/prepare", request);
+        Assert.True(prepare.IsSuccessStatusCode, await prepare.Content.ReadAsStringAsync());
+        request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        return await writer.PutAsJsonAsync(path, request);
+    }
 
     /// <summary>Parses actual HTTP wire JSON only after checking the successful response.</summary>
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response)

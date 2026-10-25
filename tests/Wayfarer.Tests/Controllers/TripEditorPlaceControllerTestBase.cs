@@ -1,4 +1,7 @@
 using System.Text;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Util;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -125,6 +128,59 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         return await action(controller);
     }
 
+    /// <summary>Builds explicit test originals from the starting fixture, reviews preparation, then submits the supported atomic contract.</summary>
+    protected static async Task<IActionResult> SendCheckedPlaceUpdate(ApplicationDbContext db, TripEditorController controller,
+        Guid tripId, Guid placeId, CancellationToken token, string authoredIntent)
+    {
+        var place = await db.Places.AsNoTracking().Include(p => p.Region).SingleOrDefaultAsync(p => p.Id == placeId);
+        if (place == null) return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), authoredIntent);
+        JsonElement intent;
+        try { intent = JsonSerializer.Deserialize<JsonElement>(authoredIntent); }
+        catch (JsonException) { return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), authoredIntent); }
+        if (intent.ValueKind != JsonValueKind.Object) return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), authoredIntent);
+        var changes = intent.EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
+        var destination = changes.TryGetValue("regionId", out var parent) && ((JsonElement)parent!).TryGetGuid(out var id) ? id : place.RegionId;
+        if (destination == place.RegionId) changes.Remove("regionId");
+        Dictionary<string, object?> expected = new() { ["regionId"] = place.RegionId, ["location"] = Coordinate(place),
+            ["name"] = place.Name, ["notesHtml"] = RichNotes.Normalize(place.Notes), ["address"] = place.Address,
+            ["iconName"] = place.IconName, ["markerColor"] = place.MarkerColor };
+        Dictionary<string, object?> request = new() { ["changes"] = changes, ["expected"] = expected };
+        if (destination != place.RegionId)
+        {
+            var regionIds = new[] { place.RegionId, destination };
+            var places = await db.Places.AsNoTracking().Where(p => regionIds.Contains(p.RegionId)).ToArrayAsync();
+            request["expected"] = new { place = Material(place), placesByRegion = regionIds.ToDictionary(r => r,
+                r => places.Where(p => p.RegionId == r).OrderBy(p => p.Id).Select(p => new { id = p.Id, displayOrder = p.DisplayOrder }).ToArray()) };
+            request["placeIdsByRegion"] = regionIds.ToDictionary(r => r, r => places.Where(p => p.RegionId == r && p.Id != placeId)
+                .OrderBy(p => p.DisplayOrder == null).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Id)
+                .Concat(r == destination ? new[] { placeId } : []).ToArray());
+        }
+        var prepared = await SendJson(controller, c => c.PreparePlaceUpdate(tripId, placeId, token), JsonSerializer.Serialize(request));
+        if (prepared is not OkObjectResult ok) return prepared;
+        request["conditionToken"] = JsonSerializer.SerializeToElement(ok.Value).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), JsonSerializer.Serialize(request));
+    }
+
+    /// <summary>Retains existing ordering assertions while explicitly supplying all content originals and reviewed conditions.</summary>
+    protected static async Task<IActionResult> SendCheckedPlaceOrder(ApplicationDbContext db, TripEditorController controller,
+        Guid tripId, Guid regionId, CancellationToken token, string authoredIntent)
+    {
+        var places = await db.Places.AsNoTracking().Where(p => p.RegionId == regionId).OrderBy(p => p.Id).ToArrayAsync();
+        Dictionary<string, object?> request;
+        try { request = JsonSerializer.Deserialize<Dictionary<string, object?>>(authoredIntent)!; }
+        catch (JsonException) { return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), authoredIntent); }
+        request["expected"] = new { places = places.Select(Material).ToArray() };
+        var prepared = await SendJson(controller, c => c.PrepareEditorPlaceOrder(tripId, regionId, token), JsonSerializer.Serialize(request));
+        if (prepared is not OkObjectResult ok) return prepared;
+        request["conditionToken"] = JsonSerializer.SerializeToElement(ok.Value).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), JsonSerializer.Serialize(request));
+    }
+
+    private static object? Coordinate(Place place) => place.Location == null ? null : new { latitude = place.Location.Y, longitude = place.Location.X };
+    private static object Material(Place place) => new { id = place.Id, regionId = place.RegionId, name = place.Name, notes = RichNotes.Normalize(place.Notes),
+        address = place.Address, location = Coordinate(place), iconName = place.IconName, markerColor = place.MarkerColor,
+        displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType };
+
     /// <summary>
     /// Asserts that an action returned a validation problem response.
     /// </summary>
@@ -141,7 +197,8 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
     /// </summary>
     protected static EditorMutationResult<T> AssertMutation<T>(IActionResult result)
     {
-        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.True(result is OkObjectResult, JsonSerializer.Serialize(result));
+        var ok = (OkObjectResult)result;
         return Assert.IsType<EditorMutationResult<T>>(ok.Value);
     }
 

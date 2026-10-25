@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.TestHost;
@@ -47,14 +48,19 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
         client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
 
-        using var response = await client.PutAsync($"/api/trips/{trip.Id}/editor/places/{place.Id}",
-            new StringContent(UpdateBody(place.RegionId, "Changed", 37, 23, false), System.Text.Encoding.UTF8, "application/json"));
+        var request = new Dictionary<string, object?> { ["expected"] = new { regionId = place.RegionId, address = place.Address },
+            ["changes"] = new { address = "Changed" } };
+        var path = $"/api/trips/{trip.Id}/editor/places/{place.Id}";
+        using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
+        Assert.Equal(HttpStatusCode.OK, prepare.StatusCode);
+        request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
+        using var response = await client.PutAsJsonAsync(path, request);
 
         var responseBody = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(responseBody);
         var root = document.RootElement;
-        Assert.Equal(new[] { "affected", "data", "deletedIds", "success", "warnings" }, root.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.Equal(new[] { "affected", "contract", "data", "deletedIds", "success", "warnings" }, root.EnumerateObject().Select(property => property.Name).Order().ToArray());
         Assert.True(root.GetProperty("success").GetBoolean());
         Assert.Equal("Changed", root.GetProperty("data").GetProperty("address").GetString());
         Assert.Equal(JsonValueKind.Null, root.GetProperty("data").GetProperty("resolvedFeatureName").ValueKind);
@@ -87,9 +93,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None),
-            UpdateBody(place.RegionId, submittedAddress, latitude, longitude, reverseGeocode)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, UpdateBody(place.RegionId, submittedAddress, latitude, longitude, reverseGeocode)));
 
         var stored = await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id);
         Assert.Equal(submittedAddress?.Trim() ?? "", stored.Address);
@@ -117,9 +121,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None),
-            UpdateBody(target.Id, "Old address", 37, 23, false)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, UpdateBody(target.Id, "Old address", 37, 23, false)));
 
         Assert.Equal(target.Id, envelope.Data.RegionId);
         var stored = await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id);
@@ -139,8 +141,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), UpdateBody(place.RegionId, "Old address", null, null, false)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, UpdateBody(place.RegionId, "Old address", null, null, false)));
 
         Assert.Null(envelope.Data.Location);
         Assert.Equal("Old feature", envelope.Data.ResolvedFeatureName);
@@ -177,9 +178,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         ConfigureControllerWithUserRole(controller, "owner-user");
         var before = DateTimeOffset.UtcNow;
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None),
-            UpdateBody(place.RegionId, "Old address", 37, 23, true)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, UpdateBody(place.RegionId, "Old address", 37, 23, true)));
 
         var stored = await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id);
         Assert.Equal("Old address", stored.Address);
@@ -232,8 +231,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var controller = BuildController(db, reverse);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var response = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None),
-            ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
+        var response = await SendCheckedPlaceUpdate(db, controller, trip.Id, region.Places.Single().Id, CancellationToken.None, ValidUpdateBody(region.Id, "Geo", reverseGeocode: true));
 
         var envelope = AssertMutation<EditorPlaceDto>(response);
         Assert.Empty(envelope.Warnings);

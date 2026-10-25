@@ -80,6 +80,8 @@ export interface ExternalRouteProposal {
 
 /** Exact server comparison values, preserving nullable storage independently of the rendered defaults. */
 export interface EditorPlaceOriginalValues {
+  /** Exact nullable Address for explicit Web edits. */
+  address?: string | null;
   /** Exact nullable stored order; display order can use a rendered default. */
   displayOrder?: number | null;
   regionId: Guid;
@@ -261,6 +263,9 @@ export interface EditorPlaceSaveRequest {
 
 export interface EditorPlaceOrderRequest {
   placeIds: Guid[];
+  expected: { places: unknown[] };
+  conditionToken?: string;
+  reviewed?: boolean;
 }
 
 export interface EditorPlaceOrderResult {

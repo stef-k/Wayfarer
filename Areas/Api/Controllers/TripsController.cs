@@ -522,7 +522,7 @@ public partial class TripsController : BaseApiController
 
     /// <summary>
     /// Partially updates a Place with optional finite WGS84 coordinates.
-    /// Region moves remain within the same owned trip.
+    /// Original-aware scalar, coordinate, move and vector actions own all supported Place updates.
     /// </summary>
     /// <param name="placeId">Place ID</param>
     /// <param name="request">Partial update payload</param>
@@ -540,56 +540,8 @@ public partial class TripsController : BaseApiController
         if (place == null) return NotFound("Place not found.");
         if (place.Region.Trip.UserId != user.Id) return Unauthorized("Not your place.");
 
-        var targetRegionId = request.RegionId ?? place.RegionId;
-        var targetRegionOwned = await _dbContext.Regions.AsNoTracking()
-            .AnyAsync(region => region.Id == targetRegionId && region.TripId == place.Region.TripId && region.UserId == user.Id);
-        if (!targetRegionOwned) return BadRequest("Invalid regionId.");
-        NetTopologySuite.Geometries.Point? location = null;
-        if (request.Latitude.HasValue || request.Longitude.HasValue)
-        {
-            if (!(request.Latitude.HasValue && request.Longitude.HasValue))
-                return BadRequest("Both latitude and longitude must be provided together.");
-            var lat = request.Latitude.Value;
-            var lon = request.Longitude.Value;
-            if (!IsValidCoordinate(lat, lon))
-                return BadRequest("Latitude or Longitude is out of range.");
-            location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
-        }
-        var iconName = request.ClearIcon == true || request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)
-            ? "marker" : request.IconName;
-        var markerColor = request.ClearMarkerColor == true || request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)
-            ? "bg-blue" : request.MarkerColor;
-        // Carry actual legacy intent to the locked reload; preflight values are not authoritative defaults.
-        var lifecycle = await _lifecycle.UpdatePlaceAsync(
-            place.Region.TripId,
-            placeId,
-            user.Id,
-            new PlaceLifecycleUpdate(
-                request.RegionId,
-                string.IsNullOrWhiteSpace(request.Name) ? null : request.Name,
-                request.Notes is null ? null : RichNotes.Normalize(request.Notes) ?? string.Empty,
-                null,
-                iconName,
-                markerColor,
-                location,
-                request.DisplayOrder,
-                PreserveOmittedFields: true),
-            HttpContext.RequestAborted);
-        if (!lifecycle.Succeeded)
-            return lifecycle.ErrorCode == "lifecycle-concurrency-conflict"
-                ? Conflict(new { code = lifecycle.ErrorCode })
-                : lifecycle.Errors != null
-                ? BadRequest(new { code = lifecycle.ErrorCode, errors = lifecycle.Errors })
-                : NotFound("Place not found.");
-        place = lifecycle.Place!;
-
-        // Project the final lifecycle Place; suppressing non-finite output does not repair stored geometry.
-        var placeDto = place.ToApiDto();
-
-        // Schedule background cache warm-up for external images (debounced)
-        await _warmupScheduler.ScheduleWarmupAsync(place.Region.TripId);
-
-        return Ok(new { success = true, place = placeDto });
+        return new TripMetadataMutationRejected(409, "mutation-originals-required",
+            "Use the protected Place scalar, coordinate, move or complete-order contract with original evidence.").ToActionResult();
     }
 
     /// <summary>

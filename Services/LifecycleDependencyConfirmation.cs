@@ -13,6 +13,9 @@ public sealed class LifecycleDependencyConfirmation
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly IDataProtector _regionDeletionProtector;
+    private readonly IDataProtector _coordinateProtector;
+    private readonly IDataProtector _moveProtector;
+    private readonly IDataProtector _orderProtector;
     private readonly TimeProvider _timeProvider;
     /// <summary>Uses the application protector for fresh affected Segment aggregate tokens.</summary>
     internal SegmentAggregateTokenService RegionDeletionAggregateTokens { get; }
@@ -22,9 +25,39 @@ public sealed class LifecycleDependencyConfirmation
     {
         _protector = provider.CreateProtector("Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1");
         _regionDeletionProtector = provider.CreateProtector("Wayfarer.RegionDeletion.Content.v1");
+        _coordinateProtector = provider.CreateProtector("Wayfarer.PlaceCoordinates.Conditions.v1");
+        _moveProtector = provider.CreateProtector("Wayfarer.PlaceMove.Conditions.v1");
+        _orderProtector = provider.CreateProtector("Wayfarer.PlaceOrder.Conditions.v1");
         _timeProvider = timeProvider ?? TimeProvider.System;
         RegionDeletionAggregateTokens = new(provider);
     }
+
+    /// <summary>Issues transient material conditions, bound to owner/server keys, Trip, typed target and exact intent.</summary>
+    internal string IssuePlaceStructure(string operation, string userId, Guid tripId, Guid targetId, string intent, string fingerprint) =>
+        PlaceProtector(operation).Protect(JsonSerializer.Serialize(new PlaceStructurePayload(1, operation, userId, tripId, targetId, intent, fingerprint)));
+
+    /// <summary>Checks original material conditions without expiry-based rebasing, private disclosure or receipt semantics.</summary>
+    internal bool MatchesPlaceStructure(string? token, string operation, string userId, Guid tripId, Guid targetId, string intent, string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        try
+        {
+            var value = JsonSerializer.Deserialize<PlaceStructurePayload>(PlaceProtector(operation).Unprotect(token));
+            return value == new PlaceStructurePayload(1, operation, userId, tripId, targetId, intent, fingerprint);
+        }
+        catch (Exception error) when (error is CryptographicException or JsonException) { return false; }
+    }
+
+    /// <summary>Combined Web intent has its own fixed operation tag and complete intent/material hash within coordinate protection.</summary>
+    private IDataProtector PlaceProtector(string operation) => operation switch
+    {
+        "coordinates" or "web-update" => _coordinateProtector,
+        "move" => _moveProtector,
+        "order" => _orderProtector,
+        _ => throw new ArgumentOutOfRangeException(nameof(operation))
+    };
+
+    private sealed record PlaceStructurePayload(int Version, string Operation, string UserId, Guid TripId, Guid TargetId, string Intent, string Fingerprint);
 
     /// <summary>Creates a bounded warning and token bound to the exact dependency identities.</summary>
     public EditorLifecycleConflictDto Create(

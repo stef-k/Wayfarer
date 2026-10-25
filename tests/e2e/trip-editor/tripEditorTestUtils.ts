@@ -220,6 +220,7 @@ export async function dragFromVisibleHandle(sourceRow: Locator, targetRow: Locat
       y: targetBox!.height * (movingUp ? 0.25 : 0.75)
     }
   });
+  if (handleName === 'Drag to reorder place') await sourceRow.page().getByRole('button', { name: 'Apply reviewed order', exact: true }).click();
 }
 
 // Locates the region header edit action when the current region allows it.
@@ -287,3 +288,55 @@ function segmentSearchFixture(state: EditorTripFixture, segment: EditorTripFixtu
   const modeLabel = state.options.transportModes.find(mode => mode.value === segment.mode)?.label;
   return { query: modeLabel || segment.mode || label, label };
 }
+
+/** Supplies exact stored originals for authored browser fixture Places. */
+export const withPlaceOriginals = (place: Record<string, any>): Record<string, any> => ({ ...place,
+  resolvedFeatureName: place.resolvedFeatureName ?? null, resolvedFeatureType: place.resolvedFeatureType ?? null,
+  originalValues: { regionId: place.regionId, name: place.name, notesHtml: place.notesHtml,
+    address: place.address, iconName: place.iconName, markerColor: place.markerColor, displayOrder: place.displayOrder } });
+
+/** Mocks only the read/review response; routed PostgreSQL owns private condition and persistence proof. */
+export const fulfillPlacePreparation = async (route: import('@playwright/test').Route, state: Record<string, any>, placeId: string): Promise<void> => {
+  const place = state.placesById[placeId];
+  await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ contract: 'bd2-1', operation: 'web-update',
+    tripId: state.tripId, targetId: placeId, requiresReview: true, conditionToken: 'browser-reviewed-conditions',
+    place: { id: place.id, regionId: place.regionId, name: place.name, notes: place.notesHtml, address: place.address,
+      location: place.location, iconName: place.iconName, markerColor: place.markerColor, displayOrder: place.displayOrder,
+      resolvedFeatureName: place.resolvedFeatureName ?? null, resolvedFeatureType: place.resolvedFeatureType ?? null },
+    placesByRegion: {}, affectedSegmentIds: [] }) });
+};
+
+/** Complete mocked Place effects retain the actual Trip and exact changed order scopes. */
+export const placeMutationFixture = (state: Record<string, any>, placeId: string, orders: Record<string, string[]> = {}, coordinates = false): Record<string, any> => {
+  const ids = [...new Set(Object.values(orders).flat().concat(placeId))];
+  for (const [regionId, vector] of Object.entries(orders)) vector.forEach((id, index) => {
+    state.placesById[id] = withPlaceOriginals({ ...state.placesById[id], regionId, displayOrder: index + 1 });
+  });
+  const place = state.placesById[placeId];
+  return { contract: 'bd2-1', success: true, data: place,
+    affected: { metadata: null, regions: [], regionOrder: null, places: ids.map(id => state.placesById[id]), placeOrdersByRegionId: orders,
+      areas: [], areaOrdersByRegionId: {}, segments: [], segmentOrder: coordinates ? [] : null, tags: [], tagOrder: null,
+      visitProgress: coordinates ? { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: { [placeId]: place.visitSummary }, historyRows: [] } : null, options: null },
+    deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] };
+};
+
+/** Direct browser fixture ordering uses the supported public originals and explicitly reviewed prepare/apply pair. */
+export const putCheckedPlaceOrder = async (page: Page, regionId: string, ids: string[], state: any): Promise<void> => {
+  const token = await page.locator('#trip-editor-antiforgery input[name="__RequestVerificationToken"]').inputValue();
+  const places = Object.values<any>(state.placesById).filter(p => p.regionId === regionId).map(p => ({ id: p.id, regionId,
+    name: p.originalValues.name, notes: p.originalValues.notesHtml, address: p.originalValues.address, location: p.location,
+    iconName: p.originalValues.iconName, markerColor: p.originalValues.markerColor, displayOrder: p.originalValues.displayOrder,
+    resolvedFeatureName: p.resolvedFeatureName ?? null, resolvedFeatureType: p.resolvedFeatureType ?? null }));
+  const path = absoluteUrl(`${editorApiPath}/regions/${regionId}/places/order`);
+  const data = { expected: { places }, placeIds: ids };
+  const prepare = await page.request.post(path + '/prepare', { data, headers: { RequestVerificationToken: token } });
+  expect(prepare.ok(), await prepare.text()).toBeTruthy();
+  const response = await page.request.put(path, { data: { ...data, conditionToken: (await prepare.json()).conditionToken, reviewed: true }, headers: { RequestVerificationToken: token } });
+  expect(response.ok(), await response.text()).toBeTruthy();
+};
+
+/** Existing move scenarios explicitly accept the newly prepared dependency base. */
+export const saveReviewedPlace = async (page: Page): Promise<void> => {
+  await page.getByRole('button', { name: 'Save Place', exact: true }).click();
+  await page.getByRole('button', { name: 'Apply reviewed save', exact: true }).click();
+};

@@ -4,6 +4,19 @@
 
 ### Changed
 
+- Protect Place coordinates, same-Trip moves and complete Place ordering with
+  paired Web/bearer originals, reviewed preparation and final lifecycle locks
+  (#853 BD2-08/09/10). Combined Web edits commit once with atomic route/order
+  effects and current-safe Trip freshness. Coordinate-only edits preserve Address;
+  changed coordinates clear all five enrichment fields, unchanged coordinates
+  retain them. Preserve canonical/sparse-order rules, newer drafts and unknown
+  holds; reject participating unconditional Place updates. See
+  [supported Place contracts](docs/development/trip-place-structure.md). No migration.
+  Reject unproved Web order vectors before writes or membership projection.
+  Scalar and structural edits safely project historical non-finite Place
+  locations as null while preserving stored geography and applying only
+  explicitly authored Address/coordinate enrichment changes.
+
 - Protect Region and Place creation in the new Web and bearer contracts (#853,
   BD2-06/07). Compare client starting-view membership, stored orders and canonical
   fallback evidence; atomically append server-identified children and stamp Trip

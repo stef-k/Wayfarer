@@ -98,67 +98,9 @@ public sealed class TripEditorPlaceMutationService
         Stream requestBody,
         CancellationToken cancellationToken)
     {
-        var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
-        if (trip == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var place = trip.Regions.SelectMany(r => r.Places).FirstOrDefault(p => p.Id == placeId);
-        if (place == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var parsed = await ParseAndValidateUpdateAsync(requestBody, cancellationToken);
-        if (parsed.ValidationErrors != null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(parsed.ValidationErrors);
-        }
-
-        var update = parsed.Value!;
-        var targetRegion = trip.Regions.FirstOrDefault(r => r.Id == update.RegionId);
-        if (targetRegion == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var address = await ResolveAddressAsync(userId, place.Id, update.Address, update.Location, update.ReverseGeocode, cancellationToken);
-        var metadata = address.Metadata.HasValue
-            ? new EditorPlaceMetadataDirective(EditorPlaceMetadataPolicy.Replace, address.Metadata.Value)
-            : new EditorPlaceMetadataDirective(EditorPlaceMetadataPolicy.RetainCompatible);
-        var lifecycle = await _lifecycle.UpdatePlaceAsync(
-            tripId,
-            placeId,
-            userId,
-            new PlaceLifecycleUpdate(
-                targetRegion.Id,
-                update.Name.Trim(),
-                update.NotesHtml ?? string.Empty,
-                address.Value,
-                update.IconName,
-                update.MarkerColor,
-                ToPoint(update.Location),
-                EditorMetadata: metadata),
-            cancellationToken);
-        if (!lifecycle.Succeeded)
-        {
-            if (lifecycle.ErrorCode == "lifecycle-concurrency-conflict")
-                return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Conflicted(new { code = lifecycle.ErrorCode });
-            return lifecycle.Errors != null
-                ? EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.ValidationFailed(lifecycle.Errors)
-                : EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
-        }
-
-        var dto = await _reader.LoadPlaceDtoAsync(place.Id, tripId, userId, cancellationToken);
-        var segmentOrder = lifecycle.LocationChanged ? await _reader.LoadSegmentOrderAsync(tripId, userId, cancellationToken) : null;
-        var segmentDtos = lifecycle.Segments.Count > 0
-            ? await _reader.LoadSegmentDtosAsync(lifecycle.Segments.Select(s => s.Id).ToArray(), tripId, userId, cancellationToken)
-            : Array.Empty<EditorSegmentDto>();
-        var affected = await _reader.BuildAffectedAsync(tripId, userId, new[] { dto }, lifecycle.OrderRegionIds, segmentDtos, segmentOrder, lifecycle.LocationChanged, cancellationToken);
-
+        var result = await ApplyStructureAsync(tripId, placeId, userId, requestBody, "web-update", cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.Succeeded(
-            new EditorMutationResult<EditorPlaceDto>(true, dto, affected, EditorDeletedIdsDto.Empty, address.Warnings));
+            new(true, (EditorPlaceDto)result.Data, result.Affected, result.DeletedIds, result.Warnings) { Contract = "bd2-1" });
     }
 
     /// <summary>
@@ -211,80 +153,46 @@ public sealed class TripEditorPlaceMutationService
         Stream requestBody,
         CancellationToken cancellationToken)
     {
-        var trip = await LoadTripGraphAsync(tripId, userId, cancellationToken);
-        if (trip == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.NotFound();
-        }
-
-        var region = trip.Regions.FirstOrDefault(r => r.Id == regionId);
-        if (region == null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.NotFound();
-        }
-
-        if (IsShadowRegion(region))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Forbidden("Places in Unassigned Places cannot be reordered from this editor action.");
-        }
-
-        var request = await ParseJsonBodyAsync(requestBody, "Place order request must be valid JSON.", cancellationToken);
-        if (request.ValidationErrors != null)
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.ValidationFailed(request.ValidationErrors);
-        }
-
-        if (!EditorPlaceRequestParser.TryParseOrder(request.Value!.Value, out var orderRequest, out var errors))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.ValidationFailed(errors);
-        }
-
-        var currentIds = region.Places
-            .OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1)
-            .ThenBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Id)
-            .Select(p => p.Id)
-            .ToList();
-        if (orderRequest.PlaceIds.Count != currentIds.Count
-            || orderRequest.PlaceIds.Distinct().Count() != orderRequest.PlaceIds.Count
-            || orderRequest.PlaceIds.Any(id => !currentIds.Contains(id)))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.ValidationFailed(new Dictionary<string, string[]>
-            {
-                ["placeIds"] = new[] { "Place IDs must include every place in this region exactly once." }
-            });
-        }
-
-        var placesById = region.Places.ToDictionary(p => p.Id);
-        for (var i = 0; i < orderRequest.PlaceIds.Count; i++)
-        {
-            placesById[orderRequest.PlaceIds[i]].DisplayOrder = i + 1;
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var placeOrder = await _reader.LoadPlaceOrderAsync(region.Id, cancellationToken);
-        var placeDtos = await _reader.LoadPlaceDtosAsync(orderRequest.PlaceIds, tripId, userId, cancellationToken);
-        var affected = await _reader.BuildAffectedAsync(tripId, userId, placeDtos, new[] { region.Id }, null, null, false, cancellationToken);
-        var data = new EditorPlaceOrderResult(region.Id, placeOrder);
-
+        var result = await ApplyStructureAsync(tripId, regionId, userId, requestBody, "order", cancellationToken);
         return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceOrderResult>>.Succeeded(
-            new EditorMutationResult<EditorPlaceOrderResult>(true, data, affected, EditorDeletedIdsDto.Empty, Array.Empty<EditorWarningDto>()));
+            new(true, (EditorPlaceOrderResult)result.Data, result.Affected, result.DeletedIds, result.Warnings) { Contract = "bd2-1" });
     }
 
-    private async Task<(EditorPlaceUpdateRequest? Value, Dictionary<string, string[]>? ValidationErrors)> ParseAndValidateUpdateAsync(
-        Stream requestBody,
-        CancellationToken cancellationToken)
+    /// <summary>Prepares the same lifecycle operation without adopting a newer edit base or contacting a provider.</summary>
+    internal async Task<object> PrepareStructureAsync(Guid tripId, Guid targetId, string userId, Stream body, string operation, CancellationToken token)
     {
-        var request = await ParseJsonBodyAsync(requestBody, "Place update request must be valid JSON.", cancellationToken);
-        if (request.ValidationErrors != null)
-        {
-            return (null, request.ValidationErrors);
-        }
+        await RequireStructureOwnerAsync(tripId, targetId, userId, operation, token);
+        var request = await PlaceStructuralRequest.ReadAsync(body, operation, true, token);
+        return await _lifecycle.PreparePlaceStructureAsync(tripId, targetId, userId, request, IconNames(), MarkerColors(), token);
+    }
 
-        return EditorPlaceRequestParser.TryParseUpdate(request.Value!.Value, IconNames(), MarkerColors(), out var value, out var errors)
-            ? (value, null)
-            : (null, errors);
+    /// <summary>Freezes only an explicit Web provider choice; all comparisons and writes stay in the lifecycle transaction.</summary>
+    private async Task<EditorMutationResult<object>> ApplyStructureAsync(Guid tripId, Guid targetId, string userId,
+        Stream body, string operation, CancellationToken token)
+    {
+        await RequireStructureOwnerAsync(tripId, targetId, userId, operation, token);
+        var request = await PlaceStructuralRequest.ReadAsync(body, operation, true, token);
+        async Task<PlaceStructuralAddress> Resolve(Place place)
+        {
+            var location = request.Changes.TryGetProperty("location", out _) ? request.Location : place.Location;
+            var manual = request.Changes.TryGetProperty("address", out var address) ? address.GetString() : place.Address;
+            var result = await ResolveAddressAsync(userId, targetId, manual, PlaceStructuralRequest.Pair(location), true, token);
+            return new(result.Value, result.Metadata.HasValue ? new(EditorPlaceMetadataPolicy.Replace, result.Metadata.Value)
+                : new(EditorPlaceMetadataPolicy.RetainCompatible), result.Warnings);
+        }
+        var explicitProvider = request.Changes.ValueKind == JsonValueKind.Object
+            && request.Changes.TryGetProperty("reverseGeocode", out var reverse) && reverse.GetBoolean();
+        return await _lifecycle.ApplyPlaceStructureAsync(tripId, targetId, userId, request, IconNames(), MarkerColors(), null,
+            explicitProvider ? Resolve : null, token);
+    }
+
+    /// <summary>Conceals missing/foreign targets before parsing any body or contacting a provider.</summary>
+    private async Task RequireStructureOwnerAsync(Guid tripId, Guid targetId, string userId, string operation, CancellationToken token)
+    {
+        var owned = operation == "order"
+            ? await _dbContext.Regions.AsNoTracking().AnyAsync(r => r.Id == targetId && r.TripId == tripId && r.UserId == userId && r.Trip.UserId == userId, token)
+            : await _dbContext.Places.AsNoTracking().AnyAsync(p => p.Id == targetId && p.UserId == userId && p.Region.TripId == tripId && p.Region.UserId == userId && p.Region.Trip.UserId == userId, token);
+        if (!owned) throw new TripMetadataMutationRejected(404, "mutation-scope-unavailable", "Place or Region not found.");
     }
 
     /// <summary>Resolves the address once and freezes successful provenance before lifecycle retries.</summary>
@@ -333,28 +241,6 @@ public sealed class TripEditorPlaceMutationService
                 "place",
                 placeId.ToString())
         };
-
-    private async Task<Trip?> LoadTripGraphAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
-        await _dbContext.Trips
-            .Include(t => t.Regions).ThenInclude(r => r.Places)
-            .Include(t => t.Segments)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
-
-    private static async Task<(JsonElement? Value, Dictionary<string, string[]>? ValidationErrors)> ParseJsonBodyAsync(
-        Stream requestBody,
-        string invalidJsonMessage,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var document = await JsonDocument.ParseAsync(requestBody, cancellationToken: cancellationToken);
-            return (document.RootElement.Clone(), null);
-        }
-        catch (JsonException)
-        {
-            return (null, new Dictionary<string, string[]> { ["request"] = new[] { invalidJsonMessage } });
-        }
-    }
 
     private IReadOnlySet<string> IconNames() => ReadIconNames().ToHashSet(StringComparer.Ordinal);
 

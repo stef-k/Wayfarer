@@ -44,7 +44,7 @@ public sealed class TripEditorPlaceMutationReader
         var placeOrders = new Dictionary<Guid, IReadOnlyList<Guid>>();
         foreach (var regionId in placeOrderRegionIds.Distinct())
         {
-            placeOrders[regionId] = await LoadPlaceOrderAsync(regionId, cancellationToken);
+            placeOrders[regionId] = await LoadPlaceOrderAsync(regionId, tripId, userId, cancellationToken);
         }
 
         return new EditorAffectedSlicesDto(
@@ -70,7 +70,8 @@ public sealed class TripEditorPlaceMutationReader
     {
         var place = await _dbContext.Places
             .AsNoTracking()
-            .SingleAsync(p => p.Id == placeId && p.UserId == userId, cancellationToken);
+            .SingleAsync(p => p.Id == placeId && p.UserId == userId && p.Region.TripId == tripId
+                && p.Region.UserId == userId && p.Region.Trip.UserId == userId, cancellationToken);
         var visits = await LoadVisitSummariesAsync(new[] { place }, userId, cancellationToken);
         return EditorTripStateMapper.ToPlace(tripId, place.RegionId, place, visits[place.Id]);
     }
@@ -82,7 +83,8 @@ public sealed class TripEditorPlaceMutationReader
     {
         var places = await _dbContext.Places
             .AsNoTracking()
-            .Where(p => ids.Contains(p.Id) && p.UserId == userId)
+            .Where(p => ids.Contains(p.Id) && p.UserId == userId && p.Region.TripId == tripId
+                && p.Region.UserId == userId && p.Region.Trip.UserId == userId)
             .ToListAsync(cancellationToken);
         var visits = await LoadVisitSummariesAsync(places, userId, cancellationToken);
         var byId = places.ToDictionary(p => p.Id);
@@ -105,12 +107,13 @@ public sealed class TripEditorPlaceMutationReader
     }
 
     /// <summary>
-    /// Loads the authoritative place order for one region.
+    /// Loads authoritative membership only within the requested Trip and complete ownership chain.
     /// </summary>
-    public async Task<IReadOnlyList<Guid>> LoadPlaceOrderAsync(Guid regionId, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<Guid>> LoadPlaceOrderAsync(Guid regionId, Guid tripId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Places
             .AsNoTracking()
-            .Where(p => p.RegionId == regionId)
+            .Where(p => p.RegionId == regionId && p.UserId == userId && p.Region.TripId == tripId
+                && p.Region.UserId == userId && p.Region.Trip.UserId == userId)
             .OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1)
             .ThenBy(p => p.DisplayOrder)
             .ThenBy(p => p.Id)

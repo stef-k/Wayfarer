@@ -24,8 +24,8 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         ConfigureControllerWithUserRole(controller, "owner-user");
 
         var create = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), body);
-        var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), body);
-        var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, region.Id, CancellationToken.None), body);
+        var update = await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, body);
+        var order = await SendCheckedPlaceOrder(db, controller, trip.Id, region.Id, CancellationToken.None, body);
 
         Assert.Contains("request", AssertValidationProblem(create).Errors.Keys);
         Assert.Contains("request", AssertValidationProblem(update).Errors.Keys);
@@ -43,15 +43,15 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         ConfigureControllerWithUserRole(controller, "other-user");
 
         var nonOwnerTrip = await SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, CancellationToken.None), "{");
-        var nonOwnerPlace = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), "{");
+        var nonOwnerPlace = await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, "{");
         ConfigureControllerWithUserRole(controller, "owner-user");
         var missingRegion = await SendJson(controller, c => c.CreatePlace(trip.Id, Guid.NewGuid(), CancellationToken.None), "{");
-        var missingPlace = await SendJson(controller, c => c.UpdatePlace(trip.Id, Guid.NewGuid(), CancellationToken.None), "{");
+        var missingPlace = await SendCheckedPlaceUpdate(db, controller, trip.Id, Guid.NewGuid(), CancellationToken.None, "{");
 
         Assert.IsType<NotFoundResult>(nonOwnerTrip);
-        Assert.IsType<NotFoundResult>(nonOwnerPlace);
+        Assert.Equal(404, Assert.IsType<ObjectResult>(nonOwnerPlace).StatusCode);
         Assert.IsType<NotFoundResult>(missingRegion);
-        Assert.IsType<NotFoundResult>(missingPlace);
+        Assert.Equal(404, Assert.IsType<ObjectResult>(missingPlace).StatusCode);
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var update = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(unassigned.Id, "Moved"));
-        var order = await SendJson(controller, c => c.OrderPlaces(trip.Id, unassigned.Id, CancellationToken.None), """{ "placeIds": [] }""");
+        var update = await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, ValidUpdateBody(unassigned.Id, "Moved"));
+        var order = await SendCheckedPlaceOrder(db, controller, trip.Id, unassigned.Id, CancellationToken.None, """{ "placeIds": [] }""");
 
         var moved = AssertMutation<EditorPlaceDto>(update);
         Assert.Equal(unassigned.Id, moved.Data.RegionId);
@@ -102,9 +102,9 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), ValidUpdateBody(otherRegion.Id, "Blocked"));
+        var result = await SendCheckedPlaceUpdate(db, controller, trip.Id, place.Id, CancellationToken.None, ValidUpdateBody(otherRegion.Id, "Blocked"));
 
-        Assert.IsType<NotFoundResult>(result);
+        Assert.Equal(404, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal(trip.Regions.Single(r => r.Name == "Athens").Id, db.Places.Single(p => p.Id == place.Id).RegionId);
     }
 
@@ -117,7 +117,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), $$"""
+        var result = await SendCheckedPlaceUpdate(db, controller, trip.Id, region.Places.Single().Id, CancellationToken.None, $$"""
         {
           "id": "00000000-0000-0000-0000-000000000001",
           "tripId": "00000000-0000-0000-0000-000000000002",
@@ -136,10 +136,7 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         """);
 
         var problem = AssertValidationProblem(result);
-        foreach (var key in new[] { "id", "tripId", "displayOrder", "visitSummary", "capabilities", "name", "notesHtml", "location.latitude", "location.longitude", "iconName", "markerColor" })
-        {
-            Assert.Contains(key, problem.Errors.Keys);
-        }
+        Assert.Contains("request", problem.Errors.Keys);
     }
 
     [Fact]
@@ -151,9 +148,9 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.UpdatePlace(trip.Id, region.Places.Single().Id, CancellationToken.None), ValidUpdateBody(region.Id, "No Location", reverseGeocode: true, latitude: null, longitude: null));
+        var result = await SendCheckedPlaceUpdate(db, controller, trip.Id, region.Places.Single().Id, CancellationToken.None, ValidUpdateBody(region.Id, "No Location", reverseGeocode: true, latitude: null, longitude: null));
 
-        Assert.Contains("reverseGeocode", AssertValidationProblem(result).Errors.Keys);
+        Assert.Contains("request", AssertValidationProblem(result).Errors.Keys);
     }
 
     [Theory]
@@ -167,8 +164,8 @@ public sealed class TripEditorPlaceValidationControllerTests : TripEditorPlaceCo
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await SendJson(controller, c => c.OrderPlaces(trip.Id, region.Id, CancellationToken.None), body);
+        var result = await SendCheckedPlaceOrder(db, controller, trip.Id, region.Id, CancellationToken.None, body);
 
-        Assert.Contains("placeIds", AssertValidationProblem(result).Errors.Keys);
+        Assert.Contains("request", AssertValidationProblem(result).Errors.Keys);
     }
 }

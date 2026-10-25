@@ -37,9 +37,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None),
-            Body(seed.TargetRegionId, "Manual replacement", 14, 22, reverseGeocode)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.TargetRegionId, "Manual replacement", 14, 22, reverseGeocode)));
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -57,11 +55,11 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         if (reverseGeocode) Assert.Equal("reverse-geocode-unavailable", envelope.Warnings.Single().Code);
     }
 
-    /// <summary>A real lifecycle retry replaces the complete tuple without a second provider contact or timestamp.</summary>
+    /// <summary>A committed replacement is complete; serialization contention rejects once without replaying provider work.</summary>
     [PostgresTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SuccessfulReplacementSurvivesSerializationRetry(bool retry)
+    public async Task SuccessfulReplacementOrContentionNeverReplaysProviderWork(bool retry)
     {
         var seed = await SeedAsync();
         var credentials = await SeedProviderAsync(seed.UserId);
@@ -74,9 +72,17 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None),
-            Body(seed.RegionId, "Fallback", 14, 22, true)));
+        var response = await SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.RegionId, "Fallback", 14, 22, true));
+        if (retry)
+        {
+            Assert.Equal(409, Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(response).StatusCode);
+            await using var unchanged = fixture.CreateContext();
+            Assert.Equal(OriginalMetadata, Metadata(await unchanged.Places.AsNoTracking().SingleAsync(p => p.Id == seed.PlaceId)));
+            Assert.Single(probe.Attempts);
+            Assert.Equal(1, handler.Requests);
+            return;
+        }
+        var envelope = AssertMutation<EditorPlaceDto>(response);
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -122,8 +128,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         ConfigureControllerWithUserRole(controller, seed.UserId);
         var submitted = compatible ? "Concurrent address" : "Old address";
 
-        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, CancellationToken.None), Body(seed.RegionId, submitted, 11, 21, false)));
+        var envelope = AssertMutation<EditorPlaceDto>(await SendCheckedPlaceUpdate(stale, controller, seed.TripId, seed.PlaceId, CancellationToken.None, Body(seed.RegionId, submitted, 11, 21, false)));
 
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
@@ -152,9 +157,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, credentials == null ? null : Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        var thrown = await Record.ExceptionAsync(() => SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, cancellation.Token),
-            Body(seed.TargetRegionId, "Rejected fallback", 14, 22, replace)));
+        var thrown = await Record.ExceptionAsync(() => SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, cancellation.Token, Body(seed.TargetRegionId, "Rejected fallback", 14, 22, replace)));
 
         Assert.Same(original, thrown);
         Assert.Single(probe.Attempts);
@@ -180,8 +183,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var controller = BuildController(db, Reverse(db, credentials, client));
         ConfigureControllerWithUserRole(controller, seed.UserId);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SendJson(controller,
-            c => c.UpdatePlace(seed.TripId, seed.PlaceId, cancellation.Token), Body(seed.RegionId, "Rejected", 14, 22, true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SendCheckedPlaceUpdate(db, controller, seed.TripId, seed.PlaceId, cancellation.Token, Body(seed.RegionId, "Rejected", 14, 22, true)));
 
         Assert.Equal(1, handler.Requests);
         await db.SaveChangesAsync(CancellationToken.None);

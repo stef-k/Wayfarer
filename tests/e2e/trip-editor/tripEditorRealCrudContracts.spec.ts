@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
-  absoluteUrl,
+  absoluteUrl, putCheckedPlaceOrder, saveReviewedPlace,
   editorApiPath,
   editorPath,
   dragFromVisibleHandle,
@@ -338,7 +338,7 @@ async function createPlace(page: Page, regionName: string, name: string, latitud
 async function movePlace(page: Page, fromRegionId: string, name: string, toRegionId: string): Promise<void> {
   await placeRowByName(page, fromRegionId, name).getByRole('button', { name: 'Edit', exact: true }).click();
   await page.locator('#trip-editor-place-form').getByLabel('Region').selectOption(toRegionId);
-  await page.getByRole('button', { name: 'Save Place', exact: true }).click();
+  await saveReviewedPlace(page);
   await expectSaved(page);
   await closeFormSurface(page, '#trip-editor-place-form');
 }
@@ -497,9 +497,7 @@ async function orderPlacesViaEndpoint(page: Page, regionId: string, adjacentName
   const first = placeByName(state, adjacentNames[0]);
   const second = placeByName(state, adjacentNames[1]);
   const current = state.placeOrderByRegionId[regionId] as string[];
-  await putOrder(page, `${editorApiPath}/regions/${regionId}/places/order`, {
-    placeIds: reorderedAdjacent(current, first.id, second.id)
-  });
+  await putCheckedPlaceOrder(page, regionId, reorderedAdjacent(current, first.id, second.id), state);
 }
 
 async function orderAreasViaEndpoint(page: Page, regionId: string, adjacentNames: [string, string]): Promise<void> {
