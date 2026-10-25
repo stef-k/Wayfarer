@@ -18,8 +18,8 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _placeMutations.UpdatePlaceAsync(tripId, placeId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
+        try { return ToActionResult(await _placeMutations.UpdatePlaceAsync(tripId, placeId, userId!, Request.Body, cancellationToken)); }
+        catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _placeMutations.OrderPlacesAsync(tripId, regionId, userId!, Request.Body, cancellationToken);
-        return ToActionResult(outcome);
+        try { return ToActionResult(await _placeMutations.OrderPlacesAsync(tripId, regionId, userId!, Request.Body, cancellationToken)); }
+        catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
     }
 }
