@@ -13,11 +13,14 @@ import ssl
 import pip
 from pip._vendor import certifi
 
-assert pip.__version__ == '26.2.2'
+if pip.__version__ != '26.2.2':
+    raise SystemExit('Unexpected bootstrap pip version')
 store = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 store.load_verify_locations(certifi.where())
 roots = {hashlib.sha256(c).hexdigest() for c in store.get_ca_certs(binary_form=True)}
-assert '86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b' not in roots, 'emSign G3 still trusted'
-assert '96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6' in roots, 'ISRG Root X1 missing'
+if '86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b' in roots:
+    raise SystemExit('emSign G3 still trusted')
+if '96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6' not in roots:
+    raise SystemExit('ISRG Root X1 missing')
 print('PASS pip vendored roots:', certifi.where(), len(roots))
 PY
