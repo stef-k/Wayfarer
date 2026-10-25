@@ -15,7 +15,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Proves routed Region name validation and action-level partial update behavior.</summary>
+/// <summary>Proves routed Region creation validation and unconditional scalar refusal.</summary>
 public partial class ApiTripsControllerTests
 {
     /// <summary>The supported creation route rejects an empty name before any checked append transaction.</summary>
@@ -96,7 +96,7 @@ public partial class ApiTripsControllerTests
             CenterLatitude = latitude, CenterLongitude = longitude
         });
 
-        Assert.Equal(error, Assert.IsType<BadRequestObjectResult>(result).Value);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal(storedName, region.Name);
         Assert.Equal(0, region.DisplayOrder);
         Assert.Equal("<p>Original</p>", region.Notes);
@@ -106,7 +106,7 @@ public partial class ApiTripsControllerTests
         Assert.False(db.ChangeTracker.HasChanges());
     }
 
-    /// <summary>Trimmed identical protected values are no-ops, including recognizable historical spelling/order drift.</summary>
+    /// <summary>Even identical original-free submissions reject without a save or freshness stamp.</summary>
     [Theory]
     [InlineData("Unassigned Places", 0)]
     [InlineData("unassigned places", 7)]
@@ -124,8 +124,7 @@ public partial class ApiTripsControllerTests
             Name = $"  {storedName}  ", DisplayOrder = storedOrder
         });
 
-        var payload = Assert.IsType<OkObjectResult>(result).Value!;
-        Assert.Equal("No changes applied.", payload.GetType().GetProperty("message")!.GetValue(payload));
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal(storedName, region.Name);
         Assert.Equal(storedOrder, region.DisplayOrder);
         Assert.Equal(timestamp, region.Trip.UpdatedAt);
@@ -133,19 +132,19 @@ public partial class ApiTripsControllerTests
         Assert.Equal(0, saves);
     }
 
-    /// <summary>Non-null empty strings still clear reserved metadata while omitted center values preserve its point.</summary>
+    /// <summary>Unconditional clearing of canonical metadata rejects without mutation.</summary>
     [Fact]
-    public async Task UpdateRegion_ReservedMetadataRetainsEmptyStringClearing()
+    public async Task UpdateRegion_RejectsUnconditionalReservedMetadataClear()
     {
         using var db = CreateDbContext();
         var region = await SeedRegionUpdateTargetAsync(db, "Unassigned Places", 0);
         var controller = BuildController(db, token: "tok");
 
-        Assert.IsType<OkObjectResult>(await controller.UpdateRegion(region.Id,
-            new RegionUpdateRequestDto { Notes = "", CoverImageUrl = "" }));
+        Assert.Equal(409, Assert.IsType<ObjectResult>(await controller.UpdateRegion(region.Id,
+            new RegionUpdateRequestDto { Notes = "", CoverImageUrl = "" })).StatusCode);
 
-        Assert.Equal("", region.Notes);
-        Assert.Equal("", region.CoverImageUrl);
+        Assert.Equal("<p>Original</p>", region.Notes);
+        Assert.Equal("original-cover", region.CoverImageUrl);
         Assert.Equal((23d, 37d, 4326), (region.Center!.X, region.Center.Y, region.Center.SRID));
         Assert.Equal("Unassigned Places", region.Name);
         Assert.Equal(0, region.DisplayOrder);

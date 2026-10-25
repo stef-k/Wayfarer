@@ -38,10 +38,8 @@ public sealed class TripEditorAreaControllerTests : TestBase
         Assert.Empty(createEnvelope.DeletedIds.Areas);
 
         var updated = await SendJson(controller, c => c.UpdateArea(trip.Id, createEnvelope.Data.Id, CancellationToken.None), ValidUpdateBody("Updated", "#ABCDEF"));
-        var updateEnvelope = AssertMutation<EditorAreaDto>(updated);
-        Assert.Equal("Updated", updateEnvelope.Data.Name);
-        Assert.Equal("#abcdef", updateEnvelope.Data.FillHex);
-        Assert.Single(updateEnvelope.Affected.Areas);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(updated).StatusCode);
+        Assert.Equal("Area", db.Areas.Single(a => a.Id == createEnvelope.Data.Id).Name);
 
         var geometry = await SendJson(controller, c => c.UpdateAreaGeometry(trip.Id, createEnvelope.Data.Id, CancellationToken.None), $$"""{ "geometry": {{PolygonJson(5)}} }""");
         var geometryEnvelope = AssertMutation<EditorAreaDto>(geometry);
@@ -126,7 +124,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
         var order = await SendJson(controller, c => c.OrderAreas(trip.Id, region.Id, CancellationToken.None), body);
 
         Assert.Contains("request", AssertValidationProblem(create).Errors.Keys);
-        Assert.Contains("request", AssertValidationProblem(update).Errors.Keys);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(update).StatusCode);
         Assert.Contains("request", AssertValidationProblem(geometry).Errors.Keys);
         Assert.Contains("request", AssertValidationProblem(order).Errors.Keys);
     }
@@ -168,11 +166,8 @@ public sealed class TripEditorAreaControllerTests : TestBase
         }
         """);
 
-        var updateProblem = AssertValidationProblem(update);
-        foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex", "geometry" })
-        {
-            Assert.Contains(key, updateProblem.Errors.Keys);
-        }
+        Assert.Equal(409, Assert.IsType<ObjectResult>(update).StatusCode);
+        Assert.False(db.ChangeTracker.HasChanges());
 
         var geometryProblem = AssertValidationProblem(geometry);
         foreach (var key in new[] { "id", "tripId", "regionId", "displayOrder", "capabilities", "name", "notesHtml", "fillHex", "unexpected" })

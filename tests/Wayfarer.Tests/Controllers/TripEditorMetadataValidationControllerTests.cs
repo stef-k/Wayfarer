@@ -111,129 +111,21 @@ public sealed class TripEditorMetadataValidationControllerTests : TestBase
         Assert.IsType<NotFoundResult>(missing);
     }
 
-    /// <summary>
-    /// Verifies owned trips return stable request-keyed validation errors for invalid bodies.
-    /// </summary>
+    /// <summary>Empty, malformed and server-owned payloads cannot enter an unconditional metadata save.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("{")]
-    [InlineData("[]")]
-    public async Task PatchMetadataForOwnedTripWithInvalidBodyReturnsRequestValidationProblem(string requestBody)
+    [InlineData("{}")]
+    [InlineData("{\"userId\":\"other-user\",\"name\":\"Bypass\"}")]
+    public async Task PatchMetadataForOwnedTripRejectsWithoutParsingOrMutation(string requestBody)
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
-
         var result = await PatchMetadata(controller, trip.Id, requestBody, CancellationToken.None);
-
-        var problem = AssertValidationProblem(result);
-        Assert.Contains("request", problem.Errors.Keys);
-    }
-
-    /// <summary>
-    /// Verifies owned trips still validate complete metadata drafts after ownership is confirmed.
-    /// </summary>
-    [Fact]
-    public async Task PatchMetadataRequiresCompleteDraftTopLevelFields()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, Json("""{ "name": "Only name" }"""), CancellationToken.None);
-
-        var problem = AssertValidationProblem(result);
-        Assert.Contains("notesHtml", problem.Errors.Keys);
-        Assert.Contains("isPublic", problem.Errors.Keys);
-        Assert.Contains("coverImage", problem.Errors.Keys);
-        Assert.Contains("center", problem.Errors.Keys);
-        Assert.Contains("zoom", problem.Errors.Keys);
-    }
-
-    [Fact]
-    public async Task PatchMetadataReturnsValidationProblemForInvalidFields()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, Json("""
-            {
-              "name": " ",
-              "notesHtml": "<p><img src=\"data:image/png;base64,abc\"></p>",
-              "isPublic": true,
-              "coverImage": { "rawUrl": "ftp://example.test/a.jpg" },
-              "center": { "latitude": 91, "longitude": -181 },
-              "zoom": 3.5
-            }
-            """), CancellationToken.None);
-
-        var problem = AssertValidationProblem(result);
-        Assert.Contains("name", problem.Errors.Keys);
-        Assert.Contains("notesHtml", problem.Errors.Keys);
-        Assert.Contains("coverImage.rawUrl", problem.Errors.Keys);
-        Assert.Contains("center.latitude", problem.Errors.Keys);
-        Assert.Contains("center.longitude", problem.Errors.Keys);
-        Assert.Contains("zoom", problem.Errors.Keys);
-    }
-
-    /// <summary>
-    /// Verifies server-owned top-level fields are rejected and cannot change persisted metadata.
-    /// </summary>
-    [Theory]
-    [InlineData("shareProgressEnabled", "false")]
-    [InlineData("publicUrl", "\"https://attacker.example.test/trip\"")]
-    [InlineData("progressPublicUrl", "\"https://attacker.example.test/progress\"")]
-    [InlineData("updatedAt", "\"2030-01-01T00:00:00Z\"")]
-    public async Task PatchMetadataRejectsServerOwnedField(string fieldName, string fieldValue)
-    {
-        using var db = CreateDbContext();
-        var oldTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: true);
-        trip.UpdatedAt = oldTime;
-        db.SaveChanges();
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataBody($"""
-          "{fieldName}": {fieldValue}
-        """), CancellationToken.None);
-
-        var problem = AssertValidationProblem(result);
-        Assert.Contains(fieldName, problem.Errors.Keys);
-        var stored = db.Trips.Single(t => t.Id == trip.Id);
-        Assert.Equal("Test Trip", stored.Name);
-        Assert.True(stored.IsPublic);
-        Assert.True(stored.ShareProgressEnabled);
-        Assert.Equal(oldTime, stored.UpdatedAt);
-    }
-
-    /// <summary>
-    /// Verifies multiple server-owned fields produce deterministic field-keyed errors together.
-    /// </summary>
-    [Fact]
-    public async Task PatchMetadataRejectsMultipleServerOwnedFields()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataBody("""
-          "shareProgressEnabled": true,
-          "publicUrl": "https://attacker.example.test/trip",
-          "progressPublicUrl": "https://attacker.example.test/progress",
-          "updatedAt": "2030-01-01T00:00:00Z"
-        """), CancellationToken.None);
-
-        var problem = AssertValidationProblem(result);
-        Assert.Contains("shareProgressEnabled", problem.Errors.Keys);
-        Assert.Contains("publicUrl", problem.Errors.Keys);
-        Assert.Contains("progressPublicUrl", problem.Errors.Keys);
-        Assert.Contains("updatedAt", problem.Errors.Keys);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 
     private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")

@@ -51,8 +51,6 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.Single(trips);
     }
 
-
-
     [Fact]
     public async Task GetTripBoundary_ReturnsBadRequest_WhenNoGeo()
     {
@@ -260,7 +258,7 @@ public partial class ApiTripsControllerTests : TestBase
 
 
     [Fact]
-    public async Task UpdateRegion_ReturnsUnauthorized_ForDifferentOwner()
+    public async Task UpdateRegion_ConcealsDifferentOwner()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -275,7 +273,7 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New" });
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     [Fact]
@@ -347,7 +345,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdateRegion_ReturnsBadRequest_ForReservedName()
+    public async Task UpdateRegion_RejectsReservedNameBypassWithoutMutation()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -360,27 +358,9 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "Unassigned Places" });
 
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task UpdateRegion_UpdatesFields_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New Name" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Regions.First(r => r.Id == region.Id);
-        Assert.Equal("New Name", updated.Name);
-        Assert.Equal(0, updated.DisplayOrder);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Equal("R1", region.Name);
+        Assert.False(db.ChangeTracker.HasChanges());
     }
 
     [Fact]
@@ -421,10 +401,6 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.NotNull(clonedId);
         Assert.True(db.Trips.Any(t => t.Id == clonedId && t.UserId == requester.Id));
     }
-
-
-
-
 
     [Fact]
     public async Task UpdatePlace_RejectsUnconditionalCoordinates()
@@ -522,8 +498,6 @@ public partial class ApiTripsControllerTests : TestBase
         Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
     }
 
-
-
     [Fact]
     public async Task CloneTrip_CopiesRegionsAndPlaces()
     {
@@ -605,7 +579,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdateTrip_ReturnsUnauthorized_ForDifferentOwner()
+    public async Task UpdateTrip_ConcealsDifferentOwner()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -618,94 +592,7 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Name = "New" });
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task UpdateTrip_UpdatesName_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Original", UpdatedAt = DateTime.UtcNow };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Name = "Updated Name" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Trips.First(t => t.Id == trip.Id);
-        Assert.Equal("Updated Name", updated.Name);
-    }
-
-    [Fact]
-    public async Task UpdateTrip_UpdatesNotes_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip", Notes = "Old notes", UpdatedAt = DateTime.UtcNow };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Notes = "<p>New notes</p>" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Trips.First(t => t.Id == trip.Id);
-        Assert.Equal("<p>New notes</p>", updated.Notes);
-    }
-
-    [Fact]
-    public async Task UpdateTrip_UpdatesBothFields_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Original", Notes = "Old", UpdatedAt = DateTime.UtcNow };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Name = "New Name", Notes = "New Notes" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Trips.First(t => t.Id == trip.Id);
-        Assert.Equal("New Name", updated.Name);
-        Assert.Equal("New Notes", updated.Notes);
-    }
-
-    [Fact]
-    public async Task UpdateTrip_ReturnsNoChanges_WhenEmptyRequest()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Original", UpdatedAt = DateTime.UtcNow };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto());
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var message = payload.GetType().GetProperty("message")?.GetValue(payload) as string;
-        Assert.Equal("No changes applied.", message);
-    }
-
-    [Fact]
-    public async Task UpdateTrip_UpdatesTimestamp()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var oldTime = DateTime.UtcNow.AddDays(-1);
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip", UpdatedAt = oldTime };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        await controller.UpdateTrip(trip.Id, new TripUpdateRequestDto { Name = "Updated" });
-
-        var updated = db.Trips.First(t => t.Id == trip.Id);
-        Assert.True(updated.UpdatedAt > oldTime);
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     #endregion
@@ -735,7 +622,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdateSegmentNotes_ReturnsUnauthorized_ForDifferentOwner()
+    public async Task UpdateSegmentNotes_ConcealsDifferentOwner()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -750,67 +637,7 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = "New" });
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task UpdateSegmentNotes_UpdatesNotes_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk", Notes = "Old notes" };
-        db.Trips.Add(trip);
-        db.Segments.Add(segment);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = "<p>New notes</p>" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Segments.First(s => s.Id == segment.Id);
-        Assert.Equal("<p>New notes</p>", updated.Notes);
-    }
-
-    [Fact]
-    public async Task UpdateSegmentNotes_ClearsNotes_WhenEmptyString()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk", Notes = "Some notes" };
-        db.Trips.Add(trip);
-        db.Segments.Add(segment);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = "" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Segments.First(s => s.Id == segment.Id);
-        Assert.Equal("", updated.Notes);
-    }
-
-    [Fact]
-    public async Task UpdateSegmentNotes_ReturnsSuccess_WithUpdatedSegmentInfo()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Mode = "walk" };
-        db.Trips.Add(trip);
-        db.Segments.Add(segment);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateSegmentNotes(segment.Id, new SegmentUpdateRequestDto { Notes = "Test" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var success = payload.GetType().GetProperty("success")?.GetValue(payload) as bool?;
-        Assert.True(success);
-        var segmentResult = payload.GetType().GetProperty("segment")?.GetValue(payload);
-        Assert.NotNull(segmentResult);
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     #endregion
@@ -840,7 +667,7 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task UpdateArea_ReturnsUnauthorized_ForDifferentOwner()
+    public async Task UpdateArea_ConcealsDifferentOwner()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -867,185 +694,10 @@ public partial class ApiTripsControllerTests : TestBase
 
         var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "New" });
 
-        Assert.IsType<UnauthorizedObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task UpdateArea_UpdatesNotes_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        var area = new Area
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            Region = region,
-            Name = "Area1",
-            Notes = "Old notes",
-            Geometry = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
-            })) { SRID = 4326 }
-        };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.Areas.Add(area);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "<p>New notes</p>" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Areas.First(a => a.Id == area.Id);
-        Assert.Equal("<p>New notes</p>", updated.Notes);
-    }
-
-    [Fact]
-    public async Task UpdateArea_UpdatesMultipleFields_ForOwner()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        var area = new Area
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            Region = region,
-            Name = "Area1",
-            FillHex = "#000000",
-            Geometry = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
-            })) { SRID = 4326 }
-        };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.Areas.Add(area);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto
-        {
-            Name = "Updated Area",
-            Notes = "Updated notes",
-            FillHex = "#ff6600",
-            DisplayOrder = 5
-        });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Areas.First(a => a.Id == area.Id);
-        Assert.Equal("Updated Area", updated.Name);
-        Assert.Equal("Updated notes", updated.Notes);
-        Assert.Equal("#ff6600", updated.FillHex);
-        Assert.Equal(5, updated.DisplayOrder);
-    }
-
-    [Fact]
-    public async Task UpdateArea_ReturnsNoChanges_WhenEmptyRequest()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        var area = new Area
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            Region = region,
-            Name = "Area1",
-            Geometry = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
-            })) { SRID = 4326 }
-        };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.Areas.Add(area);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto());
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var message = payload.GetType().GetProperty("message")?.GetValue(payload) as string;
-        Assert.Equal("No changes applied.", message);
-    }
-
-    [Fact]
-    public async Task UpdateArea_ReturnsSuccessResponse_WithIdAndNotes()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        var area = new Area
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            Region = region,
-            Name = "Area1",
-            Geometry = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
-            })) { SRID = 4326 }
-        };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.Areas.Add(area);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "Test notes" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var success = payload.GetType().GetProperty("success")?.GetValue(payload) as bool?;
-        var id = payload.GetType().GetProperty("id")?.GetValue(payload) as Guid?;
-        var notes = payload.GetType().GetProperty("notes")?.GetValue(payload) as string;
-        Assert.True(success);
-        Assert.Equal(area.Id, id);
-        Assert.Equal("Test notes", notes);
-    }
-
-    [Fact]
-    public async Task UpdateArea_ClearsNotes_WhenEmptyString()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Trip = trip, UserId = user.Id, Name = "R1" };
-        var area = new Area
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            Region = region,
-            Name = "Area1",
-            Notes = "Some notes",
-            Geometry = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(1, 1), new Coordinate(0, 1), new Coordinate(0, 0)
-            })) { SRID = 4326 }
-        };
-        db.Trips.Add(trip);
-        db.Regions.Add(region);
-        db.Areas.Add(area);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.UpdateArea(area.Id, new AreaUpdateRequestDto { Notes = "" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Areas.First(a => a.Id == area.Id);
-        Assert.Equal("", updated.Notes);
+        Assert.IsType<NotFoundObjectResult>(result);
     }
 
     #endregion
-
-
 
     [Fact]
     public async Task GetTripBoundary_Unauthorized_ForPrivateTrip()

@@ -15,38 +15,11 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>Proves the finite, paired, optional coordinate contract at the remaining coordinate update actions.</summary>
 public partial class ApiTripsControllerTests
 {
-    /// <summary>Exercises non-finite values in either component, finite range failures and incomplete pairs.</summary>
-    public static IEnumerable<object?[]> InvalidLegacyCoordinates()
-    {
-        var pairs = new (double? Latitude, double? Longitude)[]
-        {
-            (double.NaN, 1), (1, double.NaN),
-            (double.PositiveInfinity, 1), (1, double.PositiveInfinity),
-            (double.NegativeInfinity, 1), (1, double.NegativeInfinity),
-            (-91, 0), (91, 0), (0, -181), (0, 181),
-            (0, null), (null, 0), (double.NaN, null), (null, double.NaN)
-        };
-        foreach (var action in new[] { "update-place", "update-region" })
-            foreach (var pair in pairs)
-                yield return [action, pair.Latitude, pair.Longitude];
-    }
-
-    /// <summary>Exercises inclusive WGS84 corners, paired zeroes and the optional null pair.</summary>
-    public static IEnumerable<object?[]> ValidLegacyCoordinates()
-    {
-        var pairs = new (double? Latitude, double? Longitude)[]
-        {
-            (-90, -180), (-90, 180), (90, -180), (90, 180), (0, 0), (null, null)
-        };
-        foreach (var action in new[] { "update-place", "update-region" })
-            foreach (var pair in pairs)
-                yield return [action, pair.Latitude, pair.Longitude];
-    }
-
     /// <summary>Rejected coordinates apply no supplied metadata/move/order fields and cause no save or warm-up.</summary>
     [Theory]
-    [MemberData(nameof(InvalidLegacyCoordinates))]
-    public async Task LegacyMutation_InvalidCoordinatesRejectWithoutChanges(string action, double? latitude, double? longitude)
+    [InlineData("update-place")]
+    [InlineData("update-region")]
+    public async Task UnconditionalMutation_RejectsMixedPayloadWithoutChanges(string action)
     {
         using var db = CreateDbContext();
         var (region, destination, place) = await SeedCoordinateTargetsAsync(db);
@@ -56,15 +29,9 @@ public partial class ApiTripsControllerTests
         var warmup = new Mock<ICacheWarmupScheduler>();
         var controller = BuildCoordinateController(db, warmup.Object);
 
-        var result = await MutateCoordinatesAsync(controller, action, region, destination, place, latitude, longitude);
+        var result = await MutateCoordinatesAsync(controller, action, region, destination, place, double.NaN, 0);
 
-        var paired = latitude.HasValue && longitude.HasValue;
-        var isPlace = action.EndsWith("place", StringComparison.Ordinal);
-        var error = isPlace
-            ? paired ? "Latitude or Longitude is out of range." : "Both latitude and longitude must be provided together."
-            : paired ? "Center latitude or longitude is out of range." : "Both centerLatitude and centerLongitude must be provided together.";
-        if (action == "update-place") Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
-        else Assert.Equal(error, Assert.IsType<BadRequestObjectResult>(result).Value);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.Equal("Ordinary", region.Name);
         Assert.Equal(0, region.DisplayOrder);
         Assert.Equal("<p>Original</p>", region.Notes);
@@ -85,43 +52,9 @@ public partial class ApiTripsControllerTests
         warmup.Verify(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
-    /// <summary>Valid and absent pairs retain the success envelope, axis order and SRID while preserving Region order.</summary>
-    [Theory]
-    [MemberData(nameof(ValidLegacyCoordinates))]
-    public async Task LegacyMutation_ValidCoordinatesRemainCompatible(string action, double? latitude, double? longitude)
-    {
-        using var db = CreateDbContext();
-        var (region, destination, place) = await SeedCoordinateTargetsAsync(db);
-        var controller = BuildController(db, token: "tok");
-
-        var result = await MutateCoordinatesAsync(controller, action, region, destination, place, latitude, longitude);
-
-        if (action == "update-place")
-        {
-            Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
-            Assert.Equal((23d, 37d), (place.Location!.X, place.Location.Y));
-            return;
-        }
-        var payload = Assert.IsType<OkObjectResult>(result).Value!;
-        Assert.Equal(true, payload.GetType().GetProperty("success")!.GetValue(payload));
-        var isPlace = action.EndsWith("place", StringComparison.Ordinal);
-        var dto = payload.GetType().GetProperty(isPlace ? "place" : "region")!.GetValue(payload);
-        Assert.Equal(0, Assert.IsType<ApiTripRegionDto>(dto).DisplayOrder);
-        Assert.Equal(0, region.DisplayOrder);
-        var coordinates = isPlace ? Assert.IsType<ApiTripPlaceDto>(dto).Location : Assert.IsType<ApiTripRegionDto>(dto).Center;
-        var expected = latitude.HasValue ? new[] { longitude!.Value, latitude.Value }
-            : action.StartsWith("update", StringComparison.Ordinal) ? new[] { 23d, 37d } : null;
-        Assert.Equal(expected, coordinates);
-        var point = isPlace
-            ? (await db.Places.FindAsync(Assert.IsType<ApiTripPlaceDto>(dto).Id))!.Location
-            : (await db.Regions.FindAsync(Assert.IsType<ApiTripRegionDto>(dto).Id))!.Center;
-        if (expected == null) Assert.Null(point);
-        else Assert.Equal((expected[0], expected[1], 4326), (point!.X, point.Y, point.SRID));
-    }
-
-    /// <summary>Explicit destination errors and reserved identity errors retain precedence over NaN input.</summary>
+    /// <summary>Canonical name and invalid coordinate payloads cannot admit an unconditional Region update.</summary>
     [Fact]
-    public async Task LegacyMutation_AuthorityAndReservedIdentityErrorsPrecedeCoordinates()
+    public async Task UnconditionalRegionMutation_RejectsReservedIdentityAndCoordinateBypass()
     {
         using var db = CreateDbContext();
         var reserved = await SeedRegionUpdateTargetAsync(db, "Unassigned Places", 0);
@@ -131,8 +64,7 @@ public partial class ApiTripsControllerTests
         {
             Name = "Renamed", Notes = "Rejected", CenterLatitude = double.NaN, CenterLongitude = 0
         });
-        Assert.Equal("Cannot change the Unassigned Places region name or display order.",
-            Assert.IsType<BadRequestObjectResult>(update).Value);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(update).StatusCode);
         Assert.False(db.ChangeTracker.HasChanges());
     }
 

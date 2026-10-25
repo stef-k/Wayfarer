@@ -219,34 +219,42 @@ public sealed partial class RegionConditionalPostgresTests(PostgresImportTestFix
         Assert.Equal("", (await verification.Regions.FindAsync(region.Id))!.Notes);
     }
 
-    /// <summary>Retains both pre-correction data-loss witnesses using existing routes, never a missing new endpoint.</summary>
+    /// <summary>Retained F1 protected-first counterexample now requires refusal with every stored field intact.</summary>
     [PostgresTheory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task LegacyWriters_OverwriteOriginalDraftInBothDirections(bool webLast)
+    public async Task RegionRetainedWriterRejectsAfterProtectedNotes(bool webLast)
     {
         var region = await SeedAsync();
-        var probe = new RegionProbe();
         await using var db = fixture.CreateContext();
-        await using var app = await StartAsync(db, [probe]);
+        await using var app = await StartAsync(db);
         using var web = await WebAsync(app, region.UserId);
         using var bearer = Bearer(app, region.UserId);
-        async Task SaveWeb() => Assert.Equal(HttpStatusCode.OK, (await web.PutAsJsonAsync(
-            $"/api/trips/{region.TripId}/editor/regions/{region.Id}", new
+        using var first = await PatchAsync(webLast ? bearer : web, region, !webLast,
+            webLast ? new { notes = region.Notes } : (object)new { notesHtml = region.Notes },
+            webLast ? new { notes = "Protected committed Notes" } : (object)new { notesHtml = "Protected committed Notes" });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        await using var before = fixture.CreateContext();
+        var protectedRow = await before.Regions.AsNoTracking().SingleAsync(r => r.Id == region.Id);
+        var protectedValues = before.Entry(protectedRow).CurrentValues.Clone();
+        var protectedStamp = await before.Trips.AsNoTracking().Where(t => t.Id == region.TripId).Select(t => t.UpdatedAt).SingleAsync();
+        using var second = webLast
+            ? await web.PutAsJsonAsync($"/api/trips/{region.TripId}/editor/regions/{region.Id}", new
             {
-                name = "Web name", notesHtml = webLast ? region.Notes : "Web notes",
+                name = "Unrelated Web name", notesHtml = region.Notes,
                 coverImage = new { rawUrl = region.CoverImageUrl }, center = new { latitude = 1, longitude = 2 }
-            })).StatusCode);
-        async Task SaveBearer() => Assert.Equal(HttpStatusCode.OK, (await bearer.PutAsJsonAsync(
-            $"/api/trips/regions/{region.Id}", new { name = webLast ? region.Name : "Stale bearer name", notes = "Bearer notes" })).StatusCode);
-        if (webLast) { await SaveBearer(); await SaveWeb(); }
-        else { await SaveWeb(); await SaveBearer(); }
-        await using var verification = fixture.CreateContext();
-        var stored = await verification.Regions.AsNoTracking().SingleAsync(r => r.Id == region.Id);
-        Assert.Equal(webLast ? region.Notes : "Bearer notes", stored.Notes);
-        Assert.Equal(webLast ? "Web name" : "Stale bearer name", stored.Name);
-        output.WriteLine($"Legacy overwrite witness webLast={webLast}: persisted Name={stored.Name}; Notes={stored.Notes}");
-        foreach (var sql in probe.Updates) output.WriteLine(sql);
+            })
+            : await bearer.PutAsJsonAsync($"/api/trips/regions/{region.Id}", new { notes = region.Notes });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var rejection = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("mutation-originals-required", rejection.GetProperty("code").GetString());
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Regions.AsNoTracking().SingleAsync(r => r.Id == region.Id);
+        Assert.Equal("Protected committed Notes", stored.Notes);
+        var storedValues = verify.Entry(stored).CurrentValues;
+        foreach (var property in protectedValues.Properties)
+            Assert.Equal(protectedValues[property], storedValues[property]);
+        Assert.Equal(protectedStamp, await verify.Trips.AsNoTracking().Where(t => t.Id == region.TripId).Select(t => t.UpdatedAt).SingleAsync());
     }
 
     /// <summary>Registers scoped real database contexts and only replaces external warm-up dependencies.</summary>

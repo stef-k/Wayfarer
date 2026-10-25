@@ -904,7 +904,7 @@ synchronization cursor is promised.
 | Operation | Route | JSON input |
 | --- | --- | --- |
 | Create Region | `POST /api/trips/{tripId}/conditional/regions` | Complete original Region/canonical identity/order set and `value`; see [checked creation](trip-creation.md). |
-| Update Region | `PUT /api/trips/regions/{regionId}` | Optional scalar fields above; Trip association cannot change and submitted order changes reject. |
+| Update Region | `PATCH /api/trips/{tripId}/conditional/regions/{regionId}` | Authored `name`/`notes` with matching client originals; see [Region scalars](#protected-region-scalars-853-slice-4). |
 | Order Regions | Prepared `PUT /api/trips/{tripId}/conditional/regions/order` | Complete original normal-Region material/vector and canonical identity/order; see [protected Region ordering](trip-region-order.md). |
 | Delete Region | Preview/confirmed POST `/api/trips/{tripId}/regions/{regionId}/deletion-preview` and `/deletion` | Explicit four-way Place/Area disposition and expiring content approval; see [Region deletion](region-deletion.md). |
 | Create Place | `POST /api/trips/{tripId}/conditional/places` | Original destination and complete nullable Place order set; absent fallback additionally needs Region-set proof. See [checked creation](trip-creation.md). |
@@ -974,8 +974,8 @@ See [Place deletion and mobile requests](trip-place-deletion.md),
 [four-way Region deletion](region-deletion.md), [checked creation examples](trip-creation.md)
 and [prepared Place examples](trip-place-structure.md).
 
-Other existing bearer capabilities include limited Trip metadata, Segment notes
-and Area metadata edits, public discovery and public-Trip cloning. Mobile Group,
+Supported bearer scalar edits use the original-aware Trip metadata, Region,
+Area Notes and Segment Notes contracts below; public discovery and public-Trip cloning. Mobile Group,
 recent-visit, hosted-routing and SSE families retain membership, ownership,
 visibility and provider gates. These are limited API contracts, not unrestricted
 account access or full Web editor parity; Web invitations, provider backfill,
@@ -1068,14 +1068,38 @@ Save & Exit continuation without retiring the sharing attempt or rejecting a
 valid acknowledgement. A still-current save uses the shared navigation check
 against all current unsaved editor drafts before exiting.
 
-**Residual legacy risk:** old bearer `PUT /api/trips/{id}` and cookie
-`PATCH /api/trips/{id}/editor/metadata` keep their unconditional payloads and
-envelopes. A stale full Web draft can still overwrite a later bearer edit, and
-an explicitly supplied legacy field can overwrite a protected edit. Existing
-tabs and old clients are not covered by the new guarantee. Later paired entity
-slices and a maintainer-approved legacy compatibility disposition are required
-before #853 can close. Region protection is described below; Place/Area/Segment
-and structural conditions remain separate work.
+### Rejected unconditional writers (#853 reconciliation F1)
+
+The coordinated new backend/Web and rewritten mobile release uses the protected
+contracts below. Each retained route in this inventory rejects an authenticated,
+owned request with **409** `mutation-originals-required`, including empty/no-op
+payloads. Rejection performs no domain save, freshness stamp, warm-up or thumbnail
+invalidation and returns no current private values. Missing or foreign scope is
+concealed with 404; invalid/missing authority still rejects, and Web mutations
+still require the User cookie and antiforgery. Malformed bearer DTOs can reject
+with 400 before the action. No originals are synthesized or unprotected fallback
+performed.
+
+| Rejected route | Supported original-aware replacement |
+| --- | --- |
+| `PATCH /api/trips/{tripId}/editor/metadata` | `PATCH /api/trips/{tripId}/editor/metadata/conditional` |
+| `PUT /api/trips/{tripId}` | `PATCH /api/trips/{tripId}/conditional` |
+| `PUT /api/trips/{tripId}/editor/regions/{regionId}` | `PATCH /api/trips/{tripId}/editor/regions/{regionId}/conditional` |
+| `PUT /api/trips/regions/{regionId}` | `PATCH /api/trips/{tripId}/conditional/regions/{regionId}` |
+| `PUT /api/trips/{tripId}/editor/areas/{areaId}` | `PATCH /api/trips/{tripId}/editor/areas/{areaId}/conditional` |
+| `PUT /api/trips/areas/{areaId}` | `PATCH /api/trips/{tripId}/conditional/areas/{areaId}` (Notes) |
+| `PUT /api/trips/segments/{segmentId}` | `PATCH /api/trips/{tripId}/conditional/segments/{segmentId}` |
+
+The current Vue callers already select these protected routes. Trip publication,
+cover and map view; Region cover and center; and Area Name, Fill and Polygon remain
+authored through their existing Web conditional contracts. Original-aware complete
+Region ordering and existing Area ordering remain separate actions. Segment
+route/Notes combined saves retain their single protected transaction. Rejecting
+these seven adapters does not widen bearer fields or change excluded standalone
+Area geometry behavior. There is no old-client compatibility adapter or notice.
+
+F2 metadata uncertainty remains a separate correction. This F1 disposition alone
+does not accept C1/C2/C5 or close #853; fresh independent review remains required.
 
 ## Protected Region scalars (#853 Slice 4)
 
@@ -1130,16 +1154,12 @@ Within the current Region editor session, an uncertain save holds the draft and
 further saves until explicit review/reset or discard. It supplies no durable
 receipt, cross-reload recovery or settlement of the separate Trip-sharing debt.
 
-**Compatibility boundary:** bearer `PUT /api/trips/regions/{id}` and cookie
-`PUT /api/trips/{tripId}/editor/regions/{id}` keep their unconditional payloads and
-responses for old clients/tabs. They can still overwrite overlapping protected
-edits. Current Vue updates use only the new PATCH and fail closed for missing
-original evidence or an unsupported route. Region ordering now uses the
-[paired BD2-11 contract](trip-region-order.md); unconditional vector requests and
-individual bearer order changes reject. Deletion/four-way integration remains
-assigned to the following batch. This slice does not complete #853, settle
-legacy-client policy or the retained sharing lost-reply obligation, implement
-#907, or qualify Place/Area/Segment/structural or native Mobile writes.
+**Writer disposition:** the bearer and complete Web Region PUTs reject without
+mutation; see the [seven-route inventory](#rejected-unconditional-writers-853-reconciliation-f1).
+Current Vue uses the conditional PATCH and fails closed for missing original
+evidence. Region ordering uses the [paired BD2-11 contract](trip-region-order.md);
+individual unconditional order writes reject. Protected canonical Region rules
+and current-safe freshness are unchanged. No native mobile qualification is claimed.
 
 ## Protected Area editing (#853 Slice 5)
 
@@ -1205,16 +1225,14 @@ map-work Done/Cancel and Area create/delete/order workflows remain in place.
 Missing originals or an unsupported conditional route fail closed with no PUT
 fallback.
 
-**Retained unconditional writers:** bearer `PUT /api/trips/areas/{id}` and old Web
-complete-draft `PUT /api/trips/{tripId}/editor/areas/{id}` remain compatible and
-can overwrite newer protected fields. The separate cookie/antiforgery
-`PUT /api/trips/{tripId}/editor/areas/{id}/geometry` remains ownership/parent scoped
-and writes only Geometry plus Trip freshness, preserving Notes. It remains
-unprotected for competing Geometry replacements. New current-form saves use the
-conditional route; these legacy paths prevent a universal all-writer guarantee.
-No schema migration, native Mobile qualification, #907 fix, Segment/Place or
-structural protection, legacy-client policy decision, or settlement of the held
-Trip-sharing lost-reply obligation is included. #853 remains incomplete and open.
+**Writer disposition:** bearer and complete Web Area PUTs reject without mutation;
+see the [seven-route inventory](#rejected-unconditional-writers-853-reconciliation-f1).
+The separate cookie/antiforgery `PUT /api/trips/{tripId}/editor/areas/{id}/geometry`
+remains ownership/parent scoped and writes only Geometry plus Trip freshness,
+preserving Notes. It remains unprotected for competing Geometry replacements,
+as excluded from the fixed Area Notes operation. Current-form combined scalar/
+Polygon saves use the conditional route atomically. No schema migration or native
+mobile qualification is included; #853 remains incomplete and open.
 
 ## Protected Place scalars (#853 Slice 7)
 
@@ -1309,7 +1327,7 @@ independent review and maintainer acceptance remain separate gates.
 | Opt-in bearer | `PATCH /api/trips/{tripId}/conditional/segments/{segmentId}` | `expected.notes` and `changes.notes`; current active incoming token/account and owned Segment → Trip. |
 | Current Web Notes-only form | `PATCH /api/trips/{tripId}/editor/segments/{segmentId}/conditional` | `expected.notesHtml` and `changes.notesHtml`; User cookie, current active account/ownership and antiforgery. |
 | Current Web route/combined edit | `PUT /api/trips/{tripId}/editor/segments/{segmentId}` | Strict `segment-route-notes-1` dialect with `originalRouteToken` and optional authored Notes; one existing transaction. |
-| Legacy bearer | `PUT /api/trips/segments/{segmentId}` | Compatible unconditional Notes; no original-base guarantee. |
+| Rejected bearer writer | `PUT /api/trips/segments/{segmentId}` | 409 `mutation-originals-required`; no mutation. Use the protected Notes PATCH. |
 
 ~~~json
 {"expected":{"notes":null},"changes":{"notes":"<p>Authored notes</p>"}}
@@ -1450,10 +1468,9 @@ reject it rather than ignore its conditions. Missing new acknowledgement evidenc
 also retains an unknown-outcome hold. Reload an older editor after upgrading;
 there is no unconditional fallback. Old complete-draft PUT requests and old
 proposal contexts retain conservative xmin protection, including Notes-first
-conflicts. Protected Notes PATCH routes and legacy bearer PUT semantics are
-unchanged; explicitly supplied legacy bearer Notes remain unconditional. C1 endpoint
-coverage, C2 legacy policy, C4 delivery acceptance, structural packages and C5 final
-#853 acceptance remain open. #907 is separately complete via #917; C3 sharing
+conflicts. Protected Notes PATCH and combined Web transaction semantics are
+unchanged. The unconditional bearer Notes PUT now rejects under the F1 disposition
+above. C4 retains its accepted evidence; C1/C2/C5 acceptance remains separate. #907 is separately complete via #917; C3 sharing
 lost-reply behavior was accepted via #919. No schema migration or native Mobile
 qualification is part of C4.
 

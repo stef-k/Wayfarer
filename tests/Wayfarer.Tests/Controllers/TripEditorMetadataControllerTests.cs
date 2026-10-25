@@ -21,194 +21,26 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorMetadataControllerTests : TestBase
 {
-    private const string PublicTripViewRouteName = "PublicTripView";
-
+    /// <summary>The obsolete full draft cannot mutate any scalar, privacy, freshness or cache effect.</summary>
     [Fact]
-    public async Task PatchMetadataForOwnerUpdatesMetadataAndReturnsMetadataOnlyEnvelope()
+    public async Task PatchMetadataRejectsCompleteDraftWithoutMutation()
     {
         using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var thumbnailMock = new Mock<ITripMapThumbnailGenerator>();
-        var warmupMock = new Mock<ICacheWarmupScheduler>();
-        var controller = BuildController(db, thumbnailMock, warmupMock);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, Json("""
-            {
-              "name": " Updated Trip ",
-              "notesHtml": "<p>Hello <img src=\"https://cdn.example.test/a.jpg\"></p>",
-              "isPublic": true,
-              "coverImage": { "rawUrl": " https://cdn.example.test/cover.jpg " },
-              "center": { "latitude": 12.5, "longitude": 23.5 },
-              "zoom": 8
-            }
-            """), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        Assert.True(envelope.Success);
-        Assert.Equal("Updated Trip", envelope.Data.Name);
-        Assert.True(envelope.Data.IsPublic);
-        Assert.Equal("https://cdn.example.test/cover.jpg", envelope.Data.CoverImage!.RawUrl);
-        Assert.Equal(12.5, envelope.Data.Center!.Latitude);
-        Assert.Equal(23.5, envelope.Data.Center.Longitude);
-        Assert.Equal(8, envelope.Data.Zoom);
-        Assert.Same(envelope.Data, envelope.Affected.Metadata);
-        Assert.Empty(envelope.Affected.Regions);
-        Assert.Null(envelope.Affected.RegionOrder);
-        Assert.Empty(envelope.Affected.Places);
-        Assert.Empty(envelope.Affected.Areas);
-        Assert.Empty(envelope.Affected.Segments);
-        Assert.Null(envelope.Affected.VisitProgress);
-        Assert.Empty(envelope.DeletedIds.Regions);
-        Assert.Empty(envelope.Warnings);
-        thumbnailMock.Verify(t => t.InvalidateThumbnails(trip.Id, It.IsAny<DateTime>()), Times.Once);
-        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, true), Times.Once);
-    }
-
-    [Fact]
-    public async Task PatchMetadataNullNotesStoresEmptyString()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(notesHtml: "null"), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        Assert.Equal(string.Empty, envelope.Data.NotesHtml);
-        Assert.Equal(string.Empty, db.Trips.Single(t => t.Id == trip.Id).Notes);
-    }
-
-    [Fact]
-    public async Task PatchMetadataNormalizesRichNotesBeforePersisting()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-        const string expectedNotes = "<p class=\"ql-align-center\">Centered</p><p><img src=\"https://cdn.example.test/proxied.jpg\"></p><ol><li data-list=\"ordered\">Kept</li></ol>";
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(notesHtml: """
-        "<p class=\"ql-align-center\" onclick=\"alert(1)\">Centered</p><p><img src=\"/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg\" onerror=\"alert(2)\"></p><ol><li data-list=\"ordered\">Kept</li><li data-list=\"ordered\"><br></li></ol><p><br></p>"
-        """), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        var stored = db.Trips.Single(t => t.Id == trip.Id);
-        Assert.Equal(expectedNotes, envelope.Data.NotesHtml);
-        Assert.Equal(expectedNotes, stored.Notes);
-        Assert.DoesNotContain("/Public/ProxyImage", stored.Notes);
-        Assert.DoesNotContain("onclick", stored.Notes);
-        Assert.DoesNotContain("onerror", stored.Notes);
-        Assert.DoesNotContain("<p><br></p>", stored.Notes);
-        Assert.DoesNotContain("<li data-list=\"ordered\"><br></li>", stored.Notes);
-    }
-
-    [Theory]
-    [InlineData("null")]
-    [InlineData("""{ "rawUrl": null }""")]
-    [InlineData("""{ "rawUrl": "   " }""")]
-    public async Task PatchMetadataClearsCoverImage(string coverImageJson)
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        trip.CoverImageUrl = "https://cdn.example.test/old.jpg";
-        db.SaveChanges();
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(coverImage: coverImageJson), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        Assert.Null(envelope.Data.CoverImage);
-        Assert.Null(db.Trips.Single(t => t.Id == trip.Id).CoverImageUrl);
-    }
-
-    [Fact]
-    public async Task PatchMetadataClearsCenterAndZoom()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        trip.CenterLat = 1;
-        trip.CenterLon = 2;
-        trip.Zoom = 10;
-        db.SaveChanges();
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(center: "null", zoom: "null"), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        var stored = db.Trips.Single(t => t.Id == trip.Id);
-        Assert.Null(envelope.Data.Center);
-        Assert.Null(envelope.Data.Zoom);
-        Assert.Null(stored.CenterLat);
-        Assert.Null(stored.CenterLon);
-        Assert.Null(stored.Zoom);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task PatchMetadataPrivateSaveDisablesShareProgressWarningOnlyWhenApplicable(bool wasShareProgressEnabled)
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: wasShareProgressEnabled);
-        var controller = BuildController(db);
+        var trip = SeedTrip(db, "owner-user", isPublic: true, shareProgressEnabled: true);
+        var original = db.Entry(trip).CurrentValues.Clone();
+        var thumbnails = new Mock<ITripMapThumbnailGenerator>();
+        var warmup = new Mock<ICacheWarmupScheduler>();
+        var controller = BuildController(db, thumbnails, warmup);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
         var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(isPublic: "false"), CancellationToken.None);
 
-        var envelope = AssertMutation(result);
-        Assert.False(envelope.Data.IsPublic);
-        Assert.False(envelope.Data.ShareProgressEnabled);
-        Assert.Equal(wasShareProgressEnabled ? 1 : 0, envelope.Warnings.Count);
-        if (wasShareProgressEnabled)
-        {
-            var warning = envelope.Warnings.Single();
-            Assert.Equal("share-progress-disabled", warning.Code);
-            Assert.Equal("Share progress was disabled because the trip is private.", warning.Message);
-            Assert.Equal("trip", warning.EntityType);
-            Assert.Equal(trip.Id.ToString(), warning.EntityId);
-        }
-    }
-
-    [Fact]
-    public async Task PatchMetadataUpdatesUpdatedAt()
-    {
-        using var db = CreateDbContext();
-        var oldTime = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var trip = SeedTrip(db, "owner-user");
-        trip.UpdatedAt = oldTime;
-        db.SaveChanges();
-        var controller = BuildController(db);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(), CancellationToken.None);
-
-        var envelope = AssertMutation(result);
-        Assert.True(envelope.Data.UpdatedAt > oldTime);
-        Assert.True(db.Trips.Single(t => t.Id == trip.Id).UpdatedAt > oldTime);
-    }
-
-    [Fact]
-    public async Task PatchMetadataWarmupUsesNonImmediateWhenImagesAlreadyKnown()
-    {
-        using var db = CreateDbContext();
-        var trip = SeedTrip(db, "owner-user");
-        trip.CoverImageUrl = "https://cdn.example.test/existing.jpg";
-        db.SaveChanges();
-        var warmupMock = new Mock<ICacheWarmupScheduler>();
-        var controller = BuildController(db, warmupMock: warmupMock);
-        ConfigureControllerWithUserRole(controller, "owner-user");
-
-        await PatchMetadata(
-            controller,
-            trip.Id,
-            ValidMetadataJson(coverImage: """{ "rawUrl": "https://cdn.example.test/existing.jpg" }"""),
-            CancellationToken.None);
-
-        warmupMock.Verify(w => w.ScheduleWarmupAsync(trip.Id, false), Times.Once);
+        Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
+        foreach (var property in original.Properties)
+            Assert.Equal(original[property], db.Entry(trip).CurrentValues[property]);
+        Assert.False(db.ChangeTracker.HasChanges());
+        Assert.Empty(thumbnails.Invocations);
+        Assert.Empty(warmup.Invocations);
     }
 
     private static void ConfigureControllerWithUserRole(ControllerBase controller, string userId, string role = "User")
@@ -242,19 +74,6 @@ public sealed class TripEditorMetadataControllerTests : TestBase
             new TripEditorSegmentMutationService(db),
             Mock.Of<ILogger<TripEditorController>>());
 
-        var url = new Mock<IUrlHelper>(MockBehavior.Strict);
-        url.Setup(u => u.RouteUrl(It.IsAny<UrlRouteContext>()))
-            .Returns((UrlRouteContext context) =>
-            {
-                var id = context.Values?.GetType().GetProperty("id")?.GetValue(context.Values);
-                var progress = context.Values?.GetType().GetProperty("progress")?.GetValue(context.Values);
-                Assert.Equal(PublicTripViewRouteName, context.RouteName);
-                Assert.Equal("https", context.Protocol);
-                return progress == null
-                    ? $"https://example.test/Public/Trips/{id}"
-                    : $"https://example.test/Public/Trips/{id}?progress={progress}";
-            });
-        controller.Url = url.Object;
         return controller;
     }
 
@@ -308,12 +127,6 @@ public sealed class TripEditorMetadataControllerTests : TestBase
           "zoom": {{zoom}}
         }
         """);
-
-    private static EditorMutationResult<EditorTripMetadataDto> AssertMutation(IActionResult result)
-    {
-        var ok = Assert.IsType<OkObjectResult>(result);
-        return Assert.IsType<EditorMutationResult<EditorTripMetadataDto>>(ok.Value);
-    }
 
     private static Trip SeedTrip(
         ApplicationDbContext db,
