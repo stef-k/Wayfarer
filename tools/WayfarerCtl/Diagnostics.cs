@@ -117,7 +117,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         {
             "wayfarer" => "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
             "db" => "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
-            _ => "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b"
+            _ => "caddy@" + config.CaddyDigest
         };
         if (image != expected) throw new IOException();
         terminal.Write(service + ": running; image " + expected);

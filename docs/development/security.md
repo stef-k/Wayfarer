@@ -201,6 +201,90 @@ Image-origin fetching is an SSRF-sensitive boundary. `ImageOriginTransport` perf
 
 External calls need bounded time, response size/contact count as appropriate, cancellation and deterministic handling of redirects/authority. Tests must use fake handlers/clients or local fixtures; do not contact real third-party services.
 
+## Build and runtime certificate trust (#915)
+
+The [published assessment](https://github.com/stef-k/Wayfarer/issues/915) binds the
+affected artifacts at source `ccd107fa9720492a7d7ef067615d3e6babe032d6`.
+Node and pip carry roots separately from the OS. A patched host alone does not
+correct an old Node or pip bundle. Keep ordinary TLS verification enabled.
+
+Both CI venvs call `tools/ci/bootstrap-pip.sh` before any dependency install. Its
+direct pip 26.2.2 wheel/hash was rechecked against the
+[Python security notice](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576)
+and PyPI wheel metadata. Isolated pip disables indexes, dependency resolution,
+cache reuse and version checks during bootstrap. Installed vendored roots must
+exclude emSign ECC Root CA G3 and retain ISRG Root X1 as a positive control.
+
+The Dockerfile pins Node 24.22.1 at index
+`sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205`.
+The shared `.nvmrc` pins the same verified 24.22.1 for local `nvm` and both CI
+setup-node inputs. Exact selection excludes cached 24.21.0 without latest
+resolution or cache eviction. The native installer retains the NodeSource 24
+channel and checks existing/new installations against the unchanged 24.22.1+
+within-24 minimum and effective-root guard before dependency/browser downloads.
+Signed apt package verification installs Bookworm CA `20250419~deb12u2` before
+Cargo and Noble CA `20260816ubuntu0.24.04.1` before NuGet and in the final runtime.
+The pinned Rust compiler and .NET bases stay unchanged; CA package acquisition
+uses their existing signed distribution authority. Rebuilding old bases without
+an explicit CA correction does not repair their stores.
+
+Browser provisioning transiently mounts patched Node but executes the exact
+published Playwright CLI. Package 1.63.0 and Chromium revision 1243 stay aligned.
+The old private runtime driver is not a supported external HTTPS client: capture
+continues to permit only server-owned HTTP loopback fetches. Embedded Chromium
+distrust/CRLSet contents remain unqualified; do not infer protection from its
+version or assume background updates.
+
+New bundles select Caddy 2.11.7 at index
+`sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`.
+Its Alpine CA/bundle `20261020-r0` removes G3. The inspected AMD64 executable uses
+Go 1.26.8, before Go's additional intermediate denylist fix; qualification relies
+on the nonempty corrected system store. No empty-store/fallback-root claim is
+made. Local ingress tests do not qualify public ACME or a production host.
+
+Historical Caddy digest `sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`
+remains readable for retained release/recovery authority. Runtime checks bind
+Caddy to the selected bundle fingerprint, including historical bundles. New
+assembly selects only the corrected digest. The existing unchanged-proxy update
+gate still rejects crossing these digests; this change does not authorize a
+proxy transition or bypass release, recovery or rollback compatibility checks.
+
+A future separately authorized application-only release must publish new
+application images and bundles binding the corrected Caddy artifact. Existing
+stable artifacts must never be overwritten. The proxy compatibility gate needs
+an explicitly reviewed release path before an existing installation can cross
+that boundary. No new version is selected here. CI/build corrections alone do
+not need distributable replacement. The assessment demonstrated no independent
+replacement need for the database, image helper/codec, capture browser or
+standalone recovery/operator binaries solely because of this CA incident.
+New bundles will naturally include the operator's updated binding checks.
+Native hosts still require their own CA remediation and provisioning checks.
+
+The native/build Node guard inspects its selected default certificates, including
+`NODE_EXTRA_CA_CERTS`, together with the required host store. Node's default view
+omits lazily loaded OpenSSL roots, so neither view alone proves effective trust.
+Valid extra certificates remain supported; G3 additions and missing ISRG X1
+positive controls fail closed. See [Node's CA source API](https://nodejs.org/api/tls.html#tlsgetcacertificatestype).
+
+Artifact inspection is distinct from native execution on each architecture and
+from public distribution acceptance. In the ordinary test, AMD64 image and native
+ARM64 image jobs, APT updates signed metadata and installs `ca-certificates`
+through existing distribution keys before the host guard runs. This authenticates
+the CA correction independently of the stale TLS root store; no verification is
+disabled. Setup actions then use `NODE_OPTIONS=--use-openssl-ca` and explicit
+`SSL_CERT_FILE`/`SSL_CERT_DIR` paths to select the checked host roots for their
+subsequent tool downloads. The Ubuntu correction is documented in
+[USN-8944-1](https://ubuntu.com/security/notices/USN-8944-1).
+
+The first checkout, action archive acquisition, runner-provided executables
+(including rustup's own verifier/bootstrap) and service-image pulls precede or sit
+outside this guarded download boundary. Classification/cleanup jobs are not host
+acquisition qualification either. A later correction cannot protect those earlier
+downloads or qualify arbitrary private bundles; actual runner/action/runtime trust
+evidence remains required. Source ordering and local AMD64 package controls do not
+prove execution on the hosted runners or ARM64. #474/#877 and the broader dependency
+audit keep their separate gates.
+
 ## Data Protection and provider credentials
 
 Wayfarer configures one durable ASP.NET Core Data Protection application identity, `Wayfarer`, and persists its key ring through the resolved Data Protection authority. The same stable authority protects Identity framework material and personal provider credentials.

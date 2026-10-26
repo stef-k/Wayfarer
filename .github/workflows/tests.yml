@@ -48,6 +48,10 @@ jobs:
     timeout-minutes: 30
     env:
       MvcFrontendKitEnabled: 'false'
+      # Linux setup actions use host OpenSSL roots, independently of their bundled Node.
+      NODE_OPTIONS: --use-openssl-ca
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_DIR: /etc/ssl/certs
 
     # An empty image disables the native service when ordinary .NET evidence is unselected.
     services:
@@ -73,6 +77,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
+      # APT authenticates metadata/packages with the runner's existing distribution keys.
+      # This precedes workflow tool downloads, not runner action/checkout/service acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
+
       - name: Setup Python for Code Guard
         uses: actions/setup-python@v5
         with:
@@ -81,6 +93,7 @@ jobs:
       - name: Install Code Guard
         run: |
           python -m venv "${{ runner.temp }}/code-guard"
+          bash tools/ci/bootstrap-pip.sh "${{ runner.temp }}/code-guard/bin/python"
           "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.5.0
           echo "${{ runner.temp }}/code-guard/bin" >> "$GITHUB_PATH"
 
@@ -99,7 +112,7 @@ jobs:
         run: echo "PASS test scope; classifier and Code Guard passed, no .NET/browser/frontend owner."
 
       - name: Setup Node
-        if: needs.classify.outputs.run_frontend == 'true'
+        if: needs.classify.outputs.run_frontend == 'true' || needs.classify.outputs.run_playwright == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -108,7 +121,9 @@ jobs:
 
       - name: Install frontend dependencies
         if: needs.classify.outputs.run_frontend == 'true'
-        run: npm ci
+        run: |
+          bash deployment/check-trust.sh --node
+          npm ci
 
       - name: Audit frontend dependencies
         if: needs.classify.outputs.run_frontend == 'true'
@@ -280,7 +295,10 @@ jobs:
       - name: Install .NET Playwright Chromium
         if: needs.classify.outputs.run_playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 5
-        run: dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
+        run: |
+          bash deployment/check-trust.sh --node
+          export PLAYWRIGHT_NODEJS_PATH="$(command -v node)"
+          dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 
@@ -337,11 +355,22 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Check this Linux store before setup actions perform package/tool acquisition.
+    env:
+      NODE_OPTIONS: --use-openssl-ca
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_DIR: /etc/ssl/certs
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Signed distribution authority establishes roots before guarded HTTPS downloads.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       # A local immutable image-store digest is integration evidence, not GHCR publication evidence.
       - name: Use a disposable Docker daemon with the containerd image store
         if: needs.classify.outputs.run_app_image == 'true'
@@ -364,6 +393,7 @@ jobs:
         if: needs.classify.outputs.run_release_tooling == 'true'
         run: |
           python3 -m venv "$RUNNER_TEMP/release-tests"
+          bash tools/ci/bootstrap-pip.sh "$RUNNER_TEMP/release-tests/bin/python"
           "$RUNNER_TEMP/release-tests/bin/pip" install pytest==8.3.5
           "$RUNNER_TEMP/release-tests/bin/python" -m pytest tools/release/tests
       - name: Build and qualify production image without publishing
@@ -468,11 +498,22 @@ jobs:
       contents: read
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
+    # Apply the same host-root selection and prerequisite ordering on native ARM64.
+    env:
+      NODE_OPTIONS: --use-openssl-ca
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_DIR: /etc/ssl/certs
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Earlier runner action/checkout acquisition is outside this workflow's guard.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - name: Use a disposable native Docker daemon with the containerd image store
         if: needs.classify.outputs.run_arm64 == 'true' && needs.classify.outputs.run_app_image == 'true'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4

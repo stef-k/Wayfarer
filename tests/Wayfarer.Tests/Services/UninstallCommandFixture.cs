@@ -327,7 +327,7 @@ internal sealed class UninstallCommandFixture : IDisposable
             var networks = service is "db" or "backup-scheduler" ? new[] { "backend" } : service == "caddy" ? new[] { "edge" } : new[] { "backend", "edge" };
             return JsonSerializer.SerializeToElement(new { Id = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(service + incarnation))),
                 Name = "/" + config.Project + "-" + service + "-1", Created = "2026-10-05", Image = new string('e', 64),
-                Config = new { Image = service == "caddy" ? "caddy@" + ReleaseContract.CaddyDigest : "ghcr.io/stef-k/" + (service == "wayfarer" ? "wayfarer@" + config.AppDigest : "wayfarer-db@" + config.DbDigest),
+                Config = new { Image = service == "caddy" ? "caddy@" + config.CaddyDigest : "ghcr.io/stef-k/" + (service == "wayfarer" ? "wayfarer@" + config.AppDigest : "wayfarer-db@" + config.DbDigest),
                     Labels = labels, Cmd = new[] { service == "backup-scheduler" ? "schedule" : "run" }, User = "1654:1654",
                     Env = new[] { "Storage__DataRoot=/var/lib/wayfarer", "Storage__CacheRoot=/var/cache/wayfarer", "Storage__LogRoot=/var/log/wayfarer",
                         "Storage__TempRoot=/tmp/wayfarer", "DataProtection__KeyRingPath=/var/lib/wayfarer/data-protection" } }, Mounts = mounts,

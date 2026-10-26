@@ -178,7 +178,7 @@ jobs:
           db_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest())')"
           docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer@$app_digest"
           docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer-db@$db_digest"
-          docker pull --platform "$platform" caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+          docker pull --platform "$platform" caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
       - name: Assemble, validate and upload stable assets once
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

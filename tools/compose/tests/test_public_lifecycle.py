@@ -89,7 +89,7 @@ class PublicLifecycleTests(unittest.TestCase):
     """Prove fixture ownership, public authority and continuity at their offline boundaries."""
     def test_external_proxy_is_qualification_owned_and_excluded_from_product_update(self):
         """Shared and public proxies retain HTTPS routing without joining product project queries."""
-        for journey_type, digest in ((Journey, 'sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'),
+        for journey_type, digest in ((Journey, 'sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f'),
                                      (PublicJourney, 'sha256:' + 'e' * 64)):
             with self.subTest(journey=journey_type.__name__), patch('qualify_ctl.run') as docker:
                 journey = journey_type.__new__(journey_type)

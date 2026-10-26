@@ -29,6 +29,18 @@ public sealed record Deployment
     /// <summary>Legacy installations have the original fixed AMD64 authority.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string RuntimePlatform => Platform ?? "linux/amd64";
+    /// <summary>Historical deployments retain their proxy; release-aware deployments use exact fingerprint-bound bundle authority.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string CaddyDigest
+    {
+        get
+        {
+            if (Release is null) return ReleaseContract.LegacyCaddyDigest;
+            var bundle = ReleaseBundle.Validate(Bundle);
+            if (ReleaseAuthority.From(bundle) != Release) throw new IOException("Proxy release authority changed.");
+            return bundle.Manifest.Images.CaddyDigest;
+        }
+    }
     public string EdgePrefix { get; init; } = "172.30.64";
     public int LoopbackPort { get; init; } = 8080;
 

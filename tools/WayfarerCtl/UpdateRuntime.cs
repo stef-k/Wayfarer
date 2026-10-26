@@ -58,7 +58,7 @@ public sealed class UpdateRuntime(IProcessRunner runner)
             var image = container.GetProperty("Config").GetProperty("Image").GetString();
             if (image != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Current.AppDigest &&
                 image != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest &&
-                image != "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest && image != "caddy@" + ReleaseContract.CaddyDigest)
+                image != "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest && image != "caddy@" + receipt.Plan.Current.CaddyDigest)
                 throw new IOException("Update resource image changed.");
             await owner.Required(["update", "--restart=no", id], token);
             if (labels.GetProperty("com.docker.compose.service").GetString() != "db")
@@ -138,7 +138,7 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         {
             "db" => "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
             "wayfarer" => "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
-            "caddy" => "caddy@" + ReleaseContract.CaddyDigest,
+            "caddy" => "caddy@" + config.CaddyDigest,
             _ => throw new IOException("Unknown application service.")
         };
         if (container.GetProperty("Config").GetProperty("Image").GetString() != expected)

@@ -165,6 +165,8 @@ A typical .NET Playwright prerequisite after a Release build is:
 
 ~~~sh
 dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release
+bash deployment/check-trust.sh --node
+export PLAYWRIGHT_NODEJS_PATH="$(command -v node)"
 dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
 ~~~
 

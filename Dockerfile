@@ -1,8 +1,9 @@
-# Native Linux AMD64/ARM64 payload; indexes retain the previously qualified AMD64 base manifests.
-FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
+# Patched bundled Node roots, independently inspected at this immutable index (#915).
+FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
 # Build the locked helper natively. Rust and codec build tools stay in this stage.
 FROM rust:1.90.0-slim-bookworm@sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9 AS image-helper
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake nasm pkg-config \
+# Signed Debian metadata/package verification precedes Cargo's first HTTPS download.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates=20250419~deb12u2 build-essential cmake nasm pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /helper
 COPY tools/image-helper/Cargo.toml tools/image-helper/Cargo.lock ./
@@ -12,6 +13,9 @@ RUN cargo build --release --locked
 FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
 ARG TARGETARCH
 COPY --from=node /usr/local/ /usr/local/
+# Signed Noble CA correction must precede NuGet/npm acquisition, even on a cached base.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates=20260816ubuntu0.24.04.1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY Wayfarer.csproj Version.props ./
 RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) exit 1 ;; esac \
@@ -28,10 +32,12 @@ ARG TARGETARCH
 WORKDIR /app
 COPY --from=build /publish/.playwright/ ./.playwright/
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers
-# Use the published version's bundled installer/Node driver, never a separately versioned CLI.
-RUN case "$TARGETARCH" in amd64) driver=linux-x64 ;; arm64) driver=linux-arm64 ;; *) exit 1 ;; esac \
-    && .playwright/node/$driver/node .playwright/package/cli.js install-deps chromium \
-    && .playwright/node/$driver/node .playwright/package/cli.js install chromium \
+# Correct the actual final OS store before browser acquisition. Mount patched Node
+# transiently; keep the published Playwright CLI/browser revision and runtime driver.
+RUN --mount=from=node,source=/usr/local/bin/node,target=/tmp/wayfarer-installer-node \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates=20260816ubuntu0.24.04.1 \
+    && /tmp/wayfarer-installer-node .playwright/package/cli.js install-deps chromium \
+    && /tmp/wayfarer-installer-node .playwright/package/cli.js install chromium \
     && apt-get update && apt-get install -y --no-install-recommends util-linux \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /publish/ ./

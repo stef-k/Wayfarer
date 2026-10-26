@@ -20,7 +20,7 @@ internal sealed class UninstallInventory(IProcessRunner runner)
         new(UninstallResourceKind.Image, "ghcr.io/stef-k/wayfarer@" + config.AppDigest, null, null, null, UninstallAction.Exclude, null),
         new(UninstallResourceKind.Image, "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, null, null, null, UninstallAction.Exclude, null),
         .. config.Mode == "managed" ? new[] { new UninstallResource(UninstallResourceKind.Image,
-            "caddy@" + ReleaseContract.CaddyDigest, null, null, null, UninstallAction.Exclude, null) } : [],
+            "caddy@" + config.CaddyDigest, null, null, null, UninstallAction.Exclude, null) } : [],
         .. config.Backup is not null ? new[] { new UninstallResource(UninstallResourceKind.BackupDestination,
             config.Backup.Destination, null, null, null, UninstallAction.Exclude, null) } : []
     ];

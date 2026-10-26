@@ -63,8 +63,8 @@ services:
       retries: 12
       start_period: 30s
   caddy:
-    # Official Caddy2.11.4; immutable index, with platform constrained below.
-    image: caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    # Caddy 2.11.7 with corrected Alpine CAs; immutable native-platform index (#915).
+    image: caddy@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
     platform: ${WAYFARER_PLATFORM:?Validated release platform required}
     profiles: [managed]
     restart: unless-stopped
