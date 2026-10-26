@@ -248,6 +248,74 @@ Affected operations return `historyPreparationRequired`;
 unaffected UTC/viewer/nontext reads and direct detail retain their contracts.
 I918-A exposes no routes or readiness/capability advertisement to consumers.
 
+## Rollback and restored-data readiness
+
+History preparation does not authorize a binary or schema downgrade. Follow the
+existing [release authority](release-contract.md#retained-releases-and-persisted-lifecycle-authority)
+and installation recovery procedure. There is one stored generation per kind;
+rollback has no automatic-readiness or zero-downtime guarantee.
+
+1. **Stop current writers before changing binaries or restoring data.** Stop all
+   current Web, import, enrichment and CLI writer processes, including interrupted
+   maintenance processes, and keep affected reads in maintenance. Qualification and
+   the shared `history-writers-1` value are not process fences. Do not let old and
+   new writers alternate stamps.
+2. **Restoring the pre-upgrade recovery set:** use the supported
+   [managed update recovery](../self-hosting/wayfarerctl.md#update) or
+   [managed restore](../self-hosting/wayfarerctl.md#restore) procedure, or the
+   administrator-owned [native recovery boundary](../self-hosting/native-manual.md#native-backup-boundary).
+   Select a verified, compatible, coherent pre-upgrade database, complete active
+   Data Protection ring and durable uploads/imports together, with the protected
+   deployment configuration needed by that installation. This returns canonical
+   data and history state to that recovery point; it does not retain later writes.
+   Preserve the upgraded state's recovery evidence through the existing emergency
+   backup requirements, retained receipts and recovery holds. Let that authority
+   select the compatible target; merely selecting old binaries is not a restore.
+3. **Retaining the upgraded database:** consider an earlier binary only where the
+   installation's existing release procedure explicitly supports that target's
+   schema, credential and storage compatibility. Managed `update` refuses
+   downgrades; this runbook adds no downgrade route or migration reversal. If that
+   compatibility is not established, use the coherent recovery-set path. A binary
+   change alone preserves the newer row stamps, active/target state and checkpoints;
+   it does not restore the older binary's prepared generations.
+4. **Inspect with the actual recovered target.** Run
+   `dotnet Wayfarer.dll history-data status both` using that target binary, its
+   actual runtime/globalization profile and protected configuration/database
+   identity, before maintenance and again before reopening affected reads. Inspect
+   both generations' target/active/writer agreement, committed progress, all-owner
+   pending and separate unresolved counts, and valid/ready physical indexes,
+   extension and collation prerequisites. Check `Qualified` and actual diagnostics
+   when the target provides them; previous-main status lacks those fields, so use
+   its release's profile evidence rather than inventing an admission result.
+   Under R1, an unsupported profile needs qualification, not a rebuild.
+5. **Prepare only what that target requires.** The previous-main binary compares
+   exact dependency/runtime-derived IDs: newer R1 time/text stamps are stale to
+   its older rules, even if a stored Ready flag is true. A different persisted
+   target refuses ordinary `prepare`; use that binary's explicit
+   `history-data rebuild time` and/or `history-data rebuild text` for the affected
+   kinds. If R1 changed both targets, returning to previous-main rules while
+   retaining that database requires both rebuilds. Conversely, compatible R1
+   binaries retain the exact qualified IDs: do not rebuild compatible ready data
+   merely because runtime provenance changed. Resume interrupted work for the
+   same target with `history-data prepare time`, `prepare text` or `prepare both`;
+   retain its committed checkpoints and let the stale-row sweep finish. Use the
+   same preparation for missing/stale rows under an unchanged target. Rebuilds
+   recompute derived fields only; preserve canonical UTC times, coordinates,
+   Notes, addresses, identities and provenance. Never copy Ready flags, relabel
+   generations or rows, or reset import checkpoints/provider accounting.
+
+Until target-binary readiness is established, capture-basis pages, overviews and
+candidate lists remain unavailable while time is unready; any nonempty normalized
+search remains unavailable while text is unready, including UTC/viewer searches.
+Combined requests need both. Qualified but unprepared reads return 503
+`historyPreparationRequired`; R1 rejects missing required qualification separately
+with 503 `historyQualificationRequired`, including viewer-time predicates. UTC and
+qualified viewer collections without text, and direct owner detail, retain their
+independent contracts, with stale capture facts reported as pending and unqualified
+time facts unavailable. Changed generation IDs invalidate old continuations.
+Reopen each affected read only after fresh target status confirms its required
+generation ready; backup receipts or a prior binary's status are insufficient.
+
 ## Text equivalences and matching
 
 `LocationHistoryDerivation.NormalizeText` is the shared stored/query implementation.
