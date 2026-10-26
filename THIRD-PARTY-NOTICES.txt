@@ -379,7 +379,9 @@ Microsoft.Playwright 1.64.1
 https://playwright.dev/dotnet/
 Copyright (c) Microsoft Corporation
 
-Licensed under the Apache License, Version 2.0.
+The .NET library is licensed under the MIT License. The bundled Playwright
+driver is licensed under the Apache License, Version 2.0. Retain its LICENSE,
+NOTICE and the bundled Node/browser distribution notices with published payloads.
 
 --------------------------------------------------------------------------------
 
