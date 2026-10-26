@@ -9,12 +9,13 @@ import os
 from pathlib import Path
 import shutil
 import stat
+import sys
 import tempfile
 import uuid
 
 
-def ordinary(path: Path, *, tree=False):
-    """Inspect lexical ancestors and optionally descendants without resolving links."""
+def ordinary(path: Path, *, tree=False, _clr_residue=None):
+    """Reject links/specials, except exact typed CLR paths supplied by the retained owner."""
     if '..' in Path(path).parts:
         raise ValueError('Parent traversal in an artifact path is refused')
     path = Path(os.path.abspath(path))
@@ -25,12 +26,14 @@ def ordinary(path: Path, *, tree=False):
         if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400:
             raise ValueError(f'Linked/reparse artifact refused: {item}')
         if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
-            raise ValueError(f'Special artifact refused: {item}')
+            if not (_clr_residue and _clr_residue.get(item) == stat.S_IFMT(info.st_mode)
+                    and info.st_uid == os.getuid() and info.st_nlink == 1):
+                raise ValueError(f'Special artifact refused: {item}')
         if item != path and not stat.S_ISDIR(info.st_mode):
             raise ValueError(f'Artifact ancestor is not a directory: {item}')
     if tree and path.is_dir():
         for item in path.iterdir():
-            ordinary(item, tree=True)
+            ordinary(item, tree=True, _clr_residue=_clr_residue)
     return path
 
 
@@ -50,15 +53,41 @@ class BrowserRoot:
         self._removed = False
         self._diagnostic = None
 
-    def verify(self):
+    def verify(self, *, stopped_children=()):
         """Refuse foreign roots, replacement directories and changed creation markers."""
         if self.path != self._parent / f'wayfarer-browser-e2e-{self.run_id}':
             raise ValueError('Foreign browser root refused')
-        ordinary(self.path, tree=True)
+        ordinary(self.path)
         if not self.path.is_dir() or (self.path.stat().st_dev, self.path.stat().st_ino) != self._identity:
             raise ValueError('Browser root creation identity changed')
+        ordinary(self.marker)
         if json.loads(self.marker.read_text(encoding='utf-8')) != self._marker:
             raise ValueError('Browser ownership marker changed')
+        ordinary(self.path, tree=True, _clr_residue=self._clr_residue(stopped_children))
+
+    def _clr_residue(self, children):
+        """Derive Linux IPC paths only from retained, stopped children, never JSON records."""
+        if any(not child.closed for child in children):
+            raise ValueError('Browser writers have not stopped')
+        if sys.platform != 'linux' or not children:
+            return {}
+        boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        temporary = self.path / 'TempRoot'
+        residue = {}
+        for child in children:
+            for record, _ in child.members.values():
+                pid, start = record['pid'], record['start']
+                # Refuse even a reused PID; stop() has already proved/reaped the retained writer.
+                if record['boot'] != boot or os.path.lexists(f'/proc/{pid}'):
+                    continue
+                for suffix in ('in', 'out'):
+                    residue[temporary / f'clr-debug-pipe-{pid}-{start}-{suffix}'] = stat.S_IFIFO
+                # Linux sockaddr_un.sun_path holds 108 bytes including the terminating NUL.
+                endpoint = os.fsencode(temporary / f'dotnet-diagnostic-{pid}-{start}-socket')[:107]
+                endpoint = Path(os.fsdecode(endpoint))
+                if endpoint.parent == temporary:
+                    residue[endpoint] = stat.S_IFSOCK
+        return residue
 
     def append_diagnostic(self, diagnostic):
         """Write only through pinned owned descriptors; refuse unsafe platform fallbacks."""
@@ -87,13 +116,13 @@ class BrowserRoot:
         self._diagnostic.write(diagnostic)
         self._diagnostic.flush()
 
-    def remove(self):
+    def remove(self, stopped_children=()):
         """Delete the verified created root once; never adopt a recreated stale path."""
         if self._removed:
             if os.path.lexists(self.path):
                 raise ValueError('Finalized browser root was recreated')
             return
-        self.verify()
+        self.verify(stopped_children=stopped_children)
         if self._diagnostic is not None:
             self._diagnostic.close()
         shutil.rmtree(self.path)
