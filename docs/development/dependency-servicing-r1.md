@@ -360,7 +360,7 @@ Complete-branch Code Guard against `7978d1e07cd45315a6c35ad06f6fa96e877ed3fc`
 returns **REVIEW**, with no FAIL/INCOMPLETE and policy-relaxation PASS. Reviews are
 accepted for unchanged Viewer/map callable structure, unchanged browser orchestration,
 the cohesive pre-existing 35-decision history grammar parser (only qualification
-plumbing changed), and the navigable chronological changelog/unchanged Fixed section.
+plumbing changed), and the navigable API reference, chronological changelog and unchanged Fixed section.
 No threshold, policy, baseline or exclusion is changed.
 
 Evidence: `/home/stef/.local/share/wayfarer-investigations/938-implementation-20261026/`.
