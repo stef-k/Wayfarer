@@ -27,7 +27,7 @@ Application version, database authority and migrations are unchanged.
 | Code Guard | 0.5.0 | 0.5.1 |
 | Vite; Vue plugin; vue-tsc/language-core | 8.3.3; 6.0.9; 3.3.12 | 8.3.5; 6.0.10; 3.3.13 |
 | Vue and all compiler/runtime siblings | 3.5.43 | 3.5.44 |
-| npm Quill | 2.0.2 | 2.0.3 |
+| npm Quill | 2.0.2 | 2.0.2 (exact pin retained) |
 | Copied Bootstrap; print CSS | 5.3.6; 5.3.0 | 5.3.8 |
 | Copied Bootstrap Icons/font/SVG; print CSS | 1.13.1; 1.11.0 | 1.13.2 |
 | jQuery Validation; Markercluster | 1.21.0; 1.4.1+master.37ab9a2 | 1.22.1; 1.5.3 |
@@ -50,14 +50,20 @@ DataProtection parent supplies XML and PKCS 10.0.14; operator/test resolution
 inherits that 10.x closure. Runtime servicing does not replace local package DLLs.
 No audit warning is suppressed. Other transitives remain parent-owned.
 
-The updated npm audit reports the existing upstream **Quill 2.0.3 HTML export XSS**
-[advisory](https://github.com/advisories/GHSA-v3m3-f69x-jf25), with no patched release
-listed. The copied editor was already 2.0.3. Production does not call
-`getSemanticHTML`; it reads editor DOM and passes submitted Notes through the
-existing client normalization and server RichNotes allow-list before storage and
-publication. Retain the sanitizer and acknowledgement regressions. This is a
-recorded advisory, not a claim that the upstream package is vulnerability-free.
-No automatic audit fix, downgrade or sanitizer-policy change is applied.
+Retain the exact **npm Quill 2.0.2** pin and its matching lock entry. The initial
+2.0.3 update contradicted the documented pin rationale and failed the unchanged
+`npm audit` check in [run 40357847290](https://github.com/stef-k/Wayfarer/actions/runs/40357847290).
+The [Quill investigation](https://github.com/stef-k/Wayfarer/pull/937#issuecomment-6421684278)
+records the earlier decision and the
+[HTML-export advisory](https://github.com/advisories/GHSA-v3m3-f69x-jf25).
+Restoring the npm pin does not resolve the separately copied **Quill 2.0.3**
+exposure: that distribution, including its restored notices/map, remains unchanged
+and tracked in [#939](https://github.com/stef-k/Wayfarer/issues/939).
+Production does not call `getSemanticHTML`; submitted DOM Notes retain the client
+normalization and server RichNotes allow-list before storage and publication.
+These controls do not establish that the copied package is vulnerability-free.
+No editor replacement, audit threshold/suppression, CI selection or sanitizer
+policy changes are included.
 
 npm's lock update retains TypeScript wrapper 6.0.2 / JS compiler 6.0.3,
 Playwright 1.63.0 and existing major families. Compatible parent-owned changes
@@ -123,9 +129,11 @@ This batch leaves those bytes and the old/new transition gate unchanged.
 and create-only publication obligations. Source maintenance does not replace
 installed artifacts, authorize publication or waive native architecture gates.
 
-## Local validation and remaining evidence
+## Original local validation and remaining evidence
 
-Using the official hash-verified SDK 10.0.403 / runtime 10.0.14 on Linux x64:
+The following records the original `3da73e4d` implementation, before the cleanup
+and npm-pin corrections below. Using the official hash-verified SDK 10.0.403 /
+runtime 10.0.14 on Linux x64:
 
 - Release build and **264 focused .NET tests** pass, including Notes sanitization,
   rich-note contracts, generated Swagger, timezone/DST, history and helper behavior.
@@ -175,7 +183,9 @@ browser residue is retained at the path recorded in `evidence/browser-residue.js
 The initial artifact-cleanup failure is fixture infrastructure evidence, with no
 observed product failure; its local correction is recorded below. Independent exact-head
 review, successful applicable native/image CI and maintainer acceptance remain
-required. This implementation opens a draft PR and checks CI startup once only.
+required. The original implementation opened a draft PR and checked CI startup
+once. The completed run subsequently failed at npm audit, before later test-job
+checks; the consolidation below starts no CI.
 
 ## Browser cleanup diagnosis and local correction (#937)
 
@@ -236,7 +246,47 @@ Before task cleanup, copies of original logs/ownership records, a 14,419-entry
 hashed inventory and a process/socket snapshot were retained at
 `/home/stef/.local/share/wayfarer-investigations/937-cleanup-20261026T174852Z/`.
 Test-created roots/processes are finalized by their existing owners. Shared/manual
-work and other agents' checkouts are untouched. Keep this correction local for
-consolidation with the pending Quill-pin and approved history-generation changes;
-neither is implemented by this slice. No push, new CI cycle, merge, release,
+work and other agents' checkouts are untouched. This cleanup-only slice left the
+Quill-pin and history-generation corrections separate. Its complete three-commit
+range through `512898ad95e3160d344e789c907f200e7cc1c625` is integrated unchanged
+in the local consolidation below. No push, new CI cycle, merge, release,
 deployment or issue closure is authorized by this correction.
+
+## Local cleanup and npm-pin consolidation (#937)
+
+Verified live PR base `7978d1e07cd45315a6c35ad06f6fa96e877ed3fc` and head
+`3da73e4d51f704f3c313bd043ff061ceef193db9` before editing. The isolated
+`fix/937-cleanup-quill-pin` branch integrates the complete cleanup range above,
+preserving its source/tests and recorded ownership rationale. Only the npm
+manifest pin, root lock declaration and Quill lock node change for the editor;
+the full 2.0.2 node matches the PR base and every other lock entry matches the
+verified PR head. Copied Quill bytes, notices and map remain unchanged.
+
+On Node 24.22.1 / npm 11.19.1, `npm ci` and the unchanged `npm audit` pass with
+zero reported npm vulnerabilities. All **43 Python tooling tests** and **440
+client tests** pass without skips, including the four cleanup-safety tests and
+existing Notes/editor checks. Typecheck and the frontend build pass; Vite retains
+its large-chunk warning. No additional product defect was observed.
+
+Complete-change Code Guard against the verified PR base is **REVIEW**: 30 selected,
+17 analyzed, 13 inapplicable and 2,152 existing vendor exclusions; no FAIL or
+INCOMPLETE, policy-relaxation PASS. Accepted reviews retain the Viewer at 929 LOC
+within its 934 allowance, the four unchanged map callables at 113/104/84/116 LOC,
+and the unchanged 16-decision `BrowserRun.execute` orchestration. The 1,540-line
+chronological changelog and its 258-line Unreleased Fixed section remain navigable.
+No policy, baseline, threshold or exclusion changes were made.
+
+Reuse the original four Notes acknowledgement browser assertions and two mounted
+journeys as historical evidence; no browser run qualifies the consolidated head.
+The original residue's 14,419 recorded entries retain matching metadata, including
+all three diagnostic special files. Original evidence and shared/manual work are
+preserved. Consolidation logs, preservation checks and recovery artifacts are at
+`/home/stef/.local/share/wayfarer-investigations/937-consolidation-20261026T182200Z/`.
+
+This is implementation-time validation. [#938](https://github.com/stef-k/Wayfarer/issues/938)
+still owns the history-upgrade correction and holds acceptance of affected updates;
+[#939](https://github.com/stef-k/Wayfarer/issues/939) owns copied-Quill exposure and
+editor disposition. [#915](https://github.com/stef-k/Wayfarer/issues/915) retains
+security publication gates. Keep this result local for #938 and final combined-head
+review. No push, CI startup/rerun, merge, issue closure, release or deployment was
+performed.
