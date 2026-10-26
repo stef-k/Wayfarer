@@ -177,7 +177,9 @@ Qualification is lazy and local to history; it does not stop global web startup.
 Unknown qualification cannot stamp a selected generation or activate data. New
 Locations require both qualifications; edits require each generation they actually
 recompute (including opportunistic stale-generation updates). A rejection fails the
-whole tracked/import save atomically. Both fenced bulk address publication branches
+whole tracked/import save atomically through the caller’s existing operational-error
+path (generic HTTP failure where applicable), without a success acknowledgement.
+Both fenced bulk address publication branches
 use the same text check and transaction: address, derived text and final provider
 publication commit together or roll back together. Operational failure never becomes
 an unresolved Location. Other independent writes retain their existing boundaries.

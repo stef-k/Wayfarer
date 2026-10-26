@@ -326,3 +326,45 @@ editor disposition. [#915](https://github.com/stef-k/Wayfarer/issues/915) retain
 security publication gates. Keep this result local for #938 and final combined-head
 review. No push, CI startup/rerun, merge, issue closure, release or deployment was
 performed.
+
+## #938 implementation qualification
+
+Fresh local evidence uses the final history source boundary with the consolidated
+cleanup/npm correction retained. Release build succeeds. Across the retained focused
+10.0.14 runs, **178 distinct tests have passing results**, including derivation,
+query/cursor, PostgreSQL preparation/readiness, tracked/import/bulk integration,
+both fenced provider publication branches, and routed page/overview/candidate/detail
+reads. The first broad selection passed 175/176; the new stale-null fixture violated
+the existing text check constraint. Correcting that fixture yielded 8/8 transition/
+cursor passes, and the strengthened all-canonical-column rebuild assertion passed
+1/1. No production counterexample remains from those attempts. These are combined
+focused receipts, not a full-suite-green or one-run-178 claim.
+
+A separate actual native runtime 10.0.13 run passes **39/39** derivation/query/cursor/
+qualification tests, including the small PostgreSQL fixtures. Current admission is
+also executed inside the existing Noble R1 image with the final history assembly:
+10.0.14, ICU 74.2, both qualifications true. The probe uses the image's installed
+runtime; mounted SDK files supply FSI only. This does not qualify a rebuilt final
+application image. A direct invariant-mode `history-data rebuild both` exits 1 with
+actual provenance and the fixed qualification diagnostic before any database work.
+
+Reuse unchanged #918 preparation/performance/routed receipts and their limits;
+no new scale, performance or browser campaign was run. Reuse original #937 .NET
+coverage/security/package, Rust, image, frontend/browser receipts within their
+unchanged scope, and the consolidation's cleanup (43 Python tests), npm audit,
+440 client tests, typecheck/build and preservation receipts. They are historical
+and implementation-time evidence, not final-head CI/native/browser acceptance.
+Original browser residue and shared/manual work remain preserved.
+
+Complete-branch Code Guard against `7978d1e07cd45315a6c35ad06f6fa96e877ed3fc`
+returns **REVIEW**, with no FAIL/INCOMPLETE and policy-relaxation PASS. Reviews are
+accepted for unchanged Viewer/map callable structure, unchanged browser orchestration,
+the cohesive pre-existing 35-decision history grammar parser (only qualification
+plumbing changed), and the navigable chronological changelog/unchanged Fixed section.
+No threshold, policy, baseline or exclusion is changed.
+
+Evidence: `/home/stef/.local/share/wayfarer-investigations/938-implementation-20261026/`.
+Successful final combined-head CI, fresh independent review and maintainer acceptance
+remain outstanding. Native Windows/NLS/other ICU profiles are not newly qualified;
+ARM64 final-head execution remains separate CI evidence. No migration, release,
+deployment, issue closure or rolling-upgrade acceptance is performed.
