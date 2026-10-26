@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Update the coupled production/test Playwright packages from 1.63.0 to 1.64.1
+  and their Chrome for Testing/headless-shell payload from 153.0.8010.12
+  (revision 1243) to 156.0.8078.4 (revision 1248), including matched FFmpeg
+  1011 to 1013 (#939). Reinstall through the matching application/npm CLI and
+  rebuild application images; existing browser caches are not interchangeable.
+  Preserve capture confinement, sandbox behavior and release gates.
 - Separate independent history semantic generation IDs from actual dependency,
   runtime and globalization provenance (#938, delivered with #937). Compatible
   qualified servicing preserves prepared rows, active state, checkpoints and cursors;

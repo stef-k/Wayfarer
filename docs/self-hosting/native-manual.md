@@ -277,6 +277,12 @@ Run the web service only after migrations/seeding/bootstrap complete successfull
 PDF generation uses the Chromium version matched to Wayfarer's
 Microsoft.Playwright package.
 
+The #939 source update selects Playwright 1.64.1 and Chrome for Testing/headless
+shell 156.0.8078.4 (revision 1248), replacing 1.63.0 / revision 1243. When adopting
+a release containing it, rerun that release's installer below; an older browser
+cache or a development npm installation does not provision the service. Required
+OS libraries and the Linux x64/ARM64 support boundary are unchanged.
+
 The application does **not** download or install Chromium during startup or a PDF
 request.
 
