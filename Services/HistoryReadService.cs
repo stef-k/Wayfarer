@@ -14,6 +14,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
     /// <summary>All-owner readiness is checked in the response snapshot; no read repairs or weakens preparation.</summary>
     internal async Task PrepareQueryAsync(string owner, HistoryQuery query, CancellationToken token)
     {
+        db.HistoryEnvironment.Require(query.Scope.TimeBasis != "utc", query.Scope.Q.Length != 0);
         if (query.Scope.ActivityIds is { Length: > 0 } ids)
         {
             var canonical = await new ActivityCatalog(db).ResolveIdsAsync(ids, token) ?? throw new HistoryRequestException("activityInvalid");
@@ -69,7 +70,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         foreach (var row in rows)
         {
             token.ThrowIfCancellationRequested();
-            items.Add(HistoryPublication.Summary(row, query.Zone, candidate));
+            items.Add(HistoryPublication.Summary(row, query.Zone, candidate, db.HistoryEnvironment));
         }
         result["items"] = items;
         result["nextContinuation"] = continuation;
@@ -187,10 +188,10 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
     }
 
     /// <summary>Common metadata makes live scope and conservative membership explicit on both collection operations.</summary>
-    private static Dictionary<string, object?> Envelope(string owner, HistoryQuery query, string key, string profile, long candidates, string extent) => new()
+    private Dictionary<string, object?> Envelope(string owner, HistoryQuery query, string key, string profile, long candidates, string extent) => new()
     {
         ["subjectId"] = owner, ["profile"] = profile, ["scopeKey"] = key, ["scope"] = query.Scope,
-        ["derivationVersions"] = HistoryPublication.Versions, ["observedAtUtc"] = HistoryQuery.Utc(DateTime.UtcNow),
+        ["derivationVersions"] = HistoryPublication.VersionsFor(db.HistoryEnvironment), ["observedAtUtc"] = HistoryQuery.Utc(DateTime.UtcNow),
         ["consistency"] = "live-request", ["coverage"] = new { membership = candidates == 0 ? "complete" : "incomplete",
             resultExtent = extent, unresolvedCandidateCount = Count(candidates) }
     };

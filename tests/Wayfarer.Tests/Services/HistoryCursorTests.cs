@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -27,6 +28,26 @@ public sealed class HistoryCursorTests
         }
         query = WithCursor(query, cursors.Protect("owner", query, key, 5, instant));
         Assert.Equal(instant, cursors.Read("owner", query, key)!.EventUtc);
+    }
+
+    /// <summary>Either real semantic transition retires old continuations, even when that generation is unused by a filter.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IndependentSemanticChangesRejectPreviousContinuations(bool timeChanged)
+    {
+        var cursors = new HistoryCursor(new EphemeralDataProtectionProvider());
+        var query = HistoryQueryTests.Parse("?timeBasis=utc&timeMode=interval&viewerZone=UTC&startUtc=2025-01-01T00:00:00Z&endUtc=2026-01-01T00:00:00Z");
+        var previous = HistoryCursor.Hash(JsonSerializer.Serialize(new
+        {
+            owner = "owner", scope = query.Scope, rules = HistoryCursor.Rules,
+            time = timeChanged ? "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026c (mapping: 48.2)" : LocationHistoryDerivation.TimeVersion,
+            text = timeChanged ? LocationHistoryDerivation.TextVersion : "history-text-1;RichNotes-2;AngleSharp-1.7.1.0;runtime-10.0.13;unicode-31129-0000799900000000000000000000007f"
+        }));
+        var cursor = cursors.Protect("owner", query, previous, 5, new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        var continued = WithCursor(query, cursor);
+        Assert.Equal("continuationInvalid", Assert.Throws<HistoryRequestException>(() =>
+            cursors.Read("owner", continued, HistoryCursor.ScopeKey("owner", continued.Scope))).Code);
     }
 
     private static HistoryQuery WithCursor(HistoryQuery query, string cursor) => new()

@@ -19,29 +19,33 @@
     <ItemGroup>
         <PackageReference Include="CsvHelper" Version="33.1.0" />
         <PackageReference Include="GeoTimeZone" Version="6.1.0" />
-        <PackageReference Include="HtmlSanitizer" Version="9.2.995" />
+        <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
 
 
         <!-- EF Core packages for .NET 10 -->
-        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.11" />
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
-        <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.11" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.14" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.14" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.14">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+
+        <!-- SqlClient 6.1.7 still admits vulnerable package-local PKCS 9.0.11.
+             Keep its 9.x family while requiring the assessed patched servicing version. -->
+        <PackageReference Include="System.Security.Cryptography.Pkcs" Version="9.0.22" />
 
         <PackageReference Include="MvcFrontendKit" Version="1.1.0" />
         <PackageReference Include="NetTopologySuite" Version="2.6.0" />
         <PackageReference Include="NetTopologySuite.Features" Version="2.2.0" />
         <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
-        <PackageReference Include="NodaTime" Version="3.3.3" />
+        <PackageReference Include="NodaTime" Version="3.3.6" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
         <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
@@ -54,9 +58,9 @@
         <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
         <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="2.3.0" />
 
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.1" />
 
-        <PackageReference Include="TimeZoneConverter" Version="7.2.0" />
+        <PackageReference Include="TimeZoneConverter" Version="8.0.0" />
 
         <PackageReference Include="Unidecode.NET" Version="2.2.1" />
     </ItemGroup>

@@ -69,10 +69,10 @@ internal static class HistoryDetail
         record["activityName"] = Value("activityName");
         record["position"] = HistoryPublication.Position((double?)Value("longitude"), (double?)Value("latitude"));
         record["captureTime"] = HistoryPublication.Capture((DateTime?)Value("captureLocal"), (string?)Value("captureZone"),
-            (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"));
-        record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone);
+            (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"), db.HistoryEnvironment);
+        record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone, db.HistoryEnvironment);
         return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc(DateTime.UtcNow),
-            derivationVersions = HistoryPublication.Versions, record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
+            derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
     }
 
     /// <summary>PostgreSQL infinity and dates outside the wire calendar are unavailable, not known null.</summary>

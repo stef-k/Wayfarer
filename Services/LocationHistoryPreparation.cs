@@ -13,6 +13,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
     internal async Task BeginAsync(string kind, bool rebuild, CancellationToken token)
     {
         ValidateKind(kind);
+        db.HistoryEnvironment.Require(kind == "time", kind == "text");
         await using var transaction = await db.Database.BeginTransactionAsync(token);
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({"history-preparation:" + kind}, 0))", token);
         var state = await db.HistoryPreparationStates.SingleOrDefaultAsync(row => row.Kind == kind, token);
@@ -47,6 +48,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
     internal async Task<bool> PrepareBatchAsync(string kind, CancellationToken token, int batchSize = 500)
     {
         ValidateKind(kind);
+        db.HistoryEnvironment.Require(kind == "time", kind == "text");
         if (batchSize is < 1 or > 500) throw new ArgumentOutOfRangeException(nameof(batchSize));
         try
         {
@@ -136,10 +138,11 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
         var unresolved = kind == "time" ? await db.Locations.LongCountAsync(row => row.HistoryTimeVersion == version
             && row.HistoryTimeStatus == "unresolved" && (!scanning || row.Id <= lastId), token) : 0;
         var indexes = await IndexesReadyAsync(token);
-        var ready = state?.Ready == true && state.ActiveVersion == version && state.TargetVersion == version
+        var qualified = kind == "time" ? db.HistoryEnvironment.TimeQualified : db.HistoryEnvironment.TextQualified;
+        var ready = qualified && state?.Ready == true && state.ActiveVersion == version && state.TargetVersion == version
             && state.WriterVersion == WriterVersion && pending == 0 && indexes;
         return new(kind, version, state?.ActiveVersion, ready, all, pending, all - pending - unresolved, unresolved, state?.Examined ?? 0,
-            state?.Prepared ?? 0, state?.LastId ?? 0, indexes, state?.LastFailure);
+            state?.Prepared ?? 0, state?.LastId ?? 0, indexes, state?.LastFailure, qualified, db.HistoryEnvironment.Diagnostics, qualified ? null : "historyQualificationRequired: use a qualified build/runtime/globalization profile; rebuilding cannot qualify it.");
     }
 
     /// <summary>
@@ -148,6 +151,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
     /// </summary>
     internal async Task<bool> IsReadyAsync(bool time, bool text, CancellationToken token)
     {
+        db.HistoryEnvironment.Require(time, text);
         if (!time && !text) return true;
         var states = await db.HistoryPreparationStates.AsNoTracking()
             .Where(state => time && state.Kind == "time" || text && state.Kind == "text").ToListAsync(token);
@@ -203,4 +207,4 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
 
 /// <summary>Safe operational progress; pending work is separate from classified exceptional time evidence.</summary>
 internal sealed record HistoryPreparationStatus(string Kind, string TargetVersion, string? ActiveVersion, bool Ready,
-    long Total, long Pending, long Resolved, long Unresolved, long Examined, long Prepared, int LastId, bool IndexesReady, string? LastFailure);
+    long Total, long Pending, long Resolved, long Unresolved, long Examined, long Prepared, int LastId, bool IndexesReady, string? LastFailure, bool Qualified, object Environment, string? QualificationFailure);

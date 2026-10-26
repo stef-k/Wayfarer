@@ -9,10 +9,10 @@ namespace Wayfarer.Util;
 /// <summary>One deterministic derivation for stored fields and future query normalization; no network effects.</summary>
 internal static class LocationHistoryDerivation
 {
-    /// <summary>Pins the converter, packaged mapping and NodaTime historical rules.</summary>
-    internal static readonly string TimeVersion = $"history-time-1;GeoTimeZone-6.1.0;{DateTimeZoneProviders.Tzdb.VersionId}";
-    /// <summary>Pins safe extraction/folding plus runtime/ICU Unicode behavior; drift requires explicit preparation.</summary>
-    internal static readonly string TextVersion = $"history-text-1;RichNotes-2;AngleSharp-{typeof(AngleSharp.Html.Parser.HtmlParser).Assembly.GetName().Version};runtime-{Environment.Version};unicode-{CultureInfo.InvariantCulture.CompareInfo.Version.FullVersion}-{CultureInfo.InvariantCulture.CompareInfo.Version.SortId:N}";
+    /// <summary>Opaque semantic ID retained from qualified R1 data; provenance is reported separately.</summary>
+    internal const string TimeVersion = "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)";
+    /// <summary>Opaque semantic ID: compatible qualified servicing must not rename or restamp existing rows.</summary>
+    internal const string TextVersion = "history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f";
 
     /// <summary>Only these columns are excluded from canonical snapshot comparison and accepted owner edits.</summary>
     internal static bool IsDerived(string name) => name is nameof(Location.CaptureLocalTimestamp)
@@ -29,20 +29,23 @@ internal static class LocationHistoryDerivation
         or nameof(Location.Country) or nameof(Location.ResolvedFeatureName);
 
     /// <summary>Updates selected derivations only, leaving canonical originals and the other generation intact.</summary>
-    internal static void Apply(Location row, bool time, bool text)
+    internal static void Apply(Location row, bool time, bool text, HistoryDerivationEnvironment? environment = null)
     {
+        environment ??= HistoryDerivationEnvironment.Current;
+        environment.Require(time, text);
         if (time) DeriveTime(row);
         if (!text) return;
         string?[] fields = [RichNotes.ToPlainText(row.Notes), row.Address, row.FullAddress, row.ProviderAddressLine1,
             row.AddressNumber, row.StreetName, row.PostCode, row.Place, row.Region, row.Country, row.ResolvedFeatureName];
-        row.HistorySearchText = string.Join('\n', fields.Select(NormalizeText).Where(value => value.Length != 0));
+        row.HistorySearchText = string.Join('\n', fields.Select(value => NormalizeText(value, environment)).Where(value => value.Length != 0));
         row.HistoryTextVersion = TextVersion;
     }
 
     /// <summary>NFKD, selected Latin/Greek accents, invariant uppercase, whitespace collapse and NFC; literal matching.</summary>
-    internal static string NormalizeText(string? value)
+    internal static string NormalizeText(string? value, HistoryDerivationEnvironment? environment = null)
     {
         if (string.IsNullOrEmpty(value)) return "";
+        (environment ?? HistoryDerivationEnvironment.Current).Require(false, true);
         var result = new StringBuilder(value.Length);
         var accentBase = false;
         var space = false;

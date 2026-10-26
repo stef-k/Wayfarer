@@ -294,7 +294,7 @@ class BrowserRun:
             if failed:
                 self.cleanup_phase('private-evidence', self.retain_evidence)
             if not self.cleanup_errors:
-                self.cleanup_phase('artifact-removal', self.root.remove)
+                self.cleanup_phase('artifact-removal', lambda: self.root.remove(self.children))
         if self.cleanup_errors:
             print(f'Owned residue retained: {self.root.path}', file=sys.stderr)
             for phase, kind in self.cleanup_errors:

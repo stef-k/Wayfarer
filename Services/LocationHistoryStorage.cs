@@ -11,7 +11,7 @@ internal static class LocationHistoryStorage
     internal static async Task UpdateAsync(ApplicationDbContext db, Location final, bool time, bool text, CancellationToken token)
     {
         if (db.Database.CurrentTransaction == null) throw new InvalidOperationException("History publication requires a transaction.");
-        LocationHistoryDerivation.Apply(final, time, text);
+        LocationHistoryDerivation.Apply(final, time, text, db.HistoryEnvironment);
         var query = db.Locations.Where(row => row.Id == final.Id);
         if (time)
             await query.ExecuteUpdateAsync(setters => setters

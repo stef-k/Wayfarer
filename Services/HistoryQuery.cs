@@ -39,13 +39,15 @@ internal sealed class HistoryQuery
         "fromDate", "throughDate", "fromTime", "untilTime", "q", "activityIds", "includeUnassigned", "west", "south", "east", "north"];
 
     /// <summary>Rejects unknown/repeated/conflicting values, without implicit host time, rounding or range caps.</summary>
-    internal static HistoryQuery Parse(IQueryCollection values, bool overview)
+    internal static HistoryQuery Parse(IQueryCollection values, bool overview, HistoryDerivationEnvironment? environment = null)
     {
         ValidateKeys(values, Common.Concat(overview ? ["grid"] : new[] { "pageSize", "continuation", "resultSet" }));
         string? Get(string key) => values.TryGetValue(key, out var v) ? v[0] : null;
         var basis = Get("timeBasis"); var mode = Get("timeMode");
         if (basis is not ("utc" or "capture" or "viewer") || mode is not ("interval" or "days" or "daily")
             || basis == "utc" && mode != "interval") throw Invalid();
+        environment ??= HistoryDerivationEnvironment.Current;
+        environment.Require(basis != "utc", false);
         var zone = ParseZone(Get("viewerZone"));
         var timeKeys = basis == "utc" ? new[] { "startUtc", "endUtc" }
             : mode == "interval" ? ["fromLocal", "untilLocal"]
@@ -77,7 +79,7 @@ internal sealed class HistoryQuery
         if (start >= end) throw Invalid();
         var rawText = Get("q") ?? "";
         if (rawText.EnumerateRunes().Count() > 256) throw Invalid();
-        var text = LocationHistoryDerivation.NormalizeText(rawText);
+        var text = LocationHistoryDerivation.NormalizeText(rawText, environment);
         int[]? ids = null;
         if (values.ContainsKey("activityIds"))
         {

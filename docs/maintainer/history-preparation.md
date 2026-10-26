@@ -121,6 +121,93 @@ alone is insufficient. Repair a missing index through authorized schema maintena
 then resume; do not weaken matching or indexes. Restored mixed/stale rows defeat
 status even when an old preparation receipt says ready, and `prepare` sweeps them.
 
+## Servicing dependency changes
+
+Time and text have independent, explicit **semantic generation IDs**. A reviewed
+compatible dependency/runtime update retains the affected ID, prepared rows,
+active/target state, resumable checkpoints and cursor binding. An actual behavior
+change, or compatibility that cannot be justified, changes only the affected ID
+and requires its controlled rebuild. Package/runtime metadata alone is not a reason
+to rebuild. There is no automatic startup/background preparation, alias matching,
+legacy-prefix acceptance, silent restamping or forced readiness.
+
+For the R1 batch (#937/#938), **both old generations require rebuilding**:
+NodaTime 3.3.3 / TZDB 2026c → 3.3.6 / 2026e changes historical capture values
+(Dublin 1925-09-25 12:00Z changes from 13:00/+3600 to 12:00/0). AngleSharp
+1.7.1 → 1.7.2 changes visible extraction of historical MathML `TEXT/HTML` content
+from `SECRET VISIBLE` to `VISIBLE`. Unchanged recent records cannot waive these
+all-owner rebuilds. Runtime-only 10.0.13 → 10.0.14 fixture equivalence is a separate
+bounded compatibility decision, not an extra reason to rewrite rows.
+
+The first explicit IDs retain the **exact qualified R1 strings** to avoid rebuilding
+already-compatible R1 data merely for a rename:
+
+~~~text
+history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)
+history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f
+~~~
+
+These are opaque historical names. Their embedded versions do not report the
+currently executing runtime. Future semantic changes may use `history-time-2` or
+`history-text-2`; do not rename a compatible generation for cosmetic reasons.
+`history-writers-1` retains its unchanged atomic-writer meaning.
+
+### Environment qualification versus preparation
+
+`history-data status` reports actual dependency build identities, full TZDB identity,
+executing runtime and effective invariant globalization/sort profile separately from
+IDs. `Qualified` is independent of row counts/index readiness; `QualificationFailure`
+explains missing admission. Status never repairs state and returns 1 for an unready
+or unqualified selected generation. Exit 0 still requires all-owner readiness.
+
+The code-owned R1 admission checks exact GeoTimeZone 6.1.0, NodaTime 3.3.6 and
+AngleSharp 1.7.2 upstream build identities, TZDB `2026e (mapping: 49)`, and actual
+.NET 10.0.13 or 10.0.14. Text additionally requires effective ICU normalization,
+verified by a normalization control, and invariant sort version 31129 / identity
+`00007999-0000-0000-0000-00000000007f`. Time does not depend on this text profile.
+The maintained Noble image uses ICU 74.2 and runtime 10.0.14; native Ubuntu also
+qualifies on runtime 10.0.13. NuGet 10.0.14 packages do **not** imply that a probe
+executes on 10.0.14. No OS name, machine identity, path or architecture is an
+admission condition. Framework-dependent and self-contained processes are checked
+by what they actually load. Invariant mode, NLS, unknown artifacts, future runtimes
+and other globalization fingerprints need a reviewed compatibility decision first.
+This is history admission, not security-release or native-platform acceptance.
+
+Qualification is lazy and local to history; it does not stop global web startup.
+Unknown qualification cannot stamp a selected generation or activate data. New
+Locations require both qualifications; edits require each generation they actually
+recompute (including opportunistic stale-generation updates). A rejection fails the
+whole tracked/import save atomically through the caller’s existing operational-error
+path (generic HTTP failure where applicable), without a success acknowledgement.
+Both fenced bulk address publication branches
+use the same text check and transaction: address, derived text and final provider
+publication commit together or roll back together. Operational failure never becomes
+an unresolved Location. Other independent writes retain their existing boundaries.
+
+`prepare`/`rebuild` preflight every selected kind before changing any state; batches
+also check before row/checkpoint work. On qualification failure committed progress,
+active state and row facts remain untouched, while fresh status/readiness refuses
+to advertise readiness. Use a qualified build/runtime/globalization profile or have
+the maintainer qualify a supported profile. **Rebuilding alone cannot qualify an
+unsupported environment.** There is no operator version override.
+
+Capture/viewer predicates and nonempty normalized searches reject missing required
+qualification with 503 `historyQualificationRequired`, separately from 503
+`historyPreparationRequired` on a qualified but unprepared deployment. UTC nontext
+collections and direct detail remain usable. Unqualified capture/viewer publication
+says `unavailable` / `historyQualificationRequired`, retains the stored capture
+version, and advertises null for an unqualified serving generation in
+`derivationVersions`. It never calls that operational failure pending or unresolved.
+Detail still publishes safe Notes through the existing sanitizer contract.
+
+Before accepting a new dependency/profile, review relevant source/data changes and
+run the existing time, parser and Unicode fixtures at shared writer/query seams.
+Finite controls and sort equality are admission evidence, not universal behavioral
+proof. Retain IDs only with a justified compatibility decision; otherwise change
+the affected ID. Record actual profile and rationale in the servicing record.
+No compatibility registry, extra stored generation or migration framework is used.
+See the [R1 record](../development/dependency-servicing-r1.md).
+
 ## Independent rules rebuilds and readiness
 
 ~~~sh
@@ -135,12 +222,11 @@ rebuild. Changed target rules require explicit `rebuild`; arbitrary operator ver
 labels are rejected. There is one stored generation, so declare maintenance for
 affected reads while rebuilding. Unselected facts/progress stay intact.
 
-Time identity includes converter/validation version, GeoTimeZone 6.1.0 mapping
-package and the serving NodaTime TZDB identity. Text identity includes extraction/
-folding version, AngleSharp assembly identity, .NET runtime and invariant Unicode/
-[Unicode sort version and identity](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.sortversion?view=net-10.0). Deploy identical qualified runtime/globalization artifacts across
-writers/readers; an identity change requires the affected rebuild. Never relabel
-old facts as new rules. Collection cursors bind these identities.
+Deploy coherent qualified binaries across writers/readers, with the existing
+quiesced upgrade procedure. Qualification is not a live-process fence; stop old
+web/import/enrichment/CLI processes before new writers. No rolling/mixed-release
+upgrade is supported. Collection cursors bind both semantic IDs: compatible
+servicing preserves them; either semantic change rejects old continuations.
 
 Pending time has null version/status/facts; a mismatched version is also pending.
 Resolved time carries the coordinate-derived IANA zone, wall timestamp and historical
@@ -161,6 +247,74 @@ Capture predicates depend on time readiness, nonempty search on text readiness.
 Affected operations return `historyPreparationRequired`;
 unaffected UTC/viewer/nontext reads and direct detail retain their contracts.
 I918-A exposes no routes or readiness/capability advertisement to consumers.
+
+## Rollback and restored-data readiness
+
+History preparation does not authorize a binary or schema downgrade. Follow the
+existing [release authority](release-contract.md#retained-releases-and-persisted-lifecycle-authority)
+and installation recovery procedure. There is one stored generation per kind;
+rollback has no automatic-readiness or zero-downtime guarantee.
+
+1. **Stop current writers before changing binaries or restoring data.** Stop all
+   current Web, import, enrichment and CLI writer processes, including interrupted
+   maintenance processes, and keep affected reads in maintenance. Qualification and
+   the shared `history-writers-1` value are not process fences. Do not let old and
+   new writers alternate stamps.
+2. **Restoring the pre-upgrade recovery set:** use the supported
+   [managed update recovery](../self-hosting/wayfarerctl.md#update) or
+   [managed restore](../self-hosting/wayfarerctl.md#restore) procedure, or the
+   administrator-owned [native recovery boundary](../self-hosting/native-manual.md#native-backup-boundary).
+   Select a verified, compatible, coherent pre-upgrade database, complete active
+   Data Protection ring and durable uploads/imports together, with the protected
+   deployment configuration needed by that installation. This returns canonical
+   data and history state to that recovery point; it does not retain later writes.
+   Preserve the upgraded state's recovery evidence through the existing emergency
+   backup requirements, retained receipts and recovery holds. Let that authority
+   select the compatible target; merely selecting old binaries is not a restore.
+3. **Retaining the upgraded database:** consider an earlier binary only where the
+   installation's existing release procedure explicitly supports that target's
+   schema, credential and storage compatibility. Managed `update` refuses
+   downgrades; this runbook adds no downgrade route or migration reversal. If that
+   compatibility is not established, use the coherent recovery-set path. A binary
+   change alone preserves the newer row stamps, active/target state and checkpoints;
+   it does not restore the older binary's prepared generations.
+4. **Inspect with the actual recovered target.** Run
+   `dotnet Wayfarer.dll history-data status both` using that target binary, its
+   actual runtime/globalization profile and protected configuration/database
+   identity, before maintenance and again before reopening affected reads. Inspect
+   both generations' target/active/writer agreement, committed progress, all-owner
+   pending and separate unresolved counts, and valid/ready physical indexes,
+   extension and collation prerequisites. Check `Qualified` and actual diagnostics
+   when the target provides them; previous-main status lacks those fields, so use
+   its release's profile evidence rather than inventing an admission result.
+   Under R1, an unsupported profile needs qualification, not a rebuild.
+5. **Prepare only what that target requires.** The previous-main binary compares
+   exact dependency/runtime-derived IDs: newer R1 time/text stamps are stale to
+   its older rules, even if a stored Ready flag is true. A different persisted
+   target refuses ordinary `prepare`; use that binary's explicit
+   `history-data rebuild time` and/or `history-data rebuild text` for the affected
+   kinds. If R1 changed both targets, returning to previous-main rules while
+   retaining that database requires both rebuilds. Conversely, compatible R1
+   binaries retain the exact qualified IDs: do not rebuild compatible ready data
+   merely because runtime provenance changed. Resume interrupted work for the
+   same target with `history-data prepare time`, `prepare text` or `prepare both`;
+   retain its committed checkpoints and let the stale-row sweep finish. Use the
+   same preparation for missing/stale rows under an unchanged target. Rebuilds
+   recompute derived fields only; preserve canonical UTC times, coordinates,
+   Notes, addresses, identities and provenance. Never copy Ready flags, relabel
+   generations or rows, or reset import checkpoints/provider accounting.
+
+Until target-binary readiness is established, capture-basis pages, overviews and
+candidate lists remain unavailable while time is unready; any nonempty normalized
+search remains unavailable while text is unready, including UTC/viewer searches.
+Combined requests need both. Qualified but unprepared reads return 503
+`historyPreparationRequired`; R1 rejects missing required qualification separately
+with 503 `historyQualificationRequired`, including viewer-time predicates. UTC and
+qualified viewer collections without text, and direct owner detail, retain their
+independent contracts, with stale capture facts reported as pending and unqualified
+time facts unavailable. Changed generation IDs invalidate old continuations.
+Reopen each affected read only after fresh target status confirms its required
+generation ready; backup receipts or a prior binary's status are insufficient.
 
 ## Text equivalences and matching
 

@@ -12,7 +12,7 @@ const ZoomLevelControl = L.Control.extend({
         // Ruler (measure) button
         const measureBtn = L.DomUtil.create('button', '', container);
         measureBtn.title = 'Measure distance';
-        measureBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg" alt="Measure" style="width:1.2em; height:1.2em;" />`;
+        measureBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg" alt="Measure" style="width:1.2em; height:1.2em;" />`;
 
         let measureActive = false;
         let currentTool = null;
@@ -49,7 +49,7 @@ const ZoomLevelControl = L.Control.extend({
         // Create copy button using Bootstrap Icon
         const copyBtn = L.DomUtil.create('button', '', container);
         copyBtn.title = 'Copy map link';
-        copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
+        copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
 
         // Update zoom text on zoom changes
         map.on('zoomend', () => {
@@ -61,9 +61,9 @@ const ZoomLevelControl = L.Control.extend({
             L.DomEvent.stopPropagation(e);
             const url = window.location.href;
             const showSuccess = () => {
-                copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/check.svg" alt="Copied" style="width:1.2em; height:1.2em;" />`;
+                copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/check.svg" alt="Copied" style="width:1.2em; height:1.2em;" />`;
                 setTimeout(() => {
-                    copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
+                    copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
                 }, 1500);
             };
 

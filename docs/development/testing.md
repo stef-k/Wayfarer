@@ -230,7 +230,13 @@ Python stops and reaps its owned host, Node/browser and helper children, verifie
 endpoint release, runs fixture cleanup and a separate verification, then deletes
 only its exact owned root. Cancellation uses the same finalizer. Primary failure
 status is preserved if cleanup also fails. Unproved ownership retains marked
-residue; no stale process/root is adopted. Private failed-run logs are retained
+residue; no stale process/root is adopted. On Linux only, final removal accepts
+the exact CLR debug FIFOs and diagnostic socket directly in that root's `TempRoot`
+for retained children whose stop/reap completed. Names must match their same-boot
+PID/start token, including Linux's byte-limited socket path; an occupied/reused
+PID, wrong type/owner, shared inode, link or other special file is refused.
+The default filesystem checks remain ordinary-only, and JSON evidence never grants
+deletion authority. Private failed-run logs are retained
 under `.local/browser-e2e/<run UUID>`. Managed traces/videos and shared-layout
 automatic failure screenshots are disabled because pairing/typing can reveal
 credentials; the existing safe post-hide screenshot remains local.
@@ -266,10 +272,10 @@ Ordinary Markdown documentation has no product evidence owner (except executable
 
 ## Code Guard
 
-The repository currently pins Agent Code Guard 0.5.0. Install that published version in an isolated environment such as pipx:
+The repository currently pins Agent Code Guard 0.5.1. Install that published version in an isolated environment such as pipx:
 
 ~~~sh
-pipx install agent-code-guard==0.5.0
+pipx install agent-code-guard==0.5.1
 code-guard --version
 code-guard doctor --json
 ~~~

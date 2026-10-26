@@ -53,6 +53,24 @@ class SupervisorTests(unittest.TestCase):
         self.run.verify_release(self.run.port)
         self.assertFalse(self.run.root.path.exists())
 
+    @unittest.skipUnless(sys.platform == 'linux', 'CLR diagnostic residue is Linux-specific')
+    def test_finalization_removes_stopped_host_clr_residue(self):
+        """The retained host's exact FIFO/socket residue does not fail successful cleanup."""
+        self.host()
+        record = self.run.host.record
+        temporary = Path(self.run.env['TMPDIR'])
+        for suffix in ('in', 'out'):
+            os.mkfifo(temporary / f'clr-debug-pipe-{record["pid"]}-{record["start"]}-{suffix}')
+        endpoint = os.fsencode(temporary / f'dotnet-diagnostic-{record["pid"]}-{record["start"]}-socket')[:107]
+        with socket.socket(socket.AF_UNIX) as diagnostic:
+            diagnostic.bind(endpoint)
+        try:
+            self.assertTrue(self.run.finalize())
+            self.assertFalse(self.run.root.path.exists())
+        finally:
+            for entry in temporary.glob('*'):
+                entry.unlink()
+
     def test_occupied_endpoint_fails_before_source_or_fixture_mutation(self):
         """A foreign listener is never accepted as readiness or stopped by finalization."""
         with socket.socket() as listener:

@@ -6,6 +6,10 @@ namespace Wayfarer.Models;
 /// <summary>Owns atomic final-row derivation for every tracked Location writer, including sync callers.</summary>
 public partial class ApplicationDbContext
 {
+    /// <summary>One immutable environment shared by tracked, bulk, preparation and routed read boundaries.</summary>
+    internal HistoryDerivationEnvironment HistoryEnvironment =>
+        _serviceProvider.GetService<HistoryDerivationEnvironment>() ?? HistoryDerivationEnvironment.Current;
+
     /// <summary>Durable independent preparation generations and progress.</summary>
     public DbSet<HistoryPreparationState> HistoryPreparationStates { get; set; }
 
@@ -54,7 +58,7 @@ public partial class ApplicationDbContext
                 || modified.Any(LocationHistoryDerivation.IsTimeInput);
             var text = added || final.HistoryTextVersion != LocationHistoryDerivation.TextVersion
                 || modified.Any(LocationHistoryDerivation.IsTextInput);
-            LocationHistoryDerivation.Apply(final, time, text);
+            LocationHistoryDerivation.Apply(final, time, text, HistoryEnvironment);
             foreach (var property in entry.Properties.Where(property => LocationHistoryDerivation.IsDerived(property.Metadata.Name)))
             {
                 property.CurrentValue = Entry(final).Property(property.Metadata.Name).CurrentValue;

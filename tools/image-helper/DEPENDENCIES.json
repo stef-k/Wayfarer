@@ -51,9 +51,9 @@
     },
     {
       "name": "cc",
-      "version": "1.8.0",
+      "version": "1.10.0",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "checksum": "6651c9ed80effdc7db0ff72512157f901af5e3549e341e24b1dd4887d836d838",
+      "checksum": "86e055fa6e3e40ad6187ba25b6855eeb635d5271f8e0f0e1e9a5826b8d75bea0",
       "license": "MIT OR Apache-2.0"
     },
     {
@@ -79,9 +79,9 @@
     },
     {
       "name": "crc32fast",
-      "version": "1.5.2",
+      "version": "1.5.3",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "checksum": "01a7799fd6b852db0e61728dde9a204c423b44d689dbd432522543614b490e78",
+      "checksum": "0ba106e844045ddc02c20768ac4b0b7cb45f2cc2ecbd833ac9f5dacb183c2055",
       "license": "MIT OR Apache-2.0"
     },
     {
@@ -107,9 +107,9 @@
     },
     {
       "name": "find-msvc-tools",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "checksum": "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484",
+      "checksum": "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48",
       "license": "MIT OR Apache-2.0"
     },
     {
@@ -155,9 +155,9 @@
     },
     {
       "name": "libc",
-      "version": "0.2.177",
+      "version": "0.2.191",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "checksum": "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976",
+      "checksum": "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a",
       "license": "MIT OR Apache-2.0"
     },
     {
@@ -190,9 +190,9 @@
     },
     {
       "name": "moxcms",
-      "version": "0.8.0",
+      "version": "0.8.1",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "checksum": "04e5f643aebb3c117fa77e268557e3bf19e250769062820fcaf3ff33ea560adf",
+      "checksum": "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b",
       "license": "BSD-3-Clause OR Apache-2.0"
     },
     {
@@ -408,11 +408,11 @@
       "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
     },
     {
-      "notice": "cc 1.8.0 / LICENSE-APACHE",
+      "notice": "cc 1.10.0 / LICENSE-APACHE",
       "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
     },
     {
-      "notice": "cc 1.8.0 / LICENSE-MIT",
+      "notice": "cc 1.10.0 / LICENSE-MIT",
       "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
     },
     {
@@ -436,11 +436,11 @@
       "sha256": "592dc80f1a865d20d61a2006a2d29ce34a2bc28cd7e868ab300fdeed6da154ca"
     },
     {
-      "notice": "crc32fast 1.5.2 / LICENSE-APACHE",
-      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+      "notice": "crc32fast 1.5.3 / LICENSE-APACHE",
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
     },
     {
-      "notice": "crc32fast 1.5.2 / LICENSE-MIT",
+      "notice": "crc32fast 1.5.3 / LICENSE-MIT",
       "sha256": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf"
     },
     {
@@ -468,11 +468,11 @@
       "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
     },
     {
-      "notice": "find-msvc-tools 0.1.14 / LICENSE-APACHE",
+      "notice": "find-msvc-tools 0.1.15 / LICENSE-APACHE",
       "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
     },
     {
-      "notice": "find-msvc-tools 0.1.14 / LICENSE-MIT",
+      "notice": "find-msvc-tools 0.1.15 / LICENSE-MIT",
       "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
     },
     {
@@ -516,12 +516,12 @@
       "sha256": "22b83fb92a50418c7df9564b9c179fa2a0e74f293bc58b72dd7e218fc0902143"
     },
     {
-      "notice": "libc 0.2.177 / LICENSE-APACHE",
+      "notice": "libc 0.2.191 / LICENSE-APACHE",
       "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
     },
     {
-      "notice": "libc 0.2.177 / LICENSE-MIT",
-      "sha256": "a8d47ff51ca256f56a8932dba07660672dbfe3004257ca8de708aac1415937a1"
+      "notice": "libc 0.2.191 / LICENSE-MIT",
+      "sha256": "123a331b5dbf04c30097fa43b8f858bc85df671fe776de498d01f3d6b7c1f69e"
     },
     {
       "notice": "libjpeg-turbo-rs 0.8.0 / LICENSE-APACHE",
@@ -572,12 +572,12 @@
       "sha256": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39"
     },
     {
-      "notice": "moxcms 0.8.0 / LICENSE-APACHE.md",
+      "notice": "moxcms 0.8.1 / LICENSE-APACHE.md",
       "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5"
     },
     {
-      "notice": "moxcms 0.8.0 / LICENSE.md",
-      "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+      "notice": "moxcms 0.8.1 / LICENSE.md",
+      "sha256": "4b6c5ac5c550bea22b1d6455684b21d94ca96f3bcbbc2840b793180707ed582a"
     },
     {
       "notice": "num-traits 0.2.19 / LICENSE-APACHE",

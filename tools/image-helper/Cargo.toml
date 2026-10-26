@@ -16,8 +16,8 @@ gif = "=0.14.2"
 # Temporary production source: immutable official fix; track its published replacement under #858/#807.
 # Update the version/checksum/notices and independently review the retained regression before adoption.
 image-webp = { git = "https://github.com/image-rs/image-webp", rev = "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f" }
-moxcms = { version = "=0.8.0", features = ["lut"] }
-libc = "=0.2.177"
+moxcms = { version = "=0.8.1", features = ["lut"] }
+libc = "=0.2.191"
 # Pure Rust JPEG decode with portable runtime SIMD dispatch; bounded native JPEG output.
 libjpeg-turbo-rs = "=0.8.0"
 turbojpeg = "=1.5.1"

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.CommandLine;
 
@@ -32,6 +33,8 @@ internal static class LocationHistoryCli
             await using var db = new ApplicationDbContext(options, services);
             var preparation = new LocationHistoryPreparation(db);
             string[] kinds = args.Length == 3 && args[2] != "both" ? [args[2]] : ["time", "text"];
+            // Preflight both before either BeginAsync can reset durable maintenance state.
+            if (args[1] != "status") db.HistoryEnvironment.Require(kinds.Contains("time"), kinds.Contains("text"));
             // Mark every selected generation unavailable before rebuilding any rows.
             if (args[1] != "status")
                 foreach (var kind in kinds) await preparation.BeginAsync(kind, args[1] == "rebuild", cancellation.Token);
@@ -55,6 +58,12 @@ internal static class LocationHistoryCli
             }
             await transaction.CommitAsync(cancellation.Token);
             return ready ? 0 : 1;
+        }
+        catch (HistoryQualificationException failure)
+        {
+            await error.WriteLineAsync(failure.Message);
+            await error.WriteLineAsync(JsonSerializer.Serialize(failure.Environment.Diagnostics));
+            return 1;
         }
         catch (OperationCanceledException)
         { await error.WriteLineAsync("History preparation cancelled; committed batches remain resumable."); return 130; }
