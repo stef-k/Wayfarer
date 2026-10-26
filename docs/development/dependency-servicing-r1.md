@@ -34,6 +34,10 @@ Application version, database authority and migrations are unchanged.
 | SortableJS; Tom Select | 1.15.6; 2.4.3 | 1.15.7; 2.6.2 |
 | Rust libc; moxcms | 0.2.177; 0.8.0 | 0.2.191; 0.8.1 |
 | Rust cc; find-msvc-tools; crc32fast | 1.8.0; 0.1.14; 1.5.2 | 1.10.0; 0.1.15; 1.5.3 |
+| Parent-owned SqlClient; SNI runtime | 6.1.6; 6.0.2 | 6.1.7; 6.0.3 |
+| SQLitePCLRaw bundle/core/provider/native | 2.1.12 | 2.1.13 |
+| PKCS application graph; PKCS/XML recovery graph | 9.0.11; 10.0.11 | 9.0.22; 10.0.14 |
+| SDK-owned ILLink task | 10.0.13 | 10.0.14 |
 | Noble SDK; .NET/ASP.NET runtime | 10.0.401; 10.0.12 | 10.0.403; 10.0.14 |
 
 ## Security and resolution
@@ -74,7 +78,7 @@ History derivation already pins `DateTimeZoneProviders.Tzdb.VersionId` in
 These updates naturally change the required generation. Existing preparation
 readiness rejects mismatched generations. No startup rebuild, migration, historical
 capture-fact rewrite or reinterpretation is added. Operators must review and
-explicitly prepare the affected derived generations through the existing
+explicitly rebuild the affected derived generations through the existing
 [history preparation contract](../maintainer/history-preparation.md) before relying
 on prepared reads. Canonical timestamps, coordinates and imported timezone evidence
 remain intact.
@@ -89,7 +93,10 @@ retain supplied licenses and referenced maps. Quill's previously missing referen
 license text and map are supplied from its existing 2.0.3 distribution.
 [Third-party notices](../../THIRD-PARTY-NOTICES.txt) and the helper's complete
 [dependency/license inventory](../../tools/image-helper/DEPENDENCIES.json) accompany
-the updates. No licensing policy is changed.
+the updates. No licensing policy is changed. The root Moq notice's stale MIT label is corrected
+to the official BSD-3-Clause metadata; the assessed old/new package license is
+unchanged. Older GeoTimeZone, Playwright and MvcFrontendKit notice labels are
+reconciled to their unchanged actual inventory versions.
 
 Immutable Noble image indices:
 

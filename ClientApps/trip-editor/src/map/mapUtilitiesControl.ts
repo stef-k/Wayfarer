@@ -11,8 +11,8 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
   control.onAdd = (map: LeafletMap) => {
     const container = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-utilities');
     const zoomText = L.DomUtil.create('span', 'trip-editor-map-utilities__zoom', container);
-    const measureButton = mapUtilityButton(container, 'Measure distance', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/rulers.svg');
-    const copyButton = mapUtilityButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.1/link-45deg.svg');
+    const measureButton = mapUtilityButton(container, 'Measure distance', '/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg');
+    const copyButton = mapUtilityButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg');
     let measureTool: ReturnType<typeof createDistanceMeasureTool> | null = null;
     let copyTimer: number | null = null;
     let copyFeedbackControl: L.Control | null = null;

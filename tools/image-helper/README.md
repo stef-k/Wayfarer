@@ -144,7 +144,10 @@ No active project depends on ImageSharp. Test-only Magick.NET 15.0.0 independent
 checks output pixels, dimensions, frames, orientation and ICC/EXIF/XMP. Frozen,
 hashed source encodings replace runtime fixture generation; see the
 [oracle and fixture provenance](../../tests/Wayfarer.Tests/Fixtures/Imaging/README.md).
-The research qualification corpus and Rust production dependencies remain unchanged.
+The research qualification corpus remains unchanged. The
+[R1 servicing record](../../docs/development/dependency-servicing-r1.md) updates only
+libc 0.2.191, moxcms 0.8.1, cc 1.10.0, find-msvc-tools 0.1.15 and crc32fast 1.5.3;
+Rust 1.90.0, codec families and the qualified WebP Git source remain fixed.
 
 Tracking under **#858/#807**: replace this temporary WebP Git source when an
 official crates.io version containing the qualified fix is available. Confirm

@@ -201,6 +201,14 @@ https://github.com/SortableJS/Sortable
 
 --------------------------------------------------------------------------------
 
+Tom Select 2.6.2
+----------------
+https://tom-select.js.org/
+Copyright (c) Brian Reavis & contributors; Tom Select contributors.
+Licensed under the Apache License, Version 2.0. Complete text: wwwroot/lib/tom-select/LICENSE.
+
+--------------------------------------------------------------------------------
+
 Turf.js
 -------
 https://turfjs.org/
@@ -226,7 +234,7 @@ Licensed under the MS-PL and Apache License, Version 2.0 (dual license).
 
 --------------------------------------------------------------------------------
 
-GeoTimeZone 6.0.0
+GeoTimeZone 6.1.0
 -----------------
 https://github.com/mattjohnsonpint/GeoTimeZone
 Copyright (c) Matt Johnson-Pint
@@ -366,7 +374,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-Microsoft.Playwright 1.62.0
+Microsoft.Playwright 1.63.0
 ---------------------------
 https://playwright.dev/dotnet/
 Copyright (c) Microsoft Corporation
@@ -375,10 +383,10 @@ Licensed under the Apache License, Version 2.0.
 
 --------------------------------------------------------------------------------
 
-MvcFrontendKit 1.0.0-preview.24
+MvcFrontendKit 1.1.0
 -------------------------------
 https://www.nuget.org/packages/MvcFrontendKit
-https://github.com/nickofc/MvcFrontendKit
+https://github.com/stef-k/MvcFrontendKit
 
 Licensed under the MIT License.
 
@@ -402,7 +410,7 @@ Moq 4.21.0
 https://github.com/devlooped/moq
 Copyright (c) 2007-2024 Moq Contributors
 
-Licensed under the MIT License.
+Licensed under the BSD 3-Clause License (official NuGet nuspec).
 
 --------------------------------------------------------------------------------
 
@@ -424,7 +432,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-Coverlet 10.0.1
+Coverlet 10.1.0
 ----------------
 https://github.com/coverlet-coverage/coverlet
 Copyright (c) 2018 Toni Solarin-Sodara
@@ -495,12 +503,6 @@ limitations under the License.
 Copyright 2025 Stef Kariotidis / Wayfarer
 
 --------------------------------------------------------------------------------
-
-Tom Select 2.6.2
-----------------
-https://tom-select.js.org/
-Copyright (c) Brian Reavis & contributors; Tom Select contributors.
-Licensed under the Apache License, Version 2.0. Complete text: wwwroot/lib/tom-select/LICENSE.
 
 Quill complete bundled implementation notices: wwwroot/lib/quill/quill.js.LICENSE.txt.
 Routine servicing provenance and exact package/security dispositions:

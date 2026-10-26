@@ -14,9 +14,6 @@
   record. Updated timezone/parser/runtime generation identities require explicit
   history preparation rebuilds; this maintenance does not rewrite historical facts.
 
-
-### Changed
-
 - Correct #915's demonstrated certificate trust paths: hash-bound pip bootstrap
   before both CI dependency installs, patched immutable build Node, explicit
   signed Rust/.NET build and final-runtime CA packages, patched Node for the
