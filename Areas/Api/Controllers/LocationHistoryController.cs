@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -61,10 +62,12 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
                 Response.Headers.RetryAfter = "5";
                 throw new HistoryRequestException(status == 429 ? "historyOwnerAdmissionExceeded" : "historyAdmissionUnavailable", status);
             }
-            var query = id == null ? HistoryQuery.Parse(Request.Query, overview) : null;
+            var query = id == null ? HistoryQuery.Parse(Request.Query, overview, db.HistoryEnvironment) : null;
             var zone = id != null ? HistoryQuery.DetailZone(Request.Query) : query!.Zone;
             return await ReadSnapshotAsync(user.Id, overview, id, query, zone, duration - clock.Elapsed, token);
         }
+        catch (HistoryQualificationException)
+        { return StatusCode(503, new { code = "historyQualificationRequired", message = "History environment qualification is required; rebuilding cannot qualify it." }); }
         catch (HistoryRequestException failure)
         { return StatusCode(failure.Status, new { code = failure.Code, message = Message(failure.Code) }); }
         catch (OperationCanceledException) when (disconnect.IsCancellationRequested) { throw; }

@@ -7,19 +7,27 @@ namespace Wayfarer.Services;
 /// <summary>Explicit wire facts; internal search/preparation fields and credentials never enter a publication.</summary>
 internal static class HistoryPublication
 {
-    internal static object Versions => new { time = LocationHistoryDerivation.TimeVersion, text = LocationHistoryDerivation.TextVersion,
-        interpretation = HistoryCursor.Rules };
+    /// <summary>Unqualified semantics are never advertised as serving-current; stored row provenance remains visible.</summary>
+    internal static object Versions => VersionsFor(HistoryDerivationEnvironment.Current);
+
+    /// <summary>Only qualification affects availability; actual artifact metadata never changes the contract IDs.</summary>
+    internal static object VersionsFor(HistoryDerivationEnvironment environment) => new
+    {
+        time = environment.TimeQualified ? LocationHistoryDerivation.TimeVersion : null,
+        text = environment.TextQualified ? LocationHistoryDerivation.TextVersion : null,
+        interpretation = HistoryCursor.Rules
+    };
 
     /// <summary>Only bounded selected-row previews cross the SQL boundary, and truncation is explicit.</summary>
-    internal static Dictionary<string, object?> Summary(HistorySummaryRow row, DateTimeZone zone, bool candidate)
+    internal static Dictionary<string, object?> Summary(HistorySummaryRow row, DateTimeZone zone, bool candidate, HistoryDerivationEnvironment? environment = null)
     {
         var result = new Dictionary<string, object?>
         {
             ["locationId"] = row.Id, ["uuid"] = row.Uuid?.ToString("D"),
             ["eventUtc"] = row.EventUtc is { } instant ? HistoryQuery.Utc(instant) : new { status = "unavailable", reason = "invalidEventUtc" },
             ["position"] = Position(row.Longitude, row.Latitude),
-            ["captureTime"] = Capture(row.CaptureLocal, row.CaptureZone, row.CaptureOffset, row.TimeStatus, row.TimeVersion, row.TimeFailure),
-            ["viewerTime"] = Viewer(row.EventUtc, zone), ["activityTypeId"] = row.ActivityTypeId,
+            ["captureTime"] = Capture(row.CaptureLocal, row.CaptureZone, row.CaptureOffset, row.TimeStatus, row.TimeVersion, row.TimeFailure, environment),
+            ["viewerTime"] = Viewer(row.EventUtc, zone, environment), ["activityTypeId"] = row.ActivityTypeId,
             ["activityNamePreview"] = Preview(row.ActivityName), ["labelPreview"] = Preview(row.Label)
         };
         if (candidate)
@@ -44,8 +52,10 @@ internal static class HistoryPublication
         : new { status = "unavailable", reason = "invalidCoordinates" };
 
     /// <summary>Prepared capture facts retain their generation; stale/missing preparation never becomes invented evidence.</summary>
-    internal static object Capture(DateTime? local, string? zone, int? offset, string? status, string? version, string? failure)
+    internal static object Capture(DateTime? local, string? zone, int? offset, string? status, string? version, string? failure, HistoryDerivationEnvironment? environment = null)
     {
+        if (!(environment ?? HistoryDerivationEnvironment.Current).TimeQualified)
+            return new { status = "unavailable", reason = "historyQualificationRequired", version };
         if (version != LocationHistoryDerivation.TimeVersion)
             return new { status = "pendingPreparation", reason = "historyPreparationRequired", version };
         if (status == "resolved" && local != null && zone != null && offset != null)
@@ -54,8 +64,10 @@ internal static class HistoryPublication
     }
 
     /// <summary>Viewer facts use the very same serving rules as the SQL offset segments.</summary>
-    internal static object Viewer(DateTime? eventUtc, DateTimeZone zone)
+    internal static object Viewer(DateTime? eventUtc, DateTimeZone zone, HistoryDerivationEnvironment? environment = null)
     {
+        if (!(environment ?? HistoryDerivationEnvironment.Current).TimeQualified)
+            return new { status = "unavailable", reason = "historyQualificationRequired", version = (string?)null };
         if (eventUtc == null) return new { status = "unavailable", reason = "invalidEventUtc", version = LocationHistoryDerivation.TimeVersion };
         try
         {

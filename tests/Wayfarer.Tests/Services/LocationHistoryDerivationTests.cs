@@ -72,6 +72,44 @@ public sealed class LocationHistoryDerivationTests
         Assert.Equal(LocationHistoryDerivation.TimeVersion, row.HistoryTimeVersion);
     }
 
+    /// <summary>R1 changed historical rules and parser behavior; ordinary recent controls cannot waive either rebuild.</summary>
+    [Fact]
+    public void R1CounterexamplesUseTheQualifiedSemanticGenerations()
+    {
+        var row = Row();
+        row.Coordinates = new Point(-6.2603, 53.3498) { SRID = 4326 };
+        row.LocalTimestamp = new DateTime(1925, 9, 25, 12, 0, 0, DateTimeKind.Utc);
+        row.Notes = "<math><annotation-xml encoding='TEXT/HTML'><style><p>secret</p></style></annotation-xml></math><p>visible</p>";
+        LocationHistoryDerivation.Apply(row, true, true);
+        Assert.Equal(row.LocalTimestamp.Ticks, row.CaptureLocalTimestamp!.Value.Ticks);
+        Assert.Equal(0, row.CaptureOffsetSeconds); // Old-main TZDB returned +3600.
+        Assert.Equal("VISIBLE", row.HistorySearchText); // Old-main parser exposed SECRET VISIBLE.
+        Assert.Equal("history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)", row.HistoryTimeVersion);
+        Assert.Equal("history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f", row.HistoryTextVersion);
+    }
+
+    /// <summary>Unknown time and text profiles reject before touching either selected generation, including invalid evidence.</summary>
+    [Fact]
+    public void QualificationIsIndependentAndNeverBecomesUnresolvedEvidence()
+    {
+        var current = HistoryDerivationEnvironment.Current;
+        Assert.True(current.TimeQualified); Assert.True(current.TextQualified);
+        var row = Row(); row.Coordinates = new Point(double.NaN, 10) { SRID = 4326 };
+        var unknownText = current with { Parser = "unreviewed-parser" };
+        Assert.True(unknownText.TimeQualified); Assert.False(unknownText.TextQualified);
+        Assert.Throws<HistoryQualificationException>(() => LocationHistoryDerivation.Apply(row, true, true, unknownText));
+        Assert.Null(row.HistoryTimeStatus); Assert.Null(row.HistoryTimeVersion); Assert.Null(row.HistoryTextVersion);
+        var unknownTime = current with { Tzdb = "unreviewed-rules" };
+        Assert.False(unknownTime.TimeQualified); Assert.True(unknownTime.TextQualified);
+        Assert.Throws<HistoryQualificationException>(() => LocationHistoryDerivation.Apply(row, true, false, unknownTime));
+        Assert.Null(row.HistoryTimeStatus);
+        foreach (var unknown in new[] { current with { Runtime = new Version(10, 0, 15) },
+                     current with { SortVersion = 0 }, current with { IcuNormalization = false } })
+            Assert.Throws<HistoryQualificationException>(() => LocationHistoryDerivation.NormalizeText("café", unknown));
+        LocationHistoryDerivation.Apply(row, false, true, unknownTime);
+        Assert.Equal(LocationHistoryDerivation.TextVersion, row.HistoryTextVersion);
+    }
+
     /// <summary>Canonical fixtures intentionally retain a conflicting imported zone.</summary>
     private static Location Row() => new()
     {
