@@ -221,7 +221,7 @@ are separate evidence; this does not claim a new end-to-end browser result or na
 Windows validation.
 
 Complete-change `code-guard . --base-ref main --ci` is **REVIEW**, with no
-FAIL/INCOMPLETE and policy-relaxation PASS (29 selected, 16 analyzed, 13
+FAIL/INCOMPLETE and policy-relaxation PASS (30 selected, 17 analyzed, 13
 inapplicable; 2,152 existing vendor exclusions). Accepted findings: Viewer remains
 929 LOC within its existing 934 allowance; map utility callables remain
 113/104/84/116 LOC with only the prior R1 icon URL edits; `BrowserRun.execute`
