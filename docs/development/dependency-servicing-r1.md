@@ -122,3 +122,57 @@ This batch leaves those bytes and the old/new transition gate unchanged.
 **#915 remains open** for earlier acquisition qualification, Caddy compatibility
 and create-only publication obligations. Source maintenance does not replace
 installed artifacts, authorize publication or waive native architecture gates.
+
+## Local validation and remaining evidence
+
+Using the official hash-verified SDK 10.0.403 / runtime 10.0.14 on Linux x64:
+
+- Release build and **264 focused .NET tests** pass, including Notes sanitization,
+  rich-note contracts, generated Swagger, timezone/DST, history and helper behavior.
+- The existing coverage utility passes **5,506 ordinary tests, zero skips** and
+  generates nonempty Cobertura (29,793,080 bytes) and ReportGenerator HTML
+  (285,559-byte index). Spatialite, privileged and .NET browser selections remain
+  outside this ordinary selection; this is not a full-suite-green claim.
+- All ten projects restore. Separate application, recovery, operator and test
+  NuGet audits report no vulnerable packages after the constraint. Complete graphs
+  contain 146 distinct ID/version pairs; the license inventory is inspected.
+- **440 client tests**, typecheck, Vite build and built-asset smoke pass. npm audit
+  retains the one low-severity Quill advisory documented above.
+- **Six locked Rust tests**, formatting and Clippy pass. All 106 shipped helper
+  notice hashes and 2,152 copied distribution files are verified. Native Linux x64
+  app/operator/recovery publishes pass; self-contained payloads bind runtime 10.0.14.
+- The Linux AMD64 image builds and passes the existing read-only/non-root,
+  network-disabled Chromium/PDF/helper rejection/cap smoke. Local manifest is
+  `sha256:b9ad5e6daa999e6ffc0f78ebb93344b03b0571bff2cb02a0bc5b3d59f6448326`
+  (config `sha256:9b40eea1a047e98717a21cd2b3a7fc16eb9fbc50f1132b0aceb5561e8a713168`).
+  Actual .NET/ASP.NET are 10.0.14; CA package is 20260816ubuntu0.24.04.1.
+  Its extracted bundle excludes emSign G3 and retains ISRG X1 (120 roots).
+  The initial registry-DNS attempt failed before building; its one recheck passed.
+  ARM64 manifests/configs are verified metadata, with native execution pending CI.
+  This local image has no publication or installed-system acceptance claim.
+- Four existing Quill/server-normalized Notes acknowledgement browser regressions
+  pass. Two existing mounted navbar/Notes/modal/print/editor journeys pass. The
+  managed command nevertheless returns 1 after successful process and database
+  cleanup: its artifact guard refuses retained CLR diagnostic FIFOs/socket. The
+  first attempt stopped at key-readiness while tests overlapped; its single rerun
+  passed that prerequisite. No third rebuild or harness redesign is included. Cluster expansion, selector
+  keyboard/clear and drag gestures are not newly claimed by these two journeys;
+  their distribution identity and existing lower-seam tests are narrower evidence.
+- Code Guard 0.5.1 doctor is healthy. Complete-branch analysis is **REVIEW**, with
+  no FAIL/INCOMPLETE and policy-relaxation PASS. Existing Viewer size stays within
+  its 934-LOC allowance (929). Map utility callables are unchanged in size (113,
+  104, 84, 116); only icon URLs change. The 1,532-line changelog and unchanged
+  254-line historical Fixed section remain coherent release history. These reviews
+  are accepted without policy, threshold, baseline or exclusion changes. Handwritten
+  diff hygiene passes; original Markercluster whitespace and Sortable license CRLF
+  are retained as verified upstream distribution bytes.
+
+Evidence is retained separately at
+`/home/stef/.local/share/wayfarer-investigations/r1-servicing-20261026/`, including
+registry/archive hashes, before/after graph inventories, licenses, native payloads,
+audit outputs, test/build logs, coverage HTML and a safe modal screenshot. Original
+browser residue is retained at the path recorded in `evidence/browser-residue.json`.
+The artifact-cleanup failure needs a focused follow-up before merge; it is fixture
+infrastructure evidence, with no observed product failure. Independent exact-head
+review, successful applicable native/image CI and maintainer acceptance remain
+required. This implementation opens a draft PR and checks CI startup once only.
