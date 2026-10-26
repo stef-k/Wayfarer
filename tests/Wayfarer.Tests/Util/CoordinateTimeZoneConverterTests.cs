@@ -36,4 +36,17 @@ public class CoordinateTimeZoneConverterTests
 
         Assert.Equal(new DateTime(2024, 1, 15, 12, 0, 0), local);
     }
+    /// <summary>Servicing timezone data must retain strict rejection of missing or ambiguous local times.</summary>
+    [Theory]
+    [InlineData(3, 9, 2)]
+    [InlineData(11, 2, 1)]
+    public void ConvertToUtc_RejectsDstGapAndFold(int month, int day, int hour)
+    {
+        var local = new DateTime(2025, month, day, hour, 30, 0, DateTimeKind.Unspecified);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CoordinateTimeZoneConverter.ConvertToUtc(40.7128, -74.0060, local));
+        Assert.IsAssignableFrom<ArgumentException>(error.InnerException);
+    }
+
 }

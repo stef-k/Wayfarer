@@ -170,4 +170,18 @@ public class DateTimeUtilsTests
         Assert.Equal(17, result.Hour);
         Assert.Equal(30, result.Minute);
     }
+    /// <summary>IANA and Windows mappings preserve the repeated local hour across the DST fold.</summary>
+    [Theory]
+    [InlineData("America/New_York")]
+    [InlineData("Eastern Standard Time")]
+    public void ConvertUtcToLocalTime_PreservesBothInstantsInDstFold(string zone)
+    {
+        var earlier = new DateTime(2025, 11, 2, 5, 30, 0, DateTimeKind.Utc);
+        var later = earlier.AddHours(1);
+        var local = new DateTime(2025, 11, 2, 1, 30, 0, DateTimeKind.Unspecified);
+
+        Assert.Equal(local, DateTimeUtils.ConvertUtcToLocalTime(earlier, zone));
+        Assert.Equal(local, DateTimeUtils.ConvertUtcToLocalTime(later, zone));
+    }
+
 }

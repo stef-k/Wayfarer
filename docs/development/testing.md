@@ -266,10 +266,10 @@ Ordinary Markdown documentation has no product evidence owner (except executable
 
 ## Code Guard
 
-The repository currently pins Agent Code Guard 0.5.0. Install that published version in an isolated environment such as pipx:
+The repository currently pins Agent Code Guard 0.5.1. Install that published version in an isolated environment such as pipx:
 
 ~~~sh
-pipx install agent-code-guard==0.5.0
+pipx install agent-code-guard==0.5.1
 code-guard --version
 code-guard doctor --json
 ~~~

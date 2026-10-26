@@ -10,7 +10,7 @@ COPY tools/image-helper/Cargo.toml tools/image-helper/Cargo.lock ./
 COPY tools/image-helper/src/ ./src/
 RUN cargo build --release --locked
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b AS build
 ARG TARGETARCH
 COPY --from=node /usr/local/ /usr/local/
 # Signed Noble CA correction must precede NuGet/npm acquisition, even on a cached base.
@@ -27,7 +27,7 @@ RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) e
     && dotnet build Wayfarer.csproj -c Release -r "$rid" --no-restore -p:ImageHelperPrebuilt=/image-helper/wayfarer-image \
     && dotnet publish Wayfarer.csproj -c Release -r "$rid" --self-contained false --no-build --no-restore -p:ImageHelperPrebuilt=/image-helper/wayfarer-image -o /publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee AS runtime
 ARG TARGETARCH
 WORKDIR /app
 COPY --from=build /publish/.playwright/ ./.playwright/

@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Changed
+- Service the assessed R1 dependency batch: .NET/ASP.NET/EF 10.0.14 and immutable
+  SDK 10.0.403/runtime 10.0.14 Noble bases; sanitizer/timezone/OpenAPI and compatible
+  test/report tools; Vite/Vue/Quill; copied Bootstrap/icons, validation, clusters,
+  sorting and selectors; selected Rust helper crates; Code Guard 0.5.1.
+- Retain a PKCS 9.0.22 security constraint where SqlClient still admits vulnerable
+  package-local assemblies. Preserve parent-owned ranges elsewhere, existing CA
+  acquisition corrections, analyzer policy and release gates. Record exact versions,
+  asset provenance, Quill advisory disposition and deferrals in the R1 dependency
+  record. Updated timezone/parser/runtime generation identities require explicit
+  history preparation rebuilds; this maintenance does not rewrite historical facts.
+
+
+### Changed
 
 - Correct #915's demonstrated certificate trust paths: hash-bound pip bootstrap
   before both CI dependency installs, patched immutable build Node, explicit

@@ -72,7 +72,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-Leaflet.markercluster 1.4.1
+Leaflet.markercluster 1.5.3
 ---------------------------
 https://github.com/Leaflet/Leaflet.markercluster
 Copyright (c) 2012 David Leaver
@@ -118,7 +118,7 @@ https://jquery.org/license
 
 --------------------------------------------------------------------------------
 
-jQuery Validation Plugin 1.21.0
+jQuery Validation Plugin 1.22.1
 -------------------------------
 https://jqueryvalidation.org/
 Copyright (c) 2024 Jorn Zaefferer
@@ -154,7 +154,7 @@ Licensed under the BSD 3-Clause License.
 
 --------------------------------------------------------------------------------
 
-Bootstrap 5.3.6
+Bootstrap 5.3.8
 ---------------
 https://getbootstrap.com/
 Copyright (c) 2011-2025 The Bootstrap Authors
@@ -164,7 +164,7 @@ https://github.com/twbs/bootstrap/blob/main/LICENSE
 
 --------------------------------------------------------------------------------
 
-Bootstrap Icons 1.13.1
+Bootstrap Icons 1.13.2
 ----------------------
 https://icons.getbootstrap.com/
 Copyright (c) 2019-2024 The Bootstrap Authors
@@ -191,7 +191,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-SortableJS 1.15.6
+SortableJS 1.15.7
 -----------------
 https://sortablejs.github.io/Sortable/
 Copyright (c) 2019 All contributors to Sortable
@@ -235,7 +235,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-HtmlSanitizer 8.1.870
+HtmlSanitizer 9.2.1039
 ---------------------
 https://github.com/mganss/HtmlSanitizer
 Copyright (c) 2013-2024 Michael Ganss
@@ -271,7 +271,7 @@ Licensed under the BSD 3-Clause License.
 
 --------------------------------------------------------------------------------
 
-NodaTime 3.2.2
+NodaTime 3.3.6
 --------------
 https://nodatime.org/
 Copyright (c) 2011-2024 Jon Skeet
@@ -340,7 +340,7 @@ Wayfarer project depends on ImageSharp; historical fixture provenance is retaine
 
 --------------------------------------------------------------------------------
 
-Swashbuckle.AspNetCore 10.2.3
+Swashbuckle.AspNetCore 10.3.1
 ----------------------------
 https://github.com/domaindrivendev/Swashbuckle.AspNetCore
 Copyright (c) 2016 Richard Morris
@@ -349,7 +349,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-TimeZoneConverter 7.0.0
+TimeZoneConverter 8.0.0
 -----------------------
 https://github.com/mattjohnsonpint/TimeZoneConverter
 Copyright (c) Matt Johnson-Pint
@@ -397,7 +397,7 @@ Licensed under the Apache License, Version 2.0.
 
 --------------------------------------------------------------------------------
 
-Moq 4.20.72
+Moq 4.21.0
 -----------
 https://github.com/devlooped/moq
 Copyright (c) 2007-2024 Moq Contributors
@@ -493,3 +493,16 @@ limitations under the License.
 ================================================================================
 
 Copyright 2025 Stef Kariotidis / Wayfarer
+
+--------------------------------------------------------------------------------
+
+Tom Select 2.6.2
+----------------
+https://tom-select.js.org/
+Copyright (c) Brian Reavis & contributors; Tom Select contributors.
+Licensed under the Apache License, Version 2.0. Complete text: wwwroot/lib/tom-select/LICENSE.
+
+Quill complete bundled implementation notices: wwwroot/lib/quill/quill.js.LICENSE.txt.
+Routine servicing provenance and exact package/security dispositions:
+docs/development/dependency-servicing-r1.md. Registry distributions retain original
+license banners, source maps and matching fonts; the image helper ships complete notices.

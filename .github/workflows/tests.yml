@@ -94,7 +94,7 @@ jobs:
         run: |
           python -m venv "${{ runner.temp }}/code-guard"
           bash tools/ci/bootstrap-pip.sh "${{ runner.temp }}/code-guard/bin/python"
-          "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.5.0
+          "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.5.1
           echo "${{ runner.temp }}/code-guard/bin" >> "$GITHUB_PATH"
 
       - name: Verify Code Guard installation

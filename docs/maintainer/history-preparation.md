@@ -121,6 +121,17 @@ alone is insufficient. Repair a missing index through authorized schema maintena
 then resume; do not weaken matching or indexes. Restored mixed/stale rows defeat
 status even when an old preparation receipt says ready, and `prepare` sweeps them.
 
+## Servicing dependency changes
+
+The R1 servicing batch updates NodaTime to 3.3.6 (TZDB 2026e / mapping 49),
+AngleSharp to 1.7.2 and the .NET runtime to 10.0.14. Time/text identities derive
+from these actual dependencies, so an older prepared generation may no longer be
+ready. Inspect `history-data status` and plan the affected explicit `rebuild time`
+and/or `rebuild text` under the existing operational contract below. Source
+maintenance performs no historical rewrite. Preserve canonical capture evidence;
+never relabel older facts with the new generation identity. See the
+[R1 dependency record](../development/dependency-servicing-r1.md).
+
 ## Independent rules rebuilds and readiness
 
 ~~~sh
