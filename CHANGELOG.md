@@ -238,6 +238,10 @@
 
 ### Fixed
 
+- Remove exact Linux CLR diagnostic FIFO/socket residue from managed browser roots
+  after retained child shutdown, preserving ownership, birth-token, path and link
+  checks and refusal of live or unrelated resources (#937).
+
 - Reduce #918 overview planning/JIT and coordinate work with streaming numeric
   projections before exact shared-edge comparisons; check all-owner collection
   readiness without unused operator totals. Comparable routed qualification has

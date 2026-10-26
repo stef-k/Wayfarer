@@ -172,7 +172,71 @@ Evidence is retained separately at
 registry/archive hashes, before/after graph inventories, licenses, native payloads,
 audit outputs, test/build logs, coverage HTML and a safe modal screenshot. Original
 browser residue is retained at the path recorded in `evidence/browser-residue.json`.
-The artifact-cleanup failure needs a focused follow-up before merge; it is fixture
-infrastructure evidence, with no observed product failure. Independent exact-head
+The initial artifact-cleanup failure is fixture infrastructure evidence, with no
+observed product failure; its local correction is recorded below. Independent exact-head
 review, successful applicable native/image CI and maintainer acceptance remain
 required. This implementation opens a draft PR and checks CI startup once only.
+
+## Browser cleanup diagnosis and local correction (#937)
+
+The live PR head was verified as `3da73e4d51f704f3c313bd043ff061ceef193db9`
+before creating the isolated `fix/937-clr-artifact-cleanup` branch. The retained
+`children.json` ties all three special entries to the launched Wayfarer host:
+PID `134178`, Linux start tick `365531`, boot
+`ff1d65d8-f131-4dd1-9549-566e7e1ce5da`. Its `TempRoot` contains
+`clr-debug-pipe-134178-365531-in`, `clr-debug-pipe-134178-365531-out` and
+`dotnet-diagnostic-134178-365531-soc`. The last name is the runtime's canonical
+`-socket` path truncated to Linux's 107 usable socket-path bytes. The
+[CLR diagnostic-port contract](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/diagnostic-port)
+documents the TMPDIR, PID and process-start naming authority.
+
+The supervisor and all 16 recorded children are absent from `/proc` on the same
+boot. No Unix socket is bound at the original path; inspection found no accessible
+process using the tree. Other-user process descriptors were inaccessible and were
+left alone. All three entries belong to the task UID and have one link. The
+retained log proves Playwright's two assertions and independent fixture/environment
+cleanup verification passed before `BrowserRoot.remove()` failed. Its recursive
+`ordinary()` check rejected the FIFOs/socket; the same strict check also prevented
+writing the secondary diagnostic log. The original termination signal is not
+recorded, so no specific signal is inferred.
+
+The existing finalizer now passes its retained stopped children to `BrowserRoot`.
+The owner derives an exact path/type allowlist only for their same-boot PID/start
+tokens, after stop/reap, and requires those PIDs still be absent. Only the two CLR
+FIFO names and byte-limited socket name directly in its private `TempRoot` qualify,
+with the current UID and one link. Full-tree validation still precedes deletion.
+Creation inode/marker, lexical path, ancestor, symlink/reparse, process and primary
+failure checks remain enforced. Default `ordinary()` calls remain strict; there
+is no stale-root adoption, arbitrary delete path or general special-file permission.
+
+The new finalizer regression failed at the original artifact-removal seam before
+the correction and passes afterward. All **43 existing Python tooling tests**
+(including four added cleanup cases) and **four Node cleanup-safety tests** pass
+on Linux. They exercise real FIFOs/socket, retained subprocesses, safe removal,
+live/unretained/unknown owners, wrong birth tokens/boots/UIDs, reused PIDs,
+inspection errors, wrong paths/types, symlinks and shared FIFO inodes. No application
+build or browser-matrix rerun was needed: the existing ownership/finalizer seams
+directly cover the change. Earlier browser product success and this cleanup success
+are separate evidence; this does not claim a new end-to-end browser result or native
+Windows validation.
+
+Complete-change `code-guard . --base-ref main --ci` is **REVIEW**, with no
+FAIL/INCOMPLETE and policy-relaxation PASS (29 selected, 16 analyzed, 13
+inapplicable; 2,152 existing vendor exclusions). Accepted findings: Viewer remains
+929 LOC within its existing 934 allowance; map utility callables remain
+113/104/84/116 LOC with only the prior R1 icon URL edits; `BrowserRun.execute`
+retains its unchanged 16-decision profile orchestration; the chronological
+1,536-line changelog and 258-line Unreleased Fixed section remain navigable.
+The cleanup implementation/tests pass all source guards. No policy, threshold,
+baseline or exclusion changed. Correction diff hygiene passes.
+
+Original residue remains intact at
+`/tmp/wayfarer-browser-e2e-393e2e52-7648-4c5c-a080-15c376d93725`.
+Before task cleanup, copies of original logs/ownership records, a 14,419-entry
+hashed inventory and a process/socket snapshot were retained at
+`/home/stef/.local/share/wayfarer-investigations/937-cleanup-20261026T174852Z/`.
+Test-created roots/processes are finalized by their existing owners. Shared/manual
+work and other agents' checkouts are untouched. Keep this correction local for
+consolidation with the pending Quill-pin and approved history-generation changes;
+neither is implemented by this slice. No push, new CI cycle, merge, release,
+deployment or issue closure is authorized by this correction.

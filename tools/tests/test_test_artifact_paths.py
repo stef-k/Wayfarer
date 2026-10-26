@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_artifact_paths import BrowserRoot, ordinary
+from browser_processes import Child
 
 
 class ArtifactTests(unittest.TestCase):
@@ -28,6 +29,95 @@ class ArtifactTests(unittest.TestCase):
         self.root.remove()
         self.root.remove()
         self.assertFalse(self.root.path.exists())
+
+    def retained_child(self):
+        """Use the existing native owner so stopped-child authority is exercised directly."""
+        child = Child([sys.executable, '-c', 'import time; time.sleep(60)'],
+                      cwd=self.root.path, env=os.environ.copy(), log=self.root.path / 'child.log')
+        self.addCleanup(child.stop)
+        return child
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux CLR FIFO/socket ownership')
+    def test_clr_residue_requires_stopped_retained_child(self):
+        """A matching live child and a bare dead-PID filename cannot authorize removal."""
+        child = self.retained_child()
+        temporary = self.root.path / 'TempRoot'
+        temporary.mkdir()
+        entry = temporary / f'clr-debug-pipe-{child.record["pid"]}-{child.record["start"]}-in'
+        os.mkfifo(entry)
+        try:
+            with self.assertRaises(ValueError):
+                self.root.remove([child])
+            self.assertIsNone(child.process.poll())
+            child.stop()
+            with self.assertRaises(ValueError):
+                self.root.remove()
+            self.assertTrue(entry.exists())
+            self.root.remove([child])
+            self.assertFalse(self.root.path.exists())
+        finally:
+            entry.unlink(missing_ok=True)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux CLR FIFO/socket ownership')
+    def test_clr_names_do_not_admit_foreign_or_unsafe_entries(self):
+        """Wrong identity, placement, type, links and shared inodes preserve the whole root."""
+        child = self.retained_child()
+        child.stop()
+        temporary = self.root.path / 'TempRoot'
+        temporary.mkdir()
+        pid, start = child.record['pid'], child.record['start']
+        name = f'clr-debug-pipe-{pid}-{start}-in'
+        endpoint = Path(os.fsdecode(os.fsencode(temporary / f'dotnet-diagnostic-{pid}-{start}-socket')[:107]))
+        cases = [('wrong-start', temporary / f'clr-debug-pipe-{pid}-{int(start) + 1}-in'),
+                 ('unknown-pid', temporary / f'clr-debug-pipe-{os.getpid()}-{start}-in'),
+                 ('misplaced', self.root.path / name), ('wrong-type', endpoint),
+                 ('symlink', temporary / name), ('hardlink', temporary / name)]
+        with tempfile.TemporaryDirectory() as foreign:
+            alias = Path(foreign) / 'shared-fifo'
+            for kind, entry in cases:
+                with self.subTest(kind=kind):
+                    if kind == 'symlink':
+                        entry.symlink_to(self.root.marker)
+                    else:
+                        os.mkfifo(entry)
+                    if kind == 'hardlink':
+                        os.link(entry, alias)
+                    try:
+                        with self.assertRaises(ValueError):
+                            self.root.remove([child])
+                        self.assertTrue(os.path.lexists(entry))
+                        self.assertTrue(self.root.marker.exists())
+                        if kind == 'hardlink':
+                            self.assertTrue(alias.exists())
+                    finally:
+                        entry.unlink()
+                        alias.unlink(missing_ok=True)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux birth-token and procfs ownership')
+    def test_clr_residue_requires_current_owner_and_dead_process(self):
+        """Reused PIDs, inspection errors, foreign boots and foreign UIDs retain residue."""
+        child = self.retained_child()
+        child.stop()
+        temporary = self.root.path / 'TempRoot'
+        temporary.mkdir()
+        entry = temporary / f'clr-debug-pipe-{child.record["pid"]}-{child.record["start"]}-in'
+        os.mkfifo(entry)
+        try:
+            with patch('test_artifact_paths.identity', return_value=child.record):
+                with self.assertRaises(ValueError):
+                    self.root.remove([child])
+            with patch('test_artifact_paths.identity', side_effect=PermissionError('denied')):
+                with self.assertRaises(PermissionError):
+                    self.root.remove([child])
+            with patch.dict(child.members[child.record['pid']][0], {'boot': 'foreign-boot'}):
+                with self.assertRaises(ValueError):
+                    self.root.remove([child])
+            with patch('test_artifact_paths.os.getuid', return_value=-1):
+                with self.assertRaises(ValueError):
+                    self.root.remove([child])
+            self.assertTrue(entry.exists())
+        finally:
+            entry.unlink(missing_ok=True)
 
     @unittest.skipIf(os.name == 'nt', 'Pinned descriptor-relative opens unavailable on Windows')
     def test_diagnostic_append_refuses_unowned_and_replaced_targets(self):

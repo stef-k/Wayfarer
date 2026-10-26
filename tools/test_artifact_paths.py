@@ -13,6 +13,8 @@ import sys
 import tempfile
 import uuid
 
+from browser_processes import identity
+
 
 def ordinary(path: Path, *, tree=False, _clr_residue=None):
     """Reject links/specials, except exact typed CLR paths supplied by the retained owner."""
@@ -78,14 +80,20 @@ class BrowserRoot:
             for record, _ in child.members.values():
                 pid, start = record['pid'], record['start']
                 # Refuse even a reused PID; stop() has already proved/reaped the retained writer.
-                if record['boot'] != boot or os.path.lexists(f'/proc/{pid}'):
+                if record['boot'] != boot:
+                    continue
+                try:
+                    identity(pid)
+                except (FileNotFoundError, ProcessLookupError):
+                    pass
+                else:
                     continue
                 for suffix in ('in', 'out'):
                     residue[temporary / f'clr-debug-pipe-{pid}-{start}-{suffix}'] = stat.S_IFIFO
                 # Linux sockaddr_un.sun_path holds 108 bytes including the terminating NUL.
                 endpoint = os.fsencode(temporary / f'dotnet-diagnostic-{pid}-{start}-socket')[:107]
                 endpoint = Path(os.fsdecode(endpoint))
-                if endpoint.parent == temporary:
+                if endpoint.parent == temporary and endpoint.name.startswith(f'dotnet-diagnostic-{pid}-{start}-'):
                     residue[endpoint] = stat.S_IFSOCK
         return residue
 
