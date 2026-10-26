@@ -6,7 +6,7 @@ using Wayfarer.Middleware;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using NetTopologySuite.Geometries;
+using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -80,7 +80,9 @@ public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixtu
         var originals = await db.Locations.AsNoTracking().SingleAsync(item => item.Id == row.Id);
         await db.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters
             .SetProperty(item => item.HistoryTimeVersion, oldTime).SetProperty(item => item.HistoryTextVersion, oldText)
-            .SetProperty(item => item.CaptureOffsetSeconds, 3600).SetProperty(item => item.HistorySearchText, "SECRET VISIBLE"));
+            .SetProperty(item => item.CaptureOffsetSeconds, 3600)
+            .SetProperty(item => item.CaptureLocalTimestamp, new DateTime(1925, 9, 25, 13, 0, 0))
+            .SetProperty(item => item.HistorySearchText, "SECRET VISIBLE"));
         await db.HistoryPreparationStates.ExecuteUpdateAsync(setters => setters
             .SetProperty(state => state.TargetVersion, state => state.Kind == "time" ? oldTime : oldText)
             .SetProperty(state => state.ActiveVersion, state => state.Kind == "time" ? oldTime : oldText));
@@ -97,7 +99,8 @@ public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixtu
         while (!await preparation.PrepareBatchAsync("text", default)) { }
         foreach (var stale in new string?[] { oldText, null, "history-text-1;arbitrary" })
         {
-            await db.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.HistoryTextVersion, stale));
+            await db.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.HistoryTextVersion, stale)
+                .SetProperty(item => item.HistorySearchText, stale == null ? null : "VISIBLE\nCAFE ROAD"));
             Assert.False(await preparation.IsReadyAsync(false, true, default));
             Assert.True(await preparation.IsReadyAsync(true, false, default));
             await preparation.BeginAsync("text", false, default);
@@ -105,10 +108,9 @@ public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixtu
         }
         var final = await db.Locations.AsNoTracking().SingleAsync(item => item.Id == row.Id);
         Assert.Equal("VISIBLE\nCAFE ROAD", final.HistorySearchText); Assert.Equal(0, final.CaptureOffsetSeconds);
-        Assert.Equal((originals.Id, originals.IdempotencyKey, originals.UserId, originals.Timestamp, originals.LocalTimestamp,
-                originals.Notes, originals.Address, originals.TimeZoneId, originals.Source),
-            (final.Id, final.IdempotencyKey, final.UserId, final.Timestamp, final.LocalTimestamp,
-                final.Notes, final.Address, final.TimeZoneId, final.Source));
+        Assert.Equal(originals.LocalTimestamp.Ticks, final.CaptureLocalTimestamp!.Value.Ticks);
+        foreach (var property in db.Entry(originals).Properties.Where(property => !LocationHistoryDerivation.IsDerived(property.Metadata.Name)))
+            Assert.Equal(property.CurrentValue, db.Entry(final).Property(property.Metadata.Name).CurrentValue);
         Assert.True(originals.Coordinates.EqualsExact(final.Coordinates));
     }
 

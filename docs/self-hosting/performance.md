@@ -118,6 +118,8 @@ returns 503 `historyAdmissionUnavailable`, with global precedence when both appl
 Both carry `Retry-After: 5`. Deadline exhaustion returns 503
 `historyBudgetExceeded`, without partial successful items, cells or coverage.
 Pending required capture/text preparation returns 503 `historyPreparationRequired`;
+missing history environment qualification returns 503 `historyQualificationRequired`
+and requires a qualified profile before preparation can help;
 transient store failure returns 503 `historyStoreUnavailable`. Successes and errors are
 `no-store`. A cancelled client receives no success guarantee; resources are released.
 Clients should honor admission retry hints. See the
@@ -130,6 +132,18 @@ and the installation's [supported update/recovery workflow](operations.md).
 Existing histories require explicit resumable derivation preparation; ordinary
 startup and reads do not backfill them. Dependent capture/text operations remain
 gated until their required generation is ready.
+
+Compatible qualified dependency servicing preserves prepared data, active/target state,
+checkpoints and continuations. R1 (#937/#938) has measured historical time **and**
+visible-text changes, so upgrade from the old generations requires explicit
+`history-data rebuild both` while old processes are quiesced; resume with
+`history-data prepare both`. Already-compatible qualified R1 rows are not rebuilt
+merely to rename their IDs. First inspect `history-data status` for actual loaded
+runtime/globalization provenance and `Qualified`; missing qualification is separate
+from pending preparation and rebuilding cannot cure it. No automatic repair or
+rolling-upgrade promise is introduced. Plan WAL, MVCC/index growth and maintenance
+using the retained measurements below and in the runbook, not a linear outage
+forecast. No new population/performance qualification accompanies this correction.
 
 The status-coverage migration replaces the history UTC index in an ordinary
 transaction. **Quiesce all application/read/import/enrichment traffic** for this

@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Changed
+- Separate independent history semantic generation IDs from actual dependency,
+  runtime and globalization provenance (#938, delivered with #937). Compatible
+  qualified servicing preserves prepared rows, active state, checkpoints and cursors;
+  retain exact qualified R1 IDs without cosmetic restamping. Unknown qualification
+  rejects affected derivation/reads/preparation atomically and reports a distinct
+  diagnostic; rebuilding cannot qualify an unsupported environment. Preserve the
+  quiesced upgrade procedure and independent, explicit all-owner rebuilds.
 - Service the assessed R1 dependency batch: .NET/ASP.NET/EF 10.0.14 and immutable
   SDK 10.0.403/runtime 10.0.14 Noble bases; sanitizer/timezone/OpenAPI and compatible
   test/report tools; Vite/Vue; copied Bootstrap/icons, validation, clusters,
@@ -11,8 +18,8 @@
   package-local assemblies. Preserve parent-owned ranges elsewhere, existing CA
   acquisition corrections, analyzer policy and release gates. Record exact versions,
   asset provenance, Quill advisory disposition and deferrals in the R1 dependency
-  record. Updated timezone/parser/runtime generation identities require explicit
-  history preparation rebuilds; this maintenance does not rewrite historical facts.
+  record. R1’s measured timezone and visible-text changes require explicit rebuilding
+  of both old history generations; canonical historical evidence is preserved.
 - Retain the exact npm Quill 2.0.2 pin and matching lock entry (#937), preserving
   its documented advisory rationale and the unchanged audit checks. Separately
   copied Quill 2.0.3 remains unchanged; #939 tracks its existing exposure and future

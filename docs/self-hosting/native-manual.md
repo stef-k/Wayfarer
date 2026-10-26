@@ -65,6 +65,19 @@ requires ISRG Root X1 as a positive control; custom trust policies require their
 own qualification. Existing Node/npm installations are checked too; repair an old
 installation rather than accepting it merely because it is on PATH.
 
+Before enabling history writers/reads after an upgrade, run `history-data status`
+with the **same executable, runtime and globalization configuration** as the service.
+R1 history qualification admits loaded .NET 10.0.13/10.0.14 with the reviewed
+artifacts and ICU profile, independent of host paths or machine identity. A package
+version or SDK label does not identify the runtime actually executing the service.
+Other globalization/runtime profiles need qualification; failure stays local to
+affected history operations and cannot be repaired by rebuilding. This admission
+does not waive #915 security-release requirements. Stop old processes and follow
+[history maintenance](../maintainer/history-preparation.md#servicing-dependency-changes):
+R1's real timezone and parser changes require rebuilding both old generations,
+whereas qualified compatible servicing preserves rows/checkpoints. Inspect status
+before preparing; no startup/backfill scheduler performs this work.
+
 ## Create a service identity
 
 Use a dedicated unprivileged account, for example:

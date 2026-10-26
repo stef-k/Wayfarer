@@ -123,14 +123,88 @@ status even when an old preparation receipt says ready, and `prepare` sweeps the
 
 ## Servicing dependency changes
 
-The R1 servicing batch updates NodaTime to 3.3.6 (TZDB 2026e / mapping 49),
-AngleSharp to 1.7.2 and the .NET runtime to 10.0.14. Time/text identities derive
-from these actual dependencies, so an older prepared generation may no longer be
-ready. Inspect `history-data status` and plan the affected explicit `rebuild time`
-and/or `rebuild text` under the existing operational contract below. Source
-maintenance performs no historical rewrite. Preserve canonical capture evidence;
-never relabel older facts with the new generation identity. See the
-[R1 dependency record](../development/dependency-servicing-r1.md).
+Time and text have independent, explicit **semantic generation IDs**. A reviewed
+compatible dependency/runtime update retains the affected ID, prepared rows,
+active/target state, resumable checkpoints and cursor binding. An actual behavior
+change, or compatibility that cannot be justified, changes only the affected ID
+and requires its controlled rebuild. Package/runtime metadata alone is not a reason
+to rebuild. There is no automatic startup/background preparation, alias matching,
+legacy-prefix acceptance, silent restamping or forced readiness.
+
+For the R1 batch (#937/#938), **both old generations require rebuilding**:
+NodaTime 3.3.3 / TZDB 2026c → 3.3.6 / 2026e changes historical capture values
+(Dublin 1925-09-25 12:00Z changes from 13:00/+3600 to 12:00/0). AngleSharp
+1.7.1 → 1.7.2 changes visible extraction of historical MathML `TEXT/HTML` content
+from `SECRET VISIBLE` to `VISIBLE`. Unchanged recent records cannot waive these
+all-owner rebuilds. Runtime-only 10.0.13 → 10.0.14 fixture equivalence is a separate
+bounded compatibility decision, not an extra reason to rewrite rows.
+
+The first explicit IDs retain the **exact qualified R1 strings** to avoid rebuilding
+already-compatible R1 data merely for a rename:
+
+~~~text
+history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)
+history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f
+~~~
+
+These are opaque historical names. Their embedded versions do not report the
+currently executing runtime. Future semantic changes may use `history-time-2` or
+`history-text-2`; do not rename a compatible generation for cosmetic reasons.
+`history-writers-1` retains its unchanged atomic-writer meaning.
+
+### Environment qualification versus preparation
+
+`history-data status` reports actual dependency build identities, full TZDB identity,
+executing runtime and effective invariant globalization/sort profile separately from
+IDs. `Qualified` is independent of row counts/index readiness; `QualificationFailure`
+explains missing admission. Status never repairs state and returns 1 for an unready
+or unqualified selected generation. Exit 0 still requires all-owner readiness.
+
+The code-owned R1 admission checks exact GeoTimeZone 6.1.0, NodaTime 3.3.6 and
+AngleSharp 1.7.2 upstream build identities, TZDB `2026e (mapping: 49)`, and actual
+.NET 10.0.13 or 10.0.14. Text additionally requires effective ICU normalization,
+verified by a normalization control, and invariant sort version 31129 / identity
+`00007999-0000-0000-0000-00000000007f`. Time does not depend on this text profile.
+The maintained Noble image uses ICU 74.2 and runtime 10.0.14; native Ubuntu also
+qualifies on runtime 10.0.13. NuGet 10.0.14 packages do **not** imply that a probe
+executes on 10.0.14. No OS name, machine identity, path or architecture is an
+admission condition. Framework-dependent and self-contained processes are checked
+by what they actually load. Invariant mode, NLS, unknown artifacts, future runtimes
+and other globalization fingerprints need a reviewed compatibility decision first.
+This is history admission, not security-release or native-platform acceptance.
+
+Qualification is lazy and local to history; it does not stop global web startup.
+Unknown qualification cannot stamp a selected generation or activate data. New
+Locations require both qualifications; edits require each generation they actually
+recompute (including opportunistic stale-generation updates). A rejection fails the
+whole tracked/import save atomically. Both fenced bulk address publication branches
+use the same text check and transaction: address, derived text and final provider
+publication commit together or roll back together. Operational failure never becomes
+an unresolved Location. Other independent writes retain their existing boundaries.
+
+`prepare`/`rebuild` preflight every selected kind before changing any state; batches
+also check before row/checkpoint work. On qualification failure committed progress,
+active state and row facts remain untouched, while fresh status/readiness refuses
+to advertise readiness. Use a qualified build/runtime/globalization profile or have
+the maintainer qualify a supported profile. **Rebuilding alone cannot qualify an
+unsupported environment.** There is no operator version override.
+
+Capture/viewer predicates and nonempty normalized searches reject missing required
+qualification with 503 `historyQualificationRequired`, separately from 503
+`historyPreparationRequired` on a qualified but unprepared deployment. UTC nontext
+collections and direct detail remain usable. Unqualified capture/viewer publication
+says `unavailable` / `historyQualificationRequired`, retains the stored capture
+version, and advertises null for an unqualified serving generation in
+`derivationVersions`. It never calls that operational failure pending or unresolved.
+Detail still publishes safe Notes through the existing sanitizer contract.
+
+Before accepting a new dependency/profile, review relevant source/data changes and
+run the existing time, parser and Unicode fixtures at shared writer/query seams.
+Finite controls and sort equality are admission evidence, not universal behavioral
+proof. Retain IDs only with a justified compatibility decision; otherwise change
+the affected ID. Record actual profile and rationale in the servicing record.
+No compatibility registry, extra stored generation or migration framework is used.
+See the [R1 record](../development/dependency-servicing-r1.md).
 
 ## Independent rules rebuilds and readiness
 
@@ -146,12 +220,11 @@ rebuild. Changed target rules require explicit `rebuild`; arbitrary operator ver
 labels are rejected. There is one stored generation, so declare maintenance for
 affected reads while rebuilding. Unselected facts/progress stay intact.
 
-Time identity includes converter/validation version, GeoTimeZone 6.1.0 mapping
-package and the serving NodaTime TZDB identity. Text identity includes extraction/
-folding version, AngleSharp assembly identity, .NET runtime and invariant Unicode/
-[Unicode sort version and identity](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.sortversion?view=net-10.0). Deploy identical qualified runtime/globalization artifacts across
-writers/readers; an identity change requires the affected rebuild. Never relabel
-old facts as new rules. Collection cursors bind these identities.
+Deploy coherent qualified binaries across writers/readers, with the existing
+quiesced upgrade procedure. Qualification is not a live-process fence; stop old
+web/import/enrichment/CLI processes before new writers. No rolling/mixed-release
+upgrade is supported. Collection cursors bind both semantic IDs: compatible
+servicing preserves them; either semantic change rejects old continuations.
 
 Pending time has null version/status/facts; a mismatched version is also pending.
 Resolved time carries the coordinate-derived IANA zone, wall timestamp and historical

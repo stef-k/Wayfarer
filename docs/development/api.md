@@ -721,6 +721,27 @@ return 503 `historyPreparationRequired`. UTC/viewer nontext reads and direct det
 remain available with explicit pending capture evidence when applicable. Exceptional
 current-version unresolved evidence instead returns labelled incomplete 200.
 
+Time/text generation IDs are independent semantic contracts, separate from actual
+runtime/package/globalization provenance reported by `history-data status`.
+Qualified compatible servicing retains rows, readiness/checkpoints and cursor
+binding; a real or unjustified semantic change changes the affected ID and retires
+old continuations. #937 changes both historical timezone and parser behavior;
+**both old generations require controlled rebuilding**. Exact already-qualified R1
+IDs are retained as opaque names, including their historical embedded versions.
+The earlier fixture example above records its original pre-R1 generation names;
+it is historical evidence, not the current serving profile.
+
+Missing environment qualification is a distinct 503 `historyQualificationRequired`
+for capture/viewer predicates or nonempty searches that require it. It cannot be
+repaired by rebuilding. UTC nontext collections and direct detail stay usable;
+unqualified capture/viewer facts say `unavailable` with reason
+`historyQualificationRequired`, retaining stored capture-version provenance.
+`derivationVersions.time` / `.text` is null when that serving generation lacks
+qualification, never a false current-data claim. The failure is neither an unresolved
+record nor `pendingPreparation`. Qualified but stale row publication keeps its
+existing `pendingPreparation` semantics. Canonical fields and safe detail Notes
+remain available. See [admission and upgrade rules](../maintainer/history-preparation.md#environment-qualification-versus-preparation).
+
 Collections use separate nonwaiting admission at two reads per owner/four globally,
 independently of ingestion. Detail has an independent four-owner/sixteen-global pool.
 A fifteen-second collection end-to-end budget (detail thirty seconds) covers lookup,
@@ -747,7 +768,7 @@ Controlled 400 codes are `parametersInvalid`, `activityInvalid`,
 `continuationInvalid`. Owner admission is 429 `historyOwnerAdmissionExceeded` with
 `Retry-After: 5`; global admission is 503 `historyAdmissionUnavailable` with that hint.
 Token lookup retains its existing admission behavior. Other controlled 503 codes
-are `historyPreparationRequired`, `historyBudgetExceeded`, `historyStoreUnavailable`.
+are `historyPreparationRequired`, `historyQualificationRequired`, `historyBudgetExceeded`, `historyStoreUnavailable`.
 Errors use fixed messages, without SQL, credentials or private query content;
 unexpected failures retain the generic API 500 path. No provider/media acquisition,
 presence/Visit, queue, ingestion or persistent read effects are introduced.

@@ -79,15 +79,51 @@ TimeZoneConverter retains the used GetTimeZoneInfo API and host timezone databas
 no stream initialization is enabled. Coordinate conversion uses NodaTime's
 updated packaged TZDB. New conversions may reflect new upstream timezone rules.
 
-History derivation already pins `DateTimeZoneProviders.Tzdb.VersionId` in
-`TimeVersion`, and AngleSharp assembly/runtime/Unicode versions in `TextVersion`.
-These updates naturally change the required generation. Existing preparation
-readiness rejects mismatched generations. No startup rebuild, migration, historical
-capture-fact rewrite or reinterpretation is added. Operators must review and
-explicitly rebuild the affected derived generations through the existing
-[history preparation contract](../maintainer/history-preparation.md) before relying
-on prepared reads. Canonical timestamps, coordinates and imported timezone evidence
-remain intact.
+#938 separates independently versioned history semantics from actual dependency,
+executing-runtime and globalization provenance. The exact qualified R1 generation
+strings remain the initial opaque IDs; already-compatible R1 data needs no cosmetic
+relabel/rebuild. Qualified compatible servicing preserves facts, active/target state,
+checkpoints and cursor binding. A real or unjustified semantic change changes only
+the affected ID, with the existing explicit rebuild and all-owner readiness gates.
+
+For this R1 update **both old time and text generations require rebuilding**.
+NodaTime 3.3.3/TZDB 2026c → 3.3.6/2026e changes Dublin 1925-09-25 12:00Z
+from 13:00/+3600 to 12:00/0, with other historical/rule changes retained in the
+investigation. AngleSharp 1.7.1 → 1.7.2 changes legacy MathML `TEXT/HTML` extraction
+from `SECRET VISIBLE` to `VISIBLE`. These production counterexamples now live in
+focused tests. Ordinary unchanged recent rows cannot justify waiving either rebuild.
+Runtime-only 10.0.13 → 10.0.14 equivalence in the bounded controls is separate;
+there is no demonstrated third semantic change from that metadata alone.
+
+Verified artifacts: GeoTimeZone 6.1.0 source `73206b43819c89f8b6ec2926b2ca227fc783b938`,
+NodaTime 3.3.6 source `3ad5876deb0edfc3c87622a3717801c616ff570a`, AngleSharp
+1.7.2 source `3718d6804dd3a3781efcd1ccd7bdcb10a4352edd`, TZDB `2026e (mapping: 49)`.
+The packaged Noble AMD64 image actually runs .NET/ASP.NET 10.0.14 and ICU
+74.2-1ubuntu3.1. The independent native Ubuntu profile probe actually runs 10.0.13;
+the official SDK 10.0.403 probe runs 10.0.14. Both profiles report invariant sort
+31129 / `00007999-0000-0000-0000-00000000007f` and pass the normalization control.
+The old main image's exact immutable base (`2d584d…`) actually executes 10.0.12,
+verified from its cached image config and network-disabled execution; the old
+preparation receipt/probe used 10.0.13. The investigation's 10.0.11 image statement
+was incorrect (10.0.11 was a package version). Neither NuGet versions nor tag text
+identify an executing runtime. New admission does not qualify old-main behavior.
+
+Admission is code-owned and local to history, with independent time/text checks;
+it is not a global startup gate or a machine/path allowlist. Unknown profiles
+cannot stamp, activate or advertise current facts. Tracked/import saves and both
+fenced bulk publication branches retain atomic rejection. CLI status exposes
+qualification separately from preparation; selected maintenance preflights before
+changing state. Affected reads use `historyQualificationRequired`, while qualified
+unprepared data uses `historyPreparationRequired`. Rebuilding cannot qualify an
+unsupported profile. No permissive legacy matching, startup rebuild, automatic
+relabel, extra stored generation or new framework is introduced.
+
+Canonical timestamps, coordinates, Notes, addresses, identities and provenance stay
+intact. The [runbook](../maintainer/history-preparation.md#servicing-dependency-changes)
+retains quiesced upgrade authority, resume/stale sweeps, physical-index checks and
+all-owner readiness. #604 owns installation migration and headroom; #915 retains
+security publication gates; #939 retains deferred packages/copied Quill. #918 stays
+closed. This source correction authorizes no release or deployment.
 
 ## Distribution provenance and notices
 
