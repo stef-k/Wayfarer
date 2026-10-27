@@ -161,6 +161,19 @@ dotnet frontend build
 
 Wayfarer has both .NET Playwright capture tests and JavaScript Playwright user-journey tests. Before declaring Chromium unavailable, check the established Playwright cache/install path and the version-coupled installation command in the built .NET application. The in-app browser, when available, is not the only supported browser path.
 
+The #939 update keeps `Microsoft.Playwright`, `@playwright/test`, `playwright`
+and `playwright-core` at **1.64.1** (previously 1.63.0). Both package metadata
+files select Chrome for Testing and headless shell **156.0.8078.4**, revision
+**1248** (previously 153.0.8010.12 / 1243), and FFmpeg **1013** (previously 1011).
+The npm runner is pinned exactly so its browser family stays aligned with .NET.
+Node 24 and .NET 10 remain the development prerequisites.
+
+Production PDF, map and thumbnail captures use the application's published .NET
+driver and provisioned browser. npm supplies test journeys and asset smokes; its
+installation does not provision a deployed application. They may share a local
+cache only when their generated metadata matches. Retain older release caches
+when still needed; do not rename a revision directory or substitute system Chrome.
+
 A typical .NET Playwright prerequisite after a Release build is:
 
 ~~~sh
@@ -195,8 +208,17 @@ npm run test:cleanup:safety
 For JavaScript Playwright:
 
 ~~~sh
-npx playwright install chromium
+npm ci
+bash deployment/check-trust.sh --node
+npx --no-install playwright install chromium
 ~~~
+
+Run both matching installers after this update, using the same
+`PLAYWRIGHT_BROWSERS_PATH` for installation and execution. The existing CI key
+automatically changes to revision 1248 through generated .NET metadata; no cache
+override or eviction is needed. Linux OS libraries still come from
+`install-deps chromium`. Application images must be rebuilt with their published
+CLI; a test-browser cache is not shipped runtime evidence.
 
 Managed browser journeys use one Python supervisor (Python 3.12+ on Linux/WSL or
 Windows), the guarded PG18 connection above, Node/npm and installed Chromium:

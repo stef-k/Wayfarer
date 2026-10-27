@@ -48,7 +48,8 @@
         <PackageReference Include="NodaTime" Version="3.3.6" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
-        <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
+        <!-- Keep the production driver/browser family aligned with the npm test runner (#939). -->
+        <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
         <PackageReference Include="Quartz" Version="3.19.1" />
         <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.19.1" />
         <PackageReference Include="Quartz.Serialization.Json" Version="3.19.1" />

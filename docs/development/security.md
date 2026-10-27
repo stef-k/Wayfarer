@@ -229,9 +229,10 @@ uses their existing signed distribution authority. Rebuilding old bases without
 an explicit CA correction does not repair their stores.
 
 Browser provisioning transiently mounts patched Node but executes the exact
-published Playwright CLI. Package 1.63.0 and Chromium revision 1243 stay aligned.
-The old private runtime driver is not a supported external HTTPS client: capture
-continues to permit only server-owned HTTP loopback fetches. Embedded Chromium
+published Playwright CLI. The #939 update aligns package 1.64.1 with Chromium
+156.0.8078.4 / revision 1248; its private runtime driver bundles Node 24.22.1.
+Provisioning still uses the separately checked installer Node. Capture continues
+to permit only server-owned HTTP loopback fetches. Embedded Chromium
 distrust/CRLSet contents remain unqualified; do not infer protection from its
 version or assume background updates.
 
