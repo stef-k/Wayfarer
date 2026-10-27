@@ -332,9 +332,9 @@ jobs:
         shell: ${{ matrix.os == 'windows-latest' && 'cmd' || 'bash' }}
     # Windows uses only provisioned tools; Linux setup selects corrected host roots.
     env:
-      NODE_OPTIONS: ${{ runner.os == 'Linux' && '--use-openssl-ca' || '' }}
-      SSL_CERT_FILE: ${{ runner.os == 'Linux' && '/etc/ssl/certs/ca-certificates.crt' || '' }}
-      SSL_CERT_DIR: ${{ runner.os == 'Linux' && '/etc/ssl/certs' || '' }}
+      NODE_OPTIONS: ${{ matrix.os == 'ubuntu-latest' && '--use-openssl-ca' || '' }}
+      SSL_CERT_FILE: ${{ matrix.os == 'ubuntu-latest' && '/etc/ssl/certs/ca-certificates.crt' || '' }}
+      SSL_CERT_DIR: ${{ matrix.os == 'ubuntu-latest' && '/etc/ssl/certs' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:

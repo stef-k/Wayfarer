@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Changed
+- Protect #915's remaining workflow-controlled setup, API and bootstrap acquisitions
+  with signed-APT CA correction and the existing trust guard. Windows cleanup uses
+  validated provisioned Node/Python caches without network fallback; host rustup
+  downloads require the assessed version/backend. Record the accepted GitHub platform
+  trust boundary. Caddy replacement and release/publication remain separate gates.
 - Update Quartz, Quartz.Extensions.DependencyInjection and Quartz.Serialization.Json
   together from 3.19.1 to 3.22.9 (#939), retaining PostgreSQL persistence,
   schedule identities, UTC/interval interpretation, reconciliation and execution

@@ -267,24 +267,64 @@ omits lazily loaded OpenSSL roots, so neither view alone proves effective trust.
 Valid extra certificates remain supported; G3 additions and missing ISRG X1
 positive controls fail closed. See [Node's CA source API](https://nodejs.org/api/tls.html#tlsgetcacertificatestype).
 
-Artifact inspection is distinct from native execution on each architecture and
-from public distribution acceptance. In the ordinary test, AMD64 image and native
-ARM64 image jobs, APT updates signed metadata and installs `ca-certificates`
-through existing distribution keys before the host guard runs. This authenticates
-the CA correction independently of the stale TLS root store; no verification is
-disabled. Setup actions then use `NODE_OPTIONS=--use-openssl-ca` and explicit
-`SSL_CERT_FILE`/`SSL_CERT_DIR` paths to select the checked host roots for their
-subsequent tool downloads. The Ubuntu correction is documented in
-[USN-8944-1](https://ubuntu.com/security/notices/USN-8944-1).
+### Hosted platform and workflow acquisition
 
-The first checkout, action archive acquisition, runner-provided executables
-(including rustup's own verifier/bootstrap) and service-image pulls precede or sit
-outside this guarded download boundary. Classification/cleanup jobs are not host
-acquisition qualification either. A later correction cannot protect those earlier
-downloads or qualify arbitrary private bundles; actual runner/action/runtime trust
-evidence remains required. Source ordering and local AMD64 package controls do not
-prove execution on the hosted runners or ARM64. #474/#877 and the broader dependency
-audit keep their separate gates.
+On 2026-10-27 the maintainer explicitly accepted GitHub-hosted image provisioning,
+runner executables, action transport/source resolution and artifact services as
+platform trust roots for #915. These services supply the initial verifier and
+reviewed source; reconstructing their complete provisioning trust chain is outside
+Wayfarer's controls. Immutable workload digests and publication receipts continue
+to bind the selected bytes. Wayfarer does not independently certify pre-step TLS
+stores, including runner-private Node, or retroactively repair earlier acquisition.
+This decision does not permit unguarded workflow-controlled downloads.
+
+Each affected Linux job refreshes signed APT metadata with
+`APT::Update::Error-Mode=any`, installs `ca-certificates`, then runs
+`deployment/check-trust.sh` before setup, API or publication work. Existing
+distribution keys authenticate this correction independently of stale TLS roots.
+Failures stop subsequent acquisition. `NODE_OPTIONS=--use-openssl-ca` and explicit
+`SSL_CERT_FILE`/`SSL_CERT_DIR` select the checked store for JS download clients.
+The guard logs runner image/OS/architecture and the corrected CA package version;
+the Actions setup log supplies the runner version and resolved action identities.
+
+The consumers are `tests.yml`'s ordinary test, AMD64/ARM64 image and Linux cleanup
+jobs; every `application-release.yml` job (`publish`, `anonymous-pull`,
+`publish-index`, `deployment-bundle`, `public-compose-acceptance`); all three
+`database-image.yml` jobs; and the public lifecycle/operator acceptance jobs.
+Database host prerequisites do not change its image recipe or promoted authority.
+Classification performs offline checks and needs no workload-download prerequisite.
+
+The fresh public Compose job has no checkout. It carries the existing host-only
+Python/OpenSSL check inline after signed APT correction, before obtaining the
+public bootstrap. Workflow-precondition tests bind that inline check to the
+existing guard. The retained publication receipt still supplies the bootstrap hash
+before extraction; ordinary public bundle/API digest, manifest and payload checks
+remain required. The bootstrap is never executed to establish its own trust.
+
+Windows cleanup uses only runner-provisioned tool-cache Node matching `.nvmrc`
+(24.22.1) and Python 3.12 x64. It validates both executable versions before running
+the existing offline cleanup tests. Missing/incompatible cache entries fail clearly;
+setup actions are Linux-only, with no Windows network-install fallback or new
+certificate installation authority.
+
+The three host `rustup toolchain install` consumers retain Rust 1.90.0. Immediately
+before acquisition, the same guard's `--rustup` mode requires the assessed rustup
+1.29.1, rejects alternate backend/distribution/update configuration, and logs its
+version and trust path. The invocation explicitly selects `RUSTUP_USE_RUSTLS=1`,
+which fails if that backend is unavailable. The assessed
+[rustup downloader](https://github.com/rust-lang/rustup/blob/1.29.1/src/download/mod.rs)
+uses reqwest/rustls platform verification plus GlobalSign R3 and Amazon Root CA 1
+extra anchors; neither is G3. No compiler/crate update or claim of independent
+runner-binary authentication follows from this check.
+
+Reuse #936's signed-APT and G3-rejection/ISRG-X1-positive evidence for these unchanged
+controls. Source ordering and local guarded acquisition are narrower than actual
+hosted AMD64/ARM64 execution or public release acceptance. Unexpected future runner
+cache/tool configuration fails closed and requires assessment. The separate Caddy
+replacement/compatibility package remains outstanding with its transition gate
+closed. No publication timing, installed-user upgrade proof or production remediation
+is decided here. Chromium CRLSet remains UNKNOWN; #474/#877 and broader dependency
+maintenance keep their separate gates.
 
 ## Data Protection and provider credentials
 

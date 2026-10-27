@@ -1,4 +1,6 @@
 """Keep workflow-controlled acquisition behind the existing host trust boundary."""
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -46,13 +48,16 @@ class RunnerTrustTests(unittest.TestCase):
                 with self.subTest(workflow=filename, job=job):
                     body = job_body(workflow, job)
                     # Cleanup's shared matrix selects these same paths only on Linux.
-                    for value in ['--use-openssl-ca', '/etc/ssl/certs/ca-certificates.crt',
-                                  '/etc/ssl/certs']:
-                        self.assertIn(value, workflow)
+                    environment = workflow.split('jobs:\n', 1)[0] + body.split('    steps:\n', 1)[0]
+                    for key, value in [('NODE_OPTIONS', '--use-openssl-ca'),
+                                       ('SSL_CERT_FILE', '/etc/ssl/certs/ca-certificates.crt'),
+                                       ('SSL_CERT_DIR', '/etc/ssl/certs')]:
+                        expected = f"${{{{ matrix.os == 'ubuntu-latest' && '{value}' || '' }}}}" if job == 'cleanup-safety' else value
+                        self.assertIn(f'{key}: {expected}', environment)
                     before, after = body.split(f'      - name: {TRUST_STEP}\n', 1)
                     self.assertNotRegex(before, r'uses: (?:actions/setup-|docker/setup-)|\bcurl\b|docker login|tools/(?:release|compose)/')
                     script = step_script(body, TRUST_STEP)
-                    commands = script.splitlines()
+                    commands = script.strip().splitlines()
                     self.assertEqual(commands[:2], [
                         'sudo apt-get -o APT::Update::Error-Mode=any update',
                         'sudo apt-get install -y --no-install-recommends ca-certificates'])
@@ -149,6 +154,27 @@ class RunnerTrustTests(unittest.TestCase):
         self.assertLess(body.index('publication/publication.json'), body.index('sha256sum --check'))
         self.assertLess(body.index('sha256sum --check'), body.index('sudo tar --extract'))
         self.assertLess(body.index('sudo tar --extract'), body.index('setup --hostname'))
+
+    def test_public_bootstrap_wrong_hash_stops_before_extraction(self):
+        """Run the retained receipt check against intended and substituted archive bytes."""
+        body = job_body((WORKFLOW.parent / 'application-release.yml').read_text(),
+                        'public-compose-acceptance')
+        script = step_script(body, 'Install from the public lean bootstrap, then exercise fresh setup and doctor')
+        check = script.split('expected=', 1)[1]
+        check = 'expected=' + check.split('sudo install -d -m 700 /tmp/wayfarer-public-acceptance/bootstrap', 1)[0]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'publication').mkdir()
+            archive = root / 'wayfarerctl-linux-amd64.tar.gz'
+            expected = hashlib.sha256(b'intended').hexdigest()
+            (root / 'publication/publication.json').write_text(json.dumps({'assets': {archive.name: 'sha256:' + expected}}))
+            for payload in [b'intended', b'substituted']:
+                archive.write_bytes(payload)
+                result = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c',
+                    'asset=wayfarerctl-linux-amd64.tar.gz\n' + check + 'echo EXTRACTION_REACHED'],
+                    env=dict(os.environ, RUNNER_TEMP=directory), text=True, capture_output=True)
+                self.assertEqual(result.returncode == 0, payload == b'intended', result.stderr)
+                self.assertEqual('EXTRACTION_REACHED' in result.stdout, payload == b'intended')
 
     def test_node_selection_pins_verified_patch_before_node_guard(self):
         """A major-only selector must not accept the runner's cached Node 24.21.0."""

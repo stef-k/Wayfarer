@@ -31,6 +31,28 @@ Publication permissions are narrow: image/index writers receive package write ac
 the release-asset step receives contents write access; qualification jobs remain
 read-only where possible.
 
+## Acquisition prerequisites
+
+Every application publication/qualification job and database publication host job
+corrects signed-APT CA packages and runs the existing host trust guard before its
+first workflow-controlled setup, API or registry-authentication operation. Public
+lifecycle/operator jobs establish the same prerequisite on their fresh runners.
+The maintainer accepts GitHub provisioning, runner/action transport, source
+resolution and artifact services as platform trust roots; this does not certify
+pre-step TLS stores or earlier downloads. See the
+[security boundary](../development/security.md#hosted-platform-and-workflow-acquisition).
+
+The public Compose job intentionally has no source checkout. Signed APT correction
+and an inline copy of the existing host-only guard establish trust before downloading
+the public bootstrap. Its expected SHA256 still comes from the publishing job's
+retained artifact receipt and must pass before extraction/execution. Subsequent
+public bundle and manifest integrity checks remain required.
+
+These prerequisites do not authorize publication. #915's Caddy replacement and
+compatibility package remains separate and outstanding; its transition gate stays
+closed. Release identity, accepted database authority and create-only publication
+retain their existing gates.
+
 ## Stable image identity and create-only publication
 
 The stable application image is a multi-platform GHCR release with native AMD64 and
