@@ -151,6 +151,20 @@ public sealed record UpdateReceipt
         else if (!File.Exists(marker)) ProtectedFiles.Create(marker, Plan.Operation.ToString("D"));
         using var parent = new SafeDirectory(Path.GetDirectoryName(path)!);
         parent.Flush();
+        if (Schema == 2 && (Resolved))
+        {
+            var history = Path.Combine(root, "recovery-control", "update-history");
+            Directory.CreateDirectory(history, ProtectedFiles.PrivateDirectory);
+            var retained = Path.Combine(history, Plan.Operation.ToString("N") + ".json");
+            var content = JsonSerializer.Serialize(this);
+            if (!File.Exists(retained)) ProtectedFiles.Create(retained, content);
+            ProtectedFiles.Check(retained, 0);
+            if (File.ReadAllText(retained) != content) throw new IOException("Retained terminal receipt differs.");
+            using var directory = new SafeDirectory(history);
+            directory.Flush();
+            File.Delete(path);
+            parent.Flush();
+        }
     }
 
     /// <summary>A transferred update stays unresolved until its exact restore accepts; intent is never deleted.</summary>

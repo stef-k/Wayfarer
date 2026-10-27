@@ -94,9 +94,10 @@ class Journey:
         environment = retained_env if retained_env and self.host('test', '-f', str(retained_env), check=False).returncode == 0 else self.install / 'deployment.env'
         generation = config.get('StorageGeneration')
         overlay = ['-f', str(self.install / 'storage-generations' / generation / 'compose.json')] if generation else []
+        mode = ['-f', str(bundle / 'external.yaml')] if config['Mode'] == 'external' else ['--profile', 'managed']
         return self.host('docker', 'compose', '--project-name', self.project, '--env-file',
                          str(environment), '-f', str(bundle / 'compose.yaml'),
-                         '-f', str(bundle / 'external.yaml'), *overlay, *args).stdout
+                         *mode, *overlay, *args).stdout
 
     def prepare_docker_adapter(self):
         """Reuse child-process fault boundaries without changing operator or bundle bytes."""

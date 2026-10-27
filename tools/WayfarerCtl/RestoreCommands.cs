@@ -101,7 +101,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         RestoreReceipt receipt;
         using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
         {
-            var existing = RestoreReceipt.Load(root);
+            var existing = update.RestoreOperation is { } restoreOperation ? RestoreReceipt.Find(root, restoreOperation) : RestoreReceipt.Load(root);
             if (update.RestoreOperation is not null && existing?.Plan.Operation == update.RestoreOperation)
             {
                 UpdateRestoreHandoff.Require(root, existing.Plan);
@@ -299,9 +299,9 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Recovery operates only on exact protected intent; no writer-cutoff rollback is inferred.</summary>
     private async Task<int> RecoverAsync(string root, RestoreOptions options, CancellationToken token)
     {
-        var receipt = RestoreReceipt.Load(root) ?? throw new UsageException("No restore receipt.");
-        ReleaseDispatch.RequireOwner(root, receipt.Plan);
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
+        var receipt = RestoreReceipt.Find(root, Guid.Parse(id)) ?? throw new UsageException("No restore receipt.");
+        ReleaseDispatch.RequireOwner(root, receipt.Plan);
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
         if (receipt.Phase == RestorePhase.Accepted && receipt.Plan.FromUpdate is not null)
         {

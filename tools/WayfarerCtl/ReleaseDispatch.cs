@@ -35,12 +35,23 @@ public static class ReleaseDispatch
         var resume = args is ["restore", "--resume" or "--abort", ..];
         if (args is ["update", "--replace-release", ..])
             throw new UsageException("Invoke replacement planning directly with the trusted target operator; do not dispatch through the installed operator.");
+        if (resume && Guid.TryParse(args.ElementAtOrDefault(2), out var restoreOperation))
+        {
+            var restore = RestoreReceipt.Find(root, restoreOperation) ?? throw new UsageException("Missing restore owner.");
+            return await InvokeAsync(root, args, ReleaseStore.Select(root, restore.Plan.OperatorOwner!), token);
+        }
         var selected = UninstallReceipt.State(root) != UninstallState.None ? Select(root, false) :
             args is ["update", "--resume" or "--abort" or "--restore" or "--accept-plan", ..]
             ? ReleaseStore.Select(root, args[1] == "--accept-plan"
                 ? UpdatePreparation.Load(root, args[2]).OperatorOwner
                 : (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)
             : Select(root, resume);
+        return await InvokeAsync(root, args, selected, token);
+    }
+
+    /// <summary>Execute only a validated retained owner; callers never overwrite the bootstrap or installed executable.</summary>
+    private static async Task<int> InvokeAsync(string root, string[] args, ReleaseBundle selected, CancellationToken token)
+    {
         var executable = Path.Combine(selected.Directory, "wayfarerctl");
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         start.ArgumentList.Add("--deployment-root");

@@ -77,6 +77,23 @@ public sealed record RestoreReceipt
         return receipt;
     }
 
+    /// <summary>Terminal joined receipts remain addressable after archival restores historical operator compatibility.</summary>
+    public static RestoreReceipt? Find(string root, Guid operation)
+    {
+        var current = Load(root);
+        if (current?.Plan.Operation == operation) return current;
+        var path = Path.Combine(root, "recovery-control", "restore-history", operation.ToString("N") + ".json");
+        if (!File.Exists(path)) return null;
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 262144) throw new IOException("Retained restore receipt exceeds bound.");
+        var receipt = JsonSerializer.Deserialize<RestoreReceipt>(File.ReadAllText(path), ArchiveContract.Json)
+            ?? throw new IOException("Missing retained restore receipt.");
+        receipt.Validate(root);
+        if (receipt.Plan.Operation != operation) throw new IOException("Retained restore operation mismatch.");
+        return receipt;
+    }
+
     /// <summary>Validate generated identities independently of any archived metadata.</summary>
     public void Validate(string root)
     {
@@ -114,6 +131,20 @@ public sealed record RestoreReceipt
         else if (!File.Exists(marker)) ProtectedFiles.Create(marker, Plan.Operation.ToString("D"));
         using var parent = new SafeDirectory(Path.GetDirectoryName(path)!);
         parent.Flush();
+        if (Schema == 2 && (Phase is RestorePhase.Accepted or RestorePhase.Aborted))
+        {
+            var history = Path.Combine(root, "recovery-control", "restore-history");
+            Directory.CreateDirectory(history, ProtectedFiles.PrivateDirectory);
+            var retained = Path.Combine(history, Plan.Operation.ToString("N") + ".json");
+            var content = JsonSerializer.Serialize(this);
+            if (!File.Exists(retained)) ProtectedFiles.Create(retained, content);
+            ProtectedFiles.Check(retained, 0);
+            if (File.ReadAllText(retained) != content) throw new IOException("Retained terminal receipt differs.");
+            using var directory = new SafeDirectory(history);
+            directory.Flush();
+            File.Delete(path);
+            parent.Flush();
+        }
     }
 
     /// <summary>Preserve completed operations before another restore can replace the current intent.</summary>

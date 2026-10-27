@@ -138,6 +138,8 @@ def selected_digest(reference: str, selected: str = PLATFORM) -> str:
 
 def publish_index(release: dict, directory: Path, output: Path) -> None:
     """Join two already anonymously qualified native artifacts into one create-only release identity."""
+    import caddy
+    caddy.preflight(release)
     facts = [json.loads(path.read_text()) for path in sorted(directory.glob("*.json"))]
     if len(facts) != 2 or {fact.get("platform") for fact in facts} != set(PLATFORMS):
         raise version.ValidationError("two distinct native platform evidence files required")
@@ -200,6 +202,8 @@ def write_evidence(path: Path, data: dict) -> None:
 def publish(release: dict, output: Path) -> None:
     """Build/test once, recheck identity/absence, push one tag and preserve its digest."""
 
+    import caddy
+    caddy.preflight(release)
     image = f"{IMAGE}:{release['tag']}"
     published = image + "-" + PLATFORM.split("/")[1]
     require_absent(image)
