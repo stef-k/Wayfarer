@@ -5,6 +5,7 @@ DNS/trust only; release payloads, command, mounts and named TLS stores stay inta
 No browser matrix, migration fault matrix, publication or production host is used.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -45,6 +46,7 @@ def prepare(output):
                       'caddy@' + caddy.POLICY['sourceCaddy'], 'caddy@' + caddy.POLICY['targetCaddy']):
         run('docker', 'pull', reference)
     head = run('git', 'rev-parse', 'HEAD').stdout.strip()
+    scope = caddy.scope_hash()
     with tempfile.TemporaryDirectory(prefix='wayfarer-caddy-candidate-') as temporary:
         checkout = Path(temporary) / 'source'
         run('git', 'clone', '--shared', '--no-checkout', str(ROOT), str(checkout))
@@ -72,7 +74,7 @@ def prepare(output):
     final_archive = output / 'bound-archive'
     final_archive.mkdir()
     bundle.archive(target, final_archive)
-    evidence = dict(sourceRevision=head, sourceFingerprint=fingerprint, oldBundle=str(old), targetBundle=str(target))
+    evidence = dict(sourceRevision=head, scopeSha256=scope, sourceFingerprint=fingerprint, oldBundle=str(old), targetBundle=str(target))
     (output / 'inputs.json').write_text(json.dumps(evidence, indent=2) + '\n')
     return evidence
 
@@ -153,6 +155,10 @@ case " $* " in
    touch "$fixture/primed-$proxy"
    if test "$(/usr/bin/docker inspect --format '{{{{.State.Running}}}}' "$proxy")" = true; then
     /usr/bin/docker restart "$proxy" >/dev/null
+    count=0
+    until /usr/bin/docker exec "$proxy" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
+     count=$((count+1)); test "$count" -lt 60; sleep 0.5
+    done
    fi
   fi ;;
 esac
@@ -165,7 +171,8 @@ case " $* " in
    until /usr/bin/docker exec "$proxy" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
     count=$((count+1)); test "$count" -lt 60; sleep 0.5
    done
-   kill -KILL "$PPID"
+   touch "$fixture/failure.ready"
+   while ! test -e "$fixture/failure.go"; do sleep 0.1; done
    exit 137
   fi ;;
 esac
@@ -204,6 +211,9 @@ esac
         """Exercise one lost target-start acknowledgement, exact-owner restore, and one accepted replacement."""
         self.ctl('setup', '--bundle', str(self.old), '--hostname', 'wayfarer.example.org', '--project', self.project,
                  '--edge-prefix', '172.30.69', '--mode', 'managed', '--password-stdin', data=self.password + '\n')
+        # Reuse the recovery fixture's tiny uploads witness before inspecting its durable layout.
+        self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
+                     'mkdir -p /var/lib/wayfarer/uploads/imports; printf durable > /var/lib/wayfarer/uploads/imports/caddy-qualification')
         self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
                  '--payload', str(self.old / 'wayfarer-recovery'), '--retention', '4')
         before = self.ingress.tls_facts()
@@ -212,14 +222,23 @@ esac
         plan, digest = self.replacement()
         assert plan['UpdateProtocol'] == 2 and plan['OperatorOwner'] == plan['Target']['Release']
         self.host('tee', str(self.directory / 'failure'), data='target-proxy')
-        failed = self.ctl('update', '--accept-plan', digest, check=False)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(self.ctl, 'update', '--accept-plan', digest, check=False)
+            try:
+                self.host('timeout', '600', 'sh', '-ec', 'while ! test -e "$1"; do sleep 0.1; done',
+                          'ready', str(self.directory / 'failure.ready'))
+                after_target = self.ingress.tls_facts()
+                target_proxy = self.proxy_facts()
+            finally:
+                self.host('touch', str(self.directory / 'failure.go'))
+            failed = pending.result(timeout=180)
         assert failed.returncode != 0
         interrupted = self.receipt('update')
         assert interrupted['Phase'] == 8 and interrupted['Plan']['OperatorOwner'] == plan['OperatorOwner']
-        after_target = self.ingress.tls_facts()
-        target_proxy = self.proxy_facts()
+        stopped = json.loads(self.host('docker', 'inspect', self.project + '-caddy-1').stdout)[0]
+        assert not stopped['State']['Running'] and stopped['HostConfig']['RestartPolicy']['Name'] == 'no'
         assert_tls_transition(before, after_target)
-        assert self.host('docker', 'exec', self.project + '-caddy-1', 'caddy', 'version').stdout.startswith('v2.11.7')
+        assert target_proxy['version'].startswith('v2.11.7')
         self.host('tee', str(self.directory / 'failure'), data='')
         self.executable = self.old / 'wayfarerctl'
         assert self.ctl('update', '--restore', plan['Operation'], check=False).returncode != 0
@@ -232,6 +251,7 @@ esac
         assert joined['Schema'] == 2 and joined['Plan']['OperatorOwner'] == plan['OperatorOwner']
         assert_tls_transition(after_target, self.ingress.tls_facts())
         recovered_proxy = self.proxy_facts()
+        assert recovered_proxy['restart'] == source_proxy['restart']
         assert self.host('docker', 'exec', self.project + '-caddy-1', 'caddy', 'version').stdout.startswith('v2.11.4')
         self.ctl('dispatch', 'restore', '--resume', joined['Plan']['Operation'])
         self.ctl('dispatch', 'start')
@@ -244,11 +264,13 @@ esac
             assert_tls_transition(before, self.ingress.tls_facts())
             assert self.curl('/Admin/Users', '-b', cookie.name, '-o', '/dev/null', '-w', '%{http_code}') == '200'
             self.authenticate(cookie.name)
+        accepted_proxy = self.proxy_facts()
+        assert accepted_proxy['restart'] == source_proxy['restart']
         return dict(sourceFingerprint=caddy.POLICY['sources'][image.PLATFORM], sourceCaddy=caddy.POLICY['sourceCaddy'],
                     targetCaddy=caddy.POLICY['targetCaddy'], targetOwner=plan['OperatorOwner'], recoveredOwner=joined['Plan']['OperatorOwner'],
                     interruptedOperation=plan['Operation'], acceptedOperation=next_plan['Operation'],
                     tlsStateReadable=['2.11.4', '2.11.7'], tls=before, sourceProxy=source_proxy,
-                    targetProxy=target_proxy, recoveredProxy=recovered_proxy, acceptedProxy=self.proxy_facts(), result='passed')
+                    targetProxy=target_proxy, recoveredProxy=recovered_proxy, acceptedProxy=accepted_proxy, result='passed')
 
 
 def qualify(inputs, output):
@@ -260,13 +282,16 @@ def qualify(inputs, output):
         try:
             journey.prepare_managed(old, target, Path(client))
             receipt = journey.transition()
-            receipt.update(platform=image.PLATFORM, sourceRevision=inputs['sourceRevision'], scopeSha256=caddy.scope_hash())
+            receipt.update(platform=image.PLATFORM, sourceRevision=inputs['sourceRevision'], scopeSha256=inputs['scopeSha256'])
             output.write_text(json.dumps(receipt, indent=2) + '\n')
             print('PASS genuine managed Caddy replacement, lost acknowledgement, target-owned old-release recovery and TLS/login continuity', flush=True)
         finally:
             # Preserve non-secret durable authority even when qualification fails.
             evidence = output.parent / (output.stem + '-operations')
             evidence.mkdir(exist_ok=True)
+            for service in ('caddy', 'wayfarer', 'db'):
+                observed = journey.host('docker', 'logs', '--tail', '100', journey.project + '-' + service + '-1', check=False)
+                (evidence / (service + '.log')).write_text(observed.stdout + observed.stderr)
             for name in ('update.json', 'restore.json'):
                 observed = journey.host('cat', str(journey.install / 'recovery-control' / name), check=False)
                 if observed.returncode == 0:

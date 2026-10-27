@@ -69,10 +69,17 @@ def test_missing_native_qualification_and_mismatched_owner_refuse(tmp_path):
         (tmp_path / f'caddy-replacement-{platform.split("/")[1]}.json').write_text(json.dumps(dict(
             result='passed', platform=platform, sourceRevision='head', scopeSha256='scope',
             sourceFingerprint=caddy.POLICY['sources'][platform], sourceCaddy=caddy.POLICY['sourceCaddy'],
-            targetCaddy=caddy.POLICY['targetCaddy'], targetOwner='new-owner', recoveredOwner='old-owner',
+            targetCaddy=caddy.POLICY['targetCaddy'],
+            targetOwner=dict(Name='candidate-v9999.0.0-' + 'c' * 40, Fingerprint='a' * 64, OperatorVersion='9999.0.0', OperatorSha256='b' * 64),
+            recoveredOwner=dict(Name='v1.9.22', Fingerprint='d' * 64, OperatorVersion='1.9.22', OperatorSha256='e' * 64),
             tlsStateReadable=['2.11.4', '2.11.7'])))
     with pytest.raises(version.ValidationError, match='receipt authority'):
         caddy.require_qualification(tmp_path, 'scope', 'head')
+    for path in tmp_path.glob('*.json'):
+        receipt = json.loads(path.read_text())
+        receipt['recoveredOwner'] = receipt['targetOwner']
+        path.write_text(json.dumps(receipt))
+    caddy.require_qualification(tmp_path, 'scope', 'head')
 
 
 @pytest.mark.parametrize('supported', [False, True])
@@ -86,7 +93,8 @@ def test_real_preflight_refuses_unsupported_or_unqualified_bridge_before_writes(
     if not supported:
         source['Version'] = '1.9.21'
     monkeypatch.setattr(public_bundle, 'previous', lambda tag: 'v' + source['Version'])
-    monkeypatch.setattr(caddy, 'source_bundle', lambda *args: (source, fingerprint, None))
+    monkeypatch.setattr(caddy, 'source_bundle', lambda tag, platform, directory:
+                        ({**source, 'Platform': platform}, caddy.POLICY['sources'][platform], None))
     monkeypatch.setattr(bundle, 'accepted_database', lambda: dict(platforms=[
         dict(platform=platform, platformDigest=source['Images']['DatabaseDigest']) for platform in image.PLATFORMS]))
     def unqualified():

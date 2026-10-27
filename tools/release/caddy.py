@@ -98,7 +98,7 @@ def require_qualification(directory, expected_scope, source_revision):
         raise version.ValidationError('Caddy replacement needs native AMD64 and ARM64 qualification receipts')
     for receipt in receipts:
         owner = receipt.get('targetOwner')
-        if not isinstance(owner, dict) or any(not re.fullmatch(r'[a-f0-9]{64}', owner.get(key, '')) for key in ('Fingerprint', 'OperatorSha256')):
+        if not isinstance(owner, dict) or set(owner) != {'Name', 'Fingerprint', 'OperatorVersion', 'OperatorSha256'} or any(not re.fullmatch(r'[a-f0-9]{64}', owner.get(key, '')) for key in ('Fingerprint', 'OperatorSha256')):
             raise version.ValidationError('unqualified Caddy replacement receipt authority')
         if (receipt.get('result') != 'passed' or receipt.get('sourceRevision') != source_revision or
                 receipt.get('scopeSha256') != expected_scope or

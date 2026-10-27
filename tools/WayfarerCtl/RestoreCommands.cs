@@ -286,7 +286,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         {
             if (error is UsageException || error is IOException && error.TargetSite?.DeclaringType?.Namespace == "WayfarerCtl")
                 terminal.Error(error.Message);
-            receipt = RestoreReceipt.Load(root) ?? receipt;
+            receipt = RestoreReceipt.Find(root, receipt.Plan.Operation) ?? receipt;
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             var runtime = receipt.Phase == RestorePhase.Authorized && receipt.Containers.Length == 0 ? "unchanged" : "fenced";
             try { await new RestoreFencing(runner).StopOwnedAsync(receipt, cleanup.Token); }

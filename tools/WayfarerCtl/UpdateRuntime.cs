@@ -67,7 +67,13 @@ public sealed class UpdateRuntime(IProcessRunner runner)
             if (labels.GetProperty("com.docker.compose.service").GetString() == "caddy")
             {
                 var proxy = image == "caddy@" + receipt.Plan.Current.CaddyDigest ? receipt.Plan.Current : target;
-                CaddyReplacement.VerifyProxy(root, proxy, container);
+                try { CaddyReplacement.VerifyProxy(root, proxy, container); }
+                catch (UsageException) when (receipt.Phase >= UpdatePhase.PostflightConfirmed &&
+                    receipt.Plan.Current.CaddyDigest == target.CaddyDigest)
+                {
+                    proxy = target;
+                    CaddyReplacement.VerifyProxy(root, proxy, container);
+                }
                 await CaddyReplacement.VerifyImageAsync(runner, proxy, container, token);
             }
             await owner.Required(["update", "--restart=no", id], token);

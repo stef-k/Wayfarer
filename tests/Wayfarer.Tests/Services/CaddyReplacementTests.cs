@@ -40,6 +40,9 @@ public sealed class CaddyReplacementTests
         var (source, target) = Pair(NativePlatform.Current);
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target));
         Assert.Equal(source.Fingerprint, UpdateOptions.Boundary(source, target, replacement: true).Fingerprint);
+        var sameProxy = target with { Manifest = target.Manifest with { Images = target.Manifest.Images with
+            { CaddyDigest = source.Manifest.Images.CaddyDigest } } };
+        Assert.Equal(source.Fingerprint, UpdateOptions.Boundary(source, sameProxy).Fingerprint);
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(target, source, replacement: true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source with { Fingerprint = new string('f', 64) }, target, replacement: true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target with { Manifest = target.Manifest with { Sources = [] } }, replacement: true));
@@ -109,13 +112,51 @@ public sealed class CaddyReplacementTests
         }
         await CaddyReplacement.VerifyImageAsync(new ProxyImage(payload), config, proxy, default);
         await Assert.ThrowsAsync<IOException>(() => CaddyReplacement.VerifyImageAsync(new ProxyImage("sha256:" + new string('b', 64)), config, proxy, default));
+        // Ordinary same-image updates still recreate Caddy with the target bundle's exact configuration mount.
+        var target = config with { Bundle = "/trusted/target" };
+        using var recreated = JsonDocument.Parse(proxy.GetRawText().Replace(config.Bundle, target.Bundle, StringComparison.Ordinal));
+        var runner = new ProxyImage(payload, recreated.RootElement.Clone());
+        var plan = new UpdatePlan(Guid.NewGuid(), "/root", config, target, null!, null!, [], "", "", "", new(1, 2, 2, 2, 1, 1));
+        await new UpdateRuntime(runner).StopWritersAsync("/root", new UpdateReceipt
+            { Plan = plan, PlanHash = "unused", Phase = UpdatePhase.PostflightConfirmed, Containers = ["proxy"] }, default);
+        Assert.Equal(new[] { "update", "stop" }, runner.Mutations);
+    }
+
+    /// <summary>Existing restore helpers have their own project label and must not be mistaken for managed proxy services.</summary>
+    [Fact]
+    public async Task RestoreFenceRetainsHistoricalHelperLabelContract()
+    {
+        var config = new Deployment { Bundle = "/trusted/source", Project = "replacement", Hostname = "wayfarer.example.org" };
+        var helper = JsonSerializer.SerializeToElement(new
+        {
+            Config = new { Image = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
+                Labels = new Dictionary<string, string> { ["wayfarer.restore-helper"] = config.Project } },
+            Mounts = Array.Empty<object>()
+        });
+        var plan = new RestorePlan(Guid.NewGuid(), "/root", config, Guid.NewGuid(), Guid.NewGuid(), new string('a', 64),
+            DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", null, Guid.NewGuid().ToString("N"), false, true, true);
+        var runner = new ProxyImage("unused", helper);
+        await new RestoreFencing(runner).StopOwnedAsync(new RestoreReceipt
+            { Plan = plan, PlanHash = plan.Hash(), Containers = ["proxy"] }, default);
+        Assert.Equal(new[] { "update", "stop" }, runner.Mutations);
     }
 
     /// <summary>Only Docker's independently inspected content-addressed native image facts are substituted.</summary>
-    private sealed class ProxyImage(string id) : IProcessRunner
+    private sealed class ProxyImage(string id, JsonElement? proxy = null) : IProcessRunner
     {
+        public List<string> Mutations { get; } = [];
+
+        /// <summary>Only inspect/list results are supplied; actual fencing commands are recorded as product behavior.</summary>
         public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
         {
+            if (args[0] == "ps") return Task.FromResult(new ProcessResult(0, "proxy"));
+            if (args is ["inspect", "proxy"]) return Task.FromResult(new ProcessResult(0, "[" + proxy!.Value.GetRawText() + "]"));
+            if (args is ["wait", "proxy"]) return Task.FromResult(new ProcessResult(0, "0"));
+            if (args[0] is "update" or "stop")
+            {
+                Mutations.Add(args[0]);
+                return Task.FromResult(new ProcessResult(0, ""));
+            }
             Assert.Equal(new[] { "image", "inspect", "caddy@" + ReleaseContract.LegacyCaddyDigest }, args);
             return Task.FromResult(new ProcessResult(0, JsonSerializer.Serialize(new[] { new {
                 Id = id, Os = "linux", Architecture = NativePlatform.Current.Split('/')[1], RepoDigests = new[] { "caddy@" + ReleaseContract.LegacyCaddyDigest } } })));

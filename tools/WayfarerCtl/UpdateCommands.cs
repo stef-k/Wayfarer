@@ -69,7 +69,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         {
             if (error is UsageException || error is IOException && error.TargetSite?.DeclaringType?.Namespace == "WayfarerCtl")
                 terminal.Error(error.Message);
-            receipt = UpdateReceipt.Load(root) ?? receipt;
+            receipt = UpdateReceipt.Find(root, receipt.Plan.Operation) ?? receipt;
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             try { await new UpdateRuntime(runner).StopWritersAsync(root, receipt, cleanup.Token); }
             catch { terminal.Error("Runtime fencing uncertain; retain intent and reconcile exact Docker resources."); }
