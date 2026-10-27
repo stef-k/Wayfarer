@@ -38,10 +38,11 @@ public static class ReleaseDispatch
         if (resume && Guid.TryParse(args.ElementAtOrDefault(2), out var restoreOperation))
         {
             var restore = RestoreReceipt.Find(root, restoreOperation) ?? throw new UsageException("Missing restore owner.");
-            return await InvokeAsync(root, args, ReleaseStore.Select(root, restore.Plan.OperatorOwner!), token);
+            var owner = restore.Plan.OperatorOwner ?? throw new UsageException("Receipt has no retained operator owner; invoke its original operator explicitly.");
+            return await InvokeAsync(root, args, ReleaseStore.Select(root, owner), token);
         }
         var selected = UninstallReceipt.State(root) != UninstallState.None ? Select(root, false) :
-            args is ["update", "--resume" or "--abort" or "--restore" or "--accept-plan", ..]
+            args is ["update", "--resume" or "--abort" or "--restore" or "--accept-plan", _]
             ? ReleaseStore.Select(root, args[1] == "--accept-plan"
                 ? UpdatePreparation.Load(root, args[2]).OperatorOwner
                 : (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)

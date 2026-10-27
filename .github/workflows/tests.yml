@@ -693,6 +693,9 @@ jobs:
           path: |
             ${{ runner.temp }}/caddy-replacement-${{ matrix.arch }}.json
             ${{ runner.temp }}/caddy-replacement-${{ matrix.arch }}-operations
+            ${{ runner.temp }}/caddy-inputs/inputs.json
+            ${{ runner.temp }}/caddy-inputs/candidate-source-commit.txt
+            ${{ runner.temp }}/caddy-inputs/candidate-source.tar.gz
           if-no-files-found: warn
 
   # Stable required result: skipped unselected jobs are accepted only when classification says they are unselected.

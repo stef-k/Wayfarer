@@ -7,6 +7,7 @@ public static class CaddyReplacement
 {
     private static readonly JsonElement Policy = ReadPolicy();
 
+    /// <summary>Load reviewed immutable policy bytes from this executable rather than installation-controlled files.</summary>
     private static JsonElement ReadPolicy()
     {
         using var stream = typeof(CaddyReplacement).Assembly.GetManifestResourceStream("WayfarerCtl.caddy-replacement.json")!;

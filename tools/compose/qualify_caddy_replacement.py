@@ -56,9 +56,13 @@ def prepare(output):
         project = checkout / 'tools/WayfarerCtl/WayfarerCtl.csproj'
         project.write_text(project.read_text().replace('<OutputType>', '<!-- Disposable candidate admission only. -->\n    <DefineConstants>UPDATE_QUALIFICATION</DefineConstants>\n    <OutputType>', 1))
         subprocess.run(['git', 'add', 'Version.props', str(project)], cwd=checkout, check=True)
+        stamp = run('git', 'show', '-s', '--format=%cI', head).stdout.strip()
         subprocess.run(['git', '-c', 'commit.gpgsign=false', 'commit', '-m', 'Disposable Caddy qualification identity'], cwd=checkout, check=True,
-                       env=dict(os.environ, GIT_AUTHOR_NAME='Wayfarer qualification', GIT_COMMITTER_NAME='Wayfarer qualification',
+                       env=dict(os.environ, GIT_AUTHOR_DATE=stamp, GIT_COMMITTER_DATE=stamp, GIT_AUTHOR_NAME='Wayfarer qualification', GIT_COMMITTER_NAME='Wayfarer qualification',
                                 GIT_AUTHOR_EMAIL='qualification@example.invalid', GIT_COMMITTER_EMAIL='qualification@example.invalid'))
+        subprocess.run(['git', 'archive', '--format=tar.gz', '--output', str(output / 'candidate-source.tar.gz'), 'HEAD'], cwd=checkout, check=True)
+        commit = subprocess.run(['git', 'show', '-s', '--format=raw', 'HEAD'], cwd=checkout, check=True, capture_output=True, text=True)
+        (output / 'candidate-source-commit.txt').write_text(commit.stdout)
         recipe = "import sys;sys.path.insert(0,'tools/release');import image;r=image.identity(None,None);r['tag']='candidate-caddy-'+r['sourceRevision'];ref=image.build(r);print(image.inspect_image(r,ref)['RepoDigests'][0].split('@')[1])"
         result = subprocess.run(['python3', '-B', '-c', recipe], cwd=checkout, check=True, text=True, stdout=subprocess.PIPE)
         digest = result.stdout.splitlines()[-1]
@@ -136,6 +140,12 @@ set -eu
 fixture={directory}
 project={project}
 ca={ca}
+wait_proxy() {{
+ count=0
+ until /usr/bin/docker exec "$1" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
+  count=$((count+1)); test "$count" -lt 60; sleep 0.5
+ done
+}}
 # This adapter changes fixture trust and DNS, never release bytes or observed mounts.
 /usr/bin/docker "$@"
 case " $* " in
@@ -155,22 +165,17 @@ case " $* " in
    touch "$fixture/primed-$proxy"
    if test "$(/usr/bin/docker inspect --format '{{{{.State.Running}}}}' "$proxy")" = true; then
     /usr/bin/docker restart "$proxy" >/dev/null
-    count=0
-    until /usr/bin/docker exec "$proxy" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
-     count=$((count+1)); test "$count" -lt 60; sleep 0.5
-    done
+    wait_proxy "$proxy"
    fi
   fi ;;
 esac
 case " $* " in
  *" start "*)
   for proxy; do :; done
+  image=$(/usr/bin/docker inspect --format '{{{{.Config.Image}}}}' "$proxy")
+  case "$image" in caddy@*) wait_proxy "$proxy" ;; esac
   if test "$(cat "$fixture/failure" 2>/dev/null || true)" = target-proxy &&
-     test "$(/usr/bin/docker inspect --format '{{{{.Config.Image}}}}' "$proxy")" = "caddy@{caddy.POLICY['targetCaddy']}"; then
-   count=0
-   until /usr/bin/docker exec "$proxy" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
-    count=$((count+1)); test "$count" -lt 60; sleep 0.5
-   done
+     test "$image" = "caddy@{caddy.POLICY['targetCaddy']}"; then
    touch "$fixture/failure.ready"
    while ! test -e "$fixture/failure.go"; do sleep 0.1; done
    exit 137

@@ -19,6 +19,7 @@ public sealed class ManagedUpdateTests
         Assert.Equal(hash, UpdateOptions.Parse(["--accept-plan", hash]).Accept);
         Assert.True(UpdateOptions.Parse(["--replace-release", "--bundle", "/trusted/release", "--plan"]).ReplaceRelease);
         Assert.Throws<UsageException>(() => UpdateOptions.Parse(["--replace-release", "--accept-plan", hash]));
+        Assert.Throws<UsageException>(() => UpdateOptions.Parse(["--replace-release", "--replace-release", "--bundle", "/trusted/release", "--plan"]));
     }
 
     /// <summary>Lost migration acknowledgement is already beyond abort, regardless of target writer launch.</summary>

@@ -9,7 +9,7 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
         if (args is ["--replace-release", .. var replacement])
         {
             var parsed = Parse(replacement);
-            if (!parsed.Plan) throw new UsageException("Replacement mode is a planning choice only.");
+            if (!parsed.Plan || parsed.ReplaceRelease) throw new UsageException("Replacement mode is one explicit planning choice only.");
             return parsed with { ReplaceRelease = true };
         }
         if (args is ["--plan"]) return new(Plan: true, PublicVersion: "latest");

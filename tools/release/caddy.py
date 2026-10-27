@@ -16,6 +16,7 @@ POLICY = json.loads(Path(__file__).with_name('caddy-replacement.json').read_text
 def require(source, fingerprint, target):
     """Only the genuine native v1.9.22 authority and reviewed image/comment delta may cross."""
     def file_hash(manifest, path):
+        """Select the one authenticated payload hash used by the exact template boundary."""
         return next(item['Sha256'] for item in manifest['Files'] if item['Path'] == path)
     if (source['Status'] != 'stable' or source['Version'] != POLICY['sourceVersion'] or
             source['SourceRevision'] != POLICY['sourceRevision'] or

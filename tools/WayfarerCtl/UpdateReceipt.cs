@@ -162,6 +162,7 @@ public sealed record UpdateReceipt
             if (File.ReadAllText(retained) != content) throw new IOException("Retained terminal receipt differs.");
             using var directory = new SafeDirectory(history);
             directory.Flush();
+            parent.Flush(); // Persist the history directory entry before removing active intent.
             File.Delete(path);
             parent.Flush();
         }
