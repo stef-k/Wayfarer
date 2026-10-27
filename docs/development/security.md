@@ -321,9 +321,11 @@ Reuse #936's signed-APT and G3-rejection/ISRG-X1-positive evidence for these unc
 controls. Source ordering and local guarded acquisition are narrower than actual
 hosted AMD64/ARM64 execution or public release acceptance. Unexpected future runner
 cache/tool configuration fails closed and requires assessment. The separate Caddy
-replacement/compatibility package remains outstanding with its transition gate
-closed. No publication timing, installed-user upgrade proof or production remediation
-is decided here. Chromium CRLSet remains UNKNOWN; #474/#877 and broader dependency
+replacement uses an [explicit target-owned operation](../self-hosting/wayfarerctl.md#explicit-managed-caddy-replacement)
+and [pre-publication compatibility evidence](../maintainer/publication.md#compatibility-before-the-first-write).
+Source implementation does not establish corrected publication or installation
+remediation. No publication timing or installed-user upgrade proof is decided here.
+Chromium CRLSet remains UNKNOWN; #474/#877 and broader dependency
 maintenance keep their separate gates.
 
 ## Data Protection and provider credentials

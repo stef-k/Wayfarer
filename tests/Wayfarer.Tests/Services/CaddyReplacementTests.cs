@@ -74,4 +74,51 @@ public sealed class CaddyReplacementTests
         Assert.Throws<IOException>(() => CaddyReplacement.RequireOwner(plan with { UpdateProtocol = 1 }));
         CaddyReplacement.RequireOwner(plan with { UpdateProtocol = 1, OperatorOwner = current.Release! });
     }
+
+    /// <summary>Labels alone cannot authorize a different proxy configuration, TLS store, mode or native payload.</summary>
+    [Fact]
+    public async Task ProxyFenceRequiresActualPayloadAndExactTlsMounts()
+    {
+        var config = new Deployment { Bundle = "/trusted/source", Project = "replacement", Hostname = "wayfarer.example.org", Mode = "managed", Platform = NativePlatform.Current };
+        var payload = "sha256:" + new string('a', 64);
+        var proxy = JsonSerializer.SerializeToElement(new
+        {
+            Image = payload,
+            Config = new
+            {
+                Image = "caddy@" + ReleaseContract.LegacyCaddyDigest,
+                Cmd = new[] { "caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile" },
+                Env = new[] { "PUBLIC_HOST=wayfarer.example.org" },
+                Labels = new Dictionary<string, string> { ["com.docker.compose.project"] = config.Project,
+                    ["com.docker.compose.service"] = "caddy", ["com.docker.compose.project.working_dir"] = config.Bundle,
+                    ["com.docker.compose.project.config_files"] = config.Bundle + "/compose.yaml" }
+            },
+            Mounts = new object[] {
+                new { Type = "volume", Name = "replacement_caddy-data", Destination = "/data", RW = true },
+                new { Type = "volume", Name = "replacement_caddy-config", Destination = "/config", RW = true },
+                new { Type = "bind", Source = "/trusted/source/caddy/Caddyfile", Destination = "/etc/caddy/Caddyfile", RW = false } },
+            NetworkSettings = new { Networks = new Dictionary<string, object> { ["replacement_edge"] = new { } } }
+        });
+        CaddyReplacement.VerifyProxy("/root", config, proxy);
+        Assert.Throws<IOException>(() => CaddyReplacement.VerifyProxy("/root", config with { Mode = "external" }, proxy));
+        foreach (var (before, after) in new[] { ("replacement_caddy-data", "foreign_data"), ("replacement_caddy-config", "foreign_config"),
+                     ("/trusted/source/caddy/Caddyfile", "/foreign/Caddyfile"), ("PUBLIC_HOST=wayfarer.example.org", "PUBLIC_HOST=foreign.example.org") })
+        {
+            using var changed = JsonDocument.Parse(proxy.GetRawText().Replace(before, after, StringComparison.Ordinal));
+            Assert.Throws<IOException>(() => CaddyReplacement.VerifyProxy("/root", config, changed.RootElement));
+        }
+        await CaddyReplacement.VerifyImageAsync(new ProxyImage(payload), config, proxy, default);
+        await Assert.ThrowsAsync<IOException>(() => CaddyReplacement.VerifyImageAsync(new ProxyImage("sha256:" + new string('b', 64)), config, proxy, default));
+    }
+
+    /// <summary>Only Docker's independently inspected content-addressed native image facts are substituted.</summary>
+    private sealed class ProxyImage(string id) : IProcessRunner
+    {
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Assert.Equal(new[] { "image", "inspect", "caddy@" + ReleaseContract.LegacyCaddyDigest }, args);
+            return Task.FromResult(new ProcessResult(0, JsonSerializer.Serialize(new[] { new {
+                Id = id, Os = "linux", Architecture = NativePlatform.Current.Split('/')[1], RepoDigests = new[] { "caddy@" + ReleaseContract.LegacyCaddyDigest } } })));
+        }
+    }
 }

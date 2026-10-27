@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / '.github/workflows/tests.yml'
 TRUST_STEP = 'Correct and verify host trust before setup downloads'
 CONSUMERS = {
-    'tests.yml': ['test', 'application-image', 'application-image-arm64', 'cleanup-safety'],
+    'tests.yml': ['test', 'application-image', 'application-image-arm64', 'cleanup-safety', 'caddy-replacement'],
     'application-release.yml': ['publish', 'anonymous-pull', 'publish-index',
                                 'deployment-bundle', 'public-compose-acceptance'],
     'database-image.yml': ['publish', 'anonymous-pull', 'publish-index'],

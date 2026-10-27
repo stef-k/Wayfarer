@@ -44,6 +44,7 @@ LIFECYCLE_SHARED = (
     'tools/WayfarerCtl/Preflight.cs', 'tools/WayfarerCtl/Release*.cs',
     'tools/WayfarerCtl/PublicRelease.cs',
     'tools/release/bundle.py', 'tools/release/public_bundle.py',
+    'tools/release/caddy.py', 'tools/release/caddy-replacement.json',
     'tools/compose/qualify.py', 'tools/compose/qualify_ctl.py',
 )
 # Global/package inputs can alter native payloads and schema/browser dependencies.
@@ -63,7 +64,8 @@ NATIVE_OWNERS = IMAGE_HELPER_OWNERS + (
     'Dockerfile', '.dockerignore', 'Services/BrowserWorkflow.cs',
     'tools/release/image.py', 'tools/release/image-smoke.sh',
     'tools/release/db_image.py', 'tools/release/database-release.json',
-    'tools/release/bundle.py', 'tools/release/public_bundle.py', 'deploy/compose/db/*',
+    'tools/release/bundle.py', 'tools/release/public_bundle.py',
+    'tools/release/caddy.py', 'tools/release/caddy-replacement.json', 'deploy/compose/db/*',
     # Shipped native payload projects; local browser seed fixtures have no native contract.
     'tools/WayfarerCtl/WayfarerCtl.csproj', 'tools/WayfarerRecovery/WayfarerRecovery.csproj',
     'tools/WayfarerRecoverySource/WayfarerRecoverySource.csproj',
@@ -139,7 +141,8 @@ OWNERS = {
                    'tools/release/database-release.json', 'Services/BrowserWorkflow.cs',
                    'tools/compose/managed_ingress.mjs',
                    'tools/compose/qualify_sse.py', 'tools/compose/sse-probe/*'),
-    'operator': ('tools/WayfarerCtl/*', 'tools/release/bundle.py',
+    'operator': ('tools/WayfarerCtl/*', 'tools/compose/qualify_caddy_replacement.py',
+                 'tools/release/caddy.py', 'tools/release/caddy-replacement.json', 'tools/release/bundle.py',
                  'tools/release/public_bundle.py', 'tools/release/INSTALL.md'),
     'recovery': (
         'tools/WayfarerRecovery/*', 'tools/WayfarerRecoverySource/*',

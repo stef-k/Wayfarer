@@ -365,14 +365,14 @@ class CiGateTests(unittest.TestCase):
         self.script = textwrap.dedent(step.split('        run: |\n', 1)[1])
         self.env = dict(os.environ, EXPECTED_HEAD='a' * 40, CLASSIFIED_HEAD='a' * 40,
                         CLASSIFY_RESULT='success', TEST_RESULT='success', CLEANUP_RESULT='skipped',
-                        IMAGE_RESULT='skipped', ARM_RESULT='skipped')
+                        IMAGE_RESULT='skipped', ARM_RESULT='skipped', CADDY_RESULT='skipped')
         self.env.update({selector: 'false' for selector in self.selectors})
 
     def test_complete_boolean_outputs(self):
         """Both the cheap path and fully selected successful evidence must pass."""
         for selected, result in [('false', 'skipped'), ('true', 'success')]:
             values = {**self.env, **{selector: selected for selector in self.selectors},
-                      'CLEANUP_RESULT': result, 'IMAGE_RESULT': result, 'ARM_RESULT': result}
+                      'CLEANUP_RESULT': result, 'IMAGE_RESULT': result, 'ARM_RESULT': result, 'CADDY_RESULT': result}
             with self.subTest(selected=selected):
                 gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
                 self.assertEqual(gate.returncode, 0, gate.stderr)
@@ -403,7 +403,8 @@ class CiGateTests(unittest.TestCase):
         ]
         for selected, consumer in cases:
             for result in ['skipped', 'success']:
-                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result}
+                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result,
+                          'CADDY_RESULT': 'success' if 'OPERATOR_SELECTED' in selected else 'skipped'}
                 with self.subTest(selected=selected, result=result):
                     gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
                     self.assertNotEqual(gate.returncode, 0)
@@ -415,7 +416,8 @@ class CiGateTests(unittest.TestCase):
         for length in range(1, len(chain) + 1):
             selected = chain[:length]
             for result in ['success', 'skipped', 'failure', 'cancelled']:
-                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result}
+                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result,
+                          'CADDY_RESULT': 'success' if 'OPERATOR_SELECTED' in selected else 'skipped'}
                 with self.subTest(selected=selected, result=result):
                     gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
                     if result == 'success':

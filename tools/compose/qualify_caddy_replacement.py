@@ -37,13 +37,20 @@ def prepare(output):
     import tarfile
     with tarfile.open(archive) as tar:
         tar.extractall(old, filter='data')
+    # Python's data filter adds owner write permission; restore the authenticated release modes.
+    for entry in source['Files']:
+        (old / entry['Path']).chmod(entry['Mode'])
+    for reference in ('ghcr.io/stef-k/wayfarer@' + source['Images']['PlatformDigest'],
+                      'ghcr.io/stef-k/wayfarer-db@' + source['Images']['DatabaseDigest'],
+                      'caddy@' + caddy.POLICY['sourceCaddy'], 'caddy@' + caddy.POLICY['targetCaddy']):
+        run('docker', 'pull', reference)
     head = run('git', 'rev-parse', 'HEAD').stdout.strip()
     with tempfile.TemporaryDirectory(prefix='wayfarer-caddy-candidate-') as temporary:
         checkout = Path(temporary) / 'source'
         run('git', 'clone', '--shared', '--no-checkout', str(ROOT), str(checkout))
         subprocess.run(['git', 'checkout', '--detach', head], cwd=checkout, check=True)
         props = checkout / 'Version.props'
-        props.write_text(props.read_text().replace('>1.9.22<', '>9999.0.0<'))
+        props.write_text(props.read_text().replace('>' + caddy.version.read_version_state().version + '<', '>9999.0.0<'))
         project = checkout / 'tools/WayfarerCtl/WayfarerCtl.csproj'
         project.write_text(project.read_text().replace('<OutputType>', '<!-- Disposable candidate admission only. -->\n    <DefineConstants>UPDATE_QUALIFICATION</DefineConstants>\n    <OutputType>', 1))
         subprocess.run(['git', 'add', 'Version.props', str(project)], cwd=checkout, check=True)
@@ -61,6 +68,10 @@ def prepare(output):
     target_manifest['Sources'] = [public_bundle.boundary(source, fingerprint, target_manifest)]
     manifest_path.write_text(json.dumps(target_manifest, sort_keys=True, separators=(',', ':')) + '\n')
     subprocess.run([str(target / 'wayfarerctl'), 'release', 'inspect', str(target)], check=True)
+    import bundle
+    final_archive = output / 'bound-archive'
+    final_archive.mkdir()
+    bundle.archive(target, final_archive)
     evidence = dict(sourceRevision=head, sourceFingerprint=fingerprint, oldBundle=str(old), targetBundle=str(target))
     (output / 'inputs.json').write_text(json.dumps(evidence, indent=2) + '\n')
     return evidence
@@ -132,7 +143,7 @@ case " $* " in
   if ! test -e "$fixture/primed-$proxy"; then
    network="${{project}}_edge"
    /usr/bin/docker network connect --alias acme-v02.api.letsencrypt.org "$network" "$ca" 2>/dev/null ||
-    /usr/bin/docker inspect --format '{{{{index .NetworkSettings.Networks "'"$network"'"}}}}' "$ca" | /bin/grep -q .
+    /usr/bin/docker inspect --format '{{{{if index .NetworkSettings.Networks "'"$network"'"}}}}yes{{{{end}}}}' "$ca" | /bin/grep -q '^yes$'
    /usr/bin/docker network disconnect "$network" "$proxy"
    /usr/bin/docker network connect --ip 172.30.69.3 --alias wayfarer.example.org "$network" "$proxy"
    image=$(/usr/bin/docker inspect --format '{{{{.Config.Image}}}}' "$proxy")
@@ -177,6 +188,18 @@ esac
         output = self.ctl('update', '--replace-release', '--bundle', str(self.target), '--plan').stdout
         return json.loads(output.splitlines()[0]), output.split('Plan SHA-256: ')[1].splitlines()[0]
 
+    def proxy_facts(self):
+        """Retain actual native payload, configuration and mounts without exposing TLS keys or credentials."""
+        proxy = json.loads(self.host('docker', 'inspect', self.project + '-caddy-1').stdout)[0]
+        image_facts = json.loads(self.host('docker', 'image', 'inspect', proxy['Config']['Image']).stdout)[0]
+        assert proxy['Image'] == image_facts['Id']
+        return dict(reference=proxy['Config']['Image'], imageId=proxy['Image'],
+                    platform=image_facts['Os'] + '/' + image_facts['Architecture'],
+                    version=self.host('docker', 'exec', self.project + '-caddy-1', 'caddy', 'version').stdout.strip(),
+                    mounts=proxy['Mounts'], labels=proxy['Config']['Labels'], command=proxy['Config']['Cmd'],
+                    restart=proxy['HostConfig']['RestartPolicy'],
+                    autosaveSha256=self.host('docker', 'exec', self.project + '-caddy-1', 'sha256sum', '/config/caddy/autosave.json').stdout.split()[0])
+
     def transition(self):
         """Exercise one lost target-start acknowledgement, exact-owner restore, and one accepted replacement."""
         self.ctl('setup', '--bundle', str(self.old), '--hostname', 'wayfarer.example.org', '--project', self.project,
@@ -184,6 +207,7 @@ esac
         self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
                  '--payload', str(self.old / 'wayfarer-recovery'), '--retention', '4')
         before = self.ingress.tls_facts()
+        source_proxy = self.proxy_facts()
         self.executable = self.target / 'wayfarerctl'
         plan, digest = self.replacement()
         assert plan['UpdateProtocol'] == 2 and plan['OperatorOwner'] == plan['Target']['Release']
@@ -193,6 +217,7 @@ esac
         interrupted = self.receipt('update')
         assert interrupted['Phase'] == 8 and interrupted['Plan']['OperatorOwner'] == plan['OperatorOwner']
         after_target = self.ingress.tls_facts()
+        target_proxy = self.proxy_facts()
         assert_tls_transition(before, after_target)
         assert self.host('docker', 'exec', self.project + '-caddy-1', 'caddy', 'version').stdout.startswith('v2.11.7')
         self.host('tee', str(self.directory / 'failure'), data='')
@@ -206,6 +231,7 @@ esac
         joined = self.receipt('restore', restored['RestoreOperation'])
         assert joined['Schema'] == 2 and joined['Plan']['OperatorOwner'] == plan['OperatorOwner']
         assert_tls_transition(after_target, self.ingress.tls_facts())
+        recovered_proxy = self.proxy_facts()
         assert self.host('docker', 'exec', self.project + '-caddy-1', 'caddy', 'version').stdout.startswith('v2.11.4')
         self.ctl('dispatch', 'restore', '--resume', joined['Plan']['Operation'])
         self.ctl('dispatch', 'start')
@@ -221,7 +247,8 @@ esac
         return dict(sourceFingerprint=caddy.POLICY['sources'][image.PLATFORM], sourceCaddy=caddy.POLICY['sourceCaddy'],
                     targetCaddy=caddy.POLICY['targetCaddy'], targetOwner=plan['OperatorOwner'], recoveredOwner=joined['Plan']['OperatorOwner'],
                     interruptedOperation=plan['Operation'], acceptedOperation=next_plan['Operation'],
-                    tlsStateReadable=['2.11.4', '2.11.7'], tls=before, result='passed')
+                    tlsStateReadable=['2.11.4', '2.11.7'], tls=before, sourceProxy=source_proxy,
+                    targetProxy=target_proxy, recoveredProxy=recovered_proxy, acceptedProxy=self.proxy_facts(), result='passed')
 
 
 def qualify(inputs, output):

@@ -73,3 +73,26 @@ def test_missing_native_qualification_and_mismatched_owner_refuse(tmp_path):
             tlsStateReadable=['2.11.4', '2.11.7'])))
     with pytest.raises(version.ValidationError, match='receipt authority'):
         caddy.require_qualification(tmp_path, 'scope', 'head')
+
+
+@pytest.mark.parametrize('supported', [False, True])
+def test_real_preflight_refuses_unsupported_or_unqualified_bridge_before_writes(monkeypatch, tmp_path, supported):
+    """Exercise actual compatibility composition through publish, including genuine-template checks before qualification."""
+    import bundle
+    source, fingerprint, _ = pair()
+    migrations = sorted(path.stem for path in (version.REPO_ROOT / 'Migrations').glob('*.cs')
+                        if path.name[0].isdigit() and not path.name.endswith('.Designer.cs'))
+    source['Application'].update(Migrations=migrations[:1], TerminalMigration=migrations[0])
+    if not supported:
+        source['Version'] = '1.9.21'
+    monkeypatch.setattr(public_bundle, 'previous', lambda tag: 'v' + source['Version'])
+    monkeypatch.setattr(caddy, 'source_bundle', lambda *args: (source, fingerprint, None))
+    monkeypatch.setattr(bundle, 'accepted_database', lambda: dict(platforms=[
+        dict(platform=platform, platformDigest=source['Images']['DatabaseDigest']) for platform in image.PLATFORMS]))
+    def unqualified():
+        raise version.ValidationError('unqualified transition')
+    monkeypatch.setattr(caddy, 'qualification', unqualified)
+    monkeypatch.setattr(image, 'build', lambda *args: pytest.fail('preflight reached image build'))
+    monkeypatch.setattr(image, 'run', lambda *args: pytest.fail('preflight reached publication'))
+    with pytest.raises(version.ValidationError, match='unqualified transition' if supported else 'unsupported Caddy replacement'):
+        image.publish(dict(tag='v9999.0.0', version='9999.0.0'), tmp_path / 'receipt')

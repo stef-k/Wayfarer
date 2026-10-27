@@ -149,3 +149,13 @@ selecting old bytes manually.
 Executable lifecycle details live in `tools/WayfarerCtl`,
 `tools/WayfarerRecovery` and the shipped bundle. Follow
 [wayfarerctl](../self-hosting/wayfarerctl.md) for administrator-facing actions.
+
+The bounded v1.9.22 Caddy 2.11.4 to 2.11.7 replacement uses update protocol/receipt
+2 and joined restore receipt 2 because the target operator owns both operations.
+The genuine platform-specific public source fingerprint, explicit target source
+boundary and exact executable hash are all required before fencing. Ordinary
+installed-operator updates and ordinary restores retain receipt schema 1.
+Terminal replacement receipts move durably into existing history before clearing
+active intent; historical operators therefore refuse pending new intent but remain
+usable after explicit old-release recovery. This grants no general downgrade,
+version skip or TLS-state deletion authority.

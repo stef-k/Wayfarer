@@ -32,7 +32,7 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
                 "--restore" => new(Restore: operation),
                 _ => throw new UsageException("Unknown update recovery action.")
             };
-        throw new UsageException("Use update [X.Y.Z] --plan, --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
+        throw new UsageException("Use update [X.Y.Z] --plan, [--replace-release] --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
     }
 
     /// <summary>Candidate execution exists only in explicitly compiled disposable qualification operators.</summary>

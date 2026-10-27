@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Add #915's explicit `update --replace-release` bridge from genuine managed
+  v1.9.22/Caddy 2.11.4 to an exactly authorized corrected Caddy 2.11.7 release.
+  The trusted target operator retains replacement/recovery ownership, TLS volumes
+  and restart policy authority. Refuse incompatible or unqualified predecessors
+  before create-only image/index publication. Release selection, publication and
+  installation remediation remain separate; no automatic rollback is promised.
 - Protect #915's remaining workflow-controlled setup, API and bootstrap acquisitions
   with signed-APT CA correction and the existing trust guard. Windows cleanup uses
   validated provisioned Node/Python caches without network fallback; host rustup

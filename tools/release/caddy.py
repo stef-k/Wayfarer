@@ -1,6 +1,7 @@
 """Exact proxy bridge and read-only pre-publication compatibility qualification."""
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -50,14 +51,22 @@ def source_bundle(tag, platform, directory):
     if archive.stat().st_size != asset['size'] or 'sha256:' + archive_digest != asset['digest']:
         raise version.ValidationError('predecessor archive differs from public authority')
     with tarfile.open(archive) as tar:
-        members = tar.getmembers()
-        if len(members) > 16 or any(not item.isfile() or item.size > 256 * 1024 * 1024 for item in members):
-            raise version.ValidationError('invalid predecessor payload inventory')
+        members = []
+        for member in tar:
+            members.append(member)
+            if len(members) > 16 or not member.isfile() or member.size > 256 * 1024 * 1024:
+                raise version.ValidationError('invalid predecessor payload inventory')
         by_name = {item.name: item for item in members}
         if len(by_name) != len(members) or 'release.json' not in by_name or by_name['release.json'].size > 1024 * 1024:
             raise version.ValidationError('ambiguous predecessor inventory')
         raw = tar.extractfile('release.json').read()
         manifest = json.loads(raw)
+        import bundle
+        expected = set(bundle.PAYLOADS) | (set(bundle.CAPTURE_PAYLOADS) if manifest.get('LegacyCapture') else set())
+        if (manifest.get('Schema') != 1 or manifest.get('BundleContract') != 1 or manifest.get('ConfigurationSchema') != 1 or
+                manifest.get('Version') != tag[1:] or manifest.get('Repository') != image.SOURCE or
+                {item['Path'] for item in manifest['Files']} != expected or len(manifest['Files']) != len(expected)):
+            raise version.ValidationError('unsupported predecessor release contract')
         if (manifest['Platform'] != platform or manifest['Status'] != 'stable' or manifest['Tag'] != tag or
                 set(by_name) != {'release.json', *(item['Path'] for item in manifest['Files'])}):
             raise version.ValidationError('predecessor manifest identity differs')
@@ -65,7 +74,7 @@ def source_bundle(tag, platform, directory):
         for item in sorted(manifest['Files'], key=lambda item: item['Path']):
             member = by_name[item['Path']]
             digest = hashlib.file_digest(tar.extractfile(member), 'sha256').digest()
-            if digest.hex() != item['Sha256'] or member.mode != item['Mode']:
+            if digest.hex() != item['Sha256'] or member.mode != item['Mode'] or item['Mode'] != bundle.mode(item['Path']) or item['Type'] != 'file':
                 raise version.ValidationError('predecessor payload differs')
             fingerprint.update(item['Path'].encode() + b'\n' + digest)
     return manifest, fingerprint.hexdigest(), archive
@@ -88,6 +97,9 @@ def require_qualification(directory, expected_scope, source_revision):
     if len(receipts) != 2 or {item.get('platform') for item in receipts} != set(image.PLATFORMS):
         raise version.ValidationError('Caddy replacement needs native AMD64 and ARM64 qualification receipts')
     for receipt in receipts:
+        owner = receipt.get('targetOwner')
+        if not isinstance(owner, dict) or any(not re.fullmatch(r'[a-f0-9]{64}', owner.get(key, '')) for key in ('Fingerprint', 'OperatorSha256')):
+            raise version.ValidationError('unqualified Caddy replacement receipt authority')
         if (receipt.get('result') != 'passed' or receipt.get('sourceRevision') != source_revision or
                 receipt.get('scopeSha256') != expected_scope or
                 receipt.get('sourceFingerprint') != POLICY['sources'][receipt['platform']] or
@@ -127,6 +139,7 @@ def preflight(release):
     database = bundle.accepted_database()
     migrations = sorted(path.stem for path in (version.REPO_ROOT / 'Migrations').glob('*.cs')
                         if not path.name.endswith('.Designer.cs') and path.name[0].isdigit())
+    replacement = False
     for platform in image.PLATFORMS:
         with tempfile.TemporaryDirectory(prefix='wayfarer-compatibility-') as temporary:
             source, fingerprint, _ = source_bundle(prior, platform, Path(temporary))
@@ -137,5 +150,6 @@ def preflight(release):
                              for path in ('compose.yaml', *POLICY['unchanged'])],
                       Application=dict(Migrations=migrations), Operator=dict(UpdateReceiptSchemas=[1, 2], RestoreReceiptSchemas=[1, 2]))
         public_bundle.boundary(source, fingerprint, target)
-        if source['Images']['CaddyDigest'] != target['Images']['CaddyDigest']:
-            qualification()
+        replacement |= source['Images']['CaddyDigest'] != target['Images']['CaddyDigest']
+    if replacement:
+        qualification()
