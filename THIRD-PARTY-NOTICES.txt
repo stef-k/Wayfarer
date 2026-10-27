@@ -306,12 +306,14 @@ Licensed under the PostgreSQL License.
 
 --------------------------------------------------------------------------------
 
-Quartz.NET 3.14.0
+Quartz.NET 3.22.9
 -----------------
 https://www.quartz-scheduler.net/
 Copyright (c) Marko Lahma
 
 Licensed under the Apache License, Version 2.0.
+
+Includes Quartz.Extensions.DependencyInjection and Quartz.Serialization.Json 3.22.9.
 
 --------------------------------------------------------------------------------
 

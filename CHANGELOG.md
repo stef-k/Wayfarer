@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Changed
+- Update Quartz, Quartz.Extensions.DependencyInjection and Quartz.Serialization.Json
+  together from 3.19.1 to 3.22.9 (#939), retaining PostgreSQL persistence,
+  schedule identities, UTC/interval interpretation, reconciliation and execution
+  authority. Upstream fixes address recovery/rescheduling, serial-job completion
+  and firing transaction failures; repeated scheduler fire failures now park a
+  trigger in `ERROR`. No schema, index or configuration change is required.
+  See [Quartz maintenance](docs/development/configuration.md#quartz-3x-maintenance-939).
 - Update the coupled production/test Playwright packages from 1.63.0 to 1.64.1
   and their Chrome for Testing/headless-shell payload from 153.0.8010.12
   (revision 1243) to 156.0.8078.4 (revision 1248), including matched FFmpeg

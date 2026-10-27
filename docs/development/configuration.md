@@ -26,6 +26,55 @@ Never commit real credentials to either appsettings file.
 
 See [Database](database.md) before changing migrations or persistence behavior.
 
+## Quartz 3.x maintenance (#939)
+
+`Quartz`, `Quartz.Extensions.DependencyInjection` and `Quartz.Serialization.Json`
+move together from 3.19.1 to **3.22.9**. The assessment selected 3.22.7; the
+official 3.22.8/3.22.9 servicing releases available on 2026-10-27 retain the same
+schema and public API and fix a 3.22.7 manual-firing regression. All three packages
+remain Apache-2.0 and support the application's net10.0 target; the Newtonsoft
+serializer supplies its compatible netstandard2.0 assembly. Quartz 4 remains deferred.
+
+`Program.cs` still constructs `StdSchedulerFactory` with PostgreSQL `JobStoreTX`,
+`PostgreSQLDelegate`, prefix `qrtz_`, instance ID `AUTO`, string-only job data and
+`Quartz.Simpl.JsonObjectSerializer`. The store is not configured for clustering.
+Maintenance retains its named 24-hour and five-minute simple schedules. Import,
+enrichment and cache warm-up retain stable job/trigger identities and built-in
+one-shot simple triggers, including enrichment's `FireNow` misfire instruction
+and cache warm-up's five-second/one-minute debounce. These are elapsed intervals
+and UTC instants; no Quartz cron/calendar or local-time recurrence is configured.
+The upstream DST/calendar fixes do not change those schedule definitions or
+Wayfarer's independently owned capture-local history interpretation.
+
+The [3.20 notes](https://github.com/quartznet/quartznet/releases/tag/v3.20.0)
+make PostgreSQL index realignment optional and performance-only. Comparing the
+official 3.19.1 and 3.22.9 PostgreSQL creation scripts shows index differences only.
+Wayfarer's embedded schema, installer, existing migration authority and
+`wayfarer-quartz-postgres-v1` recovery contract are unchanged. No new DDL or
+index migration accompanies this package update. The Newtonsoft rolling-upgrade
+caveat concerns custom trigger types stored as blobs without a persistence
+delegate; Wayfarer uses built-in simple triggers and string payloads, so that
+specific incompatibility does not apply. This does not qualify mixed-version
+cluster operation or change the supported quiesced update/recovery procedure.
+
+Relevant intervening fixes preserve fired rows when replacing a trigger, carry
+previous fire time through rescheduling, roll back failed PostgreSQL firing
+batches and avoid leaving serial jobs blocked. From 3.22.4, five consecutive
+failures to fire an occurrence park its trigger in `ERROR`; this is scheduler
+failure handling, separate from import/enrichment durable retry policy. No new
+transaction enlistment, execution groups, retry or timeout settings are enabled.
+`DisallowConcurrentExecution`, startup reconciliation before scheduler start,
+epoch/authority/checkpoint fences, job cancellation and the hosted service's
+wait-for-completion shutdown with the host token remain unchanged.
+
+[3.22.7](https://github.com/quartznet/quartznet/releases/tag/v3.22.7),
+[3.22.8](https://github.com/quartznet/quartznet/releases/tag/v3.22.8) and
+[3.22.9](https://github.com/quartznet/quartznet/releases/tag/v3.22.9) describe the
+final fixes. Wayfarer does not call `TriggerJob`, use the Quartz dashboard,
+register schedules through `AddTrigger`, or supply custom driver delegates.
+The newer serial-job completion query applies to its non-concurrent jobs;
+no performance claim is made without a benchmark.
+
 ## Storage roots
 
 The `Storage` section binds to `StorageOptions` and is resolved once into `StoragePaths`:
