@@ -67,13 +67,36 @@ transaction enlistment, execution groups, retry or timeout settings are enabled.
 epoch/authority/checkpoint fences, job cancellation and the hosted service's
 wait-for-completion shutdown with the host token remain unchanged.
 
-[3.22.7](https://github.com/quartznet/quartznet/releases/tag/v3.22.7),
-[3.22.8](https://github.com/quartznet/quartznet/releases/tag/v3.22.8) and
-[3.22.9](https://github.com/quartznet/quartznet/releases/tag/v3.22.9) describe the
-final fixes. Wayfarer does not call `TriggerJob`, use the Quartz dashboard,
-register schedules through `AddTrigger`, or supply custom driver delegates.
-The newer serial-job completion query applies to its non-concurrent jobs;
-no performance claim is made without a benchmark.
+The Admin Scheduled Jobs **Start** form posts the job name/group to
+[`JobsController.StartJob`](../../Areas/Admin/Controllers/JobsController.cs).
+This Admin-authorized, antiforgery-protected action calls
+`_scheduler.TriggerJob(jobKey, new JobDataMap())` when the existing job is found.
+The [3.22.8 manual-firing fix](https://github.com/quartznet/quartznet/releases/tag/v3.22.8)
+therefore applies: it replaces 3.22.7's per-trigger reads to infer the job's shared
+execution group with one query, avoiding work that grows with the stored trigger
+backlog. That query path applies even without configured execution groups.
+The [3.22.7 group-inheritance fix](https://github.com/quartznet/quartznet/releases/tag/v3.22.7)
+adds no group-limit behavior here because Wayfarer configures no execution groups.
+The 3.22.8 serial-job completion fix also applies to Wayfarer's
+`DisallowConcurrentExecution` jobs: it reads only misfired triggers instead of
+the whole backlog under `TRIGGER_ACCESS`, where manual firing can wait.
+Both 3.22.8 fixes are included in the selected 3.22.9 packages.
+
+The existing
+[`AdminJobsControllerTests.StartJob_UpdatesHistoryAndRedirects`](../../tests/Wayfarer.Tests/Controllers/AdminJobsControllerTests.cs)
+verifies the `TriggerJob` call for the selected job and redirect using a mocked
+scheduler. It does not execute persistent manual firing, assert query counts or
+measure backlog throughput. The existing
+[import](../../tests/Wayfarer.Tests/Services/LocationImportQuartzPostgresTests.cs)
+and [enrichment](../../tests/Wayfarer.Tests/Services/LocationEnrichmentQuartzPostgresTests.cs)
+PostgreSQL tests cover scheduled execution and restart/reconciliation, not that
+manual-firing performance behavior. Applicability follows the caller and upstream
+fixes; no Wayfarer throughput improvement is claimed.
+
+Wayfarer does not use the Quartz dashboard, register schedules through
+`AddTrigger`, or supply custom driver delegates. The
+[3.22.9 fixes](https://github.com/quartznet/quartznet/releases/tag/v3.22.9) for legacy
+timezone lookup and nonstandard driver delegates do not affect this configuration.
 
 ## Storage roots
 
