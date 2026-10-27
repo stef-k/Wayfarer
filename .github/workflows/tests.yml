@@ -171,7 +171,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake nasm pkg-config postgresql-client-18
           echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
-          rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+          bash deployment/check-trust.sh --rustup
+          RUSTUP_USE_RUSTLS=1 rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
       - name: Validate locked image helper
         if: needs.classify.outputs.run_dotnet == 'true'
         working-directory: tools/image-helper
@@ -329,19 +330,59 @@ jobs:
     defaults:
       run:
         shell: ${{ matrix.os == 'windows-latest' && 'cmd' || 'bash' }}
+    # Windows uses only provisioned tools; Linux setup selects corrected host roots.
+    env:
+      NODE_OPTIONS: ${{ matrix.os == 'ubuntu-latest' && '--use-openssl-ca' || '' }}
+      SSL_CERT_FILE: ${{ matrix.os == 'ubuntu-latest' && '/etc/ssl/certs/ca-certificates.crt' || '' }}
+      SSL_CERT_DIR: ${{ matrix.os == 'ubuntu-latest' && '/etc/ssl/certs' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
+      # Cache misses are explicit failures; this step has no network installation path.
+      - name: Select provisioned Windows cleanup tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nodeVersion = (Get-Content .nvmrc -Raw).Trim()
+          $node = Join-Path $env:RUNNER_TOOL_CACHE "node/$nodeVersion/x64"
+          if (!(Test-Path "$node/node.exe") -or !(Test-Path "$node/npm.cmd")) {
+            throw "Required provisioned Node $nodeVersion x64 cache is missing."
+          }
+          $actualNode = & "$node/node.exe" --version
+          if ($LASTEXITCODE -ne 0 -or $actualNode -ne "v$nodeVersion") {
+            throw "Provisioned Node version is incompatible: $actualNode"
+          }
+          $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE 'Python'
+          $python = Get-ChildItem $pythonRoot -Directory | Where-Object {
+            $_.Name -match '^3\.12\.\d+$' -and (Test-Path "$($_.FullName)/x64/python.exe")
+          } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+          if (!$python) { throw 'Required provisioned Python 3.12 x64 cache is missing.' }
+          $pythonPath = Join-Path $python.FullName 'x64'
+          $actualPython = & "$pythonPath/python.exe" -c 'import platform; print(platform.python_version())'
+          if ($LASTEXITCODE -ne 0 -or $actualPython -ne $python.Name) {
+            throw "Provisioned Python version is incompatible: $actualPython"
+          }
+          Write-Output "Using provisioned Node $actualNode and Python $actualPython"
+          $node, $pythonPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - uses: actions/setup-node@v4
-        if: needs.classify.outputs.run_cleanup_safety == 'true'
+        if: runner.os == 'Linux'
         with:
           node-version-file: .nvmrc
       - name: Test cleanup ownership and smoke lifecycle
         if: needs.classify.outputs.run_cleanup_safety == 'true'
         run: npm run test:cleanup:safety
       - uses: actions/setup-python@v5
+        if: runner.os == 'Linux'
         with:
           python-version: '3.12'
       - name: Test browser, coverage and filesystem ownership
@@ -388,7 +429,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake nasm pkg-config
-          rustup toolchain install 1.90.0 --profile minimal
+          bash deployment/check-trust.sh --rustup
+          RUSTUP_USE_RUSTLS=1 rustup toolchain install 1.90.0 --profile minimal
       - name: Release tooling tests
         if: needs.classify.outputs.run_release_tooling == 'true'
         run: |
@@ -530,7 +572,8 @@ jobs:
           test "$(uname -m)" = aarch64
           sudo apt-get update
           sudo apt-get install -y cmake nasm pkg-config
-          rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+          bash deployment/check-trust.sh --rustup
+          RUSTUP_USE_RUSTLS=1 rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
           dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release -p:MvcFrontendKitEnabled=false
           dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release --no-build \
             --filter 'FullyQualifiedName~ImageHelper|FullyQualifiedName~ImageProxy|FullyQualifiedName~ProxyImage|FullyQualifiedName~ImageCacheProxyQualification' \

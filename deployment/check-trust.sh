@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Read-only prerequisite check before native/CI package acquisition. Pass --node
-# for the supported build/provisioning Node; runtime-only hosts need only OS roots.
+# for the supported build/provisioning Node; runtime-only hosts need only OS roots. --rustup validates the hosted downloader.
 set -euo pipefail
+# Retain the platform image identity and the effective corrected package in job logs.
+printf 'Trust substrate: %s %s %s %s\n' "${ImageOS:-native}" "${ImageVersion:-unknown}" "${RUNNER_OS:-unknown}" "${RUNNER_ARCH:-unknown}"
+if command -v dpkg-query >/dev/null; then
+  dpkg-query -W -f='${Package} ${Version}\n' ca-certificates
+fi
 python3 - <<'PY'
 """Inspect effective OpenSSL defaults, including additions supplied by the host."""
 import hashlib
@@ -44,4 +49,17 @@ if (roots.includes('86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36b
 }
 console.log('PASS Node prerequisites:', process.version, roots.length);
 JS
+fi
+# The hosted rustup 1.29.1 rustls downloader uses platform roots plus the assessed
+# GlobalSign R3/Amazon Root CA 1 anchors. Reject alternate trust/transport owners.
+if [[ "${1:-}" == --rustup ]]; then
+  rustup_version="$(rustup --version)"
+  if [[ "$rustup_version" != 'rustup 1.29.1 ('* ||
+        "${RUSTUP_USE_CURL-0}" != 0 || "${RUSTUP_USE_RUSTLS-1}" != 1 ||
+        "${RUSTUP_DIST_SERVER-https://static.rust-lang.org}" != https://static.rust-lang.org ||
+        -n "${RUSTUP_DIST_ROOT:-}" || -n "${RUSTUP_UPDATE_ROOT:-}" ]]; then
+    echo 'Unassessed rustup version/backend/source configuration; refusing toolchain acquisition.' >&2
+    exit 1
+  fi
+  printf 'PASS rustup prerequisites: %s; reqwest/rustls platform verifier; https://static.rust-lang.org\n' "$rustup_version"
 fi
