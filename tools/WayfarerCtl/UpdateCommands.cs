@@ -19,7 +19,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
             var path = options.Bundle ?? (await new PublicReleaseAcquisition(runner)
                 .AcquireAsync(root, options.PublicVersion!, token)).Directory;
-            var plan = await new UpdatePreparation(runner).PrepareAsync(root, path, token);
+            var plan = await new UpdatePreparation(runner).PrepareAsync(root, path, token, options.ReplaceRelease);
             terminal.Write(JsonSerializer.Serialize(plan));
             terminal.Write("Plan SHA-256: " + plan.Hash());
             terminal.Write("MigrationStarted ends safe old-runtime activation. Recovery requires the held archive and managed restore.");
@@ -36,7 +36,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
                 File.ReadAllText(plan.Current.EnvironmentPath(root)) != plan.OldEnvironment)
                 throw new UsageException("Stale update plan.");
             await new UpdatePreparation(runner).VerifyAsync(root, plan.Current, ReleaseStore.Select(root, plan.Current.Release!), token);
-            receipt = new UpdateReceipt { Plan = plan, PlanHash = plan.Hash() };
+            receipt = new UpdateReceipt { Schema = plan.UpdateProtocol, Plan = plan, PlanHash = plan.Hash() };
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
             if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Recovery operation active.");
             ArchivePrevious(root);
@@ -83,8 +83,9 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Exact retained executable ownership survives release-pointer changes.</summary>
     public static void RequireOwner(string root, UpdatePlan plan)
     {
+        CaddyReplacement.RequireOwner(plan);
         var bundle = ReleaseStore.Select(root, plan.OperatorOwner);
-        if (!bundle.Manifest.Operator.UpdateReceiptSchemas.Contains(1)) throw new IOException("Unsupported update receipt owner.");
+        if (!bundle.Manifest.Operator.UpdateReceiptSchemas.Contains(plan.UpdateProtocol)) throw new IOException("Unsupported update receipt owner.");
         ReleaseDispatch.RequireExecutable(bundle);
     }
 
@@ -93,7 +94,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         RequireOwner(root, receipt.Plan);
         var source = ReleaseStore.Select(root, receipt.Plan.Current.Release!);
         var target = ReleaseStore.Select(root, receipt.Plan.Target.Release!);
-        UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, receipt.Plan.Current.Project));
+        UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, receipt.Plan.Current.Project), receipt.Plan.UpdateProtocol == 2);
         if (!target.Manifest.Application.Migrations.SequenceEqual(receipt.Plan.TargetMigrations))
             throw new IOException("Target migration inventory changed from plan.");
         source.Corroborate(receipt.Plan.Current);

@@ -82,8 +82,15 @@ public sealed record RestoreReceipt
     {
         Plan.Target.Validate();
         Plan.OperatorOwner?.Validate();
-        if (Plan.OperatorOwner != Plan.Target.Release) throw new UsageException("Restore release/operator owner mismatch.");
-        if (Schema != 1 || CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
+        if (Schema == 2 && Plan.FromUpdate is not null)
+        {
+            UpdateRestoreHandoff.Require(root, Plan);
+            if (UpdateReceipt.Find(root, Plan.FromUpdate.Value)!.Plan.UpdateProtocol != 2)
+                throw new UsageException("Restore replacement protocol mismatch.");
+        }
+        else if (Schema != 1 || Plan.OperatorOwner != Plan.Target.Release)
+            throw new UsageException("Restore release/operator owner mismatch.");
+        if (CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             Plan.Archive == Guid.Empty || Plan.SourceInstallation == Guid.Empty || Plan.Target.Installation == Guid.Empty ||
             PlanHash != Plan.Hash() || !System.Text.RegularExpressions.Regex.IsMatch(Plan.CandidateGeneration, "^[a-f0-9]{32}$") ||
             !System.Text.RegularExpressions.Regex.IsMatch(Plan.ArchiveSha256, "^[a-f0-9]{64}$"))

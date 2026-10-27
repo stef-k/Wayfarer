@@ -94,6 +94,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     {
         if (!update.MigrationPossible) throw new UsageException("Before migration use update abort.");
         await new UpdateRuntime(runner).StopWritersAsync(root, update, token);
+        update = UpdateReceipt.Load(root)!;
         if (update.MigrationContainer is not null)
             update = await new UpdateRuntime(runner).ReconcileMigrationAsync(root, update, token);
         await UpdateCommands.VerifyRecoveryAsync(update, token);
@@ -112,11 +113,11 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 var path = Path.Combine(update.Plan.Current.Backup!.Destination, update.RecoveryName!);
                 var options = RestoreOptions.Parse(["--archive", path, "--source-installation", update.Plan.Current.Installation.ToString("D"),
                     "--without-emergency-backup", "--trust-controlled-backup", "--plan"]);
-                var plan = await new RestorePreparation(runner).PrepareAsync(root, update.Plan.Current, options, token);
+                var plan = await new RestorePreparation(runner).PrepareAsync(root, update.Plan.Current, options, token, update);
                 plan = plan with { FromUpdate = update.Plan.Operation };
                 // Archive preparation can be long: refresh exclusivity under recovery exclusion before transferring ownership.
                 await new UpdateRuntime(runner).RequireExclusiveAsync(update, token);
-                receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), SecretsFingerprint = plan.LocalSecretsFingerprint,
+                receipt = new RestoreReceipt { Schema = update.Plan.UpdateProtocol, Plan = plan, PlanHash = plan.Hash(), SecretsFingerprint = plan.LocalSecretsFingerprint,
                     Phase = RestorePhase.Fenced, Containers = update.Containers, RestartPolicies = update.RestartPolicies };
                 update = update with { RestoreOperation = plan.Operation };
                 update.Save(root);

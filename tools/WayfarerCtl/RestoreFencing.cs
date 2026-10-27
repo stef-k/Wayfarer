@@ -18,7 +18,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
         {
             using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
             var container = document.RootElement[0];
-            Preflight.VerifyRetainedResource(config, "container", container, root);
+            VerifyOwned(receipt, container);
             var service = container.GetProperty("Config").GetProperty("Labels").GetProperty("com.docker.compose.service").GetString();
             if (service is "backup-worker" or "backup-reader" or "backup-destination-check" && container.GetProperty("State").GetProperty("Running").GetBoolean())
                 throw new IOException("Active backup worker prevents restore.");
@@ -138,14 +138,19 @@ public sealed class RestoreFencing(IProcessRunner runner)
             throw new IOException("Recorded container was replaced by foreign authority.");
         var image = container.GetProperty("Config").GetProperty("Image").GetString();
         string? updateImage = null;
+        Deployment? replacement = null;
         if (receipt.Plan.FromUpdate is not null)
         {
             UpdateRestoreHandoff.Require(receipt.Plan.Root, receipt.Plan);
-            updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!.Plan.Target.AppDigest;
+            var update = UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!;
+            replacement = update.Plan.UpdateProtocol == 2 && update.Phase >= UpdatePhase.PostflightConfirmed ? update.Plan.Target : null;
+            updateImage = "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest;
         }
         if (image != updateImage && image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
-            image != "caddy@" + config.CaddyDigest)
+            image != "caddy@" + config.CaddyDigest && (replacement is null || image != "caddy@" + replacement.CaddyDigest))
             throw new IOException("Recorded container image identity changed.");
+        if (Label("com.docker.compose.service") == "caddy")
+            CaddyReplacement.VerifyProxy(receipt.Plan.Root, image == "caddy@" + config.CaddyDigest ? config : replacement!, container);
         var allowed = receipt.Volumes.Concat(new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" }
             .Select(role => ActiveStorage.Volume(config, role))).ToHashSet(StringComparer.Ordinal);
         var service = Label("com.docker.compose.service");

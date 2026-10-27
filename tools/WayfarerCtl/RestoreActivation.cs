@@ -142,7 +142,14 @@ public sealed class RestoreActivation(IProcessRunner runner)
         await owner.Required(candidate.Compose(root, "-f", exposed, "up", "-d", "--force-recreate", "--pull", "never",
             "--wait", "--wait-timeout", "180", "wayfarer"), token);
         if (candidate.Mode == "managed")
-            await owner.Required(candidate.Compose(root, "-f", exposed, "up", "-d", "--pull", "never", "caddy"), token);
+        {
+            await owner.Required(candidate.Compose(root, "-f", exposed, "create", "--force-recreate", "--pull", "never", "caddy"), token);
+            var id = (await owner.Required(candidate.Compose(root, "ps", "-aq", "caddy"), token)).Trim();
+            using var proxy = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+            CaddyReplacement.VerifyProxy(root, candidate, proxy.RootElement[0]);
+            await CaddyReplacement.VerifyImageAsync(runner, candidate, proxy.RootElement[0], token);
+            await owner.Required(["start", id], token);
+        }
         var source = JsonSerializer.Deserialize<SourceIdentity>(File.ReadAllText(Path.Combine(directory, "source.json")))!;
         await Diagnostics.EndpointAsync(candidate, token, source.ApplicationVersion);
         if (candidate.Backup is { Enabled: true })
@@ -157,7 +164,17 @@ public sealed class RestoreActivation(IProcessRunner runner)
         var candidate = RestoreCandidate.Configuration(receipt.EffectivePlan);
         var owner = new RestoreContainers(runner);
         var active = (await owner.Required(candidate.Compose(root, "ps", "-q"), token)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        foreach (var id in active) await owner.Required(["update", "--restart=unless-stopped", id], token);
+        foreach (var id in active)
+        {
+            var policy = "unless-stopped";
+            if (receipt.Schema == 2 && receipt.Plan.FromUpdate is { } operation)
+            {
+                using var container = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+                var service = container.RootElement[0].GetProperty("Config").GetProperty("Labels").GetProperty("com.docker.compose.service").GetString()!;
+                policy = UpdateReceipt.Find(root, operation)!.ServiceRestartPolicies.GetValueOrDefault(service, policy);
+            }
+            await owner.Required(["update", "--restart=" + policy, id], token);
+        }
         InstallationCompletion.RecordRestore(root, receipt);
         receipt = receipt.Advance(RestorePhase.Accepted);
         receipt.Save(root);

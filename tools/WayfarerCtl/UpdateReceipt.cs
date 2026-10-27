@@ -100,13 +100,14 @@ public sealed record UpdateReceipt
         Plan.Current.Validate();
         Plan.Target.Validate();
         Plan.OperatorOwner.Validate();
-        if (Plan.UpdateProtocol != 1 || Plan.RecoveryRequirement != "fresh-verified-quiesced-held" ||
+        CaddyReplacement.RequireOwner(Plan);
+        if (Plan.UpdateProtocol is not (1 or 2) || Plan.RecoveryRequirement != "fresh-verified-quiesced-held" ||
             Plan.Fencing != "stop-app-jobs-ingress-scheduler;restart=no" ||
             Plan.Postflight != "exact-EF-Quartz-DB-DP-Identity-credentials-Uploads;private-before-ingress" ||
             Plan.Current.Backup is null ||
             !Plan.Current.Backup.Source.ExpectedMigrations.Concat(Plan.MigrationDelta).SequenceEqual(Plan.TargetMigrations))
             throw new IOException("Unsupported update plan contract.");
-        if (Schema != 1 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
+        if (Schema != Plan.UpdateProtocol || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             PlanHash != Plan.Hash() || Plan.Current.Release is null || Plan.Target.Release is null ||
             Plan.Current.Installation == Guid.Empty || Plan.Current.Installation != Plan.Target.Installation ||
             Plan.Current.Project != Plan.Target.Project || Plan.Current.StorageGeneration != Plan.Target.StorageGeneration)
