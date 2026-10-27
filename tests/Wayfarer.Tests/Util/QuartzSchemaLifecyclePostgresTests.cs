@@ -19,7 +19,7 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
     private const string MisfireWarning = "Column MISFIRE_ORIG_FIRE_TIME not found in triggers table.";
     private const string PreferredNodeWarning = "Columns PREFERRED_NODE / PREFERRED_NODE_AUTO not found in triggers table.";
 
-    /// <summary>Starts Quartz 3.19.1, performs a persisted operation, and captures unfiltered logs.</summary>
+    /// <summary>Starts the pinned Quartz runtime, performs a persisted operation, and captures unfiltered logs.</summary>
     [PostgresFact]
     public async Task AlignedSchema_QuartzLifecycle_OmitsMissingColumnWarnings()
     {
@@ -74,7 +74,7 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
 
             try
             {
-                // Quartz 3.19.1 exposes no provider getter; null resets its supported provider discovery.
+                // Quartz 3.x exposes no provider getter; null resets its supported provider discovery.
                 QuartzLogProvider.SetCurrentLogProvider(null!);
             }
             catch (Exception exception)

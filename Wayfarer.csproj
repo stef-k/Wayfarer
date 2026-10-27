@@ -50,9 +50,10 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
         <!-- Keep the production driver/browser family aligned with the npm test runner (#939). -->
         <PackageReference Include="Microsoft.Playwright" Version="1.64.1" />
-        <PackageReference Include="Quartz" Version="3.19.1" />
-        <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.19.1" />
-        <PackageReference Include="Quartz.Serialization.Json" Version="3.19.1" />
+        <!-- Keep the persistent scheduler and Newtonsoft serializer on the same maintained 3.x patch (#939). -->
+        <PackageReference Include="Quartz" Version="3.22.9" />
+        <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.22.9" />
+        <PackageReference Include="Quartz.Serialization.Json" Version="3.22.9" />
         <PackageReference Include="Serilog" Version="4.4.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
