@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Setup/download clients select the checked Linux OpenSSL store.
+env:
+  NODE_OPTIONS: --use-openssl-ca
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  SSL_CERT_DIR: /etc/ssl/certs
+
 jobs:
   public-operator-amd64:
     runs-on: ubuntu-24.04
@@ -21,6 +27,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       # The runner reuses published bootstrap bytes and plain-host/TLS/login helpers.
       # It needs no local .NET, Node, browser, probe, operator or image build.
       - name: Qualify public acquisition, operations and backup policy

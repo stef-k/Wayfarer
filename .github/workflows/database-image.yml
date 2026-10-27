@@ -21,6 +21,12 @@ on:
 permissions:
   contents: read
 
+# Setup/download clients select the checked Linux OpenSSL store.
+env:
+  NODE_OPTIONS: --use-openssl-ca
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  SSL_CERT_DIR: /etc/ssl/certs
+
 # All writers use one lock; GHCR has no conditional create-only push API.
 concurrency:
   group: wayfarer-db-publication
@@ -52,6 +58,12 @@ jobs:
         with:
           ref: ${{ inputs.source }}
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - name: Build and qualify the application companion locally
         run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/app.json"
       - name: Authenticate only the publishing client
@@ -103,6 +115,12 @@ jobs:
         with:
           ref: ${{ inputs.source }}
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - name: Build and qualify only the application companion
         run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/app.json"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -152,6 +170,12 @@ jobs:
         with:
           ref: ${{ inputs.source }}
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: db-evidence-*

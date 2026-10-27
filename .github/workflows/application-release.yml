@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Setup/download clients select the checked Linux OpenSSL store.
+env:
+  NODE_OPTIONS: --use-openssl-ca
+  SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+  SSL_CERT_DIR: /etc/ssl/certs
+
 # Serialize reruns/releases for the same tag; never cancel a publication in flight.
 concurrency:
   group: application-image-${{ github.event.release.tag_name }}
@@ -36,6 +42,12 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - name: Validate accepted DB publication evidence before any application publication
         run: python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest())'
       - name: Authenticate only the publishing client
@@ -80,6 +92,12 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: image-publication-${{ matrix.arch }}
@@ -118,6 +136,12 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: image-evidence-*
@@ -164,6 +188,12 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '10.0.x'
@@ -227,6 +257,40 @@ jobs:
     permissions:
       contents: read
     steps:
+      # Signed APT authority corrects host roots before workflow-controlled acquisition.
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          # No source checkout: the existing host-only guard is carried inline.
+          # Retain the platform image identity and the effective corrected package in job logs.
+          printf 'Trust substrate: %s %s %s %s\n' "${ImageOS:-native}" "${ImageVersion:-unknown}" "${RUNNER_OS:-unknown}" "${RUNNER_ARCH:-unknown}"
+          if command -v dpkg-query >/dev/null; then
+            dpkg-query -W -f='${Package} ${Version}\n' ca-certificates
+          fi
+          python3 - <<'PY'
+          """Inspect effective OpenSSL defaults, including additions supplied by the host."""
+          import hashlib
+          from pathlib import Path
+          import ssl
+
+          context = ssl.create_default_context()
+          # OpenSSL loads hashed directories lazily. Inspect their certificates explicitly
+          # so a stale custom anchor cannot hide behind an already-correct bundle file.
+          capath = ssl.get_default_verify_paths().capath
+          for entry in Path(capath).iterdir() if capath else ():
+              if entry.is_file():
+                  try:
+                      context.load_verify_locations(cafile=str(entry))
+                  except ssl.SSLError:
+                      continue
+          roots = {hashlib.sha256(c).hexdigest() for c in context.get_ca_certs(binary_form=True)}
+          if '86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b' in roots:
+              raise SystemExit('Patch the host CA package: emSign ECC Root CA G3 is still trusted.')
+          if '96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6' not in roots:
+              raise SystemExit('Host trust is unqualified: ISRG Root X1 positive control is missing.')
+          print('PASS host CA prerequisites:', ssl.get_default_verify_paths(), len(roots))
+          PY
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: deployment-publication-evidence-${{ matrix.arch }}
