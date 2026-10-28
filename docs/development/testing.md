@@ -522,3 +522,23 @@ run through the existing importer; unchanged parser/checkpoint/deletion suites
 remain the lower-seam regression owners. No provider/browser/Docker/native matrix
 is required for this boundary. Store/topology qualification is separate deployment
 evidence; local tests do not qualify arbitrary mounts or multiple hosts.
+
+The retained cleanup/Start regression enters recurring maintenance on a due stopped
+import, pauses scheduler observation, commits Start and verifies its real queued
+Quartz job before releasing cleanup. It asserts survival **before** reconciliation,
+then checks same-target missing-projection recovery and cleanup-winning custody.
+Only observation timing is intercepted; scheduling/deletion, PostgreSQL and files
+are real. Standby preserves the queued job rather than racing worker completion.
+The production DI registration uses the same `LocationImportProjectionCoordinator.Shared`
+owner as managed Start/cleanup; reconciliation delegates managed deletion outside
+its projection lease to avoid re-entry. DB transactions finish before projection
+waits; no scheduler call runs inside the storage gate. Active same-target Start
+can repair a genuinely missing job without changing epoch; terminal replay never
+restarts. Startup still performs full repair, while recurring repair remains
+bounded to durable pending/deletion intent.
+
+`ManagedImportMigrationPostgresTests` uses the existing **disposable** migration
+fixture, never a downgrade of the shared import database. It inspects valid/ready
+unfiltered owner and partial unique active-owner indexes across Down/Up, exercises
+mixed managed/unmanaged terminal history and active uniqueness, and records the
+owner query plan without requiring index selection on a tiny fixture.

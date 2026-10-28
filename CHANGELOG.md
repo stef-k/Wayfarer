@@ -7,6 +7,9 @@
   PostgreSQL reservations, conditional import epochs and Linux local-store cleanup
   using the existing upload layout. Retain completed results, stopped/retryable
   payloads and account-erasure cleanup evidence; shared Web controls respect custody.
+  Cleanup preserves a winning Start's Quartz job; same-target active recovery repairs
+  a missing projection without advancing the epoch. General owner history indexes
+  remain alongside managed active-execution uniqueness.
   Managed mode requires explicit store qualification. Full mobile capability and
   enrichment selection remain gated on package 3 and companion integration; no
   mobile, release or deployment change is included.

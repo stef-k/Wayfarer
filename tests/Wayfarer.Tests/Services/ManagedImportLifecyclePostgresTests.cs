@@ -165,7 +165,7 @@ public sealed class ManagedImportLifecyclePostgresTests(PostgresImportTestFixtur
             var current = await scope.ReadAsync(row.Id);
             var reconciler = new LocationImportReconciler(scope.Files, scope.Factory, real, NullLogger<LocationImportReconciler>.Instance, managedCleanup: cleanup);
             await reconciler.ReconcileAsync(managedOnly: true);
-            Assert.Equal(ImportStatus.InProgress, current.Import.Status);
+            Assert.Equal(ImportStatus.InProgress, current.Import!.Status);
             Assert.Equal(ManagedImportFileState.Retained, current.FileState);
             Assert.True(await real.CheckExists(key));
             // A genuinely lost scheduler projection can be recovered without allocating a second epoch.
@@ -181,6 +181,12 @@ public sealed class ManagedImportLifecyclePostgresTests(PostgresImportTestFixtur
             Assert.Equal("file_cleanup_pending_or_removed", denied.Code);
             Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
             Assert.False(await real.CheckExists(key));
+            await using (var db = fixture.CreateContext())
+                await db.LocationImports.Where(import => import.Id == row.ImportId)
+                    .ExecuteUpdateAsync(set => set.SetProperty(import => import.DeletionRequestedAtUtc, DateTime.UtcNow));
+            // Managed deletion must delegate outside the reconciler lease rather than deadlock on cleanup re-entry.
+            await reconciler.ReconcileAsync(managedOnly: true).WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Null((await scope.ReadAsync(row.Id)).ImportId);
         }
         finally { release.TrySetResult(); await removal; await real.Shutdown(); }
     }
