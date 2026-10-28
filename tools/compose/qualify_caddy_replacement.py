@@ -140,9 +140,19 @@ set -eu
 fixture={directory}
 project={project}
 ca={ca}
+# Retain only proxy commands (no credential-bearing stdin) and the adapter's failing stage.
+case " $* " in
+ *" create "*" caddy "|*" up "*" caddy "|*" start "*)
+  printf '<%s> ' "$@" >> "$fixture/proxy-command.log"
+  printf '\\n' >> "$fixture/proxy-command.log"
+  stage=docker-command
+  trap 'result=$?; printf "exitCode=%s stage=%s\\n" "$result" "$stage" >> "$fixture/proxy-command.log"' 0
+  exec 2>>"$fixture/proxy-command.stderr" ;;
+esac
 wait_proxy() {{
+ stage=https-readiness
  count=0
- until /usr/bin/docker exec "$1" wget -qO- https://wayfarer.example.org/health/ready >/dev/null 2>&1; do
+ until /usr/bin/docker exec "$1" wget -O /dev/null https://wayfarer.example.org/health/ready >/dev/null 2>"$fixture/proxy-readiness.stderr"; do
   count=$((count+1)); test "$count" -lt 60; sleep 0.5
  done
 }}
@@ -153,6 +163,7 @@ case " $* " in
   proxy=$(/usr/bin/docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=caddy)
   test -n "$proxy"
   if ! test -e "$fixture/primed-$proxy"; then
+   stage=fixture-dns
    network="${{project}}_edge"
    /usr/bin/docker network connect --alias acme-v02.api.letsencrypt.org "$network" "$ca" 2>/dev/null ||
     /usr/bin/docker inspect --format '{{{{if index .NetworkSettings.Networks "'"$network"'"}}}}yes{{{{end}}}}' "$ca" | /bin/grep -q '^yes$'
@@ -161,6 +172,7 @@ case " $* " in
    image=$(/usr/bin/docker inspect --format '{{{{.Config.Image}}}}' "$proxy")
    trust=source
    test "$image" != "caddy@{caddy.POLICY['targetCaddy']}" || trust=target
+   stage=fixture-trust
    /usr/bin/docker cp "$fixture/$trust-trust.pem" "$proxy:/etc/ssl/certs/ca-certificates.crt"
    touch "$fixture/primed-$proxy"
    if test "$(/usr/bin/docker inspect --format '{{{{.State.Running}}}}' "$proxy")" = true; then
@@ -177,6 +189,7 @@ case " $* " in
   if test "$(cat "$fixture/failure" 2>/dev/null || true)" = target-proxy &&
      test "$image" = "caddy@{caddy.POLICY['targetCaddy']}"; then
    touch "$fixture/failure.ready"
+   stage=target-acknowledgement-fault
    while ! test -e "$fixture/failure.go"; do sleep 0.1; done
    exit 137
   fi ;;
@@ -212,10 +225,49 @@ esac
                     restart=proxy['HostConfig']['RestartPolicy'],
                     autosaveSha256=self.host('docker', 'exec', self.project + '-caddy-1', 'sha256sum', '/config/caddy/autosave.json').stdout.split()[0])
 
+    def retain_diagnostics(self, evidence):
+        """Capture missing issuer, network, command and native resource facts before existing cleanup; never dump keys or environment."""
+        # These commands are read-only and failures are evidence, not replacement exceptions.
+        for name in ('proxy-command.log', 'proxy-command.stderr', 'proxy-readiness.stderr', 'acme.Caddyfile'):
+            observed = self.host('cat', str(self.directory / name), check=False)
+            (evidence / name).write_text(observed.stdout + observed.stderr)
+        setup = getattr(self, 'setup_result', None)
+        if setup is not None:
+            (evidence / 'setup-operator.log').write_text(
+                f'exitCode={setup.returncode}\n' + setup.stdout + setup.stderr)
+        for command in ('status', 'doctor'):
+            observed = self.ctl(command, check=False)
+            (evidence / ('operator-' + command + '.log')).write_text(observed.stdout + observed.stderr)
+        for name in (self.project + '-caddy-1', getattr(self, 'ca', 'qualification-acme-' + self.project)):
+            observed = run('docker', 'logs', '--tail', '200', name, check=False)
+            (evidence / (name + '.log')).write_text(observed.stdout + observed.stderr)
+            observed = run('docker', 'inspect', name, check=False)
+            if observed.returncode == 0:
+                container = json.loads(observed.stdout)[0]
+                facts = {key: container[key] for key in ('Id', 'Name', 'Image', 'State', 'Mounts', 'NetworkSettings')}
+                facts['config'] = {key: container['Config'][key] for key in ('Image', 'Entrypoint', 'Cmd', 'Labels')}
+                (evidence / (name + '.json')).write_text(json.dumps(facts, indent=2) + '\n')
+                observed = run('docker', 'image', 'inspect', '--format',
+                               '{{json .Id}} {{json .Os}} {{json .Architecture}} {{json .RepoDigests}}', container['Image'], check=False)
+                (evidence / (name + '-image.log')).write_text(observed.stdout + observed.stderr)
+        # The existing client validates TLS here; wget also records the resolved issuer address.
+        observed = run('docker', 'exec', self.project + '-caddy-1', 'sh', '-c',
+                       'cat /etc/resolv.conf /etc/hosts; wget -S -O - https://acme-v02.api.letsencrypt.org/directory', check=False)
+        (evidence / 'issuer-readiness.log').write_text(observed.stdout + observed.stderr)
+        observed = run('docker', 'network', 'inspect', self.project + '_edge', check=False)
+        (evidence / 'edge-network.json').write_text(observed.stdout + observed.stderr)
+        observed = run('docker', 'info', '--format', 'os={{.OSType}} arch={{.Architecture}} cpus={{.NCPU}} memory={{.MemTotal}}', check=False)
+        (evidence / 'resources.log').write_text(observed.stdout + observed.stderr)
+        observed = self.host('df', '-h', str(self.directory), self.docker_volumes, check=False)
+        with (evidence / 'resources.log').open('a') as stream:
+            stream.write(observed.stdout + observed.stderr)
+
     def transition(self):
         """Exercise one lost target-start acknowledgement, exact-owner restore, and one accepted replacement."""
-        self.ctl('setup', '--bundle', str(self.old), '--hostname', 'wayfarer.example.org', '--project', self.project,
-                 '--edge-prefix', '172.30.69', '--mode', 'managed', '--password-stdin', data=self.password + '\n')
+        self.setup_result = self.ctl('setup', '--bundle', str(self.old), '--hostname', 'wayfarer.example.org', '--project', self.project,
+                                     '--edge-prefix', '172.30.69', '--mode', 'managed', '--password-stdin', data=self.password + '\n', check=False)
+        if self.setup_result.returncode:
+            raise RuntimeError('Initial genuine v1.9.22 setup failed; see retained operator, proxy and fixture diagnostics.')
         # Reuse the recovery fixture's tiny uploads witness before inspecting its durable layout.
         self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
                      'mkdir -p /var/lib/wayfarer/uploads/imports; printf durable > /var/lib/wayfarer/uploads/imports/caddy-qualification')
@@ -291,6 +343,7 @@ def qualify(inputs, output):
             output.write_text(json.dumps(receipt, indent=2) + '\n')
             print('PASS genuine managed Caddy replacement, lost acknowledgement, target-owned old-release recovery and TLS/login continuity', flush=True)
         finally:
+            failed = sys.exc_info()[0] is not None
             # Preserve non-secret durable authority even when qualification fails.
             evidence = output.parent / (output.stem + '-operations')
             evidence.mkdir(exist_ok=True)
@@ -301,7 +354,19 @@ def qualify(inputs, output):
                 observed = journey.host('cat', str(journey.install / 'recovery-control' / name), check=False)
                 if observed.returncode == 0:
                     (evidence / name).write_text(observed.stdout)
-            journey.cleanup()
+            try:
+                # Capture while failed containers and issuer state still exist, without resuming setup.
+                if failed:
+                    journey.retain_diagnostics(evidence)
+            except Exception as error:
+                (evidence / 'diagnostics-error.log').write_text(type(error).__name__ + '\n')
+            finally:
+                try:
+                    journey.cleanup()
+                except Exception as error:
+                    (evidence / 'cleanup-error.log').write_text(type(error).__name__ + '\n')
+                    if not failed:
+                        raise
 
 
 if __name__ == '__main__':
