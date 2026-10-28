@@ -76,6 +76,12 @@
             </td>
             <td class="text-center errorMessage">
                 @import.ErrorMessage
+                @* Completed result history remains visible after automatic managed payload removal. *@
+                @if (import.ManagedUpload)
+                {
+                    var states = ViewData["ManagedFiles"] as Dictionary<int, string>;
+                    <div class="text-body-secondary">Managed payload: @(states?.GetValueOrDefault(import.Id) ?? "unavailable").</div>
+                }
                 @* Durable classification feedback survives reload/restart and stays separate from terminal errors. *@
                 @if (import.UnclassifiedActivityCount > 0)
                 {
@@ -91,7 +97,15 @@
                     bool showDropdown = false;
                     string? primaryLabel = null, primaryAction = null;
 
-                    if (import.Status == ImportStatus.Stopped || import.Status == ImportStatus.Failed)
+                    // Only persisted Retained custody permits a managed restart; Web antiforgery remains unchanged.
+                    var managedFiles = ViewData["ManagedFiles"] as Dictionary<int, string>;
+                    var managedState = managedFiles?.GetValueOrDefault(import.Id);
+                    if (import.ManagedUpload && managedState != "Retained")
+                    {
+                        primaryLabel = managedState == "Removed" ? "Payload removed" : "Payload cleanup pending";
+                        showDropdown = true;
+                    }
+                    else if (import.Status == ImportStatus.Stopped || import.Status == ImportStatus.Failed)
                     {
                         primaryLabel  = "Start";
                         primaryAction = "start";

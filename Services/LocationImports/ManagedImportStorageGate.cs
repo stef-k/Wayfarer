@@ -20,21 +20,31 @@ public sealed class ManagedImportStorageGate(StoragePaths paths, IOptions<Manage
         if (!OperatingSystem.IsLinux() || !options.Value.LocalStoreQualified) return null;
         Directory.CreateDirectory(paths.Uploads);
         var control = Path.Combine(paths.Uploads, ".location-import.lock");
-        var stream = new FileStream(control, new FileStreamOptions
-        {
-            Mode = FileMode.OpenOrCreate, Access = FileAccess.ReadWrite, Share = FileShare.ReadWrite,
-            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
-        });
+        var handle = OpenControl(control);
         try
         {
-            if (Flock(stream.SafeFileHandle, 2 | 4) != 0) { stream.Dispose(); return null; }
-            var identity = Identity(stream.SafeFileHandle);
-            // An administrator replacement is unavailable, never authority to finalize an old path's absence.
-            using var current = File.OpenHandle(control, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            if (Flock(handle, 2 | 4) != 0)
+            {
+                var error = Marshal.GetLastPInvokeError();
+                handle.Dispose();
+                if (error == 11) return null;
+                throw new IOException("Managed import exclusion unavailable.");
+            }
+            var identity = Identity(handle);
+            // Independent libc opens avoid .NET's own flock sharing probe conflicting with our exclusive flock.
+            using var current = OpenControl(control);
             if (Identity(current) != identity) throw new IOException("Managed import control changed.");
-            return new GateLease(stream, identity);
+            return new GateLease(handle, identity);
         }
-        catch { stream.Dispose(); throw; }
+        catch { handle.Dispose(); throw; }
+    }
+
+    /// <summary>O_CLOEXEC/O_NOFOLLOW ensure the gate cannot escape into children or follow a replaced symlink.</summary>
+    private static SafeFileHandle OpenControl(string path)
+    {
+        var descriptor = Open(path, 2 | 0x40 | 0x80000 | 0x20000, 0x180);
+        if (descriptor < 0) throw new IOException("Managed import control unavailable.");
+        return new SafeFileHandle((IntPtr)descriptor, ownsHandle: true);
     }
 
     /// <summary>Checks Linux filesystem type, device/inode and boot identity; configured attestation covers topology.</summary>
@@ -60,11 +70,14 @@ public sealed class ManagedImportStorageGate(StoragePaths paths, IOptions<Manage
     }
 
     /// <summary>Owns the non-inherited descriptor until the synchronous first-open/removal block is irrevocably over.</summary>
-    internal sealed class GateLease(FileStream stream, string identity) : IDisposable
+    internal sealed class GateLease(SafeFileHandle handle, string identity) : IDisposable
     {
         internal string StoreIdentity { get; } = identity;
-        public void Dispose() => stream.Dispose();
+        public void Dispose() => handle.Dispose();
     }
+
+    [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int Open(string path, int flags, uint mode);
 
     [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
     private static extern int Flock(SafeFileHandle fd, int operation);

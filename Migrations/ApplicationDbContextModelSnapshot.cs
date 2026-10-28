@@ -18,7 +18,7 @@ namespace Wayfarer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
@@ -1303,6 +1303,9 @@ namespace Wayfarer.Migrations
                     b.Property<DateTime?>("DeletionRequestedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("EnrichmentHandoffPending")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("EnrichmentPauseReason")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -1319,6 +1322,10 @@ namespace Wayfarer.Migrations
                     b.Property<int>("ExecutionEpoch")
                         .HasColumnType("integer");
 
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("FilePath")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1331,6 +1338,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<int>("LastProcessedIndex")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("ManagedUpload")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("ProjectionPending")
                         .HasColumnType("boolean");
@@ -1374,7 +1384,12 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex(new[] { "Id" }, "IX_ManagedImport_Reconciliation")
+                        .HasFilter("\"ManagedUpload\" AND (\"ProjectionPending\" OR \"DeletionRequestedAtUtc\" IS NOT NULL)");
+
+                    b.HasIndex(new[] { "UserId" }, "UX_ManagedImport_ActiveOwner")
+                        .IsUnique()
+                        .HasFilter("\"ManagedUpload\" AND \"Status\" IN ('In Progress','Stopping')");
 
                     b.ToTable("LocationImports", t =>
                         {
@@ -1624,6 +1639,154 @@ namespace Wayfarer.Migrations
                             t.HasCheckConstraint("CK_PersonalProviderSelection_Geocoding", "\"GeocodingProviderKey\" IS NULL OR \"GeocodingProviderKey\" IN ('geoapify', 'mapbox')");
 
                             t.HasCheckConstraint("CK_PersonalProviderSelection_Routing", "\"RoutingProviderKey\" IS NULL OR \"RoutingProviderKey\" IN ('geoapify', 'mapbox')");
+                        });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.ManagedImportStore", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Identity")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ManagedImportStore", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManagedImportStore_Singleton", "\"Id\" = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.MobileLocationImportUpload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcceptedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("ByteLength")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("CleanupEligibleAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CleanupReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("EnrichmentRequested")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FileReference")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("FileState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Format")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ImportId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastExecutionEpoch")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastProcessedRecords")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastState")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("LastTotalRecords")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("OwnerByteLimit")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ReservedBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("RetiredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RetryAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UploadDeadlineUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<long>("VerifiedBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileReference")
+                        .IsUnique();
+
+                    b.HasIndex("ImportId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ManagedUpload_LiveOwner")
+                        .HasFilter("\"FileState\" = 'Uploading'");
+
+                    b.HasIndex("RetryAtUtc", "Id")
+                        .HasFilter("\"RetryAtUtc\" IS NOT NULL");
+
+                    b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("FileState", "CleanupEligibleAtUtc", "Id");
+
+                    b.HasIndex("FileState", "LeaseExpiresAtUtc", "Id");
+
+                    b.ToTable("MobileLocationImportUpload", t =>
+                        {
+                            t.HasCheckConstraint("CK_ManagedUpload_Owner", "(\"UserId\" IS NOT NULL AND \"RequestId\" IS NOT NULL AND \"Format\" IN ('csv','wayfarer-geojson') AND \"ByteLength\" > 0 AND \"Sha256\" ~ '^[0-9a-f]{64}$') OR (\"UserId\" IS NULL AND \"RequestId\" IS NULL AND \"CleanupReason\" = 'account_deleted')");
+
+                            t.HasCheckConstraint("CK_ManagedUpload_Reservation", "\"ReservedBytes\" >= 0 AND \"VerifiedBytes\" >= 0 AND \"Generation\" >= 0 AND ((\"FileState\" = 'Removed' AND \"ReservedBytes\" = 0 AND \"FileReference\" IS NULL) OR (\"FileState\" <> 'Removed' AND \"ReservedBytes\" > 0 AND \"FileReference\" ~ '^imports/[0-9a-f]{32}\\.(csv|geojson)$'))");
+
+                            t.HasCheckConstraint("CK_ManagedUpload_State", "\"FileState\" IN ('Uploading','Retained','CleanupClaimed','Removed')");
                         });
                 });
 
@@ -2452,6 +2615,21 @@ namespace Wayfarer.Migrations
                         .HasPrincipalKey("UserId", "ProviderKey")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("FK_PersonalLocationProviderSelections_PersonalLocationProvide~1");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.MobileLocationImportUpload", b =>
+                {
+                    b.HasOne("Wayfarer.Models.LocationImport", "Import")
+                        .WithMany()
+                        .HasForeignKey("ImportId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Wayfarer.Models.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Import");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Place", b =>

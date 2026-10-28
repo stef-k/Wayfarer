@@ -64,6 +64,10 @@ namespace Wayfarer.Areas.User.Controllers
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync();
             
+            // Managed file state is persisted custody, never a filesystem inference or legacy sweep.
+            ViewData["ManagedFiles"] = await _dbContext.Set<MobileLocationImportUpload>()
+                .Where(row => row.UserId == userId && row.ImportId != null)
+                .ToDictionaryAsync(row => row.ImportId!.Value, row => row.FileState);
             ViewData["UserId"] = userId;
             ViewData["EnrichmentPresentation"] = await _enrichmentPresentation.ProjectAsync(
                 userId, HttpContext.RequestAborted);

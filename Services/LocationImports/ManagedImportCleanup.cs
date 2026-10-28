@@ -105,7 +105,7 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
         if (row.FileState == ManagedImportFileState.Uploading && row.LeaseExpiresAtUtc > now && row.UploadDeadlineUtc > now) return null;
         if (row.FileState == ManagedImportFileState.Removed) return null;
         if (row.FileState == ManagedImportFileState.CleanupClaimed && row.LeaseExpiresAtUtc > now) return null;
-        if (import is null && row.AcceptedAtUtc.HasValue && row.CleanupReason != "account_deleted")
+        if (import is null && row.AcceptedAtUtc.HasValue && row.CleanupReason is not "account_deleted" and not "import_deleted")
             return null; // Missing import is never affirmative unlink authority.
         row.FileState = ManagedImportFileState.CleanupClaimed;
         row.CleanupReason ??= import?.DeletionRequestedAtUtc is not null ? "import_deleted"
@@ -140,9 +140,9 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
         row.UploadDeadlineUtc = null;
         row.RetryAtUtc = null;
         row.FailureCode = null;
-        if (row.UserId is null) db.Remove(row);
-        else await RetireAsync(db, row, now, token);
+        if (row.UserId is not null) await RetireAsync(db, row, now, token);
         await db.SaveChangesAsync(token);
+        if (row.UserId is null) { db.Remove(row); await db.SaveChangesAsync(token); }
         await transaction.CommitAsync(token);
     }
 

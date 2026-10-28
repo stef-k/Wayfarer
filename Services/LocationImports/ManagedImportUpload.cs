@@ -22,6 +22,7 @@ public sealed record ManagedImportFingerprint(string Format, long Bytes, string 
 internal interface IManagedImportObserver
 {
     Task BeforeFirstOpenAsync(ApplicationDbContext db, CancellationToken token) => Task.CompletedTask;
+    Task AfterCloseAsync(CancellationToken token) => Task.CompletedTask;
     Task AfterAcceptanceAsync(CancellationToken token) => Task.CompletedTask;
     Task AfterUnlinkAsync(CancellationToken token) => Task.CompletedTask;
 }
@@ -30,7 +31,7 @@ internal interface IManagedImportObserver
 public sealed class ManagedImportUpload(
     IDbContextFactory<ApplicationDbContext> contexts, LocationImportStagedFiles files, ManagedImportStorageGate gate)
 {
-    private static readonly ApiWorkAdmission Transfers = new(4, 1);
+    private static readonly ApiWorkAdmission Transfers = new(4, 4);
     internal IManagedImportObserver? Observer { get; set; }
 
     /// <summary>Allocates durable custody, writes one handle, then commits the job and request together.</summary>
@@ -52,6 +53,7 @@ public sealed class ManagedImportUpload(
                 await stream.FlushAsync(deadline.Token);
                 stream.Flush(flushToDisk: true);
             }
+            if (Observer is not null) await Observer.AfterCloseAsync(deadline.Token);
             await PublishAsync(attempt, credential, deadline.Token);
             if (Observer is not null) await Observer.AfterAcceptanceAsync(deadline.Token);
             return (attempt.Id, true);
@@ -121,6 +123,7 @@ public sealed class ManagedImportUpload(
     /// <summary>The single synchronous CreateNew remains inside the OS gate, including the DB-loss instruction window.</summary>
     internal async Task<FileStream> FirstOpenAsync(MobileLocationImportUpload attempt, CancellationToken token)
     {
+        if (attempt.LeaseId is null || attempt.UserId is null) throw new ManagedImportException(409, "upload_authority_lost");
         using var storage = gate.TryAcquire() ?? throw new ManagedImportException(503, "managed_store_unavailable");
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, attempt.UserId, token);

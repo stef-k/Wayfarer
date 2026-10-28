@@ -16,7 +16,7 @@ public sealed class LocationImportReconciler(
         projectionCoordinator ?? LocationImportProjectionCoordinator.Shared;
 
     /// <summary>Converges current payloads and bounded historical identities from durable import intent.</summary>
-    public async Task ReconcileAsync(CancellationToken token = default)
+    public async Task ReconcileAsync(CancellationToken token = default, bool managedOnly = false)
     {
         token.ThrowIfCancellationRequested();
         var executing = (await scheduler.GetCurrentlyExecutingJobs(token)).Select(x => x.JobDetail.Key).ToHashSet();
@@ -28,7 +28,7 @@ public sealed class LocationImportReconciler(
         var afterId = 0;
         while (true)
         {
-            var page = await LoadPageAsync(afterId, token);
+            var page = await LoadPageAsync(afterId, managedOnly, token);
             if (page.Count == 0) break;
             foreach (var item in page)
             {
@@ -51,7 +51,9 @@ public sealed class LocationImportReconciler(
                     await DeleteProjectionAsync(key, projected, token);
             }
             afterId = page[^1].Id;
+            if (managedOnly) return; // Recurring repair is bounded; startup retains full legacy reconciliation.
         }
+        if (managedOnly) return;
         foreach (var orphan in orphans.Where(key => projected.Contains(key) && !executing.Contains(key)))
         {
             if (!TryParseJob(orphan, out var importId, out _)) continue;
@@ -77,10 +79,11 @@ public sealed class LocationImportReconciler(
         && LocationImportSchedulerKeys.Job(importId, epoch).Equals(
             (await scheduler.GetTrigger(LocationImportSchedulerKeys.Trigger(importId, epoch), token))?.JobKey);
 
-    private async Task<List<Authority>> LoadPageAsync(int afterId, CancellationToken token)
+    private async Task<List<Authority>> LoadPageAsync(int afterId, bool managedOnly, CancellationToken token)
     {
         await using var db = await contexts.CreateDbContextAsync(token);
-        return await db.LocationImports.AsNoTracking().Where(x => x.Id > afterId).OrderBy(x => x.Id).Take(PageSize)
+        return await db.LocationImports.AsNoTracking().Where(x => x.Id > afterId && (!managedOnly || x.ManagedUpload
+                && (x.ProjectionPending || x.DeletionRequestedAtUtc != null))).OrderBy(x => x.Id).Take(PageSize)
             .Select(x => new Authority(x.Id, x.ExecutionEpoch, x.Status, x.StopRequestedAtUtc,
                 x.DeletionRequestedAtUtc, x.ProjectionPending)).ToListAsync(token);
     }

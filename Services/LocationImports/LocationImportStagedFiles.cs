@@ -82,7 +82,8 @@ public sealed class LocationImportStagedFiles
         await using var db = await contexts.CreateDbContextAsync(token);
         var managed = await db.LocationImports.AsNoTracking().Where(row => row.Id == importId)
             .Select(row => new { row.ManagedUpload, row.UserId }).SingleOrDefaultAsync(token);
-        if (managed is not { ManagedUpload: true }) return File.OpenRead(path);
+        if (managed is null) throw new FileNotFoundException();
+        if (!managed.ManagedUpload) return File.OpenRead(path);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, managed.UserId, token);
         if (!await db.Set<MobileLocationImportUpload>().AnyAsync(row => row.ImportId == importId
             && row.UserId == managed.UserId && row.FileState == ManagedImportFileState.Retained && row.FileReference == reference
