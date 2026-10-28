@@ -377,6 +377,17 @@ class CiGateTests(unittest.TestCase):
                 gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
                 self.assertEqual(gate.returncode, 0, gate.stderr)
 
+    def test_selected_caddy_matrix_requires_success(self):
+        """Retaining both native results must never admit failed, cancelled or missing replacement evidence."""
+        for result in ['success', 'failure', 'cancelled', 'skipped', '']:
+            values = {**self.env, 'IMAGE_SELECTED': 'true', 'DB_COMPOSE_SELECTED': 'true',
+                      'OPERATOR_SELECTED': 'true', 'IMAGE_RESULT': 'success', 'CADDY_RESULT': result}
+            with self.subTest(result=result):
+                gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                self.assertEqual(gate.returncode == 0, result == 'success', gate.stderr)
+                if result != 'success':
+                    self.assertIn("Selected evidence 'caddy-replacement'", gate.stderr)
+
     def test_missing_blank_or_malformed_outputs(self):
         """Every expected selector must be present and exactly lowercase true or false."""
         for selector in self.selectors:
