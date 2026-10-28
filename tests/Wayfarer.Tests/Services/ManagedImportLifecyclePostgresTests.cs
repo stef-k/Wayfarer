@@ -1,5 +1,10 @@
+using System.Collections.Specialized;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Quartz;
+using Quartz.Impl;
+using Quartz.Impl.Matchers;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationImports;
@@ -114,6 +119,62 @@ public sealed class ManagedImportLifecyclePostgresTests(PostgresImportTestFixtur
         Assert.Equal(Guid.Parse("498b2e37-856b-426a-bde6-481414d3dd4e"), location.IdempotencyKey);
         Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
         Assert.Equal(1, (await scope.ReadAsync(row.Id)).Import!.LastProcessedIndex);
+    }
+
+    /// <summary>Pauses cleanup after its stopped-state read, then lets a real scheduler accept Start before cleanup continues.</summary>
+    [PostgresFact]
+    public async Task CleanupStaleQuiescence_MustPreserveNewStartProjection()
+    {
+        await using var scope = new ManagedImportTestScope(fixture);
+        await scope.InitializeAsync();
+        var row = await scope.AcceptAsync();
+        await scope.DueAsync(row, ImportStatus.Stopped);
+        var real = await new StdSchedulerFactory(new NameValueCollection
+        {
+            ["quartz.scheduler.instanceName"] = "ManagedImportRace-" + Guid.NewGuid().ToString("N"),
+            ["quartz.threadPool.threadCount"] = "1",
+            ["quartz.jobStore.type"] = "Quartz.Simpl.RAMJobStore, Quartz"
+        }).GetScheduler();
+        // Standby is intentional: a queued Start is a supported scheduler state and cannot complete before the race.
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var proxy = new Mock<IScheduler>();
+        proxy.Setup(s => s.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>())).Returns(async (CancellationToken token) =>
+        {
+            entered.TrySetResult();
+            await release.Task.WaitAsync(token);
+            return await real.GetCurrentlyExecutingJobs(token);
+        });
+        proxy.Setup(s => s.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
+            .Returns((GroupMatcher<JobKey> group, CancellationToken token) => real.GetJobKeys(group, token));
+        proxy.Setup(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .Returns((JobKey key, CancellationToken token) => real.DeleteJob(key, token));
+        var cleanup = new ManagedImportCleanup(scope.Factory, scope.Files, scope.Gate, proxy.Object, NullLogger<ManagedImportCleanup>.Instance);
+        var lifecycle = new ManagedImportLifecycle(scope.Factory, scope.Files, real, NullLogger<LocationImportLifecycle>.Instance, cleanup);
+        try
+        {
+            var removal = cleanup.MaintainAsync(default);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.True(await lifecycle.StartAsync(scope.User.Id, row.ImportId!.Value, 1, scope.Credential, default));
+            var key = LocationImportSchedulerKeys.Job(row.ImportId.Value, 1);
+            Assert.True(await real.CheckExists(key));
+            Assert.False((await scope.ReadAsync(row.Id)).Import!.ProjectionPending);
+            release.TrySetResult();
+            await removal;
+            Assert.True(await real.CheckExists(key), "Cleanup must preserve the winning Start before any repair.");
+            var current = await scope.ReadAsync(row.Id);
+            var reconciler = new LocationImportReconciler(scope.Files, scope.Factory, real, NullLogger<LocationImportReconciler>.Instance, managedCleanup: cleanup);
+            await reconciler.ReconcileAsync(managedOnly: true);
+            Assert.Equal(ImportStatus.InProgress, current.Import.Status);
+            Assert.Equal(ManagedImportFileState.Retained, current.FileState);
+            Assert.True(await real.CheckExists(key));
+            // A genuinely lost scheduler projection can be recovered without allocating a second epoch.
+            await real.DeleteJob(key);
+            Assert.False(await lifecycle.StartAsync(scope.User.Id, row.ImportId.Value, 1, scope.Credential, default));
+            Assert.True(await real.CheckExists(key));
+            Assert.Equal(1, (await scope.ReadAsync(row.Id)).Import!.ExecutionEpoch);
+        }
+        finally { release.TrySetResult(); await real.Shutdown(); }
     }
 
     private async Task<ManagedImportTestScope> ScopeAsync()
