@@ -175,6 +175,13 @@ public sealed class ManagedImportCustodyPostgresTests(PostgresImportTestFixture 
         await using var db = fixture.CreateContext();
         await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"MobileLocationImportUpload\" SET \"Sha256\" = {new string('a', 64)} WHERE \"Id\" = {first.Id}"));
+        await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "MobileLocationImportUpload" ("Id", "UserId", "RequestId", "Format", "ByteLength", "Sha256", "EnrichmentRequested",
+                "CreatedAtUtc", "Generation", "FileReference", "FileState", "ReservedBytes", "VerifiedBytes", "OwnerByteLimit", "LastProcessedRecords", "LastExecutionEpoch")
+            VALUES ({Guid.NewGuid()}, {scope.User.Id}, {Guid.NewGuid()}, 'csv', 1, {new string('b', 64)}, false,
+                clock_timestamp(), 1, {LocationImportStagedFiles.CreateReference(Wayfarer.Models.Enums.LocationImportFileType.Csv)},
+                'Uploading', 1, 0, 314572800, 0, 0)
+            """));
         await scope.Lifecycle.StartAsync(scope.User.Id, first.ImportId!.Value, 1, scope.Credential, default);
         await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE \"LocationImports\" SET \"Status\" = 'In Progress', \"ExecutionEpoch\" = 1 WHERE \"Id\" = {second.ImportId}"));
@@ -208,8 +215,10 @@ public sealed class ManagedImportCustodyPostgresTests(PostgresImportTestFixture 
         }
     }
 
-    [PostgresFact]
-    public async Task CleanupClaimBeforePublisher_FencesClosedStaleUploaderAndRetainsRequestForRetry()
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CleanupOrRevocationBeforePublisher_FencesClosedStaleUploaderAndRetainsRequestForRetry(bool revoked)
     {
         await using var scope = await ScopeAsync();
         var observer = new ClosedUpload();
@@ -220,13 +229,24 @@ public sealed class ManagedImportCustodyPostgresTests(PostgresImportTestFixture 
         var row = (await new ManagedImportStatus(scope.Factory).UploadAsync(scope.User.Id, request, default))!;
         try
         {
-            await scope.DueAsync(row);
-            await scope.Cleanup.ProcessAsync(row.Id, default);
-            Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
+            if (revoked)
+            {
+                await using var db = fixture.CreateContext();
+                await db.ApiTokens.Where(item => item.UserId == scope.User.Id).ExecuteDeleteAsync();
+            }
+            else
+            {
+                await scope.DueAsync(row);
+                await scope.Cleanup.ProcessAsync(row.Id, default);
+                Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
+            }
         }
         finally { observer.Release.TrySetResult(); }
-        await Assert.ThrowsAsync<ManagedImportException>(() => upload);
+        var failure = await Assert.ThrowsAsync<ManagedImportException>(() => upload);
+        Assert.Equal(revoked ? 401 : 409, failure.Status);
         Assert.Null((await scope.ReadAsync(row.Id)).ImportId);
+        await scope.Cleanup.ProcessAsync(row.Id, default);
+        Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
     }
 
     private sealed class ClosedUpload : IManagedImportObserver
@@ -258,6 +278,30 @@ public sealed class ManagedImportCustodyPostgresTests(PostgresImportTestFixture 
     private sealed class UncertainContexts(PostgresImportTestFixture fixture, LostCommit interceptor) : IDbContextFactory<ApplicationDbContext>
     {
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext(interceptor);
+    }
+
+    [PostgresFact]
+    public async Task LinuxGate_ExcludesAnIndependentProcessAndReleasesOnDescriptorClose()
+    {
+        await using var scope = await ScopeAsync();
+        var path = Path.Combine(Path.GetDirectoryName(scope.Files.DirectoryPath)!, ".location-import.lock");
+        using (var lease = scope.Gate.TryAcquire())
+        {
+            Assert.NotNull(lease);
+            Assert.Equal(1, await ProbeAsync(path));
+        }
+        Assert.Equal(0, await ProbeAsync(path));
+    }
+
+    private static async Task<int> ProbeAsync(string path)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("flock") { UseShellExecute = false };
+        start.ArgumentList.Add("--nonblock");
+        start.ArgumentList.Add(path);
+        start.ArgumentList.Add("true");
+        using var process = System.Diagnostics.Process.Start(start)!;
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        return process.ExitCode;
     }
 
     private async Task<ManagedImportTestScope> ScopeAsync()

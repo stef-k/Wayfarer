@@ -49,7 +49,7 @@ public sealed class ManagedImportUpload(
         {
             await using (var stream = await FirstOpenAsync(attempt, deadline.Token))
             {
-                await CopyAsync(attempt, stream, body, fingerprint, deadline.Token);
+                await CopyAsync(attempt, stream, body, fingerprint, credential, deadline.Token);
                 await stream.FlushAsync(deadline.Token);
                 stream.Flush(flushToDisk: true);
             }
@@ -71,6 +71,8 @@ public sealed class ManagedImportUpload(
     private async Task<(MobileLocationImportUpload Row, bool Allocated)> ReserveAsync(string userId, string credential, Guid requestId,
         ManagedImportFingerprint fingerprint, long limit, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         using var storage = gate.TryAcquire() ?? throw new ManagedImportException(503, "managed_store_unavailable");
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, userId, token);
@@ -123,6 +125,8 @@ public sealed class ManagedImportUpload(
     /// <summary>The single synchronous CreateNew remains inside the OS gate, including the DB-loss instruction window.</summary>
     internal async Task<FileStream> FirstOpenAsync(MobileLocationImportUpload attempt, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         if (attempt.LeaseId is null || attempt.UserId is null) throw new ManagedImportException(409, "upload_authority_lost");
         using var storage = gate.TryAcquire() ?? throw new ManagedImportException(503, "managed_store_unavailable");
         await using var db = await contexts.CreateDbContextAsync(token);
@@ -144,7 +148,7 @@ public sealed class ManagedImportUpload(
     }
 
     private async Task CopyAsync(MobileLocationImportUpload attempt, FileStream output, Stream input,
-        ManagedImportFingerprint fingerprint, CancellationToken token)
+        ManagedImportFingerprint fingerprint, string credential, CancellationToken token)
     {
         var buffer = new byte[65536];
         using var prefix = new MemoryStream();
@@ -161,7 +165,7 @@ public sealed class ManagedImportUpload(
             hash.AppendData(buffer, 0, size);
             await output.WriteAsync(buffer.AsMemory(0, size), token);
             if (renewed.Elapsed < TimeSpan.FromSeconds(20)) continue;
-            await RenewAsync(attempt, token);
+            await RenewAsync(attempt, credential, token);
             renewed.Restart();
         }
         if (count != fingerprint.Bytes || Convert.ToHexStringLower(hash.GetHashAndReset()) != fingerprint.Sha256)
@@ -169,10 +173,13 @@ public sealed class ManagedImportUpload(
         ValidateEnvelope(prefix.ToArray(), fingerprint.Format);
     }
 
-    private async Task RenewAsync(MobileLocationImportUpload attempt, CancellationToken token)
+    private async Task RenewAsync(MobileLocationImportUpload attempt, string credential, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, attempt.UserId, token);
+        await ManagedImportAuthority.RequireCredentialAsync(db, attempt.UserId!, credential, token);
         var row = await ManagedImportAuthority.FindAsync(db, attempt.Id, token);
         var now = await ManagedImportAuthority.NowAsync(db, token);
         if (!ManagedImportAuthority.Live(row, attempt.Generation, attempt.LeaseId!.Value, now))
@@ -185,6 +192,8 @@ public sealed class ManagedImportUpload(
 
     private async Task PublishAsync(MobileLocationImportUpload attempt, string credential, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, attempt.UserId, token);
         await ManagedImportAuthority.RequireCredentialAsync(db, attempt.UserId!, credential, token);
@@ -214,6 +223,8 @@ public sealed class ManagedImportUpload(
     /// <summary>Abort is a conditional claim, so a lost successful acceptance reply cannot erase its payload.</summary>
     internal async Task AbortAsync(MobileLocationImportUpload attempt, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, attempt.UserId, token);
         var row = await ManagedImportAuthority.FindAsync(db, attempt.Id, token);

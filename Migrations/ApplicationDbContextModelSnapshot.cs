@@ -1782,9 +1782,9 @@ namespace Wayfarer.Migrations
 
                     b.ToTable("MobileLocationImportUpload", t =>
                         {
-                            t.HasCheckConstraint("CK_ManagedUpload_Owner", "(\"UserId\" IS NOT NULL AND \"RequestId\" IS NOT NULL AND \"Format\" IN ('csv','wayfarer-geojson') AND \"ByteLength\" > 0 AND \"Sha256\" ~ '^[0-9a-f]{64}$') OR (\"UserId\" IS NULL AND \"RequestId\" IS NULL AND \"CleanupReason\" = 'account_deleted')");
+                            t.HasCheckConstraint("CK_ManagedUpload_Owner", "(\"UserId\" IS NOT NULL AND \"RequestId\" IS NOT NULL AND \"Format\" IS NOT NULL AND \"ByteLength\" IS NOT NULL AND \"Sha256\" IS NOT NULL AND \"Format\" IN ('csv','wayfarer-geojson') AND \"ByteLength\" > 0 AND \"Sha256\" ~ '^[0-9a-f]{64}$') OR (\"UserId\" IS NULL AND \"RequestId\" IS NULL AND \"CleanupReason\" = 'account_deleted')");
 
-                            t.HasCheckConstraint("CK_ManagedUpload_Reservation", "\"ReservedBytes\" >= 0 AND \"VerifiedBytes\" >= 0 AND \"Generation\" >= 0 AND ((\"FileState\" = 'Removed' AND \"ReservedBytes\" = 0 AND \"FileReference\" IS NULL) OR (\"FileState\" <> 'Removed' AND \"ReservedBytes\" > 0 AND \"FileReference\" ~ '^imports/[0-9a-f]{32}\\.(csv|geojson)$'))");
+                            t.HasCheckConstraint("CK_ManagedUpload_Reservation", "\"ReservedBytes\" >= 0 AND \"VerifiedBytes\" >= 0 AND \"Generation\" >= 0 AND ((\"FileState\" = 'Removed' AND \"ReservedBytes\" = 0 AND \"FileReference\" IS NULL) OR (\"FileState\" <> 'Removed' AND \"FileReference\" IS NOT NULL AND \"ReservedBytes\" > 0 AND \"FileReference\" ~ '^imports/[0-9a-f]{32}\\.(csv|geojson)$'))");
 
                             t.HasCheckConstraint("CK_ManagedUpload_State", "\"FileState\" IN ('Uploading','Retained','CleanupClaimed','Removed')");
                         });

@@ -26,12 +26,15 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
     /// <summary>Scheduler/quiescence uncertainty defers; no scheduler/network work occurs while holding the gate.</summary>
     public async Task ProcessAsync(Guid id, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
+        MobileLocationImportUpload? claim = null;
         try
         {
             var snapshot = await LoadAsync(id, token);
             if (snapshot is null) return;
             if (snapshot.ImportId is int importId && !await QuiesceAsync(importId, token)) return;
-            var claim = await ClaimAsync(id, token);
+            claim = await ClaimAsync(id, token);
             if (claim is null) return;
             using var storage = gate.TryAcquire(); // Claim transaction has already committed and released every DB lock.
             if (storage is null) { await DeferAsync(claim, "storage_exclusion_unavailable", token); return; }
@@ -41,6 +44,12 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
         {
             logger.LogWarning("Managed import cleanup deferred; code {Code}.", "managed-import-cleanup-pending");
             // Unknown finalization leaves its exact claim/reservation intact. Retrying never recreates bytes.
+            if (claim is not null)
+            {
+                try { await DeferAsync(claim, "file_cleanup_unavailable", token); }
+                catch (Exception failure) when (failure is Npgsql.NpgsqlException or DbUpdateException or ManagedImportException)
+                { /* An unavailable primary database retains the original claim and reservation. */ }
+            }
         }
     }
 
@@ -72,6 +81,8 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
     /// <summary>Claim/publication/Start all serialize on the same authority; cleanup state never reverses.</summary>
     private async Task<MobileLocationImportUpload?> ClaimAsync(Guid id, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         var snapshot = await LoadAsync(id, token);
         if (snapshot is null) return null;
         await using var db = await contexts.CreateDbContextAsync(token);
@@ -120,6 +131,8 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
 
     private async Task RemoveAsync(MobileLocationImportUpload claim, string identity, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, claim.UserId, token);
         await ManagedImportUpload.RequireStoreAsync(db, identity, token);
@@ -169,10 +182,13 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
 
     private async Task DeferAsync(MobileLocationImportUpload claim, string code, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         await using var transaction = await ManagedImportAuthority.BeginAsync(db, claim.UserId, token);
         var row = await ManagedImportAuthority.FindAsync(db, claim.Id, token);
-        if (row is null || row.Generation != claim.Generation || row.LeaseId != claim.LeaseId) return;
+        if (row is null || row.FileState != ManagedImportFileState.CleanupClaimed
+            || row.Generation != claim.Generation || row.LeaseId != claim.LeaseId) return;
         row.FailureCode = code;
         row.RetryAtUtc = (await ManagedImportAuthority.NowAsync(db, token)).AddMinutes(5);
         await db.SaveChangesAsync(token);

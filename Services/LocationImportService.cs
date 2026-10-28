@@ -98,8 +98,12 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             _ => ImportStatus.Stopped
         };
         if (outcome is LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable)
+        {
+            import.FailureCode ??= outcome == LocationImportExecutionOutcome.StagedFileUnavailable
+                ? "staged_file_unavailable" : "processing_failed";
             import.ErrorMessage = outcome == LocationImportExecutionOutcome.StagedFileUnavailable
                 ? "Import staged file unavailable." : import.ErrorMessage ?? "Import processing failed.";
+        }
         import.ProjectionPending = false;
         try { await context.SaveChangesAsync(CancellationToken.None); }
         catch (DbUpdateConcurrencyException) { } // A later lifecycle command retains authority.
@@ -116,7 +120,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
                 .SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
             if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
             snapshot = new(import.Id, import.UserId, import.FilePath, import.FileType,
-                import.LastProcessedIndex, import.ExecutionEpoch);
+                import.LastProcessedIndex, import.ExecutionEpoch, import.ManagedUpload);
         }
 
         try
@@ -319,7 +323,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             {
                 var candidates = accepted.Count(IsMissingAddress);
                 import.RemainingEnrichmentCount += candidates;
-                if (candidates > 0) import.EnrichmentHandoffPending = true;
+                if (candidates > 0 && import.ManagedUpload) import.EnrichmentHandoffPending = true;
             }
             import.LastProcessedIndex = processed + batch.Count;
             var latest = batch.MaxBy(item => item.Timestamp);
@@ -432,7 +436,8 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     /// <summary>Rechecks managed custody before opening and translates path-bearing absence diagnostics.</summary>
     private async Task<FileStream> OpenStagedFileAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
-        try { return await _stagedFiles.OpenReadAsync(_contexts, snapshot.Id, snapshot.ExecutionEpoch, snapshot.FilePath, token); }
+        try { return await _stagedFiles.OpenReadAsync(_contexts, snapshot.Id, snapshot.ExecutionEpoch,
+            snapshot.UserId, snapshot.ManagedUpload, snapshot.FilePath, token); }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         { throw new StagedFileUnavailableException(); }
     }
@@ -442,7 +447,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         import.StopRequestedAtUtc is null && epoch >= 0 && import.ExecutionEpoch == epoch;
 
     private sealed record LocationImportSnapshot(int Id, string UserId, string FilePath,
-        LocationImportFileType FileType, int LastProcessedIndex, int ExecutionEpoch);
+        LocationImportFileType FileType, int LastProcessedIndex, int ExecutionEpoch, bool ManagedUpload);
 
     /// <summary>Classifies absent staged authority without carrying its private path.</summary>
     private sealed class StagedFileUnavailableException : Exception;

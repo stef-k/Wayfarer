@@ -92,7 +92,7 @@ public sealed class LocationImportLifecycle(
                 import.ExecutionEpoch++;
                 import.Status = ImportStatus.InProgress;
                 import.StopRequestedAtUtc = null;
-                import.ErrorMessage = null;
+                import.ErrorMessage = import.FailureCode = null;
             }
             import.ProjectionPending = true;
             if (await SaveConvergentlyAsync(db, cancellationToken)) epoch = import.ExecutionEpoch;

@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Changed
+- Add #887 packages 1–2 managed bearer upload ownership, immutable request recovery,
+  PostgreSQL reservations, conditional import epochs and Linux local-store cleanup
+  using the existing upload layout. Retain completed results, stopped/retryable
+  payloads and account-erasure cleanup evidence; shared Web controls respect custody.
+  Managed mode requires explicit store qualification. Full mobile capability and
+  enrichment selection remain gated on package 3 and companion integration; no
+  mobile, release or deployment change is included.
 - Preserve Polygon Area shells and every hole as separate standard boundaries in
   native and Google My Maps Trip KML (#912). Both importers retain exact 2D rings
   and reject malformed boundaries, invalid coordinates or invalid polygon topology

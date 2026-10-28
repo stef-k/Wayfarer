@@ -12,6 +12,8 @@ public sealed class ManagedImportLifecycle(IDbContextFactory<ApplicationDbContex
     /// <summary>Null target preserves Web's retained-file restart behavior; explicit targets recover exactly one epoch.</summary>
     public async Task<bool> StartAsync(string userId, int importId, int? targetEpoch, string? credential, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         int epoch;
         bool created;
         await using (var db = await contexts.CreateDbContextAsync(token))
@@ -60,6 +62,8 @@ public sealed class ManagedImportLifecycle(IDbContextFactory<ApplicationDbContex
     /// <summary>Same-epoch terminal Stop is recovery; stale/future Stop never adopts another generation.</summary>
     public async Task<bool> StopAsync(string userId, int importId, int? executionEpoch, string? credential, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         int epoch;
         await using (var db = await contexts.CreateDbContextAsync(token))
         await using (var transaction = await ManagedImportAuthority.BeginAsync(db, userId, token))
@@ -86,6 +90,8 @@ public sealed class ManagedImportLifecycle(IDbContextFactory<ApplicationDbContex
     /// <summary>Deletes history only after the same file-only cleanup owner confirms removal.</summary>
     public async Task<bool> DeleteAsync(string userId, int importId, string? credential, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         Guid id;
         await using (var db = await contexts.CreateDbContextAsync(token))
         await using (var transaction = await ManagedImportAuthority.BeginAsync(db, userId, token))

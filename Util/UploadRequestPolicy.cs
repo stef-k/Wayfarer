@@ -1,6 +1,6 @@
 namespace Wayfarer.Util;
 
-/// <summary>Owns the fixed application ceiling and the two user uploads' configurable request policy.</summary>
+/// <summary>Owns the fixed application ceiling and user uploads' configurable request policy.</summary>
 public static class UploadRequestPolicy
 {
     /// <summary>Compatibility ceiling for every application request, in binary mebibytes.</summary>

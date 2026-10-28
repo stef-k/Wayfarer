@@ -1674,3 +1674,66 @@ Location/group streams carry typed JSON events such as location updates/deletion
 
 See [Four-way Region deletion](region-deletion.md) for the additive cookie/bearer
 preview and confirmed-operation contracts, including unknown outcomes.
+
+## Managed location-file import foundation (#887 packages 1–2)
+
+`/api/mobile/location-imports` is a separate strict active-bearer adapter. Cookie
+Identity cannot select an owner; Web forms retain antiforgery. All responses are
+`no-store`. Missing, foreign and Web-only jobs share 404. Logs and status omit
+file paths, raw parser messages, last records and observation-key lists.
+
+Full mobile capability remains **unavailable**: discovery returns `ready:false`,
+`uploadsEnabled:false`, `enrichment_integration_pending`. The backend foundation
+can accept explicitly unenriched files only on a qualified local installation.
+`X-Enrichment-Requested:true` receives 503 before allocation/transfer; it is never
+changed to false or accepted without implementation. Package 3 must correct the
+shared account-wide enrichment handoff/controls before the full contract is ready.
+Do not enable a phone's “Send from this phone” from this partial capability.
+
+| Operation | Route suffix | Durable meaning |
+| --- | --- | --- |
+| Discovery | `GET /capabilities` | Actual active subject, effective upload/resource/retention policy, incomplete integration. |
+| Raw upload | `PUT /uploads/{requestId}?format=csv\|wayfarer-geojson` | Nonzero request UUID, exact native bytes, stopped epoch-zero job; no automatic Start. |
+| Request recovery | `GET /uploads/{requestId}` | Unaccepted attempt, accepted result or account-lifetime retirement evidence. |
+| Job status | `GET /{id:int}` | Owner/mobile-bound persisted state, epoch, yielded counts, file state and allowed commands. |
+| Start / Resume / Retry | `POST /{id:int}/start`, `{"targetEpoch":1}` | Next eligible epoch, or recovery of that exact existing epoch without advancing again. |
+| Stop | `POST /{id:int}/stop`, `{"executionEpoch":1}` | Exact current epoch only; 202 means stopping, not stopped. |
+| Delete | `DELETE /{id:int}` | 409 while active, 202 pending cleanup/handoff, 204 after history removal. Locations remain. |
+
+PUT requires `X-File-Bytes` (positive decimal), `X-File-SHA256` (64 lowercase hex
+characters), and explicit `X-Enrichment-Requested:true|false`. Content-Length, when
+present, must match. Media is `text/csv` or `application/geo+json`; compressed and
+multipart payloads are rejected. The immutable owner/request fingerprint includes
+format, length, digest and enrichment choice. The raw stream is counted/hashed,
+its bounded native header/envelope checked, and its handle flushed/closed before
+joint file/job acceptance. Full record validation stays in the existing worker.
+
+First acceptance returns 201; matching accepted replay returns 200 **without
+reading retry bytes**, even after dynamic disabling/lowering or payload removal.
+Replay resolution runs after routing/authentication and before dynamic upload
+policy. Fixed application/host/proxy ceilings still apply. Mismatch is 409;
+retired accepted identity is 410. Never reuse an accepted/retired request for new
+bytes. A deliberate new import requires new intent and a new request ID.
+
+An unaccepted live/cleanup attempt is 202 (`upload_in_progress` or
+`upload_cleanup_pending`, `import:null`); after confirmed removal it is 200
+`retry_required` and can retry the same fingerprint from zero with a fresh
+file generation. Accepted Completed plus cleanup pending/Removed remains 200
+with its result. A 404 cannot prove an older uncertain mutation never committed.
+503 `import_outcome_unknown` requires recovery by the original request/epoch.
+Other bounded outcomes include 400 metadata/envelope/integrity, 403 disabled,
+413 size, 415 media, 409 concurrent work/quota/epoch, and 429/503 admission/store
+availability. 507 is reserved for identified ENOSPC/EDQUOT.
+
+Start replay after Completed/Stopped/Failed observes that generation; it cannot
+start another. Only explicit next-target Resume/Retry can advance Stopped or an
+eligible Failed import. Completed bearer jobs cannot restart. Stale Stop conflicts.
+A Stop before an in-flight Start commits does not cancel a future epoch; retain
+and recover the phone's unresolved cancellation obligation.
+
+Counts describe yielded records and committed checkpoints, never every physical
+row or per-original success. Import/file cleanup does not delete Locations, phone
+originals or independent enrichment/accounting, or clear a phone's saved pause.
+Use existing owner key-status/detail reads conservatively. Package 3's enrichment
+status/conditional controls and the #34 recovery/#16 companion integration remain
+undelivered; no mobile implementation or per-original receipt ledger is included.

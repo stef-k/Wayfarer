@@ -352,3 +352,33 @@ securely and retain them until both histories are verified. Remove unnecessary
 copies afterward.
 
 [User guide](index.md) · [Documentation home](../README.md)
+
+## Managed upload files and mobile availability
+
+The #887 backend foundation adds durable request recovery and automatic cleanup
+for **new managed bearer uploads**. It does not make the full “Send from this
+phone” capability available: shared account-wide enrichment and companion recovery
+integration remain pending. Discovery reports that gate explicitly. Selecting
+enrichment is rejected as unavailable until its behavior is implemented; your
+choice is never silently turned off. Continue using the supported Web importer.
+
+Managed jobs appear in your existing Web import list with payload availability.
+Completed payloads become eligible for removal after a 24-hour grace, while import
+results remain visible. Removing the payload preserves imported Locations and
+request recovery evidence. Completed history can retire after 90 days; the
+accepted request still cannot create another import. Explicit Delete can remove
+stopped/terminal history earlier once execution, file cleanup and pending handoff
+obligations converge.
+
+Stopped and retryable Failed jobs keep their payload/checkpoint for explicit
+resume, with no automatic expiry. Failed cleanup remains pending and can temporarily
+consume capacity. Initial limits are one managed upload and execution per account,
+three retained/reserved files, and three times your effective per-file limit in
+managed bytes. Completed metadata itself consumes no file/execution slot. Existing
+unmanaged Web/legacy uploads keep their established behavior.
+
+An interrupted upload retries the same saved file/request from zero only after
+prior attempt cleanup. Accepted replay recovers the original result even after
+payload removal; it never imports again. Import completion or payload removal
+is not proof every original was stored, does not authorize deleting phone originals,
+and never resumes the phone's paused delivery or cancels independent enrichment.

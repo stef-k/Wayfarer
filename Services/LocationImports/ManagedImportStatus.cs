@@ -11,6 +11,8 @@ public sealed class ManagedImportStatus(IDbContextFactory<ApplicationDbContext> 
     /// <summary>Finds only this owner's upload identity, including after payload/history removal.</summary>
     public async Task<MobileLocationImportUpload?> UploadAsync(string userId, Guid requestId, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         db.Database.SetCommandTimeout(5);
         return await db.Set<MobileLocationImportUpload>().AsNoTracking().Include(row => row.Import)
@@ -20,6 +22,8 @@ public sealed class ManagedImportStatus(IDbContextFactory<ApplicationDbContext> 
     /// <summary>Web-only and foreign jobs have the same absent result.</summary>
     public async Task<MobileLocationImportUpload?> ImportAsync(string userId, int id, CancellationToken token)
     {
+        using var budget = ManagedImportAuthority.Budget(token);
+        token = budget.Token;
         await using var db = await contexts.CreateDbContextAsync(token);
         db.Database.SetCommandTimeout(5);
         return await db.Set<MobileLocationImportUpload>().AsNoTracking().Include(row => row.Import)
@@ -40,7 +44,7 @@ public sealed class ManagedImportStatus(IDbContextFactory<ApplicationDbContext> 
                 ManagedImportFileState.CleanupClaimed => "cleanup_pending", ManagedImportFileState.Removed => "removed", _ => "uploading" },
             cleanupEligibleAtUtc = row.CleanupEligibleAtUtc, expiresAtUtc = (DateTime?)null,
             canResume = row.FileState == ManagedImportFileState.Retained && import is not null
-                && import.DeletionRequestedAtUtc is null && import.Status != ImportStatus.Completed
+                && import.DeletionRequestedAtUtc is null && (import.Status == ImportStatus.Stopped || import.Status == ImportStatus.Failed)
                 && import.FailureCode is not "location-import-invalid-idempotency-key" and not "location-import-multiple-zero-idempotency-keys"
                     and not "location-import-checkpoint-incompatible"
         };

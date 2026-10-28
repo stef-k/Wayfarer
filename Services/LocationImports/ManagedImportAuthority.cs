@@ -27,6 +27,14 @@ internal static class ManagedImportAuthority
         catch { await transaction.DisposeAsync(); throw; }
     }
 
+    /// <summary>Bounds a complete control/database/finalization operation, including waits across several commands.</summary>
+    internal static CancellationTokenSource Budget(CancellationToken token)
+    {
+        var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(5));
+        return budget;
+    }
+
     internal static Task<DateTime> NowAsync(ApplicationDbContext db, CancellationToken token) =>
         db.Database.SqlQuery<DateTime>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(token);
 

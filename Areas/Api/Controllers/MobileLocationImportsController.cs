@@ -21,7 +21,7 @@ public sealed class MobileLocationImportsController(ManagedImportUpload upload, 
         var limit = UploadRequestPolicy.EffectiveBytes(settings.GetSettings().UploadSizeLimitMB);
         return Ok(new { contract = ManagedImportStatus.Contract, subjectId = Owner.UserId,
             ready = false, reason = "enrichment_integration_pending", uploadsEnabled = false,
-            managedIntakeAvailable = OperatingSystem.IsLinux() && options.Value.LocalStoreQualified && limit > 0,
+            managedIntakeConfigured = OperatingSystem.IsLinux() && options.Value.LocalStoreQualified && limit > 0,
             formats = new[] { "csv", "wayfarer-geojson" }, maxRequestBytes = limit, maxFileBytes = limit,
             uploadDeadlineSeconds = 600, uploadLeaseSeconds = 60, maxConcurrentUploadsPerOwner = 1,
             maxConcurrentExecutionsPerOwner = 1, maxRetainedResumableFilesPerOwner = 3,

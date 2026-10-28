@@ -30,7 +30,7 @@ public sealed class ManagedImportStorageGate(StoragePaths paths, IOptions<Manage
                 if (error == 11) return null;
                 throw new IOException("Managed import exclusion unavailable.");
             }
-            var identity = Identity(handle);
+            var identity = Identity(handle, initialize: true);
             // Independent libc opens avoid .NET's own flock sharing probe conflicting with our exclusive flock.
             using var current = OpenControl(control);
             if (Identity(current) != identity) throw new IOException("Managed import control changed.");
@@ -48,7 +48,7 @@ public sealed class ManagedImportStorageGate(StoragePaths paths, IOptions<Manage
     }
 
     /// <summary>Checks Linux filesystem type, device/inode and boot identity; configured attestation covers topology.</summary>
-    private static string Identity(SafeFileHandle handle)
+    private static string Identity(SafeFileHandle handle, bool initialize = false)
     {
         var buffer = Marshal.AllocHGlobal(256);
         try
@@ -62,9 +62,20 @@ public sealed class ManagedImportStorageGate(StoragePaths paths, IOptions<Manage
             var inode = Marshal.ReadInt64(buffer, 32);
             var major = Marshal.ReadInt32(buffer, 136);
             var minor = Marshal.ReadInt32(buffer, 140);
-            var boot = File.ReadAllText("/proc/sys/kernel/random/boot_id").Trim();
-            // A kernel/store change requires quiescent requalification; process restarts retain this identity.
-            return $"linux-local:{boot}:{major}:{minor}:{inode}";
+            if ((Marshal.ReadInt16(buffer, 28) & 0x3f) != 0) throw new IOException("Managed import control must be private.");
+            var bytes = new byte[32];
+            var read = RandomAccess.Read(handle, bytes, 0);
+            if (read == 0 && initialize)
+            {
+                bytes = System.Text.Encoding.ASCII.GetBytes(Guid.NewGuid().ToString("N"));
+                RandomAccess.Write(handle, bytes, 0);
+                RandomAccess.FlushToDisk(handle);
+                read = bytes.Length;
+            }
+            var store = System.Text.Encoding.ASCII.GetString(bytes);
+            if (read != 32 || !Guid.TryParseExact(store, "N", out _)) throw new IOException("Managed import identity unavailable.");
+            // Persistent random identity distinguishes separate local roots; normal host/process restarts retain it.
+            return $"linux-local:{store}:{major}:{minor}:{inode}";
         }
         finally { Marshal.FreeHGlobal(buffer); }
     }

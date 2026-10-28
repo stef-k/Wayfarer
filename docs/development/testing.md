@@ -503,3 +503,22 @@ location ingestion alongside heavy searches. Reuse the retained single-purpose
 routed fixture/receipt; this is a local qualification, not a CI benchmark, load
 framework or 25-active-user capacity claim. Keep the sub-second target, the
 protective ceiling and the maintainer acceptance decision distinct.
+
+## Managed upload boundary (#887 packages 1–2)
+
+Use the existing guarded PostgreSQL 18/PostGIS database and routed Identity host:
+
+~~~sh
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter FullyQualifiedName~ManagedImport
+~~~
+
+Focused cases exercise same-request publication, unknown reservation/acceptance
+commits, interruption, accepted replay before dynamic policy without body reads,
+DB-session termination immediately before first open (R3), publisher versus cleanup,
+unlink crash/retry and filesystem deletion failure, shared Web controls, epoch
+recovery/stale Stop, resumable retention/pending handoff, account erasure, owner/
+credential isolation, limits/media and Web antiforgery. Native CSV/GeoJSON cases
+run through the existing importer; unchanged parser/checkpoint/deletion suites
+remain the lower-seam regression owners. No provider/browser/Docker/native matrix
+is required for this boundary. Store/topology qualification is separate deployment
+evidence; local tests do not qualify arbitrary mounts or multiple hosts.
