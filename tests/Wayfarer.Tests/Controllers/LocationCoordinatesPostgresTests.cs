@@ -120,7 +120,11 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         var owner = await OwnerAsync();
         var other = await OwnerAsync();
         await using var db = fixture.CreateContext();
-        await using var app = await HostAsync(db, new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict));
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        if (route == "log-location")
+            visits.Setup(service => service.ProcessPingAsync(owner, It.IsAny<Point>(), null, It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
+        await using var app = await HostAsync(db, visits);
         using var client = Client(app, owner);
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
         using var created = await PostAsync(client, route, Payload("\"latitude\":0,\"longitude\":0"));
@@ -150,6 +154,9 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         Assert.Equal(HttpStatusCode.BadRequest, deletedMalformed.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.False(await verify.Locations.AnyAsync(row => row.UserId == owner || row.UserId == other));
+        if (route == "log-location")
+            visits.Verify(service => service.ProcessPingAsync(owner, It.IsAny<Point>(), null, It.IsAny<CancellationToken>()), Times.Once);
+        visits.VerifyNoOtherCalls();
     }
 
     /// <summary>Origin geography retains automatic accuracy filtering and a truthful unstored skip response.</summary>
