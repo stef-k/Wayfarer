@@ -10,7 +10,7 @@ public sealed class LocationImportProjectionCoordinator
     private readonly object sync = new();
     private readonly Dictionary<int, Entry> entries = [];
 
-    /// <summary>Shared fallback for explicitly constructed lifecycle collaborators.</summary>
+    /// <summary>Production singleton, also used by explicitly constructed lifecycle and cleanup collaborators.</summary>
     internal static LocationImportProjectionCoordinator Shared { get; } = new();
 
     /// <summary>Exposes bounded ownership counts to deterministic contract tests.</summary>

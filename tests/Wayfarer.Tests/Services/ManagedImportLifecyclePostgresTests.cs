@@ -151,9 +151,9 @@ public sealed class ManagedImportLifecyclePostgresTests(PostgresImportTestFixtur
             .Returns((JobKey key, CancellationToken token) => real.DeleteJob(key, token));
         var cleanup = new ManagedImportCleanup(scope.Factory, scope.Files, scope.Gate, proxy.Object, NullLogger<ManagedImportCleanup>.Instance);
         var lifecycle = new ManagedImportLifecycle(scope.Factory, scope.Files, real, NullLogger<LocationImportLifecycle>.Instance, cleanup);
+        var removal = cleanup.MaintainAsync(default);
         try
         {
-            var removal = cleanup.MaintainAsync(default);
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.True(await lifecycle.StartAsync(scope.User.Id, row.ImportId!.Value, 1, scope.Credential, default));
             var key = LocationImportSchedulerKeys.Job(row.ImportId.Value, 1);
@@ -173,8 +173,16 @@ public sealed class ManagedImportLifecyclePostgresTests(PostgresImportTestFixtur
             Assert.False(await lifecycle.StartAsync(scope.User.Id, row.ImportId.Value, 1, scope.Credential, default));
             Assert.True(await real.CheckExists(key));
             Assert.Equal(1, (await scope.ReadAsync(row.Id)).Import!.ExecutionEpoch);
+            // Cleanup winning custody prevents both Web-style restart and any new scheduler projection.
+            await scope.DueAsync(row, ImportStatus.Completed);
+            await cleanup.ProcessAsync(row.Id, default);
+            var denied = await Assert.ThrowsAsync<ManagedImportException>(() =>
+                lifecycle.StartAsync(scope.User.Id, row.ImportId.Value, null, null, default));
+            Assert.Equal("file_cleanup_pending_or_removed", denied.Code);
+            Assert.Equal(ManagedImportFileState.Removed, (await scope.ReadAsync(row.Id)).FileState);
+            Assert.False(await real.CheckExists(key));
         }
-        finally { release.TrySetResult(); await real.Shutdown(); }
+        finally { release.TrySetResult(); await removal; await real.Shutdown(); }
     }
 
     private async Task<ManagedImportTestScope> ScopeAsync()

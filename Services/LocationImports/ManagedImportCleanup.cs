@@ -53,6 +53,7 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
         }
     }
 
+    /// <summary>Observation grants no mutation authority; serialize and reload before deleting any projection.</summary>
     private async Task<bool> QuiesceAsync(int importId, CancellationToken token)
     {
         await using var db = await contexts.CreateDbContextAsync(token);
@@ -63,6 +64,13 @@ public sealed class ManagedImportCleanup(IDbContextFactory<ApplicationDbContext>
         {
             if ((await scheduler.GetCurrentlyExecutingJobs(token)).Any(job =>
                 LocationImportReconciler.TryParseJob(job.JobDetail.Key, out var id, out _) && id == importId)) return false;
+            await using var projection = await LocationImportProjectionCoordinator.Shared.AcquireAsync(importId, token);
+            var current = await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(row => row.Id == importId, token);
+            if (current is null) return true;
+            if (current.ExecutionEpoch != import.ExecutionEpoch || current.Status == ImportStatus.InProgress
+                || current.Status == ImportStatus.Stopping) return false;
+            // Start commits before acquiring this same owner. If it commits after this recheck, its projection
+            // waits until deletion finishes and the later custody claim rejects the active execution.
             var keys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token);
             foreach (var key in keys.Where(key => LocationImportReconciler.TryParseJob(key, out var id, out _) && id == importId))
                 _ = await scheduler.DeleteJob(key, token);

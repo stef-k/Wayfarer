@@ -24,14 +24,15 @@ public sealed class ManagedImportLifecycle(IDbContextFactory<ApplicationDbContex
                 .SingleOrDefaultAsync(row => row.UserId == userId && row.ImportId == importId, token)
                 ?? throw new ManagedImportException(404, "import_not_found");
             var import = custody.Import!;
-            if (targetEpoch.HasValue && targetEpoch == import.ExecutionEpoch && targetEpoch > 0) return false;
+            var recovery = targetEpoch.HasValue && targetEpoch == import.ExecutionEpoch && targetEpoch > 0;
+            if (recovery && import.Status != ImportStatus.InProgress) return false;
             if (targetEpoch.HasValue && targetEpoch < import.ExecutionEpoch)
                 throw new ManagedImportException(409, "execution_superseded");
             if (import.DeletionRequestedAtUtc.HasValue || custody.FileState != ManagedImportFileState.Retained)
                 throw new ManagedImportException(409, "file_cleanup_pending_or_removed");
             if (import.Status == ImportStatus.Stopping || (targetEpoch.HasValue && import.Status == ImportStatus.Completed))
                 throw new ManagedImportException(409, "invalid_import_transition");
-            if (targetEpoch.HasValue && (targetEpoch <= 0 || import.ExecutionEpoch == int.MaxValue
+            if (targetEpoch.HasValue && !recovery && (targetEpoch <= 0 || import.ExecutionEpoch == int.MaxValue
                 || targetEpoch != import.ExecutionEpoch + 1 || import.Status == ImportStatus.InProgress))
                 throw new ManagedImportException(409, "execution_epoch_conflict");
             if (import.Status == ImportStatus.Failed && import.FailureCode is "location-import-invalid-idempotency-key"
@@ -49,6 +50,7 @@ public sealed class ManagedImportLifecycle(IDbContextFactory<ApplicationDbContex
                 import.ErrorMessage = import.FailureCode = null;
                 custody.CleanupEligibleAtUtc = null;
             }
+            // Same-target active recovery verifies/repairs a missing projection without advancing the epoch.
             import.ProjectionPending = true;
             epoch = import.ExecutionEpoch;
             await db.SaveChangesAsync(token);

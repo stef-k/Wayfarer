@@ -314,7 +314,8 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LocationEnrichmentJob>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
-    builder.Services.AddSingleton<Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator>();
+    // Explicitly constructed managed collaborators and DI-owned Web/reconciliation paths use one projection owner.
+    builder.Services.AddSingleton(Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator.Shared);
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.LocationImportReconciler>();
     // Managed import support requires a qualified existing local store; full mobile integration remains pending.
     builder.Services.Configure<Wayfarer.Services.LocationImports.ManagedImportOptions>(builder.Configuration.GetSection("LocationImports"));

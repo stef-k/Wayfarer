@@ -251,7 +251,10 @@ custody table and one installation/store identity row. Import additions are
 imports default to unmanaged; no files are moved, enrolled by name/age or swept.
 The nullable account/import custody FKs use SET NULL. Unique indexes enforce
 owner/request, import/file identity, one Uploading/account and one active managed
-execution/account. Existing unfiltered owner lookup indexes remain.
+execution/account. The unfiltered `IX_LocationImports_UserId` remains explicitly in
+the EF model and upgraded schema for all owner history and FK lookups, including
+unmanaged, stopped and completed imports. The separate partial unique
+`UX_ManagedImport_ActiveOwner` constrains only managed In Progress/Stopping rows.
 
 PostgreSQL guards immutable fingerprints/current generations, irreversible cleanup,
 three reserved files/account, admission-time owner bytes, 10 GiB installation bytes,

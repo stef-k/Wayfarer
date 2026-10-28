@@ -11,10 +11,6 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_LocationImports_UserId",
-                table: "LocationImports");
-
             migrationBuilder.AddColumn<bool>(
                 name: "EnrichmentHandoffPending",
                 table: "LocationImports",
@@ -211,7 +207,7 @@ namespace Wayfarer.Migrations
                 END $body$;
                 CREATE TRIGGER managed_upload_guard BEFORE INSERT OR UPDATE OR DELETE ON "MobileLocationImportUpload"
                     FOR EACH ROW EXECUTE FUNCTION wayfarer_managed_upload_guard();
-                
+
                 -- Identity deletion and its cascades erase personal request/result data atomically, preserving only pending cleanup.
                 CREATE FUNCTION wayfarer_managed_account_erasure() RETURNS trigger LANGUAGE plpgsql AS $body$
                 BEGIN
@@ -230,7 +226,7 @@ namespace Wayfarer.Migrations
                 END $body$;
                 CREATE TRIGGER managed_account_erasure BEFORE DELETE ON "AspNetUsers"
                     FOR EACH ROW EXECUTE FUNCTION wayfarer_managed_account_erasure();
-                
+
                 -- SET NULL preserves custody on recorded import deletion, including the last aggregate result.
                 CREATE FUNCTION wayfarer_managed_import_deletion() RETURNS trigger LANGUAGE plpgsql AS $body$
                 BEGIN
@@ -297,10 +293,6 @@ namespace Wayfarer.Migrations
                 name: "ManagedUpload",
                 table: "LocationImports");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_LocationImports_UserId",
-                table: "LocationImports",
-                column: "UserId");
         }
     }
 }

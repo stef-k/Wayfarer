@@ -120,6 +120,8 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
 {
     public void Configure(EntityTypeBuilder<LocationImport> builder)
     {
+        // Owner history/FK lookups include unmanaged and terminal imports outside the active constraint.
+        builder.HasIndex(item => item.UserId);
         builder.HasIndex(item => item.UserId, "UX_ManagedImport_ActiveOwner").IsUnique()
             .HasFilter("\"ManagedUpload\" AND \"Status\" IN ('In Progress','Stopping')");
         builder.HasIndex(item => item.Id, "IX_ManagedImport_Reconciliation")
