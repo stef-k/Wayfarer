@@ -1611,6 +1611,36 @@ clear obsolete provider provenance and calculate the deliberate Wayfarer result;
 unchanged-route metadata edits preserve the saved set. Planning-speed mutations
 retain qualified provider estimates and reconcile Wayfarer estimates.
 
+### Trip KML Polygon Areas
+
+Native and Google My Maps exports serialize `ExteriorRing` under one
+`outerBoundaryIs`, then each interior ring under a separate `innerBoundaryIs`.
+Both Trip importers read the complete boundary set into one NTS Polygon with
+SRID 4326. Longitude/latitude doubles, ring order and vertex order are preserved;
+no closing, orientation normalization, simplification or topology repair occurs.
+Areas remain 2D: optional finite numeric KML altitude is accepted but is not
+retained, and export writes altitude zero.
+
+A Polygon requires exactly one exterior boundary and one `LinearRing` with one
+`coordinates` element per boundary. Boundaries must be direct children of the
+Polygon, rings direct children of their boundary, and coordinates direct children
+of their ring. Misplaced standard boundary/ring elements within an Area placemark
+reject the import, including intact holes nested under another boundary.
+Each ring needs at least four positions and
+an exact 2D closure. Coordinate tuples contain longitude/latitude and optional
+altitude; non-finite numbers and longitude outside -180..180 or latitude outside
+-90..90 are rejected. NTS validates the complete polygon, including all holes.
+Missing/malformed rings, duplicate structural elements and invalid topology fail
+as `FormatException` through the established `invalid_kml` response. Detached
+parsing finishes before either import path tracks a new graph or the native
+upsert transaction replaces children; the existing transaction owners are unchanged.
+
+These standard boundaries are supported by all current native v1/v2/v3 readers,
+including recognized versionless v1. Native export stays at schema v3. This does
+not qualify older Wayfarer readers or the external Google My Maps service. The
+change only affects Polygon Area interchange; existing saved Areas and the
+Region/Place/Segment contracts remain unchanged.
+
 ## SSE families
 
 `SseService` sends ordinary SSE `data:` frames containing JSON and optional comment heartbeats. Transport is best-effort and bounded; durable database state is authoritative.

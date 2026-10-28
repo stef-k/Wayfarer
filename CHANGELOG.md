@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Changed
+- Preserve Polygon Area shells and every hole as separate standard boundaries in
+  native and Google My Maps Trip KML (#912). Both importers retain exact 2D rings
+  and reject malformed boundaries, invalid coordinates or invalid polygon topology
+  before persistence, without partial Trip creation/replacement or footprint
+  repair. Native v1/v2/v3 readability remains; no schema version or database change.
+  Existing saved Areas are unchanged. External Google My Maps service fidelity
+  is not qualified by these local round trips.
 - Accept explicit origin coordinates and zero on either axis across personal
   Location ingestion and editing (#943). New observations and full Web forms
   require both finite in-range coordinates; partial API edits preserve omitted

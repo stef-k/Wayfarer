@@ -178,14 +178,6 @@ namespace Wayfarer.Parsers
                 {
                     if (a.Geometry is not Polygon poly) continue;
 
-                    var coords = poly.Coordinates.ToList();
-                    if (!coords.First().Equals2D(coords.Last()))
-                        coords.Add(coords.First());
-
-                    var coordsText = string.Join(" ",
-                        coords.Select(c =>
-                            $"{c.X.ToString(CI)},{c.Y.ToString(CI)},0"));
-
                     var placemark = new XElement(k + "Placemark",
                         new XElement(k + "name", a.Name),
                         new XElement(k + "styleUrl", "#wf-area"),
@@ -194,11 +186,8 @@ namespace Wayfarer.Parsers
                             : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.Normalize(a.Notes)!)),
                         new XElement(k + "Polygon",
                             new XElement(k + "tessellate", 1),
-                            new XElement(k + "outerBoundaryIs",
-                                new XElement(k + "LinearRing",
-                                    new XElement(k + "coordinates", coordsText)
-                                )
-                            )
+                            // Keep every saved shell/hole ring separate, with no closure repair.
+                            KmlPolygonGeometry.WriteBoundaries(poly)
                         )
                     );
 
