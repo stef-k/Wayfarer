@@ -9,7 +9,7 @@ namespace Wayfarer.Services.LocationImports;
 /// <summary>Repairs the bounded import-specific Quartz projection without provider contact.</summary>
 public sealed class LocationImportReconciler(
     LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportReconciler> logger,
-    LocationImportProjectionCoordinator? projectionCoordinator = null)
+    LocationImportProjectionCoordinator? projectionCoordinator = null, ManagedImportCleanup? managedCleanup = null)
 {
     private const int PageSize = 100;
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
@@ -109,6 +109,16 @@ public sealed class LocationImportReconciler(
         var remaining = await scheduler.GetJobKeys(
             GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token) ?? [];
         if (remaining.Any(key => TryParseJob(key, out var id, out _) && id == importId)) return;
+        await using (var managed = await contexts.CreateDbContextAsync(token))
+        {
+            if (await managed.LocationImports.AnyAsync(row => row.Id == importId && row.ManagedUpload, token))
+            {
+                var id = await managed.Set<MobileLocationImportUpload>().Where(row => row.ImportId == importId)
+                    .Select(row => (Guid?)row.Id).SingleOrDefaultAsync(token);
+                if (id.HasValue && managedCleanup is not null) await managedCleanup.ProcessAsync(id.Value, token);
+                return; // Missing custody is unavailable, never permission for unmanaged unlink.
+            }
+        }
         string? path;
         await using (var db = await contexts.CreateDbContextAsync(token))
         {

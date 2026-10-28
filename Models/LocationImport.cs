@@ -65,6 +65,16 @@ public class LocationImport
     public ImportStatus Status { get; set; } = ImportStatus.Stopped;  // Default to 'Pending' status
     public string? ErrorMessage { get; set; }
 
+    /// <summary>Managed custody is required at every shared Start/Delete and worker file-open boundary.</summary>
+    public bool ManagedUpload { get; set; }
+
+    /// <summary>Fixed worker failure code; raw Web diagnostics are never interpreted by the bearer API.</summary>
+    [MaxLength(64)]
+    public string? FailureCode { get; set; }
+
+    /// <summary>Future shared-owner handoff obligation; history retirement must preserve it.</summary>
+    public bool EnrichmentHandoffPending { get; set; }
+
     /// <summary>
     /// Count of locations skipped during import due to deduplication.
     /// </summary>
@@ -110,6 +120,8 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
 {
     public void Configure(EntityTypeBuilder<LocationImport> builder)
     {
+        builder.HasIndex(item => item.UserId).IsUnique().HasDatabaseName("UX_ManagedImport_ActiveOwner")
+            .HasFilter("\"ManagedUpload\" AND \"Status\" IN ('In Progress','Stopping')");
         builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.ToTable(table =>
         {

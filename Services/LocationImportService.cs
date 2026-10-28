@@ -131,7 +131,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             }
             var processed = snapshot.LastProcessedIndex;
             var batch = new List<Location>(BatchSize);
-            await using var stream = OpenStagedFile(snapshot.FilePath);
+            await using var stream = await OpenStagedFileAsync(snapshot, cancellationToken);
             var parser = _parserFactory.GetParser(snapshot.FileType);
             var ordinal = 0;
             await foreach (var location in parser.ParseAsync(stream, snapshot.UserId, cancellationToken))
@@ -203,6 +203,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, token);
             if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
             import.ErrorMessage = failure.Message;
+            import.FailureCode = failure.Code;
             await context.SaveChangesAsync(token);
             _logger.LogError("Location import failed; code {Code}; import {ImportId}.", failure.Code, importId);
             return LocationImportExecutionOutcome.Failed;
@@ -215,7 +216,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     {
         // OpenStagedFile resolves authority before any filesystem access.
         var count = 0;
-        await using var stream = OpenStagedFile(snapshot.FilePath);
+        await using var stream = await OpenStagedFileAsync(snapshot, token);
         await foreach (var unused in _parserFactory.GetParser(snapshot.FileType)
             .ParseAsync(stream, snapshot.UserId, token)) count++;
         return count;
@@ -231,6 +232,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             || import.LastProcessedIndex < 0 || import.LastProcessedIndex > total))
         {
             // Keep committed progress intact; changed parser counts cannot safely remap legacy ordinals.
+            import.FailureCode = "location-import-checkpoint-incompatible";
             import.ErrorMessage = "Import checkpoint no longer matches parsed records. Upload the file as a new import to continue.";
             await context.SaveChangesAsync(token);
             _logger.LogError("Location import failed; code {Code}; import {ImportId}. Upload the file as a new import.",
@@ -314,7 +316,11 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             import.SkippedDuplicates += skipped + reused;
             import.SkippedDeleted += deleted;
             if (import.EnrichmentRequested)
-                import.RemainingEnrichmentCount += accepted.Count(IsMissingAddress);
+            {
+                var candidates = accepted.Count(IsMissingAddress);
+                import.RemainingEnrichmentCount += candidates;
+                if (candidates > 0) import.EnrichmentHandoffPending = true;
+            }
             import.LastProcessedIndex = processed + batch.Count;
             var latest = batch.MaxBy(item => item.Timestamp);
             import.LastImportedRecord = latest is null ? "N/A" : $"Timestamp: {latest.Timestamp:u}" +
@@ -423,15 +429,12 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     private static bool IsMissingAddress(Location location) =>
         GeoapifyLocationBackfillService.IsWhollyUnenriched(location);
 
-    /// <summary>Opens durable file authority while translating path-bearing absence exceptions.</summary>
-    private FileStream OpenStagedFile(string reference)
+    /// <summary>Rechecks managed custody before opening and translates path-bearing absence diagnostics.</summary>
+    private async Task<FileStream> OpenStagedFileAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
-        if (!_stagedFiles.TryResolve(reference, out var filePath)) throw new StagedFileUnavailableException();
-        try { return File.OpenRead(filePath); }
+        try { return await _stagedFiles.OpenReadAsync(_contexts, snapshot.Id, snapshot.ExecutionEpoch, snapshot.FilePath, token); }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
-        {
-            throw new StagedFileUnavailableException();
-        }
+        { throw new StagedFileUnavailableException(); }
     }
 
     private static bool HasExecutionAuthority([NotNullWhen(true)] LocationImport? import, int epoch) =>

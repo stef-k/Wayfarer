@@ -55,7 +55,7 @@ public interface ILocationImportLifecycle
 /// <summary>Owns short relational lifecycle mutations and projects them only after commit.</summary>
 public sealed class LocationImportLifecycle(
     LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
-    LocationImportProjectionCoordinator? projectionCoordinator = null) : ILocationImportLifecycle
+    LocationImportProjectionCoordinator? projectionCoordinator = null, ManagedImportLifecycle? managedLifecycle = null) : ILocationImportLifecycle
 {
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
         projectionCoordinator ?? LocationImportProjectionCoordinator.Shared;
@@ -76,6 +76,8 @@ public sealed class LocationImportLifecycle(
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
     {
+        if (await IsManagedAsync(userId, importId, cancellationToken))
+            return await ManagedCommandAsync(() => managedLifecycle!.StartAsync(userId, importId, null, null, cancellationToken));
         await _commands.WaitAsync(cancellationToken);
         int epoch;
         try
@@ -135,6 +137,8 @@ public sealed class LocationImportLifecycle(
     public async Task<LocationImportCommandResult> StopAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
     {
+        if (await IsManagedAsync(userId, importId, cancellationToken))
+            return await ManagedCommandAsync(() => managedLifecycle!.StopAsync(userId, importId, null, null, cancellationToken));
         int epoch;
         await _commands.WaitAsync(cancellationToken);
         try
@@ -176,6 +180,8 @@ public sealed class LocationImportLifecycle(
     public async Task<LocationImportCommandResult> DeleteAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
     {
+        if (await IsManagedAsync(userId, importId, cancellationToken))
+            return await ManagedCommandAsync(() => managedLifecycle!.DeleteAsync(userId, importId, null, cancellationToken), deletion: true);
         var initial = await LoadOwnedAuthorityAsync(userId, importId, cancellationToken);
         if (initial is null) return new(LocationImportCommandCode.NotFound);
         if (initial.Status == ImportStatus.InProgress || initial.Status == ImportStatus.Stopping)
@@ -236,6 +242,28 @@ public sealed class LocationImportLifecycle(
         return new(LocationImportCommandCode.Accepted);
     }
 
+    /// <summary>Managed calls cannot fall back to the unmanaged unlink/restart path, including incomplete test compositions.</summary>
+    private async Task<bool> IsManagedAsync(string userId, int id, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        return await db.LocationImports.AnyAsync(row => row.Id == id && row.UserId == userId && row.ManagedUpload, token);
+    }
+
+    private async Task<LocationImportCommandResult> ManagedCommandAsync(Func<Task<bool>> command, bool deletion = false)
+    {
+        if (managedLifecycle is null) return new(LocationImportCommandCode.InvalidState);
+        try
+        {
+            var applied = await command();
+            return new(deletion && !applied ? LocationImportCommandCode.ProjectionPending : LocationImportCommandCode.Accepted);
+        }
+        catch (ManagedImportException failure)
+        {
+            return new(failure.Status == 404 ? LocationImportCommandCode.NotFound
+                : failure.Code == "execution_active" ? LocationImportCommandCode.ExecutionActive : LocationImportCommandCode.InvalidState);
+        }
+    }
+
     private async Task<QuartzCleanupResult> DeleteProjectionAsync(JobKey key, CancellationToken token)
     {
         try
@@ -278,6 +306,8 @@ public sealed class LocationImportLifecycle(
             LocationImportExecutionOutcome.StagedFileUnavailable)
         {
             import.Status = ImportStatus.Failed;
+            import.FailureCode ??= effectiveOutcome == LocationImportExecutionOutcome.StagedFileUnavailable
+                ? "staged_file_unavailable" : "processing_failed";
             import.ErrorMessage = effectiveOutcome == LocationImportExecutionOutcome.StagedFileUnavailable
                 ? "Import staged file unavailable." : import.ErrorMessage ?? "Import processing failed.";
         }

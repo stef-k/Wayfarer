@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
 using System.Text.RegularExpressions;
 using Wayfarer.Models.Enums;
 
@@ -70,6 +72,26 @@ public sealed class LocationImportStagedFiles
             // Never include a private persisted reference in diagnostics.
         }
         return false;
+    }
+
+    /// <summary>Rechecks managed custody and exact epoch at every worker open; legacy read semantics are preserved.</summary>
+    internal async Task<FileStream> OpenReadAsync(IDbContextFactory<ApplicationDbContext> contexts,
+        int importId, int epoch, string reference, CancellationToken token)
+    {
+        if (!TryResolve(reference, out var path)) throw new FileNotFoundException();
+        await using var db = await contexts.CreateDbContextAsync(token);
+        var managed = await db.LocationImports.AsNoTracking().Where(row => row.Id == importId)
+            .Select(row => new { row.ManagedUpload, row.UserId }).SingleOrDefaultAsync(token);
+        if (managed is not { ManagedUpload: true }) return File.OpenRead(path);
+        await using var transaction = await ManagedImportAuthority.BeginAsync(db, managed.UserId, token);
+        if (!await db.Set<MobileLocationImportUpload>().AnyAsync(row => row.ImportId == importId
+            && row.UserId == managed.UserId && row.FileState == ManagedImportFileState.Retained && row.FileReference == reference
+            && row.Import!.ExecutionEpoch == epoch && row.Import.Status == ImportStatus.InProgress
+            && row.Import.DeletionRequestedAtUtc == null && row.Import.StopRequestedAtUtc == null, token))
+            throw new FileNotFoundException();
+        var stream = File.OpenRead(path);
+        try { await transaction.CommitAsync(token); return stream; }
+        catch { await stream.DisposeAsync(); throw; }
     }
 
     /// <summary>Projects a bounded cross-platform basename without exposing any directory components.</summary>
