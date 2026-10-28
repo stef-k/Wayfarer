@@ -33,7 +33,7 @@ class ManagedIngressTests(unittest.TestCase):
             journey.install_adapter()
             wrapper = journey.host.call_args.kwargs['data']
             docker = Path(directory) / 'docker'
-            docker.write_text('#!/bin/sh\necho "synthetic Docker failure" >&2\nexit 42\n')
+            docker.write_text('#!/bin/sh\ncase "$1" in network) echo true; exit 0 ;; esac\necho "synthetic Docker failure" >&2\nexit 42\n')
             docker.chmod(0o755)
             script = Path(directory) / 'adapter'
             script.write_text(wrapper.replace('/usr/bin/docker', str(docker)))
@@ -60,24 +60,40 @@ class ManagedIngressTests(unittest.TestCase):
             docker.write_text(f'''#!/bin/sh
 printf '%s\\n' "$*" >> '{fixture}/calls'
 case "$1" in
+ network)
+  case "$2" in
+   inspect) test -e '{fixture}/network' || exit 1; cat '{fixture}/internal' ;;
+   create) touch '{fixture}/network' ;;
+  esac ;;
  ps) echo proxy ;;
  inspect) echo caddy@source ;;
  start) test -e '{fixture}/primed-proxy' ;;
 esac
 ''')
             docker.chmod(0o755)
+            (fixture / 'internal').write_text('true\n')
             script = fixture / 'adapter'
             script.write_text(journey.host.call_args.kwargs['data'].replace('/usr/bin/docker', str(docker)))
             result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
                                      'up', '-d', '--wait', '--wait-timeout', '180', 'caddy'], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = (fixture / 'calls').read_text().splitlines()
-            self.assertEqual(calls[0], 'compose --project-name fixture-project create caddy')
+            self.assertIn('compose --project-name fixture-project create caddy', calls)
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network create --internal ')),
+                            calls.index('compose --project-name fixture-project create caddy'))
+            self.assertIn('network connect --ip 172.30.69.4 --alias acme-v02.api.letsencrypt.org fixture-project_edge fixture-acme', calls)
             self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network connect ')),
                             next(i for i, call in enumerate(calls) if call.startswith('cp ')))
             self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('cp ')), calls.index('start proxy'))
             self.assertIn('exec proxy wget -O /dev/null https://wayfarer.example.org/health/ready', calls)
             self.assertFalse(any(call.startswith('restart ') or ' up ' in call for call in calls))
+            # A diverged network must fail before any proxy command, even when it already exists.
+            (fixture / 'internal').write_text('false\n')
+            result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
+                                     'up', '-d', '--wait', '--wait-timeout', '180', 'caddy'], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(all(call.startswith('network inspect ') for call in
+                                (fixture / 'calls').read_text().splitlines()[len(calls):]))
 
     def test_failure_diagnostics_retain_issuer_state_and_omit_container_environment(self):
         """Keep native image, OOM/network/configuration and operator evidence without dumping credentials."""

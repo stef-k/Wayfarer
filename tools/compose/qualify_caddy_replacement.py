@@ -94,11 +94,10 @@ class ManagedJourney(Journey):
         self.prepare_public(faults=True)
         self.port = 443
         self.ca = 'qualification-acme-' + self.project
-        # Keep the genuine edge topology/IPs, but deny fixture certificate traffic any external route.
-        self.edge = self.project + '_edge'
-        run('docker', 'network', 'create', '--internal', '--subnet', '172.30.69.0/24', '--gateway', '172.30.69.1',
-            '--label', 'com.docker.compose.project=' + self.project,
-            '--label', 'com.docker.compose.network=edge', self.edge)
+        # Prepare the issuer outside the installation namespace; old setup must still prove a fresh target.
+        self.issuer_network = self.ca + '-edge'
+        run('docker', 'network', 'create', '--internal', '--label',
+            QUALIFICATION_PROXY_LABEL + '=' + self.project, self.issuer_network)
         authority = self.directory / 'acme.Caddyfile'
         self.host('tee', str(authority), data='''{
  skip_install_trust
@@ -119,7 +118,7 @@ acme-v02.api.letsencrypt.org {
             name = self.ca + '-' + role
             run('docker', 'volume', 'create', '--label', QUALIFICATION_PROXY_LABEL + '=' + self.project, name)
             stores.extend(['-v', name + ':/' + role])
-        run('docker', 'run', '-d', '--name', self.ca, '--network', self.edge, '--ip', '172.30.69.4',
+        run('docker', 'run', '-d', '--name', self.ca, '--network', self.issuer_network,
             '--network-alias', 'acme-v02.api.letsencrypt.org',
             '--label', QUALIFICATION_PROXY_LABEL + '=' + self.project,
             '-v', str(authority) + ':/etc/caddy/Caddyfile:ro', *stores, 'caddy@' + caddy.POLICY['targetCaddy'])
@@ -136,7 +135,7 @@ acme-v02.api.letsencrypt.org {
             roots = run('docker', 'run', '--rm', '--entrypoint', 'cat', 'caddy@' + digest, '/etc/ssl/certs/ca-certificates.crt').stdout
             self.host('tee', str(self.directory / (kind + '-trust.pem')), data=roots + root)
         # Validate routing, directory URLs and trust before any release proxy can execute.
-        directory = json.loads(run('docker', 'run', '--rm', '--network', self.edge,
+        directory = json.loads(run('docker', 'run', '--rm', '--network', self.issuer_network,
             '-v', str(self.directory / 'source-trust.pem') + ':/etc/ssl/certs/ca-certificates.crt:ro',
             '--entrypoint', 'wget', 'caddy@' + caddy.POLICY['sourceCaddy'], '-qO-',
             'https://acme-v02.api.letsencrypt.org/directory').stdout)
@@ -188,6 +187,19 @@ case " $* " in
    esac
    set -- "$@" "$argument"
   done ;;
+esac
+# Installation mutations follow genuine fresh-target admission. Isolate its edge before Compose can create it.
+case " $* " in
+ *" compose "*" up "*|*" compose "*" create "*|*" compose "*" run "*)
+  stage=fixture-edge
+  network="${{project}}_edge"
+  if ! /usr/bin/docker network inspect "$network" >/dev/null 2>&1; then
+   /usr/bin/docker network create --internal --subnet 172.30.69.0/24 --gateway 172.30.69.1 \
+    --label "com.docker.compose.project=$project" --label com.docker.compose.network=edge "$network" >/dev/null
+   /usr/bin/docker network connect --ip 172.30.69.4 --alias acme-v02.api.letsencrypt.org "$network" "$ca"
+  fi
+  test "$(/usr/bin/docker network inspect --format '{{{{.Internal}}}}' "$network")" = true
+  stage=docker-command ;;
 esac
 # This adapter changes fixture trust and DNS, never release bytes or observed mounts.
 /usr/bin/docker "$@"
