@@ -243,6 +243,20 @@ From your personal **Trips** list:
 Google My Maps KML coordinates use decimal points regardless of the server's
 number-formatting locale, preserving their precision when moved between tools.
 
+Both Trip KML exports write an Area's exterior ring and each hole as separate
+standard KML boundaries. Wayfarer's native and My Maps importers preserve their
+2D coordinates, vertex order and hole order. Every ring must be closed and have
+at least four positions; coordinates must be finite and in geographic range.
+Malformed boundaries and invalid polygon topology (such as crossing rings or
+holes outside the shell) reject the entire import, without a partial new Trip or
+partial replacement of an existing Trip. Import does not repair a footprint or
+discard a bad hole. Existing saved Areas are unchanged by export.
+
+This uses standard KML boundaries in native versions 1, 2 and 3, including
+recognized versionless legacy files; no new schema version is needed. Older
+Wayfarer readers may lose holes. Fidelity through the external Google My Maps
+service depends on that service and is not established by Wayfarer's round trips.
+
 For planning, routes and visits, see [Trips](trips.md). Downloading a Trip to
 [Mobile](mobile.md#download-trip-content) is a separate action from exporting a file.
 
