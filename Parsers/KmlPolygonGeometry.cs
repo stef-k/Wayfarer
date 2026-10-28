@@ -22,11 +22,31 @@ internal static class KmlPolygonGeometry
     internal static Polygon Parse(XElement placemark)
     {
         var source = RequiredElement(placemark, "Polygon");
+        ValidateStructure(placemark, source);
         var shell = ReadRing(RequiredElement(source, "outerBoundaryIs"));
         var holes = source.Elements(Kml + "innerBoundaryIs").Select(ReadRing).ToArray();
         var polygon = new Polygon(shell, holes) { SRID = 4326 };
         if (!polygon.IsValid) throw new FormatException("Polygon topology is invalid.");
         return polygon;
+    }
+
+    /// <summary>Rejects misplaced standard Polygon structure so direct-child reads cannot silently omit a hole.</summary>
+    private static void ValidateStructure(XElement placemark, XElement polygon)
+    {
+        foreach (var element in placemark.Descendants().Where(element => element.Name.Namespace == Kml))
+        {
+            var correctlyPlaced = element.Name.LocalName switch
+            {
+                "Polygon" => element == polygon,
+                "outerBoundaryIs" or "innerBoundaryIs" => element.Parent == polygon,
+                "LinearRing" => element.Parent?.Name == Kml + "outerBoundaryIs"
+                    || element.Parent?.Name == Kml + "innerBoundaryIs",
+                "coordinates" => element.Parent?.Name == Kml + "LinearRing",
+                _ => true
+            };
+            if (!correctlyPlaced)
+                throw new FormatException($"Misplaced Polygon {element.Name.LocalName}.");
+        }
     }
 
     /// <summary>Creates one boundary from an existing ring; saved geometry is never closed, reordered or normalized.</summary>

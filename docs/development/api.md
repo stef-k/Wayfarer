@@ -1622,7 +1622,11 @@ Areas remain 2D: optional finite numeric KML altitude is accepted but is not
 retained, and export writes altitude zero.
 
 A Polygon requires exactly one exterior boundary and one `LinearRing` with one
-`coordinates` element per boundary. Each ring needs at least four positions and
+`coordinates` element per boundary. Boundaries must be direct children of the
+Polygon, rings direct children of their boundary, and coordinates direct children
+of their ring. Misplaced standard boundary/ring elements within an Area placemark
+reject the import, including intact holes nested under another boundary.
+Each ring needs at least four positions and
 an exact 2D closure. Coordinate tuples contain longitude/latitude and optional
 altitude; non-finite numbers and longitude outside -180..180 or latitude outside
 -90..90 are rejected. NTS validates the complete polygon, including all holes.
