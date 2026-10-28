@@ -123,7 +123,7 @@ public sealed class LocationManualAddressEditTests : TestBase
     {
         var scenario = await CreateScenarioAsync("invalid-owner");
         var original = EditModel(scenario.Location);
-        var fields = new[] { "OriginalReverseGeocodingProvider", "OriginalReverseGeocodingStorageMode",
+        var fields = new[] { "Latitude", "Longitude", "OriginalReverseGeocodingProvider", "OriginalReverseGeocodingStorageMode",
             "OriginalReverseGeocodedAt", "Address", "Place", "Region", "Country" };
         var posted = fields.ToDictionary(field => field, field =>
             new Microsoft.Extensions.Primitives.StringValues(

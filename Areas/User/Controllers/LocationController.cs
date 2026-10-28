@@ -312,7 +312,7 @@ namespace Wayfarer.Areas.User.Controllers
                 }
                 model.ReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
                 ViewData["ExpandAddressDetails"] = true;
-                SetAlert("There are validation errors. Review the address details and try again.", "warning");
+                SetAlert("There are validation errors. Review the highlighted fields and try again.", "warning");
 
                 SetPageTitle("Edit Location");
                 return View(model);

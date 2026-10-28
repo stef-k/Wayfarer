@@ -97,7 +97,7 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
                 PresenceObservedAtUtc = dto.Timestamp.AddMinutes(-10),
                 Timestamp = dto.Timestamp.AddMinutes(filter == "time" ? 0 : -10),
                 LocalTimestamp = dto.Timestamp.AddMinutes(filter == "duplicate" ? 0 : -10),
-                Coordinates = filter == "distance" ? new Point(dto.Longitude, dto.Latitude) { SRID = 4326 }
+                Coordinates = filter == "distance" ? new Point(dto.Longitude!.Value, dto.Latitude!.Value) { SRID = 4326 }
                     : new Point(22.2, 40.1) { SRID = 4326 }
             });
             await seed.SaveChangesAsync();

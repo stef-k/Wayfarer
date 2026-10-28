@@ -1,10 +1,13 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
+using NetTopologySuite.Geometries;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
@@ -36,12 +39,18 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         var owner = await OwnerAsync();
         await using var db = fixture.CreateContext();
         var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        if (route == "log-location")
+            visits.Setup(service => service.ProcessPingAsync(owner, It.IsAny<Point>(), null, It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask);
         await using var app = await HostAsync(db, visits);
         using var client = Client(app, owner);
         var key = Guid.NewGuid();
         client.DefaultRequestHeaders.Add("Idempotency-Key", key.ToString());
+        // Exercise coordinate-local timestamp conversion at origin as well as explicit UTC binding.
+        var clock = route == "log-location" && lat == 0 && lon == 0 ? "2026-08-22T08:00:00" : Event;
+        var before = DateTime.UtcNow;
         using var response = await PostAsync(client, route,
-            $$"""{"latitude":{{lat}},"longitude":{{lon}},"timestamp":"{{Event}}","coordinateOrigin":"manual-map","isUserInvoked":true}""");
+            $$"""{"latitude":{{lat}},"longitude":{{lon}},"timestamp":"{{clock}}","coordinateOrigin":"manual-map","isUserInvoked":true}""");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await using var verify = fixture.CreateContext();
         var row = await verify.Locations.SingleAsync(row => row.UserId == owner);
@@ -50,8 +59,13 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         Assert.Equal(4326, row.Coordinates.SRID);
         Assert.Equal(key, row.IdempotencyKey);
         Assert.Equal(DateTime.Parse(Event).ToUniversalTime(), row.LocalTimestamp);
+        Assert.Equal(DateTimeKind.Utc, row.LocalTimestamp.Kind);
+        Assert.InRange(row.Timestamp, before.AddMilliseconds(-1), DateTime.UtcNow);
         Assert.Null(row.Address);
         Assert.Null(row.PresenceObservedAtUtc);
+        // Automatic arrival Visit evaluation is unchanged; map-selected check-ins assert no sensor presence.
+        if (route == "log-location")
+            visits.Verify(service => service.ProcessPingAsync(owner, It.IsAny<Point>(), null, It.IsAny<CancellationToken>()), Times.Once);
         visits.VerifyNoOtherCalls();
         if (lat != 0 || lon != 0) return;
 
@@ -62,6 +76,7 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         using var detail = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
         var record = detail.RootElement.GetProperty("record");
+        Assert.Equal("2026-08-22T08:00:00.000000Z", record.GetProperty("eventUtc").GetString());
         Assert.Equal(0, record.GetProperty("position").GetProperty("latitude").GetDouble());
         Assert.Equal(0, record.GetProperty("position").GetProperty("longitude").GetDouble());
         Assert.Equal("available", record.GetProperty("captureTime").GetProperty("status").GetString());
@@ -216,13 +231,23 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         var csrfCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", csrfCookie + "; " + IdentityRouteHost.Cookie(app.Services, owner));
+        if (action == "Create")
+        {
+            var initial = await client.GetStringAsync("/User/Location/Create");
+            foreach (var axis in new[] { "Latitude", "Longitude" })
+            {
+                var input = Regex.Match(initial, $"<input[^>]*id=\"{axis}\"[^>]*>").Value;
+                Assert.NotEmpty(input);
+                Assert.DoesNotContain("value=\"0\"", input);
+            }
+        }
         foreach (var pair in new[] { (Lat: (string?)null, Lon: (string?)null), (null, "0"), ("0", null),
                      ("", "0"), ("0", ""), ("NaN", "0"), ("0", "NaN"), ("Infinity", "0"),
                      ("91", "0"), ("0", "-181"), ("bad", "0") })
         {
             using var response = await client.PostAsync($"/User/Location/{action}", Form(pair.Item1, pair.Item2, token, row.Id));
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var html = await response.Content.ReadAsStringAsync();
+            Assert.True(response.StatusCode == HttpStatusCode.OK, $"{pair}: {response.StatusCode}: {html.Split("HEADERS")[0]}");
             Assert.Contains("field-validation-error", html);
             Assert.Contains(pair.Item1 == "0" ? "data-valmsg-for=\"Longitude\"" : "data-valmsg-for=\"Latitude\"", html);
             await AssertStoredAsync(row.Id, 10, 20, "kept");
@@ -242,10 +267,15 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
     private Task<WebApplication> HostAsync(ApplicationDbContext db, Mock<IPlaceVisitDetectionService> visits)
     {
         var reverse = new ReverseGeocodingService(new HttpClient(new NoNetwork()), NullLogger<BaseApiController>.Instance);
-        var controller = ApiLocationAdmissionTests.Controller(db, new ApiWorkAdmission(64, 8), visits.Object, reverse: reverse);
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
         return IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
-            services.AddSingleton(controller);
+            services.RemoveAll<ApplicationDbContext>();
+            services.AddScoped(_ => fixture.CreateContext());
+            services.AddScoped(provider => ApiLocationAdmissionTests.Controller(provider.GetRequiredService<ApplicationDbContext>(),
+                new ApiWorkAdmission(64, 8), visits.Object, reverse: reverse));
+            services.AddSingleton(settings.Object);
             services.AddSingleton(reverse);
             services.AddSingleton(visits.Object);
             services.AddControllers().AddControllersAsServices();
@@ -281,6 +311,7 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         {
             var other = axis == "latitude" ? "longitude" : "latitude";
             yield return $"\"{other}\":0";
+            yield return $"\"{other}\":10";
             foreach (var value in new[] { "null", "\"\"", "\" \"", "\"bad\"", "\"NaN\"", "\"Infinity\"", "\"-Infinity\"", "1e999", axis == "latitude" ? "91" : "181", axis == "latitude" ? "-91" : "-181" })
                 yield return $"\"{axis}\":{value},\"{other}\":0";
         }

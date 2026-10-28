@@ -27,7 +27,9 @@
                                data-tippy-content="Decimal degrees format (e.g., 37.9838). Click on the map to auto-fill."></i>
                         </label>
                         <div class="col-sm-3">
-                            <input type="text" class="form-control" id="Latitude" name="Latitude" required />
+                            <!-- Start blank; retain attempted input and its server validation error on redisplay. -->
+                            <input type="text" class="form-control" id="Latitude" name="Latitude" value="@(ViewData.ModelState["Latitude"]?.AttemptedValue)" required />
+                            <span asp-validation-for="Latitude" class="text-danger"></span>
                         </div>
                         <label for="Longitude" class="col-sm-3 col-form-label">
                             Longitude <span class="text-danger">*</span>
@@ -35,7 +37,9 @@
                                data-tippy-content="Decimal degrees format (e.g., 23.7275). Click on the map to auto-fill."></i>
                         </label>
                         <div class="col-sm-3">
-                            <input type="text" class="form-control" id="Longitude" name="Longitude" required />
+                            <!-- Start blank; retain attempted input and its server validation error on redisplay. -->
+                            <input type="text" class="form-control" id="Longitude" name="Longitude" value="@(ViewData.ModelState["Longitude"]?.AttemptedValue)" required />
+                            <span asp-validation-for="Longitude" class="text-danger"></span>
                         </div>
                     </div>
                     <small id="coordinatesHelp" class="form-text text-muted">
