@@ -307,6 +307,8 @@ esac
                  '--payload', str(self.old / 'wayfarer-recovery'), '--retention', '4')
         before = self.ingress.tls_facts()
         source_proxy = self.proxy_facts()
+        registration = json.loads(self.host('cat', next(path for path in before['account'] if path.endswith('.json'))).stdout)
+        assert registration['location'].startswith('https://acme-v02.api.letsencrypt.org/acme/local/account/')
         self.executable = self.target / 'wayfarerctl'
         plan, digest = self.replacement()
         assert plan['UpdateProtocol'] == 2 and plan['OperatorOwner'] == plan['Target']['Release']
@@ -358,6 +360,8 @@ esac
         return dict(sourceFingerprint=caddy.POLICY['sources'][image.PLATFORM], sourceCaddy=caddy.POLICY['sourceCaddy'],
                     targetCaddy=caddy.POLICY['targetCaddy'], targetOwner=plan['OperatorOwner'], recoveredOwner=joined['Plan']['OperatorOwner'],
                     interruptedOperation=plan['Operation'], acceptedOperation=next_plan['Operation'],
+                    localAccount=registration['location'], privateEndpoint=self.proxy_address,
+                    interruptedReceipt=interrupted, restoredReceipt=restored, joinedRestoreReceipt=joined, acceptedReceipt=accepted,
                     tlsStateReadable=['2.11.4', '2.11.7'], tls=before, sourceProxy=source_proxy,
                     targetProxy=target_proxy, recoveredProxy=recovered_proxy, acceptedProxy=accepted_proxy, result='passed')
 
