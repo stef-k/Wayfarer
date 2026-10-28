@@ -118,7 +118,7 @@ public sealed class ManagedImportUpload(
         row.CleanupReason = row.FailureCode = null;
         row.RetryAtUtc = row.LeaseExpiresAtUtc;
         await db.SaveChangesAsync(token);
-        await transaction.CommitAsync(token); // Uncertainty here means no first-open by this invocation.
+        await ManagedImportAuthority.CommitAsync(transaction, token); // Uncertainty here means no first-open by this invocation.
         return (row, true);
     }
 
@@ -217,7 +217,7 @@ public sealed class ManagedImportUpload(
         ManagedImportAuthority.Remember(row, import);
         db.Add(import);
         await db.SaveChangesAsync(token);
-        await transaction.CommitAsync(token);
+        await ManagedImportAuthority.CommitAsync(transaction, token);
     }
 
     /// <summary>Abort is a conditional claim, so a lost successful acceptance reply cannot erase its payload.</summary>

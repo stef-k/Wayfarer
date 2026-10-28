@@ -35,6 +35,13 @@ internal static class ManagedImportAuthority
         return budget;
     }
 
+    /// <summary>A failed COMMIT acknowledgement is unknown, never proof of rollback or filesystem failure.</summary>
+    internal static async Task CommitAsync(IDbContextTransaction transaction, CancellationToken token)
+    {
+        try { await transaction.CommitAsync(token); }
+        catch (Exception failure) { throw new ManagedImportException(503, "import_outcome_unknown", failure); }
+    }
+
     internal static Task<DateTime> NowAsync(ApplicationDbContext db, CancellationToken token) =>
         db.Database.SqlQuery<DateTime>($"SELECT clock_timestamp() AS \"Value\"").SingleAsync(token);
 
@@ -67,7 +74,7 @@ internal static class ManagedImportAuthority
 }
 
 /// <summary>Fixed privacy-safe failure, translated at both early middleware and MVC boundaries.</summary>
-public sealed class ManagedImportException(int status, string code) : Exception("Location import request could not be completed.")
+public sealed class ManagedImportException(int status, string code, Exception? inner = null) : Exception("Location import request could not be completed.", inner)
 {
     public int Status { get; } = status;
     public string Code { get; } = code;

@@ -199,8 +199,10 @@ public sealed class ManagedImportCustodyPostgresTests(PostgresImportTestFixture 
         var uploader = new ManagedImportUpload(factory, scope.Files, scope.Gate);
         var bytes = "Latitude,Longitude,TimestampUtc\n"u8.ToArray();
         var request = Guid.NewGuid();
-        await Assert.ThrowsAsync<IOException>(() => uploader.AcceptAsync(scope.User.Id, scope.Credential,
+        var unknown = await Assert.ThrowsAsync<ManagedImportException>(() => uploader.AcceptAsync(scope.User.Id, scope.Credential,
             request, ManagedImportTestScope.Fingerprint(bytes), UploadRequestPolicy.MaximumRequestBytes, new MemoryStream(bytes), default));
+        Assert.Equal(503, unknown.Status);
+        Assert.Equal("import_outcome_unknown", unknown.Code);
         var row = (await new ManagedImportStatus(scope.Factory).UploadAsync(scope.User.Id, request, default))!;
         Assert.Equal(bytes.Length, row.ReservedBytes);
         Assert.Equal(acceptance ? ManagedImportFileState.Retained : ManagedImportFileState.Uploading, row.FileState);
