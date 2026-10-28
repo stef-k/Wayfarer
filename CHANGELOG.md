@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Changed
+- Accept explicit origin coordinates and zero on either axis across personal
+  Location ingestion and editing (#943). New observations and full Web forms
+  require both finite in-range coordinates; partial API edits preserve omitted
+  or both-null positions and reject invalid replacements atomically. Preserve
+  bound UUID replay/deletion priority, automatic admission and historical/live
+  semantics; valid geography does not require an address or establish presence.
 - Add #915's explicit `update --replace-release` bridge from genuine managed
   v1.9.22/Caddy 2.11.4 to an exactly authorized corrected Caddy 2.11.7 release.
   The trusted target operator retains replacement/recovery ownership, TLS volumes

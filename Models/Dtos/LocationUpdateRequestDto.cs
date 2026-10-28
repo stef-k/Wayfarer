@@ -10,12 +10,13 @@ namespace Wayfarer.Models.Dtos
     public class LocationUpdateRequestDto
     {
         /// <summary>
-        /// New latitude in degrees. Must be provided together with <see cref="Longitude"/> if present.
+        /// New finite latitude in [-90,90], including zero. Requires a non-null <see cref="Longitude"/>.
+        /// Omitting both axes or setting both to null preserves the existing position.
         /// </summary>
         public double? Latitude { get; set; }
 
         /// <summary>
-        /// New longitude in degrees. Must be provided together with <see cref="Latitude"/> if present.
+        /// New finite longitude in [-180,180], including zero. Requires a non-null <see cref="Latitude"/>.
         /// </summary>
         public double? Longitude { get; set; }
 

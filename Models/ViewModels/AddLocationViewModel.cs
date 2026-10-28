@@ -16,10 +16,14 @@ namespace Wayfarer.Models.ViewModels
         [BindNever]
         public List<SelectListItem>? ActivityTypes { get; set; } // For dropdown in the view
 
-        [Required]
+        /// <summary>Full forms require a supplied finite latitude, including explicit zero.</summary>
+        [BindRequired, Required]
+        [Range(-90d, 90d, ErrorMessage = "Latitude must be a finite number between -90 and 90.")]
         public double Latitude { get; set; } // Used to construct Point
 
-        [Required]
+        /// <summary>Full forms require a supplied finite longitude, including explicit zero.</summary>
+        [BindRequired, Required]
+        [Range(-180d, 180d, ErrorMessage = "Longitude must be a finite number between -180 and 180.")]
         public double Longitude { get; set; } // Used to construct Point
 
         [MaxLength(500)] public string? Address { get; set; }

@@ -277,19 +277,6 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CheckIn_ReturnsBadRequest_WhenCoordinatesAreZero()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
-        db.Users.Add(user);
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 0, Longitude = 0, Timestamp = DateTime.UtcNow });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
     public async Task CheckIn_ReturnsBadRequest_WhenLatitudeOutOfRange()
     {
         var db = CreateDbContext();

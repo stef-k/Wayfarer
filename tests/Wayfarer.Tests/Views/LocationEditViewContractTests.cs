@@ -26,7 +26,7 @@ public sealed class LocationEditViewContractTests(Xunit.Abstractions.ITestOutput
         var timestamp = new DateTimeOffset(2026, 9, 4, 18, 12, 34, TimeSpan.Zero).AddTicks(1234560);
         var model = new AddLocationViewModel { OriginalReverseGeocodedAt = timestamp };
         var rendered = RenderInput(model, new ModelStateDictionary(), nameof(model.OriginalReverseGeocodedAt));
-        var (bound, state) = await BindAsync(new() { [nameof(model.OriginalReverseGeocodedAt)] = rendered });
+        var (bound, state) = await BindAsync(new() { [nameof(model.OriginalReverseGeocodedAt)] = rendered, [nameof(model.Latitude)] = "0", [nameof(model.Longitude)] = "0" });
         var location = new Location
         {
             UserId = "synthetic", TimeZoneId = "UTC",
@@ -40,7 +40,7 @@ public sealed class LocationEditViewContractTests(Xunit.Abstractions.ITestOutput
         Assert.False(LocationManualAddressEdit.HasCurrentProviderTuple(location, bound));
         model.OriginalReverseGeocodedAt = null;
         rendered = RenderInput(model, new ModelStateDictionary(), nameof(model.OriginalReverseGeocodedAt));
-        (bound, state) = await BindAsync(new() { [nameof(model.OriginalReverseGeocodedAt)] = rendered });
+        (bound, state) = await BindAsync(new() { [nameof(model.OriginalReverseGeocodedAt)] = rendered, [nameof(model.Latitude)] = "0", [nameof(model.Longitude)] = "0" });
         location.ReverseGeocodedAt = null;
         Assert.Equal(0, state.ErrorCount);
         Assert.True(LocationManualAddressEdit.HasCurrentProviderTuple(location, bound));

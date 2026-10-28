@@ -5,8 +5,10 @@ namespace Wayfarer.Models.Dtos;
 /// </summary>
 public class GpsLoggerLocationDto
 {
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
+    /// <summary>Latitude supplied by the client; null cannot authorize a new observation.</summary>
+    public double? Latitude { get; set; }
+    /// <summary>Longitude supplied by the client; explicit zero is valid, absence is not zero.</summary>
+    public double? Longitude { get; set; }
     public DateTime Timestamp { get; set; } // Local device time
 
     /// <summary>Optional coordinate origin: sensor, manual-map, or unknown; only sensor can establish presence.</summary>

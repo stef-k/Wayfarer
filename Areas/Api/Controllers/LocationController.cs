@@ -114,27 +114,29 @@ public partial class LocationController : BaseApiController
                 return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
             }
 
-            if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
+            if (dto == null || dto.Latitude is not { } latitude || dto.Longitude is not { } longitude)
             {
                 _logger.LogWarning("Invalid check-in location data received.");
-                return BadRequest("Check-in location data is invalid.");
+                return BadRequest("Both latitude and longitude are required.");
             }
 
-            if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
+            if (!double.IsFinite(latitude) || !double.IsFinite(longitude) ||
+                latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
             {
                 _logger.LogWarning("Out-of-range coordinates for user {UserId}", user.Id);
-                return BadRequest("Latitude or Longitude is out of range.");
+                return BadRequest("Latitude and longitude must be finite and within [-90,90] and [-180,180].");
             }
 
+            // Coordinates are required for new work only; bound UUID winners/deletions retain priority.
             // Process timestamp and timezone (same as log-location)
             DateTime utcTimestamp;
             string timeZoneId;
             try
             {
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
-                    dto.Latitude, dto.Longitude);
+                    latitude, longitude);
 
-                utcTimestamp = CaptureTimestampUtc(dto);
+                utcTimestamp = CaptureTimestampUtc(dto, latitude, longitude);
             }
             catch (Exception ex)
             {
@@ -143,7 +145,7 @@ public partial class LocationController : BaseApiController
             }
 
             // Create coordinates (same as log-location)
-            var coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+            var coordinates = new Point(longitude, latitude) { SRID = 4326 };
 
             // Create location record (same structure as log-location)
             var location = new Location
@@ -233,11 +235,11 @@ public partial class LocationController : BaseApiController
     /// Preserves UTC and MVC-bound numeric-offset instants; only unspecified clocks use coordinate time.
     /// Numeric offsets bind as host-local DateTime values, without retaining the literal offset.
     /// </summary>
-    private static DateTime CaptureTimestampUtc(GpsLoggerLocationDto dto) => dto.Timestamp.Kind switch
+    private static DateTime CaptureTimestampUtc(GpsLoggerLocationDto dto, double latitude, double longitude) => dto.Timestamp.Kind switch
     {
         DateTimeKind.Utc => dto.Timestamp,
         DateTimeKind.Local => dto.Timestamp.ToUniversalTime(),
-        _ => CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp)
+        _ => CoordinateTimeZoneConverter.ConvertToUtc(latitude, longitude, dto.Timestamp)
     };
 
     /// <summary>
@@ -419,16 +421,17 @@ public partial class LocationController : BaseApiController
                 return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
             }
 
-            if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
+            if (dto == null || dto.Latitude is not { } latitude || dto.Longitude is not { } longitude)
             {
                 _logger.LogWarning("Invalid location data received.");
-                return BadRequest("Location data is invalid.");
+                return BadRequest("Both latitude and longitude are required.");
             }
 
-            if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
+            if (!double.IsFinite(latitude) || !double.IsFinite(longitude) ||
+                latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
             {
                 _logger.LogWarning("Out-of-range coordinates for user {UserId}", user.Id);
-                return BadRequest("Latitude or Longitude is out of range.");
+                return BadRequest("Latitude and longitude must be finite and within [-90,90] and [-180,180].");
             }
 
             var settings = _settingsService.GetSettings();
@@ -452,9 +455,9 @@ public partial class LocationController : BaseApiController
             try
             {
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
-                    dto.Latitude, dto.Longitude);
+                    latitude, longitude);
 
-                utcTimestamp = CaptureTimestampUtc(dto);
+                utcTimestamp = CaptureTimestampUtc(dto, latitude, longitude);
             }
             catch (Exception ex)
             {
@@ -463,7 +466,7 @@ public partial class LocationController : BaseApiController
             }
 
 
-            var coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
+            var coordinates = new Point(longitude, latitude) { SRID = 4326 };
 
             // Keyless pings keep their existing pre-filter visit behavior; keyed writes wait for persistence.
             if (!idempotencyKey.HasValue)
@@ -485,7 +488,7 @@ public partial class LocationController : BaseApiController
 
                 var distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
                     lastLocation.Coordinates.X,
-                    dto.Latitude, dto.Longitude);
+                    latitude, longitude);
 
                 if (distanceDifference < locationDistanceThreshold)
                 {
@@ -851,7 +854,7 @@ public partial class LocationController : BaseApiController
             var anyChange = false;
             var coordsUpdated = false;
 
-            // Coordinates update (must have both lat and lon together)
+            // Optional coordinates must form a valid pair before any tracked mutation or provider work.
             if (request.Latitude.HasValue || request.Longitude.HasValue)
             {
                 if (!(request.Latitude.HasValue && request.Longitude.HasValue))
@@ -861,8 +864,8 @@ public partial class LocationController : BaseApiController
                 var lat = request.Latitude.Value;
                 var lon = request.Longitude.Value;
 
-                if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
-                    return BadRequest(new { success = false, message = "Latitude or Longitude is out of range." });
+                if (!double.IsFinite(lat) || !double.IsFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                    return BadRequest(new { success = false, message = "Latitude and longitude must be finite and within [-90,90] and [-180,180]." });
 
                 if (!location.Coordinates.X.Equals(lon) || !location.Coordinates.Y.Equals(lat))
                     LocationPresence.Invalidate(location, _dbContext);

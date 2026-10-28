@@ -241,7 +241,7 @@ configuration; these endpoints accept JSON POST, not GET/query-token logging.
 
 | Fields | Meaning |
 | --- | --- |
-| `latitude`, `longitude` | Decimal degrees, ±90/±180; `(0,0)` is rejected. |
+| `latitude`, `longitude` | Both required for a new observation: finite decimal degrees in [-90,90]/[-180,180]. Explicit `(0,0)` and zero on either axis are valid. |
 | `timestamp` | Capture DateTime; ISO UTC `Z` and numeric offsets preserve the capture instant. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
 | `accuracy`, `altitude`, `speed` | Optional metres, metres, metres/second respectively. |
 | `locationType`, `notes`, `activityTypeId` | Optional capture description, notes and existing activity ID. |
@@ -264,6 +264,18 @@ be `{ "success": true, "skipped": true, "locationId": null }`, with no new row.
 A saved automatic point returns `skipped: false` and its integer `locationId`.
 Check-in success returns `message` and the publication-safe `location` object.
 Check actual saved history rather than equating HTTP success with persistence.
+
+New observations with missing, null, blank, malformed, non-finite or out-of-range
+coordinates receive 400 and create no Location, enrichment or Visit effects.
+No absent axis defaults to zero. Binding errors (including malformed JSON or an
+unconvertible coordinate) fail before the action. After successful binding, an
+existing owner/UUID winner or deletion marker retains priority over new-work
+coordinate validation: an incomplete or null-coordinate retry can acknowledge
+the winner or return the terminal 410 without creating anything. Coordinate
+validation remains inside existing new-work admission, so capacity limits can
+still return 429/503 before business validation. Valid geography alone establishes
+neither live presence, Visits, successful enrichment nor a named address; the
+existing event/fix evidence and provider authority rules still apply.
 
 Anonymous `GET /api/settings` exposes the effective configured time, distance and
 accuracy thresholds. Defaults are **5 minutes, 15 m and 50 m** respectively;
@@ -869,10 +881,19 @@ successor-arithmetic correction; timestamps are not clamped or rewritten (#849).
 `PUT /api/location/{id}` accepts a partial `LocationUpdateRequestDto`: paired
 `latitude`/`longitude`, `notes`, `localTimestamp`, `activityTypeId` or `activityName`,
 and explicit `clearNotes`/`clearActivity` flags. An absent field is unchanged;
-clear flags take precedence. Coordinates are bounded decimal degrees and
-timestamps follow the current UTC/coordinate-zone conversion. The ID is the
+clear flags take precedence. Omitting both coordinates or supplying both as null
+preserves the position (for example, a Notes-only edit). A non-null replacement
+requires both finite coordinates in [-90,90]/[-180,180]; `(0,0)` is valid.
+Incomplete, malformed, non-finite or out-of-range replacements return 400 before
+any field mutation or provider work, so other fields in that patch do not apply.
+Timestamps follow the current UTC/coordinate-zone conversion. The ID is the
 server's integer location ID, matched within the selected owner's rows. If a
 cookie selected the account, antiforgery is required even with a bearer header.
+
+Personal Web Location Create/Edit are full forms: both axes must be present,
+numeric, finite and within the same bounds. Omitted/blank or invalid axes display
+field validation errors and save nothing. Full forms do not use the partial API's
+omission-as-unchanged rule.
 
 Supplying coordinates, including unchanged coordinates, requests an optional
 provider refresh. Its admission and result save revalidate the retained owner row

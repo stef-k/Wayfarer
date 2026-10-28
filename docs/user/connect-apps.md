@@ -102,7 +102,10 @@ this is not a claim of native support for every logger.
 
 Use the same endpoint and headers as above with numeric `latitude` and `longitude`
 and a capture `timestamp` such as `2026-10-07T12:00:00.000Z`. Coordinates use decimal
-degrees within ±90 latitude and ±180 longitude; `(0, 0)` is rejected.
+degrees within ±90 latitude and ±180 longitude. Both coordinates must be supplied
+and finite; `(0, 0)` and zero on either axis are valid. Missing, null, blank or
+invalid coordinates cannot create a new observation; never replace a missing
+coordinate with zero. A valid ocean position can be saved without a named address.
 
 For an intentional check-in, send the same JSON shape to
 `POST /api/location/check-in`. Check-in is distinct from automatic capture: it
