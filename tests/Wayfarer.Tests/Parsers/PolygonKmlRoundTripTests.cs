@@ -101,6 +101,19 @@ public sealed class PolygonKmlRoundTripTests : TestBase
         yield return ["<Polygon/>"];
         yield return [$"<Polygon>{hole}</Polygon>"];
         yield return [$"<Polygon>{shell}{shell}</Polygon>"];
+        // Intact structural elements hidden outside their supported direct positions must never be discarded.
+        yield return [$"<Polygon>{shell.Replace("</outerBoundaryIs>", hole + "</outerBoundaryIs>")}</Polygon>"];
+        yield return [$"<Polygon>{shell.Replace("</LinearRing>", hole + "</LinearRing>")}</Polygon>"];
+        yield return [$"<Polygon>{shell.Replace("</coordinates>", hole + "</coordinates>")}</Polygon>"];
+        yield return [$"<Polygon>{shell}{hole.Replace("</innerBoundaryIs>", hole + "</innerBoundaryIs>")}</Polygon>"];
+        yield return [$"<Polygon>{shell}<wrapper>{hole}</wrapper></Polygon>"];
+        yield return [$"<Polygon>{shell}<wrapper>{shell}</wrapper></Polygon>"];
+        yield return [$"<Polygon>{shell}{XElement.Parse(hole).Element("LinearRing")}</Polygon>"];
+        yield return [$"<Polygon>{shell}{XElement.Parse(hole).Descendants("coordinates").Single()}</Polygon>"];
+        yield return [$"<Polygon>{shell}<Polygon>{shell}{hole}</Polygon></Polygon>"];
+        yield return [$"<Polygon>{shell}</Polygon>{hole}"];
+        yield return [$"<Polygon>{shell}</Polygon><wrapper>{hole}</wrapper>"];
+        yield return [$"<Polygon>{shell.Replace("</LinearRing>", "<wrapper><coordinates>1,1 1,3 3,3 3,1 1,1</coordinates></wrapper></LinearRing>")}</Polygon>"];
         yield return [$"<Polygon>{shell}<innerBoundaryIs/></Polygon>"];
         yield return [$"<Polygon>{shell}<innerBoundaryIs><LinearRing/></innerBoundaryIs></Polygon>"];
         yield return [$"<Polygon>{shell}<innerBoundaryIs><LinearRing><coordinates>1,1 2,1 2,2 1,1</coordinates><coordinates>6,6 7,6 7,7 6,6</coordinates></LinearRing></innerBoundaryIs></Polygon>"];

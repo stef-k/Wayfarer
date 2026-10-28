@@ -85,6 +85,52 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
         Assert.Empty(await verification.Segments.Where(segment => segment.UserId == original.UserId).ToListAsync());
     }
 
+    /// <summary>The reviewer's intact hole nested under the shell cannot enlarge an Area or persist a partial Trip.</summary>
+    [PostgresTheory]
+    [InlineData(false, TripImportMode.Upsert)]
+    [InlineData(true, TripImportMode.CreateNew)]
+    public async Task MisplacedInnerBoundary_RejectsWithoutChangingStoredTrip(bool google, TripImportMode mode)
+    {
+        var original = await SeedTripAsync();
+        var place = new Place { Id = Guid.NewGuid(), RegionId = original.Regions.Single().Id, UserId = original.UserId, Name = "Keep place" };
+        var segment = new Segment { Id = Guid.NewGuid(), TripId = original.Id, UserId = original.UserId, Mode = "walk",
+            EstimatedDuration = TimeSpan.FromMinutes(5), EstimatedDurationSource = EstimatedDurationSource.Manual, Notes = "Keep segment" };
+        XDocument xml;
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.Places.Add(place);
+            seed.Segments.Add(segment);
+            await seed.SaveChangesAsync();
+            original = await ReadTripAsync(seed, original.Id);
+            xml = XDocument.Parse(Export(seed, original.Id, google));
+        }
+        var polygon = xml.Descendants(Kml + "Polygon").First();
+        var hole = Assert.Single(polygon.Elements(Kml + "innerBoundaryIs"));
+        hole.Remove();
+        polygon.Element(Kml + "outerBoundaryIs")!.Add(hole);
+        await using (var import = fixture.CreateContext())
+        {
+            using var stream = Stream(xml.ToString());
+            await Assert.ThrowsAsync<FormatException>(async () =>
+            {
+                var result = await Importer(import).ImportWayfarerKmlAsync(stream, original.UserId, mode);
+                fixture.RegisterTrip(result.TripId); // Retain fixture cleanup even when the regression accepts input.
+            });
+            Assert.Empty(import.ChangeTracker.Entries());
+        }
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(new[] { original.Id }, await verification.Trips.Where(trip => trip.UserId == original.UserId)
+            .Select(trip => trip.Id).ToArrayAsync());
+        AssertTrip(original, await ReadTripAsync(verification, original.Id));
+        var storedPlace = Assert.Single(await verification.Places.AsNoTracking().Where(item => item.UserId == original.UserId).ToListAsync());
+        Assert.Equal(place.Id, storedPlace.Id);
+        Assert.Equal(place.Name, storedPlace.Name);
+        var storedSegment = Assert.Single(await verification.Segments.AsNoTracking().Where(item => item.UserId == original.UserId).ToListAsync());
+        Assert.Equal(segment.Id, storedSegment.Id);
+        Assert.Equal(segment.Notes, storedSegment.Notes);
+        Assert.Equal(segment.EstimatedDuration, storedSegment.EstimatedDuration);
+    }
+
     /// <summary>Seeds only registered fixture-owned data, with differently oriented holes in the second Area.</summary>
     private async Task<Trip> SeedTripAsync()
     {
