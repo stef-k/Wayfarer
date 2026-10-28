@@ -84,6 +84,7 @@ public static class TripWayfarerKmlExporter
         return placemark;
     }
 
+    /// <summary>Preserves each Area ring as its own standard KML boundary without changing native metadata.</summary>
     private static XElement BuildArea(Area area, Guid regionId)
     {
         var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", area.Name));
@@ -92,9 +93,7 @@ public static class TripWayfarerKmlExporter
             ("DisplayOrder", Number(area.DisplayOrder)), ("FillHex", area.FillHex ?? ""),
             ("NotesHtml", RichNotes.Normalize(area.Notes) ?? ""));
         if (area.Geometry is Polygon polygon)
-            placemark.Add(new XElement(Kml + "Polygon", new XElement(Kml + "outerBoundaryIs",
-                new XElement(Kml + "LinearRing", new XElement(Kml + "coordinates",
-                    string.Join(' ', polygon.Coordinates.Select(CoordinateText)))))));
+            placemark.Add(new XElement(Kml + "Polygon", KmlPolygonGeometry.WriteBoundaries(polygon)));
         return placemark;
     }
 

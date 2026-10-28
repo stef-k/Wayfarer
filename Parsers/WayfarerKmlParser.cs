@@ -145,16 +145,11 @@ public static class WayfarerKmlParser
             feature.Name, feature.Type, feature.Provider, feature.StorageMode, feature.EnrichedAt);
     }
 
-    private static WayfarerKmlArea ParseArea(XElement owner, int version)
-    {
-        var coordinates = owner.Element(Kml + "Polygon")?.Element(Kml + "outerBoundaryIs")?
-            .Element(Kml + "LinearRing")?.Element(Kml + "coordinates")?.Value;
-        Polygon? polygon = null;
-        if (!string.IsNullOrWhiteSpace(coordinates))
-            polygon = new Polygon(new LinearRing(Coordinates(coordinates).ToArray())) { SRID = 4326 };
-        return new(RequiredGuid(owner, "AreaId"), owner.Element(Kml + "name")?.Value ?? "Area",
-            OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "FillHex"), polygon);
-    }
+    /// <summary>Reads every standard Polygon boundary for all supported native versions before any persistence.</summary>
+    private static WayfarerKmlArea ParseArea(XElement owner, int version) =>
+        new(RequiredGuid(owner, "AreaId"), owner.Element(Kml + "name")?.Value ?? "Area",
+            OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "FillHex"),
+            KmlPolygonGeometry.Parse(owner));
 
     /// <summary>Reads each version's distinct duration representation and optional v3 persisted route provenance.</summary>
     private static WayfarerKmlSegment ParseSegment(XElement owner, int version)

@@ -201,28 +201,14 @@ public static class GoogleMyMapsKmlParser
         };
     }
 
-    private static Area ParseArea(XElement placemark, Guid regionId)
+    /// <summary>Constructs one complete Area or rejects its malformed rings/topology before the graph is tracked.</summary>
+    private static Area ParseArea(XElement placemark, Guid regionId) => new()
     {
-        var text = placemark.Element(Kml + "Polygon")?.Element(Kml + "outerBoundaryIs")?
-            .Element(Kml + "LinearRing")?.Element(Kml + "coordinates")?.Value;
-        if (string.IsNullOrWhiteSpace(text)) throw new FormatException("Polygon has no coordinates.");
-        var coordinates = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Select(token =>
-        {
-            var parts = token.Split(',');
-            if (parts.Length < 2
-                || !double.TryParse(parts[0], NumberStyles.Float, Invariant, out var longitude)
-                || !double.TryParse(parts[1], NumberStyles.Float, Invariant, out var latitude))
-                throw new FormatException("Polygon has an invalid coordinate.");
-            return new Coordinate(longitude, latitude);
-        }).ToArray();
-        return new()
-        {
-            Id = Guid.NewGuid(), RegionId = regionId,
-            Name = placemark.Element(Kml + "name")?.Value ?? "Area",
-            Notes = placemark.Element(Kml + "description")?.Value,
-            Geometry = new Polygon(new LinearRing(coordinates)) { SRID = 4326 }
-        };
-    }
+        Id = Guid.NewGuid(), RegionId = regionId,
+        Name = placemark.Element(Kml + "name")?.Value ?? "Area",
+        Notes = placemark.Element(Kml + "description")?.Value,
+        Geometry = KmlPolygonGeometry.Parse(placemark)
+    };
 
     private static void LinkSegmentsToPlaces(Trip trip)
     {
