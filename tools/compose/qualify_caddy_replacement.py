@@ -334,7 +334,8 @@ esac
                  '--payload', str(self.old / 'wayfarer-recovery'), '--retention', '4')
         before = self.ingress.tls_facts()
         source_proxy = self.proxy_facts()
-        registration = json.loads(self.host('cat', next(path for path in before['account'] if path.endswith('.json'))).stdout)
+        registration = json.loads(self.host('docker', 'exec', self.project + '-caddy-1', 'cat',
+            next(path for path in before['account'] if path.endswith('.json'))).stdout)
         assert registration['location'].startswith('https://acme-v02.api.letsencrypt.org/acme/local/account/')
         self.executable = self.target / 'wayfarerctl'
         plan, digest = self.replacement()
