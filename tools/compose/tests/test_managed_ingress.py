@@ -62,7 +62,7 @@ printf '%s\\n' "$*" >> '{fixture}/calls'
 case "$1" in
  network)
   case "$2" in
-   inspect) test -e '{fixture}/network' || exit 1; cat '{fixture}/internal' ;;
+   inspect) test -e '{fixture}/network' || exit 1; echo true ;;
    create) touch '{fixture}/network' ;;
   esac ;;
  ps) echo proxy ;;
@@ -71,7 +71,6 @@ case "$1" in
 esac
 ''')
             docker.chmod(0o755)
-            (fixture / 'internal').write_text('true\n')
             script = fixture / 'adapter'
             script.write_text(journey.host.call_args.kwargs['data'].replace('/usr/bin/docker', str(docker)))
             result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
@@ -79,7 +78,7 @@ esac
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = (fixture / 'calls').read_text().splitlines()
             self.assertIn('compose --project-name fixture-project create caddy', calls)
-            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network create --internal ')),
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network create --subnet ')),
                             calls.index('compose --project-name fixture-project create caddy'))
             self.assertIn('network connect --ip 172.30.69.4 --alias acme-v02.api.letsencrypt.org fixture-project_edge fixture-acme', calls)
             self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network connect ')),
@@ -87,13 +86,6 @@ esac
             self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('cp ')), calls.index('start proxy'))
             self.assertIn('exec proxy wget -O /dev/null https://wayfarer.example.org/health/ready', calls)
             self.assertFalse(any(call.startswith('restart ') or ' up ' in call for call in calls))
-            # A diverged network must fail before any proxy command, even when it already exists.
-            (fixture / 'internal').write_text('false\n')
-            result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
-                                     'up', '-d', '--wait', '--wait-timeout', '180', 'caddy'], capture_output=True, text=True)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertTrue(all(call.startswith('network inspect ') for call in
-                                (fixture / 'calls').read_text().splitlines()[len(calls):]))
 
     def test_failure_diagnostics_retain_issuer_state_and_omit_container_environment(self):
         """Keep native image, OOM/network/configuration and operator evidence without dumping credentials."""

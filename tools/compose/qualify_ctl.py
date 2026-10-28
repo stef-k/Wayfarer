@@ -48,8 +48,6 @@ class Journey:
         self.password = secrets.token_hex(32) + '!aA9'
         # External ingress belongs outside both the product's labels and its near-name ownership namespace.
         self.proxy = 'qualification-https-proxy-' + self.project
-        # Default external fixtures use loopback; an isolated managed fixture selects its private peer.
-        self.proxy_address = '127.0.0.1'
         self.port = self.free_port()
         self.loopback = self.free_port()
         endpoint = run('docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}').stdout.strip()
@@ -70,7 +68,7 @@ class Journey:
     def host(self, *args, data=None, check=True):
         """Host-network fixture checks actual Docker listeners; socket access is test-runner-only."""
         return run('docker', 'run', '--rm', '-i', '--network', 'host',
-                   '--add-host', 'wayfarer.example.org:' + self.proxy_address,
+                   '--add-host', 'wayfarer.example.org:127.0.0.1',
                    '-e', f'SSL_CERT_FILE={self.trusted_ca}',
                    '-v', f'{self.directory}:{self.directory}',
                    '-v', f'{self.executable}:/ctl/wayfarerctl:ro',

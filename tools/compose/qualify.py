@@ -61,8 +61,6 @@ class Stack:
         self.password = secrets.token_hex(24) + '!aA9'
         self.mode = 'managed'
         self.port = None
-        # Isolated managed fixtures can use the bridge peer without exposing an external ACME route.
-        self.address = '127.0.0.1'
         self.acme = acme
 
     def compose(self, *args, data=None, check=True):
@@ -231,7 +229,7 @@ class Stack:
         """Exercise the real TLS endpoint with CA validation and explicit disposable DNS."""
         return run('curl', '--silent', '--show-error', '--fail', '--noproxy', '*',
                    '--cacert', str(self.directory / 'ca.crt'), '--resolve',
-                   f'wayfarer.example.org:{self.port}:{self.address}', '--max-time', str(timeout),
+                   f'wayfarer.example.org:{self.port}:127.0.0.1', '--max-time', str(timeout),
                    *args, f'https://wayfarer.example.org:{self.port}{path}', check=check, data=data)
 
     def tls_facts(self):
@@ -253,7 +251,7 @@ class Stack:
         volumes = {target: {'name': name, 'createdAt': next(item['CreatedAt'] for item in identities if item['Name'] == name)}
                    for target, name in volumes.items()}
         context = ssl.create_default_context(cafile=str(self.directory / 'ca.crt'))
-        with socket.create_connection((self.address, int(self.port)), timeout=10) as connection:
+        with socket.create_connection(('127.0.0.1', int(self.port)), timeout=10) as connection:
             with context.wrap_socket(connection, server_hostname='wayfarer.example.org') as secure:
                 certificate_info = secure.getpeercert()
                 assert ('DNS', 'wayfarer.example.org') in certificate_info['subjectAltName']

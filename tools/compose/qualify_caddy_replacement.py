@@ -90,8 +90,14 @@ class ManagedJourney(Journey):
         self.target = self.directory / 'target-input'
         shutil.copytree(old, self.old)
         shutil.copytree(target, self.target)
-        self.proxy_address = '172.30.69.3'
         self.prepare_public(faults=True)
+        # Preserve published ingress while preventing either fixture proxy from contacting public ACME.
+        self.iptables = ([] if os.geteuid() == 0 else ['sudo', '-n']) + ['iptables']
+        self.egress_rules = []
+        for peer in ('172.30.69.3', '172.30.69.4'):
+            rule = ['DOCKER-USER', '-s', peer, '!', '-d', '172.30.69.0/24', '-j', 'REJECT']
+            run(*self.iptables, '-I', *rule)
+            self.egress_rules.append(rule)
         self.port = 443
         self.ca = 'qualification-acme-' + self.project
         # Prepare the issuer outside the installation namespace; old setup must still prove a fresh target.
@@ -143,7 +149,6 @@ acme-v02.api.letsencrypt.org {
             assert directory[endpoint].startswith('https://acme-v02.api.letsencrypt.org/acme/local/')
         self.ingress = Stack(client, '', '', acme=True)
         self.ingress.port = 443
-        self.ingress.address = self.proxy_address
         # Only adapt the existing fixture's Compose return type; TLS evidence remains its established owner.
         self.ingress.compose = lambda *args: subprocess.CompletedProcess(args, 0, self.compose(*args))
         self.install_adapter()
@@ -188,17 +193,16 @@ case " $* " in
    set -- "$@" "$argument"
   done ;;
 esac
-# Installation mutations follow genuine fresh-target admission. Isolate its edge before Compose can create it.
+# Installation mutations follow genuine fresh-target admission. Attach the ready issuer before any proxy executes.
 case " $* " in
  *" compose "*" up "*|*" compose "*" create "*|*" compose "*" run "*)
   stage=fixture-edge
   network="${{project}}_edge"
   if ! /usr/bin/docker network inspect "$network" >/dev/null 2>&1; then
-   /usr/bin/docker network create --internal --subnet 172.30.69.0/24 --gateway 172.30.69.1 \
+   /usr/bin/docker network create --subnet 172.30.69.0/24 --gateway 172.30.69.1 \
     --label "com.docker.compose.project=$project" --label com.docker.compose.network=edge "$network" >/dev/null
    /usr/bin/docker network connect --ip 172.30.69.4 --alias acme-v02.api.letsencrypt.org "$network" "$ca"
   fi
-  test "$(/usr/bin/docker network inspect --format '{{{{.Internal}}}}' "$network")" = true
   stage=docker-command ;;
 esac
 # This adapter changes fixture trust and DNS, never release bytes or observed mounts.
@@ -240,6 +244,17 @@ case " $* " in
 esac
 '''
         self.host('tee', str(self.directory / 'docker-test'), data=wrapper)
+
+    def cleanup(self):
+        """Remove only this fixture's forwarding rules, preserving a primary resource-cleanup failure."""
+        try:
+            super().cleanup()
+        finally:
+            failed = False
+            for rule in reversed(getattr(self, 'egress_rules', [])):
+                failed |= run(*self.iptables, '-D', *rule, check=False).returncode != 0
+            if failed and sys.exc_info()[0] is None:
+                raise RuntimeError('Fixture ACME egress rule cleanup failed.')
 
     def curl(self, path, *args):
         """Use the managed fixture CA and the existing real-login helper."""
@@ -372,7 +387,7 @@ esac
         return dict(sourceFingerprint=caddy.POLICY['sources'][image.PLATFORM], sourceCaddy=caddy.POLICY['sourceCaddy'],
                     targetCaddy=caddy.POLICY['targetCaddy'], targetOwner=plan['OperatorOwner'], recoveredOwner=joined['Plan']['OperatorOwner'],
                     interruptedOperation=plan['Operation'], acceptedOperation=next_plan['Operation'],
-                    localAccount=registration['location'], privateEndpoint=self.proxy_address,
+                    localAccount=registration['location'],
                     interruptedReceipt=interrupted, restoredReceipt=restored, joinedRestoreReceipt=joined, acceptedReceipt=accepted,
                     tlsStateReadable=['2.11.4', '2.11.7'], tls=before, sourceProxy=source_proxy,
                     targetProxy=target_proxy, recoveredProxy=recovered_proxy, acceptedProxy=accepted_proxy, result='passed')

@@ -9,6 +9,9 @@
   and restart policy authority. Refuse incompatible or unqualified predecessors
   before create-only image/index publication. Release selection, publication and
   installation remediation remain separate; no automatic rollback is promised.
+  Qualify initial ACME issuance with DNS/trust installed before proxy execution on
+  a fixture network with public ACME egress blocked. Check history text-index eligibility independently
+  of PostgreSQL's small-fixture cost choice, retaining result and work assertions.
 - Protect #915's remaining workflow-controlled setup, API and bootstrap acquisitions
   with signed-APT CA correction and the existing trust guard. Windows cleanup uses
   validated provisioned Node/Python caches without network fallback; host rustup
