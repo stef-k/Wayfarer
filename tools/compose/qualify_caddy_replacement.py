@@ -90,14 +90,21 @@ class ManagedJourney(Journey):
         self.target = self.directory / 'target-input'
         shutil.copytree(old, self.old)
         shutil.copytree(target, self.target)
+        self.proxy_address = '172.30.69.3'
         self.prepare_public(faults=True)
         self.port = 443
         self.ca = 'qualification-acme-' + self.project
+        # Keep the genuine edge topology/IPs, but deny fixture certificate traffic any external route.
+        self.edge = self.project + '_edge'
+        run('docker', 'network', 'create', '--internal', '--subnet', '172.30.69.0/24', '--gateway', '172.30.69.1',
+            '--label', 'com.docker.compose.project=' + self.project,
+            '--label', 'com.docker.compose.network=edge', self.edge)
         authority = self.directory / 'acme.Caddyfile'
         self.host('tee', str(authority), data='''{
  skip_install_trust
 }
 acme-v02.api.letsencrypt.org {
+ log
  tls internal
  @directory path /directory
  rewrite @directory /acme/local/directory
@@ -112,7 +119,9 @@ acme-v02.api.letsencrypt.org {
             name = self.ca + '-' + role
             run('docker', 'volume', 'create', '--label', QUALIFICATION_PROXY_LABEL + '=' + self.project, name)
             stores.extend(['-v', name + ':/' + role])
-        run('docker', 'run', '-d', '--name', self.ca, '--label', QUALIFICATION_PROXY_LABEL + '=' + self.project,
+        run('docker', 'run', '-d', '--name', self.ca, '--network', self.edge, '--ip', '172.30.69.4',
+            '--network-alias', 'acme-v02.api.letsencrypt.org',
+            '--label', QUALIFICATION_PROXY_LABEL + '=' + self.project,
             '-v', str(authority) + ':/etc/caddy/Caddyfile:ro', *stores, 'caddy@' + caddy.POLICY['targetCaddy'])
         for _ in range(60):
             if run('docker', 'cp', self.ca + ':/data/caddy/pki/authorities/local/root.crt', str(client / 'ca.crt'), check=False).returncode == 0:
@@ -126,8 +135,16 @@ acme-v02.api.letsencrypt.org {
             run('docker', 'pull', 'caddy@' + digest)
             roots = run('docker', 'run', '--rm', '--entrypoint', 'cat', 'caddy@' + digest, '/etc/ssl/certs/ca-certificates.crt').stdout
             self.host('tee', str(self.directory / (kind + '-trust.pem')), data=roots + root)
+        # Validate routing, directory URLs and trust before any release proxy can execute.
+        directory = json.loads(run('docker', 'run', '--rm', '--network', self.edge,
+            '-v', str(self.directory / 'source-trust.pem') + ':/etc/ssl/certs/ca-certificates.crt:ro',
+            '--entrypoint', 'wget', 'caddy@' + caddy.POLICY['sourceCaddy'], '-qO-',
+            'https://acme-v02.api.letsencrypt.org/directory').stdout)
+        for endpoint in ('newNonce', 'newAccount', 'newOrder'):
+            assert directory[endpoint].startswith('https://acme-v02.api.letsencrypt.org/acme/local/')
         self.ingress = Stack(client, '', '', acme=True)
         self.ingress.port = 443
+        self.ingress.address = self.proxy_address
         # Only adapt the existing fixture's Compose return type; TLS evidence remains its established owner.
         self.ingress.compose = lambda *args: subprocess.CompletedProcess(args, 0, self.compose(*args))
         self.install_adapter()
@@ -142,7 +159,7 @@ project={project}
 ca={ca}
 # Retain only proxy commands (no credential-bearing stdin) and the adapter's failing stage.
 case " $* " in
- *" create "*" caddy "|*" up "*" caddy "|*" start "*)
+ *" create caddy "|*" create "*" caddy "|*" up "*" caddy "|*" start "*)
   printf '<%s> ' "$@" >> "$fixture/proxy-command.log"
   printf '\\n' >> "$fixture/proxy-command.log"
   stage=docker-command
@@ -156,17 +173,31 @@ wait_proxy() {{
   count=$((count+1)); test "$count" -lt 60; sleep 0.5
  done
 }}
+# The old operator uses up, which would execute Caddy before injection. Create it stopped instead.
+initial_up=false
+case " $* " in
+ *" up "*" caddy ")
+  initial_up=true
+  remaining=$#
+  while test "$remaining" -gt 0; do
+   argument=$1; shift; remaining=$((remaining-1))
+   case "$argument" in
+    up) argument=create ;;
+    -d|--wait) continue ;;
+    --wait-timeout) shift; remaining=$((remaining-1)); continue ;;
+   esac
+   set -- "$@" "$argument"
+  done ;;
+esac
 # This adapter changes fixture trust and DNS, never release bytes or observed mounts.
 /usr/bin/docker "$@"
 case " $* " in
- *" create "*" caddy "|*" up "*" caddy ")
+ *" create caddy "|*" create "*" caddy ")
   proxy=$(/usr/bin/docker ps -aq --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=caddy)
   test -n "$proxy"
   if ! test -e "$fixture/primed-$proxy"; then
    stage=fixture-dns
    network="${{project}}_edge"
-   /usr/bin/docker network connect --alias acme-v02.api.letsencrypt.org "$network" "$ca" 2>/dev/null ||
-    /usr/bin/docker inspect --format '{{{{if index .NetworkSettings.Networks "'"$network"'"}}}}yes{{{{end}}}}' "$ca" | /bin/grep -q '^yes$'
    /usr/bin/docker network disconnect "$network" "$proxy"
    /usr/bin/docker network connect --ip 172.30.69.3 --alias wayfarer.example.org "$network" "$proxy"
    image=$(/usr/bin/docker inspect --format '{{{{.Config.Image}}}}' "$proxy")
@@ -175,10 +206,11 @@ case " $* " in
    stage=fixture-trust
    /usr/bin/docker cp "$fixture/$trust-trust.pem" "$proxy:/etc/ssl/certs/ca-certificates.crt"
    touch "$fixture/primed-$proxy"
-   if test "$(/usr/bin/docker inspect --format '{{{{.State.Running}}}}' "$proxy")" = true; then
-    /usr/bin/docker restart "$proxy" >/dev/null
-    wait_proxy "$proxy"
-   fi
+  fi
+  if "$initial_up"; then
+   stage=initial-proxy-start
+   /usr/bin/docker start "$proxy" >/dev/null
+   wait_proxy "$proxy"
   fi ;;
 esac
 case " $* " in

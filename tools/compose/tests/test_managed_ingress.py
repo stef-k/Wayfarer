@@ -48,6 +48,37 @@ class ManagedIngressTests(unittest.TestCase):
             self.assertIn('synthetic Docker failure', (Path(directory) / 'proxy-command.stderr').read_text())
             self.assertNotIn('protected-stdin', log)
 
+    def test_initial_up_primes_stopped_proxy_before_first_execution(self):
+        """Execute the old operator's command and retain create, DNS/trust, start and verified HTTPS order."""
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            journey = ManagedJourney.__new__(ManagedJourney)
+            journey.directory, journey.project, journey.ca = fixture, 'fixture-project', 'fixture-acme'
+            journey.host = Mock()
+            journey.install_adapter()
+            docker = fixture / 'docker'
+            docker.write_text(f'''#!/bin/sh
+printf '%s\\n' "$*" >> '{fixture}/calls'
+case "$1" in
+ ps) echo proxy ;;
+ inspect) echo caddy@source ;;
+ start) test -e '{fixture}/primed-proxy' ;;
+esac
+''')
+            docker.chmod(0o755)
+            script = fixture / 'adapter'
+            script.write_text(journey.host.call_args.kwargs['data'].replace('/usr/bin/docker', str(docker)))
+            result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
+                                     'up', '-d', '--wait', '--wait-timeout', '180', 'caddy'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = (fixture / 'calls').read_text().splitlines()
+            self.assertEqual(calls[0], 'compose --project-name fixture-project create caddy')
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network connect ')),
+                            next(i for i, call in enumerate(calls) if call.startswith('cp ')))
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('cp ')), calls.index('start proxy'))
+            self.assertIn('exec proxy wget -O /dev/null https://wayfarer.example.org/health/ready', calls)
+            self.assertFalse(any(call.startswith('restart ') or ' up ' in call for call in calls))
+
     def test_failure_diagnostics_retain_issuer_state_and_omit_container_environment(self):
         """Keep native image, OOM/network/configuration and operator evidence without dumping credentials."""
         with tempfile.TemporaryDirectory() as directory:
