@@ -307,23 +307,35 @@ the existing offline cleanup tests. Missing/incompatible cache entries fail clea
 setup actions are Linux-only, with no Windows network-install fallback or new
 certificate installation authority.
 
-The three host `rustup toolchain install` consumers retain Rust 1.90.0. Immediately
-before acquisition, the same guard's `--rustup` mode requires the assessed rustup
-1.29.1, rejects alternate backend/distribution/update configuration, and logs its
-version and trust path. The invocation explicitly selects `RUSTUP_USE_RUSTLS=1`,
+The host `rustup toolchain install` consumers retain Rust 1.90.0. Immediately
+before acquisition, the same guard's `--rustup` mode requires assessed rustup
+1.29.1 or 1.29.2, rejects alternate backend/distribution/update configuration, and logs
+the manager version, rejected input names and trust path. Override values are not logged.
+The invocation explicitly selects `RUSTUP_USE_RUSTLS=1`,
 which fails if that backend is unavailable. The assessed
 [rustup downloader](https://github.com/rust-lang/rustup/blob/1.29.1/src/download/mod.rs)
 uses reqwest/rustls platform verification plus GlobalSign R3 and Amazon Root CA 1
-extra anchors; neither is G3. No compiler/crate update or claim of independent
-runner-binary authentication follows from this check.
+extra anchors; neither is G3. The
+[1.29.2 source delta](https://github.com/rust-lang/rustup/compare/1.29.1...1.29.2)
+retains that downloader/platform-verifier code, replaces the extra GlobalSign R3
+anchor with GlobalSign Root R46, retains Amazon Root CA 1, and updates rustls-webpki
+0.103.13 to 0.103.16 and webpki-root-certs 1.0.9 to 1.0.10. Neither extra anchor is G3.
+The [official patch release](https://blog.rust-lang.org/2026/10/20/Rustup-1.29.2/)
+addresses the eMudhra intermediate-certificate issue. The Ubuntu 24.04
+[20261026.354 image inventory](https://github.com/actions/runner-images/blob/ubuntu24/20261026.354/images/ubuntu/Ubuntu2404-Readme.md)
+lists rustup 1.29.2 separately from rustc 1.99.1; compiler output is not manager evidence.
+No compiler/crate update or claim of independent runner-binary authentication
+follows from this check. Other manager versions still fail closed.
 
 Reuse #936's signed-APT and G3-rejection/ISRG-X1-positive evidence for these unchanged
 controls. Source ordering and local guarded acquisition are narrower than actual
 hosted AMD64/ARM64 execution or public release acceptance. Unexpected future runner
 cache/tool configuration fails closed and requires assessment. The separate Caddy
-replacement/compatibility package remains outstanding with its transition gate
-closed. No publication timing, installed-user upgrade proof or production remediation
-is decided here. Chromium CRLSet remains UNKNOWN; #474/#877 and broader dependency
+replacement uses an [explicit target-owned operation](../self-hosting/wayfarerctl.md#explicit-managed-caddy-replacement)
+and [pre-publication compatibility evidence](../maintainer/publication.md#compatibility-before-the-first-write).
+Source implementation does not establish corrected publication or installation
+remediation. No publication timing or installed-user upgrade proof is decided here.
+Chromium CRLSet remains UNKNOWN; #474/#877 and broader dependency
 maintenance keep their separate gates.
 
 ## Data Protection and provider credentials

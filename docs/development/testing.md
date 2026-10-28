@@ -105,6 +105,15 @@ current schema before exercising current controllers and services. In the shared
 migration fixture, compare audits before and after the operation instead of assuming
 unrelated scenarios leave the entire audit table empty.
 
+`HistoryQueryPlanPostgresTests` records natural production plans before test-local
+planner controls. A small fixture may legitimately choose an owner index or a
+sequential scan for rare text, including while bulk-preparation entries remain in
+GIN's pending list. Text eligibility therefore checks the exact production LIKE
+clause and parameter independently, after fixture-only GIN maintenance, and requires
+the intended valid/ready index with one candidate plus the full query's expected ID.
+Time/geometry paths and no-spill checks remain separate. This is bounded database
+design evidence, not a production planner setting or renewed scale qualification.
+
 ### Location-import generation and recovery evidence
 
 `LocationImportQuartzPostgresTests` exercises persisted historical job rejection,
@@ -328,6 +337,28 @@ Interpret results rather than suppressing them:
 `doctor` uses its own status contract: healthy 0, unhealthy 1, invocation/internal error 3. CI also runs the pinned Code Guard gate for documentation-only PRs.
 
 Code Guard complements compilers, tests, linters, security analysis and review; it does not replace them.
+
+## Managed Caddy replacement qualification
+
+`tools/compose/qualify_caddy_replacement.py` uses genuine predecessor bundles and a
+retained target owner. Prepare the private ACME issuer, its directory and both native
+trust bundles before executing any release proxy. Keep issuer preparation outside
+the installation namespace so the genuine old operator still enforces fresh-target
+admission. The adapter attaches the ready issuer to the normal edge at the first installation
+mutation, then changes the old operator's proxy `up` into create, DNS/trust injection and start.
+Before proxy execution, temporary qualification-host `DOCKER-USER` rules reject
+off-subnet traffic from both fixture Caddy IPs. The host needs its existing iptables
+backend and root/password-free sudo, as the native Ubuntu qualification jobs provide.
+Retain the normal published ports and loopback HTTPS clients with the original
+hostname and CA verification. Cleanup removes the exact fixture rules; no managed
+leaf certificate is supplied in advance.
+
+Initial issuance must succeed before exercising replacement. Keep the unchanged
+old/new native digests, release payloads, configuration and named TLS mounts, lost
+start acknowledgement, fencing, exact-target-owned restore, backward TLS-state
+readability, subsequent forward acceptance and authenticated cookie continuity.
+Retain local account URLs, operation receipts and actual proxy facts. A local AMD64
+journey does not establish hosted ARM64 execution or authorize publication.
 
 ## Claim boundaries
 

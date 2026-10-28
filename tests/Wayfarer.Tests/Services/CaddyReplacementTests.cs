@@ -1,0 +1,165 @@
+using System.Text.Json;
+using WayfarerCtl;
+using WayfarerRecovery;
+using Xunit;
+
+namespace Wayfarer.Tests.Services;
+
+/// <summary>Focused replacement admission and retained-owner tests leave the existing migration matrix to its owner.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]
+public sealed class CaddyReplacementTests
+{
+    /// <summary>The same shipped policy owns both native source fingerprints and the only allowed template delta.</summary>
+    private static (ReleaseBundle Source, ReleaseBundle Target) Pair(string platform)
+    {
+        using var stream = typeof(CaddyReplacement).Assembly.GetManifestResourceStream("WayfarerCtl.caddy-replacement.json")!;
+        using var document = JsonDocument.Parse(stream);
+        var policy = document.RootElement;
+        var files = policy.GetProperty("unchanged").EnumerateObject().Select(file =>
+            new ReleaseFile(file.Name, file.Value.GetString()!, "file", ReleaseContract.Mode(file.Name)))
+            .Append(new("compose.yaml", policy.GetProperty("sourceCompose").GetString()!, "file", 420))
+            .Append(new("wayfarerctl", new string('a', 64), "file", 365)).ToArray();
+        var source = new ReleaseManifest(1, 1, 1, "stable", "1.9.22", "v1.9.22", "https://github.com/stef-k/Wayfarer",
+            policy.GetProperty("sourceRevision").GetString()!, platform,
+            new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('a', 64), "sha256:" + new string('a', 64), "1.9.22",
+                "sha256:" + new string('b', 64), ReleaseContract.LegacyCaddyDigest, 18, "3.6.4", "1.8", "UTF8", "C.UTF-8", "C.UTF-8", "c"),
+            new("1.9.22", ["20260101000000_Initial"], "20260101000000_Initial", "quartz", [2], new string('c', 64),
+                "Wayfarer", "uploads", "data-protection", "ready", "1.9.22.0"), ReleaseContract.CurrentOperator, [], files, null);
+        var fingerprint = policy.GetProperty("sources").GetProperty(platform).GetString()!;
+        var target = source with { Version = "9999.0.0", Tag = "v9999.0.0",
+            Images = source.Images with { PlatformDigest = "sha256:" + new string('d', 64), CaddyDigest = ReleaseContract.CaddyDigest },
+            Sources = [new("1.9.22", fingerprint, source.Application.TerminalMigration, true, false, "manual-recovery", "held recovery")],
+            Files = files.Select(file => file.Path == "compose.yaml" ? file with { Sha256 = policy.GetProperty("targetCompose").GetString()! } : file).ToArray() };
+        return (new("/source", source, fingerprint), new("/target", target, new string('e', 64)));
+    }
+
+    /// <summary>Ordering and exact source permission remain necessary even with explicit replacement admission.</summary>
+    [Fact]
+    public void OnlyExplicitForwardQualifiedPairPasses()
+    {
+        var (source, target) = Pair(NativePlatform.Current);
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target));
+        Assert.Equal(source.Fingerprint, UpdateOptions.Boundary(source, target, replacement: true).Fingerprint);
+        var sameProxy = target with { Manifest = target.Manifest with { Images = target.Manifest.Images with
+            { CaddyDigest = source.Manifest.Images.CaddyDigest } } };
+        Assert.Equal(source.Fingerprint, UpdateOptions.Boundary(source, sameProxy).Fingerprint);
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(target, source, replacement: true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source with { Fingerprint = new string('f', 64) }, target, replacement: true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target with { Manifest = target.Manifest with { Sources = [] } }, replacement: true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target with { Manifest = target.Manifest with
+            { Images = target.Manifest.Images with { DatabaseDigest = "sha256:" + new string('f', 64) } } }, replacement: true));
+    }
+
+    /// <summary>Both native authorities are supported; no unrelated template change gains admission.</summary>
+    [Theory]
+    [InlineData("linux/amd64")]
+    [InlineData("linux/arm64")]
+    public void ExactTemplatesAndNativeSourceAreRequired(string platform)
+    {
+        var (source, target) = Pair(platform);
+        CaddyReplacement.Require(source, target);
+        foreach (var file in target.Manifest.Files.Where(file => file.Path != "wayfarerctl"))
+            Assert.Throws<UsageException>(() => CaddyReplacement.Require(source, target with { Manifest = target.Manifest with
+            { Files = target.Manifest.Files.Select(value => value.Path == file.Path ? value with { Sha256 = new string('f', 64) } : value).ToArray() } }));
+    }
+
+    /// <summary>Schema one keeps the historical installed owner; schema two cannot substitute that owner for the target.</summary>
+    [Fact]
+    public void ReplacementOwnerCannotBeSubstituted()
+    {
+        var (source, target) = Pair(NativePlatform.Current);
+        var current = new Deployment { Release = ReleaseAuthority.From(source) };
+        var next = current with { Release = ReleaseAuthority.From(target) };
+        var plan = new UpdatePlan(Guid.NewGuid(), "/root", current, next, next.Release!, target.Manifest.Sources[0], [], "", "", "", new(1, 2, 2, 2, 1, 1))
+            { UpdateProtocol = 2 };
+        CaddyReplacement.RequireOwner(plan);
+        Assert.Throws<IOException>(() => CaddyReplacement.RequireOwner(plan with { OperatorOwner = current.Release! }));
+        Assert.Throws<IOException>(() => CaddyReplacement.RequireOwner(plan with { UpdateProtocol = 1 }));
+        CaddyReplacement.RequireOwner(plan with { UpdateProtocol = 1, OperatorOwner = current.Release! });
+    }
+
+    /// <summary>Labels alone cannot authorize a different proxy configuration, TLS store, mode or native payload.</summary>
+    [Fact]
+    public async Task ProxyFenceRequiresActualPayloadAndExactTlsMounts()
+    {
+        var config = new Deployment { Bundle = "/trusted/source", Project = "replacement", Hostname = "wayfarer.example.org", Mode = "managed", Platform = NativePlatform.Current };
+        var payload = "sha256:" + new string('a', 64);
+        var proxy = JsonSerializer.SerializeToElement(new
+        {
+            Image = payload,
+            Config = new
+            {
+                Image = "caddy@" + ReleaseContract.LegacyCaddyDigest,
+                Cmd = new[] { "caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile" },
+                Env = new[] { "PUBLIC_HOST=wayfarer.example.org" },
+                Labels = new Dictionary<string, string> { ["com.docker.compose.project"] = config.Project,
+                    ["com.docker.compose.service"] = "caddy", ["com.docker.compose.project.working_dir"] = config.Bundle,
+                    ["com.docker.compose.project.config_files"] = config.Bundle + "/compose.yaml" }
+            },
+            Mounts = new object[] {
+                new { Type = "volume", Name = "replacement_caddy-data", Destination = "/data", RW = true },
+                new { Type = "volume", Name = "replacement_caddy-config", Destination = "/config", RW = true },
+                new { Type = "bind", Source = "/trusted/source/caddy/Caddyfile", Destination = "/etc/caddy/Caddyfile", RW = false } },
+            NetworkSettings = new { Networks = new Dictionary<string, object> { ["replacement_edge"] = new { } } }
+        });
+        CaddyReplacement.VerifyProxy("/root", config, proxy);
+        Assert.Throws<IOException>(() => CaddyReplacement.VerifyProxy("/root", config with { Mode = "external" }, proxy));
+        foreach (var (before, after) in new[] { ("replacement_caddy-data", "foreign_data"), ("replacement_caddy-config", "foreign_config"),
+                     ("/trusted/source/caddy/Caddyfile", "/foreign/Caddyfile"), ("PUBLIC_HOST=wayfarer.example.org", "PUBLIC_HOST=foreign.example.org") })
+        {
+            using var changed = JsonDocument.Parse(proxy.GetRawText().Replace(before, after, StringComparison.Ordinal));
+            Assert.Throws<IOException>(() => CaddyReplacement.VerifyProxy("/root", config, changed.RootElement));
+        }
+        await CaddyReplacement.VerifyImageAsync(new ProxyImage(payload), config, proxy, default);
+        await Assert.ThrowsAsync<IOException>(() => CaddyReplacement.VerifyImageAsync(new ProxyImage("sha256:" + new string('b', 64)), config, proxy, default));
+        // Ordinary same-image updates still recreate Caddy with the target bundle's exact configuration mount.
+        var target = config with { Bundle = "/trusted/target" };
+        using var recreated = JsonDocument.Parse(proxy.GetRawText().Replace(config.Bundle, target.Bundle, StringComparison.Ordinal));
+        var runner = new ProxyImage(payload, recreated.RootElement.Clone());
+        var plan = new UpdatePlan(Guid.NewGuid(), "/root", config, target, null!, null!, [], "", "", "", new(1, 2, 2, 2, 1, 1));
+        await new UpdateRuntime(runner).StopWritersAsync("/root", new UpdateReceipt
+            { Plan = plan, PlanHash = "unused", Phase = UpdatePhase.PostflightConfirmed, Containers = ["proxy"] }, default);
+        Assert.Equal(new[] { "update", "stop" }, runner.Mutations);
+    }
+
+    /// <summary>Existing restore helpers have their own project label and must not be mistaken for managed proxy services.</summary>
+    [Fact]
+    public async Task RestoreFenceRetainsHistoricalHelperLabelContract()
+    {
+        var config = new Deployment { Bundle = "/trusted/source", Project = "replacement", Hostname = "wayfarer.example.org" };
+        var helper = JsonSerializer.SerializeToElement(new
+        {
+            Config = new { Image = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
+                Labels = new Dictionary<string, string> { ["wayfarer.restore-helper"] = config.Project } },
+            Mounts = Array.Empty<object>()
+        });
+        var plan = new RestorePlan(Guid.NewGuid(), "/root", config, Guid.NewGuid(), Guid.NewGuid(), new string('a', 64),
+            DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", null, Guid.NewGuid().ToString("N"), false, true, true);
+        var runner = new ProxyImage("unused", helper);
+        await new RestoreFencing(runner).StopOwnedAsync(new RestoreReceipt
+            { Plan = plan, PlanHash = plan.Hash(), Containers = ["proxy"] }, default);
+        Assert.Equal(new[] { "update", "stop" }, runner.Mutations);
+    }
+
+    /// <summary>Only Docker's independently inspected content-addressed native image facts are substituted.</summary>
+    private sealed class ProxyImage(string id, JsonElement? proxy = null) : IProcessRunner
+    {
+        public List<string> Mutations { get; } = [];
+
+        /// <summary>Only inspect/list results are supplied; actual fencing commands are recorded as product behavior.</summary>
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            if (args[0] == "ps") return Task.FromResult(new ProcessResult(0, "proxy"));
+            if (args is ["inspect", "proxy"]) return Task.FromResult(new ProcessResult(0, "[" + proxy!.Value.GetRawText() + "]"));
+            if (args is ["wait", "proxy"]) return Task.FromResult(new ProcessResult(0, "0"));
+            if (args[0] is "update" or "stop")
+            {
+                Mutations.Add(args[0]);
+                return Task.FromResult(new ProcessResult(0, ""));
+            }
+            Assert.Equal(new[] { "image", "inspect", "caddy@" + ReleaseContract.LegacyCaddyDigest }, args);
+            return Task.FromResult(new ProcessResult(0, JsonSerializer.Serialize(new[] { new {
+                Id = id, Os = "linux", Architecture = NativePlatform.Current.Split('/')[1], RepoDigests = new[] { "caddy@" + ReleaseContract.LegacyCaddyDigest } } })));
+        }
+    }
+}

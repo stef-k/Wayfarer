@@ -48,10 +48,9 @@ the public bootstrap. Its expected SHA256 still comes from the publishing job's
 retained artifact receipt and must pass before extraction/execution. Subsequent
 public bundle and manifest integrity checks remain required.
 
-These prerequisites do not authorize publication. #915's Caddy replacement and
-compatibility package remains separate and outstanding; its transition gate stays
-closed. Release identity, accepted database authority and create-only publication
-retain their existing gates.
+These prerequisites do not authorize publication. #915's Caddy replacement has a
+separate compatibility and native-qualification preflight below. Release identity,
+accepted database authority and create-only publication retain their existing gates.
 
 ## Stable image identity and create-only publication
 
@@ -72,6 +71,30 @@ Stable publication is create-only:
   overwriting or rebuilding the existing stable identity.
 
 Wayfarer does not publish a mutable application `latest` image tag.
+
+### Compatibility before the first write
+
+Both `image.py publish` and `image.py index` run the read-only `caddy.preflight`
+before build/tag/push/index operations. It discovers the supported public
+predecessor, checks both native archives against GitHub asset sizes/digests and
+their payload inventories, and validates the exact database, templates and ordered
+migration prefix. Bundle assembly still repeats the final exact-manifest boundary.
+
+For the v1.9.22 Caddy bridge, the shared `caddy-replacement.json` policy permits only
+the reviewed old/new Compose hashes; other templates remain exact. Preflight also
+requires `caddy-replacement-amd64` and `caddy-replacement-arm64` artifacts from one
+successful `tests.yml` run, with matching source workflow identity, complete
+compatibility-input hash, exact public source fingerprints, target/recovery owner
+and old/new TLS readability. A generic green job is insufficient. Discovery is
+bounded to the latest 30 successful source runs; missing, expired, incompatible or
+unavailable evidence fails closed before publication. There is no publication bypass.
+
+Qualification hashes product/tooling inputs separately from release numbering and
+prose, allowing a version-only release preparation or merge commit to reuse exact
+unchanged compatibility evidence. Native job logs and receipts identify the actual
+source/candidate heads and fixture authority. This candidate proof is not stable
+public acquisition or production installation acceptance. New stable releases still
+need normal version, independent-review, publication and public-acceptance gates.
 
 ## Anonymous qualification
 

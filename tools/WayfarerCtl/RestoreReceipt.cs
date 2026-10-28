@@ -77,13 +77,37 @@ public sealed record RestoreReceipt
         return receipt;
     }
 
+    /// <summary>Terminal joined receipts remain addressable after archival restores historical operator compatibility.</summary>
+    public static RestoreReceipt? Find(string root, Guid operation)
+    {
+        var current = Load(root);
+        if (current?.Plan.Operation == operation) return current;
+        var path = Path.Combine(root, "recovery-control", "restore-history", operation.ToString("N") + ".json");
+        if (!File.Exists(path)) return null;
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 262144) throw new IOException("Retained restore receipt exceeds bound.");
+        var receipt = JsonSerializer.Deserialize<RestoreReceipt>(File.ReadAllText(path), ArchiveContract.Json)
+            ?? throw new IOException("Missing retained restore receipt.");
+        receipt.Validate(root);
+        if (receipt.Plan.Operation != operation) throw new IOException("Retained restore operation mismatch.");
+        return receipt;
+    }
+
     /// <summary>Validate generated identities independently of any archived metadata.</summary>
     public void Validate(string root)
     {
         Plan.Target.Validate();
         Plan.OperatorOwner?.Validate();
-        if (Plan.OperatorOwner != Plan.Target.Release) throw new UsageException("Restore release/operator owner mismatch.");
-        if (Schema != 1 || CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
+        if (Schema == 2 && Plan.FromUpdate is not null)
+        {
+            UpdateRestoreHandoff.Require(root, Plan);
+            if (UpdateReceipt.Find(root, Plan.FromUpdate.Value)!.Plan.UpdateProtocol != 2)
+                throw new UsageException("Restore replacement protocol mismatch.");
+        }
+        else if (Schema != 1 || Plan.OperatorOwner != Plan.Target.Release)
+            throw new UsageException("Restore release/operator owner mismatch.");
+        if (CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             Plan.Archive == Guid.Empty || Plan.SourceInstallation == Guid.Empty || Plan.Target.Installation == Guid.Empty ||
             PlanHash != Plan.Hash() || !System.Text.RegularExpressions.Regex.IsMatch(Plan.CandidateGeneration, "^[a-f0-9]{32}$") ||
             !System.Text.RegularExpressions.Regex.IsMatch(Plan.ArchiveSha256, "^[a-f0-9]{64}$"))
@@ -107,6 +131,21 @@ public sealed record RestoreReceipt
         else if (!File.Exists(marker)) ProtectedFiles.Create(marker, Plan.Operation.ToString("D"));
         using var parent = new SafeDirectory(Path.GetDirectoryName(path)!);
         parent.Flush();
+        if (Schema == 2 && (Phase is RestorePhase.Accepted or RestorePhase.Aborted))
+        {
+            var history = Path.Combine(root, "recovery-control", "restore-history");
+            Directory.CreateDirectory(history, ProtectedFiles.PrivateDirectory);
+            var retained = Path.Combine(history, Plan.Operation.ToString("N") + ".json");
+            var content = JsonSerializer.Serialize(this);
+            if (!File.Exists(retained)) ProtectedFiles.Create(retained, content);
+            ProtectedFiles.Check(retained, 0);
+            if (File.ReadAllText(retained) != content) throw new IOException("Retained terminal receipt differs.");
+            using var directory = new SafeDirectory(history);
+            directory.Flush();
+            parent.Flush(); // Persist the history directory entry before removing active intent.
+            File.Delete(path);
+            parent.Flush();
+        }
     }
 
     /// <summary>Preserve completed operations before another restore can replace the current intent.</summary>

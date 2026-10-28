@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / '.github/workflows/tests.yml'
 TRUST_STEP = 'Correct and verify host trust before setup downloads'
 CONSUMERS = {
-    'tests.yml': ['test', 'application-image', 'application-image-arm64', 'cleanup-safety'],
+    'tests.yml': ['test', 'application-image', 'application-image-arm64', 'cleanup-safety', 'caddy-replacement'],
     'application-release.yml': ['publish', 'anonymous-pull', 'publish-index',
                                 'deployment-bundle', 'public-compose-acceptance'],
     'database-image.yml': ['publish', 'anonymous-pull', 'publish-index'],
@@ -118,7 +118,7 @@ class RunnerTrustTests(unittest.TestCase):
     def test_rustup_downloads_require_the_assessed_backend(self):
         """An explicit rustls selection follows host/version/configuration checks on all users."""
         workflow = WORKFLOW.read_text()
-        for job in ['test', 'application-image', 'application-image-arm64']:
+        for job in ['test', 'application-image', 'application-image-arm64', 'caddy-replacement']:
             body = job_body(workflow, job)
             self.assertIn('bash deployment/check-trust.sh --rustup\n          RUSTUP_USE_RUSTLS=1 rustup toolchain install 1.90.0', body)
 
@@ -129,7 +129,8 @@ class RunnerTrustTests(unittest.TestCase):
             tool = path / 'rustup'
             tool.write_text('#!/bin/bash\necho "rustup ${TEST_RUSTUP_VERSION:-1.29.1} (fixture)"\n')
             tool.chmod(0o755)
-            cases = [{}, {'TEST_RUSTUP_VERSION': '1.28.2'}, {'RUSTUP_USE_CURL': '1'},
+            cases = [{}, {'TEST_RUSTUP_VERSION': '1.29.2'},
+                     {'TEST_RUSTUP_VERSION': '1.29.3'}, {'TEST_RUSTUP_VERSION': '1.28.2'}, {'RUSTUP_USE_CURL': '1'},
                      {'RUSTUP_USE_CURL': ''}, {'RUSTUP_USE_RUSTLS': '0'},
                      {'RUSTUP_DIST_SERVER': 'https://unassessed.invalid'},
                      {'RUSTUP_DIST_ROOT': 'https://unassessed.invalid/dist'},
@@ -143,8 +144,14 @@ class RunnerTrustTests(unittest.TestCase):
                     result = subprocess.run(['bash', '-e', '-c',
                         'bash deployment/check-trust.sh --rustup; echo ACQUISITION_REACHED'],
                         cwd=ROOT, env=env, text=True, capture_output=True)
-                    self.assertEqual(result.returncode == 0, not overrides, result.stdout + result.stderr)
-                    self.assertEqual('ACQUISITION_REACHED' in result.stdout, not overrides)
+                    admitted = not overrides or overrides == {'TEST_RUSTUP_VERSION': '1.29.2'}
+                    self.assertEqual(result.returncode == 0, admitted, result.stdout + result.stderr)
+                    self.assertEqual('ACQUISITION_REACHED' in result.stdout, admitted)
+                    self.assertIn('Rustup manager: rustup ' + overrides.get('TEST_RUSTUP_VERSION', '1.29.1'), result.stdout)
+                    if not admitted:
+                        rejected = next(iter(overrides))
+                        self.assertIn('manager-version' if rejected == 'TEST_RUSTUP_VERSION' else rejected, result.stderr)
+                        self.assertNotIn('unassessed.invalid', result.stdout + result.stderr)
 
     def test_public_bootstrap_receipt_hash_precedes_extraction(self):
         """The public endpoint never supplies the sole expected bootstrap digest."""

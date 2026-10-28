@@ -11,6 +11,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
+    <!-- One reviewed replacement policy supplies operator and publication admission. -->
+    <EmbeddedResource Include="../release/caddy-replacement.json" LogicalName="WayfarerCtl.caddy-replacement.json" />
     <ProjectReference Include="../WayfarerRecovery/WayfarerRecovery.csproj" />
     <InternalsVisibleTo Include="Wayfarer.Tests" />
   </ItemGroup>

@@ -18,8 +18,13 @@ public sealed class RestorePreparation(IProcessRunner runner)
         ? options.Get("--restore-payload") : config.Backup?.Payload ?? throw new UsageException("Trusted --restore-payload is required for an unconfigured target.");
 
     /// <summary>Prepare only non-authoritative private disk staging; archive parsing runs in an unprivileged helper.</summary>
-    public async Task<RestorePlan> PrepareAsync(string root, Deployment config, RestoreOptions options, CancellationToken token)
+    public async Task<RestorePlan> PrepareAsync(string root, Deployment config, RestoreOptions options, CancellationToken token, UpdateReceipt? update = null)
     {
+        if (update is not null)
+        {
+            UpdateCommands.RequireOwner(root, update.Plan);
+            if (config != update.Plan.Current || !update.MigrationPossible) throw new IOException("Invalid update restore target.");
+        }
         var operation = Guid.NewGuid();
         var directory = DirectoryFor(root, operation);
         Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
@@ -92,7 +97,8 @@ public sealed class RestorePreparation(IProcessRunner runner)
             config.StorageGeneration, Guid.NewGuid().ToString("N"), options.Has("--new-install"),
             options.Has("--without-emergency-backup"), options.Has("--archive"))
         { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root),
-            OperatorOwner = ReleaseDispatch.CurrentOwner(root, config) };
+            OperatorOwner = update?.Plan.OperatorOwner ?? ReleaseDispatch.CurrentOwner(root, config),
+            FromUpdate = update?.Plan.Operation };
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
         foreach (var path in new[] { directory, Path.GetDirectoryName(directory)!, root })
         {

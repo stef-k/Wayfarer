@@ -63,7 +63,14 @@ public sealed class UpdateActivation(IProcessRunner runner)
             var exposure = Overlay(directory, target, true);
             await owner.Required(target.Compose(root, "-f", exposure, "up", "-d", "--force-recreate", "--pull", "never", "--wait", "--wait-timeout", "180", "wayfarer"), token);
             if (target.Mode == "managed")
-                await owner.Required(target.Compose(root, "-f", exposure, "up", "-d", "--pull", "never", "caddy"), token);
+            {
+                await owner.Required(target.Compose(root, "-f", exposure, "create", "--force-recreate", "--pull", "never", "caddy"), token);
+                var id = (await owner.Required(target.Compose(root, "ps", "-aq", "caddy"), token)).Trim();
+                using var proxy = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+                CaddyReplacement.VerifyProxy(root, target, proxy.RootElement[0]);
+                await CaddyReplacement.VerifyImageAsync(runner, target, proxy.RootElement[0], token);
+                await owner.Required(["start", id], token);
+            }
             await Diagnostics.EndpointAsync(target, token, ReleaseStore.Select(root, target.Release!).Manifest.Version);
             BackupCompose.Check(root, target);
             await owner.Required(BackupCompose.Command(root, target, "up", "-d", "--force-recreate", "--pull", "never", "backup-scheduler"), token);

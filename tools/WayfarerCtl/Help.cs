@@ -19,6 +19,7 @@ public static class Help
             "  Invoke this repair-capable operator directly as root; immutable v1.9.21 dispatch cannot select it. No release, payload or policy override.",
         ["dispatch"] = "dispatch COMMAND — invoke the retained operator; restore --resume/--abort uses its receipt owner.",
         ["update"] = "update [X.Y.Z] --plan | --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
+            "  Explicit Caddy bridge: target operator update --replace-release --bundle /trusted/target --plan. Target owns acceptance and recovery.\n" +
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
             "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. Public acquisition only prepares the existing plan.",
         ["uninstall"] = "uninstall [--purge] --plan [--backup | --without-backup] | --accept-plan SHA256\n" +

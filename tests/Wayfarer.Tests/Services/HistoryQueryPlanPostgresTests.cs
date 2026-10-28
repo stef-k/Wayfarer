@@ -176,8 +176,33 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
             await db.Database.ExecuteSqlRawAsync("SET LOCAL enable_seqscan = off; SET LOCAL enable_indexscan = off");
             var eligible = await db.Database.SqlQueryRaw<string>(explain, predicate.CopyParameters()).ToListAsync();
             output.WriteLine(string.Join(Environment.NewLine, eligible));
-            // The planner may prefer another applicable index; verify the intended predicate's own path separately if necessary.
-            Assert.Contains(natural.Concat(eligible), line => line.Contains(expected));
+            if (expected == "IX_Location_HistoryText")
+            {
+                Assert.True(await preparation.IndexesReadyAsync(default));
+                var pattern = Assert.Single(predicate.Parameters, parameter => Equals(parameter.Value, "%RARE STATION%"));
+                var textFilter = $"l.\"HistorySearchText\" LIKE @{pattern.ParameterName} ESCAPE E'\\\\'";
+                Assert.Contains(textFilter, predicate.Where);
+                // Bulk preparation leaves a GIN pending list; inspect/flush it only for the isolated eligibility assay.
+                var cleaned = await db.Database.SqlQueryRaw<long>("""
+                    SELECT gin_clean_pending_list('"IX_Location_HistoryText"'::regclass) AS "Value"
+                    """).SingleAsync();
+                output.WriteLine($"GIN pending pages cleaned after natural production plans: {cleaned}");
+                // Competing owner/time indexes are legitimate cost choices for the full predicate.
+                // Its exact text clause must independently admit GIN and return just the one candidate.
+                var textPlan = await db.Database.SqlQueryRaw<string>(
+                    $"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT l.\"Id\" FROM \"Locations\" l WHERE {textFilter}",
+                    (NpgsqlParameter)pattern.Clone()).ToListAsync();
+                output.WriteLine(Assert.Single(textPlan));
+                using var document = JsonDocument.Parse(Assert.Single(textPlan));
+                var nodes = PlanNodes(document.RootElement[0].GetProperty("Plan")).ToArray();
+                var index = Assert.Single(nodes, node => node.TryGetProperty("Index Name", out var name) && name.GetString() == expected);
+                Assert.Equal(1, index.GetProperty("Actual Rows").GetDouble());
+                Assert.DoesNotContain(nodes, node => node.GetProperty("Node Type").GetString() == "Seq Scan");
+                var ids = await db.Database.SqlQueryRaw<int>(sql, predicate.CopyParameters()).ToListAsync();
+                Assert.Equal(await db.Locations.Where(row => row.UserId == owner.Id && row.Address == "rare station")
+                    .Select(row => row.Id).SingleAsync(), Assert.Single(ids));
+            }
+            else Assert.Contains(natural.Concat(eligible), line => line.Contains(expected));
             Assert.DoesNotContain(natural, line => line.Contains("external merge"));
             await transaction.RollbackAsync();
         }
@@ -194,6 +219,15 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
         Assert.DoesNotContain("st_y", grouping, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("st_isempty", grouping, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(plan, line => line.Contains("external merge"));
+    }
+
+    /// <summary>Walk executed plan nodes so candidate work is checked without depending on text formatting.</summary>
+    private static IEnumerable<JsonElement> PlanNodes(JsonElement node)
+    {
+        yield return node;
+        if (node.TryGetProperty("Plans", out var children))
+            foreach (var child in children.EnumerateArray())
+                foreach (var descendant in PlanNodes(child)) yield return descendant;
     }
 
     /// <summary>Retain the actual production command and typed values for a natural plan replay.</summary>

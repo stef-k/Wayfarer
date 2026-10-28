@@ -1,0 +1,17 @@
+{
+  "sourceVersion": "1.9.22",
+  "sourceRevision": "82990a3a0e7bdc0bc8b92c574b0623c1f004489e",
+  "sourceCaddy": "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b",
+  "targetCaddy": "sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f",
+  "sources": {
+    "linux/amd64": "e981b69788df0f50e8abacf7e781bb4653def583a8b43f1cb8b2849dae7f3e63",
+    "linux/arm64": "1b3009a5733272f14aac1043d31ae71121f313894b842443f3a846be6a61a603"
+  },
+  "sourceCompose": "3690058318e666cc82591f39b2c0d4981ba0ea6c4508f4f178f0c0b1da5a6740",
+  "targetCompose": "e19613f7d6d379732f966b40acf21f096bb40c84f4e2a586c5306a958674a9e4",
+  "unchanged": {
+    "external.yaml": "ab2eff992aeb1ce2294e2f7943c8bb5b482b4b6a7116f41dac38de49cac230d6",
+    "caddy/Caddyfile": "0bfe2fd6492ffb2d4293df9ee93bafaf465a8883b69320f3e186770d43bd20d7",
+    "db/20-wayfarer.sh": "04c785d5d81010a11211d0bd0f8fc18959845e5f5e55f2aac088ff1b9a9fb06d"
+  }
+}

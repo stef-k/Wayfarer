@@ -9,7 +9,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
     public static string DirectoryFor(string root, Guid operation) => Path.Combine(root, "update-plans", operation.ToString("N"));
 
     /// <summary>No service is stopped and no application state is written while preparing authorization.</summary>
-    public async Task<UpdatePlan> PrepareAsync(string root, string path, CancellationToken token)
+    public async Task<UpdatePlan> PrepareAsync(string root, string path, CancellationToken token, bool replacement = false)
     {
         UpdateReceipt.RequireResolved(root);
         RestoreReceipt.RequireResolved(root);
@@ -21,8 +21,9 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         Deployment.CheckSecrets(root);
         var source = ReleaseStore.Select(root, current.Release);
         var target = ReleaseStore.Import(root, path);
-        var boundary = UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, current.Project));
-        var owner = ReleaseDispatch.CurrentOwner(root, current)!;
+        var boundary = UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, current.Project), replacement);
+        var owner = replacement ? ReleaseAuthority.From(target) : ReleaseDispatch.CurrentOwner(root, current)!;
+        if (replacement) ReleaseDispatch.RequireExecutable(target);
         await VerifyAsync(root, current, source, token);
         if (!await new ReleaseImagesVerifier(runner).VerifyAsync(target, token)) throw new IOException("Target images unavailable locally.");
         var next = current with { Bundle = target.Directory, AppDigest = target.Manifest.Images.PlatformDigest, Platform = target.Manifest.Platform, Release = ReleaseAuthority.From(target) };
@@ -33,7 +34,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         var plan = new UpdatePlan(operation, root, current, next, owner, boundary,
             target.Manifest.Application.Migrations.Skip(source.Manifest.Application.Migrations.Length).ToArray(),
             File.ReadAllText(Path.Combine(root, "installation.json")), File.ReadAllText(current.EnvironmentPath(root)),
-            ProtectedFiles.SecretsFingerprint(root), capacity) { TargetMigrations = target.Manifest.Application.Migrations };
+            ProtectedFiles.SecretsFingerprint(root), capacity) { TargetMigrations = target.Manifest.Application.Migrations, UpdateProtocol = replacement ? 2 : 1 };
         var directory = DirectoryFor(root, operation);
         Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
@@ -106,6 +107,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
             var container = document.RootElement[0];
             Preflight.VerifyRetainedResource(config, "container", container, root);
             UpdateRuntime.VerifyService(root, config, service, container);
+            if (service == "caddy") await CaddyReplacement.VerifyImageAsync(runner, config, container, token);
         }
     }
 

@@ -3,10 +3,21 @@
 ## [Unreleased]
 
 ### Changed
+- Add #915's explicit `update --replace-release` bridge from genuine managed
+  v1.9.22/Caddy 2.11.4 to an exactly authorized corrected Caddy 2.11.7 release.
+  The trusted target operator retains replacement/recovery ownership, TLS volumes
+  and restart policy authority. Refuse incompatible or unqualified predecessors
+  before create-only image/index publication. Release selection, publication and
+  installation remediation remain separate; no automatic rollback is promised.
+  Qualify initial ACME issuance with DNS/trust installed before proxy execution on
+  a fixture network with public ACME egress blocked. Check history text-index eligibility independently
+  of PostgreSQL's small-fixture cost choice, retaining result and work assertions.
 - Protect #915's remaining workflow-controlled setup, API and bootstrap acquisitions
   with signed-APT CA correction and the existing trust guard. Windows cleanup uses
   validated provisioned Node/Python caches without network fallback; host rustup
-  downloads require the assessed version/backend. Record the accepted GitHub platform
+  downloads require assessed rustup 1.29.1/1.29.2 and backend/source configuration.
+  Retain failed managed-HTTPS setup diagnostics and both native matrix results;
+  cancellation does not satisfy the required gate. Record the accepted GitHub platform
   trust boundary. Caddy replacement and release/publication remain separate gates.
 - Update Quartz, Quartz.Extensions.DependencyInjection and Quartz.Serialization.Json
   together from 3.19.1 to 3.22.9 (#939), retaining PostgreSQL persistence,

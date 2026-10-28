@@ -22,6 +22,9 @@ public sealed class UpdateRuntime(IProcessRunner runner)
                 using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
                 var container = document.RootElement[0];
                 Preflight.VerifyRetainedResource(config, "container", container, root);
+                var service = container.GetProperty("Config").GetProperty("Labels").GetProperty("com.docker.compose.service").GetString()!;
+                if (service is "db" or "wayfarer" or "caddy") VerifyService(root, config, service, container);
+                if (service == "caddy") await CaddyReplacement.VerifyImageAsync(runner, config, container, token);
                 var restart = container.GetProperty("HostConfig").GetProperty("RestartPolicy");
                 policies[id] = restart.GetProperty("Name").GetString()!;
                 if (policies[id] == "on-failure") policies[id] += ":" + restart.GetProperty("MaximumRetryCount").GetInt32();
@@ -58,12 +61,26 @@ public sealed class UpdateRuntime(IProcessRunner runner)
             var image = container.GetProperty("Config").GetProperty("Image").GetString();
             if (image != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Current.AppDigest &&
                 image != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest &&
-                image != "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest && image != "caddy@" + receipt.Plan.Current.CaddyDigest)
+                image != "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest && image != "caddy@" + receipt.Plan.Current.CaddyDigest &&
+                !(receipt.Plan.UpdateProtocol == 2 && receipt.Phase >= UpdatePhase.PostflightConfirmed && image == "caddy@" + target.CaddyDigest))
                 throw new IOException("Update resource image changed.");
+            if (labels.GetProperty("com.docker.compose.service").GetString() == "caddy")
+            {
+                var proxy = image == "caddy@" + receipt.Plan.Current.CaddyDigest ? receipt.Plan.Current : target;
+                try { CaddyReplacement.VerifyProxy(root, proxy, container); }
+                catch (UsageException) when (receipt.Phase >= UpdatePhase.PostflightConfirmed &&
+                    receipt.Plan.Current.CaddyDigest == target.CaddyDigest)
+                {
+                    proxy = target;
+                    CaddyReplacement.VerifyProxy(root, proxy, container);
+                }
+                await CaddyReplacement.VerifyImageAsync(runner, proxy, container, token);
+            }
             await owner.Required(["update", "--restart=no", id], token);
             if (labels.GetProperty("com.docker.compose.service").GetString() != "db")
                 await owner.Required(["stop", "--time", "70", id], token);
         }
+        if (!ids.SequenceEqual(receipt.Containers)) (receipt with { Containers = ids }).Save(root);
     }
 
     /// <summary>Daemon-loss recovery starts only the exact receipted DB with its unchanged volume and restart disabled.</summary>
@@ -143,7 +160,11 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         };
         if (container.GetProperty("Config").GetProperty("Image").GetString() != expected)
             throw new IOException("Actual service image differs from release authority.");
-        if (service == "caddy") return;
+        if (service == "caddy")
+        {
+            CaddyReplacement.VerifyProxy(root, config, container);
+            return;
+        }
         var roles = service == "db" ? new[] { ("db-data", "/var/lib/postgresql") } :
             new[] { ("app-data", "/var/lib/wayfarer"), ("app-cache", "/var/cache/wayfarer") };
         foreach (var (role, destination) in roles)

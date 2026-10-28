@@ -508,6 +508,76 @@ wayfarerctl update --restore <operation-uuid>
 Abort is permitted only before migration may have started. Once migration may have
 started, an old image is not database rollback; use the managed restore path.
 
+### Explicit managed Caddy replacement
+
+The replacement-capable **target release bootstrap/operator** is required for this
+transition and its recovery. Obtain that trusted root-owned bootstrap separately;
+keep the installed executable and retained bundles intact. The source implementation
+does not select a corrected release version or establish its public availability.
+In these examples, `X.Y.Z` means the future qualified stable target, not a version
+that is currently promised to exist.
+
+The only admitted proxy bridge is the genuine native **v1.9.22** release with Caddy
+2.11.4 (`sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`)
+to a later release explicitly authorizing its exact source fingerprint, using Caddy
+2.11.7 (`sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f`).
+The database and all templates except the reviewed Compose image/comment pair must
+remain exact. v1.9.21 first takes its supported v1.9.22 step; no direct skip or reverse
+forward-update is authorized.
+
+```sh
+sudo /root/corrected-bootstrap/wayfarerctl --deployment-root /etc/wayfarer release acquire X.Y.Z
+sudo /etc/wayfarer/releases/vX.Y.Z/wayfarerctl --deployment-root /etc/wayfarer \
+  update --replace-release --bundle /etc/wayfarer/releases/vX.Y.Z --plan
+sudo /root/corrected-bootstrap/wayfarerctl --deployment-root /etc/wayfarer \
+  dispatch update --accept-plan <printed-sha256>
+```
+
+Alternatively, invoke that target's retained operator directly for acceptance.
+Ordinary planning still belongs to the installed operator. Replacement planning is
+explicit and must invoke the target directly; ordinary installed dispatch cannot
+introduce the new command into an immutable historical operator.
+
+Update protocol/receipt schema **2** binds source, target and the target's exact
+executable before fencing. A joined recovery uses restore receipt schema **2**;
+ordinary updates and restores keep schema **1**. Pending schema-2 intent occupies
+the normal active receipt location so historical operators refuse it. Terminal
+schema-2 receipts are durably archived under `recovery-control/update-history/`
+and `restore-history/` before clearing their active pointer, allowing the genuine
+old operator to work again after recovery. Retained receipt UUIDs remain selectable
+by the new bootstrap. Never delete these files or manually change the release pointer.
+
+After interruption, keep the same corrected bootstrap and deployment root:
+
+```sh
+sudo /root/corrected-bootstrap/wayfarerctl dispatch update --resume <update-uuid>
+sudo /root/corrected-bootstrap/wayfarerctl dispatch update --abort <update-uuid>
+sudo /root/corrected-bootstrap/wayfarerctl dispatch update --restore <update-uuid>
+sudo /root/corrected-bootstrap/wayfarerctl dispatch restore --resume <restore-uuid>
+```
+
+Use abort only before `MigrationStarted`. At or after that boundary, reconcile
+forward or explicitly restore the exact held archive under the original target
+operator. A transferred restore must resume; it cannot abort into potentially
+mutated old storage. Recovery may restore the receipted old proxy and release; that
+is recovery authority, not a general downgrade or security remediation.
+
+Replacement retains the named `/data` and `/config` stores, TLS account/certificates,
+installation secrets and original service restart policies. Target ingress starts
+only after private application checks. Interrupted recreation recognizes either
+receipted proxy and checks its actual image, service, configuration and mounts.
+External-ingress installations use the same exact release bridge but do not create,
+start or modify a managed proxy. Service interruption is expected; there is no
+zero-downtime or automatic rollback guarantee.
+
+Caddy's intervening defaults include a **16 KiB request-header limit** (`431` for
+larger headers), **one-minute idle reads/writes**, and dropping request-header fields
+containing dots. Idle pauses between SSE writes should not count as stalled writes;
+2.11.7 fixes the intervening HTTP/2/body and quiet-stream regressions. No blanket
+limit/timeout override is added. See the upstream
+[2.11.6](https://github.com/caddyserver/caddy/releases/tag/v2.11.6) and
+[2.11.7](https://github.com/caddyserver/caddy/releases/tag/v2.11.7) notes.
+
 ## Public release acquisition
 
 ```sh

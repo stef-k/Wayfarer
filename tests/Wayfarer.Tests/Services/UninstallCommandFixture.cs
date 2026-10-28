@@ -328,8 +328,9 @@ internal sealed class UninstallCommandFixture : IDisposable
             return JsonSerializer.SerializeToElement(new { Id = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(service + incarnation))),
                 Name = "/" + config.Project + "-" + service + "-1", Created = "2026-10-05", Image = new string('e', 64),
                 Config = new { Image = service == "caddy" ? "caddy@" + config.CaddyDigest : "ghcr.io/stef-k/" + (service == "wayfarer" ? "wayfarer@" + config.AppDigest : "wayfarer-db@" + config.DbDigest),
-                    Labels = labels, Cmd = new[] { service == "backup-scheduler" ? "schedule" : "run" }, User = "1654:1654",
-                    Env = new[] { "Storage__DataRoot=/var/lib/wayfarer", "Storage__CacheRoot=/var/cache/wayfarer", "Storage__LogRoot=/var/log/wayfarer",
+                    Labels = labels, Cmd = service == "caddy" ? new[] { "caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile" } :
+                        new[] { service == "backup-scheduler" ? "schedule" : "run" }, User = "1654:1654",
+                    Env = service == "caddy" ? new[] { "PUBLIC_HOST=" + config.Hostname } : new[] { "Storage__DataRoot=/var/lib/wayfarer", "Storage__CacheRoot=/var/cache/wayfarer", "Storage__LogRoot=/var/log/wayfarer",
                         "Storage__TempRoot=/tmp/wayfarer", "DataProtection__KeyRingPath=/var/lib/wayfarer/data-protection" } }, Mounts = mounts,
                 HostConfig = new { RestartPolicy = new { Name = "unless-stopped" }, ReadonlyRootfs = true, Privileged = false },
                 State = new { Running = true, Status = "running", Health = new { Status = "healthy" } },

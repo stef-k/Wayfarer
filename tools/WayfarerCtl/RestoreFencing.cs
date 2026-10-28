@@ -19,6 +19,8 @@ public sealed class RestoreFencing(IProcessRunner runner)
             using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
             var container = document.RootElement[0];
             Preflight.VerifyRetainedResource(config, "container", container, root);
+            VerifyOwned(receipt, container);
+            await VerifyProxyImageAsync(receipt, container, token);
             var service = container.GetProperty("Config").GetProperty("Labels").GetProperty("com.docker.compose.service").GetString();
             if (service is "backup-worker" or "backup-reader" or "backup-destination-check" && container.GetProperty("State").GetProperty("Running").GetBoolean())
                 throw new IOException("Active backup worker prevents restore.");
@@ -121,7 +123,11 @@ public sealed class RestoreFencing(IProcessRunner runner)
                 if (all.Split('\n').Contains(id)) throw new IOException("Owned container state uncertain.");
                 continue;
             }
-            using (var document = JsonDocument.Parse(inspection.Output)) VerifyOwned(receipt, document.RootElement[0]);
+            using (var document = JsonDocument.Parse(inspection.Output))
+            {
+                VerifyOwned(receipt, document.RootElement[0]);
+                await VerifyProxyImageAsync(receipt, document.RootElement[0], token);
+            }
             await owner.Required(["update", "--restart=no", id], token);
             await owner.Required(["stop", "--time", "30", id], token);
             await owner.Required(["wait", id], token);
@@ -138,14 +144,30 @@ public sealed class RestoreFencing(IProcessRunner runner)
             throw new IOException("Recorded container was replaced by foreign authority.");
         var image = container.GetProperty("Config").GetProperty("Image").GetString();
         string? updateImage = null;
+        Deployment? replacement = null;
+        Deployment? sameProxyTarget = null;
         if (receipt.Plan.FromUpdate is not null)
         {
             UpdateRestoreHandoff.Require(receipt.Plan.Root, receipt.Plan);
-            updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!.Plan.Target.AppDigest;
+            var update = UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!;
+            replacement = update.Plan.UpdateProtocol == 2 && update.Phase >= UpdatePhase.PostflightConfirmed ? update.Plan.Target : null;
+            sameProxyTarget = update.Plan.UpdateProtocol == 1 && update.Phase >= UpdatePhase.PostflightConfirmed ? update.Plan.Target : null;
+            updateImage = "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest;
         }
         if (image != updateImage && image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
-            image != "caddy@" + config.CaddyDigest)
+            image != "caddy@" + config.CaddyDigest && (replacement is null || image != "caddy@" + replacement.CaddyDigest))
             throw new IOException("Recorded container image identity changed.");
+        if (Label("com.docker.compose.service") == "caddy")
+        {
+            var proxy = image == "caddy@" + config.CaddyDigest ? config : replacement!;
+            try { CaddyReplacement.VerifyProxy(receipt.Plan.Root, proxy, container); }
+            catch (UsageException) when (proxy == config && (sameProxyTarget is not null || receipt.Phase >= RestorePhase.ActivationIntent))
+            {
+                var retained = sameProxyTarget is not null && Label("com.docker.compose.project.working_dir") == sameProxyTarget.Bundle
+                    ? sameProxyTarget : RestoreCandidate.Configuration(receipt.EffectivePlan);
+                CaddyReplacement.VerifyProxy(receipt.Plan.Root, retained, container);
+            }
+        }
         var allowed = receipt.Volumes.Concat(new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" }
             .Select(role => ActiveStorage.Volume(config, role))).ToHashSet(StringComparer.Ordinal);
         var service = Label("com.docker.compose.service");
@@ -159,4 +181,16 @@ public sealed class RestoreFencing(IProcessRunner runner)
         }
     }
 
+    /// <summary>Failure fencing independently checks the native payload for either side of the receipted bridge.</summary>
+    private async Task VerifyProxyImageAsync(RestoreReceipt receipt, JsonElement container, CancellationToken token)
+    {
+        var actual = container.GetProperty("Config");
+        var labels = actual.GetProperty("Labels");
+        if (labels.ValueKind != JsonValueKind.Object || !labels.TryGetProperty("com.docker.compose.service", out var service) ||
+            service.GetString() != "caddy") return;
+        var config = receipt.Plan.Target;
+        if (actual.GetProperty("Image").GetString() != "caddy@" + config.CaddyDigest && receipt.Plan.FromUpdate is { } operation)
+            config = UpdateReceipt.Find(receipt.Plan.Root, operation)!.Plan.Target;
+        await CaddyReplacement.VerifyImageAsync(runner, config, container, token);
+    }
 }

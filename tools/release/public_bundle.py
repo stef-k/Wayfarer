@@ -7,6 +7,7 @@ import re
 import subprocess
 
 import image
+import caddy
 import version
 
 REPOSITORY = 'stef-k/Wayfarer'
@@ -108,13 +109,16 @@ def boundary(source: dict, fingerprint: str, target: dict) -> dict:
     for key in ('BundleContract', 'ConfigurationSchema', 'Platform'):
         if source[key] != target[key]:
             raise version.ValidationError('incompatible prior stable topology contract')
-    if source['Images']['DatabaseDigest'] != target['Images']['DatabaseDigest'] or source['Images']['CaddyDigest'] != target['Images']['CaddyDigest']:
+    replacement = source['Images']['CaddyDigest'] != target['Images']['CaddyDigest']
+    if source['Images']['DatabaseDigest'] != target['Images']['DatabaseDigest']:
         raise version.ValidationError('incompatible prior stable DB/proxy authority')
+    if replacement:
+        caddy.require(source, fingerprint, target)
     # Conservative exact templates are stronger than #704 normalized topology comparison.
     for path in ('compose.yaml', 'external.yaml', 'caddy/Caddyfile', 'db/20-wayfarer.sh'):
         before = next(item['Sha256'] for item in source['Files'] if item['Path'] == path)
         after = next(item['Sha256'] for item in target['Files'] if item['Path'] == path)
-        if before != after:
+        if before != after and not (replacement and path == 'compose.yaml'):
             raise version.ValidationError('incompatible prior stable topology payload')
     migrations = source['Application']['Migrations']
     if target['Application']['Migrations'][:len(migrations)] != migrations:

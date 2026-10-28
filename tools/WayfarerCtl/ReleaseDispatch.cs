@@ -33,10 +33,26 @@ public static class ReleaseDispatch
     {
         if (args.Length == 0 || args[0] == "dispatch") throw new UsageException("dispatch requires one ordinary command.");
         var resume = args is ["restore", "--resume" or "--abort", ..];
+        if (args is ["update", "--replace-release", ..])
+            throw new UsageException("Invoke replacement planning directly with the trusted target operator; do not dispatch through the installed operator.");
+        if (resume && Guid.TryParse(args.ElementAtOrDefault(2), out var restoreOperation))
+        {
+            var restore = RestoreReceipt.Find(root, restoreOperation) ?? throw new UsageException("Missing restore owner.");
+            var owner = restore.Plan.OperatorOwner ?? throw new UsageException("Receipt has no retained operator owner; invoke its original operator explicitly.");
+            return await InvokeAsync(root, args, ReleaseStore.Select(root, owner), token);
+        }
         var selected = UninstallReceipt.State(root) != UninstallState.None ? Select(root, false) :
-            args is ["update", "--resume" or "--abort" or "--restore", ..]
-            ? ReleaseStore.Select(root, (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)
+            args is ["update", "--resume" or "--abort" or "--restore" or "--accept-plan", _]
+            ? ReleaseStore.Select(root, args[1] == "--accept-plan"
+                ? UpdatePreparation.Load(root, args[2]).OperatorOwner
+                : (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)
             : Select(root, resume);
+        return await InvokeAsync(root, args, selected, token);
+    }
+
+    /// <summary>Execute only a validated retained owner; callers never overwrite the bootstrap or installed executable.</summary>
+    private static async Task<int> InvokeAsync(string root, string[] args, ReleaseBundle selected, CancellationToken token)
+    {
         var executable = Path.Combine(selected.Directory, "wayfarerctl");
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         start.ArgumentList.Add("--deployment-root");
@@ -81,7 +97,7 @@ public static class ReleaseDispatch
     {
         if (plan.OperatorOwner is not { } owner) return; // Existing receipts retain their explicit recovery path.
         var bundle = ReleaseStore.Select(root, owner);
-        if (!bundle.Manifest.Operator.RestoreReceiptSchemas.Contains(1)) throw new IOException("Unsupported receipt owner.");
+        if (!bundle.Manifest.Operator.RestoreReceiptSchemas.Contains(plan.FromUpdate is { } operation && UpdateReceipt.Find(root, operation)?.Plan.UpdateProtocol == 2 ? 2 : 1)) throw new IOException("Unsupported receipt owner.");
         RequireExecutable(bundle);
     }
 }

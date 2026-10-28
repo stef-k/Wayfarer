@@ -4,11 +4,13 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from qualify import BUNDLE, Stack, managed_config, assert_tls_transition
+from qualify_caddy_replacement import ManagedJourney
 
 
 def tls_facts():
@@ -22,6 +24,97 @@ def tls_facts():
 
 class ManagedIngressTests(unittest.TestCase):
     """Prove failure-closed joins without repeating issuer or product endpoint matrices."""
+    def test_failed_proxy_command_retains_exact_exit_and_stderr_without_stdin(self):
+        """The missing hosted setup failure must remain diagnosable after disposable cleanup."""
+        with tempfile.TemporaryDirectory() as directory:
+            journey = ManagedJourney.__new__(ManagedJourney)
+            journey.directory, journey.project, journey.ca = Path(directory), 'fixture-project', 'fixture-acme'
+            journey.host = Mock()
+            journey.install_adapter()
+            wrapper = journey.host.call_args.kwargs['data']
+            docker = Path(directory) / 'docker'
+            docker.write_text('#!/bin/sh\ncase "$1" in network) echo true; exit 0 ;; esac\necho "synthetic Docker failure" >&2\nexit 42\n')
+            docker.chmod(0o755)
+            script = Path(directory) / 'adapter'
+            script.write_text(wrapper.replace('/usr/bin/docker', str(docker)))
+            command = ['--host', 'unix:///var/run/docker.sock', 'compose', '--project-name', journey.project,
+                       'up', '-d', '--wait', '--wait-timeout', '180', 'caddy']
+            result = subprocess.run(['sh', str(script), *command], input='protected-stdin-MUST-NOT-APPEAR',
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 42)
+            log = (Path(directory) / 'proxy-command.log').read_text()
+            self.assertIn(' '.join(f'<{arg}>' for arg in command), log)
+            self.assertIn('exitCode=42 stage=docker-command', log)
+            self.assertIn('synthetic Docker failure', (Path(directory) / 'proxy-command.stderr').read_text())
+            self.assertNotIn('protected-stdin', log)
+
+    def test_initial_up_primes_stopped_proxy_before_first_execution(self):
+        """Execute the old operator's command and retain create, DNS/trust, start and verified HTTPS order."""
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            journey = ManagedJourney.__new__(ManagedJourney)
+            journey.directory, journey.project, journey.ca = fixture, 'fixture-project', 'fixture-acme'
+            journey.host = Mock()
+            journey.install_adapter()
+            docker = fixture / 'docker'
+            docker.write_text(f'''#!/bin/sh
+printf '%s\\n' "$*" >> '{fixture}/calls'
+case "$1" in
+ network)
+  case "$2" in
+   inspect) test -e '{fixture}/network' || exit 1; echo true ;;
+   create) touch '{fixture}/network' ;;
+  esac ;;
+ ps) echo proxy ;;
+ inspect) echo caddy@source ;;
+ start) test -e '{fixture}/primed-proxy' ;;
+esac
+''')
+            docker.chmod(0o755)
+            script = fixture / 'adapter'
+            script.write_text(journey.host.call_args.kwargs['data'].replace('/usr/bin/docker', str(docker)))
+            result = subprocess.run(['sh', str(script), 'compose', '--project-name', journey.project,
+                                     'up', '-d', '--wait', '--wait-timeout', '180', 'caddy'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = (fixture / 'calls').read_text().splitlines()
+            self.assertIn('compose --project-name fixture-project create caddy', calls)
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network create --subnet ')),
+                            calls.index('compose --project-name fixture-project create caddy'))
+            self.assertIn('network connect --ip 172.30.69.4 --alias acme-v02.api.letsencrypt.org fixture-project_edge fixture-acme', calls)
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('network connect ')),
+                            next(i for i, call in enumerate(calls) if call.startswith('cp ')))
+            self.assertLess(next(i for i, call in enumerate(calls) if call.startswith('cp ')), calls.index('start proxy'))
+            self.assertIn('exec proxy wget -O /dev/null https://wayfarer.example.org/health/ready', calls)
+            self.assertFalse(any(call.startswith('restart ') or ' up ' in call for call in calls))
+
+    def test_failure_diagnostics_retain_issuer_state_and_omit_container_environment(self):
+        """Keep native image, OOM/network/configuration and operator evidence without dumping credentials."""
+        with tempfile.TemporaryDirectory() as directory:
+            journey = ManagedJourney.__new__(ManagedJourney)
+            journey.directory, journey.project, journey.ca = Path(directory), 'fixture-project', 'fixture-acme'
+            journey.docker_volumes = '/var/lib/docker/volumes'
+            journey.setup_result = subprocess.CompletedProcess([], 1, 'Starting HTTPS...', 'Safe setup failure')
+            journey.host = Mock(return_value=subprocess.CompletedProcess([], 0, 'fixture diagnostics', ''))
+            journey.ctl = Mock(return_value=subprocess.CompletedProcess([], 1, 'safe operator diagnostics', ''))
+            container = dict(Id='id', Name='proxy', Image='sha256:fixture', State={'OOMKilled': False},
+                             Mounts=[], NetworkSettings={'Networks': {}},
+                             Config=dict(Image='caddy@sha256:fixture', Entrypoint=['caddy'], Cmd=['run'],
+                                         Labels={}, Env=['PRIVATE=credential-MUST-NOT-APPEAR']))
+            def observed(*args, **kwargs):
+                """Only container inspection carries the deliberately private environment counterexample."""
+                output = json.dumps([container]) if args[1] == 'inspect' else 'native fixture facts'
+                return subprocess.CompletedProcess(args, 0, output, '')
+            with patch('qualify_caddy_replacement.run', side_effect=observed):
+                journey.retain_diagnostics(Path(directory))
+            self.assertIn('Starting HTTPS', (Path(directory) / 'setup-operator.log').read_text())
+            self.assertTrue((Path(directory) / 'fixture-acme.log').exists())
+            facts = json.loads((Path(directory) / 'fixture-project-caddy-1.json').read_text())
+            self.assertEqual(facts['State'], {'OOMKilled': False})
+            self.assertIn('native fixture facts', (Path(directory) / 'fixture-acme-image.log').read_text())
+            self.assertIn('native fixture facts', (Path(directory) / 'edge-network.json').read_text())
+            self.assertNotIn('credential-MUST-NOT-APPEAR', ''.join(path.read_text() for path in Path(directory).iterdir()))
+            self.assertEqual([call.args[0] for call in journey.ctl.call_args_list], ['status', 'doctor'])
+
     def test_automatic_acme_retains_shipped_site(self):
         """Only a global fixture preamble changes the client certificate issuer seam."""
         site = (BUNDLE / 'caddy/Caddyfile').read_text()

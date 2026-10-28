@@ -2,10 +2,16 @@ namespace WayfarerCtl;
 
 /// <summary>Exact update grammar has no bypass or implicit non-interactive authorization.</summary>
 public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, string? Accept = null,
-    Guid? Resume = null, Guid? Abort = null, Guid? Restore = null, string? PublicVersion = null)
+    Guid? Resume = null, Guid? Abort = null, Guid? Restore = null, string? PublicVersion = null, bool ReplaceRelease = false)
 {
     public static UpdateOptions Parse(string[] args)
     {
+        if (args is ["--replace-release", .. var replacement])
+        {
+            var parsed = Parse(replacement);
+            if (!parsed.Plan || parsed.ReplaceRelease) throw new UsageException("Replacement mode is one explicit planning choice only.");
+            return parsed with { ReplaceRelease = true };
+        }
         if (args is ["--plan"]) return new(Plan: true, PublicVersion: "latest");
         if (args is [var version, "--plan"])
         {
@@ -26,7 +32,7 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
                 "--restore" => new(Restore: operation),
                 _ => throw new UsageException("Unknown update recovery action.")
             };
-        throw new UsageException("Use update [X.Y.Z] --plan, --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
+        throw new UsageException("Use update [X.Y.Z] --plan, [--replace-release] --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
     }
 
     /// <summary>Candidate execution exists only in explicitly compiled disposable qualification operators.</summary>
@@ -41,22 +47,23 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
     }
 
     /// <summary>Ordering does not grant compatibility: the exact retained source fingerprint must be declared.</summary>
-    public static ReleaseSourceBoundary Boundary(ReleaseBundle current, ReleaseBundle target, bool candidates = false)
+    public static ReleaseSourceBoundary Boundary(ReleaseBundle current, ReleaseBundle target, bool candidates = false, bool replacement = false)
     {
         var source = current.Manifest;
         var next = target.Manifest;
         if ((!candidates && (source.Status != "stable" || next.Status != "stable")) ||
             source.Platform != next.Platform || Version.Parse(next.Version) <= Version.Parse(source.Version) ||
             source.Images.PlatformDigest == next.Images.PlatformDigest ||
-            source.Images.DatabaseDigest != next.Images.DatabaseDigest || source.Images.CaddyDigest != next.Images.CaddyDigest)
+            source.Images.DatabaseDigest != next.Images.DatabaseDigest || !replacement && source.Images.CaddyDigest != next.Images.CaddyDigest)
             throw new UsageException("Update requires a later supported release and unchanged DB/proxy authority.");
+        if (replacement) CaddyReplacement.Require(current, target);
         var boundary = next.Sources.SingleOrDefault(value => value.Fingerprint == current.Fingerprint && value.Version == source.Version)
             ?? throw new UsageException("Target does not authorize this exact source release.");
         if (!boundary.ExactOrderedPrefix || boundary.ReferenceSeeding || boundary.TerminalMigration != source.Application.TerminalMigration ||
             !next.Application.Migrations.Take(source.Application.Migrations.Length).SequenceEqual(source.Application.Migrations))
             throw new UsageException("Unsupported migration prefix or reference seeding boundary.");
         ReleaseContract.RequireUse(next, ReleaseCommands.OperatorVersion);
-        if (!ReleaseContract.CurrentOperator.UpdateReceiptSchemas.Contains(1) || !next.Operator.UpdateReceiptSchemas.Contains(1))
+        if (!ReleaseContract.CurrentOperator.UpdateReceiptSchemas.Contains(replacement ? 2 : 1) || !next.Operator.UpdateReceiptSchemas.Contains(replacement ? 2 : 1))
             throw new UsageException("Operator cannot own this update receipt protocol.");
         return boundary;
     }

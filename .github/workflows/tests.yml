@@ -636,10 +636,74 @@ jobs:
             ${{ runner.temp }}/release/candidate-*/release.json
           if-no-files-found: warn
 
+  # Only the missing proxy bridge: genuine old bytes, target owner, fixture ACME and one recovery.
+  caddy-replacement:
+    needs: classify
+    if: needs.classify.outputs.run_operator == 'true'
+    strategy:
+      # Retain both independent native results; ci-gate still requires matrix success.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      NODE_OPTIONS: --use-openssl-ca
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      SSL_CERT_DIR: /etc/ssl/certs
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Correct and verify host trust before setup downloads
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends ca-certificates
+          bash deployment/check-trust.sh
+      - uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4
+        with:
+          version: v29.1.3
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Prepare the established native helper toolchain
+        run: |
+          sudo apt-get -o APT::Update::Error-Mode=any update
+          sudo apt-get install -y --no-install-recommends build-essential cmake nasm pkg-config
+          bash deployment/check-trust.sh --rustup
+          RUSTUP_USE_RUSTLS=1 rustup toolchain install 1.90.0 --profile minimal
+      - name: Prepare disposable corrected target without publication
+        run: python3 -B tools/compose/qualify_caddy_replacement.py prepare --output "$RUNNER_TEMP/caddy-inputs"
+      - name: Qualify managed proxy replacement and retained-owner recovery
+        run: |
+          python3 -B tools/compose/qualify_caddy_replacement.py qualify --inputs "$RUNNER_TEMP/caddy-inputs/inputs.json" \
+            --output "$RUNNER_TEMP/caddy-replacement-${{ matrix.arch }}.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: caddy-replacement-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/caddy-replacement-${{ matrix.arch }}.json
+            ${{ runner.temp }}/caddy-replacement-${{ matrix.arch }}-operations
+            ${{ runner.temp }}/caddy-inputs/inputs.json
+            ${{ runner.temp }}/caddy-inputs/candidate-source-commit.txt
+            ${{ runner.temp }}/caddy-inputs/candidate-source.tar.gz
+          if-no-files-found: warn
+
   # Stable required result: skipped unselected jobs are accepted only when classification says they are unselected.
   ci-gate:
     if: always()
-    needs: [classify, test, cleanup-safety, application-image, application-image-arm64]
+    needs: [classify, test, cleanup-safety, application-image, application-image-arm64, caddy-replacement]
     runs-on: ubuntu-latest
     steps:
       - name: Verify selected exact-head evidence
@@ -663,6 +727,7 @@ jobs:
           UPDATE_SELECTED: ${{ needs.classify.outputs.run_update }}
           ARM_SELECTED: ${{ needs.classify.outputs.run_arm64 }}
           ARM_RESULT: ${{ needs['application-image-arm64'].result }}
+          CADDY_RESULT: ${{ needs['caddy-replacement'].result }}
         run: |
           set -eu
           test "$CLASSIFY_RESULT" = success
@@ -723,6 +788,7 @@ jobs:
             require_selected false "$IMAGE_RESULT" application-image
           fi
           require_selected "$ARM_SELECTED" "$ARM_RESULT" application-image-arm64
+          require_selected "$OPERATOR_SELECTED" "$CADDY_RESULT" caddy-replacement
 
       - name: Summarize evidence selection
         env:
