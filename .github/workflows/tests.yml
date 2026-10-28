@@ -641,6 +641,8 @@ jobs:
     needs: classify
     if: needs.classify.outputs.run_operator == 'true'
     strategy:
+      # Retain both independent native results; ci-gate still requires matrix success.
+      fail-fast: false
       matrix:
         include:
           - arch: amd64

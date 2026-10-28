@@ -50,15 +50,24 @@ if (roots.includes('86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36b
 console.log('PASS Node prerequisites:', process.version, roots.length);
 JS
 fi
-# The hosted rustup 1.29.1 rustls downloader uses platform roots plus the assessed
-# GlobalSign R3/Amazon Root CA 1 anchors. Reject alternate trust/transport owners.
+# The assessed rustup 1.29.1/1.29.2 downloaders use platform roots plus GlobalSign
+# R3/R46 respectively and Amazon Root CA 1. Reject alternate trust/transport owners.
 if [[ "${1:-}" == --rustup ]]; then
   rustup_version="$(rustup --version)"
-  if [[ "$rustup_version" != 'rustup 1.29.1 ('* ||
-        "${RUSTUP_USE_CURL-0}" != 0 || "${RUSTUP_USE_RUSTLS-1}" != 1 ||
-        "${RUSTUP_DIST_SERVER-https://static.rust-lang.org}" != https://static.rust-lang.org ||
-        -n "${RUSTUP_DIST_ROOT:-}" || -n "${RUSTUP_UPDATE_ROOT:-}" ]]; then
-    echo 'Unassessed rustup version/backend/source configuration; refusing toolchain acquisition.' >&2
+  printf 'Rustup manager: %s\n' "$rustup_version"
+  # Retain failing input names, never potentially credential-bearing override URLs.
+  rejected_inputs=()
+  case "$rustup_version" in
+    'rustup 1.29.1 ('*|'rustup 1.29.2 ('*) ;;
+    *) rejected_inputs+=(manager-version) ;;
+  esac
+  [[ "${RUSTUP_USE_CURL-0}" == 0 ]] || rejected_inputs+=(RUSTUP_USE_CURL)
+  [[ "${RUSTUP_USE_RUSTLS-1}" == 1 ]] || rejected_inputs+=(RUSTUP_USE_RUSTLS)
+  [[ "${RUSTUP_DIST_SERVER-https://static.rust-lang.org}" == https://static.rust-lang.org ]] || rejected_inputs+=(RUSTUP_DIST_SERVER)
+  [[ -z "${RUSTUP_DIST_ROOT:-}" ]] || rejected_inputs+=(RUSTUP_DIST_ROOT)
+  [[ -z "${RUSTUP_UPDATE_ROOT:-}" ]] || rejected_inputs+=(RUSTUP_UPDATE_ROOT)
+  if (( ${#rejected_inputs[@]} )); then
+    printf 'Unassessed rustup input: %s; refusing toolchain acquisition.\n' "${rejected_inputs[@]}" >&2
     exit 1
   fi
   printf 'PASS rustup prerequisites: %s; reqwest/rustls platform verifier; https://static.rust-lang.org\n' "$rustup_version"
