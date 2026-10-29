@@ -357,9 +357,10 @@ copies afterward.
 
 The #887 backend supports durable request recovery, automatic cleanup and the
 existing account-wide address enrichment workflow for **new managed bearer uploads**.
-The complete “Send from this phone” capability remains gated on package-4 integration
-closeout and companion recovery evidence. Discovery reports that gate explicitly.
-Continue using the supported Web importer until the phone consumer is qualified.
+Backend discovery reports upload availability from this server's effective upload
+setting and supported, qualified local storage. The phone's “Send from this phone”
+consumer and recovery/native acceptance remain separately owned. Continue using the
+supported Web importer until the phone consumer is qualified.
 
 The optional enrichment choice is preserved. Leave it unchecked to request no new
 address work; this never stops existing account work. Opting in asks the account's

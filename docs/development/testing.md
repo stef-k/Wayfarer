@@ -580,9 +580,12 @@ projection coordinator remains the existing singleton `Shared` instance across
 Web, managed lifecycle/cleanup and reconciliation. Payload cleanup never deletes
 independent enrichment workflows, attempts or usage.
 
-Package 4 still owns final backend integration closeout, recorded WayfarerApp #34
-recovery/#16 R2 assignment and wire coordination. Keep discovery gated until its
-advertised backend behavior is qualified and accepted. Mobile create-settlement,
-SQLDelight A/B/C preservation/release proof, native transport/file-provider/background
-and phone-original retention acceptance belong to companion work; backend tests
-provide none of that native evidence.
+Focused routed discovery tests verify effective upload limits and qualified-store
+configuration against actual intake, including disabled and unqualified rejection
+without body reads. The completed assembled-backend review at
+`54087068203f2c3f0db3f44fa8765ee11fff31c6` retains the populated CSV/GeoJSON joins,
+51,840-record import and applicable package evidence; this discovery correction
+reuses that unchanged-code qualification. WayfarerApp #34 recovery/#16 owns mobile
+create-settlement, SQLDelight A/B/C preservation/release proof, native transport/
+file-provider/background and phone-original retention acceptance. Deployment/store
+qualification remains separate; backend tests provide no native or deployed evidence.
