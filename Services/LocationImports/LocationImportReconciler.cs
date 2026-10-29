@@ -149,7 +149,7 @@ public sealed class LocationImportReconciler(
         await using var deletion = await contexts.CreateDbContextAsync(token);
         var import = await deletion.LocationImports.SingleOrDefaultAsync(
             x => x.Id == importId && x.DeletionRequestedAtUtc != null, token);
-        if (import is null || import.ExecutionEpoch != authority.Epoch
+        if (import is null || import.EnrichmentHandoffPending || import.ExecutionEpoch != authority.Epoch
             || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return;
         deletion.LocationImports.Remove(import);
         await deletion.SaveChangesAsync(token);

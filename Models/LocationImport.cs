@@ -72,7 +72,7 @@ public class LocationImport
     [MaxLength(64)]
     public string? FailureCode { get; set; }
 
-    /// <summary>Future shared-owner handoff obligation; history retirement must preserve it.</summary>
+    /// <summary>Committed candidate handoff obligation; history retirement must preserve it.</summary>
     public bool EnrichmentHandoffPending { get; set; }
 
     /// <summary>
@@ -126,6 +126,9 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
             .HasFilter("\"ManagedUpload\" AND \"Status\" IN ('In Progress','Stopping')");
         builder.HasIndex(item => item.Id, "IX_ManagedImport_Reconciliation")
             .HasFilter("\"ManagedUpload\" AND (\"ProjectionPending\" OR \"DeletionRequestedAtUtc\" IS NOT NULL)");
+        // Both managed and Web imports retain pending obligations independently of execution/file state.
+        builder.HasIndex(item => item.Id, "IX_LocationImport_EnrichmentHandoff")
+            .HasFilter("\"EnrichmentHandoffPending\"");
         builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.ToTable(table =>
         {

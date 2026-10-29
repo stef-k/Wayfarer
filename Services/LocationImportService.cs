@@ -323,7 +323,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             {
                 var candidates = accepted.Count(IsMissingAddress);
                 import.RemainingEnrichmentCount += candidates;
-                if (candidates > 0 && import.ManagedUpload) import.EnrichmentHandoffPending = true;
+                if (candidates > 0) import.EnrichmentHandoffPending = true;
             }
             import.LastProcessedIndex = processed + batch.Count;
             var latest = batch.MaxBy(item => item.Timestamp);
@@ -415,14 +415,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     private async Task ReconcileEnrichmentAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
         if (_enrichmentHandoff is null) return;
-        await using (var context = await _contexts.CreateDbContextAsync(token))
-        {
-            if (!await context.LocationImports.AsNoTracking().AnyAsync(import => import.Id == snapshot.Id &&
-                import.EnrichmentRequested && import.Status == ImportStatus.InProgress &&
-                import.DeletionRequestedAtUtc == null && import.StopRequestedAtUtc == null &&
-                import.ExecutionEpoch == snapshot.ExecutionEpoch, token)) return;
-        }
-        try { await _enrichmentHandoff.EnsureAsync(snapshot.UserId, token); }
+        try { await new LocationImportEnrichmentHandoff(_contexts, _enrichmentHandoff).ReconcileAsync(snapshot.Id, token); }
         catch (Exception)
         {
             _logger.LogWarning("Location import enrichment handoff requires reconciliation; code {Code}; " +

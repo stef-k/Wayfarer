@@ -17,7 +17,7 @@ public static class LocationEnrichmentPresentation
             or LocationEnrichmentState.Cancelled or LocationEnrichmentState.Failed;
         var hasRunnableWork = progress.RunnableRemaining > 0;
         var canStart = restartable && authority.Available && hasRunnableWork;
-        var canResume = resumable && authority.Available;
+        var canResume = resumable && authority.Available && hasRunnableWork;
         var canRetry = workflow?.State is (LocationEnrichmentState.PausedByAuthority
             or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled)
             && authority.Available && progress.ManualRetryAvailable > 0;
@@ -58,7 +58,9 @@ public static class LocationEnrichmentPresentation
             Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry),
             RepairIncomplete: new(progress.IncompleteProviderAddresses > 0, canRepair),
             InFlight: progress.InFlight, AwaitingRecovery: progress.AwaitingRecovery,
-            RepairsWithoutLocality: progress.RepairsWithoutLocality);
+            RepairsWithoutLocality: progress.RepairsWithoutLocality,
+            Epoch: workflow?.Epoch ?? 0, CredentialAuthorityCategory: authority.CredentialAuthorityCategory,
+            CredentialAuthorityAvailable: authority.CredentialAuthorityAvailable, BudgetExhausted: authority.BudgetExhausted);
     }
 }
 
@@ -66,7 +68,8 @@ public sealed record LocationEnrichmentActionPresentation(bool Visible, bool Ena
 
 public sealed record LocationEnrichmentAuthorityPresentation(string? ProviderKey, string ProviderDisplayName,
     bool Available, string AvailabilitySummary, bool GuardEnabled, int Usage, int Limit, string Unit,
-    string WindowDescription, DateTime? NextAvailableAtUtc);
+    string WindowDescription, DateTime? NextAvailableAtUtc,
+    string CredentialAuthorityCategory = "Unknown", bool CredentialAuthorityAvailable = false, bool BudgetExhausted = false);
 
 public sealed record LocationEnrichmentProgressPresentation(int RunnableRemaining, int FutureDue,
     int ManualRetryAvailable, int CannotBeRetried, DateTime? NextAttemptAtUtc,
@@ -83,4 +86,6 @@ public sealed record LocationEnrichmentPresentationModel(string StatusText, bool
     LocationEnrichmentActionPresentation Start, LocationEnrichmentActionPresentation Pause,
     LocationEnrichmentActionPresentation Resume, LocationEnrichmentActionPresentation Cancel,
     LocationEnrichmentActionPresentation RetryDeferred, LocationEnrichmentActionPresentation RepairIncomplete,
-    int InFlight = 0, int AwaitingRecovery = 0, int RepairsWithoutLocality = 0);
+    int InFlight = 0, int AwaitingRecovery = 0, int RepairsWithoutLocality = 0,
+    int Epoch = 0, string CredentialAuthorityCategory = "Unknown", bool CredentialAuthorityAvailable = false,
+    bool BudgetExhausted = false);
