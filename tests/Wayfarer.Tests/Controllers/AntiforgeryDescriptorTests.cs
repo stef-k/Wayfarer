@@ -66,6 +66,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
     // KeyStatus is a read-only POST under the same active bearer authority as Location ingestion.
     private const string BearerActions = """
         Api.Location.KeyStatus
+        Api.MobileLocationImports.Put Api.MobileLocationImports.Start Api.MobileLocationImports.Stop Api.MobileLocationImports.Delete
         Api.Location.CheckIn Api.Location.LogLocation Api.Location.Delete Api.MobileGroups.Latest Api.MobileGroups.Query
         Api.MobileGroups.SetPeerVisibility Api.MobileRouting.Route Api.Trips.CreateConditionalPlace Api.Trips.UpdatePlace
         Api.Trips.DeletePlace Api.Trips.CreateConditionalRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes

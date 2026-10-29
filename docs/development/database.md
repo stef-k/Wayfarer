@@ -242,3 +242,73 @@ both flags must be true. The full `IX_Regions_TripId` index remains available fo
 ordinary Region queries and cascades. Restored historical archives require the
 same diagnostics and maintenance upgrade before activation claims this invariant.
 No production startup, deployment or release authority changes are included.
+
+## Managed import custody and upgrade (#887 packages 1–2)
+
+`20261028190000_AddManagedLocationImportCustody` adds one owner/request/current-file
+custody table and one installation/store identity row. Import additions are
+`ManagedUpload`, a bounded `FailureCode`, and `EnrichmentHandoffPending`. Existing
+imports default to unmanaged; no files are moved, enrolled by name/age or swept.
+The nullable account/import custody FKs use SET NULL. Unique indexes enforce
+owner/request, import/file identity, one Uploading/account and one active managed
+execution/account. The unfiltered `IX_LocationImports_UserId` remains explicitly in
+the EF model and upgraded schema for all owner history and FK lookups, including
+unmanaged, stopped and completed imports. The separate partial unique
+`UX_ManagedImport_ActiveOwner` constrains only managed In Progress/Stopping rows.
+
+PostgreSQL guards immutable fingerprints/current generations, irreversible cleanup,
+three reserved files/account, admission-time owner bytes, 10 GiB installation bytes,
+and 100 new IDs/account/rolling day. Failed deletion retains reservations. These
+are logical managed reservations, not filesystem free-space guarantees. Uploads
+have a 60-second renewable lease and 600-second absolute deadline using DB time.
+The normal upload setting and fixed 100 MiB ceiling still apply. Local admission
+adds four transfers/process and 16 controls/process, four controls/account.
+
+All overlapping managed mutations order locks as: optional storage gate first,
+then installation reservation, account deletion fence/account, custody and import.
+DB-only publication/claim/commands/deletion never wait for the OS gate while holding
+DB locks. Short transactions use five-second statement/two-second lock budgets.
+Transfer, scheduler and provider calls run outside both locks. First-open and
+finalized absence use fresh primary-DB authority under the same Linux flock gate;
+DB-session loss cannot release the OS exclusion. Unknown commit outcomes retain
+custody until primary-DB resolution. A cleaner lease never revives a file.
+
+Storage uses the existing `StoragePaths.Uploads/imports/<guid>.<extension>` codec.
+The small private `StoragePaths.Uploads/.location-import.lock` is outside payload
+cleanup; never unlink, rotate, restore over or replace it while participants exist.
+Its persistent random identity/device/inode binds this DB to the store. Direct
+non-inherited, no-follow Linux descriptors avoid .NET implicit sharing-lock probes.
+Local filesystem checks reject unknown/network types. No separate volume is added.
+
+`LocationImports:LocalStoreQualified` defaults to false. Set it true only after
+qualifying a private coherent local POSIX store, existing application UID/permissions,
+cooperating processes on one host/kernel, and exclusive flock on the **same
+underlying gate inode** across any participating containers. A matching path string
+is insufficient. Multiple hosts, network/object stores and unqualified OS adapters
+remain unavailable. A root/mount/gate identity change requires quiescing every
+participant and explicit requalification; never discard pending custody to bypass
+an identity mismatch. Keep this setting off on unsupported installations.
+
+Import-specific maintenance runs at startup and every five minutes, with bounded
+indexed managed pages and exact-path cleanup. Completed payload grace starts from
+a conservative DB observation (24 hours); result detail lasts at least 90 days
+from that observation. Stopped/staged/retryable Failed payloads/checkpoints do not
+expire. Removed files release reservations; accepted/retired fingerprints and
+minimal results remain for the account lifetime. Unresolved enrichment handoff
+blocks history retirement, independently of file removal. Package 3 owns handoff
+retry/discharge; this package retains that obligation without claiming it complete.
+
+The existing Admin/Manager Identity deletion runs under the same lock order. A
+transactional erasure trigger removes personal owner/request/fingerprint/result
+facts before cascades, retaining only unowned internal custody/generation/path/
+reservation/cleanup evidence until unlink succeeds; already-clean custody purges.
+The import-deletion trigger records retirement and protects unresolved execution/
+handoff. Imported Locations are never deleted by file/history cleanup.
+
+Upgrade through the existing explicit production preparation procedure with writers
+quiesced and a verified backup; deploy compatible cooperating binaries together.
+Keep managed configuration disabled until qualification. Production startup still
+does not migrate. Down refuses while any custody exists: rolling back schema must
+not strand payloads or erase account-lifetime retry evidence. Restore/rollback needs
+a deliberate quiescent recovery plan, not deleting the journal to make Down pass.
+No release, Docker layout, storage root or permission expansion is included.

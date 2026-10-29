@@ -9,14 +9,14 @@ namespace Wayfarer.Services.LocationImports;
 /// <summary>Repairs the bounded import-specific Quartz projection without provider contact.</summary>
 public sealed class LocationImportReconciler(
     LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportReconciler> logger,
-    LocationImportProjectionCoordinator? projectionCoordinator = null)
+    LocationImportProjectionCoordinator? projectionCoordinator = null, ManagedImportCleanup? managedCleanup = null)
 {
     private const int PageSize = 100;
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
         projectionCoordinator ?? LocationImportProjectionCoordinator.Shared;
 
     /// <summary>Converges current payloads and bounded historical identities from durable import intent.</summary>
-    public async Task ReconcileAsync(CancellationToken token = default)
+    public async Task ReconcileAsync(CancellationToken token = default, bool managedOnly = false)
     {
         token.ThrowIfCancellationRequested();
         var executing = (await scheduler.GetCurrentlyExecutingJobs(token)).Select(x => x.JobDetail.Key).ToHashSet();
@@ -28,11 +28,20 @@ public sealed class LocationImportReconciler(
         var afterId = 0;
         while (true)
         {
-            var page = await LoadPageAsync(afterId, token);
+            var page = await LoadPageAsync(afterId, managedOnly, token);
             if (page.Count == 0) break;
             foreach (var item in page)
             {
                 token.ThrowIfCancellationRequested();
+                if (item.ManagedUpload && item.DeletionRequestedAtUtc.HasValue && managedCleanup is not null)
+                {
+                    // Cleanup acquires the projection owner itself; never re-enter its non-reentrant lease.
+                    await using var managed = await contexts.CreateDbContextAsync(token);
+                    var id = await managed.Set<MobileLocationImportUpload>().Where(row => row.ImportId == item.Id)
+                        .Select(row => (Guid?)row.Id).SingleOrDefaultAsync(token);
+                    if (id.HasValue) await managedCleanup.ProcessAsync(id.Value, token);
+                    continue;
+                }
                 await using var projection = await projectionCoordinator.AcquireAsync(item.Id, token);
                 var authority = await LoadAuthorityAsync(item.Id, token);
                 if (authority is null) continue;
@@ -51,7 +60,9 @@ public sealed class LocationImportReconciler(
                     await DeleteProjectionAsync(key, projected, token);
             }
             afterId = page[^1].Id;
+            if (managedOnly) return; // Recurring repair is bounded; startup retains full legacy reconciliation.
         }
+        if (managedOnly) return;
         foreach (var orphan in orphans.Where(key => projected.Contains(key) && !executing.Contains(key)))
         {
             if (!TryParseJob(orphan, out var importId, out _)) continue;
@@ -77,12 +88,13 @@ public sealed class LocationImportReconciler(
         && LocationImportSchedulerKeys.Job(importId, epoch).Equals(
             (await scheduler.GetTrigger(LocationImportSchedulerKeys.Trigger(importId, epoch), token))?.JobKey);
 
-    private async Task<List<Authority>> LoadPageAsync(int afterId, CancellationToken token)
+    private async Task<List<Authority>> LoadPageAsync(int afterId, bool managedOnly, CancellationToken token)
     {
         await using var db = await contexts.CreateDbContextAsync(token);
-        return await db.LocationImports.AsNoTracking().Where(x => x.Id > afterId).OrderBy(x => x.Id).Take(PageSize)
+        return await db.LocationImports.AsNoTracking().Where(x => x.Id > afterId && (!managedOnly || x.ManagedUpload
+                && (x.ProjectionPending || x.DeletionRequestedAtUtc != null))).OrderBy(x => x.Id).Take(PageSize)
             .Select(x => new Authority(x.Id, x.ExecutionEpoch, x.Status, x.StopRequestedAtUtc,
-                x.DeletionRequestedAtUtc, x.ProjectionPending)).ToListAsync(token);
+                x.DeletionRequestedAtUtc, x.ProjectionPending, x.ManagedUpload)).ToListAsync(token);
     }
 
     private async Task<Authority?> LoadAuthorityAsync(int importId, CancellationToken token)
@@ -90,7 +102,7 @@ public sealed class LocationImportReconciler(
         await using var db = await contexts.CreateDbContextAsync(token);
         return await db.LocationImports.AsNoTracking().Where(x => x.Id == importId)
             .Select(x => new Authority(x.Id, x.ExecutionEpoch, x.Status, x.StopRequestedAtUtc,
-                x.DeletionRequestedAtUtc, x.ProjectionPending)).SingleOrDefaultAsync(token);
+                x.DeletionRequestedAtUtc, x.ProjectionPending, x.ManagedUpload)).SingleOrDefaultAsync(token);
     }
 
     private async Task FinalizeDeletionAsync(int importId, HashSet<JobKey> projected, HashSet<JobKey> executing,
@@ -109,6 +121,14 @@ public sealed class LocationImportReconciler(
         var remaining = await scheduler.GetJobKeys(
             GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token) ?? [];
         if (remaining.Any(key => TryParseJob(key, out var id, out _) && id == importId)) return;
+        await using (var managed = await contexts.CreateDbContextAsync(token))
+        {
+            if (await managed.LocationImports.AnyAsync(row => row.Id == importId && row.ManagedUpload, token))
+            {
+                // A deletion first observed during repair is picked up outside this lease on the next pass.
+                return; // Missing custody is unavailable, never permission for unmanaged unlink.
+            }
+        }
         string? path;
         await using (var db = await contexts.CreateDbContextAsync(token))
         {
@@ -265,7 +285,7 @@ public sealed class LocationImportReconciler(
     }
 
     private sealed record Authority(int Id, int Epoch, ImportStatus Status, DateTime? StopRequestedAtUtc,
-        DateTime? DeletionRequestedAtUtc, bool ProjectionPending);
+        DateTime? DeletionRequestedAtUtc, bool ProjectionPending, bool ManagedUpload);
 
     private enum QuartzCleanupResult { Removed, AlreadyAbsent, SchedulerFailed, Cancelled }
 }

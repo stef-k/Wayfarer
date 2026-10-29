@@ -1,0 +1,98 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Wayfarer.Middleware;
+using Wayfarer.Services.LocationImports;
+using Wayfarer.Util;
+
+namespace Wayfarer.Areas.Api.Controllers;
+
+/// <summary>Packages 1–2 bearer adapter. Full mobile capability remains gated on package 3 and companion integration.</summary>
+[ApiController, Area("Api"), Route("api/mobile/location-imports"), ManagedImport]
+public sealed class MobileLocationImportsController(ManagedImportUpload upload, ManagedImportStatus status,
+    ManagedImportLifecycle lifecycle, Wayfarer.Parsers.IApplicationSettingsService settings,
+    IOptions<ManagedImportOptions> options) : ControllerBase
+{
+    private ManagedImportMiddleware.Admission Owner => (ManagedImportMiddleware.Admission)HttpContext.Items[ManagedImportMiddleware.RequestKey]!;
+
+    /// <summary>Advertises incomplete integration explicitly; selecting enrichment never silently changes intent.</summary>
+    [HttpGet("capabilities")]
+    public IActionResult Capabilities()
+    {
+        var limit = UploadRequestPolicy.EffectiveBytes(settings.GetSettings().UploadSizeLimitMB);
+        return Ok(new { contract = ManagedImportStatus.Contract, subjectId = Owner.UserId,
+            ready = false, reason = "enrichment_integration_pending", uploadsEnabled = false,
+            managedIntakeConfigured = OperatingSystem.IsLinux() && options.Value.LocalStoreQualified && limit > 0,
+            formats = new[] { "csv", "wayfarer-geojson" }, maxRequestBytes = limit, maxFileBytes = limit,
+            uploadDeadlineSeconds = 600, uploadLeaseSeconds = 60, maxConcurrentUploadsPerOwner = 1,
+            maxConcurrentExecutionsPerOwner = 1, maxRetainedResumableFilesPerOwner = 3,
+            maxManagedBytesPerOwner = 3 * limit, maxManagedBytesInstallation = 10L * 1024 * 1024 * 1024,
+            completedFileRetentionSeconds = 86400, resumableFileExpiry = (DateTime?)null, pollAfterSeconds = 5,
+            receiptRetention = "account-lifetime", jobRetention = "completed-detail-90-days-then-request-tombstone",
+            enrichment = new { scope = "account", available = false, reason = "enrichment_integration_pending" },
+            reconciliation = new { keyStatusMaxKeys = 100, detailProfile = "owner-detail-1", perOriginalImportReceipts = false } });
+    }
+
+    /// <summary>Raw bytes, never multipart. Accepted replay is resolved by middleware before this upload-policy boundary.</summary>
+    [HttpPut("uploads/{requestId}"), ManagedImportUpload, UserFileUpload]
+    public async Task<IActionResult> Put(CancellationToken token)
+    {
+        var fingerprint = Owner.Fingerprint!;
+        var expected = fingerprint.Format == "csv" ? "text/csv" : "application/geo+json";
+        if (!System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(Request.ContentType, out var media)
+            || !string.Equals(media.MediaType, expected, StringComparison.OrdinalIgnoreCase)
+            || Request.Headers.ContentEncoding.Count != 0)
+            throw new ManagedImportException(415, "unsupported_media_type");
+        var limit = UploadRequestPolicy.EffectiveBytes(settings.GetSettings().UploadSizeLimitMB);
+        var accepted = await upload.AcceptAsync(Owner.UserId, Owner.Credential, Owner.RequestId!.Value,
+            fingerprint, limit, Request.Body, token);
+        var row = await status.UploadAsync(Owner.UserId, Owner.RequestId.Value, token)
+            ?? throw new ManagedImportException(503, "import_outcome_unknown");
+        if (accepted.Created) Response.Headers.Location = $"/api/mobile/location-imports/{row.ImportId}";
+        return StatusCode(accepted.Created ? 201 : ManagedImportStatus.HttpStatus(row), ManagedImportStatus.Project(row));
+    }
+
+    /// <summary>Recovers exact owner/request identity, including cleanup and retired accepted results.</summary>
+    [HttpGet("uploads/{requestId:guid}")]
+    public async Task<IActionResult> Upload(Guid requestId, CancellationToken token)
+    {
+        var row = await status.UploadAsync(Owner.UserId, requestId, token)
+            ?? throw new ManagedImportException(404, "import_not_found");
+        return StatusCode(ManagedImportStatus.HttpStatus(row), ManagedImportStatus.Project(row));
+    }
+
+    /// <summary>Owner-only managed job; Web-only or foreign jobs share 404.</summary>
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> Get(int id, CancellationToken token)
+    {
+        var row = await status.ImportAsync(Owner.UserId, id, token) ?? throw new ManagedImportException(404, "import_not_found");
+        return Ok(ManagedImportStatus.Project(row));
+    }
+
+    /// <summary>Target epoch is command identity; replay observes current outcome without advancing.</summary>
+    [HttpPost("{id:int}/start")]
+    public async Task<IActionResult> Start(int id, EpochCommand command, CancellationToken token)
+    {
+        if (command.TargetEpoch is not > 0) throw new ManagedImportException(400, "invalid_execution_epoch");
+        var created = await lifecycle.StartAsync(Owner.UserId, id, command.TargetEpoch, Owner.Credential, token);
+        var row = await status.ImportAsync(Owner.UserId, id, token) ?? throw new ManagedImportException(503, "import_outcome_unknown");
+        return StatusCode(created || row.Import!.ProjectionPending ? 202 : 200, ManagedImportStatus.Project(row));
+    }
+
+    /// <summary>Exact current-generation Stop cannot stop a subsequent resumed epoch.</summary>
+    [HttpPost("{id:int}/stop")]
+    public async Task<IActionResult> Stop(int id, EpochCommand command, CancellationToken token)
+    {
+        if (command.ExecutionEpoch is not > 0) throw new ManagedImportException(400, "invalid_execution_epoch");
+        var pending = await lifecycle.StopAsync(Owner.UserId, id, command.ExecutionEpoch, Owner.Credential, token);
+        var row = await status.ImportAsync(Owner.UserId, id, token) ?? throw new ManagedImportException(503, "import_outcome_unknown");
+        return StatusCode(pending ? 202 : 200, ManagedImportStatus.Project(row));
+    }
+
+    /// <summary>Payload/history deletion retains accepted identity and never deletes imported Locations.</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(int id, CancellationToken token) =>
+        await lifecycle.DeleteAsync(Owner.UserId, id, Owner.Credential, token) ? NoContent() : StatusCode(202, new { code = "import_deletion_pending" });
+
+    /// <summary>Only the addressed epoch is accepted; no general command ledger.</summary>
+    public sealed record EpochCommand(int? TargetEpoch, int? ExecutionEpoch);
+}

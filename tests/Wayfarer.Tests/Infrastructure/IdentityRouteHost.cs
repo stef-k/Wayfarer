@@ -49,7 +49,8 @@ internal static class IdentityRouteHost
 
     /// <summary>Starts production MVC/Identity parts with optional service and pre-routing middleware setup.</summary>
     public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
-        Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null)
+        Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null,
+        Action<WebApplication>? configureAuthorized = null)
     {
         var assembly = typeof(ApplicationUser).Assembly;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -97,6 +98,8 @@ internal static class IdentityRouteHost
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();
+        // Upload replay tests use the real post-authorization middleware order.
+        configureAuthorized?.Invoke(app);
         app.MapGet("/test-antiforgery", (HttpContext context, IAntiforgery antiforgery) =>
             antiforgery.GetAndStoreTokens(context).RequestToken!);
         app.MapRazorPages();

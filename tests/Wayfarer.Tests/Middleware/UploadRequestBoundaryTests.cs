@@ -82,16 +82,19 @@ public sealed class UploadRequestBoundaryTests : TestBase
             It.IsAny<CancellationToken>()), oversized ? Times.Never() : Times.Once());
     }
 
-    /// <summary>Only the two production POST actions opt in; Trip alone adds the existing parser budget.</summary>
+    /// <summary>Web POSTs and managed raw PUT opt in; Trip alone adds the existing parser budget.</summary>
     [Fact]
-    public async Task Metadata_MarksExactlyTheTwoUploads()
+    public async Task Metadata_MarksWebAndManagedUploads()
     {
         using var host = await StartHost(CreateDbContext(), ImportStaging.Create(CreateTestDirectory()), Settings(1), Mock.Of<ITripImportService>());
         var actions = host.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().Where(a => a.EndpointMetadata.OfType<UserFileUploadAttribute>().Any()).ToArray();
-        Assert.Equal(2, actions.Length);
+        Assert.Equal(3, actions.Length);
         var trip = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController));
         var location = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(LocationImportController));
+        var managed = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(Wayfarer.Areas.Api.Controllers.MobileLocationImportsController));
+        Assert.Contains(managed.EndpointMetadata, item => item is ManagedImportUploadAttribute);
+        Assert.Equal("Put", managed.ActionName);
         Assert.Equal("Import", trip.ActionName);
         Assert.Equal("Upload", location.ActionName);
         var section = trip.MethodInfo.GetCustomAttributes(typeof(RequestFormLimitsAttribute), false).Cast<RequestFormLimitsAttribute>().Single();

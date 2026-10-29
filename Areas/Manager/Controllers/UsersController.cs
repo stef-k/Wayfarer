@@ -233,7 +233,7 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectWithAlert("Delete", "Users", "This user cannot be deleted as it is protected.", "danger", new { id }, "Manager");
             }
 
-            IdentityResult result = await _userManager.DeleteAsync(user);
+            IdentityResult result = await Wayfarer.Services.LocationImports.ManagedImportAccountDeletion.DeleteAsync(_dbContext, _userManager, user);
             if (result.Succeeded)
             {
                 LogAudit("User Data Changed", "User has been deleted", $"User with username: {user.UserName} has been deleted.");

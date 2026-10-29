@@ -1,4 +1,4 @@
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -314,8 +314,17 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LocationEnrichmentJob>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
-    builder.Services.AddSingleton<Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator>();
+    // Explicitly constructed managed collaborators and DI-owned Web/reconciliation paths use one projection owner.
+    builder.Services.AddSingleton(Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator.Shared);
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.LocationImportReconciler>();
+    // Managed import support requires a qualified existing local store; full mobile integration remains pending.
+    builder.Services.Configure<Wayfarer.Services.LocationImports.ManagedImportOptions>(builder.Configuration.GetSection("LocationImports"));
+    builder.Services.AddSingleton<Wayfarer.Services.LocationImports.ManagedImportStorageGate>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportUpload>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportStatus>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportCleanup>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportLifecycle>();
+    builder.Services.AddHostedService<Wayfarer.Services.LocationImports.ManagedImportMaintenance>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ILocationImportLifecycle,
         Wayfarer.Services.LocationImports.LocationImportLifecycle>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentBatch,
@@ -688,6 +697,8 @@ static void ConfigureMiddleware(WebApplication app)
     // Configure routing and authorization; compiled assets retain their existing pipeline.
     app.UseRouting();
     app.UseAuthorization();
+    // Accepted managed replay must precede dynamic upload policy and body consumption.
+    app.UseMiddleware<ManagedImportMiddleware>();
     app.UseMiddleware<UserFileUploadMiddleware>();
     app.UseStaticFiles();
 

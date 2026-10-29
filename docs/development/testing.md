@@ -503,3 +503,42 @@ location ingestion alongside heavy searches. Reuse the retained single-purpose
 routed fixture/receipt; this is a local qualification, not a CI benchmark, load
 framework or 25-active-user capacity claim. Keep the sub-second target, the
 protective ceiling and the maintainer acceptance decision distinct.
+
+## Managed upload boundary (#887 packages 1–2)
+
+Use the existing guarded PostgreSQL 18/PostGIS database and routed Identity host:
+
+~~~sh
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter FullyQualifiedName~ManagedImport
+~~~
+
+Focused cases exercise same-request publication, unknown reservation/acceptance
+commits, interruption, accepted replay before dynamic policy without body reads,
+DB-session termination immediately before first open (R3), publisher versus cleanup,
+unlink crash/retry and filesystem deletion failure, shared Web controls, epoch
+recovery/stale Stop, resumable retention/pending handoff, account erasure, owner/
+credential isolation, limits/media and Web antiforgery. Native CSV/GeoJSON cases
+run through the existing importer; unchanged parser/checkpoint/deletion suites
+remain the lower-seam regression owners. No provider/browser/Docker/native matrix
+is required for this boundary. Store/topology qualification is separate deployment
+evidence; local tests do not qualify arbitrary mounts or multiple hosts.
+
+The retained cleanup/Start regression enters recurring maintenance on a due stopped
+import, pauses scheduler observation, commits Start and verifies its real queued
+Quartz job before releasing cleanup. It asserts survival **before** reconciliation,
+then checks same-target missing-projection recovery and cleanup-winning custody.
+Only observation timing is intercepted; scheduling/deletion, PostgreSQL and files
+are real. Standby preserves the queued job rather than racing worker completion.
+The production DI registration uses the same `LocationImportProjectionCoordinator.Shared`
+owner as managed Start/cleanup; reconciliation delegates managed deletion outside
+its projection lease to avoid re-entry. DB transactions finish before projection
+waits; no scheduler call runs inside the storage gate. Active same-target Start
+can repair a genuinely missing job without changing epoch; terminal replay never
+restarts. Startup still performs full repair, while recurring repair remains
+bounded to durable pending/deletion intent.
+
+`ManagedImportMigrationPostgresTests` uses the existing **disposable** migration
+fixture, never a downgrade of the shared import database. It inspects valid/ready
+unfiltered owner and partial unique active-owner indexes across Down/Up, exercises
+mixed managed/unmanaged terminal history and active uniqueness, and records the
+owner query plan without requiring index selection on a tiny fixture.
