@@ -85,7 +85,9 @@ public sealed partial class ImportEnrichmentHandoff
 
     /// <summary>Uses provider-native shared retry policy, including its five-second safety delay.</summary>
     private static DateTime BudgetWake(PersonalProviderInspection inspection, DateTime now) =>
-        inspection.ProviderKey == "mapbox" ? LocationEnrichmentRetryPolicy.MapboxWake(new(now)).UtcDateTime
+        // The meter snapshot may precede a month rollover; its wake must not skip the just-reset cycle.
+        inspection.ProviderKey == "mapbox" ? LocationEnrichmentRetryPolicy.MapboxWake(new(
+            inspection.DatabaseNowUtc == default ? now : inspection.DatabaseNowUtc)).UtcDateTime
             : inspection.NextAvailableAt?.UtcDateTime ?? LocationEnrichmentRetryPolicy.GeoapifyWake(new(now), []).UtcDateTime;
 
     /// <summary>Routes conditional adapters into the same locked commands as Web.</summary>

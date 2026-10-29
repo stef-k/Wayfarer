@@ -73,6 +73,24 @@ public sealed class LocationEnrichmentImplicitHandoffTests
     }
 
     [Fact]
+    public async Task BudgetSnapshotBeforeMonthRolloverDoesNotSkipJustResetCycle()
+    {
+        await using var scope = new Scenario();
+        var cycle = new DateTime(scope.Now.Year, scope.Now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var snapshot = cycle.AddTicks(-1);
+        var binding = new PersonalProviderAuthorityBinding("mapbox", Guid.NewGuid(), 1, 1, 1,
+            PersonalProviderVerification.Verified, 1, 1, null, null, null);
+        scope.Status.Setup(x => x.InspectPersistentGeocodingAsync("user", It.IsAny<CancellationToken>())).ReturnsAsync(
+            new PersonalProviderInspection(PersonalProviderAdmissionCategory.Admitted, "mapbox", true, true,
+                cycle, null, binding, snapshot));
+        scope.Progress.Setup(x => x.ProjectAsync("user", binding, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LocationEnrichmentProgressPresentation(1, 0, 0, 0, null));
+        await scope.Handoff.EnsureAsync("user");
+        var workflow = await scope.Db.LocationEnrichmentWorkflows.SingleAsync();
+        Assert.Equal(cycle.AddSeconds(5), workflow.NextEligibleAtUtc);
+    }
+
+    [Fact]
     public async Task RunningAndProjectionUncertaintyNeverAcknowledgeCandidate()
     {
         await using var scope = new Scenario();
