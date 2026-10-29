@@ -415,7 +415,12 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     private async Task ReconcileEnrichmentAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
         if (_enrichmentHandoff is null) return;
-        try { await new LocationImportEnrichmentHandoff(_contexts, _enrichmentHandoff).ReconcileAsync(snapshot.Id, token); }
+        try
+        {
+            // Stale/stopped workers leave their committed obligation to maintenance, which is independent of execution.
+            if (!await HasCurrentExecutionAuthorityAsync(snapshot.Id, snapshot.ExecutionEpoch, token)) return;
+            await new LocationImportEnrichmentHandoff(_contexts, _enrichmentHandoff).ReconcileAsync(snapshot.Id, token);
+        }
         catch (Exception)
         {
             _logger.LogWarning("Location import enrichment handoff requires reconciliation; code {Code}; " +
