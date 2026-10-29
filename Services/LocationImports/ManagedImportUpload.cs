@@ -85,7 +85,6 @@ public sealed class ManagedImportUpload(
             if (!fingerprint.Matches(row)) throw new ManagedImportException(409, "upload_request_conflict");
             if (row.AcceptedAtUtc.HasValue || row.FileState != ManagedImportFileState.Removed) return (row, false);
         }
-        if (fingerprint.EnrichmentRequested) throw new ManagedImportException(503, "enrichment_integration_pending");
         if (limit == 0) throw new ManagedImportException(403, "uploads_disabled");
         if (fingerprint.Bytes > limit) throw new ManagedImportException(413, "upload_too_large");
         var now = await ManagedImportAuthority.NowAsync(db, token);

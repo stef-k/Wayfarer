@@ -504,7 +504,7 @@ routed fixture/receipt; this is a local qualification, not a CI benchmark, load
 framework or 25-active-user capacity claim. Keep the sub-second target, the
 protective ceiling and the maintainer acceptance decision distinct.
 
-## Managed upload boundary (#887 packages 1–2)
+## Managed upload boundary (#887 packages 1–3)
 
 Use the existing guarded PostgreSQL 18/PostGIS database and routed Identity host:
 
@@ -542,3 +542,47 @@ fixture, never a downgrade of the shared import database. It inspects valid/read
 unfiltered owner and partial unique active-owner indexes across Down/Up, exercises
 mixed managed/unmanaged terminal history and active uniqueness, and records the
 owner query plan without requiring index selection on a tiny fixture.
+
+### Shared enrichment integration qualification
+
+Use focused existing seams, with no live paid-provider contact:
+
+~~~sh
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'FullyQualifiedName~LocationEnrichment|FullyQualifiedName~ManagedImportHttpPostgresTests|FullyQualifiedName~RunningEmptyScanRetainsImportedCheckpoint|FullyQualifiedName~AcceptedEarlierCheckpoint|FullyQualifiedName~ImportOptInWaitsForBudget|FullyQualifiedName~PauseOrCancelSurvivesDelayed'
+~~~
+
+The R1 case pauses **after the real backfill's final empty scan**, runs the managed
+intake/importer to a committed candidate and Completed import, confirms Running
+retains pending, removes the file and refuses premature history retirement. After
+the old worker completes, reconstructed shared recovery/maintenance establishes a
+projected continuation, conditionally clears pending and the real backfill observes
+the candidate. A separate checkpoint interleaving proves a later batch cannot clear.
+Routed tests qualify both upload choices in CSV/Wayfarer GeoJSON, conditional stale
+controls, separate authority/budget/user-hold status and saved scheduling-pending intent.
+
+Initial and mid-run exhaustion use the real provider gate/accounting and existing
+Quartz job/worker for Geoapify and Mapbox Permanent. Fixtures rebase only their own
+persisted meter/wake clocks to model rolling expiry/month rollover deterministically;
+no production clock, retry policy or scheduler is replaced. They assert the original
+policy wake and no contact before eligibility, then dispatch the due continuation.
+Pause/Cancel survive missing credentials, reset and reconstructed owners; only a
+new explicit eligible action proceeds. Existing first-writer/deletion/manual-address,
+generation/consent/final-publication and admitted-accounting qualification remains
+applicable. Reuse unchanged package-1/2 storage/Docker and provider matrices rather
+than repeating broad browser, Docker lifecycle or native runs.
+
+Production registration in `Program.cs` binds one scoped shared handoff/progress/
+projector, the existing worker/backfill and workflow schedule projection. Import
+maintenance resolves these owners and recovers enrichment leases before retrying
+one indexed page of pending imports, including Web imports. Its rotating cursor
+prevents permanently Running rows from starving later obligations. The shared
+projection coordinator remains the existing singleton `Shared` instance across
+Web, managed lifecycle/cleanup and reconciliation. Payload cleanup never deletes
+independent enrichment workflows, attempts or usage.
+
+Package 4 still owns final backend integration closeout, recorded WayfarerApp #34
+recovery/#16 R2 assignment and wire coordination. Keep discovery gated until its
+advertised backend behavior is qualified and accepted. Mobile create-settlement,
+SQLDelight A/B/C preservation/release proof, native transport/file-provider/background
+and phone-original retention acceptance belong to companion work; backend tests
+provide none of that native evidence.

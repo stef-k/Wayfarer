@@ -106,7 +106,7 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
                 new ConfigurationBuilder().Build()),
             new LocationEnrichmentProgressQuery(command)).StartAsync(user.Id);
 
-        Assert.Equal(LocationEnrichmentCommandResult.Conflict, result.Classification);
+        Assert.Equal(LocationEnrichmentCommandResult.AuthorityUnavailable, result.Classification);
         Assert.Equal("authority-unavailable", result.Code);
         Assert.False(await command.LocationEnrichmentWorkflows.AnyAsync(x => x.UserId == user.Id));
         Assert.Equal(1, await command.GeoapifyUsageAdmissions.CountAsync(x => x.UserId == user.Id));

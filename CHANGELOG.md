@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- Add #887 package 3 shared account-wide enrichment opt-in, separate bearer status
+  and conditional Start/Pause/Resume/Cancel controls. Retain committed handoff
+  obligations through Running and payload cleanup; retry after shared lease recovery
+  and clear only the observed checkpoint. Preserve user/authority/failure holds,
+  provider accounting and budget/backoff deadlines. Initial and mid-run exhaustion
+  wait for existing Geoapify rolling/Mapbox monthly wakes. Older eligible Locations
+  use the same account budget; import and enrichment completion remain separate.
+  Full mobile capability stays gated on package-4 integration qualification and
+  companion recovery work. No mobile source, release or deployment change.
 - Add #887 packages 1–2 managed bearer upload ownership, immutable request recovery,
   PostgreSQL reservations, conditional import epochs and Linux local-store cleanup
   using the existing upload layout. Retain completed results, stopped/retryable
@@ -11,7 +20,7 @@
   a missing projection without advancing the epoch. General owner history indexes
   remain alongside managed active-execution uniqueness.
   Managed mode requires explicit store qualification. Full mobile capability and
-  enrichment selection remain gated on package 3 and companion integration; no
+  enrichment selection was initially gated on package 3 and companion integration; no
   mobile, release or deployment change is included.
 - Preserve Polygon Area shells and every hole as separate standard boundaries in
   native and Google My Maps Trip KML (#912). Both importers retain exact 2D rings

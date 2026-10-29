@@ -225,7 +225,8 @@ public sealed class LocationImportLifecycle(
             // Missing parent directories also mean the validated file is absent.
             try { File.Delete(path); }
             catch (DirectoryNotFoundException) { }
-            await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
+            if (!await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken))
+                return new(LocationImportCommandCode.ProjectionPending);
         }
         catch (Exception exception) when (exception is SchedulerException or IOException or UnauthorizedAccessException)
         {
@@ -361,15 +362,16 @@ public sealed class LocationImportLifecycle(
         return (current, null);
     }
 
-    private async Task FinalDeleteAsync(string userId, int importId, int epoch, CancellationToken token)
+    private async Task<bool> FinalDeleteAsync(string userId, int importId, int epoch, CancellationToken token)
     {
         await using var db = await contexts.CreateDbContextAsync(token);
         var import = await OwnedAsync(db, userId, importId, token);
-        if (import is null) return;
-        if (!import.DeletionRequestedAtUtc.HasValue || import.ExecutionEpoch != epoch
-            || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return;
+        if (import is null) return true;
+        if (import.EnrichmentHandoffPending || !import.DeletionRequestedAtUtc.HasValue || import.ExecutionEpoch != epoch
+            || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return false;
         db.LocationImports.Remove(import);
         await db.SaveChangesAsync(token);
+        return true;
     }
 
     /// <summary>Repairs and verifies the owned projection without changing the formerly linked unrelated job.</summary>

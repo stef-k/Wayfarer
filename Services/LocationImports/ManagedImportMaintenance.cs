@@ -3,6 +3,9 @@ namespace Wayfarer.Services.LocationImports;
 /// <summary>Retries import-specific projection/custody work at startup and every five minutes, without GET side effects.</summary>
 public sealed class ManagedImportMaintenance(IServiceScopeFactory scopes, ILogger<ManagedImportMaintenance> logger) : BackgroundService
 {
+    private int afterImportId;
+
+    /// <summary>Recovers shared leases before retrying one page of pending import handoffs.</summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
@@ -11,6 +14,9 @@ public sealed class ManagedImportMaintenance(IServiceScopeFactory scopes, ILogge
             try
             {
                 await using var scope = scopes.CreateAsyncScope();
+                await scope.ServiceProvider.GetRequiredService<LocationEnrichment.LocationEnrichmentReconciler>().ReconcileAsync(stoppingToken);
+                afterImportId = await scope.ServiceProvider.GetRequiredService<LocationImportEnrichmentHandoff>()
+                    .RetryPendingAsync(afterImportId, stoppingToken);
                 await scope.ServiceProvider.GetRequiredService<LocationImportReconciler>().ReconcileAsync(stoppingToken, managedOnly: true);
                 await scope.ServiceProvider.GetRequiredService<ManagedImportCleanup>().MaintainAsync(stoppingToken);
             }

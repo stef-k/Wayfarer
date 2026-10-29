@@ -1386,6 +1386,9 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex(new[] { "Id" }, "IX_LocationImport_EnrichmentHandoff")
+                        .HasFilter("\"EnrichmentHandoffPending\"");
+
                     b.HasIndex(new[] { "Id" }, "IX_ManagedImport_Reconciliation")
                         .HasFilter("\"ManagedUpload\" AND (\"ProjectionPending\" OR \"DeletionRequestedAtUtc\" IS NOT NULL)");
 

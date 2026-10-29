@@ -10,6 +10,38 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves Start and Resume revalidate provider authority inside their locked transaction.</summary>
 public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests
 {
+    /// <summary>A snapshot inspected before Cancel must be checked again inside the shared command lock.</summary>
+    [PostgresTheory(Timeout = 20_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConditionalStartOrResumeCannotOverrideCancelCommittedAfterInspection(bool resume)
+    {
+        var state = resume ? LocationEnrichmentState.PausedByUser : LocationEnrichmentState.Completed;
+        var scenario = await SeedAsync(state, LocationEnrichmentOutcome.NoResult);
+        var credential = "conditional-fixture-" + Guid.NewGuid().ToString("N");
+        await using (var setup = fixture.CreateContext())
+        {
+            setup.Add(new Wayfarer.Models.ApiToken { UserId = scenario.UserId, User = null!, Name = "fixture",
+                TokenHash = Wayfarer.Util.ApiTokenService.HashToken(credential) });
+            await setup.SaveChangesAsync();
+        }
+        var before = await SnapshotAsync(scenario.UserId);
+        var gate = new AsyncGate();
+        await using var commandDb = fixture.CreateContext();
+        var owner = Command(scenario, commandDb);
+        owner.BeforeTransactionalAuthorityValidationAsync = gate.BlockAsync;
+        var command = owner.ControlAsync(scenario.UserId, resume ? EnrichmentControl.Resume : EnrichmentControl.Start,
+            new(before.Epoch, state, credential));
+        await gate.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+        await using (var cancelDb = fixture.CreateContext()) await Command(scenario, cancelDb).CancelAsync(scenario.UserId);
+        var cancelled = await SnapshotAsync(scenario.UserId);
+        gate.Release();
+        var result = await command.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("stale-control", result.Code);
+        Assert.Equal(LocationEnrichmentCommandResult.Conflict, result.Classification);
+        Assert.Equal(cancelled, await SnapshotAsync(scenario.UserId));
+    }
+
     [PostgresFact(Timeout = 20_000)]
     public async Task StartAuthorityDriftAfterInspectionCreatesNoWorkflowOrProjection()
     {

@@ -46,6 +46,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         Assert.Equal(ImportStatus.InProgress, current.Status);
         Assert.Equal(51, current.TotalRecords);
         Assert.Equal(50, current.LastProcessedIndex);
+        Assert.True(current.EnrichmentHandoffPending);
         Assert.Equal(50, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
         handoff.Verify(item => item.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -148,6 +149,12 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         }
         handoff.Verify(x => x.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
+        await ReconcileTwiceAsync(scheduler.Object);
+        await using (var retained = fixture.CreateContext())
+            Assert.True((await retained.LocationImports.SingleAsync(x => x.Id == seed.ImportId)).EnrichmentHandoffPending);
+        // Payload cleanup cannot retire committed account work; maintenance may discharge an explicit held disposition.
+        handoff.Setup(x => x.EnsureAsync(seed.UserId, It.IsAny<CancellationToken>())).ReturnsAsync(EnrichmentHandoffDisposition.Held);
+        await new LocationImportEnrichmentHandoff(new FixtureFactory(fixture), handoff.Object).ReconcileAsync(seed.ImportId);
         await ReconcileTwiceAsync(scheduler.Object);
         await using var final = fixture.CreateContext();
         Assert.Null(await final.LocationImports.FindAsync(seed.ImportId));

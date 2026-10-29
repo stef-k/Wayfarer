@@ -51,10 +51,10 @@ internal sealed class ManagedImportTestScope(PostgresImportTestFixture fixture) 
         Lifecycle = new(Factory, Files, Scheduler.Object, NullLogger<LocationImportLifecycle>.Instance, Cleanup);
     }
 
-    internal async Task<MobileLocationImportUpload> AcceptAsync(string text = "Latitude,Longitude,TimestampUtc\n1,2,2026-10-01T00:00:00Z\n", string format = "csv", Guid? requestId = null)
+    internal async Task<MobileLocationImportUpload> AcceptAsync(string text = "Latitude,Longitude,TimestampUtc\n1,2,2026-10-01T00:00:00Z\n", string format = "csv", Guid? requestId = null, bool enrichmentRequested = false)
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(text);
-        var fingerprint = Fingerprint(bytes, format);
+        var fingerprint = Fingerprint(bytes, format) with { EnrichmentRequested = enrichmentRequested };
         var result = await Upload.AcceptAsync(User.Id, Credential, requestId ?? Guid.NewGuid(), fingerprint,
             UploadRequestPolicy.MaximumRequestBytes, new MemoryStream(bytes), default);
         CustodyIds.Add(result.Id);

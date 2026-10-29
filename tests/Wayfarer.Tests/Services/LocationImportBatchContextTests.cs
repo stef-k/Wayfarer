@@ -185,12 +185,14 @@ public sealed class LocationImportBatchContextTests
     private sealed class ContextBoundaryHandoff(RecordingFactory factory) : IImportEnrichmentHandoff
     {
         internal bool Invoked { get; private set; }
-        public Task EnsureAsync(string userId, CancellationToken cancellationToken = default)
+        public Task<EnrichmentHandoffDisposition> EnsureAsync(string userId, CancellationToken cancellationToken = default)
         {
             Invoked = true;
             Assert.Equal(0, factory.Alive);
-            return Task.CompletedTask;
+            return Task.FromResult(EnrichmentHandoffDisposition.ContinuationAccepted);
         }
+        public Task<EnrichmentCommandResult> ControlAsync(string userId, EnrichmentControl control,
+            EnrichmentCommandCondition condition, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<EnrichmentCommandResult> StartAsync(string userId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<EnrichmentCommandResult> RetryDeferredAsync(string userId, CancellationToken cancellationToken = default) =>

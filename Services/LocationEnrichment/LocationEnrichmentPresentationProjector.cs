@@ -55,6 +55,7 @@ public sealed class LocationEnrichmentPresentationProjector(
         };
         return new(inspection.ProviderKey, providerName, inspection.Available, summary,
             inspection.GuardEnabled, usage?.Used ?? 0, usage?.Limit ?? 0, usage?.Unit ?? "credits",
-            window, inspection.NextAvailableAt?.UtcDateTime);
+            window, inspection.NextAvailableAt?.UtcDateTime, inspection.Category.ToString(),
+            inspection.Category == PersonalProviderAdmissionCategory.Admitted && inspection.Binding is not null, inspection.Exhausted);
     }
 }

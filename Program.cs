@@ -324,6 +324,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportStatus>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportCleanup>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ManagedImportLifecycle>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.LocationImportEnrichmentHandoff>();
     builder.Services.AddHostedService<Wayfarer.Services.LocationImports.ManagedImportMaintenance>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ILocationImportLifecycle,
         Wayfarer.Services.LocationImports.LocationImportLifecycle>();
