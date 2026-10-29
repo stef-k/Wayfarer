@@ -20,7 +20,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Real routed HTTP policy/auth/control evidence over guarded PostgreSQL and existing Identity host.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class ManagedImportHttpPostgresTests(PostgresImportTestFixture fixture)
+public sealed partial class ManagedImportHttpPostgresTests(PostgresImportTestFixture fixture)
 {
     private const string Route = "/api/mobile/location-imports";
 
@@ -114,7 +114,7 @@ public sealed class ManagedImportHttpPostgresTests(PostgresImportTestFixture fix
     }
 
     [PostgresFact]
-    public async Task NewUploadsEnforceLengthDigestMediaAndExplicitEnrichmentGate()
+    public async Task NewUploadsEnforceMetadataAndPersistExplicitEnrichmentChoice()
     {
         await using var scope = await ScopeAsync();
         await using var app = await HostAsync(scope, new());
@@ -137,15 +137,16 @@ public sealed class ManagedImportHttpPostgresTests(PostgresImportTestFixture fix
             request.Headers.Remove("X-Enrichment-Requested");
             request.Headers.Add("X-Enrichment-Requested", "true");
             using var response = await client.SendAsync(request);
-            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-            Assert.Equal("enrichment_integration_pending", (await Json(response)).GetProperty("code").GetString());
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            Assert.True((await Json(response)).GetProperty("import").GetProperty("enrichmentRequested").GetBoolean());
         }
         using var discovery = await client.GetAsync(Route + "/capabilities");
         var capability = await Json(discovery);
         Assert.False(capability.GetProperty("ready").GetBoolean());
         Assert.False(capability.GetProperty("uploadsEnabled").GetBoolean());
         await using var db = fixture.CreateContext();
-        Assert.False(await db.Set<MobileLocationImportUpload>().AnyAsync(row => row.UserId == scope.User.Id));
+        var accepted = await db.Set<MobileLocationImportUpload>().SingleAsync(row => row.UserId == scope.User.Id);
+        Assert.True(accepted.EnrichmentRequested);
     }
 
     private async Task<WebApplication> HostAsync(ManagedImportTestScope scope, ApplicationSettings settings)
@@ -160,6 +161,16 @@ public sealed class ManagedImportHttpPostgresTests(PostgresImportTestFixture fix
             services.AddSingleton(scope.Lifecycle);
             services.AddSingleton(new ManagedImportStatus(scope.Factory));
             services.AddSingleton(scope.Scheduler.Object);
+            services.AddSingleton<Wayfarer.Services.LocationEnrichment.IWorkflowScheduleProjection>(enrichmentProjection.Object);
+            services.AddSingleton<Wayfarer.Services.LocationProviders.IPersonalProviderStatusReader>(
+                new Wayfarer.Services.LocationProviders.PersonalProviderStatusReader(scope.Factory,
+                    CredentialTestFactory.Create(protection), new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()));
+            services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentProgressQuery,
+                Wayfarer.Services.LocationEnrichment.LocationEnrichmentProgressQuery>();
+            services.AddScoped<Wayfarer.Services.LocationEnrichment.IImportEnrichmentHandoff,
+                Wayfarer.Services.LocationEnrichment.ImportEnrichmentHandoff>();
+            services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentPresentationProjector,
+                Wayfarer.Services.LocationEnrichment.LocationEnrichmentPresentationProjector>();
             services.AddSingleton(Options.Create(new ManagedImportOptions { LocalStoreQualified = true }));
             var policy = new Mock<IApplicationSettingsService>();
             policy.Setup(item => item.GetSettings()).Returns(settings);

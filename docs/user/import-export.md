@@ -355,12 +355,25 @@ copies afterward.
 
 ## Managed upload files and mobile availability
 
-The #887 backend foundation adds durable request recovery and automatic cleanup
-for **new managed bearer uploads**. It does not make the full “Send from this
-phone” capability available: shared account-wide enrichment and companion recovery
-integration remain pending. Discovery reports that gate explicitly. Selecting
-enrichment is rejected as unavailable until its behavior is implemented; your
-choice is never silently turned off. Continue using the supported Web importer.
+The #887 backend supports durable request recovery, automatic cleanup and the
+existing account-wide address enrichment workflow for **new managed bearer uploads**.
+The complete “Send from this phone” capability remains gated on package-4 integration
+closeout and companion recovery evidence. Discovery reports that gate explicitly.
+Continue using the supported Web importer until the phone consumer is qualified.
+
+The optional enrichment choice is preserved. Leave it unchecked to request no new
+address work; this never stops existing account work. Opting in asks the account's
+configured provider to enrich eligible missing addresses, **including older Locations,
+using the same account budget**. Import completion means file processing ended;
+address enrichment can still be running, waiting for budget, paused, cancelled,
+unavailable or deferred. Account enrichment counters do not belong to this file.
+
+Account-wide Pause and Cancel preserve progress and already consumed provider usage.
+Only explicit eligible Resume or a new Start after Cancel can re-enable work; another
+upload, budget reset or restart does not clear your hold. Valid exhausted budgets
+wait for the existing provider wake and recheck capacity automatically. Missing or
+revoked credentials require provider setup and explicit Resume. Ordinary opt-in
+never overwrites existing/manual/imported addresses or requests partial-address repair.
 
 Managed jobs appear in your existing Web import list with payload availability.
 Completed payloads become eligible for removal after a 24-hour grace, while import

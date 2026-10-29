@@ -1675,7 +1675,7 @@ Location/group streams carry typed JSON events such as location updates/deletion
 See [Four-way Region deletion](region-deletion.md) for the additive cookie/bearer
 preview and confirmed-operation contracts, including unknown outcomes.
 
-## Managed location-file import foundation (#887 packages 1–2)
+## Managed location-file import and shared enrichment (#887 packages 1–3)
 
 `/api/mobile/location-imports` is a separate strict active-bearer adapter. Cookie
 Identity cannot select an owner; Web forms retain antiforgery. All responses are
@@ -1683,12 +1683,12 @@ Identity cannot select an owner; Web forms retain antiforgery. All responses are
 file paths, raw parser messages, last records and observation-key lists.
 
 Full mobile capability remains **unavailable**: discovery returns `ready:false`,
-`uploadsEnabled:false`, `enrichment_integration_pending`. The backend foundation
-can accept explicitly unenriched files only on a qualified local installation.
-`X-Enrichment-Requested:true` receives 503 before allocation/transfer; it is never
-changed to false or accepted without implementation. Package 3 must correct the
-shared account-wide enrichment handoff/controls before the full contract is ready.
-Do not enable a phone's “Send from this phone” from this partial capability.
+`uploadsEnabled:false`, `integration_qualification_pending`. On a qualified local
+installation, the backend accepts either explicit enrichment choice and exposes
+shared enrichment status/controls. Package 4 still owns the final integration
+closeout and companion recovery contract/evidence. Do not enable a phone's “Send
+from this phone” from this partial capability. `enrichment.available:true` describes
+this implemented backend surface, not current credentials, capacity or phone readiness.
 
 | Operation | Route suffix | Durable meaning |
 | --- | --- | --- |
@@ -1699,6 +1699,8 @@ Do not enable a phone's “Send from this phone” from this partial capability.
 | Start / Resume / Retry | `POST /{id:int}/start`, `{"targetEpoch":1}` | Next eligible epoch, or recovery of that exact existing epoch without advancing again. |
 | Stop | `POST /{id:int}/stop`, `{"executionEpoch":1}` | Exact current epoch only; 202 means stopping, not stopped. |
 | Delete | `DELETE /{id:int}` | 409 while active, 202 pending cleanup/handoff, 204 after history removal. Locations remain. |
+| Account enrichment | `GET /enrichment` | Shared credential-free state, epoch, authority/budget, cumulative/outstanding progress and actions. |
+| Account controls | `POST /enrichment/{start\|pause\|resume\|cancel}` | Explicit account-wide action with `expectedEpoch` and `expectedState`. |
 
 PUT requires `X-File-Bytes` (positive decimal), `X-File-SHA256` (64 lowercase hex
 characters), and explicit `X-Enrichment-Requested:true|false`. Content-Length, when
@@ -1734,6 +1736,74 @@ and recover the phone's unresolved cancellation obligation.
 Counts describe yielded records and committed checkpoints, never every physical
 row or per-original success. Import/file cleanup does not delete Locations, phone
 originals or independent enrichment/accounting, or clear a phone's saved pause.
-Use existing owner key-status/detail reads conservatively. Package 3's enrichment
-status/conditional controls and the #34 recovery/#16 companion integration remain
-undelivered; no mobile implementation or per-original receipt ledger is included.
+Use existing owner key-status/detail reads conservatively. The #34 recovery/#16
+companion implementation and native recovery acceptance remain separate; no mobile
+source or per-original receipt ledger is included.
+
+### Account-wide enrichment intent and completion
+
+`X-Enrichment-Requested:false` requests no new enrichment and never stops existing
+account work. `true` persists opt-in and asks the existing account-wide workflow to
+enrich eligible missing addresses after candidate batches commit. **Older eligible
+Locations can also be processed and spend the same account provider budget.**
+Disclose this before upload; the choice should default to unchecked. Upload alone
+does not start import or enrichment. Import completes independently of enrichment.
+
+The durable pending flag commits with candidate-adding batches only, survives
+Stopped/Failed/Completed and payload removal, and delays import-history retirement.
+Running is not acknowledgement: the old worker may already have scanned an empty
+candidate set. Existing startup/five-minute maintenance retries the checkpoint
+through shared lease/attempt recovery. Only a locked non-Running continuation with
+successful scheduling projection, preserved hold, or fresh no-outstanding-work
+disposition can clear the **observed checkpoint**. Later batches cannot be cleared
+by an earlier handoff. File cleanup proceeds independently.
+
+Implicit handoff preserves PausedByUser, Cancelled, Failed and PausedByAuthority,
+existing budget/backoff deadlines, attempts and consumed usage. It can establish
+initial intent or reopen natural Completed when current candidates exist. Valid
+but exhausted authority establishes PausedByBudget with enabled intent and the
+existing rolling Geoapify shared geocoding/routing or Mapbox UTC calendar-month
+retry wake, including the safety delay. The existing scheduler wakes and rechecks
+real authority/capacity; it may wait again. Missing credentials/verification/consent
+are authority unavailability. Budget reset never clears an explicit pause/cancel.
+
+`GET /enrichment` reuses the Web account projection. `statusText`, `epoch`,
+`intentEnabled`, `lastOutcome`, `nextAttemptAtUtc`, counters and action eligibility
+are separate from import progress. `credentialAuthorityCategory`,
+`credentialAuthorityAvailable`, `budgetExhausted` and existing provider availability/
+usage/limit/window fields distinguish, for example, user pause with an exhausted
+budget from automatic budget waiting. Counters are account-wide and cumulative;
+Completed/NoCandidates is a workflow observation with outstanding/deferred/in-flight/
+recovery counts, not proof every imported address is enriched. GET makes no provider
+contact or scheduling mutation; response size does not imply constant query work.
+
+### Conditional enrichment controls and uncertain outcomes
+
+After a fresh account status read, explicit user intent may send:
+
+~~~http
+POST /api/mobile/location-imports/enrichment/pause
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"expectedEpoch":1,"expectedState":"Scheduled"}
+~~~
+
+State names are exact shared enum names. Both preconditions are required and checked
+under shared account/workflow locks, with active account/token revalidation at the
+mutation. A changed snapshot returns 409 `stale-control`; it cannot stop or restart
+a later intent. Start enables eligible initial/restart work, including after Cancel;
+Resume is for PausedByUser/PausedByAuthority. Start does not substitute for Resume.
+Neither clears a user hold when current capacity is exhausted: 409 `budget-exhausted`.
+Provider setup/consent/limit APIs are not exposed. RetryDeferred/RepairIncomplete
+remain explicit Web tools. Cookie actions and antiforgery remain intact.
+
+Responses retain `classification` and `code`: Applied/AlreadySatisfied are 200,
+SchedulingPending is 202 with `durableIntentSaved:true`, and Conflict/InvalidTransition
+are 409. AuthorityUnavailable is 503 with `durableIntentSaved:false`. Scheduler
+failure after commit is saved intent awaiting shared projection, not rejected intent.
+Store/timeout uncertainty remains 503 `import_outcome_unknown`; read account status.
+These preconditions are **not command receipts**: after an unknown Start/Resume,
+read status and require new explicit intent before another command. Never replay
+Start/Resume as probes. A lost response can already have committed; Pause/Cancel
+also preserve existing final-publication fences and do not refund admitted usage.

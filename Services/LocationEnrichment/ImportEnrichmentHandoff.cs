@@ -32,6 +32,7 @@ public sealed partial class ImportEnrichmentHandoff(
     internal Func<CancellationToken, Task> BeforeTransactionalAuthorityValidationAsync { get; set; }
         = static _ => Task.CompletedTask;
 
+    /// <summary>Persists an explicit account-wide hold before scheduling interruption.</summary>
     public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default)
         => PauseCoreAsync(userId, null, cancellationToken);
 
@@ -40,6 +41,7 @@ public sealed partial class ImportEnrichmentHandoff(
             ? EnrichmentCommandResult.Applied("paused")
             : EnrichmentCommandResult.Invalid(reason!), condition, cancellationToken);
 
+    /// <summary>Resumes eligible held intent only with current authority and capacity.</summary>
     public Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default)
         => ResumeCoreAsync(userId, null, cancellationToken);
 
@@ -73,6 +75,7 @@ public sealed partial class ImportEnrichmentHandoff(
         return EnrichmentCommandResult.Applied("scheduled");
     }
 
+    /// <summary>Withdraws account-wide intent while preserving results, attempts and usage.</summary>
     public Task<EnrichmentCommandResult> CancelAsync(string userId, CancellationToken cancellationToken = default)
         => CancelCoreAsync(userId, null, cancellationToken);
 
@@ -281,9 +284,10 @@ public sealed partial class ImportEnrichmentHandoff(
     private async Task LockWorkflowCreationAuthorityAsync(string userId, CancellationToken cancellationToken)
     {
         if (!db.Database.IsNpgsql()) return;
-        _ = await db.Users.FromSqlInterpolated($$"""
+        var user = await db.Users.FromSqlInterpolated($$"""
             SELECT * FROM "AspNetUsers" WHERE "Id" = {{userId}} FOR UPDATE
-            """).SingleAsync(cancellationToken);
+            """).AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+        if (user is null) throw new Wayfarer.Services.LocationImports.ManagedImportException(401, "unauthorized");
     }
 
     private async Task<bool> AuthorityIsCurrentAsync(string userId,
