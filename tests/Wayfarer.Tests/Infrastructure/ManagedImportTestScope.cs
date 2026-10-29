@@ -25,6 +25,8 @@ internal sealed class ManagedImportTestScope(PostgresImportTestFixture fixture) 
     internal ManagedImportCleanup Cleanup { get; private set; } = null!;
     internal ManagedImportLifecycle Lifecycle { get; private set; } = null!;
     internal readonly HashSet<Guid> CustodyIds = [];
+    /// <summary>Shared installation policy for routed discovery and actual storage admission.</summary>
+    internal ManagedImportOptions StorageOptions { get; } = new() { LocalStoreQualified = true };
 
     internal async Task InitializeAsync()
     {
@@ -35,7 +37,7 @@ internal sealed class ManagedImportTestScope(PostgresImportTestFixture fixture) 
         var data = Path.GetDirectoryName(Path.GetDirectoryName(Files.DirectoryPath))!;
         var storage = new StoragePaths(Options.Create(new StorageOptions
         { DataRoot = data, CacheRoot = data, LogRoot = data, TempRoot = data }), Mock.Of<IHostEnvironment>(host => host.ContentRootPath == data));
-        Gate = new(storage, Options.Create(new ManagedImportOptions { LocalStoreQualified = true }));
+        Gate = new(storage, Options.Create(StorageOptions));
         Scheduler.Setup(item => item.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>())).ReturnsAsync([]);
         Scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>())).ReturnsAsync([]);
         Scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))

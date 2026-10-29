@@ -1675,24 +1675,28 @@ Location/group streams carry typed JSON events such as location updates/deletion
 See [Four-way Region deletion](region-deletion.md) for the additive cookie/bearer
 preview and confirmed-operation contracts, including unknown outcomes.
 
-## Managed location-file import and shared enrichment (#887 packages 1–3)
+## Managed location-file import and shared enrichment (#887)
 
 `/api/mobile/location-imports` is a separate strict active-bearer adapter. Cookie
 Identity cannot select an owner; Web forms retain antiforgery. All responses are
 `no-store`. Missing, foreign and Web-only jobs share 404. Logs and status omit
 file paths, raw parser messages, last records and observation-key lists.
 
-Full mobile capability remains **unavailable**: discovery returns `ready:false`,
-`uploadsEnabled:false`, `integration_qualification_pending`. On a qualified local
-installation, the backend accepts either explicit enrichment choice and exposes
-shared enrichment status/controls. Package 4 still owns the final integration
-closeout and companion recovery contract/evidence. Do not enable a phone's “Send
-from this phone” from this partial capability. `enrichment.available:true` describes
-this implemented backend surface, not current credentials, capacity or phone readiness.
+Discovery returns `uploadsEnabled:true` when the effective configured upload limit
+is positive and the existing local-store configuration is qualified on Linux.
+Disabled uploads or unsupported/unqualified storage return `uploadsEnabled:false`.
+The effective limit uses the existing 100 MiB ceiling: zero configuration uses that
+default, positive values are capped, and negative values disable new uploads.
+Intake still enforces storage identity/exclusion, availability and resource limits;
+discovery is not a reservation or a guarantee that a later transfer succeeds.
+The backend accepts either explicit enrichment choice and exposes shared status/
+controls. `enrichment.available:true` describes this implemented backend surface,
+not current credentials, capacity or phone readiness. Mobile recovery/native and
+deployment qualifications remain separately owned.
 
 | Operation | Route suffix | Durable meaning |
 | --- | --- | --- |
-| Discovery | `GET /capabilities` | Actual active subject, effective upload/resource/retention policy, incomplete integration. |
+| Discovery | `GET /capabilities` | Actual active subject, configuration-based upload availability and effective upload/resource/retention policy. |
 | Raw upload | `PUT /uploads/{requestId}?format=csv\|wayfarer-geojson` | Nonzero request UUID, exact native bytes, stopped epoch-zero job; no automatic Start. |
 | Request recovery | `GET /uploads/{requestId}` | Unaccepted attempt, accepted result or account-lifetime retirement evidence. |
 | Job status | `GET /{id:int}` | Owner/mobile-bound persisted state, epoch, yielded counts, file state and allowed commands. |

@@ -8,7 +8,7 @@ using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
-/// <summary>Bearer import and shared enrichment adapter. Full capability remains gated on package-4 integration qualification.</summary>
+/// <summary>Bearer import and shared account-wide enrichment adapter.</summary>
 [ApiController, Area("Api"), Route("api/mobile/location-imports"), ManagedImport]
 public sealed class MobileLocationImportsController(ManagedImportUpload upload, ManagedImportStatus status,
     ManagedImportLifecycle lifecycle, Wayfarer.Parsers.IApplicationSettingsService settings,
@@ -17,14 +17,13 @@ public sealed class MobileLocationImportsController(ManagedImportUpload upload, 
 {
     private ManagedImportMiddleware.Admission Owner => (ManagedImportMiddleware.Admission)HttpContext.Items[ManagedImportMiddleware.RequestKey]!;
 
-    /// <summary>Advertises incomplete integration explicitly; selecting enrichment never silently changes intent.</summary>
+    /// <summary>Advertises effective upload policy and supported storage configuration without reserving intake capacity.</summary>
     [HttpGet("capabilities")]
     public IActionResult Capabilities()
     {
         var limit = UploadRequestPolicy.EffectiveBytes(settings.GetSettings().UploadSizeLimitMB);
         return Ok(new { contract = ManagedImportStatus.Contract, subjectId = Owner.UserId,
-            ready = false, reason = "integration_qualification_pending", uploadsEnabled = false,
-            managedIntakeConfigured = OperatingSystem.IsLinux() && options.Value.LocalStoreQualified && limit > 0,
+            uploadsEnabled = OperatingSystem.IsLinux() && options.Value.LocalStoreQualified && limit > 0,
             formats = new[] { "csv", "wayfarer-geojson" }, maxRequestBytes = limit, maxFileBytes = limit,
             uploadDeadlineSeconds = 600, uploadLeaseSeconds = 60, maxConcurrentUploadsPerOwner = 1,
             maxConcurrentExecutionsPerOwner = 1, maxRetainedResumableFilesPerOwner = 3,

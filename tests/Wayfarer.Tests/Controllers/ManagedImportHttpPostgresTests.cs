@@ -142,11 +142,52 @@ public sealed partial class ManagedImportHttpPostgresTests(PostgresImportTestFix
         }
         using var discovery = await client.GetAsync(Route + "/capabilities");
         var capability = await Json(discovery);
-        Assert.False(capability.GetProperty("ready").GetBoolean());
-        Assert.False(capability.GetProperty("uploadsEnabled").GetBoolean());
+        Assert.True(capability.GetProperty("uploadsEnabled").GetBoolean());
+        Assert.False(capability.TryGetProperty("ready", out _));
+        Assert.False(capability.TryGetProperty("reason", out _));
+        Assert.False(capability.TryGetProperty("managedIntakeConfigured", out _));
         await using var db = fixture.CreateContext();
         var accepted = await db.Set<MobileLocationImportUpload>().SingleAsync(row => row.UserId == scope.User.Id);
         Assert.True(accepted.EnrichmentRequested);
+    }
+
+    /// <summary>Discovery follows effective limits and the same store policy enforced by new intake.</summary>
+    [PostgresFact]
+    public async Task DiscoveryAgreesWithEffectiveUploadAndStorageRestrictions()
+    {
+        await using var scope = await ScopeAsync();
+        var settings = new ApplicationSettings();
+        await using var app = await HostAsync(scope, settings);
+        using var client = Client(app, scope.Credential);
+        var bytes = "Latitude,Longitude,TimestampUtc\n"u8.ToArray();
+        try
+        {
+            foreach (var (configuredLimit, qualified, expectedLimit) in new[]
+            {
+                (0, true, 104857600L), (1, true, 1048576L), (-1, true, 0L), (1, false, 1048576L)
+            })
+            {
+                settings.UploadSizeLimitMB = configuredLimit;
+                scope.StorageOptions.LocalStoreQualified = qualified;
+                var enabled = expectedLimit > 0 && qualified && OperatingSystem.IsLinux();
+                using var discovery = await client.GetAsync(Route + "/capabilities");
+                Assert.Equal(HttpStatusCode.OK, discovery.StatusCode);
+                var capability = await Json(discovery);
+                Assert.Equal(enabled, capability.GetProperty("uploadsEnabled").GetBoolean());
+                Assert.Equal(expectedLimit, capability.GetProperty("maxFileBytes").GetInt64());
+                Assert.Equal(expectedLimit, capability.GetProperty("maxRequestBytes").GetInt64());
+                using var request = Put(Guid.NewGuid(), bytes);
+                if (!enabled) request.Headers.Add("X-Test-Reject-Read", "true");
+                using var intake = await client.SendAsync(request);
+                Assert.Equal(expectedLimit == 0 ? HttpStatusCode.Forbidden
+                    : enabled ? HttpStatusCode.Created : HttpStatusCode.ServiceUnavailable, intake.StatusCode);
+            }
+        }
+        finally
+        {
+            // Restore qualified cleanup authority for this scope's accepted files.
+            scope.StorageOptions.LocalStoreQualified = true;
+        }
     }
 
     private async Task<WebApplication> HostAsync(ManagedImportTestScope scope, ApplicationSettings settings)
@@ -171,7 +212,7 @@ public sealed partial class ManagedImportHttpPostgresTests(PostgresImportTestFix
                 Wayfarer.Services.LocationEnrichment.ImportEnrichmentHandoff>();
             services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentPresentationProjector,
                 Wayfarer.Services.LocationEnrichment.LocationEnrichmentPresentationProjector>();
-            services.AddSingleton(Options.Create(new ManagedImportOptions { LocalStoreQualified = true }));
+            services.AddSingleton(Options.Create(scope.StorageOptions));
             var policy = new Mock<IApplicationSettingsService>();
             policy.Setup(item => item.GetSettings()).Returns(settings);
             services.AddSingleton(policy.Object);
