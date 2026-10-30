@@ -126,7 +126,12 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
             var current = values.Value.GetProperty(group.Name == "content" ? "deleteContent" : group.Name);
             if (group.Value.GetProperty("state").GetString() != "known" || current.GetProperty("state").GetString() != "known")
                 return Terminal(operation, now, "baseUnavailable", 422);
-            if (!LocationMutationCommand.Equal(group.Name, group.Value.GetProperty("value"), current.GetProperty("value"))) stale.Add(group.Name);
+            try
+            {
+                if (!LocationMutationCommand.Equal(group.Name, group.Value.GetProperty("value"), current.GetProperty("value"))) stale.Add(group.Name);
+            }
+            catch (MutationProtocolException error) when (error.Code == "baseUnavailable")
+            { return Terminal(operation, now, "baseUnavailable", 422); }
         }
         if (stale.Count > 0) return Terminal(operation, now, "locationBaseStale", 409, stale.ToArray());
         if (command.Kind == "update" && command.Changes.TryGetProperty("activity", out var activity)

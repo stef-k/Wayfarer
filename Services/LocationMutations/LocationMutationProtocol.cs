@@ -103,12 +103,12 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
             case "notesHtml": NullableText(value); break;
             case "altitude": if (value.ValueKind != JsonValueKind.Null) Number(value); break;
             case "activityTypeId": Require(value.ValueKind == JsonValueKind.Null || value.TryGetInt32(out _)); break;
-            case "eventUtc": Instant(Text(value), true); break;
+            case "eventUtc": ValidateOriginalInstant(Text(value)); break;
             case "position": Members(value, "latitude", "longitude"); Position(value); break;
             case "address":
                 Members(value, AddressMembers);
                 foreach (var item in value.EnumerateObject())
-                    if (item.Name == "reverseGeocodedAt" && item.Value.ValueKind != JsonValueKind.Null) Instant(Text(item.Value), false);
+                    if (item.Name == "reverseGeocodedAt" && item.Value.ValueKind != JsonValueKind.Null) ValidateOriginalInstant(Text(item.Value));
                     else NullableText(item.Value);
                 break;
             case "content":
@@ -161,9 +161,17 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
         var parsed = dot < 0 ? text : text[..dot] + "." + text[(dot + 1)..^1].PadRight(7, '0')[..7] + "Z";
         Require(DateTime.TryParseExact(parsed, ["yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'"], CultureInfo.InvariantCulture,
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var instant));
-        Require(instant != DateTime.MinValue && instant != DateTime.MaxValue);
+        if (instant == DateTime.MinValue || instant == DateTime.MaxValue)
+            throw new MutationProtocolException(original ? "baseUnavailable" : "mutationInvalid");
         const long epoch = 630822816000000000;
         return new DateTime(epoch + (instant.Ticks - epoch) / 10 * 10, DateTimeKind.Utc);
+    }
+
+    /// <summary>Infinity-conversion originals are well-shaped but unavailable, so their rejection can carry a receipt.</summary>
+    private static void ValidateOriginalInstant(string text)
+    {
+        try { Instant(text, true); }
+        catch (MutationProtocolException error) when (error.Code == "baseUnavailable") { }
     }
 
     /// <summary>Frames exact bytes with network-order lengths for request and storage fingerprints.</summary>

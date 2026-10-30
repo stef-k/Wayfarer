@@ -81,9 +81,9 @@ internal static class LocationMutationEvidence
         now = new DateTime(now.Ticks / 10 * 10, DateTimeKind.Utc);
         var uuid = record["uuid"] is string key ? Guid.Parse(key) : (Guid?)null;
         var authority = new LocationMutationBase("location-mutation-1", "location-values-1", owner, id, uuid, Guid.NewGuid(), now, now.AddMinutes(15));
-        object Slot(string name) => unavailable.ContainsKey(name)
+        object Slot(string name) => unavailable.ContainsKey(name) || name == "eventUtc" && Endpoint(record.GetValueOrDefault(name))
             ? new { state = "unavailable", reason = "unrepresentableStoredValue" } : Known(record.GetValueOrDefault(name));
-        var addressUnavailable = LocationMutationCommand.AddressMembers.Any(unavailable.ContainsKey);
+        var addressUnavailable = LocationMutationCommand.AddressMembers.Any(unavailable.ContainsKey) || Endpoint(record.GetValueOrDefault("reverseGeocodedAt"));
         var position = JsonSerializer.SerializeToElement(record["position"]);
         var positionKnown = position.TryGetProperty("latitude", out var latitude) && position.TryGetProperty("longitude", out _);
         var values = new Dictionary<string, object?>
@@ -99,6 +99,14 @@ internal static class LocationMutationEvidence
         return new { contract = authority.Contract, normalization = authority.Normalization, baseId = authority.BaseId,
             baseHandle = authority.Protect(protection), issuedAtUtc = authority.IssuedAtUtc, expiresAtUtc = authority.ExpiresAtUtc,
             originalCreateAddressPublication = pending ? "pending" : "closed", baseValues = values };
+    }
+
+    /// <summary>Ordinary display may represent a finite calendar endpoint that cannot serve as a mutation original.</summary>
+    private static bool Endpoint(object? value)
+    {
+        if (value is not string text) return false;
+        try { LocationMutationCommand.Instant(text, true); return false; }
+        catch (MutationProtocolException error) when (error.Code == "baseUnavailable") { return true; }
     }
 
     /// <summary>Known null remains a value rather than an unavailable or omitted original.</summary>
