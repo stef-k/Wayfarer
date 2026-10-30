@@ -1,11 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using System.Net;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Routing;
-using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
@@ -16,239 +11,44 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
-using Point = NetTopologySuite.Geometries.Point;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Proves manual Location address editing and provenance behavior.</summary>
+/// <summary>Legacy Web POST is retired; protected manual effects are exercised through routed PostgreSQL tests.</summary>
 public sealed class LocationManualAddressEditTests : TestBase
 {
-    [Fact]
-    public async Task AddressChangeTrimsClearsProvenanceAndMakesNoProviderContact()
+    /// <summary>Neither valid nor model-invalid full forms can bypass protected originals or contact a provider.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyPostRefusesBeforeAnyWriter(bool invalid)
     {
-        var scenario = await CreateScenarioAsync("address-owner");
-        var handler = new CountingHandler();
-        var model = EditModel(scenario.Location);
-        model.Address = "  New line  ";
-        model.Place = " ";
-
-        await Controller(scenario, handler).Edit(model, null);
-
-        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == scenario.Location.Id);
-        Assert.Equal("New line", saved.Address);
-        Assert.Null(saved.Place);
-        Assert.Null(saved.ReverseGeocodingProvider);
-        Assert.Null(saved.ReverseGeocodingStorageMode);
-        Assert.Null(saved.ReverseGeocodedAt);
-        Assert.Null(saved.ProviderAddressLine1);
-        Assert.Null(saved.ResolvedFeatureName);
-        Assert.Null(saved.ResolvedFeatureType);
-        Assert.Equal(0, handler.RequestCount);
+        using var db = CreateDbContext();
+        var handler = new NoContact();
+        var controller = new Wayfarer.Areas.User.Controllers.LocationController(NullLogger<BaseController>.Instance, db,
+            new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance),
+            Mock.Of<SseService>(), Mock.Of<IPlaceVisitDetectionService>())
+        { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        if (invalid) controller.ModelState.AddModelError("Latitude", "Invalid");
+        var result = await controller.Edit(new AddLocationViewModel { Id = 421, Latitude = 1, Longitude = 2, Address = "unsafe" }, null);
+        Assert.Equal(428, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Empty(db.Locations);
     }
 
-    [Fact]
-    public async Task CoordinateChangeRetainsOnlyExplicitlyChangedAddressFields()
-    {
-        var scenario = await CreateScenarioAsync("coordinate-owner");
-        scenario.Location.FullAddress = "Old full address";
-        await scenario.Db.SaveChangesAsync();
-        var model = EditModel(scenario.Location);
-        model.Latitude = 40.8;
-        model.Longitude = 25.8;
-        model.Address = "New manual line";
-
-        await Controller(scenario).Edit(model, null);
-
-        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == scenario.Location.Id);
-        Assert.Equal("New manual line", saved.Address);
-        Assert.Null(saved.FullAddress);
-        Assert.Null(saved.Place);
-        Assert.Null(saved.Region);
-        Assert.Null(saved.Country);
-        Assert.Null(saved.ReverseGeocodingProvider);
-    }
-
-    [Fact]
-    public async Task UnchangedAddressPreservesProviderProvenance()
-    {
-        var scenario = await CreateScenarioAsync("unchanged-owner");
-
-        await Controller(scenario).Edit(EditModel(scenario.Location), null);
-
-        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == scenario.Location.Id);
-        Assert.Equal("geoapify", saved.ReverseGeocodingProvider);
-        Assert.Equal("persistent", saved.ReverseGeocodingStorageMode);
-        Assert.Equal("Independent provider line", saved.ProviderAddressLine1);
-        Assert.Equal(scenario.Location.ReverseGeocodedAt, saved.ReverseGeocodedAt);
-    }
-
-    [Fact]
-    public async Task StaleProviderPublicationIsNotOverwritten()
-    {
-        var scenario = await CreateScenarioAsync("stale-owner");
-        var staleForm = EditModel(scenario.Location);
-        staleForm.Address = "Manual overwrite";
-        var newerAt = DateTimeOffset.UtcNow;
-        scenario.Location.Address = "New provider line";
-        scenario.Location.Place = "New provider city";
-        scenario.Location.ReverseGeocodedAt = newerAt;
-        await scenario.Db.SaveChangesAsync();
-
-        var result = await Controller(scenario).Edit(staleForm, null);
-
-        Assert.IsType<RedirectToActionResult>(result);
-        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == scenario.Location.Id);
-        Assert.Equal("New provider line", saved.Address);
-        Assert.Equal("New provider city", saved.Place);
-        Assert.Equal(newerAt, saved.ReverseGeocodedAt);
-    }
-
+    /// <summary>Existing Web Create input metadata retains its documented address length limit.</summary>
     [Fact]
     public void AddressFieldsEnforceFiveHundredCharacterLimit()
     {
         var model = new AddLocationViewModel { Address = new string('x', 501) };
         var results = new List<ValidationResult>();
-
         Assert.False(Validator.TryValidateObject(model, new ValidationContext(model), results, true));
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(AddLocationViewModel.Address)));
     }
 
-    /// <summary>Invalid posts keep attempted values and original authority through rendering and correction.</summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    public async Task InvalidPostRetainsAuthorityThroughCorrectedResubmission(
-        bool publishBeforeRedisplay, bool publishBeforeCorrection)
+    /// <summary>Unexpected contact is a hard test failure.</summary>
+    private sealed class NoContact : HttpMessageHandler
     {
-        var scenario = await CreateScenarioAsync("invalid-owner");
-        var original = EditModel(scenario.Location);
-        var fields = new[] { "Latitude", "Longitude", "OriginalReverseGeocodingProvider", "OriginalReverseGeocodingStorageMode",
-            "OriginalReverseGeocodedAt", "Address", "Place", "Region", "Country" };
-        var posted = fields.ToDictionary(field => field, field =>
-            new Microsoft.Extensions.Primitives.StringValues(
-                Wayfarer.Tests.Views.LocationEditViewContractTests.RenderInput(
-                    original, new Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary(), field)));
-        posted["Id"] = original.Id.ToString();
-        posted["LocalTimestamp"] = original.LocalTimestamp.ToString("O");
-        posted["Address"] = "  Submitted address  ";
-        posted["ProviderAddressLine1"] = "forged provider line";
-        posted["SelectedActivityId"] = "not-an-id";
-        var (model, state) = await Wayfarer.Tests.Views.LocationEditViewContractTests.BindAsync(posted);
-        Assert.False(state.IsValid);
-        Assert.Null(model.ProviderAddressLine1);
-        var newerAt = original.OriginalReverseGeocodedAt!.Value.AddTicks(10);
-        if (publishBeforeRedisplay) await PublishAsync();
-        var handler = new CountingHandler();
-        var controller = Controller(scenario, handler);
-        controller.ModelState.Merge(state);
-        var result = Assert.IsType<ViewResult>(await controller.Edit(model, null));
-        var returned = Assert.IsType<AddLocationViewModel>(result.Model);
-        Assert.Equal(original.OriginalReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
-        Assert.Equal("  Submitted address  ", returned.Address);
-        Assert.Equal("Independent provider line", returned.ProviderAddressLine1);
-        Assert.True(returned.IsGeoapifyAddress);
-        Assert.Equal(publishBeforeRedisplay ? "New feature" : "Old feature", returned.ResolvedFeatureName);
-        Assert.Equal("warning", controller.TempData["AlertType"]);
-        Assert.True((bool)controller.ViewData["ExpandAddressDetails"]!);
-        Assert.Equal("not-an-id", controller.ModelState["SelectedActivityId"]!.AttemptedValue);
-        Assert.NotEmpty(controller.ModelState["SelectedActivityId"]!.Errors);
-        foreach (var field in fields)
-        {
-            var rendered = Wayfarer.Tests.Views.LocationEditViewContractTests.RenderInput(
-                returned, controller.ModelState, field);
-            Assert.Equal(posted[field].ToString(), rendered);
-            posted[field] = rendered;
-        }
-        if (publishBeforeCorrection) await PublishAsync();
-        posted["SelectedActivityId"] = "";
-        var (corrected, correctedState) = await Wayfarer.Tests.Views.LocationEditViewContractTests.BindAsync(posted);
-        Assert.True(correctedState.IsValid);
-        var correction = Controller(scenario, handler);
-        correction.ModelState.Merge(correctedState);
-        var redirect = Assert.IsType<RedirectToActionResult>(await correction.Edit(corrected, null));
-        Assert.Equal("Edit", redirect.ActionName);
-        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == original.Id);
-        var stale = publishBeforeRedisplay || publishBeforeCorrection;
-        Assert.Equal(stale ? "New publication" : "Submitted address", saved.Address);
-        Assert.Equal(stale ? "Independent provider line" : null, saved.ProviderAddressLine1);
-        Assert.Equal(stale ? newerAt : (DateTimeOffset?)null, saved.ReverseGeocodedAt);
-        Assert.Contains(stale ? "Address details changed" : "Location updated successfully",
-            string.Join(" ", correction.TempData.Values));
-        Assert.Equal(stale ? "warning" : "success", correction.TempData["AlertType"]);
-        var freshResult = Assert.IsType<ViewResult>(await Controller(scenario, handler).Edit(original.Id!.Value, null));
-        var fresh = Assert.IsType<AddLocationViewModel>(freshResult.Model);
-        Assert.Equal(saved.Address, fresh.Address);
-        Assert.Equal(saved.ReverseGeocodedAt, fresh.OriginalReverseGeocodedAt);
-        Assert.Equal(0, handler.RequestCount);
-
-        async Task PublishAsync()
-        {
-            scenario.Location.Address = "New publication";
-            scenario.Location.ProviderAddressLine1 = "Independent provider line";
-            scenario.Location.ResolvedFeatureName = "New feature";
-            scenario.Location.ReverseGeocodedAt = newerAt;
-            await scenario.Db.SaveChangesAsync();
-        }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
+            throw new InvalidOperationException("Retired form contacted a provider.");
     }
-
-    private async Task<Scenario> CreateScenarioAsync(string userId)
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: userId, username: userId);
-        var location = new Location
-        {
-            UserId = user.Id, Coordinates = new Point(0, 0) { SRID = 4326 },
-            Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC",
-            Address = "Old line", Place = "Old city", Region = "Evros", Country = "Greece",
-            ReverseGeocodingProvider = "geoapify", ReverseGeocodingStorageMode = "persistent",
-            ReverseGeocodedAt = DateTimeOffset.UtcNow.AddHours(-1), ProviderAddressLine1 = "Independent provider line", ResolvedFeatureName = "Old feature",
-            ResolvedFeatureType = "amenity"
-        };
-        db.AddRange(user, location);
-        await db.SaveChangesAsync();
-        return new(db, user, location);
-    }
-
-    private static AddLocationViewModel EditModel(Location location) => new()
-    {
-        Id = location.Id, Latitude = location.Coordinates.Y, Longitude = location.Coordinates.X,
-        LocalTimestamp = location.LocalTimestamp, Address = location.Address, FullAddress = location.FullAddress,
-        AddressNumber = location.AddressNumber, StreetName = location.StreetName, PostCode = location.PostCode,
-        Place = location.Place, Region = location.Region, Country = location.Country,
-        OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider,
-        OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
-        OriginalReverseGeocodedAt = location.ReverseGeocodedAt
-    };
-
-    private static Wayfarer.Areas.User.Controllers.LocationController Controller(
-        Scenario scenario, HttpMessageHandler? handler = null)
-    {
-        var controller = new Wayfarer.Areas.User.Controllers.LocationController(
-            NullLogger<BaseController>.Instance, scenario.Db,
-            new ReverseGeocodingService(new HttpClient(handler ?? new CountingHandler()),
-                NullLogger<BaseApiController>.Instance), Mock.Of<SseService>(), Mock.Of<IPlaceVisitDetectionService>());
-        var context = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, scenario.User.Id)], "TestAuth")) };
-        controller.ControllerContext = new ControllerContext { HttpContext = context };
-        controller.TempData = new TempDataDictionary(context, Mock.Of<ITempDataProvider>());
-        var url = new Mock<IUrlHelper>();
-        url.Setup(item => item.IsLocalUrl(It.IsAny<string>())).Returns(true);
-        url.Setup(item => item.Action(It.IsAny<UrlActionContext>())).Returns("/User/Location");
-        controller.Url = url.Object;
-        return controller;
-    }
-
-    private sealed class CountingHandler : HttpMessageHandler
-    {
-        public int RequestCount { get; private set; }
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            RequestCount++;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
-        }
-    }
-
-    private sealed record Scenario(ApplicationDbContext Db, ApplicationUser User, Location Location);
 }

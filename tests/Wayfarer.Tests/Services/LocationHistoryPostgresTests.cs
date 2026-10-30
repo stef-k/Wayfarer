@@ -179,27 +179,6 @@ public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fi
     }
 
     [PostgresFact]
-    public async Task DerivedOnlyPreparationDoesNotBecomeCanonicalApiConflict()
-    {
-        var owner = await fixture.CreateUserAsync(); var row = Row(owner.Id);
-        await using var editor = fixture.CreateContext(); editor.Add(row); await editor.SaveChangesAsync();
-        await editor.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.HistoryTimeVersion, "old-rules"));
-        await editor.Entry(row).ReloadAsync();
-        var original = editor.Entry(row).OriginalValues.Clone();
-        await using (var preparation = fixture.CreateContext())
-        {
-            await ClearDerivedAsync(preparation, [row.Id]);
-            var service = new LocationHistoryPreparation(preparation); await service.BeginAsync("time", true, default);
-            while (!await service.PrepareBatchAsync("time", default)) { }
-        }
-        await using var transaction = await editor.Database.BeginTransactionAsync();
-        var current = await ApiLocationUpdate.RequireCurrentAsync(editor, row, original, default);
-        Assert.Equal(LocationHistoryDerivation.TimeVersion, current.HistoryTimeVersion);
-        original[nameof(Location.Notes)] = "a genuinely stale canonical edit";
-        await Assert.ThrowsAsync<LocationUpdateConflictException>(() => ApiLocationUpdate.RequireCurrentAsync(editor, row, original, default));
-    }
-
-    [PostgresFact]
     public async Task PreparationReloadsConcurrentEditsAndDeletesAndRollsBackInterruptedBatch()
     {
         var owner = await fixture.CreateUserAsync(); var a = Row(owner.Id); var b = Row(owner.Id);

@@ -15,6 +15,7 @@ using Wayfarer.Services;
 using Wayfarer.Services.LocationMutations;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
+using Moq;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -167,6 +168,9 @@ public sealed partial class LocationMutationPostgresTests(PostgresImportTestFixt
             {
                 services.RemoveAll<ApplicationDbContext>(); services.AddScoped(_ => fixture.CreateContext(interceptors));
                 services.AddSingleton(protection);
+                var settings = new Mock<IApplicationSettingsService>();
+                settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings());
+                services.AddSingleton(settings.Object);
                 services.AddScoped(_ => new ReverseGeocodingService(new HttpClient(new NoProvider()), NullLogger<BaseApiController>.Instance));
                 services.AddControllers().AddControllersAsServices();
             });

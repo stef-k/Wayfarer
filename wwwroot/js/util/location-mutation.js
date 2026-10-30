@@ -84,20 +84,35 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
         const generation = retainLocationDraft(id, { kind, changes, expected, detail, draft });
         let state = locationWork(id);
         let attempt = state.attempts.find(item => item.actionId === state.active);
+        if (!attempt && state.settledGeneration === generation) {
+            const settled = state.attempts.find(item => item.generation === generation && item.receipt?.state === 'applied');
+            if (settled) return acceptResponse(id, state, settled, settled.receipt);
+        }
         let renewedDetail = null;
         if (attempt) {
-            const recovered = await inspectAttempt(id, state, attempt);
+            const recovered = await inspectAttempt(id, state, attempt, true);
             if (recovered.excluded) {
                 const fresh = await readLocationDetail(id);
-                if (!originalsMatch(expected, fresh.locationMutation.baseValues))
+                if (!originalsMatch(expected, fresh.locationMutation.baseValues)) {
+                    if (kind === 'update' && selectedSimpleStateSatisfied(changes, expected, fresh.locationMutation.baseValues)) {
+                        const latest = locationWork(id);
+                        if (latest.draft?.generation !== generation) return { success: false, terminal: true, message: 'Newer typing is retained and still needs review.' };
+                        latest.currentObservation = { generation, observedAtUtc: fresh.observedAtUtc, historicalOutcome: 'unknown' };
+                        latest.active = null; latest.settledGeneration = generation; latest.fresh = fresh; persist(id, latest);
+                        return { success: true, currentStateSatisfied: true, detail: fresh, message: 'Current state satisfies this draft; historical outcome remains unknown.' };
+                    }
                     return { success: false, message: 'Old future effects are excluded; current content differs from your originals. Your draft is retained. Review current history before an informed new conditional edit.', terminal: true };
+                }
                 // Historical outcome stays Unknown. Re-admit the retained originals under fresh authority.
                 const latest = locationWork(id);
                 latest.active = null; persist(id, latest); renewedDetail = fresh;
             } else {
                 if (!recovered.terminal) return recovered;
-                if (attempt.generation !== generation) return { success: false, message: 'The earlier action is resolved. Your newer draft is retained; review it against current history before saving.', earlierResolved: true };
-                return recovered;
+                if (attempt.generation === generation) return recovered;
+                const fresh = await readLocationDetail(id);
+                if (!originalsMatch(expected, fresh.locationMutation.baseValues))
+                    return { success: false, terminal: true, message: 'The earlier action is resolved. Your newer draft is retained; review it against current history before saving.', earlierResolved: true };
+                const latest = locationWork(id); latest.active = null; persist(id, latest); renewedDetail = fresh;
             }
         }
         // Renew only never-attempted authority; expected originals are deliberately retained unchanged.
@@ -123,7 +138,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
 const attemptUrl = attempt => `/api/location/${attempt.id}/mutations/${attempt.baseId}/${attempt.actionId}`;
 
 /** Recovery does not replay an uncertain body or invent a new action; terminal evidence survives failed detail reads. */
-const inspectAttempt = async (id, state, attempt) => {
+const inspectAttempt = async (id, state, attempt, retry = false) => {
     try {
         if (attempt.receipt?.futureEffects === false) return acceptResponse(id, state, attempt, attempt.receipt);
         const response = await fetch(attemptUrl(attempt), { cache: 'no-store', credentials: 'same-origin', headers: { 'X-Location-Base': attempt.baseHandle } });
@@ -136,6 +151,14 @@ const inspectAttempt = async (id, state, attempt) => {
             // Exclusion alone cannot authorize rebasing or a replacement. Keep all command/original evidence.
             attempt.exclusion = receipt; retainAttempt(id, attempt);
             return { success: false, excluded: true, message: 'Historical outcome unknown; old future effects are excluded. Your draft and originals are retained.' };
+        }
+        if (retry && receipt.state === 'unknown' && receipt.contract === contract && receipt.subjectId === attempt.subjectId
+            && receipt.locationId === id && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId
+            && receipt.code === 'operationNotObserved' && receipt.futureEffects === true && receipt.expiresAtUtc === attempt.expiresAtUtc
+            && exactKeys(receipt, ['contract', 'subjectId', 'locationId', 'baseId', 'actionId', 'observedAtUtc', 'state', 'code', 'futureEffects', 'expiresAtUtc'])) {
+            const retried = await fetch(attemptUrl(attempt), { method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', RequestVerificationToken: token() }, body: attempt.body });
+            return acceptResponse(id, state, attempt, await retried.json());
         }
         return await acceptResponse(id, state, attempt, receipt);
     } catch { return { success: false, message: 'Outcome unknown. Your draft and exact attempt are retained. Save again to check recovery.' }; }
@@ -193,3 +216,14 @@ const originalsMatch = (expected, values) => Object.entries(expected).every(([gr
     const current = values[group === 'content' ? 'deleteContent' : group];
     return slot?.state === 'known' && current?.state === 'known' && sameValue(slot.value, current.value);
 });
+
+/** Only complete, value-exact simple footprints settle without a receipt; provider/time dependencies require their fuller proof. */
+const selectedSimpleStateSatisfied = (changes, expected, values) => {
+    if (expected.uuid?.state !== 'known' || values.uuid?.state !== 'known' || !sameValue(expected.uuid.value, values.uuid.value)) return false;
+    return Object.entries(changes).every(([name, change]) => {
+        const group = { notes: 'notesHtml', activity: 'activityTypeId', altitude: 'altitude' }[name];
+        if (!group || values[group]?.state !== 'known') return false;
+        const desired = change.op === 'clear' ? null : change.html ?? change.id ?? change.value;
+        return sameValue(desired, values[group].value);
+    });
+};

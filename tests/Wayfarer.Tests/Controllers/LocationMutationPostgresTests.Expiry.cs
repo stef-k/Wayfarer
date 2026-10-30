@@ -16,37 +16,32 @@ public sealed partial class LocationMutationPostgresTests
     public async Task LateArrivalAndCleanedHistoryUseSignedExpiryWithoutExpiringWork()
     {
         var (owner, credential, id) = await SeedAsync();
+        var clock = new ControlledDatabaseClock();
         await WithHostAsync(credential, async client =>
         {
             var request = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "set", html = "late" } });
             var absent = await AssertStateAsync(await request.RecoverAsync(client), 200, "unknown", "operationNotObserved");
             Assert.True(absent.GetProperty("futureEffects").GetBoolean()); Assert.False(absent.TryGetProperty("fingerprint", out _));
             await AssertStateAsync(await request.SendAsync(client), 200, "applied");
-            // Synthetic signed authority represents a legitimately old retained handle; clients never edit these fields.
-            var proof = LocationMutationBase.Read(protection, request.Handle, owner, id)!;
-            var old = proof with { BaseId = Guid.NewGuid(), IssuedAtUtc = DateTime.UtcNow.AddDays(-31), ExpiresAtUtc = DateTime.UtcNow.AddDays(-31).AddMinutes(15) };
-            var oldHandle = old.Protect(protection);
-            var oldRequest = request with { BaseId = old.BaseId, Handle = oldHandle,
-                Bytes = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(request.Bytes).Replace(request.Handle, oldHandle)) };
-            var expired = await AssertStateAsync(await oldRequest.RecoverAsync(client), 200, "unknown", "operationHistoryExpired");
-            Assert.False(expired.GetProperty("futureEffects").GetBoolean()); Assert.Equal("unknown", expired.GetProperty("historicalOutcome").GetString());
-            using var refused = await oldRequest.SendAsync(client); Assert.Equal(410, (int)refused.StatusCode);
-            await using (var db = fixture.CreateContext())
-            {
-                // Retained terminal evidence wins even beyond cleanup eligibility, until actually deleted.
-                var retained = await db.LocationMutationOperations.SingleAsync(row => row.UserId == owner);
-                retained.ExpiresAtUtc = old.ExpiresAtUtc; retained.ReceiptRetainUntilUtc = DateTime.UtcNow.AddSeconds(-1);
-                await db.SaveChangesAsync();
-            }
+            clock.Now = clock.Now.AddMinutes(16);
+            var delayed = request with { ActionId = Guid.NewGuid() };
+            var excluded = await AssertStateAsync(await delayed.RecoverAsync(client), 200, "unknown", "operationHistoryExpired");
+            Assert.False(excluded.GetProperty("futureEffects").GetBoolean());
+            using (var late = await delayed.SendAsync(client)) Assert.Equal(410, (int)late.StatusCode);
+            clock.Now = clock.Now.AddDays(31);
+            // Actual terminal evidence wins past its cleanup threshold until the cleanup transaction removes it.
             await AssertStateAsync(await request.RecoverAsync(client), 200, "applied");
-            await using (var cleanup = fixture.CreateContext()) Assert.Equal(1, (await new LocationMutationCleanup(cleanup).RunAsync(default)).Deleted);
-            var unknown = await AssertStateAsync(await oldRequest.RecoverAsync(client), 200, "unknown", "operationHistoryExpired");
-            Assert.False(unknown.GetProperty("futureEffects").GetBoolean());
-            // Reusing an old base ID with a renewed signed envelope cannot grant execution.
-            var renewed = old with { BaseId = Guid.NewGuid(), IssuedAtUtc = DateTime.UtcNow, ExpiresAtUtc = DateTime.UtcNow.AddMinutes(15) };
-            var changedHandle = oldRequest with { Bytes = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(oldRequest.Bytes).Replace(oldHandle, renewed.Protect(protection))) };
+            await using (var cleanup = fixture.CreateContext(clock)) Assert.Equal(1, (await new LocationMutationCleanup(cleanup).RunAsync(default)).Deleted);
+            var unknown = await AssertStateAsync(await request.RecoverAsync(client), 200, "unknown", "operationHistoryExpired");
+            Assert.False(unknown.GetProperty("futureEffects").GetBoolean()); Assert.Equal("unknown", unknown.GetProperty("historicalOutcome").GetString());
+            using (var expired = await request.SendAsync(client)) Assert.Equal(410, (int)expired.StatusCode);
+            var fresh = await ProtectedLocationRequest.DetailAsync(client, id);
+            var renewed = fresh.GetProperty("locationMutation").GetProperty("baseHandle").GetString()!;
+            var changedHandle = request with { Bytes = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(request.Bytes).Replace(request.Handle, renewed)) };
             using var mismatch = await changedHandle.SendAsync(client); Assert.Equal(422, (int)mismatch.StatusCode);
-        });
+            await using var verify = fixture.CreateContext();
+            Assert.Equal("late", (await verify.Locations.SingleAsync(row => row.Id == id)).Notes);
+        }, clock);
     }
 
     /// <summary>GET and exact POST project the same deadline rejection; no executor takeover or terminal write on GET.</summary>

@@ -16,6 +16,8 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     let inspected = null;
     const state = locationWork(id);
     const stored = state.draft?.value?.draft || state.draft?.value;
+    if (state.currentObservation?.generation === state.settledGeneration)
+        status.textContent = 'Current state satisfied this draft; historical outcome remains unknown.';
     if (stored?.initial && state.draft.generation !== state.settledGeneration) {
         initial = stored.initial; detail = stored.detail;
         for (const name of names) input(name).value = stored.current[name];
@@ -23,6 +25,12 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         for (const name of stored.explicitManual) manual.add(name);
         restoredClear = stored.clearNotes;
         status.textContent = 'Restored your retained draft. Save checks any earlier uncertain action first.';
+    }
+    if (stored?.activityDetail && state.draft.generation !== state.settledGeneration) {
+        detail = stored.activityDetail;
+        const activity = state.draft.value.changes?.activity;
+        if (activity) input('SelectedActivityId').value = activity.op === 'clear' ? '' : String(activity.id);
+        status.textContent = 'Restored your retained Activity draft. Save recovers its earlier action before any new command.';
     }
     const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: clearNotes() || restoredClear, detail });
     const retain = () => {

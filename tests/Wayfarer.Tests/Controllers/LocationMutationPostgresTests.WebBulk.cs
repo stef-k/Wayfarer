@@ -27,10 +27,10 @@ public sealed partial class LocationMutationPostgresTests
             Assert.Equal("unavailable", result.GetProperty("providerOutcome").GetString());
             using var bulk = await client.PostAsync("/User/Location/BulkEditNotes", new FormUrlEncodedContent(new Dictionary<string, string>
             { ["OperationScope"] = "bulk", ["Append"] = "true", ["Notes"] = " suffix", ["Place"] = "My place" }));
-            Assert.Equal(HttpStatusCode.OK, bulk.StatusCode);
+            Assert.True(bulk.StatusCode == HttpStatusCode.OK, (await bulk.Content.ReadAsStringAsync()).Split("HEADERS")[0]);
             await using var db = fixture.CreateContext(); var row = await db.Locations.SingleAsync(row => row.Id == id);
             Assert.Equal("N1 suffix", row.Notes); Assert.Equal("My place", row.Place); Assert.Null(row.Country);
-            Assert.Contains("N1 suffix", row.HistorySearchText);
+            Assert.Contains("N1 SUFFIX", row.HistorySearchText);
             // Bulk has no single-operation receipt even at cardinality one.
             Assert.Single(await db.LocationMutationOperations.Where(row => row.UserId == owner).ToListAsync());
             using var old = await client.PostAsync("/User/Location/Edit", new FormUrlEncodedContent(new Dictionary<string, string>

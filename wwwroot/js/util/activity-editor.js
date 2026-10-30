@@ -157,7 +157,8 @@ export const showActivityFeedback = (locationId, message, isError = false) => {
     feedback.textContent = message;
     feedback.className = `activity-feedback mt-1 small ${isError ? 'text-danger' : 'text-success'}`;
 
-    // Auto-hide after 3 seconds
+    // Keep conflict/uncertain guidance visible while the retained draft still needs attention.
+    if (isError) return;
     setTimeout(() => {
         feedback.textContent = '';
         feedback.className = 'activity-feedback mt-1 small';

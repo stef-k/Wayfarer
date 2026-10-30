@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using NodaTime;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using static Wayfarer.Services.LocationMutations.LocationMutationReceipts;
@@ -76,7 +77,7 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
                         throw new MutationProtocolException("locationBaseStale");
                 });
             }
-            catch (Exception failure) when (failure is OperationCanceledException or HttpRequestException or MutationProtocolException or LocationDeletedException)
+            catch (Exception failure) when (failure is OperationCanceledException or HttpRequestException or MutationProtocolException or LocationDeletedException or NpgsqlException or DbUpdateException or IOException)
             { /* Optional failure cannot cancel a still-valid coordinate command. Final locks decide publication. */ }
         }
         db.ChangeTracker.Clear();

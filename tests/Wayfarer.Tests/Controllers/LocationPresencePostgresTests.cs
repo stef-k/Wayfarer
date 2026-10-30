@@ -220,7 +220,7 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         // HTTP edits load their persisted snapshot in a fresh request scope, including PostgreSQL timestamp precision.
         await using var editDb = fixture.CreateContext();
         var edit = Controller(editDb, user.Id, cache, new Recorder());
-        Assert.IsType<OkObjectResult>(await edit.Update(row.Id, new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
+        Assert.Equal(200, await ApplyProtectedPositionAsync(editDb, row, cache));
         await using var verify = fixture.CreateContext();
         var edited = await verify.Locations.SingleAsync(location => location.UserId == user.Id);
         Assert.Null(edited.CoordinateOrigin);
@@ -253,8 +253,7 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
             var row = await editDb.Locations.SingleAsync(location => location.UserId == user.Id);
             Assert.Null(row.PresenceObservedAtUtc);
             var edit = Controller(editDb, user.Id, cache, new Recorder());
-            Assert.IsType<OkObjectResult>(await edit.Update(row.Id,
-                new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
+            Assert.Equal(200, await ApplyProtectedPositionAsync(editDb, row, cache));
             await using var verify = fixture.CreateContext();
             var edited = await verify.Locations.SingleAsync(location => location.Id == row.Id);
             Assert.Null(edited.CoordinateOrigin);
@@ -424,4 +423,26 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
             { Inserted.TrySetResult(); await Release.Task.WaitAsync(ct); }
         }
     }
+    /// <summary>Production protected effect seam; routed owner/receipt authority is covered by LocationMutationPostgresTests.</summary>
+    private static async Task<int> ApplyProtectedPositionAsync(ApplicationDbContext db, Location row, IMemoryCache cache)
+    {
+        var owner = row.UserId; var id = row.Id;
+        db.ChangeTracker.Clear();
+        var protection = new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider();
+        object? snapshot;
+        await using (var read = await db.Database.BeginTransactionAsync())
+        {
+            snapshot = await HistoryDetail.ReadAsync(db, owner, id, NodaTime.DateTimeZone.Utc, default, protection);
+            await read.RollbackAsync();
+        }
+        var request = await ProtectedLocationRequest.CreateAsync(null!, id,
+            new { position = new { op = "set", latitude = 11.0, longitude = 21.0 } }, detail: JsonSerializer.SerializeToElement(snapshot));
+        using var http = new HttpClient();
+        var reverse = new ReverseGeocodingService(http, NullLogger<BaseApiController>.Instance);
+        var service = new Wayfarer.Services.LocationMutations.LocationMutationService(db, protection, reverse, cache)
+        { Authorized = _ => Task.FromResult(true) };
+        return (await service.ExecuteAsync(owner, id, request.BaseId, request.ActionId,
+            Wayfarer.Services.LocationMutations.LocationMutationCommand.Parse(request.Bytes), request.Bytes, default)).Status;
+    }
+
 }

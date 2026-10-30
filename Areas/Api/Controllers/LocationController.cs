@@ -310,60 +310,9 @@ public partial class LocationController : BaseApiController
     /// <summary>
     /// Broadcasts location deletion events to per-user channel (for timeline views) and all groups the user is a member of.
     /// </summary>
-    private async Task BroadcastLocationDeletionAsync(
-        string userId,
-        IEnumerable<int> locationIds,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrEmpty(userId)) return;
-        var idList = locationIds?.ToList();
-        if (idList == null || idList.Count == 0) return;
-
-        // Get user for per-user broadcast
-        var user = await _dbContext.Users
-            .Where(u => u.Id == userId)
-            .Select(u => new { u.UserName })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        // Broadcast to per-user channel for timeline views
-        if (!string.IsNullOrEmpty(user?.UserName))
-        {
-            foreach (var locationId in idList)
-            {
-                var userPayload = new
-                {
-                    type = "location-deleted",
-                    locationId,
-                    userId
-                };
-                await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(userPayload));
-            }
-        }
-
-        // Broadcast to group channels
-        var groupIds = await _dbContext.GroupMembers
-            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active)
-            .Join(
-                _dbContext.Groups,
-                member => member.GroupId,
-                group => group.Id,
-                (member, group) => new { member.GroupId, group.IsArchived })
-            .Where(x => !x.IsArchived)
-            .Select(x => x.GroupId)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        if (groupIds.Count == 0) return;
-
-        foreach (var locationId in idList)
-        {
-            var payload = GroupSseEventDto.LocationDeleted(locationId, userId);
-            var serializedPayload = JsonSerializer.Serialize(payload);
-
-            foreach (var groupId in groupIds)
-                await _sse.BroadcastAsync($"group-{groupId}", serializedPayload);
-        }
-    }
+    private Task BroadcastLocationDeletionAsync(string userId, IEnumerable<int> locationIds,
+        CancellationToken cancellationToken = default) =>
+        LocationDeletionNotifications.BroadcastAsync(_dbContext, _sse, userId, locationIds, cancellationToken);
 
     /// <summary>
     /// Logs an automatic capture, counting persisted keyed captures only after a successful insert.

@@ -68,15 +68,15 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
     /// <summary>Cookie authority wins every header shape; only resolved bearer authority is token-free.</summary>
     [Theory]
     [InlineData("active", null, false, 400)]
-    [InlineData("active", null, true, 200)]
+    [InlineData("active", null, true, 428)]
     [InlineData("active", "Bearer", false, 400)]
     [InlineData("active", "Bearer invalid", false, 400)]
-    [InlineData("active", "Bearer invalid", true, 200)]
+    [InlineData("active", "Bearer invalid", true, 428)]
     [InlineData("active", "Bearer revoked", false, 400)]
     [InlineData("active", "Bearer phone", false, 400)]
-    [InlineData("active", "Bearer phone", true, 200)]
+    [InlineData("active", "Bearer phone", true, 428)]
     [InlineData("active", "Legacy loose phone", false, 400)]
-    [InlineData(null, "Bearer phone", false, 200)]
+    [InlineData(null, "Bearer phone", false, 428)]
     [InlineData(null, "Bearer invalid", false, 401)]
     [InlineData(null, null, false, 401)]
     [InlineData("inactive", "Bearer phone", false, 401)]
@@ -94,7 +94,7 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         var target = cookieUser == null ? 2 : 1;
         using var response = await client.PutAsJsonAsync($"/api/Location/{target}", new { notes = "changed" });
         Assert.Equal(status, (int)response.StatusCode);
-        Assert.Equal(status == 200 ? "changed" : "original", db.Locations.Find(target)!.Notes);
+        Assert.Equal("original", db.Locations.Find(target)!.Notes);
         Assert.Equal("original", db.Locations.Find(target == 1 ? 2 : 1)!.Notes);
         if (status == 401)
         {
@@ -156,11 +156,11 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         using var client = app.GetTestClient();
         Cookie(client, app.Services, "active");
-        using var rejected = await client.PostAsJsonAsync("/api/Location/bulk-delete", new { locationIds = new[] { 1 } });
+        using var rejected = await client.PostAsJsonAsync("/api/Location/bulk-delete", new { operationScope = "bulk", locationIds = new[] { 1 } });
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         Assert.NotNull(db.Locations.Find(1));
         client.DefaultRequestHeaders.Add("RequestVerificationToken", await Token(client));
-        using var accepted = await client.PostAsJsonAsync("/api/Location/bulk-delete", new { locationIds = new[] { 1 } });
+        using var accepted = await client.PostAsJsonAsync("/api/Location/bulk-delete", new { operationScope = "bulk", locationIds = new[] { 1 } });
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         Assert.Null(db.Locations.Find(1));
         Assert.NotNull(db.Locations.Find(2));
@@ -184,9 +184,9 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
         client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
-        using var response = await client.PutAsJsonAsync("/api/Location/1", new { notes = "page-token" });
+        using var response = await client.PostAsJsonAsync("/api/Location/bulk-delete", new { operationScope = "bulk", locationIds = new[] { 1 } });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("page-token", db.Locations.Find(1)!.Notes);
+        Assert.Null(db.Locations.Find(1));
     }
 
     /// <summary>Bodyless group leave requires a header without changing its route or response.</summary>
@@ -253,20 +253,20 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
 
     /// <summary>The genuine bearer DELETE uses the shared resolver; a cookie alone is not its authority.</summary>
     [Fact]
-    public async Task BearerDelete_RemainsTokenFreeAndRejectsCookieAlone()
+    public async Task LegacyDelete_RefusesCookieAndBearerWithoutEffects()
     {
         var db = Seed();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         using var client = app.GetTestClient();
         Cookie(client, app.Services, "active");
         using var cookieOnly = await client.DeleteAsync("/api/Location/1");
-        Assert.Equal(HttpStatusCode.Unauthorized, cookieOnly.StatusCode);
+        Assert.Equal(HttpStatusCode.PreconditionRequired, cookieOnly.StatusCode);
         Assert.NotNull(db.Locations.Find(1));
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
         using var bearer = await client.DeleteAsync("/api/Location/2");
-        Assert.Equal(HttpStatusCode.OK, bearer.StatusCode);
-        Assert.Null(db.Locations.Find(2));
+        Assert.Equal(HttpStatusCode.PreconditionRequired, bearer.StatusCode);
+        Assert.NotNull(db.Locations.Find(2));
     }
 
     /// <summary>Public timeline queries remain callable without cookie or antiforgery credentials.</summary>

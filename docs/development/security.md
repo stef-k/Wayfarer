@@ -46,7 +46,7 @@ an activity check to every action:
 | Admin, Manager and User MVC CRUD; Identity Manage Razor Pages | Application-cookie validation, then existing roles/ownership/antiforgery |
 | Cookie APIs: editor, Backfill, Groups, Invitations, Users, Visit, cookie Location actions and authenticated SSE subscriptions | The same cookie validation before attributed or manual identity checks |
 | Manual owner routes, including private `Trip/Export*` and identity-based API actions without `Authorize` | Rejected cookie removes trusted identity before the existing owner predicate |
-| Mixed Activity, Location PUT and Trip search | Cookie priority in `GetUserFromTokenOrCookie`; presented rejected/expired cookies cannot fall back to another bearer owner; active cookie mutations retain antiforgery |
+| Mixed Activity, protected Location commands and Trip search | Cookie priority in `GetUserFromTokenOrCookie`; presented rejected/expired cookies cannot fall back to another bearer owner; active cookie mutations retain antiforgery |
 | General bearer Trip/Location CRUD and conditional writers | Existing `IncomingApiTokenResolver` activity check through `BaseApiController` or the direct resolver |
 | Mobile Groups, Visits, Routing and SSE; account proof | Existing mobile accessor/resolver; account proof uses the resolver directly and remains token-only |
 | Full bearer Trip reads | Resolver bound inside the coherent read context; no global bearer pre-resolution |
@@ -57,6 +57,22 @@ manual/mixed routes, token recovery and public export through production
 registrations. Existing cookie-antiforgery and token/coherent-read tests retain
 their distinct authority contracts. API error normalization preserves deletion
 cookies even when replacing an empty error response or handling an exception.
+
+### Protected Location writer inventory
+
+Single writes use `Api.LocationMutation.Execute`; `CookieFirstAntiforgery` selects
+cookie authority before bearer and returns typed protected-command failures.
+`web-edit` additionally requires cookie ownership. Current active account/stamp or
+incoming bearer is rechecked inside account-fenced writer transactions. Recovery
+GET is read-only. Detail alone accepts cookie-first reads; collections retain their
+bearer boundary. Signed originals do not replace current auth or content consent.
+
+Unconditional `Api.Location.Update`, `Api.Location.Delete` and User Location Edit
+POST permanently refuse. Genuine bulk Notes/delete remain explicitly scoped
+cookie/antiforgery operations at every cardinality, with weaker uncertain-response
+recovery. Creation/import/keyed deduplication retain their existing boundaries;
+the original-create publication token fences only that invocation's delayed
+address result. See [wire/transaction details](location-mutations.md).
 
 ## API-token authority
 

@@ -49,6 +49,7 @@ internal static class HistoryDetail
             "l.\"CaptureOffsetSeconds\" AS \"captureOffset\"", "l.\"HistoryTimeStatus\" AS \"timeStatus\"",
             "l.\"HistoryTimeVersion\" AS \"timeVersion\"", "l.\"HistoryTimeFailureCode\" AS \"timeFailure\""
         ]);
+        fields.Add("clock_timestamp() AS \"mutationNow\"");
         fields.AddRange(LocationMutationEvidence.RawProjection());
         fields.Add("l.\"OriginalCreateAddressToken\" IS NOT NULL AS \"createPending\"");
         await using var command = ((NpgsqlConnection)db.Database.GetDbConnection()).CreateCommand();
@@ -75,10 +76,10 @@ internal static class HistoryDetail
         record["captureTime"] = HistoryPublication.Capture((DateTime?)Value("captureLocal"), (string?)Value("captureZone"),
             (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"), db.HistoryEnvironment);
         record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone, db.HistoryEnvironment);
-        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc(DateTime.UtcNow),
+        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc((DateTime)reader["mutationNow"]),
             derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment),
             locationMutation = protection == null ? null : LocationMutationEvidence.Create(protection, owner, id, record, unavailable,
-                LocationMutationEvidence.DeleteFingerprint(reader), (bool)reader["createPending"], DateTime.UtcNow), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
+                LocationMutationEvidence.DeleteFingerprint(reader), (bool)reader["createPending"], (DateTime)reader["mutationNow"]), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
     }
 
     /// <summary>PostgreSQL infinity and dates outside the wire calendar are unavailable, not known null.</summary>

@@ -32,7 +32,7 @@ public sealed partial class LocationDeletionPostgresTests(PostgresImportTestFixt
             controller.Request.Headers["Idempotency-Key"] = key.ToString();
             Assert.IsType<OkObjectResult>(await controller.CheckIn(ApiLocationAdmissionTests.Dto()));
             id = await db.Locations.Where(row => row.UserId == user.Id).Select(row => row.Id).SingleAsync();
-            Assert.IsType<OkObjectResult>(await controller.Delete(id));
+            Assert.Equal([id], await LocationDeletionFence.DeleteAsync(db, user.Id, [id], null, default));
         }
         await using var fresh = fixture.CreateContext();
         var admission = new ApiWorkAdmission(1, 1);

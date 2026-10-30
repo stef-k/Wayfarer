@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 /// <summary>One protected single-record protocol for cookie Web and current owner API authority.</summary>
 [Route("api/location/{id:int}/mutations/{baseId:guid}/{actionId:guid}")]
 public sealed class LocationMutationController(ApplicationDbContext db, ILogger<BaseApiController> logger,
-    IDataProtectionProvider protection, ReverseGeocodingService reverse, IMemoryCache cache) : BaseApiController(db, logger)
+    IDataProtectionProvider protection, ReverseGeocodingService reverse, IMemoryCache cache, SseService sse) : BaseApiController(db, logger)
 {
     /// <summary>Buffers the original body under the existing server limit, then binds its exact bytes once.</summary>
     [HttpPost, CookieFirstAntiforgery(ProtectedMutation = true)]
@@ -35,7 +36,14 @@ public sealed class LocationMutationController(ApplicationDbContext db, ILogger<
             if (command.Adapter == "web-edit" && User.Identity?.IsAuthenticated != true)
                 return ProblemResult("mutationForbidden", 403);
             var service = Service(user.Id);
-            return Reply(await service.ExecuteAsync(user.Id, id, baseId, actionId, command, bytes, token));
+            var result = await service.ExecuteAsync(user.Id, id, baseId, actionId, command, bytes, token);
+            var evidence = JsonSerializer.SerializeToElement(result.Body);
+            if (result.Status == 200 && command.Kind == "delete" && evidence.GetProperty("state").GetString() == "applied")
+            {
+                try { await LocationDeletionNotifications.BroadcastAsync(_dbContext, sse, user.Id, [id], token); }
+                catch (Exception failure) { _logger.LogDebug("Location deletion hint unavailable: {FailureType}", failure.GetType().Name); }
+            }
+            return Reply(result);
         }
         catch (MutationProtocolException failure) { return ProblemResult(failure.Code, 422); }
         catch (Exception failure) when (failure is NpgsqlException or DbUpdateException or OperationCanceledException)

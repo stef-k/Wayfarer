@@ -181,7 +181,9 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
     {
         if (group == "notesHtml") return RichNotes.Normalize(expected.ValueKind == JsonValueKind.Null ? null : expected.GetString())
             == RichNotes.Normalize(current.ValueKind == JsonValueKind.Null ? null : current.GetString());
-        if (group == "eventUtc") return Instant(expected.GetString()!, true) == Instant(current.GetString()!, true);
+        if (group is "eventUtc" or "reverseGeocodedAt")
+            return expected.ValueKind == JsonValueKind.Null || current.ValueKind == JsonValueKind.Null
+                ? expected.ValueKind == current.ValueKind : Instant(expected.GetString()!, true) == Instant(current.GetString()!, true);
         if (expected.ValueKind != current.ValueKind) return false;
         return expected.ValueKind switch
         {

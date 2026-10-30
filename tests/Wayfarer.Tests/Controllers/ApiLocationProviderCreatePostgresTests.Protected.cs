@@ -123,6 +123,57 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
         });
     }
 
+    /// <summary>Late first executor output cannot publish after its fixed deadline, and consumed contact remains consumed.</summary>
+    [PostgresFact(Timeout = 30000)]
+    public async Task ProtectedLateExecutorCannotPublishAfterRecoveryDeadline()
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var owner = await SeedAsync("geoapify", protection);
+        var id = await SeedLocationAsync(owner.UserId, Guid.NewGuid());
+        var clock = new ControlledDatabaseClock();
+        using var handler = new ControlledProvider { BeforeResponse = _ => { clock.Now = clock.Now.AddSeconds(121); return Task.CompletedTask; } };
+        await WithHostAsync(protection, handler, [clock], async client =>
+        {
+            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+            var request = await ProtectedLocationRequest.CreateAsync(client, id, new { position = new { op = "set", latitude = 11.0, longitude = 21.0 }, notes = new { op = "set", html = "must not publish" } });
+            using var response = await request.SendAsync(client); Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var terminal = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
+            Assert.Equal("operationExecutionExpired", terminal.GetProperty("code").GetString()); Assert.False(terminal.GetProperty("futureEffects").GetBoolean());
+            using var recovered = await request.RecoverAsync(client);
+            Assert.Equal(terminal.GetRawText(), JsonSerializer.Deserialize<JsonElement>(await recovered.Content.ReadAsStringAsync()).GetRawText());
+            await using var verify = fixture.CreateContext(); var row = await verify.Locations.SingleAsync(row => row.Id == id);
+            Assert.Equal(10, row.Coordinates.Y); Assert.Null(row.FullAddress); Assert.NotEqual("must not publish", row.Notes);
+            Assert.Equal(1, handler.Calls); Assert.Equal(1, await AdmissionCountAsync(owner.UserId, "geoapify"));
+        });
+    }
+
+    /// <summary>Revoked provider output is optional; a valid coordinate effect still commits with a cleared tuple.</summary>
+    [PostgresTheory(Timeout = 30000)]
+    [InlineData("geoapify")]
+    [InlineData("mapbox")]
+    public async Task ProtectedRevokedProviderOutputFallsBackWithoutRefund(string provider)
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var owner = await SeedAsync(provider, protection);
+        var id = await SeedLocationAsync(owner.UserId, Guid.NewGuid());
+        using var handler = new ControlledProvider { BeforeResponse = async _ =>
+        {
+            await using var edit = fixture.CreateContext();
+            var selection = await edit.PersonalLocationProviderSelections.SingleAsync(row => row.UserId == owner.UserId);
+            selection.Select(Wayfarer.Models.LocationProviders.PersonalProviderCapability.Geocoding, null);
+            await edit.SaveChangesAsync();
+        } };
+        await WithHostAsync(protection, handler, [], async client =>
+        {
+            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+            var request = await ProtectedLocationRequest.CreateAsync(client, id, new { position = new { op = "set", latitude = 11.0, longitude = 21.0 } });
+            var terminal = await AppliedAsync(await request.SendAsync(client)); Assert.Equal("unavailable", terminal.GetProperty("providerOutcome").GetString());
+            await using var verify = fixture.CreateContext(); var row = await verify.Locations.SingleAsync(row => row.Id == id);
+            Assert.Equal(11, row.Coordinates.Y); Assert.Null(row.FullAddress);
+            Assert.Equal(1, handler.Calls); Assert.Equal(1, await AdmissionCountAsync(owner.UserId, provider));
+        });
+    }
+
     /// <summary>Authentic cookie/antiforgery, including cookie priority over an already supplied bearer.</summary>
     private async Task WebCookieAsync(HttpClient client, string owner)
     {

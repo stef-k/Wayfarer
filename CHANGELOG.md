@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Changed
+- Protect single-record Location edits/deletes with selected originals, exact-byte
+  action identities, atomic effect/receipt commits and recovery after uncertain
+  replies (#947). Migrate Web Edit, inline Activity and per-row deletion together;
+  refuse unconditional routes. Preserve exact capture instants on movement,
+  optional address replacement/manual Clear and keyed non-resurrection, including
+  damaged-record deletion. Fence delayed original-create address publication.
+  Genuine bulk tools retain explicit weaker semantics with final locked append.
+  Finite Quartz receipt cleanup never expires phone work; companion mobile/native
+  implementation and qualification remain separately owned. Adds one nullable
+  publication-control column and the receipt table/indexes; no feature flag or
+  extra deployment prerequisite.
 - Remove #887's temporary integration gate from bearer import discovery. Upload
   availability now reflects the effective upload configuration and existing
   supported, qualified storage checks. Mobile recovery/native acceptance and
