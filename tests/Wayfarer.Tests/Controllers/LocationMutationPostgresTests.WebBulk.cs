@@ -16,6 +16,7 @@ public sealed partial class LocationMutationPostgresTests
     public async Task WebManualIntentAndBulkAppendUseFinalLockedContent()
     {
         var (owner, credential, id) = await SeedAsync();
+        var fault = new BeforeCommit();
         await WithHostAsync(credential, async client =>
         {
             await UseCookieAsync(client, owner);
@@ -43,12 +44,24 @@ public sealed partial class LocationMutationPostgresTests
             Assert.Contains("N1 SUFFIX", row.HistorySearchText);
             // Bulk has no single-operation receipt even at cardinality one.
             Assert.Single(await db.LocationMutationOperations.Where(row => row.UserId == owner).ToListAsync());
+            var second = new Wayfarer.Models.Location { UserId = owner, TimeZoneId = "UTC", Coordinates = new(0, 0) { SRID = 4326 },
+                Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, Place = "My place", Notes = "other Notes" };
+            db.Add(second); await db.SaveChangesAsync();
+            var beforeRollback = await db.Locations.AsNoTracking().Where(item => item.UserId == owner).OrderBy(item => item.Id)
+                .Select(item => new { item.Notes, item.HistorySearchText }).ToArrayAsync();
+            fault.Armed = true;
+            using (var failedBulk = await client.PostAsync("/User/Location/BulkEditNotes", new FormUrlEncodedContent(new Dictionary<string, string>
+                { ["OperationScope"] = "bulk", ["Append"] = "true", ["Notes"] = " must roll back", ["Place"] = "My place" })))
+                Assert.True((int)failedBulk.StatusCode >= 500);
+            var afterRollback = await db.Locations.AsNoTracking().Where(item => item.UserId == owner).OrderBy(item => item.Id)
+                .Select(item => new { item.Notes, item.HistorySearchText }).ToArrayAsync();
+            Assert.Equal(JsonSerializer.Serialize(beforeRollback), JsonSerializer.Serialize(afterRollback));
             using var old = await client.PostAsync("/User/Location/Edit", new FormUrlEncodedContent(new Dictionary<string, string>
                 { ["Id"] = id.ToString(), ["Notes"] = "unsafe", ["Latitude"] = "1", ["Longitude"] = "1" }));
             Assert.Equal(428, (int)old.StatusCode);
             using var bare = await client.PostAsJsonAsync("/api/location/bulk-delete", new { locationIds = new[] { id } });
             Assert.Equal(428, (int)bare.StatusCode);
-        });
+        }, fault);
     }
 
     /// <summary>Protected cookie commands require antiforgery; bearer may not select Web fields or another owner's evidence.</summary>

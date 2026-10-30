@@ -137,9 +137,12 @@ public sealed partial class LocationMutationPostgresTests(PostgresMigrationTestF
             await using (var db = fixture.CreateContext()) await db.Locations.Where(row => row.Id == id).ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Notes, "changed raw"));
             await AssertStateAsync(await stale.SendAsync(client), 409, "rejected", "locationBaseStale");
             var deletion = await ProtectedLocationRequest.CreateAsync(client, id, null);
+            var delayedEdit = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "set", html = "must not resurrect" } });
             await using (var db = fixture.CreateContext()) await db.Locations.Where(row => row.Id == id).ExecuteUpdateAsync(setters => setters.SetProperty(row => row.OriginalCreateAddressToken, Guid.NewGuid()));
             await AssertStateAsync(await deletion.SendAsync(client), 200, "applied");
             await AssertStateAsync(await deletion.RecoverAsync(client), 200, "applied");
+            await AssertStateAsync(await delayedEdit.SendAsync(client), keyed ? 410 : 404, "rejected", keyed ? "locationDeleted" : "locationUnavailable");
+            await AssertStateAsync(await (deletion with { ActionId = Guid.NewGuid() }).SendAsync(client), keyed ? 410 : 404, "rejected", keyed ? "locationDeleted" : "locationUnavailable");
             await using var verify = fixture.CreateContext();
             Assert.False(await verify.Locations.AnyAsync(row => row.Id == id));
             Assert.Equal(keyed ? 1 : 0, await verify.Set<LocationDeletionMarker>().CountAsync(row => row.UserId == owner));
