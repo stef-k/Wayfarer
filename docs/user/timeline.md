@@ -61,11 +61,16 @@ retained attempt before submitting another action. A successful save completes
 normally. Keep this browser's saved site data while recovering a draft. If local
 storage fails, the page reports that it could not save the draft; keep it open.
 Conflict review shows your originals, draft and current facts before you explicitly
-adopt new originals. An old receipt cannot consume newer typing.
+adopt new originals. An old receipt cannot consume newer typing, toolbar Clear,
+image insertion or a map pick. These changes are retained before you press Save.
+Reopening an unresolved inline Activity edit restores your desired selection;
+after success, a later edit starts from fresh originals.
 
 Moving a point preserves the exact capture instant and updates the local display
 for the new zone. Explicit time editing uses the zone shown when the form opened;
-choose an occurrence for an ambiguous daylight-saving time. Moving also discards
+the draft keeps that zone and its chosen daylight-saving occurrence across reloads,
+even if another writer moves the point. Choose an occurrence for an ambiguous
+daylight-saving time. Moving also discards
 obsolete address information and attempts one authorized replacement. Optional
 lookup failure still saves valid coordinates. Explicit manual components, including
 Clear, win over lookup results. Manual-only address editing makes no provider call.

@@ -14,6 +14,9 @@
   implementation and qualification remain separately owned. Adds one nullable
   publication-control column and the receipt table/indexes; no feature flag or
   extra deployment prerequisite.
+  Retain toolbar Clear/map/image intent and the draft's original time-zone/DST
+  interpretation across reloads. Restore pending Activity selections, use fresh
+  originals after settlement and reject malformed acknowledgement timestamps.
 - Remove #887's temporary integration gate from bearer import discovery. Upload
   availability now reflects the effective upload configuration and existing
   supported, qualified storage checks. Mobile recovery/native acceptance and

@@ -471,7 +471,7 @@ test('malformed or premature no-row timestamps cannot authorize retry or replace
     }
 });
 
-test('actual page controls retain map picks, empty-document Clear and image insertion before submission', async () => {
+test('actual page controls retain map picks, empty-document Clear and image insertion before submission', async t => {
     const f = await mountedForm(); const events = {}, changes = [];
     const control = () => ({ value: '', dataset: {}, classList: { add: () => {} }, setAttribute: () => {},
         addEventListener: (type, callback) => { events[type] = callback; } });
@@ -504,14 +504,19 @@ test('actual page controls retain map picks, empty-document Clear and image inse
         Quill: function () { return f.quill; }, createTileLayer: () => ({ addTo: () => {} }),
         L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) },
         bootstrap: { Modal: { getInstance: () => ({ hide: () => {} }) } } });
-    ready(); clearClick();
-    assert.equal(locationWork(421).draft.value.clearNotes, true);
-    retainLocationDraft(421, { ...locationWork(421).draft.value, clearNotes: false }); clearClick();
-    assert.equal(locationWork(421).draft.value.clearNotes, true, 'Clear must persist even without a Quill delta');
-    pick({ latlng: { lat: 51.5, lng: 0 } });
-    assert.equal(locationWork(421).draft.value.current.Latitude, '51.50000000');
-    assert.equal(locationWork(421).draft.value.current.Longitude, '0.00000000');
-    insert();
-    assert.equal(locationWork(421).draft.value.clearNotes, false);
-    assert.equal(locationWork(421).draft.value.current.Notes, '<p>image added</p>');
+    ready();
+    await t.test('map picker retains both programmatic coordinate changes', () => {
+        pick({ latlng: { lat: 51.5, lng: 0 } });
+        assert.equal(locationWork(421).draft?.value.current.Latitude, '51.50000000');
+        assert.equal(locationWork(421).draft?.value.current.Longitude, '0.00000000');
+    });
+    await t.test('Clear persists with and without a Quill delta', () => {
+        clearClick(); assert.equal(locationWork(421).draft?.value.clearNotes, true);
+        retainLocationDraft(421, { ...locationWork(421).draft.value, clearNotes: false }); clearClick();
+        assert.equal(locationWork(421).draft.value.clearNotes, true, 'Clear must persist even without a Quill delta');
+    });
+    await t.test('image insertion replaces the previous Clear intent', () => {
+        insert(); assert.equal(locationWork(421).draft?.value.clearNotes, false);
+        assert.equal(locationWork(421).draft.value.current.Notes, '<p>image added</p>');
+    });
 });

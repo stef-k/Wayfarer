@@ -157,6 +157,11 @@ validation. Exact duplicates never acquire an executor. Different bytes/target
 reject this invocation as `operationIdentityReused`, leaving the original intact.
 Clients validate every correlation member against their pre-send digest, including
 the first recovered receipt after complete response loss. HTTP alone is no proof.
+Web validates response timestamps as Gregorian UTC strings with zero to seven
+fractional digits, matching the server's DateTime serializer (including clock
+ticks not yet rounded by PostgreSQL). Pending, terminal and no-row shapes are
+validated separately; malformed evidence cannot settle work, authorize retry or
+exclude earlier future effects.
 
 Account fence precedes operation/provider/Location locks in READ COMMITTED
 transactions. Ordinary effects and terminal receipts commit together. Changed
@@ -190,6 +195,16 @@ labelled historical outcome unknown; mismatches require retained drafts and
 informed conflict resolution. Address-dependent satisfaction also requires fresh
 closed original-create publication evidence. Matching values alone cannot exclude
 Pending publishers. See the [mobile handoff](../planning/947-mobile-handoff.md).
+
+Web drafts retain their edit-start input zone and DST occurrence together with
+initial/current strings. Restoring them never derives the zone from current row
+coordinates. Untouched time is omitted, preserving exact capture precision.
+An older retained draft without zone metadata cannot submit a changed wall time;
+keep that time for explicit review rather than guessing its interpretation.
+Toolbar Clear (even when already empty), image insertion and map picks persist
+desired generations before submission. Unresolved inline Activity restores its
+desired selection against retained originals; settled history never overrides
+fresh originals for a later edit. Historical attempts remain immutable.
 
 For a previously observed keyless target, detail GET with the expired original
 handle may return 404 with exactly `contract:location-target-absence-1`, subjectId,
