@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
 import { locationRequestFingerprint, validateLocationReceipt, saveLocationMutation, retainLocationDraft, locationWork, prepareLocationDeletion } from '../../wwwroot/js/util/location-mutation.js';
 import { locationEditCommand, locationWallTimeUtc } from '../../wwwroot/js/util/location-edit-state.js';
 
@@ -233,8 +235,8 @@ test('per-record deletion requires informed fresh consent after rejection and ke
 });
 
 
-/** Review-only: mount the shipped form with the existing suite's narrow storage/fetch doubles. */
-const reviewForm = async (zone = 'Europe/Athens') => {
+/** Mount the production form with the suite's narrow DOM, storage and fetch doubles. */
+const mountedForm = async (zone = 'Europe/Athens') => {
     const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
     const storage = new Map();
     globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
@@ -253,7 +255,7 @@ const reviewForm = async (zone = 'Europe/Athens') => {
     fields.LocalTimestamp.value = '2026-10-29T10:00:00'; fields.SelectedActivityId.value = '7';
     const status = { textContent: '' }, listeners = {}, quillListeners = {}, button = { disabled: false };
     const elements = { 'browser-antiforgery': { dataset: { subjectId: 'owner-a' } }, 'location-save-status': status,
-        timeAmbiguity: { value: '' }, 'location-adopt-current': { addEventListener: () => {} } };
+        timeAmbiguity: { value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} } };
     globalThis.document = { getElementById: id => elements[id], querySelector: () => ({ value: 'csrf' }),
         createElement: () => ({ innerHTML: '', content: { querySelectorAll: () => [] } }) };
     const form = { dataset: { locationId: '421', locationDetail: JSON.stringify(detail), timeZone: zone },
@@ -261,16 +263,21 @@ const reviewForm = async (zone = 'Europe/Athens') => {
         addEventListener: (type, callback) => { (listeners[type] ||= []).push(callback); } };
     const quill = { root: { innerHTML: 'original' }, on: (type, callback) => { quillListeners[type] = callback; } };
     let clear = false;
-    const mount = () => mountProtectedLocationForm(form, quill, () => clear);
-    return { detail, form, fields, status, mount, storage, reloads: () => reloads,
+    const mount = () => {
+        // Reload replaces DOM listeners but preserves local/session storage.
+        for (const key of Object.keys(listeners)) delete listeners[key];
+        for (const key of Object.keys(quillListeners)) delete quillListeners[key];
+        clear = false; mountProtectedLocationForm(form, quill, () => clear);
+    };
+    return { detail, form, fields, status, quill, elements, listeners, quillListeners, mount, storage, reloads: () => reloads,
         input: () => listeners.input.at(-1)({ target: { name: 'LocalTimestamp' } }),
         submit: () => listeners.submit.at(-1)({ preventDefault: () => {} }),
         type: html => { quill.root.innerHTML = html; quillListeners['text-change']({}, {}, 'user'); },
         clear: () => { clear = true; quill.root.innerHTML = '<p><br></p>'; quillListeners['text-change']({}, {}, 'api'); } };
 };
 
-test('REVIEW: a newer toolbar Clear survives an older applied acknowledgement', async () => {
-    const f = await reviewForm(); f.mount(); f.type('older edit');
+test('a newer toolbar Clear survives an older applied acknowledgement', async () => {
+    const f = await mountedForm(); f.mount(); f.type('older edit');
     let release, handedOff;
     const sent = new Promise(resolve => { handedOff = resolve; });
     globalThis.fetch = async (url, options) => {
@@ -284,13 +291,24 @@ test('REVIEW: a newer toolbar Clear survives an older applied acknowledgement', 
     f.clear(); release(); await saving;
     assert.equal(f.reloads(), 0, 'an older acknowledgement must not reload away the newer explicit Clear');
     assert.equal(locationWork(421).draft.value.clearNotes, true);
+    assert.deepEqual(JSON.parse(locationWork(421).attempts[0].body).changes.notes, { op: 'set', html: 'older edit' });
+    assert.notEqual(locationWork(421).draft.generation, locationWork(421).attempts[0].generation);
+    f.mount();
+    assert.equal(locationWork(421).draft.value.clearNotes, true);
+    assert.equal(f.quill.root.innerHTML, '<p><br></p>');
 });
 
-test('REVIEW: reload retains the edit-start wall-time zone after a remote coordinate-only change', async () => {
-    const f = await reviewForm(); f.mount();
+test('reload retains the edit-start wall-time zone after a remote coordinate-only change', async () => {
+    const f = await mountedForm();
+    f.detail.locationMutation.baseValues.eventUtc.value = '2026-10-29T08:00:00.123456Z';
+    f.fields.LocalTimestamp.value = '2026-10-29T10:00:00.123456';
+    f.form.dataset.locationDetail = JSON.stringify(f.detail); f.mount();
     f.fields.LocalTimestamp.value = '2026-10-29T11:00:00'; f.input();
     // The new GET legitimately renders the current row at New York coordinates; stored capture UTC is unchanged.
-    f.form.dataset.timeZone = 'America/New_York'; f.mount();
+    const remote = structuredClone(f.detail);
+    remote.record.latitude = 40.71; remote.record.longitude = -74.01;
+    f.form.dataset.locationDetail = JSON.stringify(remote); f.form.dataset.timeZone = 'America/New_York';
+    f.fields.LocalTimestamp.value = '2026-10-29T04:00:00.123456'; f.mount();
     let posted;
     globalThis.fetch = async (url, options) => {
         if (options.method === 'POST') {
@@ -301,14 +319,17 @@ test('REVIEW: reload retains the edit-start wall-time zone after a remote coordi
     };
     await f.submit();
     assert.equal(posted.changes.eventUtc.value, '2026-10-29T09:00:00Z', 'the draft was authored in Athens, irrespective of the reloaded row zone');
+    assert.equal(posted.expected.eventUtc.value, '2026-10-29T08:00:00.123456Z');
+    assert.equal(f.elements['location-input-time-zone'].textContent, 'Europe/Athens');
 });
 
-test('REVIEW: reopening inline Activity restores the retained desired selection', async () => {
-    const f = await reviewForm();
+test('reopening inline Activity restores the retained desired selection', async () => {
+    const f = await mountedForm();
     globalThis.fetch = async () => { throw new Error('offline'); };
     await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } },
         { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } }, { activityDetail: f.detail });
-    const { setupActivityEditorEvents } = await import('../../wwwroot/js/util/activity-editor.js');
+    // Each scenario represents a new page module, while persisted work survives within the scenario.
+    const { setupActivityEditorEvents, updateLocationActivity } = await import('../../wwwroot/js/util/activity-editor.js?pending-selection');
     let click, selected;
     const select = { dataset: {}, tomselect: { addOption: () => {}, setValue: value => { selected = value; } } };
     globalThis.TomSelect = function () {};
@@ -320,10 +341,16 @@ test('REVIEW: reopening inline Activity restores the retained desired selection'
     setupActivityEditorEvents('#modal');
     await click({ target, preventDefault: () => {} });
     assert.equal(selected, '9', 'the retained desired Activity must be restored, rather than its original 7');
+    globalThis.fetch = async () => ({ json: async () => pendingReceipt(locationWork(421).attempts[0]) });
+    assert.equal((await updateLocationActivity(421, 11)).success, false);
+    await click({ target, preventDefault: () => {} });
+    assert.equal(selected, '11');
+    assert.equal(locationWork(421).draft.value.expected.activityTypeId.value, 7);
+    assert.equal(JSON.parse(locationWork(421).attempts[0].body).changes.activity.id, 9);
 });
 
-test('REVIEW: malformed acknowledgement timestamps cannot settle an otherwise bound action', async () => {
-    const f = await reviewForm();
+test('malformed acknowledgement timestamps cannot settle an otherwise bound action', async () => {
+    const f = await mountedForm();
     globalThis.fetch = async (url, options) => {
         if (options.method === 'POST') {
             const state = locationWork(421);
@@ -334,11 +361,14 @@ test('REVIEW: malformed acknowledgement timestamps cannot settle an otherwise bo
     const result = await saveLocationMutation(421, f.detail, 'update', { notes: { op: 'clear' } },
         { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } });
     assert.equal(result.success, false, 'the malformed array timestamp must leave the action Unknown');
+    assert.equal(locationWork(421).settledGeneration, undefined);
+    assert.equal(locationWork(421).attempts[0].receipt, undefined);
+    assert.equal(locationWork(421).active, locationWork(421).attempts[0].actionId);
 });
 
 
-test('REVIEW: a second inline Activity save uses the baseline from the first successful save', async () => {
-    const f = await reviewForm();
+test('a second inline Activity save uses the baseline from the first successful save', async () => {
+    const f = await mountedForm();
     const fresh = structuredClone(f.detail);
     fresh.record.activityTypeId = 9; fresh.locationMutation.baseValues.activityTypeId.value = 9;
     const posts = [];
@@ -353,7 +383,135 @@ test('REVIEW: a second inline Activity save uses the baseline from the first suc
     const expected = { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } };
     const first = await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } }, expected, { activityDetail: f.detail });
     assert.equal(first.success, true);
-    const { updateLocationActivity } = await import('../../wwwroot/js/util/activity-editor.js');
-    await updateLocationActivity(421, 11);
+    const { updateLocationActivity } = await import('../../wwwroot/js/util/activity-editor.js?consecutive-edits');
+    fresh.record.activityTypeId = 11; fresh.locationMutation.baseValues.activityTypeId.value = 11;
+    assert.equal((await updateLocationActivity(421, 11)).success, true);
     assert.equal(posts[1].expected.activityTypeId.value, 9, 'a settled old draft must not override the fresh Activity baseline');
+    assert.equal(locationWork(421).attempts.length, 2);
+    assert.deepEqual(locationWork(421).attempts.map(item => JSON.parse(item.body).changes.activity.id), [9, 11]);
+    assert.equal(locationWork(421).fresh.record.activityTypeId, 11);
+});
+
+/** Builds the server's Pending shape without terminal-only members. */
+const pendingReceipt = value => {
+    const { completedAtUtc, changed, detailUrl, addressOutcome, providerOutcome, ...common } = receipt(value);
+    return { ...common, state: 'pending', futureEffects: true, observedAtUtc: '2026-10-30T10:00:00.1234567Z',
+        executeBeforeUtc: '2026-10-30T10:02:00.123456Z', retryAfterSeconds: 2 };
+};
+
+test('restored time keeps the DST occurrence, and untouched capture microseconds stay out of the command', async () => {
+    for (const occurrence of ['earlier', 'later', 'untouched']) {
+        const f = await mountedForm();
+        f.fields.LocalTimestamp.value = '2026-10-25T03:00:00.123456';
+        f.detail.locationMutation.baseValues.eventUtc.value = '2026-10-25T00:00:00.123456Z';
+        f.form.dataset.locationDetail = JSON.stringify(f.detail); f.mount();
+        if (occurrence === 'untouched') f.type('only Notes changed');
+        else {
+            f.fields.LocalTimestamp.value = '2026-10-25T03:30:00.123456';
+            f.elements.timeAmbiguity.value = occurrence; f.input();
+        }
+        f.form.dataset.timeZone = 'America/New_York'; f.elements.timeAmbiguity.value = ''; f.mount();
+        let posted;
+        globalThis.fetch = async (_url, options) => {
+            if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
+            posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+        };
+        await f.submit();
+        if (occurrence === 'untouched') {
+            assert.equal(posted.changes.eventUtc, undefined); assert.equal(posted.expected.eventUtc, undefined);
+            assert.equal(locationWork(421).draft.value.draft.initial.LocalTimestamp, '2026-10-25T03:00:00.123456');
+        } else {
+            assert.equal(f.elements.timeAmbiguity.value, occurrence);
+            assert.equal(posted.changes.eventUtc.value, `2026-10-25T0${occurrence === 'earlier' ? 0 : 1}:30:00.123456Z`);
+            assert.equal(posted.expected.eventUtc.value, '2026-10-25T00:00:00.123456Z');
+        }
+    }
+});
+
+test('acknowledgement timestamps require UTC Gregorian strings at emitted DateTime precision and state-specific shapes', () => {
+    const { changed, detailUrl, addressOutcome, providerOutcome, ...terminal } = receipt(attempt);
+    const rejected = { ...terminal, state: 'rejected', code: 'locationBaseStale', staleGroups: ['notesHtml'] };
+    const envelopes = [receipt(attempt), rejected, pendingReceipt(attempt)];
+    const malformed = [null, 0, ['2026-10-30'], {}, '2026-10-30', '2026-10-30T10:00:00+00:00', '2026-10-30T10:00:00z',
+        '0000-01-01T00:00:00Z', '2026-02-29T10:00:00Z', '2026-02-30T10:00:00Z', '2026-13-01T10:00:00Z',
+        '2026-10-00T10:00:00Z', '2026-10-30T24:00:00Z', '2026-10-30T10:60:00Z', '2026-10-30T10:00:60Z',
+        '2026-10-30T10:00:00.12345678Z', ' 2026-10-30T10:00:00Z'];
+    for (const envelope of envelopes) {
+        assert.equal(validateLocationReceipt(envelope, attempt), true);
+        const fields = Object.keys(envelope).filter(key => key.endsWith('Utc'));
+        for (const field of fields) {
+            for (const value of malformed) assert.equal(validateLocationReceipt({ ...envelope, [field]: value }, attempt), false, `${envelope.state}.${field}: ${JSON.stringify(value)}`);
+            for (const value of ['0001-01-01T00:00:00Z', '9999-12-31T23:59:59.9999999Z', '2024-02-29T10:00:00Z',
+                ...Array.from({ length: 7 }, (_, i) => `2026-10-30T10:00:00.${'1234567'.slice(0, i + 1)}Z`)])
+                assert.equal(validateLocationReceipt({ ...envelope, [field]: value }, attempt), true, value);
+        }
+    }
+    assert.equal(validateLocationReceipt({ ...rejected, staleGroups: null }, attempt), false);
+    assert.equal(validateLocationReceipt({ ...pendingReceipt(attempt), completedAtUtc: terminal.completedAtUtc }, attempt), false);
+    assert.equal(validateLocationReceipt({ ...receipt(attempt), observedAtUtc: terminal.completedAtUtc }, attempt), false);
+});
+
+test('malformed or premature no-row timestamps cannot authorize retry or replacement', async () => {
+    for (const expired of [false, true]) {
+        const f = await mountedForm(); let posts = 0;
+        f.detail.locationMutation.expiresAtUtc = '2099-01-01T00:00:00.1234567Z';
+        globalThis.fetch = async (_url, options) => {
+            if (options.method === 'POST') { posts++; throw new Error('lost reply'); }
+            const active = locationWork(421).attempts[0];
+            return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+                baseId: active.baseId, actionId: active.actionId, observedAtUtc: expired ? '2099-01-01T00:00:00.1234566Z' : ['2026-10-30'],
+                state: 'unknown', code: expired ? 'operationHistoryExpired' : 'operationNotObserved', futureEffects: !expired,
+                expiresAtUtc: active.expiresAtUtc, ...(expired ? { historicalOutcome: 'unknown' } : {}) }) };
+        };
+        const args = [421, f.detail, 'update', { notes: { op: 'clear' } }, { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } }];
+        assert.equal((await saveLocationMutation(...args)).success, false);
+        assert.equal((await saveLocationMutation(...args)).success, false);
+        assert.equal(posts, 1); assert.equal(locationWork(421).attempts[0].exclusion, undefined);
+        assert.equal(locationWork(421).settledGeneration, undefined);
+    }
+});
+
+test('actual page controls retain map picks, empty-document Clear and image insertion before submission', async () => {
+    const f = await mountedForm(); const events = {}, changes = [];
+    const control = () => ({ value: '', dataset: {}, classList: { add: () => {} }, setAttribute: () => {},
+        addEventListener: (type, callback) => { events[type] = callback; } });
+    const clear = control(), image = control(), modal = control();
+    const dom = { ...f.elements, ...f.fields, locationForm: f.form, mapContainer: { dataset: { lat: '37.98', lon: '23.72' } },
+        notes: { dataset: { notesContent: 'original' } }, insertImageBtn: image, imageModal: modal, imageUrl: { value: 'https://images.example.test/a.jpg' } };
+    let ready, pick, insert, clearClick;
+    clear.addEventListener = (_type, callback) => { clearClick = callback; };
+    image.addEventListener = (_type, callback) => { insert = callback; };
+    document.getElementById = id => dom[id]; document.createElement = () => clear;
+    // Templates are inert; this scenario tests control intent, while notesImages owns image URL policy.
+    clear.content = { querySelectorAll: () => [] };
+    document.querySelector = () => ({ querySelectorAll: () => [] });
+    document.addEventListener = (_type, callback) => { ready = callback; };
+    f.form.dispatchEvent = event => f.listeners[event.type].forEach(callback => callback({ target: f.form }));
+    f.fields.Latitude.dispatchEvent = event => f.listeners[event.type].forEach(callback => callback({ target: { name: 'Latitude' } }));
+    f.quill.on = (type, callback) => { if (type === 'text-change') changes.push(callback); };
+    f.quill.getModule = () => ({ container: { appendChild: () => {} }, addHandler: () => {} });
+    f.quill.getText = () => ''; f.quill.getLength = () => 0;
+    f.quill.setText = () => {
+        if (f.quill.root.innerHTML === '') return; // Real Quill emits no delta for a no-op Clear.
+        f.quill.root.innerHTML = ''; changes.forEach(callback => callback({}, {}, 'api'));
+    };
+    f.quill.insertEmbed = () => { f.quill.root.innerHTML = '<p>image added</p>'; changes.forEach(callback => callback({}, {}, 'api')); };
+    const map = { setView: () => map, attributionControl: { setPrefix: () => {} }, getContainer: () => ({ style: {} }), on: (_type, callback) => { pick = callback; } };
+    const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
+    const source = await readFile(new URL('../../wwwroot/js/Areas/User/Location/Edit.js', import.meta.url), 'utf8');
+    vm.runInNewContext(source.replace(/^import .*;$/gm, ''), { document, Event, console: { log: () => {} },
+        mountProtectedLocationForm, notesHtmlForDisplay: html => html, registerNoteImageBlot: () => {},
+        Quill: function () { return f.quill; }, createTileLayer: () => ({ addTo: () => {} }),
+        L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) },
+        bootstrap: { Modal: { getInstance: () => ({ hide: () => {} }) } } });
+    ready(); clearClick();
+    assert.equal(locationWork(421).draft.value.clearNotes, true);
+    retainLocationDraft(421, { ...locationWork(421).draft.value, clearNotes: false }); clearClick();
+    assert.equal(locationWork(421).draft.value.clearNotes, true, 'Clear must persist even without a Quill delta');
+    pick({ latlng: { lat: 51.5, lng: 0 } });
+    assert.equal(locationWork(421).draft.value.current.Latitude, '51.50000000');
+    assert.equal(locationWork(421).draft.value.current.Longitude, '0.00000000');
+    insert();
+    assert.equal(locationWork(421).draft.value.clearNotes, false);
+    assert.equal(locationWork(421).draft.value.current.Notes, '<p>image added</p>');
 });

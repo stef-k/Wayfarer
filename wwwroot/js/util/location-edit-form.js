@@ -13,6 +13,8 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     const input = name => form.elements.namedItem(name);
     const values = () => ({ ...Object.fromEntries(names.map(name => [name, input(name).value])), Notes: notesHtmlForSave(quill.root.innerHTML) });
     let initial = values();
+    let inputTimeZone = form.dataset.timeZone;
+    const timeAmbiguity = document.getElementById('timeAmbiguity');
     const manual = new Set();
     let restoredClear = false;
     let inspected = null;
@@ -26,6 +28,9 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         quill.root.innerHTML = notesHtmlForDisplay(stored.current.Notes);
         for (const name of stored.explicitManual) manual.add(name);
         restoredClear = stored.clearNotes;
+        // A refreshed row may have moved; retained wall strings keep their edit-start interpretation.
+        inputTimeZone = stored.inputTimeZone;
+        timeAmbiguity.value = stored.timeAmbiguity || '';
         status.textContent = 'Restored your retained draft. Save checks any earlier uncertain action first.';
     }
     if (stored?.activityDetail && state.draft.generation !== state.settledGeneration) {
@@ -34,7 +39,10 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         if (activity) input('SelectedActivityId').value = activity.op === 'clear' ? '' : String(activity.id);
         status.textContent = 'Restored your retained Activity draft. Save recovers its earlier action before any new command.';
     }
-    const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: clearNotes() || restoredClear, detail });
+    const timeZoneLabel = document.getElementById('location-input-time-zone');
+    if (timeZoneLabel) timeZoneLabel.textContent = inputTimeZone || 'unavailable for this retained draft';
+    const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: clearNotes() || restoredClear,
+        detail, inputTimeZone, timeAmbiguity: timeAmbiguity.value });
     const retain = () => {
         try { retainLocationDraft(id, draft()); }
         catch (error) { status.textContent = `Not saved locally: ${error.message}`; }
@@ -44,8 +52,9 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         retain();
     });
     form.addEventListener('change', retain);
-    quill.on('text-change', (_delta, _old, source) => {
-        if (source === 'user') { restoredClear = false; retain(); }
+    quill.on('text-change', () => {
+        // Toolbar Clear and image insertion use Quill's API source, but are still new user intent.
+        restoredClear = false; retain();
     });
     form.addEventListener('submit', async event => {
         event.preventDefault();
@@ -53,7 +62,9 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         if (buttons.some(button => button.disabled)) return;
         const returnAfterSave = event.submitter?.value === 'return';
         try {
-            const selection = locationEditCommand(initial, values(), [...manual], clearNotes() || restoredClear, form.dataset.timeZone, document.getElementById('timeAmbiguity').value);
+            if (input('LocalTimestamp').value !== initial.LocalTimestamp && !inputTimeZone)
+                throw new Error('This retained draft has no input time zone. Keep its time for review before saving.');
+            const selection = locationEditCommand(initial, values(), [...manual], clearNotes() || restoredClear, inputTimeZone, timeAmbiguity.value);
             if (!Object.keys(selection.changes).length) { status.textContent = 'No changes selected.'; return; }
             const expected = Object.fromEntries(selection.groups.map(group => [group, detail.locationMutation.baseValues[group]]));
             buttons.forEach(button => { button.disabled = true; });

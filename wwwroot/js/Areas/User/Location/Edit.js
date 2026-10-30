@@ -48,6 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Update the Coordinates input field with the selected latitude and longitude
             document.getElementById('Latitude').value = lat.toFixed(8);
             document.getElementById('Longitude').value = lng.toFixed(8);
+            // Retain the complete pair synchronously, including while an older save is pending.
+            document.getElementById('Latitude').dispatchEvent(new Event('input', { bubbles: true }));
         });
 
         // Set the existing marker at the current location
@@ -103,6 +105,8 @@ document.addEventListener("DOMContentLoaded", function () {
     clearText.addEventListener('click', function () {
         explicitlyClearNotes = true;
         quill.setText(''); // Explicit Clear differs from an empty Set.
+        // Quill emits no text-change for an already-empty document; Clear still creates durable intent.
+        document.getElementById('locationForm').dispatchEvent(new Event('input', { bubbles: true }));
     });
 
     var toolbar = quill.getModule('toolbar');
@@ -124,6 +128,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const imageUrl = document.getElementById('imageUrl').value;
 
         if (imageUrl) {
+            // Inserting an image replaces any earlier explicit Clear intent before Quill emits the change.
+            explicitlyClearNotes = false;
             if (savedRange) {
                 // Restore the saved selection range
                 quill.setSelection(savedRange.index, savedRange.length);

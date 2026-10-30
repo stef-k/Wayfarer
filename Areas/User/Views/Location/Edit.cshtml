@@ -152,7 +152,7 @@
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>
 
-                    <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone @ViewData["InputTimeZone"].</p>
+                    <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone <span id="location-input-time-zone">@ViewData["InputTimeZone"]</span>.</p>
                     <label for="timeAmbiguity">If this local time occurs twice</label>
                     <select id="timeAmbiguity" class="form-select"><option value="">Choose when needed</option><option value="earlier">Earlier occurrence</option><option value="later">Later occurrence</option></select>
                     <div class="form-group">

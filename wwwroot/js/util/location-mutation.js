@@ -20,6 +20,28 @@ const editorIdentity = () => {
 const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 const exactKeys = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
     && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key));
+/** Validates Gregorian UTC wire strings and preserves all seven digits emitted by .NET DateTime for ordering. */
+const utcInstantKey = value => {
+    if (typeof value !== 'string') return null;
+    const match = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,7}))?Z$/.exec(value);
+    if (!match || value.startsWith('0000')) return null;
+    const instant = new Date(`${match[1]}Z`);
+    if (!Number.isFinite(instant.getTime()) || instant.toISOString().slice(0, 19) !== match[1]) return null;
+    return `${match[1]}.${(match[2] || '').padEnd(7, '0')}Z`;
+};
+
+/** Only fully bound, typed no-row observations can authorize retry or exclude old future effects. */
+const validateLocationObservation = (receipt, attempt) => {
+    const expired = receipt?.code === 'operationHistoryExpired' && receipt.futureEffects === false && receipt.historicalOutcome === 'unknown';
+    const waiting = receipt?.code === 'operationNotObserved' && receipt.futureEffects === true;
+    if (!expired && !waiting) return false;
+    const observed = utcInstantKey(receipt.observedAtUtc), expires = utcInstantKey(receipt.expiresAtUtc);
+    return !!observed && !!expires && receipt.contract === contract && receipt.subjectId === attempt.subjectId
+        && receipt.locationId === attempt.id && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId
+        && receipt.state === 'unknown' && receipt.expiresAtUtc === attempt.expiresAtUtc
+        && exactKeys(receipt, ['contract', 'subjectId', 'locationId', 'baseId', 'actionId', 'observedAtUtc', 'state', 'code', 'futureEffects', 'expiresAtUtc', ...(expired ? ['historicalOutcome'] : [])])
+        && (expired ? observed >= expires : observed < expires);
+};
 const persist = (id, state) => {
     if (state.draft) state.draftsByEditor = { ...state.draftsByEditor, [editorIdentity()]: state.draft };
     if (state.settledGeneration) state.settledByEditor = { ...state.settledByEditor, [editorIdentity()]: state.settledGeneration };
@@ -66,14 +88,15 @@ export const validateLocationReceipt = (receipt, attempt) => {
     const equal = receipt?.contract === contract && receipt.normalization === normalization && receipt.adapter === attempt.adapter
         && receipt.subjectId === attempt.subjectId && receipt.locationId === attempt.id && receipt.uuid === attempt.uuid
         && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId && receipt.kind === attempt.kind
-        && receipt.fingerprint === attempt.fingerprint && Number.isFinite(Date.parse(receipt.receiptRetainUntilUtc));
+        && receipt.fingerprint === attempt.fingerprint && !!utcInstantKey(receipt.receiptRetainUntilUtc);
     if (!equal) return false;
     if (receipt.state === 'pending') return exactKeys(receipt, [...common, 'observedAtUtc', 'executeBeforeUtc', 'retryAfterSeconds'])
-        && receipt.futureEffects === true && receipt.retryAfterSeconds === 2 && Number.isFinite(Date.parse(receipt.executeBeforeUtc));
-    if (!Number.isFinite(Date.parse(receipt.completedAtUtc)) || receipt.futureEffects !== false) return false;
+        && receipt.futureEffects === true && receipt.retryAfterSeconds === 2
+        && !!utcInstantKey(receipt.observedAtUtc) && !!utcInstantKey(receipt.executeBeforeUtc);
+    if (!utcInstantKey(receipt.completedAtUtc) || receipt.futureEffects !== false) return false;
     if (receipt.state === 'rejected') return exactKeys(receipt, [...common, 'completedAtUtc', 'code'], ['staleGroups'])
         && ['locationBaseStale', 'operationExecutionExpired', 'mutationInvalid', 'activityInvalid', 'baseUnavailable', 'baseNormalizationUnsupported', 'locationDeleted', 'locationUnavailable'].includes(receipt.code)
-        && (!receipt.staleGroups || Array.isArray(receipt.staleGroups) && receipt.staleGroups.every(group => ['uuid', 'position', 'address', 'eventUtc', 'activityTypeId', 'notesHtml', 'altitude', 'content'].includes(group)));
+        && (!Object.hasOwn(receipt, 'staleGroups') || Array.isArray(receipt.staleGroups) && receipt.staleGroups.every(group => ['uuid', 'position', 'address', 'eventUtc', 'activityTypeId', 'notesHtml', 'altitude', 'content'].includes(group)));
     return receipt.state === 'applied' && exactKeys(receipt, [...common, 'completedAtUtc', 'changed', 'detailUrl', ...(attempt.kind === 'update' ? ['addressOutcome', 'providerOutcome'] : [])])
         && typeof receipt.changed === 'boolean' && receipt.detailUrl === (attempt.kind === 'delete' ? null : `/api/location/history/${attempt.id}`)
         && (attempt.kind === 'delete' || ['unchanged', 'replaced', 'cleared', 'manual'].includes(receipt.addressOutcome)
@@ -162,19 +185,12 @@ const inspectAttempt = async (id, state, attempt, retry = false) => {
         if (attempt.receipt?.futureEffects === false) return acceptResponse(id, state, attempt, attempt.receipt);
         const response = await fetch(attemptUrl(attempt), { cache: 'no-store', credentials: 'same-origin', headers: { 'X-Location-Base': attempt.baseHandle } });
         const receipt = await response.json();
-        if (receipt.state === 'unknown' && receipt.contract === contract && receipt.subjectId === attempt.subjectId && receipt.locationId === id
-            && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId && receipt.code === 'operationHistoryExpired'
-            && receipt.futureEffects === false && receipt.historicalOutcome === 'unknown'
-            && exactKeys(receipt, ['contract', 'subjectId', 'locationId', 'baseId', 'actionId', 'observedAtUtc', 'state', 'code', 'futureEffects', 'expiresAtUtc', 'historicalOutcome'])
-            && receipt.expiresAtUtc === attempt.expiresAtUtc && Date.parse(receipt.observedAtUtc) >= Date.parse(receipt.expiresAtUtc)) {
+        if (validateLocationObservation(receipt, attempt) && receipt.code === 'operationHistoryExpired') {
             // Exclusion alone cannot authorize rebasing or a replacement. Keep all command/original evidence.
             attempt.exclusion = receipt; retainAttempt(id, attempt);
             return { success: false, excluded: true, message: 'Historical outcome unknown; old future effects are excluded. Your draft and originals are retained.' };
         }
-        if (retry && receipt.state === 'unknown' && receipt.contract === contract && receipt.subjectId === attempt.subjectId
-            && receipt.locationId === id && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId
-            && receipt.code === 'operationNotObserved' && receipt.futureEffects === true && receipt.expiresAtUtc === attempt.expiresAtUtc
-            && exactKeys(receipt, ['contract', 'subjectId', 'locationId', 'baseId', 'actionId', 'observedAtUtc', 'state', 'code', 'futureEffects', 'expiresAtUtc'])) {
+        if (retry && validateLocationObservation(receipt, attempt) && receipt.code === 'operationNotObserved') {
             const retried = await fetch(attemptUrl(attempt), { method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', RequestVerificationToken: token() }, body: attempt.body });
             return acceptResponse(id, state, attempt, await retried.json());
@@ -277,10 +293,7 @@ const validateLocationWork = async (id, state) => {
         if (attempt.receipt && !validateLocationReceipt(attempt.receipt, attempt)) fail();
         if (attempt.cancelledBeforeHandoff && attempt.mayHaveAttempted !== false) fail();
         const exclusion = attempt.exclusion;
-        if (exclusion && !(exclusion.contract === contract && exclusion.subjectId === attempt.subjectId && exclusion.locationId === id
-            && exclusion.baseId === attempt.baseId && exclusion.actionId === attempt.actionId && exclusion.state === 'unknown'
-            && exclusion.code === 'operationHistoryExpired' && exclusion.futureEffects === false && exclusion.historicalOutcome === 'unknown'
-            && exclusion.expiresAtUtc === attempt.expiresAtUtc && Date.parse(exclusion.observedAtUtc) >= Date.parse(exclusion.expiresAtUtc))) fail();
+        if (exclusion && !(validateLocationObservation(exclusion, attempt) && exclusion.code === 'operationHistoryExpired')) fail();
         if (attempt.mayHaveAttempted && attempt.receipt?.futureEffects !== false && !exclusion && state.active !== attempt.actionId) fail();
     }
 };

@@ -127,8 +127,9 @@ export const initActivitySelect = (locationId) => {
  */
 export const updateLocationActivity = async (locationId, activityTypeId, clearActivity = false) => {
     try {
-        const retained = locationWork(locationId).draft?.value;
-        const detail = retained?.draft?.activityDetail || activityOriginals.get(locationId);
+        const state = locationWork(locationId);
+        const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
+        const detail = retained?.draft?.activityDetail || activityOriginals.get(locationId) || state.fresh;
         if (!detail) return { success: false, message: 'Open the Activity editor to observe its originals before saving.' };
         const changes = { activity: clearActivity || !activityTypeId ? { op: 'clear' } : { op: 'set', id: activityTypeId } };
         const values = detail.locationMutation.baseValues;
@@ -238,12 +239,15 @@ export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdate
             const locationId = parseInt(editor.dataset.locationId, 10);
             if (!Number.isNaN(locationId)) {
                 try {
-                    const retained = locationWork(locationId).draft?.value;
+                    const state = locationWork(locationId);
+                    const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
                     const detail = retained?.draft?.activityDetail || await readLocationDetail(locationId);
                     activityOriginals.set(locationId, detail);
                     setActivityEditMode(editor, true);
                     const select = initActivitySelect(locationId);
-                    const activity = detail.record.activityTypeId;
+                    // Restore the unresolved desire against its original comparison base, never against a fresh row.
+                    const desired = retained?.changes?.activity;
+                    const activity = desired ? (desired.op === 'clear' ? null : desired.id) : detail.record.activityTypeId;
                     if (select && activity != null) select.addOption({ id: activity, name: detail.record.activityName || String(activity) });
                     select?.setValue(activity == null ? '' : String(activity), true);
                 } catch (error) { showActivityFeedback(locationId, error.message, true); }
