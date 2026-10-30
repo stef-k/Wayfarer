@@ -7,8 +7,10 @@ title: Companion mobile protected Location delivery
 Backend/Web #947 implements the approved
 [wire and recovery contract](../development/location-mutations.md). Companion
 WayfarerApp source and native qualification are separately owned under App
-#16/#18/#34. This handoff supersedes T3 PR #75's old compatibility/proposal wording
-for this approved delivery. It does not claim installed/native/production
+#16/#18/#34. [T3 at App main 2ec54e5](https://github.com/stef-k/WayfarerApp/blob/2ec54e53e85c3a194f2dbcd1b813855fb10d33a1/docs/planning/timeline-editing-contract.md)
+now aligns with approved #947 after PR #75 merged during this implementation.
+Retained earlier proposal/compatibility wording is superseded by the live approved
+issue. This handoff does not claim installed/native/production
 acceptance or authorize #951 batch transport.
 
 ## Wire and identity obligations
