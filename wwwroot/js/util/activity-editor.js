@@ -248,7 +248,8 @@ export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdate
                     // Restore the unresolved desire against its original comparison base, never against a fresh row.
                     const desired = retained?.changes?.activity;
                     const activity = desired ? (desired.op === 'clear' ? null : desired.id) : detail.record.activityTypeId;
-                    if (select && activity != null) select.addOption({ id: activity, name: detail.record.activityName || String(activity) });
+                    if (select && activity != null && !select.options?.[activity]) select.addOption({ id: activity,
+                        name: activity === detail.record.activityTypeId ? detail.record.activityName || String(activity) : String(activity) });
                     select?.setValue(activity == null ? '' : String(activity), true);
                 } catch (error) { showActivityFeedback(locationId, error.message, true); }
             }

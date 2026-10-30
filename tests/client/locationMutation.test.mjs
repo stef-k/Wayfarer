@@ -325,13 +325,14 @@ test('reload retains the edit-start wall-time zone after a remote coordinate-onl
 
 test('reopening inline Activity restores the retained desired selection', async () => {
     const f = await mountedForm();
+    f.detail.record.activityName = 'Original activity';
     globalThis.fetch = async () => { throw new Error('offline'); };
     await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } },
         { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } }, { activityDetail: f.detail });
     // Each scenario represents a new page module, while persisted work survives within the scenario.
     const { setupActivityEditorEvents, updateLocationActivity } = await import('../../wwwroot/js/util/activity-editor.js?pending-selection');
-    let click, selected;
-    const select = { dataset: {}, tomselect: { addOption: () => {}, setValue: value => { selected = value; } } };
+    let click, selected, selectedLabel;
+    const select = { dataset: {}, tomselect: { addOption: option => { selectedLabel = option.name; }, setValue: value => { selected = value; } } };
     globalThis.TomSelect = function () {};
     const editor = { dataset: { locationId: '421' }, querySelector: () => ({ classList: { toggle: () => {} } }) };
     const target = { closest: selector => selector === '.activity-edit-toggle' ? { closest: () => editor } : null };
@@ -341,6 +342,7 @@ test('reopening inline Activity restores the retained desired selection', async 
     setupActivityEditorEvents('#modal');
     await click({ target, preventDefault: () => {} });
     assert.equal(selected, '9', 'the retained desired Activity must be restored, rather than its original 7');
+    assert.notEqual(selectedLabel, 'Original activity');
     globalThis.fetch = async () => ({ json: async () => pendingReceipt(locationWork(421).attempts[0]) });
     assert.equal((await updateLocationActivity(421, 11)).success, false);
     await click({ target, preventDefault: () => {} });
