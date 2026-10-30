@@ -15,7 +15,9 @@ public sealed class ApiTokenAdmissionFilter : IAsyncActionFilter
         executed.ExceptionHandled = true;
         context.HttpContext.Response.Headers.RetryAfter = "5";
         executed.Result = context.Controller is Wayfarer.Areas.Api.Controllers.LocationMutationController
-            ? new ObjectResult(new { code = status == 429 ? "mutationBusy" : "mutationOutcomeUnknown", message = "API token lookup capacity exceeded." }) { StatusCode = status }
+            // Only protected commands use the protocol's problem media type; legacy envelopes retain their format.
+            ? new ObjectResult(new { code = status == 429 ? "mutationBusy" : "mutationOutcomeUnknown", message = "API token lookup capacity exceeded." })
+                { StatusCode = status, ContentTypes = { "application/problem+json" } }
             : new ObjectResult(new { message = "API token lookup capacity exceeded." }) { StatusCode = status };
     }
 }

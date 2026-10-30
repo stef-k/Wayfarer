@@ -425,11 +425,13 @@ request, response, filter, coverage, readiness or timeout semantics. Use the
 and [bounded measurements](history-final-qualification.md#status-coverage-delivery);
 the sub-second performance target remains pending maintainer disposition.
 
-`GET /api/location/history`, `GET /api/location/history/overview` and
-`GET /api/location/history/{locationId:int}` require one strict `Bearer` header
-and the current active owner. Cookies cannot authorize them and there is no owner
-parameter. Missing/revoked credentials or an inactive account return the existing
-normalized API 401; missing and foreign detail share the same generic 404. Authority
+`GET /api/location/history` and `GET /api/location/history/overview` require one
+strict `Bearer` header and the current active owner. Cookies cannot authorize
+these collection reads. Owner detail, `GET /api/location/history/{locationId:int}`,
+also accepts active-owner cookie-first authentication for protected editing;
+when cookie authority is present, bearer credentials cannot replace it. There is
+no owner parameter. Missing/revoked credentials or an inactive account return the
+existing normalized API 401; missing and foreign detail share the same generic 404. Authority
 is checked at request time (#907); an already authorized read may finish after
 revocation/deactivation. Every success/error is `Cache-Control: no-store`.
 

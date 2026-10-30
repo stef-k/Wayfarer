@@ -69,9 +69,9 @@ test('actual lost-response client path recovers same identity and preserves newe
         }
         if (url.includes('/mutations/')) {
             const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
-            return { json: async () => receipt(active) };
+            return { text: async () => JSON.stringify(receipt(active)) };
         }
-        return { ok: true, json: async () => detail };
+        return { ok: true, text: async () => JSON.stringify(detail) };
     };
     const result = await saveLocationMutation(421, detail, 'update', { notes: { op: 'clear' } }, { uuid: known(null), notesHtml: known(null) });
     assert.equal(result.success, false); assert.equal(result.applied, true);
@@ -98,11 +98,11 @@ test('user retry preserves exact identity and bytes, and a settled double click 
         if (options.method === 'POST') {
             posts.push({ url, body: options.body });
             if (posts.length === 1) throw new Error('Connection lost before arrival');
-            return { json: async () => receipt(active) };
+            return { text: async () => JSON.stringify(receipt(active)) };
         }
-        if (url.includes('/mutations/')) return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
-            baseId: active.baseId, actionId: active.actionId, observedAtUtc: '2026-10-30T10:00:00Z', state: 'unknown', code: 'operationNotObserved', futureEffects: true, expiresAtUtc: active.expiresAtUtc }) };
-        return { ok: true, json: async () => detail };
+        if (url.includes('/mutations/')) return { text: async () => JSON.stringify(({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+            baseId: active.baseId, actionId: active.actionId, observedAtUtc: '2026-10-30T10:00:00Z', state: 'unknown', code: 'operationNotObserved', futureEffects: true, expiresAtUtc: active.expiresAtUtc })) };
+        return { ok: true, text: async () => JSON.stringify(detail) };
     };
     const args = [421, detail, 'update', { notes: { op: 'clear' } }, { uuid: known(null), notesHtml: known(null) }];
     assert.equal((await saveLocationMutation(...args)).success, false);
@@ -131,12 +131,12 @@ test('receipt loss re-admits unchanged originals with fresh authority, or labels
             if (options.method === 'POST') {
                 posts.push(JSON.parse(options.body));
                 if (posts.length === 1) throw new Error('No retained response');
-                return { json: async () => receipt(active) };
+                return { text: async () => JSON.stringify(receipt(active)) };
             }
-            if (url.includes('/mutations/')) return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+            if (url.includes('/mutations/')) return { text: async () => JSON.stringify(({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
                 baseId: active.baseId, actionId: active.actionId, observedAtUtc: '2100-01-01T00:00:00Z', state: 'unknown', code: 'operationHistoryExpired', futureEffects: false,
-                expiresAtUtc: active.expiresAtUtc, historicalOutcome: 'unknown' }) };
-            return { ok: true, json: async () => fresh };
+                expiresAtUtc: active.expiresAtUtc, historicalOutcome: 'unknown' })) };
+            return { ok: true, text: async () => JSON.stringify(fresh) };
         };
         const expected = { uuid: known(null), notesHtml: known(null) };
         const args = [421, detail, 'update', { notes: { op: 'set', html: 'desired' } }, expected];
@@ -197,21 +197,21 @@ test('per-record deletion requires informed fresh consent after rejection and ke
         fresh.locationMutation.baseHandle = 'fresh-H'; fresh.locationMutation.baseValues.deleteContent.value.fingerprint = 'new-digest';
         const posts = []; let reads = 0;
         globalThis.fetch = async (url, options) => {
-            if (!url.includes('/mutations/')) return { ok: true, json: async () => ++reads === 1 ? detail : fresh };
+            if (!url.includes('/mutations/')) return { ok: true, text: async () => JSON.stringify(++reads === 1 ? detail : fresh) };
             const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
             const envelope = receipt(active);
             delete envelope.addressOutcome; delete envelope.providerOutcome;
             if (options.method === 'POST') posts.push({ url, body: JSON.parse(options.body) });
             if (pending) {
                 delete envelope.completedAtUtc; delete envelope.changed; delete envelope.detailUrl;
-                return { json: async () => ({ ...envelope, state: 'pending', futureEffects: true,
-                    observedAtUtc: '2026-10-30T10:00:00Z', executeBeforeUtc: '2026-10-30T10:02:00Z', retryAfterSeconds: 2 }) };
+                return { text: async () => JSON.stringify(({ ...envelope, state: 'pending', futureEffects: true,
+                    observedAtUtc: '2026-10-30T10:00:00Z', executeBeforeUtc: '2026-10-30T10:02:00Z', retryAfterSeconds: 2 })) };
             }
             if (posts.length === 1) {
                 delete envelope.changed; delete envelope.detailUrl;
-                return { json: async () => ({ ...envelope, state: 'rejected', code: 'locationBaseStale', staleGroups: ['content'] }) };
+                return { text: async () => JSON.stringify(({ ...envelope, state: 'rejected', code: 'locationBaseStale', staleGroups: ['content'] })) };
             }
-            return { json: async () => ({ ...envelope, detailUrl: null }) };
+            return { text: async () => JSON.stringify(({ ...envelope, detailUrl: null })) };
         };
         const first = await prepareLocationDeletion(421);
         assert.match(first.message, /Original content/);
@@ -315,8 +315,8 @@ test('missing-zone time recovery explicitly confirms and retains the intended in
     assert.equal(f.elements.timeAmbiguity.value, 'later');
     let posted;
     globalThis.fetch = async (_url, options) => {
-        if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
-        posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+        if (options.method !== 'POST') return { ok: true, text: async () => JSON.stringify(f.detail) };
+        posted = JSON.parse(options.body); return { text: async () => JSON.stringify(receipt(locationWork(421).attempts[0])) };
     };
     await f.submit();
     assert.equal(posted.changes.eventUtc.value, '2026-10-25T01:30:00.123456Z');
@@ -351,7 +351,7 @@ test('missing-zone recovery preserves pending attempts and original comparison e
     let posts = 0, inspections = 0;
     globalThis.fetch = async (_url, options) => {
         if (options.method === 'POST') posts++; else inspections++;
-        return { json: async () => pendingReceipt(locationWork(421).attempts[0]) };
+        return { text: async () => JSON.stringify(pendingReceipt(locationWork(421).attempts[0])) };
     };
     await f.submit();
     const missing = structuredClone(locationWork(421).draft.value); delete missing.draft.inputTimeZone;
@@ -379,8 +379,8 @@ test('missing-zone drafts with untouched time still save unrelated Notes without
     retainLocationDraft(421, missing); f.mount();
     let posted;
     globalThis.fetch = async (_url, options) => {
-        if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
-        posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+        if (options.method !== 'POST') return { ok: true, text: async () => JSON.stringify(f.detail) };
+        posted = JSON.parse(options.body); return { text: async () => JSON.stringify(receipt(locationWork(421).attempts[0])) };
     };
     await f.submit();
     assert.deepEqual(posted.changes, { notes: { op: 'set', html: 'only Notes' } });
@@ -409,9 +409,9 @@ test('a newer toolbar Clear survives an older applied acknowledgement', async ()
     globalThis.fetch = async (url, options) => {
         if (options.method === 'POST') {
             handedOff(); await new Promise(resolve => { release = resolve; });
-            const state = locationWork(421); return { json: async () => receipt(state.attempts[0]) };
+            const state = locationWork(421); return { text: async () => JSON.stringify(receipt(state.attempts[0])) };
         }
-        return { ok: true, json: async () => f.detail };
+        return { ok: true, text: async () => JSON.stringify(f.detail) };
     };
     const saving = f.submit(); await sent;
     f.clear(); release(); await saving;
@@ -439,9 +439,9 @@ test('reload retains the edit-start wall-time zone after a remote coordinate-onl
     globalThis.fetch = async (url, options) => {
         if (options.method === 'POST') {
             posted = JSON.parse(options.body);
-            const state = locationWork(421); return { json: async () => receipt(state.attempts[0]) };
+            const state = locationWork(421); return { text: async () => JSON.stringify(receipt(state.attempts[0])) };
         }
-        return { ok: true, json: async () => f.detail };
+        return { ok: true, text: async () => JSON.stringify(f.detail) };
     };
     await f.submit();
     assert.equal(posted.changes.eventUtc.value, '2026-10-29T09:00:00Z', 'the draft was authored in Athens, irrespective of the reloaded row zone');
@@ -469,11 +469,11 @@ test('reopening inline Activity restores the retained desired selection', async 
     await click({ target, preventDefault: () => {} });
     assert.equal(selected, '9', 'the retained desired Activity must be restored, rather than its original 7');
     assert.notEqual(selectedLabel, 'Original activity');
-    globalThis.fetch = async () => ({ json: async () => pendingReceipt(locationWork(421).attempts[0]) });
+    globalThis.fetch = async () => ({ text: async () => JSON.stringify(pendingReceipt(locationWork(421).attempts[0])) });
     assert.equal((await updateLocationActivity(421, 11)).success, false);
     await click({ target, preventDefault: () => {} });
     assert.equal(selected, '11');
-    assert.equal(locationWork(421).draft.value.expected.activityTypeId.value, 7);
+    assert.equal(locationWork(421, 'activity').draft.value.expected.activityTypeId.value, 7);
     assert.equal(JSON.parse(locationWork(421).attempts[0].body).changes.activity.id, 9);
 });
 
@@ -482,9 +482,9 @@ test('malformed acknowledgement timestamps cannot settle an otherwise bound acti
     globalThis.fetch = async (url, options) => {
         if (options.method === 'POST') {
             const state = locationWork(421);
-            return { json: async () => ({ ...receipt(state.attempts[0]), completedAtUtc: ['2026-10-30'] }) };
+            return { text: async () => JSON.stringify(({ ...receipt(state.attempts[0]), completedAtUtc: ['2026-10-30'] })) };
         }
-        return { ok: true, json: async () => f.detail };
+        return { ok: true, text: async () => JSON.stringify(f.detail) };
     };
     const result = await saveLocationMutation(421, f.detail, 'update', { notes: { op: 'clear' } },
         { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } });
@@ -504,9 +504,9 @@ test('a second inline Activity save uses the baseline from the first successful 
         if (options.method === 'POST') {
             posts.push(JSON.parse(options.body));
             const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
-            return { json: async () => receipt(active) };
+            return { text: async () => JSON.stringify(receipt(active)) };
         }
-        return { ok: true, json: async () => fresh };
+        return { ok: true, text: async () => JSON.stringify(fresh) };
     };
     const expected = { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } };
     const first = await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } }, expected, { activityDetail: f.detail });
@@ -531,7 +531,7 @@ const mountedActivity = async f => {
         '.activity-view': view, '.activity-edit': { classList: { toggle: () => {} } },
         '.activity-feedback': feedback, '.activity-current-link': link
     }[selector]) };
-    const select = { dataset: {}, value: '7', get selectedOptions() { return [{ textContent: `Activity ${this.value}` }]; },
+    const select = { dataset: { locationId: '421' }, value: '7', get selectedOptions() { return [{ textContent: `Activity ${this.value}` }]; },
         tomselect: { options: { 7: {}, 9: {}, 11: {} }, setValue: value => { select.value = value; }, clear: () => { select.value = ''; } } };
     const buttons = Object.fromEntries(['toggle', 'save', 'clear'].map(name => [name,
         { dataset: { locationId: '421' }, disabled: false, closest: () => editor }]));
@@ -575,8 +575,29 @@ test('C1 independent form Notes survive inline Activity settlement and restorati
     assert.deepEqual(locationWork(421).draft, retained);
 });
 
+test('C1 a full-form save also preserves an independent unsent inline Activity generation', async () => {
+    const f = await mountedForm(); const activity = await mountedActivity(f);
+    const fresh = structuredClone(f.detail);
+    globalThis.fetch = async (_url, options) => {
+        if (options.method === 'POST') {
+            const body = JSON.parse(options.body);
+            assert.deepEqual(body.changes, { notes: { op: 'set', html: 'form Notes' } });
+            return new Response(JSON.stringify(receipt(locationWork(421).attempts.at(-1))));
+        }
+        return new Response(JSON.stringify(fresh));
+    };
+    await activity.click('toggle'); activity.choose('9');
+    const retained = structuredClone(locationWork(421, 'activity').draft);
+    f.mount(); f.type('form Notes'); await f.submit();
+    assert.equal(f.reloads(), 1);
+    assert.deepEqual(locationWork(421, 'activity').draft, retained);
+    assert.notEqual(locationWork(421, 'activity').settledGeneration, retained.generation);
+    await activity.click('toggle'); assert.equal(activity.select.value, '9');
+});
+
 test('C2 older inline Activity completion retains newer selection or Clear for its own save', async () => {
-    for (const choice of ['11', '']) {
+    for (const input of ['11', '', 'clear-button', 'waiting-owner']) {
+        const choice = input === 'clear-button' ? '' : input;
         const f = await mountedForm(); const activity = await mountedActivity(f);
         const fresh = structuredClone(f.detail); let release, sent;
         const handedOff = new Promise(resolve => { sent = resolve; });
@@ -594,17 +615,23 @@ test('C2 older inline Activity completion retains newer selection or Clear for i
             return new Response(JSON.stringify(fresh));
         };
         await activity.click('toggle'); activity.choose('9');
-        const saving = activity.click('save'); await handedOff;
+        let admit;
+        if (input === 'waiting-owner') navigator.locks.request = async (_key, run) => {
+            await new Promise(resolve => { admit = resolve; }); return run();
+        };
+        const saving = activity.click('save');
+        if (input !== 'waiting-owner') await handedOff;
         const submitted = structuredClone(locationWork(421).attempts[0]);
-        activity.choose(choice);
+        if (input === 'clear-button') await activity.click('clear'); else activity.choose(input === 'waiting-owner' ? '11' : choice);
         const generation = locationWork(421, 'activity').draft?.generation;
+        if (input === 'waiting-owner') { admit(); await handedOff; navigator.locks.request = async (_key, run) => run(); }
         release(); await saving;
         const work = locationWork(421, 'activity');
-        assert.equal(activity.select.value, choice); assert.equal(activity.editing(), true);
+        assert.equal(activity.select.value, input === 'waiting-owner' ? '11' : choice); assert.equal(activity.editing(), true);
         assert.equal(activity.label(), 'Activity 9'); assert.match(activity.feedback.textContent, /[Nn]ewer/);
         assert.equal(work.draft.generation, generation); assert.notEqual(work.settledGeneration, generation);
         assert.deepEqual(work.draft.value.changes.activity, choice ? { op: 'set', id: 11 } : { op: 'clear' });
-        assert.equal(work.attempts[0].body, submitted.body); assert.equal(work.attempts[0].actionId, submitted.actionId);
+        if (submitted) { assert.equal(work.attempts[0].body, submitted.body); assert.equal(work.attempts[0].actionId, submitted.actionId); }
         const completed = structuredClone(work.attempts[0]);
         await activity.click('save');
         assert.equal(JSON.parse(bodies[1]).expected.activityTypeId.value, 9);
@@ -615,14 +642,14 @@ test('C2 older inline Activity completion retains newer selection or Clear for i
 });
 
 test('C3 duplicate wire members cannot settle mutations, recovery, retry or future-effect exclusion', async () => {
-    for (const entry of ['mutation', 'recovery', 'retry', 'exclusion', 'detail', 'valid']) {
+    for (const entry of ['mutation', 'recovery', 'retry', 'retryObservation', 'exclusion', 'detail', 'valid']) {
         const f = await mountedForm(); let posts = 0, reads = 0;
         const duplicate = envelope => '{"state":"pending",' + JSON.stringify(envelope).slice(1);
         globalThis.fetch = async (url, options) => {
             const active = locationWork(421).attempts.at(-1);
             if (options.method === 'POST') {
                 posts++;
-                if (entry === 'recovery' || entry === 'exclusion' || entry === 'retry' && posts === 1) throw new Error('lost reply');
+                if (['recovery', 'exclusion', 'retryObservation'].includes(entry) || entry === 'retry' && posts === 1) throw new Error('lost reply');
                 const text = entry === 'mutation' || entry === 'retry' ? duplicate(receipt(active)) : JSON.stringify(receipt(active));
                 return new Response(text);
             }
@@ -636,17 +663,18 @@ test('C3 duplicate wire members cannot settle mutations, recovery, retry or futu
             }
             reads++;
             // Escaped names compare as decoded keys, including nested objects inside arrays.
-            return new Response(entry === 'detail' ? JSON.stringify(f.detail).replace('"baseValues":', '"extra":[{"a":1,"\\u0061":2}],"baseValues":') : JSON.stringify(f.detail));
+            const detail = { ...f.detail, text: 'Escaped quote: ", brackets {[]}, and a colon :', array: [{ a: 1 }, { a: 2 }] };
+            return new Response(entry === 'detail' ? JSON.stringify(detail).replace('"baseValues":', '"extra":[{"a":1,"\\u0061":2}],"baseValues":') : JSON.stringify(detail));
         };
         const args = [421, f.detail, 'update', { notes: { op: 'clear' } },
             { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } }];
         let result = await saveLocationMutation(...args);
-        if (entry === 'exclusion' || entry === 'retry') result = await saveLocationMutation(...args);
+        if (['exclusion', 'retry', 'retryObservation'].includes(entry)) result = await saveLocationMutation(...args);
         assert.equal(result.success, entry === 'valid', entry);
         assert.equal(!!locationWork(421).settledGeneration, entry === 'valid', entry);
         assert.equal(locationWork(421).attempts[0].exclusion, undefined, entry);
         assert.equal(posts, entry === 'retry' ? 2 : 1, entry);
-        if (['mutation', 'recovery', 'exclusion', 'retry'].includes(entry)) {
+        if (['mutation', 'recovery', 'exclusion', 'retry', 'retryObservation'].includes(entry)) {
             assert.equal(locationWork(421).attempts[0].receipt, undefined, entry);
             assert.equal(reads, 0, entry);
         }
@@ -674,8 +702,8 @@ test('restored time keeps the DST occurrence, and untouched capture microseconds
         f.form.dataset.timeZone = 'America/New_York'; f.elements.timeAmbiguity.value = ''; f.mount();
         let posted;
         globalThis.fetch = async (_url, options) => {
-            if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
-            posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+            if (options.method !== 'POST') return { ok: true, text: async () => JSON.stringify(f.detail) };
+            posted = JSON.parse(options.body); return { text: async () => JSON.stringify(receipt(locationWork(421).attempts[0])) };
         };
         await f.submit();
         if (occurrence === 'untouched') {
@@ -719,10 +747,10 @@ test('malformed or premature no-row timestamps cannot authorize retry or replace
         globalThis.fetch = async (_url, options) => {
             if (options.method === 'POST') { posts++; throw new Error('lost reply'); }
             const active = locationWork(421).attempts[0];
-            return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+            return { text: async () => JSON.stringify(({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
                 baseId: active.baseId, actionId: active.actionId, observedAtUtc: expired ? '2099-01-01T00:00:00.1234566Z' : ['2026-10-30'],
                 state: 'unknown', code: expired ? 'operationHistoryExpired' : 'operationNotObserved', futureEffects: !expired,
-                expiresAtUtc: active.expiresAtUtc, ...(expired ? { historicalOutcome: 'unknown' } : {}) }) };
+                expiresAtUtc: active.expiresAtUtc, ...(expired ? { historicalOutcome: 'unknown' } : {}) })) };
         };
         const args = [421, f.detail, 'update', { notes: { op: 'clear' } }, { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } }];
         assert.equal((await saveLocationMutation(...args)).success, false);

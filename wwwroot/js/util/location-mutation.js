@@ -17,6 +17,9 @@ const editorIdentity = () => {
     if (!identity) { identity = crypto.randomUUID(); sessionStorage.setItem(key, identity); }
     return identity;
 };
+// Each surface owns its desired generation; all surfaces still share one serialized attempt history.
+const draftScope = value => value?.kind === 'delete' ? 'delete' : (value?.draft?.activityDetail || value?.activityDetail) ? 'activity' : 'form';
+const editorKey = scope => `${editorIdentity()}${scope === 'form' ? '' : `:${scope}`}`;
 const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 const exactKeys = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
     && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key));
@@ -43,18 +46,61 @@ const validateLocationObservation = (receipt, attempt) => {
         && (expired ? observed >= expires : observed < expires);
 };
 const persist = (id, state) => {
-    if (state.draft) state.draftsByEditor = { ...state.draftsByEditor, [editorIdentity()]: state.draft };
-    if (state.settledGeneration) state.settledByEditor = { ...state.settledByEditor, [editorIdentity()]: state.settledGeneration };
+    if (state.draft) state.draftsByEditor = { ...state.draftsByEditor, [state.editorKey]: state.draft };
+    if (state.settledGeneration) state.settledByEditor = { ...state.settledByEditor, [state.editorKey]: state.settledGeneration };
     const bytes = JSON.stringify(state);
     localStorage.setItem(partition(id), bytes);
     if (localStorage.getItem(partition(id)) !== bytes) throw new Error('Draft was not saved. Keep this page open.');
 };
 /** Existing evidence is account/server partitioned and never discarded because of age. */
-export const locationWork = id => {
+export const locationWork = (id, scope = 'form') => {
     const state = JSON.parse(localStorage.getItem(partition(id)) || '{"attempts":[]}');
-    state.draft = state.draftsByEditor?.[editorIdentity()] || state.draft;
-    state.settledGeneration = state.settledByEditor?.[editorIdentity()] || state.settledGeneration;
+    // Preserve already-retained work from the former shared slot without rewriting historical attempts.
+    state.draftsByEditor ||= state.draft ? { [editorIdentity()]: state.draft } : {};
+    state.settledByEditor ||= state.settledGeneration ? { [editorIdentity()]: state.settledGeneration } : {};
+    const shared = state.draftsByEditor[editorIdentity()];
+    if (shared && draftScope(shared.value) !== 'form') {
+        const key = editorKey(draftScope(shared.value));
+        state.draftsByEditor[key] ||= shared;
+        if (state.settledByEditor[editorIdentity()]) state.settledByEditor[key] ||= state.settledByEditor[editorIdentity()];
+        delete state.draftsByEditor[editorIdentity()];
+        delete state.settledByEditor[editorIdentity()];
+    }
+    const key = editorKey(scope);
+    state.draft = state.draftsByEditor[key];
+    state.settledGeneration = state.settledByEditor[key];
+    Object.defineProperty(state, 'editorKey', { value: key });
     return state;
+};
+
+/** Scan raw JSON string tokens for duplicate decoded member names before native parsing loses them.
+ * JSON.parse remains responsible for the complete JSON grammar; this pass never accepts data by itself.
+ */
+const readResponseJson = async response => {
+    const wire = await response.text();
+    const stack = [];
+    for (let index = 0; index < wire.length; index++) {
+        const character = wire[index];
+        if (character === '{') stack.push(new Set());
+        else if (character === '[') stack.push(null);
+        else if (character === '}' || character === ']') stack.pop();
+        else if (character === '"') {
+            const start = index++;
+            while (index < wire.length && wire[index] !== '"') {
+                if (wire[index] === '\\') index++;
+                index++;
+            }
+            const end = index;
+            let next = end + 1;
+            while ([' ', '\t', '\r', '\n'].includes(wire[next])) next++;
+            if (wire[next] === ':' && stack.at(-1)) {
+                const name = JSON.parse(wire.slice(start, end + 1));
+                if (stack.at(-1).has(name)) throw new Error('Duplicate JSON response member.');
+                stack.at(-1).add(name);
+            }
+        }
+    }
+    return JSON.parse(wire);
 };
 
 /** Seven framed exact UTF-8 values; this digest is computed before the first possible handoff. */
@@ -74,7 +120,7 @@ export const locationRequestFingerprint = async (owner, id, baseId, actionId, ad
 export const readLocationDetail = async id => {
     const response = await fetch(`/api/location/history/${id}?viewerZone=UTC`, { cache: 'no-store', credentials: 'same-origin' });
     if (!response.ok) throw new Error(`Location detail unavailable (${response.status}). Your draft is retained.`);
-    const detail = await response.json();
+    const detail = await readResponseJson(response);
     const evidence = detail.locationMutation;
     if (detail.subjectId !== subject() || detail.record?.locationId !== id || evidence?.contract !== contract
         || evidence.normalization !== normalization || !['pending', 'closed'].includes(evidence.originalCreateAddressPublication))
@@ -104,9 +150,9 @@ export const validateLocationReceipt = (receipt, attempt) => {
 };
 
 /** Persist a newer draft independently of an older immutable attempt, including across reloads. */
-export const retainLocationDraft = (id, draft) => {
+export const retainLocationDraft = (id, draft, scope = draftScope(draft)) => {
     if (!subject()) throw new Error('Your session has ended. Keep your draft before leaving.');
-    const state = locationWork(id);
+    const state = locationWork(id, scope);
     const signature = JSON.stringify(draft);
     if (state.draft?.signature !== signature) state.draft = { signature, generation: crypto.randomUUID(), value: draft };
     persist(id, state);
@@ -116,10 +162,13 @@ export const retainLocationDraft = (id, draft) => {
 /** One cross-tab owner serializes new identities and possible handoffs; failed persistence prevents sending. */
 export const saveLocationMutation = async (id, detail, kind, changes, expected, draft = {}) => {
     if (!navigator.locks) throw new Error('This browser cannot safely save this draft. Keep it open in a supported browser.');
+    // Capture this submission before queuing: waiting for another caller must not overwrite later input.
+    const scope = draftScope({ kind, draft });
+    const work = () => locationWork(id, scope);
+    const generation = retainLocationDraft(id, { kind, changes, expected, detail, draft }, scope);
     return navigator.locks.request(partition(id), async () => {
         await validateLocationWork(id, locationWork(id));
-        const generation = retainLocationDraft(id, { kind, changes, expected, detail, draft });
-        let state = locationWork(id);
+        let state = work();
         let attempt = state.attempts.find(item => item.actionId === state.active);
         if (!attempt && state.settledGeneration === generation) {
             const settled = state.attempts.find(item => item.generation === generation && item.receipt?.state === 'applied');
@@ -129,7 +178,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
         if (attempt?.mayHaveAttempted === false) {
             // The persisted pre-handoff fence proves this body never left this browser.
             attempt.cancelledBeforeHandoff = true; retainAttempt(id, attempt);
-            state = locationWork(id); state.active = null; persist(id, state); attempt = null;
+            state = work(); state.active = null; persist(id, state); attempt = null;
         }
         if (attempt) {
             const recovered = await inspectAttempt(id, state, attempt, true);
@@ -137,7 +186,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
                 const fresh = await readLocationDetail(id);
                 if (!originalsMatch(expected, fresh.locationMutation.baseValues)) {
                     if (kind === 'update' && selectedSimpleStateSatisfied(changes, expected, fresh.locationMutation.baseValues)) {
-                        const latest = locationWork(id);
+                        const latest = work();
                         if (latest.draft?.generation !== generation) return { success: false, terminal: true, message: 'Newer typing is retained and still needs review.' };
                         latest.currentObservation = { generation, observedAtUtc: fresh.observedAtUtc, historicalOutcome: 'unknown' };
                         latest.active = null; latest.settledGeneration = generation; latest.fresh = fresh; persist(id, latest);
@@ -146,7 +195,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
                     return { success: false, message: 'Old future effects are excluded; current content differs from your originals. Your draft is retained. Review current history before an informed new conditional edit.', terminal: true };
                 }
                 // Historical outcome stays Unknown. Re-admit the retained originals under fresh authority.
-                const latest = locationWork(id);
+                const latest = work();
                 latest.active = null; persist(id, latest); renewedDetail = fresh;
             } else {
                 if (!recovered.terminal) return recovered;
@@ -154,7 +203,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
                 const fresh = await readLocationDetail(id);
                 if (!originalsMatch(expected, fresh.locationMutation.baseValues))
                     return { success: false, terminal: true, message: 'The earlier action is resolved. Your newer draft is retained; review it against current history before saving.', earlierResolved: true };
-                const latest = locationWork(id); latest.active = null; persist(id, latest); renewedDetail = fresh;
+                const latest = work(); latest.active = null; persist(id, latest); renewedDetail = fresh;
             }
         }
         // Renew only never-attempted authority; expected originals are deliberately retained unchanged.
@@ -163,15 +212,15 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
         const body = JSON.stringify({ contract, normalization, adapter: 'web-edit', baseHandle: authority.baseHandle, kind, expected, ...(kind === 'update' ? { changes } : {}) });
         const actionId = crypto.randomUUID();
         attempt = { id, subjectId: subject(), uuid: detail.locationMutation.baseValues.uuid.value, baseId: authority.baseId, actionId,
-            adapter: 'web-edit', kind, body, baseHandle: authority.baseHandle, expiresAtUtc: authority.expiresAtUtc, generation, mayHaveAttempted: false,
+            adapter: 'web-edit', kind, body, baseHandle: authority.baseHandle, expiresAtUtc: authority.expiresAtUtc, generation, draftKey: state.editorKey, mayHaveAttempted: false,
             fingerprint: await locationRequestFingerprint(subject(), id, authority.baseId, actionId, 'web-edit', body) };
-        state = locationWork(id); state.attempts.push(attempt); state.active = actionId; persist(id, state);
+        state = work(); state.attempts.push(attempt); state.active = actionId; persist(id, state);
         // Durable before fetch; a thrown fetch never restores never-attempted status.
         attempt.mayHaveAttempted = true; persist(id, state);
         try {
             const response = await fetch(attemptUrl(attempt), { method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', RequestVerificationToken: token() }, body: attempt.body });
-            return await acceptResponse(id, state, attempt, await response.json());
+            return await acceptResponse(id, state, attempt, await readResponseJson(response));
         } catch {
             return inspectAttempt(id, state, attempt);
         }
@@ -184,7 +233,7 @@ const inspectAttempt = async (id, state, attempt, retry = false) => {
     try {
         if (attempt.receipt?.futureEffects === false) return acceptResponse(id, state, attempt, attempt.receipt);
         const response = await fetch(attemptUrl(attempt), { cache: 'no-store', credentials: 'same-origin', headers: { 'X-Location-Base': attempt.baseHandle } });
-        const receipt = await response.json();
+        const receipt = await readResponseJson(response);
         if (validateLocationObservation(receipt, attempt) && receipt.code === 'operationHistoryExpired') {
             // Exclusion alone cannot authorize rebasing or a replacement. Keep all command/original evidence.
             attempt.exclusion = receipt; retainAttempt(id, attempt);
@@ -193,7 +242,7 @@ const inspectAttempt = async (id, state, attempt, retry = false) => {
         if (retry && validateLocationObservation(receipt, attempt) && receipt.code === 'operationNotObserved') {
             const retried = await fetch(attemptUrl(attempt), { method: 'POST', credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json', RequestVerificationToken: token() }, body: attempt.body });
-            return acceptResponse(id, state, attempt, await retried.json());
+            return await acceptResponse(id, state, attempt, await readResponseJson(retried));
         }
         return await acceptResponse(id, state, attempt, receipt);
     } catch { return { success: false, message: 'Outcome unknown. Your draft and exact attempt are retained. Save again to check recovery.' }; }
@@ -211,8 +260,16 @@ const acceptResponse = async (id, state, attempt, receipt) => {
         catch { return { success: false, terminal: true, applied: true, message: 'The save committed. Current detail is unavailable; your draft and receipt are retained. Save again to refresh.' }; }
     }
     const latest = locationWork(id);
-    if (latest.draft?.generation !== attempt.generation) return { success: false, terminal: true, applied: true, message: 'The earlier save committed. Newer typing is retained and still needs saving.' };
-    latest.active = null; latest.settledGeneration = attempt.generation; latest.fresh = fresh;
+    // Recovery can be initiated by a different caller/tab. Settle only the attempt's original draft slot.
+    const key = attempt.draftKey || Object.keys(latest.draftsByEditor).find(key => latest.draftsByEditor[key].generation === attempt.generation);
+    latest.fresh = fresh;
+    if (!key || latest.draftsByEditor[key]?.generation !== attempt.generation) {
+        persist(id, latest);
+        return { success: false, terminal: true, applied: true, receipt, detail: fresh, message: 'The earlier save committed. Newer typing is retained and still needs saving.' };
+    }
+    latest.active = null;
+    latest.settledByEditor[key] = attempt.generation;
+    if (key === latest.editorKey) latest.settledGeneration = attempt.generation;
     persist(id, latest);
     return { success: true, terminal: true, receipt, detail: fresh, message: attempt.kind === 'delete' ? 'Location deleted.' : 'Location saved.' };
 };
@@ -220,7 +277,7 @@ const acceptResponse = async (id, state, attempt, receipt) => {
 /** Observe deletion content before showing the existing confirmation; never refresh proof merely to pass stale consent. */
 export const prepareLocationDeletion = async id => {
     const preview = await navigator.locks.request(partition(id), async () => {
-        const existing = locationWork(id);
+        const existing = locationWork(id, 'delete');
         await validateLocationWork(id, existing);
         const active = existing.attempts.find(item => item.actionId === existing.active);
         const retained = existing.draft?.value;

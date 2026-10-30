@@ -19,6 +19,10 @@
   originals after settlement and reject malformed acknowledgement timestamps.
   Let retained time drafts missing their zone explicitly review and confirm a
   time/zone/DST interpretation without losing other edits or earlier attempts.
+  Preserve independent form drafts across inline Activity saves and retain newer
+  selections/Clear while an older save completes. Reject duplicate-member response
+  JSON before settlement/recovery and use problem media types for protected
+  pre-action failures; clarify detail-only cookie-first read authentication.
 - Remove #887's temporary integration gate from bearer import discovery. Upload
   availability now reflects the effective upload configuration and existing
   supported, qualified storage checks. Mobile recovery/native acceptance and

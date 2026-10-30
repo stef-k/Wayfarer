@@ -33,12 +33,6 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         timeAmbiguity.value = stored.timeAmbiguity || '';
         status.textContent = 'Restored your retained draft. Save checks any earlier uncertain action first.';
     }
-    if (stored?.activityDetail && state.draft.generation !== state.settledGeneration) {
-        detail = stored.activityDetail;
-        const activity = state.draft.value.changes?.activity;
-        if (activity) input('SelectedActivityId').value = activity.op === 'clear' ? '' : String(activity.id);
-        status.textContent = 'Restored your retained Activity draft. Save recovers its earlier action before any new command.';
-    }
     const timeZoneLabel = document.getElementById('location-input-time-zone');
     if (timeZoneLabel) timeZoneLabel.textContent = inputTimeZone || 'unavailable for this retained draft';
     const timeRecovery = document.getElementById('location-time-recovery');

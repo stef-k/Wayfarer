@@ -24,7 +24,7 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
         if (ActiveAccountCookie.HasCookieAuthority(http) && http.User.Identity?.IsAuthenticated != true)
         {
             context.Result = ProtectedMutation
-                ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401 }
+                ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401, ContentTypes = { "application/problem+json" } }
                 : new UnauthorizedObjectResult(new { message = ActiveAccountCookie.SessionEndedMessage });
             return;
         }
@@ -35,7 +35,7 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
             if (!await antiforgery.IsRequestValidAsync(http))
             {
                 context.Result = ProtectedMutation
-                    ? new ObjectResult(new { code = "antiforgeryInvalid" }) { StatusCode = 403 }
+                    ? new ObjectResult(new { code = "antiforgeryInvalid" }) { StatusCode = 403, ContentTypes = { "application/problem+json" } }
                     : new AntiforgeryValidationFailedResult();
                 return;
             }
@@ -46,7 +46,7 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
             if (user == null)
             {
                 context.Result = ProtectedMutation
-                    ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401 }
+                    ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401, ContentTypes = { "application/problem+json" } }
                     : new UnauthorizedObjectResult("Invalid or missing API token.");
                 return;
             }

@@ -160,8 +160,14 @@ the first recovered receipt after complete response loss. HTTP alone is no proof
 Web validates response timestamps as Gregorian UTC strings with zero to seven
 fractional digits, matching the server's DateTime serializer (including clock
 ticks not yet rounded by PostgreSQL). Pending, terminal and no-row shapes are
-validated separately; malformed evidence cannot settle work, authorize retry or
-exclude earlier future effects.
+validated separately. Before native JSON parsing, Web scans response string tokens
+for duplicate decoded member names in every object, including nested arrays;
+native parsing still validates the complete JSON grammar. This covers mutation,
+recovery/retry and fresh-detail responses. Malformed evidence cannot settle work,
+authorize retry or exclude earlier future effects. Protected pre-action
+authentication, antiforgery and token-admission errors also use
+`application/problem+json` with no-store; they remain uncorrelated problems,
+never operation receipts. Legacy endpoint error formats are unchanged.
 
 Account fence precedes operation/provider/Location locks in READ COMMITTED
 transactions. Ordinary effects and terminal receipts commit together. Changed
@@ -195,6 +201,17 @@ labelled historical outcome unknown; mismatches require retained drafts and
 informed conflict resolution. Address-dependent satisfaction also requires fresh
 closed original-create publication evidence. Matching values alone cannot exclude
 Pending publishers. See the [mobile handoff](../planning/947-mobile-handoff.md).
+
+The existing target/editor owner retains separate full-form, inline Activity and
+delete drafts while serializing their shared attempt history. A caller settles
+only the generation captured by its attempt; a disjoint Activity save preserves
+the form's fields, original comparisons and desired generation. Reopening the
+form restores that draft. Inline selection changes, including Clear, are retained
+before submission or waiting for the shared owner. An older completion displays
+its own result and leaves newer intent open for its own Save. Clear during an
+in-flight save retains the choice without dispatching another action. A known
+completion supplies fresh Activity originals for the user's next Save; historical
+attempt bodies, identities and generations remain unchanged.
 
 Web drafts retain their edit-start input zone and DST occurrence together with
 initial/current strings. Restoring them never derives the zone from current row

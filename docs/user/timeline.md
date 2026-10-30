@@ -64,7 +64,10 @@ Conflict review shows your originals, draft and current facts before you explici
 adopt new originals. An old receipt cannot consume newer typing, toolbar Clear,
 image insertion or a map pick. These changes are retained before you press Save.
 Reopening an unresolved inline Activity edit restores your desired selection;
-after success, a later edit starts from fresh originals.
+after success, a later edit starts from fresh originals. Inline Activity saves
+also keep an unsent full-form draft: reopening the form restores your Notes and
+other edits. If you select another Activity or Clear during a pending save, the
+older result leaves that newer choice open and retained for its own Save.
 
 Moving a point preserves the exact capture instant and updates the local display
 for the new zone. Explicit time editing uses the zone shown when the form opened;

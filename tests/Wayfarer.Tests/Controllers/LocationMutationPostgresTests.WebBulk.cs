@@ -96,6 +96,9 @@ public sealed partial class LocationMutationPostgresTests
     [InlineData("inactiveCookie", 401, "mutationAuthenticationRequired")]
     [InlineData("identityCapacity", 429, "mutationBusy")]
     [InlineData("globalCapacity", 503, "mutationOutcomeUnknown")]
+    [InlineData("missingRecovery", 401, "mutationAuthenticationRequired")]
+    [InlineData("identityCapacityRecovery", 429, "mutationBusy")]
+    [InlineData("globalCapacityRecovery", 503, "mutationOutcomeUnknown")]
     public async Task ProtectedPreActionErrorsUseProblemMediaType(string boundary, int status, string code)
     {
         var (owner, credential, id) = await SeedAsync();
@@ -117,15 +120,15 @@ public sealed partial class LocationMutationPostgresTests
                         client.DefaultRequestHeaders.Authorization = new("Bearer", foreignCredential);
                     }
                 }
-                if (boundary == "missing") client.DefaultRequestHeaders.Authorization = null;
-                if (boundary is "identityCapacity" or "globalCapacity")
+                if (boundary.StartsWith("missing")) client.DefaultRequestHeaders.Authorization = null;
+                if (boundary.Contains("Capacity"))
                 {
                     // Same production admission owner; the fixture's isolated client peer owns the identity ceiling.
                     client.DefaultRequestHeaders.Add("X-Test-Peer", "192.0.2.195");
-                    for (var i = 0; i < (boundary == "globalCapacity" ? 32 : 16); i++)
-                        permits.Add(ApiWorkAdmission.TokenLookups.TryAcquire(boundary == "globalCapacity" ? $"947-capacity-{i}" : "192.0.2.195", out _) !);
+                    for (var i = 0; i < (boundary.StartsWith("global") ? 32 : 16); i++)
+                        permits.Add(ApiWorkAdmission.TokenLookups.TryAcquire(boundary.StartsWith("global") ? $"947-capacity-{i}" : "192.0.2.195", out _)!);
                 }
-                using var response = await command.SendAsync(client);
+                using var response = boundary.EndsWith("Recovery") ? await command.RecoverAsync(client) : await command.SendAsync(client);
                 Assert.Equal(status, (int)response.StatusCode);
                 Assert.True(response.Headers.CacheControl?.NoStore);
                 var body = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());

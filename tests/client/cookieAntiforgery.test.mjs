@@ -49,7 +49,7 @@ test('protected Activity command sends the authentic page token with its immutab
         baseValues: { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: null } } } };
     let commands = 0;
     globalThis.fetch = async (url, options) => {
-        if (options.method !== 'POST') return { ok: true, json: async () => detail };
+        if (options.method !== 'POST') return { ok: true, text: async () => JSON.stringify(detail) };
         commands++;
         assert.match(url, /^\/api\/location\/12\/mutations\//);
         assert.equal(options.headers.RequestVerificationToken, pageToken);
@@ -58,10 +58,10 @@ test('protected Activity command sends the authentic page token with its immutab
         assert.deepEqual(body.expected, detail.locationMutation.baseValues);
         const attempt = locationWork(12).attempts[0];
         assert.equal(attempt.mayHaveAttempted, true); assert.equal(attempt.body, options.body);
-        return { json: async () => ({ contract: 'location-mutation-1', normalization: 'location-values-1', adapter: 'web-edit',
+        return { text: async () => JSON.stringify(({ contract: 'location-mutation-1', normalization: 'location-values-1', adapter: 'web-edit',
             subjectId: 'owner', locationId: 12, uuid: null, baseId: attempt.baseId, actionId: attempt.actionId, kind: 'update', fingerprint: attempt.fingerprint,
             receiptRetainUntilUtc: '2099-02-01T00:00:00Z', state: 'applied', changed: true, completedAtUtc: '2026-10-30T00:00:00Z', futureEffects: false,
-            addressOutcome: 'unchanged', providerOutcome: 'notRequested', detailUrl: '/api/location/history/12' }) };
+            addressOutcome: 'unchanged', providerOutcome: 'notRequested', detailUrl: '/api/location/history/12' })) };
     };
     try {
         assert.equal((await saveLocationMutation(12, detail, 'update', { activity: { op: 'set', id: 7 } }, detail.locationMutation.baseValues)).success, true);
