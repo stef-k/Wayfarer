@@ -218,6 +218,8 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
+                await using var snapshot = _dbContext.Database.IsRelational()
+                    ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, HttpContext.RequestAborted) : null;
                 var location = await _dbContext.Locations
                     .Include(l => l.ActivityType)
                     .FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId);
@@ -280,6 +282,13 @@ namespace Wayfarer.Areas.User.Controllers
                 LocationManualAddressEdit.RestoreServerFields(viewModel, location);
                 viewModel.ReturnUrl = GetSafeReturnUrl(returnUrl);
 
+                if (_dbContext.Database.IsNpgsql())
+                {
+                    var detail = await HistoryDetail.ReadAsync(_dbContext, userId, id, NodaTime.DateTimeZone.Utc,
+                        HttpContext.RequestAborted, HttpContext.RequestServices.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>());
+                    ViewData["LocationDetail"] = JsonSerializer.Serialize(detail);
+                    ViewData["InputTimeZone"] = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(location.Coordinates.Y, location.Coordinates.X);
+                }
                 SetPageTitle("Edit Location");
                 return View(viewModel);
             }

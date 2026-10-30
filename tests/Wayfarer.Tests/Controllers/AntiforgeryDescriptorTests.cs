@@ -95,7 +95,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         var all = app.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().ToArray();
         var unsafeActions = all.Where(action => Methods(action).Any(method => method is "POST" or "PUT" or "PATCH" or "DELETE")).ToArray();
-        var classified = (CookieActions + " " + BearerActions + " " + QueryActions + " Api.Location.Update")
+        var classified = (CookieActions + " " + BearerActions + " " + QueryActions + " Api.Location.Update Api.LocationMutation.Execute")
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         Assert.All(unsafeActions, action => Assert.Contains(Key(action), classified));
         foreach (var key in CookieActions.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
@@ -119,7 +119,13 @@ public sealed class AntiforgeryDescriptorTests : TestBase
             Assert.NotEmpty(matches);
             Assert.All(matches, NoValidation);
         }
-        var mixed = Assert.Single(all, action => action.FilterDescriptors.Any(filter => filter.Filter is CookieFirstAntiforgeryAttribute));
+        var mixedActions = all.Where(action => action.FilterDescriptors.Any(filter => filter.Filter is CookieFirstAntiforgeryAttribute)).ToArray();
+        Assert.Equal(2, mixedActions.Length);
+        var protectedLocation = Assert.Single(mixedActions, action => Key(action) == "Api.LocationMutation.Execute");
+        Assert.Equal(["POST"], Methods(protectedLocation));
+        Assert.Equal("api/location/{id:int}/mutations/{baseId:guid}/{actionId:guid}", protectedLocation.AttributeRouteInfo!.Template);
+        Assert.True(Assert.Single(protectedLocation.FilterDescriptors.Select(filter => filter.Filter).OfType<CookieFirstAntiforgeryAttribute>()).ProtectedMutation);
+        var mixed = Assert.Single(mixedActions, action => Key(action) == "Api.Location.Update");
         Assert.Equal("Api.Location.Update", Key(mixed));
         Assert.Equal(["PUT"], Methods(mixed));
         Assert.Equal("api/Location/{id:int}", mixed.AttributeRouteInfo!.Template);

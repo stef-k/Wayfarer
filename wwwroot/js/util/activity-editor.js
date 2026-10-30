@@ -1,3 +1,7 @@
+import { readLocationDetail, saveLocationMutation, locationWork } from './location-mutation.js';
+
+// Edit-start originals survive a pending or rejected save.
+const activityOriginals = new Map();
 /**
  * Shared utility for inline activity editing in Location modals.
  * Provides UI generation and API integration for editing location activities.
@@ -123,39 +127,17 @@ export const initActivitySelect = (locationId) => {
  */
 export const updateLocationActivity = async (locationId, activityTypeId, clearActivity = false) => {
     try {
-        const payload = clearActivity
-            ? { clearActivity: true }
-            : { activityTypeId: activityTypeId || null };
-
-        const response = await fetch(`/api/location/${locationId}`, {
-            method: 'PUT',
-            headers: {
-                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            return {
-                success: false,
-                message: errorData.message || `Failed to update activity (${response.status})`
-            };
-        }
-
-        const data = await response.json();
-        return {
-            success: true,
-            message: data.message || 'Activity updated successfully',
-            activityType: data.location?.activityType || null
-        };
+        const retained = locationWork(locationId).draft?.value;
+        const detail = retained?.draft?.activityDetail || activityOriginals.get(locationId);
+        if (!detail) return { success: false, message: 'Open the Activity editor to observe its originals before saving.' };
+        const changes = { activity: clearActivity || !activityTypeId ? { op: 'clear' } : { op: 'set', id: activityTypeId } };
+        const values = detail.locationMutation.baseValues;
+        const result = await saveLocationMutation(locationId, detail, 'update', changes,
+            { uuid: values.uuid, activityTypeId: values.activityTypeId }, { activityDetail: detail });
+        if (result.success) activityOriginals.set(locationId, result.detail);
+        return { ...result, activityType: result.detail?.record?.activityName || null };
     } catch (error) {
-        console.error('Error updating location activity:', error);
-        return {
-            success: false,
-            message: 'Network error while updating activity'
-        };
+        return { success: false, message: error.message || 'Activity outcome unknown. Your draft is retained.' };
     }
 };
 
@@ -252,11 +234,18 @@ export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdate
             const editor = editToggle.closest('.activity-editor');
             if (!editor) return;
 
-            setActivityEditMode(editor, true);
-
             const locationId = parseInt(editor.dataset.locationId, 10);
             if (!Number.isNaN(locationId)) {
-                initActivitySelect(locationId);
+                try {
+                    const retained = locationWork(locationId).draft?.value;
+                    const detail = retained?.draft?.activityDetail || await readLocationDetail(locationId);
+                    activityOriginals.set(locationId, detail);
+                    setActivityEditMode(editor, true);
+                    const select = initActivitySelect(locationId);
+                    const activity = detail.record.activityTypeId;
+                    if (select && activity != null) select.addOption({ id: activity, name: detail.record.activityName || String(activity) });
+                    select?.setValue(activity == null ? '' : String(activity), true);
+                } catch (error) { showActivityFeedback(locationId, error.message, true); }
             }
 
             return;

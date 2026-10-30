@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,15 +17,12 @@ public sealed class LocationMutationController(ApplicationDbContext db, ILogger<
     IDataProtectionProvider protection, ReverseGeocodingService reverse, IMemoryCache cache) : BaseApiController(db, logger)
 {
     /// <summary>Buffers the original body under the existing server limit, then binds its exact bytes once.</summary>
-    [HttpPost]
+    [HttpPost, CookieFirstAntiforgery(ProtectedMutation = true)]
     public async Task<IActionResult> Execute(int id, Guid baseId, Guid actionId, CancellationToken token)
     {
         Response.Headers.CacheControl = "no-store";
         var user = GetUserFromTokenOrCookie();
         if (user == null) return ProblemResult("mutationAuthenticationRequired", 401);
-        if (ActiveAccountCookie.HasCookieAuthority(HttpContext)
-            && !await HttpContext.RequestServices.GetRequiredService<IAntiforgery>().IsRequestValidAsync(HttpContext))
-            return ProblemResult("antiforgeryInvalid", 403);
         if (Request.Headers.ContentEncoding.Count > 0 && Request.Headers.ContentEncoding != "identity")
             return ProblemResult("mutationInvalid", 422);
         try
@@ -59,16 +55,16 @@ public sealed class LocationMutationController(ApplicationDbContext db, ILogger<
     }
 
     /// <summary>Revalidates active account, cookie stamp or incoming token while holding final transaction locks.</summary>
-    private LocationMutationService Service(string owner) => new(db, protection, reverse, cache)
+    private LocationMutationService Service(string owner) => new(_dbContext, protection, reverse, cache)
     {
         Authorized = async token =>
         {
-            var account = await db.Users.FromSqlInterpolated($$"""
+            var account = await _dbContext.Users.FromSqlInterpolated($$"""
                 SELECT * FROM "AspNetUsers" WHERE "Id" = {{owner}} FOR SHARE
                 """).AsNoTracking().SingleOrDefaultAsync(token);
             if (account is not { IsActive: true }) return false;
             if (User.Identity?.IsAuthenticated != true)
-                return await IncomingApiTokenResolver.ForRequest(HttpContext, db).RevalidateMutationAsync(HttpContext, owner, token);
+                return await IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext).RevalidateMutationAsync(HttpContext, owner, token);
             var stamp = User.FindFirstValue("AspNet.Identity.SecurityStamp");
             return !string.IsNullOrEmpty(stamp) && stamp == account.SecurityStamp;
         }

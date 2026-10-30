@@ -233,7 +233,7 @@ namespace Wayfarer.Parsers
         /// <summary>Admits a retained create or owner refresh under the account fence; preparation and HTTP hold no account locks.</summary>
         internal async Task<ReverseGeocodingResult> EnrichRetainedAsync(ApplicationDbContext db, Location location,
             CancellationToken cancellationToken, PropertyValues? originalValues = null,
-            Func<CancellationToken, Task>? beforeAdmission = null)
+            Func<CancellationToken, Task>? beforeAdmission = null, Func<CancellationToken, Task>? beforeContact = null)
         {
             if (_contactGate == null || !HasValidCoordinates(location.Coordinates.Y, location.Coordinates.X))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
@@ -249,7 +249,7 @@ namespace Wayfarer.Parsers
                         && row.Coordinates == location.Coordinates, cancellationToken))
                     return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
                 admission = await _contactGate.AdmitPreparedPersistentGeocodingAsync(location.UserId, cancellationToken,
-                    originalValues == null ? null : token => ApiLocationUpdate.RequireCurrentAsync(db, location, originalValues, token));
+                    originalValues == null ? beforeContact : token => ApiLocationUpdate.RequireCurrentAsync(db, location, originalValues, token));
                 if (transaction != null) await transaction.CommitAsync(cancellationToken);
             }
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));

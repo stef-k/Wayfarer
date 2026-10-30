@@ -12,14 +12,20 @@ namespace Wayfarer.Services;
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFilter
 {
+    /// <summary>Protected Location commands use their stable problem codes for authentication/antiforgery failures.</summary>
+    public bool ProtectedMutation { get; set; }
+
     /// <summary>Preserves cookie priority and the Location API's invalid-credential envelope.</summary>
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         var http = context.HttpContext;
+        if (ProtectedMutation) http.Response.Headers.CacheControl = "no-store";
         // The cookie validator already removed this identity; preserve cookie priority before bearer resolution.
         if (ActiveAccountCookie.HasCookieAuthority(http) && http.User.Identity?.IsAuthenticated != true)
         {
-            context.Result = new UnauthorizedObjectResult(new { message = ActiveAccountCookie.SessionEndedMessage });
+            context.Result = ProtectedMutation
+                ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401 }
+                : new UnauthorizedObjectResult(new { message = ActiveAccountCookie.SessionEndedMessage });
             return;
         }
         if (http.User.Identity?.IsAuthenticated == true)
@@ -28,7 +34,9 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
             var antiforgery = http.RequestServices.GetRequiredService<IAntiforgery>();
             if (!await antiforgery.IsRequestValidAsync(http))
             {
-                context.Result = new AntiforgeryValidationFailedResult();
+                context.Result = ProtectedMutation
+                    ? new ObjectResult(new { code = "antiforgeryInvalid" }) { StatusCode = 403 }
+                    : new AntiforgeryValidationFailedResult();
                 return;
             }
         }
@@ -37,7 +45,9 @@ public sealed class CookieFirstAntiforgeryAttribute : Attribute, IAsyncActionFil
             var user = ((BaseApiController)context.Controller).GetUserFromTokenOrCookie();
             if (user == null)
             {
-                context.Result = new UnauthorizedObjectResult("Invalid or missing API token.");
+                context.Result = ProtectedMutation
+                    ? new ObjectResult(new { code = "mutationAuthenticationRequired" }) { StatusCode = 401 }
+                    : new UnauthorizedObjectResult("Invalid or missing API token.");
                 return;
             }
         }

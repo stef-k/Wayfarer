@@ -1,3 +1,4 @@
+import { mountProtectedLocationForm } from '../../../util/location-edit-form.js';
 import { notesHtmlForDisplay, notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
 import { renderLocationAddress } from '../../../util/location-address.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
@@ -86,6 +87,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    quill.on('text-change', (_delta, _old, source) => {
+        if (source === 'user' && quill.getText().trim()) explicitlyClearNotes = false;
+    });
     var toolbar = quill.getModule('toolbar');
 
     var clearText = document.createElement('span');
@@ -95,8 +99,10 @@ document.addEventListener("DOMContentLoaded", function () {
     toolbar.container.appendChild(clearText);
     let savedRange = null;
 
+    let explicitlyClearNotes = false;
     clearText.addEventListener('click', function () {
-        quill.setText(''); // Clears the editor content
+        explicitlyClearNotes = true;
+        quill.setText(''); // Explicit Clear differs from an empty Set.
     });
 
     var toolbar = quill.getModule('toolbar');
@@ -147,12 +153,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Set the notes content in the Quill editor
     quill.root.innerHTML = notesHtmlForDisplay(notesContent);
 
-    // When the form is submitted, update the hidden input field with the Quill content
-    var form = document.getElementById("locationForm");
-    form.addEventListener("submit", function () {
-        var hiddenNotesField = document.getElementById("hiddenNotes");
-        hiddenNotesField.value = notesHtmlForSave(quill.root.innerHTML);  // Set the hidden input value to the Quill content
-    });
+    mountProtectedLocationForm(document.getElementById('locationForm'), quill, () => explicitlyClearNotes);
 
     // Initialize TomSelect on Activity dropdown with API-based loading
     if (typeof TomSelect !== 'undefined') {

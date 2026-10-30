@@ -1,3 +1,4 @@
+import { prepareLocationDeletion } from '../../../util/location-mutation.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 // AllLocations.js
 import {
@@ -113,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
             viewLocationDetails(loc);
         }
     });
-    document.addEventListener('click', e => {
+    document.addEventListener('click', async e => {
         const del = e.target.closest('.delete-location-from-popup');
         if (del) {
             e.preventDefault();
@@ -121,24 +122,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the current open modal instance
             const modalEl = document.getElementById('locationModal');
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            let deleteProtected;
+            try { deleteProtected = await prepareLocationDeletion(id); }
+            catch (error) { alert(error.message); return; }
             wayfarer.showConfirmationModal({
                 title: "Confirm Deletion",
-                message: "Are you sure? This cannot be undone.",
+                message: deleteProtected.message,
                 confirmText: "Delete",
                 onConfirm: () => {
-                    fetch('/api/Location/bulk-delete', {
-                        method: 'POST',
-                        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Content-Type': 'application/json'},
-                        body: JSON.stringify({locationIds: [id]})
-                    })
-                        .then(r => r.json())
+                    deleteProtected()
                         .then(d => {
                             if (d.success) {
                                 loadLocations(currentPage);
                                 // Hide the modal now that the record is gone
                                 modalInstance.hide();
                             }
-                            else alert('Delete failed');
+                            else alert(d.message || 'Deletion outcome unknown. Your attempt is retained.');
                         });
                 }
             });
@@ -181,13 +180,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2) Confirm, then POST to /bulk-delete
         wayfarer.showConfirmationModal({
             title: 'Confirm Bulk Deletion',
-            message: `Are you sure you want to delete ${selectedIds.length} location(s)? This cannot be undone.`,
+            message: `Are you sure you want to delete ${selectedIds.length} location(s) with their then-current content? A lost reply is uncertain; inspect history before trying again.`,
             confirmText: 'Delete',
             onConfirm: () => {
                 fetch('/api/Location/bulk-delete', {
                     method: 'POST',
                     headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
-                    body: JSON.stringify({ locationIds: selectedIds })
+                    body: JSON.stringify({ operationScope: 'bulk', locationIds: selectedIds })
                 })
                     .then(r => r.json())
                     .then(d => {

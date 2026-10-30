@@ -4,6 +4,13 @@ const normalization = 'location-values-1';
 const encoder = new TextEncoder();
 const subject = () => document.getElementById('browser-antiforgery')?.dataset.subjectId;
 const partition = id => `${contract}:${location.origin}:${subject()}:${id}`;
+const retainAttempt = (id, attempt) => {
+    const latest = locationWork(id);
+    const index = latest.attempts.findIndex(item => item.actionId === attempt.actionId);
+    if (index < 0) throw new Error('Local attempt evidence is unavailable.');
+    latest.attempts[index] = attempt;
+    persist(id, latest);
+};
 const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 const exactKeys = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
     && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key));
@@ -30,7 +37,7 @@ export const locationRequestFingerprint = async (owner, id, baseId, actionId, ad
 
 /** Ordinary 404/auth/transport failures supply no absence or deletion proof. */
 export const readLocationDetail = async id => {
-    const response = await fetch(`/api/location/history/${id}`, { cache: 'no-store', credentials: 'same-origin' });
+    const response = await fetch(`/api/location/history/${id}?viewerZone=UTC`, { cache: 'no-store', credentials: 'same-origin' });
     if (!response.ok) throw new Error(`Location detail unavailable (${response.status}). Your draft is retained.`);
     const detail = await response.json();
     const evidence = detail.locationMutation;
@@ -77,19 +84,29 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
         const generation = retainLocationDraft(id, { kind, changes, expected, detail, draft });
         let state = locationWork(id);
         let attempt = state.attempts.find(item => item.actionId === state.active);
+        let renewedDetail = null;
         if (attempt) {
             const recovered = await inspectAttempt(id, state, attempt);
-            if (!recovered.terminal) return recovered;
-            if (attempt.generation !== generation) return { success: false, message: 'The earlier action is resolved. Your newer draft is retained; review it against current history before saving.', earlierResolved: true };
-            return recovered;
+            if (recovered.excluded) {
+                const fresh = await readLocationDetail(id);
+                if (!originalsMatch(expected, fresh.locationMutation.baseValues))
+                    return { success: false, message: 'Old future effects are excluded; current content differs from your originals. Your draft is retained. Review current history before an informed new conditional edit.', terminal: true };
+                // Historical outcome stays Unknown. Re-admit the retained originals under fresh authority.
+                const latest = locationWork(id);
+                latest.active = null; persist(id, latest); renewedDetail = fresh;
+            } else {
+                if (!recovered.terminal) return recovered;
+                if (attempt.generation !== generation) return { success: false, message: 'The earlier action is resolved. Your newer draft is retained; review it against current history before saving.', earlierResolved: true };
+                return recovered;
+            }
         }
         // Renew only never-attempted authority; expected originals are deliberately retained unchanged.
-        let authority = detail.locationMutation;
+        let authority = (renewedDetail || detail).locationMutation;
         if (Date.parse(authority.expiresAtUtc) <= Date.now()) authority = (await readLocationDetail(id)).locationMutation;
         const body = JSON.stringify({ contract, normalization, adapter: 'web-edit', baseHandle: authority.baseHandle, kind, expected, ...(kind === 'update' ? { changes } : {}) });
         const actionId = crypto.randomUUID();
         attempt = { id, subjectId: subject(), uuid: detail.locationMutation.baseValues.uuid.value, baseId: authority.baseId, actionId,
-            adapter: 'web-edit', kind, body, baseHandle: authority.baseHandle, generation, mayHaveAttempted: false,
+            adapter: 'web-edit', kind, body, baseHandle: authority.baseHandle, expiresAtUtc: authority.expiresAtUtc, generation, mayHaveAttempted: false,
             fingerprint: await locationRequestFingerprint(subject(), id, authority.baseId, actionId, 'web-edit', body) };
         state = locationWork(id); state.attempts.push(attempt); state.active = actionId; persist(id, state);
         // Durable before fetch; a thrown fetch never restores never-attempted status.
@@ -113,10 +130,12 @@ const inspectAttempt = async (id, state, attempt) => {
         const receipt = await response.json();
         if (receipt.state === 'unknown' && receipt.contract === contract && receipt.subjectId === attempt.subjectId && receipt.locationId === id
             && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId && receipt.code === 'operationHistoryExpired'
-            && receipt.futureEffects === false && receipt.historicalOutcome === 'unknown') {
+            && receipt.futureEffects === false && receipt.historicalOutcome === 'unknown'
+            && exactKeys(receipt, ['contract', 'subjectId', 'locationId', 'baseId', 'actionId', 'observedAtUtc', 'state', 'code', 'futureEffects', 'expiresAtUtc', 'historicalOutcome'])
+            && receipt.expiresAtUtc === attempt.expiresAtUtc && Date.parse(receipt.observedAtUtc) >= Date.parse(receipt.expiresAtUtc)) {
             // Exclusion alone cannot authorize rebasing or a replacement. Keep all command/original evidence.
-            attempt.exclusion = receipt; persist(id, state);
-            return { success: false, message: 'Historical outcome unknown; old future effects are excluded. Your draft and originals are retained. Review current history before an informed new conditional edit.' };
+            attempt.exclusion = receipt; retainAttempt(id, attempt);
+            return { success: false, excluded: true, message: 'Historical outcome unknown; old future effects are excluded. Your draft and originals are retained.' };
         }
         return await acceptResponse(id, state, attempt, receipt);
     } catch { return { success: false, message: 'Outcome unknown. Your draft and exact attempt are retained. Save again to check recovery.' }; }
@@ -125,7 +144,7 @@ const inspectAttempt = async (id, state, attempt) => {
 /** Only a matching generation can publish success; an old receipt never consumes newer typing. */
 const acceptResponse = async (id, state, attempt, receipt) => {
     if (!validateLocationReceipt(receipt, attempt)) return { success: false, message: 'Outcome could not be verified. Your draft and attempt are retained.' };
-    attempt.receipt = receipt; persist(id, state);
+    attempt.receipt = receipt; retainAttempt(id, attempt);
     if (receipt.state === 'pending') return { success: false, message: 'Save is pending. Your draft is retained. Save again to check recovery.' };
     if (receipt.state === 'rejected') return { success: false, terminal: true, message: `Save rejected (${receipt.code}). Your draft and originals are retained. Review current history.`, receipt };
     let fresh = null;
@@ -146,7 +165,31 @@ export const prepareLocationDeletion = async id => {
     const active = existing.attempts.find(item => item.actionId === existing.active);
     const retained = existing.draft?.value;
     const detail = active && retained?.kind === 'delete' ? retained.detail : await readLocationDetail(id);
-    return () => saveLocationMutation(id, detail, 'delete', null, {
+    const execute = () => saveLocationMutation(id, detail, 'delete', null, {
         uuid: detail.locationMutation.baseValues.uuid, content: detail.locationMutation.baseValues.deleteContent
     });
+    execute.message = `Delete the observed Location #${id}? This cannot be undone. Stored detail: ${JSON.stringify(detail.record)}. Unavailable facts: ${JSON.stringify(detail.unavailableFields)}.`;
+    return execute;
 };
+
+/** An informed user may adopt inspected current originals only after all predecessor future effects are excluded. */
+export const adoptLocationOriginals = async (id, inspected) => navigator.locks.request(partition(id), async () => {
+    const state = locationWork(id);
+    const active = state.attempts.find(item => item.actionId === state.active);
+    if (active && active.receipt?.futureEffects !== false && active.exclusion?.futureEffects !== false)
+        throw new Error('The earlier action may still execute. Recover it before adopting current facts.');
+    if (inspected.subjectId !== subject() || inspected.record?.locationId !== id) throw new Error('Current facts have the wrong scope.');
+    state.active = null;
+    state.adopted = inspected;
+    persist(id, state);
+});
+
+/** Conservative typed exact comparison of Web's already-normalized observed originals, never a local sanitizer. */
+const sameValue = (left, right) => {
+    if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') return left === right;
+    return Object.keys(left).length === Object.keys(right).length && Object.keys(left).every(key => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
+};
+const originalsMatch = (expected, values) => Object.entries(expected).every(([group, slot]) => {
+    const current = values[group === 'content' ? 'deleteContent' : group];
+    return slot?.state === 'known' && current?.state === 'known' && sameValue(slot.value, current.value);
+});

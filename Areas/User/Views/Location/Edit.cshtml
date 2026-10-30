@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Mvc.ViewFeatures
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @model Wayfarer.Models.ViewModels.AddLocationViewModel
 
 @{
@@ -34,7 +34,12 @@
                 <h2 class="fs-4">Edit Location</h2>
             </div>
             <div class="card-body">
-                <form asp-action="Edit" method="post" id="locationForm">
+                <form asp-action="Edit" method="post" id="locationForm" data-location-id="@Model.Id"
+                      data-location-detail="@ViewData["LocationDetail"]" data-time-zone="@ViewData["InputTimeZone"]">
+                    <p id="location-save-status" role="status" aria-live="polite"></p>
+                    <details id="location-conflict" hidden><summary>Review retained draft and current facts</summary><pre></pre>
+                        <button type="button" id="location-adopt-current" class="btn btn-outline-warning">Use these current facts as new originals, keeping my draft</button>
+                    </details>
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ReturnUrl" />
                     <input type="hidden" asp-for="OriginalReverseGeocodingProvider" />
@@ -147,10 +152,13 @@
                                class="form-control"
                                id="LocalTimestamp"
                                asp-for="LocalTimestamp"
-                               value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm")" />
+                               step="any" value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.ffffff")" />
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>
 
+                    <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone @ViewData["InputTimeZone"].</p>
+                    <label for="timeAmbiguity">If this local time occurs twice</label>
+                    <select id="timeAmbiguity" class="form-select"><option value="">Choose when needed</option><option value="earlier">Earlier occurrence</option><option value="later">Later occurrence</option></select>
                     <div class="form-group">
                         <label for="notes">Add Notes</label>
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>

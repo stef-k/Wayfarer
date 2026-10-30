@@ -1,3 +1,4 @@
+import { prepareLocationDeletion } from '../../../util/location-mutation.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 let locations = []; // Declare locations as a global variable
 let mapContainer = null;
@@ -150,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // delete events from pop ups
-    document.addEventListener("click", function (event) {
+    document.addEventListener("click", async function (event) {
         const deleteLink = event.target.closest(".delete-location-from-popup");
         if (!deleteLink) return; // Exit if the click is not on a delete button
 
@@ -165,17 +166,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
 
+        let deleteProtected;
+        try { deleteProtected = await prepareLocationDeletion(locationId); }
+        catch (error) { alert(error.message); return; }
         wayfarer.showConfirmationModal({
             title: "Confirm Deletion",
-            message: "Are you sure you want to delete the selected location? This action cannot be undone.",
+            message: deleteProtected.message,
             confirmText: "Delete",
             onConfirm: () => {
-                fetch("/api/Location/bulk-delete", {
-                    method: "POST",
-                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', "Content-Type": "application/json"},
-                    body: JSON.stringify({locationIds: [locationId]}) // Send as an array
-                })
-                    .then(response => response.json())
+                deleteProtected()
                     .then(data => {
                         if (data.success) {
                             if (modalInstance) {
@@ -184,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             mapContainer = initializeMap();
                             getUserLocations();
                         } else {
-                            alert("Failed to delete location");
+                            alert(data.message || "Deletion outcome unknown. Inspect current history before deciding again.");
                         }
                     })
                     .catch(error => console.error("Error:", error));
@@ -581,14 +580,14 @@ document.getElementById('deleteSelected').addEventListener('click', () => {
         // Use the showConfirmationModal helper to confirm deletion
         wayfarer.showConfirmationModal({
             title: 'Confirm Deletion',
-            message: 'Are you sure you want to delete the selected locations? This action cannot be undone.',
+            message: 'Delete the then-current selected records, even if their content changed? If the reply is lost, inspect history before deliberately trying again.',
             confirmText: 'Delete',
             onConfirm: () => {
                 // Perform the deletion action after confirmation
                 fetch('/api/Location/bulk-delete', {
                     method: 'POST',
                     headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Content-Type': 'application/json'},
-                    body: JSON.stringify({locationIds: selectedIds})
+                    body: JSON.stringify({ operationScope: 'bulk', locationIds: selectedIds })
                 })
                     .then(response => response.json())
                     .then(data => {
@@ -597,7 +596,7 @@ document.getElementById('deleteSelected').addEventListener('click', () => {
                             getUserLocations();
                             fetchLocations(mapContainer);
                         } else {
-                            alert('Failed to delete locations');
+                            alert('Bulk outcome unknown. Refresh history before deliberately trying again.');
                         }
                     })
                     .catch(error => console.error('Error:', error));

@@ -78,16 +78,20 @@ internal static class LocationMutationEvidence
     internal static object Create(IDataProtectionProvider protection, string owner, int id,
         Dictionary<string, object?> record, Dictionary<string, string> unavailable, string fingerprint, bool pending, DateTime now)
     {
+        now = new DateTime(now.Ticks / 10 * 10, DateTimeKind.Utc);
         var uuid = record["uuid"] is string key ? Guid.Parse(key) : (Guid?)null;
         var authority = new LocationMutationBase("location-mutation-1", "location-values-1", owner, id, uuid, Guid.NewGuid(), now, now.AddMinutes(15));
         object Slot(string name) => unavailable.ContainsKey(name)
             ? new { state = "unavailable", reason = "unrepresentableStoredValue" } : Known(record.GetValueOrDefault(name));
         var addressUnavailable = LocationMutationCommand.AddressMembers.Any(unavailable.ContainsKey);
+        var position = JsonSerializer.SerializeToElement(record["position"]);
+        var positionKnown = position.TryGetProperty("latitude", out var latitude) && position.TryGetProperty("longitude", out _);
         var values = new Dictionary<string, object?>
         {
             ["uuid"] = Slot("uuid"), ["eventUtc"] = Slot("eventUtc"), ["notesHtml"] = Slot("notesHtml"),
             ["activityTypeId"] = Slot("activityTypeId"), ["altitude"] = Slot("altitude"),
-            ["position"] = record["position"] == null ? new { state = "unavailable", reason = "unrepresentableStoredValue" } : Known(record["position"]),
+            ["position"] = !positionKnown ? new { state = "unavailable", reason = "unrepresentableStoredValue" }
+                : Known(new { latitude = latitude.GetDouble(), longitude = position.GetProperty("longitude").GetDouble() }),
             ["address"] = addressUnavailable ? new { state = "unavailable", reason = "unrepresentableStoredValue" }
                 : Known(LocationMutationCommand.AddressMembers.ToDictionary(name => name, name => record.GetValueOrDefault(name))),
             ["deleteContent"] = Known(new { format = "location-delete-storage-1", fingerprint })

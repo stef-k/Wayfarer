@@ -68,7 +68,11 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
                     if (reserved == null || reserved.ExecutorNonce != nonce || reserved.State != "pending"
                         || await NowAsync(db, admissionToken) >= reserved.ExecuteBeforeUtc)
                         throw new MutationProtocolException("operationExecutionExpired");
-                    if (await CompareAsync(reserved, command, admissionToken) != null)
+                }, beforeContact: async contactToken =>
+                {
+                    // The operation lock was acquired before provider locks; compare the Location only after them.
+                    var reserved = db.ChangeTracker.Entries<LocationMutationOperation>().Single(entry => entry.Entity.BaseId == baseId && entry.Entity.ActionId == actionId).Entity;
+                    if (await CompareAsync(reserved, command, contactToken) != null)
                         throw new MutationProtocolException("locationBaseStale");
                 });
             }
@@ -124,6 +128,10 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
             if (!LocationMutationCommand.Equal(group.Name, group.Value.GetProperty("value"), current.GetProperty("value"))) stale.Add(group.Name);
         }
         if (stale.Count > 0) return Terminal(operation, now, "locationBaseStale", 409, stale.ToArray());
+        if (command.Kind == "update" && command.Changes.TryGetProperty("activity", out var activity)
+            && activity.GetProperty("op").GetString() == "set"
+            && await new ActivityCatalog(db).ResolveIdAsync(activity.GetProperty("id").GetInt32(), token) == null)
+            return Terminal(operation, now, "activityInvalid", 422);
         return null;
     }
 

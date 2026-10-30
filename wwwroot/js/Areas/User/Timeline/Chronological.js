@@ -1,3 +1,4 @@
+import { prepareLocationDeletion } from '../../../util/location-mutation.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { renderStatistics } from './statistics.js';
 ﻿// Chronological Timeline - allows navigation by day, month, or year
@@ -181,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Delete events from pop ups
-    document.addEventListener("click", function (event) {
+    document.addEventListener("click", async function (event) {
         const deleteLink = event.target.closest(".delete-location-from-popup");
         if (!deleteLink) return;
 
@@ -196,17 +197,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
 
+        let deleteProtected;
+        try { deleteProtected = await prepareLocationDeletion(locationId); }
+        catch (error) { alert(error.message); return; }
         wayfarer.showConfirmationModal({
             title: "Confirm Deletion",
-            message: "Are you sure you want to delete the selected location? This action cannot be undone.",
+            message: deleteProtected.message,
             confirmText: "Delete",
             onConfirm: () => {
-                fetch("/api/Location/bulk-delete", {
-                    method: "POST",
-                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', "Content-Type": "application/json"},
-                    body: JSON.stringify({locationIds: [locationId]})
-                })
-                    .then(response => response.json())
+                deleteProtected()
                     .then(data => {
                         if (data.success) {
                             if (modalInstance) {
@@ -214,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             loadChronologicalData();
                         } else {
-                            alert("Failed to delete location");
+                            alert(data.message || "Deletion outcome unknown. Inspect current history before deciding again.");
                         }
                     })
                     .catch(error => console.error("Error:", error));
