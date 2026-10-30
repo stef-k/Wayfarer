@@ -304,6 +304,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<AuditLogCleanupJob>();
     builder.Services.AddTransient<VisitCleanupJob>();
     builder.Services.AddTransient<RateLimitCleanupJob>();
+    builder.Services.AddTransient<LocationMutationCleanupJob>();
     // ...and any other IJob implementations you'll use
 
     // 1) Register your JobFactory & Listeners
@@ -440,6 +441,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
             scheduler.ScheduleJob(job, trigger).Wait();
         }
 
+        LocationMutationCleanupJob.Configure(scheduler);
         return scheduler;
     });
 

@@ -768,6 +768,8 @@ public partial class LocationController : BaseApiController
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteRequest request)
     {
+        if (request?.OperationScope != "bulk")
+            return StatusCode(428, new { code = "protectedMutationRequired" });
         // Ensure there are location IDs provided
         if (request?.LocationIds == null || !request.LocationIds.Any())
             return BadRequest(new { success = false, message = "No location IDs provided." });
@@ -806,165 +808,13 @@ public partial class LocationController : BaseApiController
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var user = GetUserFromToken();
-        if (user == null)
-            return Unauthorized("Invalid or missing API token.");
-
-        try
-        {
-            var deleted = await LocationDeletionFence.DeleteAsync(_dbContext, user.Id,
-                new[] { id }, _cache, HttpContext.RequestAborted);
-            if (deleted.Count == 0) return NotFound(new { success = false, message = "Location not found." });
-
-            // Broadcast deletion to group members
-            await BroadcastLocationDeletionAsync(user.Id, new[] { id });
-
-            _logger.LogDebug("Deleted location {LocationId} for user {UserId}", id, user.Id);
-            return Ok(new { success = true, message = "Location deleted.", id });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Error deleting location {LocationId} for user {UserId} Failure type: {ExceptionType}", id, user.Id, ex.GetType().Name);
-            return StatusCode(500, new { success = false, message = "Failed to delete location." });
-        }
+        return await Task.FromResult(StatusCode(428, new { code = "protectedMutationRequired" }));
     }
 
-    /// <summary>
-    ///     Partially updates fields of a location: coordinates, notes, activity and local timestamp.
-    ///     Notes and activity support explicit clearing via boolean flags.
-    /// </summary>
-    /// <param name="id">Location ID</param>
-    /// <param name="request">Update payload</param>
-    /// <returns>200 with updated location on success</returns>
+    /// <summary>Retired unconditional update: every single-record writer must use the protected mutation protocol.</summary>
     [HttpPut("{id:int}"), CookieFirstAntiforgery]
-    public async Task<IActionResult> Update(int id, [FromBody] LocationUpdateRequestDto request)
-    {
-        var user = GetUserFromTokenOrCookie();
-        if (user == null)
-            return Unauthorized("Invalid or missing API token.");
-
-        if (request == null)
-            return BadRequest(new { success = false, message = "Invalid request payload." });
-
-        try
-        {
-            var location = await _dbContext.Locations.FirstOrDefaultAsync(l => l.Id == id && l.UserId == user.Id);
-            if (location == null) return NotFound(new { success = false, message = "Location not found." });
-
-            var anyChange = false;
-            var coordsUpdated = false;
-
-            // Optional coordinates must form a valid pair before any tracked mutation or provider work.
-            if (request.Latitude.HasValue || request.Longitude.HasValue)
-            {
-                if (!(request.Latitude.HasValue && request.Longitude.HasValue))
-                    return BadRequest(new
-                        { success = false, message = "Both latitude and longitude must be provided together." });
-
-                var lat = request.Latitude.Value;
-                var lon = request.Longitude.Value;
-
-                if (!double.IsFinite(lat) || !double.IsFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
-                    return BadRequest(new { success = false, message = "Latitude and longitude must be finite and within [-90,90] and [-180,180]." });
-
-                if (!location.Coordinates.X.Equals(lon) || !location.Coordinates.Y.Equals(lat))
-                    LocationPresence.Invalidate(location, _dbContext);
-                location.Coordinates = new Point(lon, lat) { SRID = 4326 };
-                anyChange = true;
-                coordsUpdated = true;
-            }
-
-            // Notes update and clearing
-            if (request.ClearNotes == true)
-            {
-                location.Notes = null;
-                anyChange = true;
-            }
-            else if (request.Notes != null)
-            {
-                location.Notes = RichNotes.Normalize(request.Notes);
-                anyChange = true;
-            }
-
-            // Activity update and clearing
-            if (request.ClearActivity == true)
-            {
-                location.ActivityTypeId = null;
-                anyChange = true;
-            }
-            else if (request.ActivityTypeId.HasValue || !string.IsNullOrWhiteSpace(request.ActivityName))
-            {
-                var catalog = new ActivityCatalog(_dbContext);
-                var resolvedId = await catalog.ResolveIdAsync(request.ActivityTypeId, HttpContext.RequestAborted);
-                if (resolvedId == null && !string.IsNullOrWhiteSpace(request.ActivityName))
-                    resolvedId = await catalog.FindByNameAsync(request.ActivityName, HttpContext.RequestAborted);
-
-                // If still null after trying both, set to null (explicit update semantics)
-                location.ActivityTypeId = resolvedId;
-                anyChange = true;
-            }
-
-            // Local timestamp update (convert to UTC and refresh timezone id)
-            if (request.LocalTimestamp.HasValue)
-            {
-                // Use new coordinates if provided, otherwise existing ones
-                var baseLat = request.Latitude ?? location.Coordinates.Y;
-                var baseLon = request.Longitude ?? location.Coordinates.X;
-
-                try
-                {
-                    var tzId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(baseLat, baseLon);
-                    DateTime utcTimestamp;
-
-                    var provided = request.LocalTimestamp.Value;
-                    if (provided.Kind == DateTimeKind.Utc)
-                        utcTimestamp = provided;
-                    else
-                        utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(baseLat, baseLon, provided);
-
-                    utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
-
-                    if (location.LocalTimestamp != utcTimestamp) LocationPresence.Invalidate(location, _dbContext);
-                    location.LocalTimestamp = utcTimestamp;
-                    location.TimeZoneId = tzId;
-                    anyChange = true;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError("Failed processing LocalTimestamp for update on location {LocationId} Failure type: {ExceptionType}", id, ex.GetType().Name);
-                    return StatusCode(500,
-                        new { success = false, message = "Failed to process timestamp and timezone." });
-                }
-            }
-
-            // Retained refreshes isolate pending edits and revalidate before admission and after unlocked provider HTTP.
-            if (coordsUpdated)
-                location = await ApiLocationUpdate.PersistAsync(_dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
-
-            if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location = location.ForPublication() });
-
-            if (!coordsUpdated) await _dbContext.SaveChangesAsync();
-            _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
-            return Ok(new { success = true, message = "Location updated.", location = location.ForPublication() });
-        }
-        catch (Exception ex) when (ex is LocationUpdateMissingException or LocationDeletedException)
-        {
-            return NotFound(new { success = false, message = "Location not found." });
-        }
-        catch (LocationUpdateConflictException)
-        {
-            return Conflict(new { success = false, message = "Location changed. Reload and retry." });
-        }
-        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError("Error updating location {LocationId} for user {UserId} Failure type: {ExceptionType}", id, user.Id, ex.GetType().Name);
-            return StatusCode(500, new { success = false, message = "Failed to update location." });
-        }
-    }
+    public Task<IActionResult> Update(int id, [FromBody] LocationUpdateRequestDto request) =>
+        Task.FromResult<IActionResult>(StatusCode(428, new { code = "protectedMutationRequired" }));
 
     [HttpGet("search")]
     public async Task<IActionResult> Search(
@@ -1406,6 +1256,8 @@ public partial class LocationController : BaseApiController
     /// </summary>
     public class BulkDeleteRequest
     {
+        /// <summary>Explicit deliberate bulk semantics, including selections of one row.</summary>
+        public string? OperationScope { get; set; }
         public List<int>? LocationIds { get; set; }
     }
 }

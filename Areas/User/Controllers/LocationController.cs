@@ -299,66 +299,7 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(AddLocationViewModel model, string? saveAction)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
-
-            if (!ModelState.IsValid)
-            {
-                if (!await LocationManualAddressEdit.ReloadInvalidAsync(
-                    _dbContext, model, userId, HttpContext.RequestAborted))
-                {
-                    SetAlert("Location not found or you don't have permission to edit it.", "danger");
-                    return RedirectToAction("Index");
-                }
-                model.ReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
-                ViewData["ExpandAddressDetails"] = true;
-                SetAlert("There are validation errors. Review the highlighted fields and try again.", "warning");
-
-                SetPageTitle("Edit Location");
-                return View(model);
-            }
-
-            await using var transaction = _dbContext.Database.IsRelational() ? await _dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted) : null;
-            var location = await LocationManualAddressEdit.LockOwnedAsync(_dbContext, model.Id, userId, HttpContext.RequestAborted);
-            if (location == null)
-            {
-                if (transaction != null) await transaction.RollbackAsync(HttpContext.RequestAborted);
-                SetAlert("Location not found or you don't have permission to edit it.", "danger");
-                return RedirectToAction("Index");
-            }
-            if (!LocationManualAddressEdit.HasCurrentProviderTuple(location, model))
-            {
-                if (transaction != null) await transaction.RollbackAsync(HttpContext.RequestAborted);
-                SetAlert("Address details changed while this form was open. Review the latest values and try again.", "warning");
-                return RedirectToAction("Edit", new { id = model.Id, returnUrl = GetSafeReturnUrl(model.ReturnUrl) });
-            }
-
-            // Update the location fields
-            var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
-            var coordinatesChanged = !location.Coordinates.X.Equals(model.Longitude) || !location.Coordinates.Y.Equals(model.Latitude);
-            if (coordinatesChanged || location.LocalTimestamp != utc) LocationPresence.Invalidate(location, _dbContext);
-            LocationManualAddressEdit.Apply(location, model, coordinatesChanged);
-            location.Coordinates.X = model.Longitude;
-            location.Coordinates.Y = model.Latitude;
-            location.Altitude = model.Altitude;
-            location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
-            location.TimeZoneId =
-                CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
-            location.ActivityTypeId = await new ActivityCatalog(_dbContext).ResolveWriteIdAsync(model.SelectedActivityId, HttpContext.RequestAborted);
-            location.Notes = RichNotes.Normalize(model.Notes);
-
-            await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
-            if (transaction != null) await transaction.CommitAsync(HttpContext.RequestAborted);
-
-            SetAlert("Location updated successfully.", "success");
-            string safeReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
-            if (string.Equals(saveAction, "return", StringComparison.OrdinalIgnoreCase) &&
-                Url.IsLocalUrl(safeReturnUrl))
-            {
-                return Redirect(safeReturnUrl);
-            }
-
-            return RedirectToAction("Edit", new { id = model.Id, returnUrl = safeReturnUrl });
+            return await Task.FromResult(StatusCode(428, new { code = "protectedMutationRequired" }));
         }
 
         private string GetSafeReturnUrl(string? returnUrl)
@@ -462,7 +403,8 @@ namespace Wayfarer.Areas.User.Controllers
                 return View(model);
             }
 
-            // Proceed with your existing POST logic here (unchanged)
+            if (model.OperationScope != "bulk") return StatusCode(428, new { code = "protectedMutationRequired" });
+            // Deliberate bulk uses Apply-time membership and final locked Notes.
             string? userId2 = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId2 == null) return Unauthorized();
 
@@ -488,7 +430,21 @@ namespace Wayfarer.Areas.User.Controllers
                 query = query.Where(l => l.LocalTimestamp < toDate);
             }
 
-            var list = await query.ToListAsync();
+            await using var bulkTransaction = await LocationDeletionFence.BeginAsync(_dbContext, userId2, HttpContext.RequestAborted);
+            // SQL predicate and FOR UPDATE share one statement snapshot; EvalPlanQual rechecks after waits.
+            var from = model.FromDate.HasValue ? DateTime.SpecifyKind(model.FromDate.Value.Date, DateTimeKind.Utc) : (DateTime?)null;
+            var through = model.ToDate.HasValue ? DateTime.SpecifyKind(model.ToDate.Value.Date.AddDays(1), DateTimeKind.Utc) : (DateTime?)null;
+            var list = _dbContext.Database.IsNpgsql()
+                ? await _dbContext.Locations.FromSqlInterpolated($$"""
+                    SELECT * FROM "Locations" WHERE "UserId" = {{userId2}}
+                    AND ({{string.IsNullOrEmpty(model.Country)}} OR "Country" = {{model.Country}})
+                    AND ({{string.IsNullOrEmpty(model.Region)}} OR "Region" = {{model.Region}})
+                    AND ({{string.IsNullOrEmpty(model.Place)}} OR "Place" = {{model.Place}})
+                    AND ({{from}}::timestamptz IS NULL OR "LocalTimestamp" >= {{from}})
+                    AND ({{through}}::timestamptz IS NULL OR "LocalTimestamp" < {{through}})
+                    ORDER BY "Id" FOR UPDATE
+                    """).ToListAsync(HttpContext.RequestAborted)
+                : await query.OrderBy(row => row.Id).ToListAsync(HttpContext.RequestAborted);
             model.AffectedCount = list.Count;
 
             foreach (var loc in list)
@@ -511,6 +467,7 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             await _dbContext.SaveChangesAsync();
+            if (bulkTransaction != null) await bulkTransaction.CommitAsync(HttpContext.RequestAborted);
 
             SetAlert($"{model.AffectedCount} location(s) updated.", "success");
 

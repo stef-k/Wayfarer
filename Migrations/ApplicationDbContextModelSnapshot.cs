@@ -961,6 +961,9 @@ namespace Wayfarer.Migrations
                     b.Property<DateTimeOffset?>("ObservedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OriginalCreateAddressToken")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("OsVersion")
                         .HasColumnType("text");
 
@@ -1410,6 +1413,81 @@ namespace Wayfarer.Migrations
 
                             t.HasCheckConstraint("CK_LocationImport_UnclassifiedActivity", "\"UnclassifiedActivityCount\" >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationMutationOperation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("AcceptedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ActionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Adapter")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("BaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExecuteBeforeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExecutorNonce")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Normalization")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ReceiptRetainUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ResultStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("Uuid")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceiptRetainUntilUtc", "UserId", "Id");
+
+                    b.HasIndex("UserId", "BaseId", "ActionId")
+                        .IsUnique();
+
+                    b.ToTable("LocationMutationOperations");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationProviders.GeoapifyUsageAdmission", b =>
@@ -2557,6 +2635,17 @@ namespace Wayfarer.Migrations
                 {
                     b.HasOne("Wayfarer.Models.ApplicationUser", "User")
                         .WithMany("LocationImports")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationMutationOperation", b =>
+                {
+                    b.HasOne("Wayfarer.Models.ApplicationUser", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
