@@ -1,7 +1,6 @@
 ﻿using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
@@ -232,7 +231,7 @@ namespace Wayfarer.Parsers
 
         /// <summary>Admits a retained create or owner refresh under the account fence; preparation and HTTP hold no account locks.</summary>
         internal async Task<ReverseGeocodingResult> EnrichRetainedAsync(ApplicationDbContext db, Location location,
-            CancellationToken cancellationToken, PropertyValues? originalValues = null)
+            CancellationToken cancellationToken, Func<CancellationToken, Task>? beforeAdmission = null, Func<CancellationToken, Task>? beforeContact = null)
         {
             if (_contactGate == null || !HasValidCoordinates(location.Coordinates.Y, location.Coordinates.X))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
@@ -241,11 +240,14 @@ namespace Wayfarer.Parsers
             await using (var transaction = await LocationDeletionFence.BeginAsync(db, location.UserId, cancellationToken))
             {
                 await LocationDeletionFence.ThrowIfDeletedAsync(db, location, cancellationToken);
-                if (originalValues == null && !await db.Locations.AsNoTracking().AnyAsync(
-                    row => row.UserId == location.UserId && row.Id == location.Id, cancellationToken))
-                    throw new InvalidOperationException("Location no longer retained.");
+                if (beforeAdmission != null) await beforeAdmission(cancellationToken);
+                if (beforeAdmission == null && !await db.Locations.AsNoTracking().AnyAsync(
+                    row => row.UserId == location.UserId && row.Id == location.Id && row.IdempotencyKey == location.IdempotencyKey
+                        && row.OriginalCreateAddressToken != null && row.OriginalCreateAddressToken == location.OriginalCreateAddressToken
+                        && row.Coordinates == location.Coordinates, cancellationToken))
+                    return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
                 admission = await _contactGate.AdmitPreparedPersistentGeocodingAsync(location.UserId, cancellationToken,
-                    originalValues == null ? null : token => ApiLocationUpdate.RequireCurrentAsync(db, location, originalValues, token));
+                    beforeContact);
                 if (transaction != null) await transaction.CommitAsync(cancellationToken);
             }
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));

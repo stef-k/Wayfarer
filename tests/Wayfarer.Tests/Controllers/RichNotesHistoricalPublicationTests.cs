@@ -62,8 +62,9 @@ public partial class ApiLocationControllerTests
         location.Coordinates = new Point(23.72, 37.98) { SRID = 4326 };
         location.Notes = "<p onclick='bad()'>safe</p><script>bad()</script>";
         db.Locations.Add(location); await db.SaveChangesAsync();
-        var response = Assert.IsType<OkObjectResult>(await BuildApiController(db, user).Update(location.Id, new LocationUpdateRequestDto()));
-        var copy = (Location)response.Value!.GetType().GetProperty("location")!.GetValue(response.Value)!;
+        var response = Assert.IsType<ObjectResult>(await BuildApiController(db, user).Update(location.Id, new LocationUpdateRequestDto()));
+        Assert.Equal(428, response.StatusCode);
+        var copy = location.ForPublication();
         Assert.Equal("<p>safe</p>", copy.Notes);
         Assert.NotSame(location, copy);
         var stamp = location.LocalTimestamp;

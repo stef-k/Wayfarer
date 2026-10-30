@@ -142,7 +142,8 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         using var foreign = await PostAsync(client, route, Payload(""));
         Assert.Equal(HttpStatusCode.BadRequest, foreign.StatusCode);
         client.DefaultRequestHeaders.Authorization = new("Bearer", owner);
-        using var deleted = await client.DeleteAsync($"/api/location/{row.Id}");
+        var deleteCommand = await ProtectedLocationRequest.CreateAsync(client, row.Id, null);
+        using var deleted = await deleteCommand.SendAsync(client);
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
         foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null" })
         {
@@ -178,50 +179,9 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         visits.VerifyNoOtherCalls();
     }
 
-    /// <summary>Cookie and bearer edits preserve omitted/null coordinates and reject invalid pairs atomically.</summary>
-    [PostgresTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PartialUpdatesPreserveOrReplaceTheWholePosition(bool cookie)
-    {
-        var owner = await OwnerAsync();
-        await using var db = fixture.CreateContext();
-        await using var app = await HostAsync(db, new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict));
-        using var client = Client(app, owner);
-        using var created = await PostAsync(client, "check-in", Payload("\"latitude\":10,\"longitude\":20"));
-        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
-        var row = await db.Locations.SingleAsync(row => row.UserId == owner);
-        if (cookie)
-        {
-            client.DefaultRequestHeaders.Authorization = null;
-            client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, owner));
-            var token = await IdentityRouteHost.AntiforgeryAsync(client);
-            var csrfCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
-            client.DefaultRequestHeaders.Remove("Cookie");
-            client.DefaultRequestHeaders.Add("Cookie", csrfCookie + "; " + IdentityRouteHost.Cookie(app.Services, owner));
-            client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
-        }
-        foreach (var coordinates in new[] { "", "\"latitude\":null,\"longitude\":null" })
-        {
-            using var notes = await client.PutAsync($"/api/location/{row.Id}", Json(Payload(coordinates, "kept")));
-            Assert.Equal(HttpStatusCode.OK, notes.StatusCode);
-            await AssertStoredAsync(row.Id, 10, 20, "kept");
-        }
-        foreach (var coordinates in InvalidCoordinates().Where(value => value.Length != 0 && value != "\"latitude\":null,\"longitude\":null"))
-        {
-            using var invalid = await client.PutAsync($"/api/location/{row.Id}", Json(Payload(coordinates, "must not apply")));
-            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
-            await AssertStoredAsync(row.Id, 10, 20, "kept");
-        }
-        using var origin = await client.PutAsync($"/api/location/{row.Id}", Json(Payload("\"latitude\":0,\"longitude\":0", "origin")));
-        Assert.Equal(HttpStatusCode.OK, origin.StatusCode);
-        await AssertStoredAsync(row.Id, 0, 0, "origin");
-    }
-
     /// <summary>Actual antiforgery-protected Web forms bind both axes and show field errors without saving invalid edits.</summary>
     [PostgresTheory]
     [InlineData("Create")]
-    [InlineData("Edit")]
     public async Task WebFormsRequireValidAxesAndAcceptOrigin(string action)
     {
         var owner = await OwnerAsync();

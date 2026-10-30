@@ -24,6 +24,20 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public partial class ApiLocationControllerTests : TestBase
 {
+    /// <summary>Malformed/valid legacy payloads both refuse before any content/provider work.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Update_RequiresProtectedCommandEvenForValidPayload(bool malformed)
+    {
+        var db = CreateDbContext(); var user = SeedUserWithToken(db, "tok");
+        db.Locations.Add(CreateLocation(user.Id, 42)); await db.SaveChangesAsync();
+        var controller = BuildApiController(db, user);
+        var result = await controller.Update(42, new LocationUpdateRequestDto { Latitude = malformed ? 120 : 1, Longitude = 2, Notes = "unsafe" });
+        Assert.Equal(428, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Equal(42, db.Locations.Single().Coordinates.X);
+    }
+
     [Fact]
     public async Task BulkDelete_RemovesOnlyCurrentUserLocations()
     {
@@ -43,7 +57,7 @@ public partial class ApiLocationControllerTests : TestBase
 
         var request = new LocationController.BulkDeleteRequest
         {
-            LocationIds = new List<int> { userLocation1.Id, userLocation2.Id, otherLocation.Id }
+            OperationScope = "bulk", LocationIds = new List<int> { userLocation1.Id, userLocation2.Id, otherLocation.Id }
         };
 
         var result = await controller.BulkDelete(request);
@@ -58,141 +72,6 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Update_ReturnsUnauthorized_WhenNoToken()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var controller = BuildApiController(db, user, includeAuthHeader: false, includeUserPrincipal: false);
-
-        var result = await controller.Update(1, new LocationUpdateRequestDto());
-
-        Assert.IsType<UnauthorizedObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task Update_ReturnsNotFound_WhenCookieAuthWithoutToken()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var controller = BuildApiController(db, user, includeAuthHeader: false, includeUserPrincipal: true);
-
-        var result = await controller.Update(1, new LocationUpdateRequestDto());
-
-        Assert.IsType<NotFoundObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task Update_ReturnsBadRequest_WhenLatWithoutLon()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        db.Locations.Add(CreateLocation(user.Id, 99));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(99, new LocationUpdateRequestDto { Latitude = 10 });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task Update_ReturnsBadRequest_WhenCoordinatesOutOfRange()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        db.Locations.Add(CreateLocation(user.Id, 100));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(100, new LocationUpdateRequestDto { Latitude = 120, Longitude = 10 });
-
-        Assert.IsType<BadRequestObjectResult>(result);
-        var unchanged = db.Locations.First(l => l.Id == 100);
-        Assert.Equal(100, unchanged.Coordinates.X);
-        Assert.Equal(100, unchanged.Coordinates.Y);
-    }
-
-    [Fact]
-    public async Task Update_ReturnsNotFound_WhenLocationDoesNotBelongToUser()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var other = TestDataFixtures.CreateUser(id: "other", username: "other");
-        db.Users.Add(other);
-        db.Locations.Add(CreateLocation(other.Id, 77));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(77, new LocationUpdateRequestDto { Latitude = 1, Longitude = 1 });
-
-        Assert.IsType<NotFoundObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task Update_UpdatesCoordinates_AndNotes()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        db.Locations.Add(CreateLocation(user.Id, 42));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(42, new LocationUpdateRequestDto { Latitude = 1, Longitude = 2, Notes = "updated<script>bad()</script>" });
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var updated = db.Locations.First(l => l.Id == 42);
-        Assert.Equal(2, updated.Coordinates.X);
-        Assert.Equal(1, updated.Coordinates.Y);
-        Assert.Equal("updated", updated.Notes);
-    }
-
-    [Fact]
-    public async Task Update_ClearsNotesAndActivity()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var activity = new ActivityType { Id = 5, Name = "Hike" };
-        db.Set<ActivityType>().Add(activity);
-        db.Locations.Add(new Wayfarer.Models.Location
-        {
-            Id = 55,
-            UserId = user.Id,
-            Coordinates = new Point(0, 0) { SRID = 4326 },
-            Timestamp = DateTime.UtcNow,
-            LocalTimestamp = DateTime.UtcNow,
-            TimeZoneId = "UTC",
-            Notes = "old",
-            ActivityTypeId = activity.Id
-        });
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(55, new LocationUpdateRequestDto { ClearNotes = true, ClearActivity = true });
-
-        Assert.IsType<OkObjectResult>(result);
-        var updated = db.Locations.First(l => l.Id == 55);
-        Assert.Null(updated.Notes);
-        Assert.Null(updated.ActivityTypeId);
-    }
-
-    [Fact]
-    public async Task Update_ReturnsOk_WhenNoChangesApplied()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        db.Locations.Add(CreateLocation(user.Id, 15));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(15, new LocationUpdateRequestDto());
-
-        Assert.IsType<OkObjectResult>(result);
-        var existing = db.Locations.First(l => l.Id == 15);
-        Assert.Equal(15, existing.Coordinates.X);
-        Assert.Equal(15, existing.Coordinates.Y);
-    }
-
-    [Fact]
     public async Task BulkDelete_ReturnsNotFoundWhenNoMatchingIds()
     {
         var db = CreateDbContext();
@@ -204,7 +83,7 @@ public partial class ApiLocationControllerTests : TestBase
         var controller = BuildApiController(db, user);
         var request = new LocationController.BulkDeleteRequest
         {
-            LocationIds = new List<int> { 999, 1000 }
+            OperationScope = "bulk", LocationIds = new List<int> { 999, 1000 }
         };
 
         var result = await controller.BulkDelete(request);
@@ -216,7 +95,7 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Delete_RemovesSingleLocationForOwner()
+    public async Task Delete_RefusesUnprotectedSingleRecordPayload()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
@@ -232,10 +111,8 @@ public partial class ApiLocationControllerTests : TestBase
 
         var result = await controller.Delete(ownLoc.Id);
 
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = JsonSerializer.Serialize(ok.Value);
-        Assert.Contains("Location deleted", payload);
-        Assert.DoesNotContain(db.Locations, l => l.Id == ownLoc.Id);
+        Assert.Equal(428, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Contains(db.Locations, l => l.Id == ownLoc.Id);
         Assert.Contains(db.Locations, l => l.Id == otherLoc.Id);
     }
 

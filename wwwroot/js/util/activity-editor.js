@@ -1,3 +1,19 @@
+import { readLocationDetail, saveLocationMutation, locationWork, retainLocationDraft } from './location-mutation.js';
+
+// Edit-start originals survive a pending or rejected save.
+const activityOriginals = new Map();
+/** Retains selection intent immediately, independently of the form and any in-flight immutable command. */
+const retainActivitySelection = (locationId, activityTypeId) => {
+    const state = locationWork(locationId, 'activity');
+    const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
+    const detail = activityOriginals.get(locationId) || retained?.draft?.activityDetail || state.fresh;
+    if (!detail) throw new Error('Open the Activity editor to observe its originals before saving.');
+    const changes = { activity: activityTypeId == null ? { op: 'clear' } : { op: 'set', id: activityTypeId } };
+    const values = detail.locationMutation.baseValues;
+    const expected = { uuid: values.uuid, activityTypeId: values.activityTypeId };
+    retainLocationDraft(locationId, { kind: 'update', changes, expected, detail, draft: { activityDetail: detail } });
+    return { detail, changes, expected };
+};
 /**
  * Shared utility for inline activity editing in Location modals.
  * Provides UI generation and API integration for editing location activities.
@@ -123,39 +139,14 @@ export const initActivitySelect = (locationId) => {
  */
 export const updateLocationActivity = async (locationId, activityTypeId, clearActivity = false) => {
     try {
-        const payload = clearActivity
-            ? { clearActivity: true }
-            : { activityTypeId: activityTypeId || null };
-
-        const response = await fetch(`/api/location/${locationId}`, {
-            method: 'PUT',
-            headers: {
-                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            return {
-                success: false,
-                message: errorData.message || `Failed to update activity (${response.status})`
-            };
-        }
-
-        const data = await response.json();
-        return {
-            success: true,
-            message: data.message || 'Activity updated successfully',
-            activityType: data.location?.activityType || null
-        };
+        const { detail, changes, expected } = retainActivitySelection(locationId, clearActivity ? null : activityTypeId);
+        const result = await saveLocationMutation(locationId, detail, 'update', changes,
+            expected, { activityDetail: detail });
+        // Known completion supplies the next edit's baseline even if newer desired work keeps this editor open.
+        if (result.detail && (result.success || result.applied)) activityOriginals.set(locationId, result.detail);
+        return { ...result, activityType: result.detail?.record?.activityName || null };
     } catch (error) {
-        console.error('Error updating location activity:', error);
-        return {
-            success: false,
-            message: 'Network error while updating activity'
-        };
+        return { success: false, message: error.message || 'Activity outcome unknown. Your draft is retained.' };
     }
 };
 
@@ -175,7 +166,8 @@ export const showActivityFeedback = (locationId, message, isError = false) => {
     feedback.textContent = message;
     feedback.className = `activity-feedback mt-1 small ${isError ? 'text-danger' : 'text-success'}`;
 
-    // Auto-hide after 3 seconds
+    // Keep conflict/uncertain guidance visible while the retained draft still needs attention.
+    if (isError) return;
     setTimeout(() => {
         feedback.textContent = '';
         feedback.className = 'activity-feedback mt-1 small';
@@ -240,7 +232,15 @@ export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdate
         return;
     }
 
-    // Use event delegation for dynamically created buttons
+    // TomSelect forwards changes to its underlying select; native selection and Clear share the same owner.
+    container.addEventListener('change', event => {
+        const select = event.target.closest('.activity-select');
+        if (!select) return;
+        const locationId = Number(select.dataset.locationId || select.id?.replace('activitySelect-', ''));
+        try { retainActivitySelection(locationId, select.value ? Number(select.value) : null); }
+        catch (error) { showActivityFeedback(locationId, error.message, true); }
+    });
+    // Use event delegation for dynamically created buttons.
     container.addEventListener('click', async (e) => {
         const editToggle = e.target.closest('.activity-edit-toggle');
         const saveBtn = e.target.closest('.activity-save-btn');
@@ -252,70 +252,63 @@ export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdate
             const editor = editToggle.closest('.activity-editor');
             if (!editor) return;
 
-            setActivityEditMode(editor, true);
-
             const locationId = parseInt(editor.dataset.locationId, 10);
             if (!Number.isNaN(locationId)) {
-                initActivitySelect(locationId);
+                try {
+                    const state = locationWork(locationId, 'activity');
+                    const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
+                    const completed = state.attempts.find(item => item.actionId === state.active)?.receipt?.state === 'applied';
+                    const detail = (!completed && retained?.draft?.activityDetail) || await readLocationDetail(locationId);
+                    activityOriginals.set(locationId, detail);
+                    setActivityEditMode(editor, true);
+                    const select = initActivitySelect(locationId);
+                    // Restore the unresolved desire against its original comparison base, never against a fresh row.
+                    const desired = retained?.changes?.activity;
+                    const activity = desired ? (desired.op === 'clear' ? null : desired.id) : detail.record.activityTypeId;
+                    if (select && activity != null && !select.options?.[activity]) select.addOption({ id: activity,
+                        name: activity === detail.record.activityTypeId ? detail.record.activityName || String(activity) : String(activity) });
+                    select?.setValue(activity == null ? '' : String(activity), true);
+                } catch (error) { showActivityFeedback(locationId, error.message, true); }
             }
 
             return;
         }
 
-        if (saveBtn) {
+        if (saveBtn || clearBtn) {
             e.preventDefault();
-            const locationId = parseInt(saveBtn.dataset.locationId, 10);
+            const button = saveBtn || clearBtn;
+            if (button.disabled) return;
+            const locationId = parseInt(button.dataset.locationId, 10);
             const selectElement = document.getElementById(`activitySelect-${locationId}`);
+            const editor = button.closest('.activity-editor');
+            if (clearBtn) {
+                // Clear is new desired work before any await, including while an older save is pending.
+                selectElement?.tomselect?.setValue('', true);
+                if (selectElement) selectElement.value = '';
+                try { retainActivitySelection(locationId, null); }
+                catch (error) { showActivityFeedback(locationId, error.message, true); return; }
+                if (editor.dataset.activitySaving === 'true') {
+                    showActivityFeedback(locationId, 'Newer Clear is retained and still needs saving.', true);
+                    return;
+                }
+            }
             const activityTypeId = selectElement?.value ? parseInt(selectElement.value, 10) : null;
-            const editor = saveBtn.closest('.activity-editor');
-
-            saveBtn.disabled = true;
-            const result = await updateLocationActivity(locationId, activityTypeId, false);
-            saveBtn.disabled = false;
+            // The completed action can never borrow a label selected during its request.
+            const submittedLabel = activityTypeId ? selectElement?.selectedOptions?.[0]?.textContent?.trim() : null;
+            button.disabled = true; editor.dataset.activitySaving = 'true';
+            const result = await updateLocationActivity(locationId, activityTypeId, !!clearBtn);
+            button.disabled = false; editor.dataset.activitySaving = 'false';
 
             showActivityFeedback(locationId, result.message, !result.success);
 
-            if (result.success) {
-                // Prefer the selected option label so view mode stays in sync.
-                const selectedLabel = activityTypeId
-                    ? selectElement?.selectedOptions?.[0]?.textContent?.trim()
-                    : null;
-                const updatedLabel = selectedLabel || result.activityType || null;
-
-                updateActivityView(editor, updatedLabel);
-                setActivityEditMode(editor, false);
-            }
+            if (result.success || result.applied && result.detail)
+                updateActivityView(editor, result.activityType || submittedLabel || null);
+            if (result.success) setActivityEditMode(editor, false);
 
             if (result.success && onActivityUpdated) {
                 onActivityUpdated(locationId, result.activityType);
             }
         }
 
-        if (clearBtn) {
-            e.preventDefault();
-            const locationId = parseInt(clearBtn.dataset.locationId, 10);
-            const editor = clearBtn.closest('.activity-editor');
-
-            clearBtn.disabled = true;
-            const result = await updateLocationActivity(locationId, null, true);
-            clearBtn.disabled = false;
-
-            showActivityFeedback(locationId, result.message, !result.success);
-
-            if (result.success) {
-                // Clear the select value
-                const selectElement = document.getElementById(`activitySelect-${locationId}`);
-                if (selectElement?.tomselect) {
-                    selectElement.tomselect.clear();
-                }
-
-                updateActivityView(editor, null);
-                setActivityEditMode(editor, false);
-
-                if (onActivityUpdated) {
-                    onActivityUpdated(locationId, null);
-                }
-            }
-        }
     });
 };

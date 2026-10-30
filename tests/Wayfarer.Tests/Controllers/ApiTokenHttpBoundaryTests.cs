@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -60,6 +61,45 @@ public class ApiTokenHttpBoundaryTests : TestBase
             Assert.Equal(TimeSpan.FromSeconds(5), response.Headers.RetryAfter?.Delta);
         }
         finally { foreach (var permit in permits) permit.Dispose(); }
+    }
+
+    /// <summary>Actual protected routes retain typed overload problems; singleton saturation runs only in this nonparallel collection.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ProtectedMutationAdmissionUsesProblemMediaType(bool global, bool recovery)
+    {
+        using var db = CreateDbContext();
+        var root = Path.Combine(Path.GetTempPath(), "wayfarer-947-admission-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var permits = new List<IDisposable>();
+        try
+        {
+            await using var app = await IdentityRouteHost.StartAsync(db, root);
+            using var client = app.GetTestClient(); client.BaseAddress = new("https://wayfarer.test");
+            client.DefaultRequestHeaders.Authorization = new("Bearer", "capacity-probe");
+            client.DefaultRequestHeaders.Add("X-Test-Peer", "192.0.2.195");
+            for (var i = 0; i < (global ? 32 : 16); i++)
+                permits.Add(ApiWorkAdmission.TokenLookups.TryAcquire(global ? $"947-capacity-{i}" : "192.0.2.195", out _)!);
+            var route = $"/api/location/421/mutations/{Guid.NewGuid()}/{Guid.NewGuid()}";
+            using var response = recovery ? await client.GetAsync(route) : await client.PostAsync(route, new StringContent("{}"));
+            Assert.Equal(global ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.TooManyRequests, response.StatusCode);
+            Assert.True(response.Headers.CacheControl?.NoStore);
+            Assert.Equal(TimeSpan.FromSeconds(5), response.Headers.RetryAfter?.Delta);
+            var body = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
+            Assert.Equal(global ? "mutationOutcomeUnknown" : "mutationBusy", body.GetProperty("code").GetString());
+            Assert.False(body.TryGetProperty("state", out _));
+            Assert.False(body.TryGetProperty("actionId", out _));
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            Assert.Empty(db.LocationMutationOperations);
+        }
+        finally
+        {
+            foreach (var permit in permits) permit.Dispose();
+            Directory.Delete(root, true);
+        }
     }
 
     /// <summary>Uses normal MVC action/result execution without application startup or external providers.</summary>

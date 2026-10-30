@@ -53,16 +53,55 @@ especially across travel or daylight-saving changes.
 3. Review the address fields and save.
 
 You can also change an activity from the location details or table without opening
-the full form. Inline activity changes save when you select the new activity.
+the full form. Choose Save in the inline editor to apply the selected activity.
 
-Address editing does not contact a provider. A manual correction becomes your own
-address information. When you move a location, unchanged address information from
-the old position is discarded rather than presented as an address for the new
-coordinates. Review the address after changing coordinates.
+Saves compare the fields you originally observed. A conflicting change keeps your
+draft; independent fields can still save. If a reply is lost, Save checks the
+retained attempt before submitting another action. A successful save completes
+normally. Keep this browser's saved site data while recovering a draft. If local
+storage fails, the page reports that it could not save the draft; keep it open.
+Conflict review shows your originals, draft and current facts before you explicitly
+adopt new originals. An old receipt cannot consume newer typing, toolbar Clear,
+image insertion or a map pick. These changes are retained before you press Save.
+Reopening an unresolved inline Activity edit restores your desired selection;
+after success, a later edit starts from fresh originals. Inline Activity saves
+also keep an unsent full-form draft: reopening the form restores your Notes and
+other edits. If you select another Activity or Clear during a pending save, the
+older result leaves that newer choice open and retained for its own Save.
 
-Use **Bulk Edit Notes** from your name menu to update notes across matching
-records. Review the matching records before applying the change. Deleting selected
-locations removes history; export anything you need to keep first.
+Moving a point preserves the exact capture instant and updates the local display
+for the new zone. Explicit time editing uses the zone shown when the form opened;
+the draft keeps that zone and its chosen daylight-saving occurrence across reloads,
+even if another writer moves the point. Choose an occurrence for an ambiguous
+daylight-saving time. If a retained draft says its time zone is unavailable,
+review or re-enter **Local Date and Time**, choose the earlier/later occurrence
+when needed, and enter the intended zone (for example, `Europe/Athens` or `UTC`).
+Choose **Review time and zone** and confirm the displayed local time, zone and UTC
+instant. Confirmation retains this interpretation before Save; earlier uncertain
+actions still need recovery. Cancel keeps the retained draft and sends nothing.
+If you have not changed the time, you can save Notes and other fields without
+confirming a zone. Moving also discards
+obsolete address information and attempts one authorized replacement. Optional
+lookup failure still saves valid coordinates. Explicit manual components, including
+Clear, win over lookup results. Manual-only address editing makes no provider call.
+
+A per-record delete confirms observed stored content. Changed content conflicts;
+damaged/unavailable display facts remain visible and do not make the row undeletable.
+After rejection, opening Delete again shows previously observed and current content
+for a new confirmation. A pending action keeps its original consent; reopening the
+confirmation cannot authorize deleting changed content while it might still execute.
+
+Use **Bulk Edit Notes** for deliberate changes across matching records. Matching
+and append use current locked values at Apply time; preview counts can change.
+Replace and Clear overwrite current Notes. Selected bulk deletion removes current
+owned rows even if their content changed, including when you select one row. A
+lost bulk reply is uncertain: refresh history and decide deliberately before
+submitting again. There is no automatic replay; append may duplicate a suffix.
+Export history you need to keep before deleting.
+
+Server execution authority and historical receipts are finite evidence. They
+never expire phone captures, drafts or pending obligations. Companion mobile
+source/native delivery remains separately owned.
 
 ### Read location details
 

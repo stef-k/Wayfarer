@@ -1,3 +1,4 @@
+import { mountProtectedLocationForm } from '../../../util/location-edit-form.js';
 import { notesHtmlForDisplay, notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
 import { renderLocationAddress } from '../../../util/location-address.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
@@ -47,6 +48,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Update the Coordinates input field with the selected latitude and longitude
             document.getElementById('Latitude').value = lat.toFixed(8);
             document.getElementById('Longitude').value = lng.toFixed(8);
+            // Retain the complete pair synchronously, including while an older save is pending.
+            document.getElementById('Latitude').dispatchEvent(new Event('input', { bubbles: true }));
         });
 
         // Set the existing marker at the current location
@@ -86,6 +89,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    quill.on('text-change', (_delta, _old, source) => {
+        if (source === 'user' && quill.getText().trim()) explicitlyClearNotes = false;
+    });
     var toolbar = quill.getModule('toolbar');
 
     var clearText = document.createElement('span');
@@ -95,8 +101,12 @@ document.addEventListener("DOMContentLoaded", function () {
     toolbar.container.appendChild(clearText);
     let savedRange = null;
 
+    let explicitlyClearNotes = false;
     clearText.addEventListener('click', function () {
-        quill.setText(''); // Clears the editor content
+        explicitlyClearNotes = true;
+        quill.setText(''); // Explicit Clear differs from an empty Set.
+        // Quill emits no text-change for an already-empty document; Clear still creates durable intent.
+        document.getElementById('locationForm').dispatchEvent(new Event('input', { bubbles: true }));
     });
 
     var toolbar = quill.getModule('toolbar');
@@ -118,6 +128,8 @@ document.addEventListener("DOMContentLoaded", function () {
         const imageUrl = document.getElementById('imageUrl').value;
 
         if (imageUrl) {
+            // Inserting an image replaces any earlier explicit Clear intent before Quill emits the change.
+            explicitlyClearNotes = false;
             if (savedRange) {
                 // Restore the saved selection range
                 quill.setSelection(savedRange.index, savedRange.length);
@@ -147,12 +159,8 @@ document.addEventListener("DOMContentLoaded", function () {
     // Set the notes content in the Quill editor
     quill.root.innerHTML = notesHtmlForDisplay(notesContent);
 
-    // When the form is submitted, update the hidden input field with the Quill content
-    var form = document.getElementById("locationForm");
-    form.addEventListener("submit", function () {
-        var hiddenNotesField = document.getElementById("hiddenNotes");
-        hiddenNotesField.value = notesHtmlForSave(quill.root.innerHTML);  // Set the hidden input value to the Quill content
-    });
+    try { mountProtectedLocationForm(document.getElementById('locationForm'), quill, () => explicitlyClearNotes); }
+    catch { document.getElementById('location-save-status').textContent = 'Saved proof or local storage is unavailable. Keep your draft on this page; no save was sent.'; }
 
     // Initialize TomSelect on Activity dropdown with API-based loading
     if (typeof TomSelect !== 'undefined') {

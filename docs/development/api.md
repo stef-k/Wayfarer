@@ -141,7 +141,7 @@ successor WayfarerApp readiness; it does not establish that old clients are reti
 
 Browser mutations that rely on cookie Identity use MVC antiforgery, normally through `[ValidateAntiForgeryToken]`. This includes the Trip Editor mutation family and many group/invitation/backfill/browser mutations.
 
-`PUT /api/location/{id}` is the explicit dual-auth boundary: `CookieFirstAntiforgeryAttribute` requires antiforgery whenever an authenticated cookie selected the request, even if a bearer header is also present. Only a successfully resolved bearer request with no selected cookie authority is token-free.
+`POST /api/location/{id}/mutations/{baseId}/{actionId}` is the protected dual-auth boundary: `CookieFirstAntiforgeryAttribute` requires antiforgery whenever an authenticated cookie selected the request, even if a bearer header is also present. Only a successfully resolved bearer request with no selected cookie authority is token-free.
 
 Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not remove antiforgery from a browser mutation merely because a bearer path exists elsewhere.
 
@@ -425,11 +425,13 @@ request, response, filter, coverage, readiness or timeout semantics. Use the
 and [bounded measurements](history-final-qualification.md#status-coverage-delivery);
 the sub-second performance target remains pending maintainer disposition.
 
-`GET /api/location/history`, `GET /api/location/history/overview` and
-`GET /api/location/history/{locationId:int}` require one strict `Bearer` header
-and the current active owner. Cookies cannot authorize them and there is no owner
-parameter. Missing/revoked credentials or an inactive account return the existing
-normalized API 401; missing and foreign detail share the same generic 404. Authority
+`GET /api/location/history` and `GET /api/location/history/overview` require one
+strict `Bearer` header and the current active owner. Cookies cannot authorize
+these collection reads. Owner detail, `GET /api/location/history/{locationId:int}`,
+also accepts active-owner cookie-first authentication for protected editing;
+when cookie authority is present, bearer credentials cannot replace it. There is
+no owner parameter. Missing/revoked credentials or an inactive account return the
+existing normalized API 401; missing and foreign detail share the same generic 404. Authority
 is checked at request time (#907); an already authorized read may finish after
 revocation/deactivation. Every success/error is `Cache-Control: no-store`.
 
@@ -878,49 +880,21 @@ coordinate-local projection (for example, that final finite UTC microsecond at
 Athens coordinates). This existing conversion limitation is outside the bounded
 successor-arithmetic correction; timestamps are not clamped or rewritten (#849).
 
-`PUT /api/location/{id}` accepts a partial `LocationUpdateRequestDto`: paired
-`latitude`/`longitude`, `notes`, `localTimestamp`, `activityTypeId` or `activityName`,
-and explicit `clearNotes`/`clearActivity` flags. An absent field is unchanged;
-clear flags take precedence. Omitting both coordinates or supplying both as null
-preserves the position (for example, a Notes-only edit). A non-null replacement
-requires both finite coordinates in [-90,90]/[-180,180]; `(0,0)` is valid.
-Incomplete, malformed, non-finite or out-of-range replacements return 400 before
-any field mutation or provider work, so other fields in that patch do not apply.
-Timestamps follow the current UTC/coordinate-zone conversion. The ID is the
-server's integer location ID, matched within the selected owner's rows. If a
-cookie selected the account, antiforgery is required even with a bearer header.
+Single-record editing and deletion use the approved
+[protected Location protocol](location-mutations.md). Owner detail publishes
+same-snapshot originals, signed 15-minute execution authority and raw damaged-row
+delete proof. Commands compare selected originals and commit effects plus a
+recoverable terminal receipt atomically. Moving coordinates preserves the exact
+capture instant, replaces obsolete addresses through optional authorized lookup
+and preserves explicit Web manual input. Unknown outcomes retain drafts and
+immutable attempts; finite server receipts never expire phone work.
 
-Personal Web Location Create/Edit are full forms: both axes must be present,
-numeric, finite and within the same bounds. Omitted/blank or invalid axes display
-field validation errors and save nothing. Full forms do not use the partial API's
-omission-as-unchanged rule.
-
-Supplying coordinates, including unchanged coordinates, requests an optional
-provider refresh. Its admission and result save revalidate the retained owner row
-under the account deletion fence; provider HTTP holds no SQL locks. Deletion or
-a missing row returns the ordinary owner `404`, while a newer owner edit returns
-`409` with `success: false` and `message: "Location changed. Reload and retry."`.
-The stale patch and enrichment do not overwrite that newer edit. Optional provider
-failure or no selected provider still permits a valid coordinate patch. A contact
-already admitted before deletion cannot be recalled; its result is discarded.
-Admission reads fresh provider selection and profile authority under their row
-locks after legacy preparation. Deselection or consent withdrawal committed before
-admission consumes no provider quota and makes no provider contact; a later change
-does not refund an already committed admission.
-
-Activity writes resolve a current positive `activityTypeId` first, then a permanent
-redirect for IDs removed during catalog duplicate cleanup. The stored FK is the
-survivor even after a client catalog refresh; queued Mobile IDs do not expire.
-PUT's `activityName` fallback uses the database's NFC/full Unicode-folded identity
-with surrounding whitespace trim only and never creates entries. Clear flags,
-absent/null values, unknown and negative offline IDs retain the existing action
-semantics, as do first-writer replay, ownership and response envelopes. Catalog
-lookup overload still returns the existing 429/503 response with `Retry-After`.
-
-`DELETE /api/location/{id}` uses bearer ownership and returns an ordinary success
-object with `id`; a missing/non-owned row is 404. For example, a bearer-only
-correction can send `PUT /api/location/123` with `{ "notes": "Corrected note" }`.
-It does not grant access to another account's history or imply a bulk-delete API.
+Old `PUT /api/location/{id}`, `DELETE /api/location/{id}` and unconditional Web
+Edit POST refuse with `protectedMutationRequired`. Current Web Edit, inline
+Activity and per-row deletion use protected commands. Genuine cookie/antiforgery
+bulk tools require explicit `operationScope:bulk`; they use Apply-time membership
+and final locked Notes for append, without automatic uncertain replay or
+single-record receipts. Web Create retains its existing full-form validation.
 
 ## Owned Trip Region and Place integrations
 

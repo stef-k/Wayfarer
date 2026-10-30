@@ -23,6 +23,8 @@
             </div>
             <div class="card-body">
                 <form asp-action="BulkEditNotes" method="post" id="locationForm">
+                    <input type="hidden" name="OperationScope" value="bulk" />
+                    <p>Applies to records matching at Apply time. Replace and Clear overwrite current Notes; Append uses current Notes. Preview counts are advisory. If the reply is lost, inspect history before deliberately submitting again.</p>
                     @Html.AntiForgeryToken()
 
                     <!-- ==== Filters ==== -->

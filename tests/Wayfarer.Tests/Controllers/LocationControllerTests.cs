@@ -46,6 +46,7 @@ namespace Wayfarer.Tests.Controllers;
             var controller = BuildController(db, user);
             var model = new BulkEditNotesViewModel
             {
+                OperationScope = "bulk",
                 Country = "US",
                 Region = "CA",
                 Append = true,
@@ -177,8 +178,7 @@ namespace Wayfarer.Tests.Controllers;
         var result = await controller.Edit(model, saveAction: null!);
 
         // Assert
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal(428, Assert.IsType<ObjectResult>(result).StatusCode);
         var untouched = await db.Locations.SingleAsync(l => l.Id == location.Id);
         Assert.Equal(location.Notes, untouched.Notes);
         Assert.Equal(location.Coordinates.X, untouched.Coordinates.X);
@@ -359,38 +359,6 @@ namespace Wayfarer.Tests.Controllers;
     }
 
     [Fact]
-    public async Task Edit_Post_RedirectsToReturnUrl_WhenSaveActionReturn()
-    {
-        // Arrange
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner-return", username: "owner");
-        db.Users.Add(owner);
-        var location = CreateLocation(owner.Id, new DateTime(2024, 1, 1), "US", "CA");
-        location.Id = 300;
-        db.Locations.Add(location);
-        await db.SaveChangesAsync();
-
-        var controller = BuildController(db, owner);
-        var model = new AddLocationViewModel
-        {
-            Id = location.Id,
-            Latitude = 34.0,
-            Longitude = -118.0,
-            LocalTimestamp = new DateTime(2024, 2, 1, 10, 0, 0, DateTimeKind.Unspecified),
-            Notes = "Updated<script>bad()</script>",
-            SelectedActivityId = 1,
-            ReturnUrl = "/User/Location/AllLocations"
-        };
-
-        // Act
-        var result = await controller.Edit(model, saveAction: "return");
-
-        // Assert
-        var redirect = Assert.IsType<RedirectResult>(result);
-        Assert.Equal("/User/Location/AllLocations", redirect.Url);
-    }
-
-    [Fact]
     public async Task BulkEditNotes_Get_ReturnsView_WithDropdownData()
     {
         // Arrange
@@ -431,6 +399,7 @@ namespace Wayfarer.Tests.Controllers;
         var controller = BuildController(db, user);
         var model = new BulkEditNotesViewModel
         {
+            OperationScope = "bulk",
             Country = "US",
             Region = "CA",
             ClearNotes = true
@@ -461,6 +430,7 @@ namespace Wayfarer.Tests.Controllers;
         var controller = BuildController(db, user);
         var model = new BulkEditNotesViewModel
         {
+            OperationScope = "bulk",
             Country = "US",
             Region = "CA",
             Append = false,
@@ -476,44 +446,6 @@ namespace Wayfarer.Tests.Controllers;
         Assert.Equal(1, returned.AffectedCount);
         var updated = db.Locations.Single(l => l.UserId == user.Id);
         Assert.Equal("new note", updated.Notes);
-    }
-
-    [Fact]
-    public async Task Edit_UpdatesExistingLocationForOwner()
-    {
-        // Arrange
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner", username: "owner");
-        db.Users.Add(owner);
-        var location = CreateLocation(owner.Id, new DateTime(2024, 1, 1), "US", "CA");
-        location.Id = 42;
-        db.Locations.Add(location);
-        await db.SaveChangesAsync();
-
-        var controller = BuildController(db, owner);
-
-        var model = new AddLocationViewModel
-        {
-            Id = location.Id,
-            Latitude = 33.1,
-            Longitude = -117.2,
-            LocalTimestamp = new DateTime(2024, 2, 1, 12, 0, 0, DateTimeKind.Unspecified),
-            Notes = "Updated<script>bad()</script>",
-            SelectedActivityId = 5,
-            ReturnUrl = "/User/Location"
-        };
-
-        // Act
-        var result = await controller.Edit(model, saveAction: null!);
-
-        // Assert
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Edit", redirect.ActionName);
-        var updated = await db.Locations.SingleAsync(l => l.Id == location.Id);
-        Assert.Equal(model.Latitude, updated.Coordinates.Y);
-        Assert.Equal(model.Longitude, updated.Coordinates.X);
-        Assert.Equal("Updated", updated.Notes);
-        Assert.Equal(5, updated.ActivityTypeId);
     }
 
     [Fact]

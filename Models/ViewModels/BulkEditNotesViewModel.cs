@@ -8,6 +8,9 @@ namespace Wayfarer.Models.ViewModels
 {
     public class BulkEditNotesViewModel
     {
+        /// <summary>Explicit weaker bulk operation, independent of match count.</summary>
+        public string? OperationScope { get; set; }
+
         // Filters
         [Display(Name = "Country")]
         public string? Country { get; set; }

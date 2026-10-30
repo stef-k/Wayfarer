@@ -1,4 +1,4 @@
-﻿using NetTopologySuite.Geometries;
+using NetTopologySuite.Geometries;
 using System.ComponentModel.DataAnnotations;
 
 namespace Wayfarer.Models
@@ -33,6 +33,11 @@ namespace Wayfarer.Models
 
         /// <summary>Server-owned admitted observation order; absent on historical-only and imported records.</summary>
         public DateTime? PresenceObservedAtUtc { get; set; }
+
+        /// <summary>One-shot original keyed-create publisher capability; never client writable or serialized.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public Guid? OriginalCreateAddressToken { get; set; }
 
         public required string TimeZoneId { get; set; } // Time zone ID (e.g., "America/New_York")
 

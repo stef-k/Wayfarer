@@ -38,6 +38,7 @@ public sealed partial class GeoapifyLocationBackfillService
                 .SetProperty(item => item.ResolvedFeatureType,
                     item => item.ResolvedFeatureType == null || item.ResolvedFeatureType.Trim() == ""
                         ? value.ResolvedFeatureType : item.ResolvedFeatureType)
+                .SetProperty(item => item.OriginalCreateAddressToken, (Guid?)null)
                 .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
         }
         else
@@ -57,6 +58,7 @@ public sealed partial class GeoapifyLocationBackfillService
                 .SetProperty(item => item.ReverseGeocodingProvider, provider)
                 .SetProperty(item => item.ReverseGeocodingStorageMode,
                     provider == "geoapify" ? "persistent" : "permanent")
+                .SetProperty(item => item.OriginalCreateAddressToken, (Guid?)null)
                 .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
         }
     }

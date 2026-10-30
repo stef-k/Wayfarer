@@ -42,13 +42,13 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
             {
                 denied.Headers.Authorization = new("Bearer", other.Token);
                 using var response = await client.SendAsync(denied);
-                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+                Assert.Equal(HttpStatusCode.PreconditionRequired, response.StatusCode);
             }
             if (deletion == "single")
             {
-                using var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/location/{id}");
-                request.Headers.Authorization = new("Bearer", owner.Token);
-                using var response = await client.SendAsync(request);
+                client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+                var request = await ProtectedLocationRequest.CreateAsync(client, id, null);
+                using var response = await request.SendAsync(client);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             }
             else
@@ -57,7 +57,7 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
                 client.DefaultRequestHeaders.Add("Cookie", auth);
                 var url = deletion == "bulk" ? "/api/location/bulk-delete" : $"/api/users/{owner.UserId}/locations";
                 using var missingAntiforgery = deletion == "bulk"
-                    ? await client.PostAsJsonAsync(url, new { locationIds = new[] { id } }) : await client.DeleteAsync(url);
+                    ? await client.PostAsJsonAsync(url, new { operationScope = "bulk", locationIds = new[] { id } }) : await client.DeleteAsync(url);
                 Assert.Equal(HttpStatusCode.BadRequest, missingAntiforgery.StatusCode);
                 using var tokens = await client.GetAsync("/test-antiforgery");
                 tokens.EnsureSuccessStatusCode();
@@ -70,7 +70,7 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
                     Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
                 }
                 using var response = deletion == "bulk"
-                    ? await client.PostAsJsonAsync(url, new { locationIds = new[] { id, foreign, int.MaxValue } })
+                    ? await client.PostAsJsonAsync(url, new { operationScope = "bulk", locationIds = new[] { id, foreign, int.MaxValue } })
                     : await client.DeleteAsync(url);
                 Assert.Equal(deletion == "bulk" ? HttpStatusCode.OK : HttpStatusCode.NoContent, response.StatusCode);
                 client.DefaultRequestHeaders.Remove("Cookie");
@@ -166,7 +166,8 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
         {
             client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
             var moved = DateTime.UtcNow.AddDays(-5).Date;
-            using var edit = await client.PutAsJsonAsync($"/api/location/{id}", new { localTimestamp = moved, notes = "Private owner notes" });
+            var correction = await ProtectedLocationRequest.CreateAsync(client, id, new { eventUtc = new { op = "set", value = moved.ToString("yyyy-MM-ddTHH:mm:ss.ffffffZ") }, notes = new { op = "set", html = "Private owner notes" } });
+            using var edit = await correction.SendAsync(client);
             edit.EnsureSuccessStatusCode();
             using var response = await client.PostAsJsonAsync("/api/location/key-status", new {
                 keys = new[] { present.ToString("B"), deleted.ToString(), unknown.ToString(), foreign.ToString(), Guid.Empty.ToString(), present.ToString() } });

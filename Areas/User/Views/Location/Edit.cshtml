@@ -1,4 +1,4 @@
-﻿@using Microsoft.AspNetCore.Mvc.ViewFeatures
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @model Wayfarer.Models.ViewModels.AddLocationViewModel
 
 @{
@@ -34,13 +34,14 @@
                 <h2 class="fs-4">Edit Location</h2>
             </div>
             <div class="card-body">
-                <form asp-action="Edit" method="post" id="locationForm">
+                <form asp-action="Edit" method="post" id="locationForm" data-location-id="@Model.Id"
+                      data-location-detail="@ViewData["LocationDetail"]" data-time-zone="@ViewData["InputTimeZone"]">
+                    <p id="location-save-status" role="status" aria-live="polite"></p>
+                    <details id="location-conflict" hidden><summary>Review retained draft and current facts</summary><pre></pre>
+                        <button type="button" id="location-adopt-current" class="btn btn-outline-warning">Use these current facts as new originals, keeping my draft</button>
+                    </details>
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ReturnUrl" />
-                    <input type="hidden" asp-for="OriginalReverseGeocodingProvider" />
-                    <input type="hidden" asp-for="OriginalReverseGeocodingStorageMode" />
-                    @* Preserve publication precision for the exact concurrency comparison. *@
-                    <input type="hidden" asp-for="OriginalReverseGeocodedAt" asp-format="{0:O}" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
                         <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>
@@ -147,10 +148,21 @@
                                class="form-control"
                                id="LocalTimestamp"
                                asp-for="LocalTimestamp"
-                               value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm")" />
+                               step="any" value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.ffffff")" />
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>
 
+                    <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone <span id="location-input-time-zone">@ViewData["InputTimeZone"]</span>.</p>
+                    <label for="timeAmbiguity">If this local time occurs twice</label>
+                    <select id="timeAmbiguity" class="form-select"><option value="">Choose when needed</option><option value="earlier">Earlier occurrence</option><option value="later">Later occurrence</option></select>
+                    @* Recovery is limited to retained drafts missing their original time interpretation. *@
+                    <div id="location-time-recovery" class="border rounded p-2 my-2" hidden>
+                        <p id="location-time-recovery-help">The saved time’s zone is unavailable. Review or re-enter the intended Local Date and Time above and choose an occurrence if needed. Enter the intended time zone, then review and confirm it. Your other edits stay retained. If the time is unchanged, you can save other fields without this step.</p>
+                        <label for="location-recovery-zone" class="form-label">Time zone for this retained time</label>
+                        <input id="location-recovery-zone" type="text" class="form-control" placeholder="Europe/Athens or UTC"
+                               aria-describedby="location-time-recovery-help" autocomplete="off" />
+                        <button id="location-confirm-time-zone" type="button" class="btn btn-outline-primary mt-2">Review time and zone</button>
+                    </div>
                     <div class="form-group">
                         <label for="notes">Add Notes</label>
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>

@@ -336,6 +336,7 @@ public class LocationSseBroadcastsTests
 
         var request = new LocationController.BulkDeleteRequest
         {
+            OperationScope = "bulk",
             LocationIds = new List<int> { location.Id }
         };
 

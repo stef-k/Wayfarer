@@ -1,4 +1,6 @@
 using System.Data;
+using System.Security.Claims;
+using Wayfarer.Services.LocationMutations;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -49,13 +51,34 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
         var token = budget.Token;
         try
         {
-            var values = Request.Headers.Authorization;
-            if (values.Count != 1 || !AuthenticationHeaderValue.TryParse(values[0], out var authorization)
-                || !string.Equals(authorization.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase)
-                || string.IsNullOrWhiteSpace(authorization.Parameter) || authorization.Parameter.Any(char.IsWhiteSpace)) return ProtectedStatus(401);
-            var user = await IncomingApiTokenResolver.ForRequest(HttpContext, db)
-                .ResolveTokenAsync(authorization.Parameter, RateLimitHelper.GetClientIpAddress(HttpContext), token);
+            ApplicationUser? user;
+            if (id != null && ActiveAccountCookie.HasCookieAuthority(HttpContext))
+            {
+                var owner = User.Identity?.IsAuthenticated == true ? User.FindFirstValue(ClaimTypes.NameIdentifier) : null;
+                user = await db.Users.AsNoTracking().SingleOrDefaultAsync(row => row.Id == owner && row.IsActive, token);
+            }
+            else
+            {
+                var values = Request.Headers.Authorization;
+                if (values.Count != 1 || !AuthenticationHeaderValue.TryParse(values[0], out var authorization)
+                    || !string.Equals(authorization.Scheme, "Bearer", StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(authorization.Parameter) || authorization.Parameter.Any(char.IsWhiteSpace)) return ProtectedStatus(401);
+                user = await IncomingApiTokenResolver.ForRequest(HttpContext, db)
+                    .ResolveTokenAsync(authorization.Parameter, RateLimitHelper.GetClientIpAddress(HttpContext), token);
+            }
             if (user is not { IsActive: true }) return ProtectedStatus(401);
+            if (id != null && Request.Headers.ContainsKey("X-Location-Base"))
+            {
+                var proof = LocationMutationBase.Read(protection, Request.Headers["X-Location-Base"], user.Id, id.Value);
+                if (proof is { Uuid: null })
+                {
+                    await using var fence = await LocationDeletionFence.BeginAsync(db, user.Id, token);
+                    if (await LocationMutationAuthority.RevalidateAsync(HttpContext, db, user.Id, token)
+                        && !await db.Locations.AnyAsync(row => row.Id == id.Value, token))
+                        return StatusCode(404, new { contract = "location-target-absence-1", subjectId = user.Id, locationId = id.Value,
+                            uuid = (Guid?)null, baseId = proof.BaseId, state = "absent", observedAtUtc = await LocationMutationService.NowAsync(db, token) });
+                }
+            }
             using var permit = (id == null ? Collections : Details).TryAcquire(user.Id, out var status);
             if (permit == null)
             {
@@ -91,7 +114,7 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
             var remainingMs = Math.Max(1, (int)remaining.TotalMilliseconds);
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('statement_timeout', {remainingMs.ToString(System.Globalization.CultureInfo.InvariantCulture)}, true)", token);
             object? result;
-            if (id != null) result = await HistoryDetail.ReadAsync(db, owner, id.Value, zone, token);
+            if (id != null) result = await HistoryDetail.ReadAsync(db, owner, id.Value, zone, token, protection);
             else
             {
                 var reads = new HistoryReadService(db, new HistoryCursor(protection));

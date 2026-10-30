@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using NodaTime;
+using Microsoft.AspNetCore.DataProtection;
+using Wayfarer.Services.LocationMutations;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Util;
@@ -33,7 +35,7 @@ internal static class HistoryDetail
         [("Accuracy", "accuracy"), ("Altitude", "altitude"), ("Speed", "speed"), ("Bearing", "bearing")];
 
     /// <summary>Sanitizes unrepresentable legacy values in SQL before decoding, without treating unavailable as known null.</summary>
-    internal static async Task<object?> ReadAsync(ApplicationDbContext db, string owner, int id, DateTimeZone zone, CancellationToken token)
+    internal static async Task<object?> ReadAsync(ApplicationDbContext db, string owner, int id, DateTimeZone zone, CancellationToken token, IDataProtectionProvider? protection = null)
     {
         var fields = Stored.Select(field => $"l.\"{field.Source}\" AS \"{field.Wire}\"").ToList();
         fields.AddRange(Dates.Select(field => $"CASE WHEN {DateValid(field.Source)} THEN l.\"{field.Source}\" END AS \"{field.Wire}\""));
@@ -47,6 +49,9 @@ internal static class HistoryDetail
             "l.\"CaptureOffsetSeconds\" AS \"captureOffset\"", "l.\"HistoryTimeStatus\" AS \"timeStatus\"",
             "l.\"HistoryTimeVersion\" AS \"timeVersion\"", "l.\"HistoryTimeFailureCode\" AS \"timeFailure\""
         ]);
+        fields.Add("clock_timestamp() AS \"mutationNow\"");
+        fields.AddRange(LocationMutationEvidence.RawProjection());
+        fields.Add("l.\"OriginalCreateAddressToken\" IS NOT NULL AS \"createPending\"");
         await using var command = ((NpgsqlConnection)db.Database.GetDbConnection()).CreateCommand();
         command.Transaction = (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction();
         command.CommandText = $"SELECT {string.Join(",", fields)} FROM \"Locations\" l LEFT JOIN \"ActivityTypes\" a ON a.\"Id\" = l.\"ActivityTypeId\" WHERE l.\"UserId\" = @owner AND l.\"Id\" = @id";
@@ -71,8 +76,10 @@ internal static class HistoryDetail
         record["captureTime"] = HistoryPublication.Capture((DateTime?)Value("captureLocal"), (string?)Value("captureZone"),
             (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"), db.HistoryEnvironment);
         record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone, db.HistoryEnvironment);
-        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc(DateTime.UtcNow),
-            derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
+        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc((DateTime)reader["mutationNow"]),
+            derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment),
+            locationMutation = protection == null ? null : LocationMutationEvidence.Create(protection, owner, id, record, unavailable,
+                LocationMutationEvidence.DeleteFingerprint(reader), (bool)reader["createPending"], (DateTime)reader["mutationNow"]), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
     }
 
     /// <summary>PostgreSQL infinity and dates outside the wire calendar are unavailable, not known null.</summary>

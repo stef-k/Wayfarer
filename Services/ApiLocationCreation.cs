@@ -30,6 +30,7 @@ internal static class ApiLocationCreation
             var winner = await db.Locations.AsNoTracking().FirstOrDefaultAsync(
                 row => row.UserId == location.UserId && row.IdempotencyKey == location.IdempotencyKey, cancellationToken);
             if (winner != null) return (winner, false);
+            location.OriginalCreateAddressToken = Guid.NewGuid();
             db.Locations.Add(location);
             await db.SaveChangesAsync(cancellationToken);
             if (creation != null) await creation.CommitAsync(cancellationToken);
@@ -69,13 +70,23 @@ internal static class ApiLocationCreation
 
         var current = await db.Locations.AsNoTracking().SingleAsync(
             row => row.UserId == inserted.UserId && row.Id == inserted.Id, cancellationToken);
-        if (canApply && current.Coordinates.EqualsExact(inserted.Coordinates) && HasUntouchedAddress(current)
+        var ownsPublication = inserted.OriginalCreateAddressToken != null
+            && current.IdempotencyKey == inserted.IdempotencyKey && current.OriginalCreateAddressToken == inserted.OriginalCreateAddressToken;
+        if (ownsPublication && canApply && current.Coordinates.EqualsExact(inserted.Coordinates) && HasUntouchedAddress(current)
             && await HasCurrentAuthorityAsync(db, authority!, cancellationToken))
         {
             // Replace only the original tracked snapshot; owner edits on the fresh row remain untouched.
             db.Entry(inserted).State = EntityState.Detached;
             db.Locations.Attach(current);
             result.ApplyTo(current, DateTimeOffset.UtcNow);
+            current.OriginalCreateAddressToken = null;
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        if (ownsPublication && current.OriginalCreateAddressToken != null)
+        {
+            db.Entry(inserted).State = EntityState.Detached;
+            if (db.Entry(current).State == EntityState.Detached) db.Attach(current);
+            current.OriginalCreateAddressToken = null;
             await db.SaveChangesAsync(cancellationToken);
         }
         if (transaction != null) await transaction.CommitAsync(cancellationToken);

@@ -57,6 +57,17 @@ internal static class LocationDeletionFence
         IReadOnlyCollection<int>? ids, IMemoryCache? cache, CancellationToken token)
     {
         await using var transaction = await BeginAsync(db, userId, token);
+        var deleted = await DeleteInTransactionAsync(db, userId, ids, cache, token);
+        if (transaction != null) await transaction.CommitAsync(token);
+        return deleted;
+    }
+
+    /// <summary>Joins the caller-owned account fence so deletion, dependents and its receipt commit atomically.</summary>
+    internal static async Task<List<int>> DeleteInTransactionAsync(ApplicationDbContext db, string userId,
+        IReadOnlyCollection<int>? ids, IMemoryCache? cache, CancellationToken token)
+    {
+        if (db.Database.IsRelational() && db.Database.CurrentTransaction == null)
+            throw new InvalidOperationException("Deletion requires the caller transaction.");
         var all = ids == null;
         var selected = ids?.Distinct().ToArray() ?? [];
         List<int> deleted;
@@ -93,7 +104,6 @@ internal static class LocationDeletionFence
         }
         // All participating publishers hold the same fence, so an earlier effect cannot refill this after deletion.
         cache?.Remove($"lastLocation_{userId}");
-        if (transaction != null) await transaction.CommitAsync(token);
         return deleted;
     }
 }
