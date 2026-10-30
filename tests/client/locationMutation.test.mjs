@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { locationRequestFingerprint, validateLocationReceipt, saveLocationMutation, retainLocationDraft, locationWork } from '../../wwwroot/js/util/location-mutation.js';
+import { locationRequestFingerprint, validateLocationReceipt, saveLocationMutation, retainLocationDraft, locationWork, prepareLocationDeletion } from '../../wwwroot/js/util/location-mutation.js';
 import { locationEditCommand, locationWallTimeUtc } from '../../wwwroot/js/util/location-edit-state.js';
 
 const base = '83e8095d-45b0-4dc7-a267-89a4ee119d67';
@@ -174,5 +174,60 @@ test('corrupt immutable bytes or a missing active binding prevent any new handof
         const before = calls;
         await assert.rejects(saveLocationMutation(...args), /Saved command evidence/);
         assert.equal(calls, before);
+    }
+});
+
+test('per-record deletion requires informed fresh consent after rejection and keeps pending consent immutable', async () => {
+    for (const pending of [false, true]) {
+        const storage = new Map();
+        globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+        globalThis.sessionStorage = { getItem: key => storage.get(`s:${key}`), setItem: (key, value) => storage.set(`s:${key}`, value) };
+        globalThis.location = { origin: 'https://wayfarer.test' };
+        globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'owner-a' } }), querySelector: () => ({ value: 'csrf' }) };
+        Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
+        const known = value => ({ state: 'known', value });
+        const detail = { subjectId: 'owner-a', record: { locationId: 421, notes: 'Original content' }, unavailableFields: [],
+            locationMutation: { contract: 'location-mutation-1', normalization: 'location-values-1', baseId: base,
+                baseHandle: 'H', expiresAtUtc: '2099-01-01T00:00:00Z', originalCreateAddressPublication: 'closed',
+                baseValues: { uuid: known(null), deleteContent: known({ format: 'location-delete-storage-1', fingerprint: 'old-digest' }) } } };
+        const fresh = structuredClone(detail);
+        fresh.record.notes = 'New content requiring consent'; fresh.locationMutation.baseId = crypto.randomUUID();
+        fresh.locationMutation.baseHandle = 'fresh-H'; fresh.locationMutation.baseValues.deleteContent.value.fingerprint = 'new-digest';
+        const posts = []; let reads = 0;
+        globalThis.fetch = async (url, options) => {
+            if (!url.includes('/mutations/')) return { ok: true, json: async () => ++reads === 1 ? detail : fresh };
+            const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
+            const envelope = receipt(active);
+            delete envelope.addressOutcome; delete envelope.providerOutcome;
+            if (options.method === 'POST') posts.push({ url, body: JSON.parse(options.body) });
+            if (pending) {
+                delete envelope.completedAtUtc; delete envelope.changed; delete envelope.detailUrl;
+                return { json: async () => ({ ...envelope, state: 'pending', futureEffects: true,
+                    observedAtUtc: '2026-10-30T10:00:00Z', executeBeforeUtc: '2026-10-30T10:02:00Z', retryAfterSeconds: 2 }) };
+            }
+            if (posts.length === 1) {
+                delete envelope.changed; delete envelope.detailUrl;
+                return { json: async () => ({ ...envelope, state: 'rejected', code: 'locationBaseStale', staleGroups: ['content'] }) };
+            }
+            return { json: async () => ({ ...envelope, detailUrl: null }) };
+        };
+        const first = await prepareLocationDeletion(421);
+        assert.match(first.message, /Original content/);
+        assert.equal((await first()).success, false);
+        const oldAction = locationWork(421).active;
+        const next = await prepareLocationDeletion(421);
+        assert.equal(locationWork(421).active, oldAction, 'preview/cancel cannot discard the predecessor');
+        assert.equal(posts.length, 1);
+        if (pending) {
+            assert.match(next.message, /Original content/); assert.doesNotMatch(next.message, /New content/);
+            assert.equal((await next()).success, false); assert.equal(posts.length, 1); assert.equal(reads, 1);
+        } else {
+            assert.match(next.message, /new conditional deletion/); assert.match(next.message, /Original content/);
+            assert.match(next.message, /New content requiring consent/);
+            assert.equal((await next()).success, true); assert.equal(posts.length, 2);
+            assert.notEqual(posts[0].url, posts[1].url);
+            assert.equal(posts[1].body.expected.content.value.fingerprint, 'new-digest');
+            assert.equal(locationWork(421).attempts[0].receipt.code, 'locationBaseStale');
+        }
     }
 });

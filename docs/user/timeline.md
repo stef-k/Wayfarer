@@ -72,6 +72,9 @@ Clear, win over lookup results. Manual-only address editing makes no provider ca
 
 A per-record delete confirms observed stored content. Changed content conflicts;
 damaged/unavailable display facts remain visible and do not make the row undeletable.
+After rejection, opening Delete again shows previously observed and current content
+for a new confirmation. A pending action keeps its original consent; reopening the
+confirmation cannot authorize deleting changed content while it might still execute.
 
 Use **Bulk Edit Notes** for deliberate changes across matching records. Matching
 and append use current locked values at Apply time; preview counts can change.

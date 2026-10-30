@@ -203,20 +203,34 @@ const acceptResponse = async (id, state, attempt, receipt) => {
 
 /** Observe deletion content before showing the existing confirmation; never refresh proof merely to pass stale consent. */
 export const prepareLocationDeletion = async id => {
-    const existing = locationWork(id);
-    const active = existing.attempts.find(item => item.actionId === existing.active);
-    const retained = existing.draft?.value;
-    const detail = active && retained?.kind === 'delete' ? retained.detail : await readLocationDetail(id);
-    const execute = () => saveLocationMutation(id, detail, 'delete', null, {
-        uuid: detail.locationMutation.baseValues.uuid, content: detail.locationMutation.baseValues.deleteContent
+    const preview = await navigator.locks.request(partition(id), async () => {
+        const existing = locationWork(id);
+        await validateLocationWork(id, existing);
+        const active = existing.attempts.find(item => item.actionId === existing.active);
+        const retained = existing.draft?.value;
+        const original = active && retained?.kind === 'delete' ? retained.detail : null;
+        const recovered = active ? await inspectAttempt(id, existing, active) : null;
+        const renew = recovered?.excluded || recovered?.receipt?.state === 'rejected';
+        return { detail: renew || !original ? await readLocationDetail(id) : original, original, renew,
+            historicalUnknown: recovered?.excluded === true };
     });
-    execute.message = `Delete the observed Location #${id}? This cannot be undone. Stored detail: ${JSON.stringify(detail.record)}. Unavailable facts: ${JSON.stringify(detail.unavailableFields)}.`;
+    const { detail } = preview;
+    const execute = async () => {
+        // The existing confirmation explicitly consents to inspected current content, after predecessor exclusion.
+        if (preview.renew) await adoptLocationOriginals(id, detail);
+        return saveLocationMutation(id, detail, 'delete', null, {
+            uuid: detail.locationMutation.baseValues.uuid, content: detail.locationMutation.baseValues.deleteContent
+        });
+    };
+    const prior = preview.renew ? `The earlier action cannot produce future effects${preview.historicalUnknown ? '; its historical outcome remains unknown' : ''}. This is a new conditional deletion. Previously observed detail: ${JSON.stringify(preview.original?.record)}. ` : '';
+    execute.message = `${prior}Delete the observed Location #${id}? This cannot be undone. Stored detail: ${JSON.stringify(detail.record)}. Unavailable facts: ${JSON.stringify(detail.unavailableFields)}.`;
     return execute;
 };
 
 /** An informed user may adopt inspected current originals only after all predecessor future effects are excluded. */
 export const adoptLocationOriginals = async (id, inspected) => navigator.locks.request(partition(id), async () => {
     const state = locationWork(id);
+    await validateLocationWork(id, state);
     const active = state.attempts.find(item => item.actionId === state.active);
     if (active && active.receipt?.futureEffects !== false && active.exclusion?.futureEffects !== false)
         throw new Error('The earlier action may still execute. Recover it before adopting current facts.');
