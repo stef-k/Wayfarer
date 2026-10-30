@@ -520,6 +520,139 @@ test('a second inline Activity save uses the baseline from the first successful 
     assert.equal(locationWork(421).fresh.record.activityTypeId, 11);
 });
 
+/** Mounts the existing delegated Activity owner on the form suite's storage/document seam. */
+const mountedActivity = async f => {
+    const { setupActivityEditorEvents } = await import(`../../wwwroot/js/util/activity-editor.js?correction=${crypto.randomUUID()}`);
+    const handlers = {}, feedback = { textContent: '' };
+    let label = '', editing = false;
+    const view = { classList: { toggle: (_name, hidden) => { editing = hidden; } } };
+    const link = { classList: { toggle: () => {} }, set textContent(value) { label = value; } };
+    const editor = { dataset: { locationId: '421' }, querySelector: selector => ({
+        '.activity-view': view, '.activity-edit': { classList: { toggle: () => {} } },
+        '.activity-feedback': feedback, '.activity-current-link': link
+    }[selector]) };
+    const select = { dataset: {}, value: '7', get selectedOptions() { return [{ textContent: `Activity ${this.value}` }]; },
+        tomselect: { options: { 7: {}, 9: {}, 11: {} }, setValue: value => { select.value = value; }, clear: () => { select.value = ''; } } };
+    const buttons = Object.fromEntries(['toggle', 'save', 'clear'].map(name => [name,
+        { dataset: { locationId: '421' }, disabled: false, closest: () => editor }]));
+    globalThis.TomSelect = function () {};
+    const oldGet = document.getElementById;
+    document.getElementById = id => id === 'activitySelect-421' ? select : oldGet(id);
+    document.querySelector = selector => selector.startsWith('.activity-editor') ? editor
+        : selector.startsWith('input') ? { value: 'csrf' } : { addEventListener: (type, callback) => { handlers[type] = callback; } };
+    setupActivityEditorEvents('#modal');
+    const click = name => handlers.click({ preventDefault: () => {}, target: { closest: selector => selector ===
+        ({ toggle: '.activity-edit-toggle', save: '.activity-save-btn', clear: '.activity-clear-btn' }[name]) ? buttons[name] : null } });
+    return { click, select, feedback, label: () => label, editing: () => editing,
+        choose: value => { select.value = value; handlers.change?.({ target: { closest: () => select } }); } };
+};
+
+test('C1 independent form Notes survive inline Activity settlement and restoration with unchanged originals/generation', async () => {
+    const f = await mountedForm(); f.mount(); f.type('important unsent Notes');
+    const retained = structuredClone(locationWork(421).draft);
+    const fresh = structuredClone(f.detail);
+    const posts = [];
+    globalThis.fetch = async (_url, options) => {
+        if (options.method === 'POST') {
+            const body = JSON.parse(options.body); posts.push(body);
+            fresh.record.activityTypeId = body.changes.activity.id;
+            fresh.locationMutation.baseValues.activityTypeId.value = body.changes.activity.id;
+            return new Response(JSON.stringify(receipt(locationWork(421).attempts.at(-1))));
+        }
+        return new Response(JSON.stringify(fresh));
+    };
+    const activity = await mountedActivity(f); await activity.click('toggle');
+    activity.choose('9'); await activity.click('save');
+    const firstAttempt = structuredClone(locationWork(421).attempts[0]);
+    assert.deepEqual(locationWork(421).draft, retained);
+    assert.notEqual(locationWork(421).settledGeneration, retained.generation);
+    f.form.dataset.locationDetail = JSON.stringify(fresh); f.quill.root.innerHTML = 'server Notes'; f.mount();
+    assert.equal(f.quill.root.innerHTML, 'important unsent Notes');
+    assert.deepEqual(locationWork(421).draft, retained);
+    await activity.click('toggle'); activity.choose('11'); await activity.click('save');
+    assert.equal(posts[1].expected.activityTypeId.value, 9);
+    assert.deepEqual(locationWork(421).attempts[0], firstAttempt);
+    assert.deepEqual(locationWork(421).draft, retained);
+});
+
+test('C2 older inline Activity completion retains newer selection or Clear for its own save', async () => {
+    for (const choice of ['11', '']) {
+        const f = await mountedForm(); const activity = await mountedActivity(f);
+        const fresh = structuredClone(f.detail); let release, sent;
+        const handedOff = new Promise(resolve => { sent = resolve; });
+        const bodies = [];
+        globalThis.fetch = async (_url, options) => {
+            if (options.method === 'POST') {
+                bodies.push(options.body);
+                const command = JSON.parse(options.body);
+                if (bodies.length === 1) { sent(); await new Promise(resolve => { release = resolve; }); }
+                fresh.record.activityTypeId = command.changes.activity.id ?? null;
+                fresh.record.activityName = fresh.record.activityTypeId == null ? null : `Activity ${fresh.record.activityTypeId}`;
+                fresh.locationMutation.baseValues.activityTypeId.value = fresh.record.activityTypeId;
+                return new Response(JSON.stringify(receipt(locationWork(421).attempts.at(-1))));
+            }
+            return new Response(JSON.stringify(fresh));
+        };
+        await activity.click('toggle'); activity.choose('9');
+        const saving = activity.click('save'); await handedOff;
+        const submitted = structuredClone(locationWork(421).attempts[0]);
+        activity.choose(choice);
+        const generation = locationWork(421, 'activity').draft?.generation;
+        release(); await saving;
+        const work = locationWork(421, 'activity');
+        assert.equal(activity.select.value, choice); assert.equal(activity.editing(), true);
+        assert.equal(activity.label(), 'Activity 9'); assert.match(activity.feedback.textContent, /[Nn]ewer/);
+        assert.equal(work.draft.generation, generation); assert.notEqual(work.settledGeneration, generation);
+        assert.deepEqual(work.draft.value.changes.activity, choice ? { op: 'set', id: 11 } : { op: 'clear' });
+        assert.equal(work.attempts[0].body, submitted.body); assert.equal(work.attempts[0].actionId, submitted.actionId);
+        const completed = structuredClone(work.attempts[0]);
+        await activity.click('save');
+        assert.equal(JSON.parse(bodies[1]).expected.activityTypeId.value, 9);
+        assert.deepEqual(JSON.parse(bodies[1]).changes.activity, choice ? { op: 'set', id: 11 } : { op: 'clear' });
+        assert.deepEqual(locationWork(421).attempts[0], completed);
+        assert.equal(activity.editing(), false);
+    }
+});
+
+test('C3 duplicate wire members cannot settle mutations, recovery, retry or future-effect exclusion', async () => {
+    for (const entry of ['mutation', 'recovery', 'retry', 'exclusion', 'detail', 'valid']) {
+        const f = await mountedForm(); let posts = 0, reads = 0;
+        const duplicate = envelope => '{"state":"pending",' + JSON.stringify(envelope).slice(1);
+        globalThis.fetch = async (url, options) => {
+            const active = locationWork(421).attempts.at(-1);
+            if (options.method === 'POST') {
+                posts++;
+                if (entry === 'recovery' || entry === 'exclusion' || entry === 'retry' && posts === 1) throw new Error('lost reply');
+                const text = entry === 'mutation' || entry === 'retry' ? duplicate(receipt(active)) : JSON.stringify(receipt(active));
+                return new Response(text);
+            }
+            if (url.includes('/mutations/')) {
+                const observation = { contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+                    baseId: active.baseId, actionId: active.actionId, observedAtUtc: entry === 'exclusion' ? '2100-01-01T00:00:00Z' : '2026-10-30T10:00:00Z',
+                    state: 'unknown', code: entry === 'exclusion' ? 'operationHistoryExpired' : 'operationNotObserved',
+                    futureEffects: entry !== 'exclusion', expiresAtUtc: active.expiresAtUtc,
+                    ...(entry === 'exclusion' ? { historicalOutcome: 'unknown' } : {}) };
+                return new Response(entry === 'retry' ? JSON.stringify(observation) : entry === 'mutation' ? '{}' : duplicate(entry === 'recovery' ? receipt(active) : observation));
+            }
+            reads++;
+            // Escaped names compare as decoded keys, including nested objects inside arrays.
+            return new Response(entry === 'detail' ? JSON.stringify(f.detail).replace('"baseValues":', '"extra":[{"a":1,"\\u0061":2}],"baseValues":') : JSON.stringify(f.detail));
+        };
+        const args = [421, f.detail, 'update', { notes: { op: 'clear' } },
+            { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } }];
+        let result = await saveLocationMutation(...args);
+        if (entry === 'exclusion' || entry === 'retry') result = await saveLocationMutation(...args);
+        assert.equal(result.success, entry === 'valid', entry);
+        assert.equal(!!locationWork(421).settledGeneration, entry === 'valid', entry);
+        assert.equal(locationWork(421).attempts[0].exclusion, undefined, entry);
+        assert.equal(posts, entry === 'retry' ? 2 : 1, entry);
+        if (['mutation', 'recovery', 'exclusion', 'retry'].includes(entry)) {
+            assert.equal(locationWork(421).attempts[0].receipt, undefined, entry);
+            assert.equal(reads, 0, entry);
+        }
+    }
+});
+
 /** Builds the server's Pending shape without terminal-only members. */
 const pendingReceipt = value => {
     const { completedAtUtc, changed, detailUrl, addressOutcome, providerOutcome, ...common } = receipt(value);

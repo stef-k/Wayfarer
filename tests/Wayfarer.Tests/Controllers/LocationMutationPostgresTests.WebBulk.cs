@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Services;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -85,6 +86,59 @@ public sealed partial class LocationMutationPostgresTests
             await using var verify = fixture.CreateContext();
             Assert.Equal("original", (await verify.Locations.SingleAsync(row => row.Id == id)).Notes);
             Assert.False(await verify.LocationMutationOperations.AnyAsync(row => row.UserId == owner));
+        });
+    }
+
+    /// <summary>Pre-action refusals use problem media types without receipts, effects or cookie-to-bearer fallback.</summary>
+    [PostgresTheory]
+    [InlineData("antiforgery", 403, "antiforgeryInvalid")]
+    [InlineData("missing", 401, "mutationAuthenticationRequired")]
+    [InlineData("inactiveCookie", 401, "mutationAuthenticationRequired")]
+    [InlineData("identityCapacity", 429, "mutationBusy")]
+    [InlineData("globalCapacity", 503, "mutationOutcomeUnknown")]
+    public async Task ProtectedPreActionErrorsUseProblemMediaType(string boundary, int status, string code)
+    {
+        var (owner, credential, id) = await SeedAsync();
+        var (_, foreignCredential, _) = await SeedAsync();
+        await WithHostAsync(credential, async client =>
+        {
+            var command = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "clear" } });
+            var permits = new List<IDisposable>();
+            try
+            {
+                if (boundary is "antiforgery" or "inactiveCookie")
+                {
+                    await UseCookieAsync(client, owner);
+                    client.DefaultRequestHeaders.Remove("RequestVerificationToken");
+                    if (boundary == "inactiveCookie")
+                    {
+                        await using var db = fixture.CreateContext();
+                        await db.Users.Where(user => user.Id == owner).ExecuteUpdateAsync(set => set.SetProperty(user => user.IsActive, false));
+                        client.DefaultRequestHeaders.Authorization = new("Bearer", foreignCredential);
+                    }
+                }
+                if (boundary == "missing") client.DefaultRequestHeaders.Authorization = null;
+                if (boundary is "identityCapacity" or "globalCapacity")
+                {
+                    // Same production admission owner; the fixture's isolated client peer owns the identity ceiling.
+                    client.DefaultRequestHeaders.Add("X-Test-Peer", "192.0.2.195");
+                    for (var i = 0; i < (boundary == "globalCapacity" ? 32 : 16); i++)
+                        permits.Add(ApiWorkAdmission.TokenLookups.TryAcquire(boundary == "globalCapacity" ? $"947-capacity-{i}" : "192.0.2.195", out _) !);
+                }
+                using var response = await command.SendAsync(client);
+                Assert.Equal(status, (int)response.StatusCode);
+                Assert.True(response.Headers.CacheControl?.NoStore);
+                var body = JsonSerializer.Deserialize<JsonElement>(await response.Content.ReadAsStringAsync());
+                Assert.Equal(code, body.GetProperty("code").GetString());
+                Assert.False(body.TryGetProperty("state", out _));
+                Assert.False(body.TryGetProperty("actionId", out _));
+                Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+                if (status is 429 or 503) Assert.Equal(TimeSpan.FromSeconds(5), response.Headers.RetryAfter?.Delta);
+                await using var verify = fixture.CreateContext();
+                Assert.False(await verify.LocationMutationOperations.AnyAsync(row => row.UserId == owner));
+                Assert.Equal("original", (await verify.Locations.SingleAsync(row => row.Id == id)).Notes);
+            }
+            finally { foreach (var permit in permits) permit.Dispose(); }
         });
     }
 
