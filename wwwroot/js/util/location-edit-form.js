@@ -4,6 +4,8 @@ import { locationEditCommand } from './location-edit-state.js';
 
 /** Connects the actual Web form to dirty originals, durable drafts, immutable attempts and visible conflict recovery. */
 export const mountProtectedLocationForm = (form, quill, clearNotes) => {
+    // Even unavailable/corrupt local proof must never fall through to a native unconditional form submission.
+    form.addEventListener('submit', event => event.preventDefault());
     const id = Number(form.dataset.locationId);
     let detail = JSON.parse(form.dataset.locationDetail);
     const status = document.getElementById('location-save-status');

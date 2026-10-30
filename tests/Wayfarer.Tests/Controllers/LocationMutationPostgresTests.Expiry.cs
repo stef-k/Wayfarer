@@ -31,7 +31,11 @@ public sealed partial class LocationMutationPostgresTests
             clock.Now = clock.Now.AddDays(31);
             // Actual terminal evidence wins past its cleanup threshold until the cleanup transaction removes it.
             await AssertStateAsync(await request.RecoverAsync(client), 200, "applied");
-            await using (var cleanup = fixture.CreateContext(clock)) Assert.Equal(1, (await new LocationMutationCleanup(cleanup).RunAsync(default)).Deleted);
+            await using (var cleanup = fixture.CreateContext(clock))
+            {
+                Assert.True((await new LocationMutationCleanup(cleanup).RunAsync(default)).Deleted >= 1);
+                Assert.False(await cleanup.LocationMutationOperations.AnyAsync(row => row.UserId == owner));
+            }
             var unknown = await AssertStateAsync(await request.RecoverAsync(client), 200, "unknown", "operationHistoryExpired");
             Assert.False(unknown.GetProperty("futureEffects").GetBoolean()); Assert.Equal("unknown", unknown.GetProperty("historicalOutcome").GetString());
             using (var expired = await request.SendAsync(client)) Assert.Equal(410, (int)expired.StatusCode);

@@ -108,14 +108,14 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
     /// <summary>Checks the exact selected union after row locks without materializing damaged content for delete.</summary>
     private async Task<LocationMutationReply?> CompareAsync(LocationMutationOperation operation, LocationMutationCommand command, CancellationToken token)
     {
-        if (await LocationDeletionFence.IsDeletedAsync(db, operation.UserId, operation.Uuid, token))
-            return Terminal(operation, await NowAsync(db, token), "locationDeleted", 410);
+        var deleted = await LocationDeletionFence.IsDeletedAsync(db, operation.UserId, operation.Uuid, token);
         await db.Database.SqlQuery<int>($$"""
             SELECT 1 AS "Value" FROM "Locations" WHERE "UserId" = {{operation.UserId}} AND "Id" = {{operation.LocationId}} FOR UPDATE
             """).ToListAsync(token);
         var values = await ValuesAsync(operation.UserId, operation.LocationId, token);
         var now = await NowAsync(db, token);
         if (now >= operation.ExecuteBeforeUtc) return Terminal(operation, operation.ExecuteBeforeUtc, "operationExecutionExpired", 409);
+        if (deleted) return Terminal(operation, now, "locationDeleted", 410);
         if (values == null) return Terminal(operation, now, "locationUnavailable", 404);
         var uuid = values.Value.GetProperty("uuid").GetProperty("value");
         if ((uuid.ValueKind == JsonValueKind.Null ? null : uuid.GetString()) != operation.Uuid?.ToString("D"))

@@ -11,16 +11,29 @@ const retainAttempt = (id, attempt) => {
     latest.attempts[index] = attempt;
     persist(id, latest);
 };
+const editorIdentity = () => {
+    const key = `${contract}:editor`;
+    let identity = sessionStorage.getItem(key);
+    if (!identity) { identity = crypto.randomUUID(); sessionStorage.setItem(key, identity); }
+    return identity;
+};
 const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 const exactKeys = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
     && required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => [...required, ...optional].includes(key));
 const persist = (id, state) => {
+    if (state.draft) state.draftsByEditor = { ...state.draftsByEditor, [editorIdentity()]: state.draft };
+    if (state.settledGeneration) state.settledByEditor = { ...state.settledByEditor, [editorIdentity()]: state.settledGeneration };
     const bytes = JSON.stringify(state);
     localStorage.setItem(partition(id), bytes);
     if (localStorage.getItem(partition(id)) !== bytes) throw new Error('Draft was not saved. Keep this page open.');
 };
 /** Existing evidence is account/server partitioned and never discarded because of age. */
-export const locationWork = id => JSON.parse(localStorage.getItem(partition(id)) || '{"attempts":[]}');
+export const locationWork = id => {
+    const state = JSON.parse(localStorage.getItem(partition(id)) || '{"attempts":[]}');
+    state.draft = state.draftsByEditor?.[editorIdentity()] || state.draft;
+    state.settledGeneration = state.settledByEditor?.[editorIdentity()] || state.settledGeneration;
+    return state;
+};
 
 /** Seven framed exact UTF-8 values; this digest is computed before the first possible handoff. */
 export const locationRequestFingerprint = async (owner, id, baseId, actionId, adapter, body) => {

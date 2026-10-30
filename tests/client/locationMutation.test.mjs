@@ -47,6 +47,7 @@ test('coordinate movement omits unchanged time/manual prefill and keeps explicit
 test('actual lost-response client path recovers same identity and preserves newer typing during the request', async () => {
     const storage = new Map();
     globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+    globalThis.sessionStorage = { getItem: key => storage.get(`session:${key}`), setItem: (key, value) => storage.set(`session:${key}`, value) };
     globalThis.location = { origin: 'https://wayfarer.test' };
     globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'owner-a' } }), querySelector: () => ({ value: 'antiforgery' }) };
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
@@ -77,4 +78,76 @@ test('actual lost-response client path recovers same identity and preserves newe
     assert.equal(calls[0][0], calls[1][0]);
     assert.equal(locationWork(421).draft.value.current.Notes, 'newer typing');
     assert.equal(locationWork(421).attempts[0].receipt.state, 'applied');
+});
+
+test('user retry preserves exact identity and bytes, and a settled double click does not send a second command', async () => {
+    const storage = new Map();
+    globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+    globalThis.sessionStorage = { getItem: key => storage.get(`s:${key}`), setItem: (key, value) => storage.set(`s:${key}`, value) };
+    globalThis.location = { origin: 'https://wayfarer.test' };
+    globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'owner-a' } }), querySelector: () => ({ value: 'csrf' }) };
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
+    const known = value => ({ state: 'known', value });
+    const detail = { subjectId: 'owner-a', record: { locationId: 421 }, locationMutation: { contract: 'location-mutation-1', normalization: 'location-values-1',
+        baseId: base, baseHandle: 'H', expiresAtUtc: '2099-01-01T00:00:00Z', originalCreateAddressPublication: 'closed', baseValues: { uuid: known(null), notesHtml: known(null) } } };
+    const posts = [];
+    globalThis.fetch = async (url, options) => {
+        const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active) || state.attempts[0];
+        if (options.method === 'POST') {
+            posts.push({ url, body: options.body });
+            if (posts.length === 1) throw new Error('Connection lost before arrival');
+            return { json: async () => receipt(active) };
+        }
+        if (url.includes('/mutations/')) return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+            baseId: active.baseId, actionId: active.actionId, observedAtUtc: '2026-10-30T10:00:00Z', state: 'unknown', code: 'operationNotObserved', futureEffects: true, expiresAtUtc: active.expiresAtUtc }) };
+        return { ok: true, json: async () => detail };
+    };
+    const args = [421, detail, 'update', { notes: { op: 'clear' } }, { uuid: known(null), notesHtml: known(null) }];
+    assert.equal((await saveLocationMutation(...args)).success, false);
+    assert.equal((await saveLocationMutation(...args)).success, true);
+    assert.deepEqual(posts[0], posts[1]); assert.equal(locationWork(421).attempts.length, 1);
+    assert.equal((await saveLocationMutation(...args)).success, true); assert.equal(posts.length, 2);
+});
+
+test('receipt loss re-admits unchanged originals with fresh authority, or labels simple current-state satisfaction as historical Unknown', async () => {
+    for (const alreadySatisfied of [false, true]) {
+        const storage = new Map();
+        globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+        globalThis.sessionStorage = { getItem: key => storage.get(`s:${key}`), setItem: (key, value) => storage.set(`s:${key}`, value) };
+        globalThis.location = { origin: 'https://wayfarer.test' };
+        globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'owner-a' } }), querySelector: () => ({ value: 'csrf' }) };
+        Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
+        const known = value => ({ state: 'known', value });
+        const detail = { subjectId: 'owner-a', record: { locationId: 421 }, locationMutation: { contract: 'location-mutation-1', normalization: 'location-values-1',
+            baseId: base, baseHandle: 'old-H', expiresAtUtc: '2099-01-01T00:00:00Z', originalCreateAddressPublication: 'closed', baseValues: { uuid: known(null), notesHtml: known(null) } } };
+        const fresh = structuredClone(detail); fresh.observedAtUtc = '2100-01-01T00:00:00Z';
+        fresh.locationMutation.baseId = crypto.randomUUID(); fresh.locationMutation.baseHandle = 'new-H'; fresh.locationMutation.expiresAtUtc = '2101-01-01T00:00:00Z';
+        if (alreadySatisfied) fresh.locationMutation.baseValues.notesHtml = known('desired');
+        const posts = [];
+        globalThis.fetch = async (url, options) => {
+            const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
+            if (options.method === 'POST') {
+                posts.push(JSON.parse(options.body));
+                if (posts.length === 1) throw new Error('No retained response');
+                return { json: async () => receipt(active) };
+            }
+            if (url.includes('/mutations/')) return { json: async () => ({ contract: 'location-mutation-1', subjectId: 'owner-a', locationId: 421,
+                baseId: active.baseId, actionId: active.actionId, observedAtUtc: '2100-01-01T00:00:00Z', state: 'unknown', code: 'operationHistoryExpired', futureEffects: false,
+                expiresAtUtc: active.expiresAtUtc, historicalOutcome: 'unknown' }) };
+            return { ok: true, json: async () => fresh };
+        };
+        const expected = { uuid: known(null), notesHtml: known(null) };
+        const args = [421, detail, 'update', { notes: { op: 'set', html: 'desired' } }, expected];
+        assert.equal((await saveLocationMutation(...args)).success, false);
+        const result = await saveLocationMutation(...args); assert.equal(result.success, true);
+        if (alreadySatisfied) {
+            assert.equal(result.currentStateSatisfied, true); assert.equal(posts.length, 1);
+            assert.equal(locationWork(421).currentObservation.historicalOutcome, 'unknown');
+            assert.equal(locationWork(421).attempts[0].receipt, undefined);
+        } else {
+            assert.equal(posts.length, 2); assert.deepEqual(posts[1].expected, expected); assert.equal(posts[1].baseHandle, 'new-H');
+            assert.equal(locationWork(421).attempts.length, 2);
+        }
+        assert.equal(locationWork(421).attempts[0].exclusion.historicalOutcome, 'unknown');
+    }
 });

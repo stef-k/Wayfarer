@@ -71,7 +71,7 @@ internal static class ApiLocationCreation
         var current = await db.Locations.AsNoTracking().SingleAsync(
             row => row.UserId == inserted.UserId && row.Id == inserted.Id, cancellationToken);
         var ownsPublication = inserted.OriginalCreateAddressToken != null
-            && current.OriginalCreateAddressToken == inserted.OriginalCreateAddressToken;
+            && current.IdempotencyKey == inserted.IdempotencyKey && current.OriginalCreateAddressToken == inserted.OriginalCreateAddressToken;
         if (ownsPublication && canApply && current.Coordinates.EqualsExact(inserted.Coordinates) && HasUntouchedAddress(current)
             && await HasCurrentAuthorityAsync(db, authority!, cancellationToken))
         {

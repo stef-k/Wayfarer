@@ -22,7 +22,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>A1–A9/A13–A14 through actual routed commands and the existing guarded PostgreSQL fixture.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed partial class LocationMutationPostgresTests(PostgresImportTestFixture fixture)
+public sealed partial class LocationMutationPostgresTests(PostgresMigrationTestFixture fixture) : IClassFixture<PostgresMigrationTestFixture>
 {
     private IServiceProvider hostServices = null!;
     private readonly IDataProtectionProvider protection = new EphemeralDataProtectionProvider();

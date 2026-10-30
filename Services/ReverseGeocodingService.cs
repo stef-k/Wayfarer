@@ -242,7 +242,7 @@ namespace Wayfarer.Parsers
                 await LocationDeletionFence.ThrowIfDeletedAsync(db, location, cancellationToken);
                 if (beforeAdmission != null) await beforeAdmission(cancellationToken);
                 if (beforeAdmission == null && !await db.Locations.AsNoTracking().AnyAsync(
-                    row => row.UserId == location.UserId && row.Id == location.Id
+                    row => row.UserId == location.UserId && row.Id == location.Id && row.IdempotencyKey == location.IdempotencyKey
                         && row.OriginalCreateAddressToken != null && row.OriginalCreateAddressToken == location.OriginalCreateAddressToken
                         && row.Coordinates == location.Coordinates, cancellationToken))
                     return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);

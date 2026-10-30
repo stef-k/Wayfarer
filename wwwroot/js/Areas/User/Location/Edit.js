@@ -153,7 +153,8 @@ document.addEventListener("DOMContentLoaded", function () {
     // Set the notes content in the Quill editor
     quill.root.innerHTML = notesHtmlForDisplay(notesContent);
 
-    mountProtectedLocationForm(document.getElementById('locationForm'), quill, () => explicitlyClearNotes);
+    try { mountProtectedLocationForm(document.getElementById('locationForm'), quill, () => explicitlyClearNotes); }
+    catch { document.getElementById('location-save-status').textContent = 'Saved proof or local storage is unavailable. Keep your draft on this page; no save was sent.'; }
 
     // Initialize TomSelect on Activity dropdown with API-based loading
     if (typeof TomSelect !== 'undefined') {

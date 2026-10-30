@@ -8,7 +8,10 @@ export const locationWallTimeUtc = (wall, zone, ambiguity = '') => {
     base.setUTCHours(Number(hour), Number(minute), Number(seconds), 0);
     const nominal = base.getTime();
     const formatter = new Intl.DateTimeFormat('sv-SE', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
-    const formatted = value => formatter.format(new Date(value)).replace(' ', 'T');
+    const formatted = value => {
+        const parts = Object.fromEntries(formatter.formatToParts(new Date(value)).map(part => [part.type, part.value]));
+        return `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+    };
     const wanted = `${year}-${month}-${day}T${hour}:${minute}:${seconds}`;
     const offsets = new Set();
     for (let hours = -36; hours <= 36; hours += 6) {

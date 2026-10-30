@@ -739,7 +739,7 @@ public partial class LocationController : BaseApiController
             await BroadcastLocationDeletionAsync(currentUserId, deletedIds);
 
             return Ok(new
-                { success = true, message = $"{deletedIds.Count} locations deleted successfully." });
+                { success = true, affectedCount = deletedIds.Count, locationIds = deletedIds, message = $"{deletedIds.Count} locations deleted successfully." });
         }
         catch (Exception ex)
         {
