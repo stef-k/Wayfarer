@@ -24,6 +24,7 @@ public sealed partial class LocationMutationPostgresTests
             using (var page = await client.GetAsync($"/User/Location/Edit/{id}"))
             {
                 Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+                Assert.True(page.Headers.CacheControl?.NoStore);
                 var html = await new HtmlParser().ParseDocumentAsync(await page.Content.ReadAsStringAsync());
                 var embedded = JsonSerializer.Deserialize<JsonElement>(html.QuerySelector("#locationForm")!.GetAttribute("data-location-detail")!);
                 Assert.Equal(observed.GetProperty("record").GetProperty("eventUtc").GetString(), embedded.GetProperty("locationMutation").GetProperty("baseValues").GetProperty("eventUtc").GetProperty("value").GetString());

@@ -208,7 +208,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// </summary>
         /// <param name="id">The ID of the location to edit.</param>
         /// <returns>The Edit view with the location data.</returns>
-        [HttpGet]
+        [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Edit(int id, string? returnUrl = null)
         {
             string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
