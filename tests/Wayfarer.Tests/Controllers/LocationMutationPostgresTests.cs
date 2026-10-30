@@ -32,12 +32,18 @@ public sealed partial class LocationMutationPostgresTests(PostgresMigrationTestF
     public async Task SelectedOriginalsAndInvalidActivityAreAtomic()
     {
         var (owner, credential, id) = await SeedAsync();
+        int activityId;
+        await using (var catalog = fixture.CreateContext())
+        {
+            var selected = new ActivityType { Name = "Protected activity " + Guid.NewGuid().ToString("N") };
+            catalog.Add(selected); await catalog.SaveChangesAsync(); activityId = selected.Id;
+        }
         await WithHostAsync(credential, async client =>
         {
             var detail = await ProtectedLocationRequest.DetailAsync(client, id);
             var first = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "set", html = "N1" } }, detail: detail);
             var stale = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "clear" } }, detail: detail);
-            var activity = await ProtectedLocationRequest.CreateAsync(client, id, new { activity = new { op = "clear" } }, detail: detail);
+            var activity = await ProtectedLocationRequest.CreateAsync(client, id, new { activity = new { op = "set", id = activityId } }, detail: detail);
             await AssertStateAsync(await first.SendAsync(client), 200, "applied");
             var rejection = await AssertStateAsync(await stale.SendAsync(client), 409, "rejected", "locationBaseStale");
             Assert.Equal("notesHtml", Assert.Single(rejection.GetProperty("staleGroups").EnumerateArray()).GetString());
@@ -46,7 +52,7 @@ public sealed partial class LocationMutationPostgresTests(PostgresMigrationTestF
             await AssertStateAsync(await invalid.SendAsync(client), 422, "rejected", "activityInvalid");
             await using var db = fixture.CreateContext();
             var row = await db.Locations.SingleAsync(row => row.Id == id);
-            Assert.Equal(RichNotes.Normalize("N1"), row.Notes); Assert.Null(row.ActivityTypeId);
+            Assert.Equal(RichNotes.Normalize("N1"), row.Notes); Assert.Equal(activityId, row.ActivityTypeId);
             Assert.Equal(4, await db.LocationMutationOperations.CountAsync(row => row.UserId == owner));
         });
     }
