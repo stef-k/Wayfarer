@@ -94,6 +94,7 @@ export const retainLocationDraft = (id, draft) => {
 export const saveLocationMutation = async (id, detail, kind, changes, expected, draft = {}) => {
     if (!navigator.locks) throw new Error('This browser cannot safely save this draft. Keep it open in a supported browser.');
     return navigator.locks.request(partition(id), async () => {
+        await validateLocationWork(id, locationWork(id));
         const generation = retainLocationDraft(id, { kind, changes, expected, detail, draft });
         let state = locationWork(id);
         let attempt = state.attempts.find(item => item.actionId === state.active);
@@ -102,6 +103,11 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
             if (settled) return acceptResponse(id, state, settled, settled.receipt);
         }
         let renewedDetail = null;
+        if (attempt?.mayHaveAttempted === false) {
+            // The persisted pre-handoff fence proves this body never left this browser.
+            attempt.cancelledBeforeHandoff = true; retainAttempt(id, attempt);
+            state = locationWork(id); state.active = null; persist(id, state); attempt = null;
+        }
         if (attempt) {
             const recovered = await inspectAttempt(id, state, attempt, true);
             if (recovered.excluded) {
@@ -239,4 +245,28 @@ const selectedSimpleStateSatisfied = (changes, expected, values) => {
         const desired = change.op === 'clear' ? null : change.html ?? change.id ?? change.value;
         return sameValue(desired, values[group].value);
     });
+};
+
+/** Missing/corrupt local bindings are recovery debt, never permission to send a new or altered command. */
+const validateLocationWork = async (id, state) => {
+    const fail = () => { throw new Error('Saved command evidence is unavailable or inconsistent. Keep your draft; no save was sent.'); };
+    if (!Array.isArray(state.attempts) || state.active && !state.attempts.some(item => item.actionId === state.active)) fail();
+    for (const attempt of state.attempts) {
+        if (attempt.id !== id || attempt.subjectId !== subject() || !['owner', 'web-edit'].includes(attempt.adapter)
+            || typeof attempt.body !== 'string' || typeof attempt.mayHaveAttempted !== 'boolean') fail();
+        let body;
+        try { body = JSON.parse(attempt.body); } catch { fail(); }
+        if (body.contract !== contract || body.normalization !== normalization || body.adapter !== attempt.adapter
+            || body.baseHandle !== attempt.baseHandle || body.kind !== attempt.kind
+            || body.expected?.uuid?.state !== 'known' || body.expected.uuid.value !== attempt.uuid
+            || await locationRequestFingerprint(attempt.subjectId, id, attempt.baseId, attempt.actionId, attempt.adapter, attempt.body) !== attempt.fingerprint) fail();
+        if (attempt.receipt && !validateLocationReceipt(attempt.receipt, attempt)) fail();
+        if (attempt.cancelledBeforeHandoff && attempt.mayHaveAttempted !== false) fail();
+        const exclusion = attempt.exclusion;
+        if (exclusion && !(exclusion.contract === contract && exclusion.subjectId === attempt.subjectId && exclusion.locationId === id
+            && exclusion.baseId === attempt.baseId && exclusion.actionId === attempt.actionId && exclusion.state === 'unknown'
+            && exclusion.code === 'operationHistoryExpired' && exclusion.futureEffects === false && exclusion.historicalOutcome === 'unknown'
+            && exclusion.expiresAtUtc === attempt.expiresAtUtc && Date.parse(exclusion.observedAtUtc) >= Date.parse(exclusion.expiresAtUtc))) fail();
+        if (attempt.mayHaveAttempted && attempt.receipt?.futureEffects !== false && !exclusion && state.active !== attempt.actionId) fail();
+    }
 };

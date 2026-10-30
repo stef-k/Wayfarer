@@ -151,3 +151,28 @@ test('receipt loss re-admits unchanged originals with fresh authority, or labels
         assert.equal(locationWork(421).attempts[0].exclusion.historicalOutcome, 'unknown');
     }
 });
+
+test('corrupt immutable bytes or a missing active binding prevent any new handoff', async () => {
+    for (const missingActive of [false, true]) {
+        const storage = new Map();
+        globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+        globalThis.sessionStorage = { getItem: key => storage.get(`s:${key}`), setItem: (key, value) => storage.set(`s:${key}`, value) };
+        globalThis.location = { origin: 'https://wayfarer.test' };
+        globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'owner-a' } }), querySelector: () => ({ value: 'csrf' }) };
+        Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
+        const known = value => ({ state: 'known', value });
+        const detail = { subjectId: 'owner-a', record: { locationId: 421 }, locationMutation: { contract: 'location-mutation-1', normalization: 'location-values-1',
+            baseId: base, baseHandle: 'H', expiresAtUtc: '2099-01-01T00:00:00Z', originalCreateAddressPublication: 'closed', baseValues: { uuid: known(null), notesHtml: known(null) } } };
+        let calls = 0;
+        globalThis.fetch = async () => { calls++; throw new Error('offline'); };
+        const args = [421, detail, 'update', { notes: { op: 'clear' } }, { uuid: known(null), notesHtml: known(null) }];
+        await saveLocationMutation(...args);
+        const key = [...storage.keys()].find(key => key.includes('https://wayfarer.test'));
+        const saved = JSON.parse(storage.get(key));
+        if (missingActive) saved.active = crypto.randomUUID(); else saved.attempts[0].body += '\n';
+        storage.set(key, JSON.stringify(saved));
+        const before = calls;
+        await assert.rejects(saveLocationMutation(...args), /Saved command evidence/);
+        assert.equal(calls, before);
+    }
+});
