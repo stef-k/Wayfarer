@@ -231,3 +231,129 @@ test('per-record deletion requires informed fresh consent after rejection and ke
         }
     }
 });
+
+
+/** Review-only: mount the shipped form with the existing suite's narrow storage/fetch doubles. */
+const reviewForm = async (zone = 'Europe/Athens') => {
+    const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
+    const storage = new Map();
+    globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+    globalThis.sessionStorage = { getItem: key => storage.get(`s:${key}`), setItem: (key, value) => storage.set(`s:${key}`, value) };
+    let reloads = 0;
+    globalThis.location = { origin: 'https://wayfarer.test', reload: () => { reloads++; } };
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request: async (_key, run) => run() } } });
+    const known = value => ({ state: 'known', value });
+    const detail = { subjectId: 'owner-a', record: { locationId: 421, activityTypeId: 7 }, locationMutation: {
+        contract: 'location-mutation-1', normalization: 'location-values-1', baseId: base, baseHandle: 'H',
+        expiresAtUtc: '2099-01-01T00:00:00Z', originalCreateAddressPublication: 'closed',
+        baseValues: { uuid: known(null), notesHtml: known('original'), eventUtc: known('2026-10-29T08:00:00Z'), activityTypeId: known(7) } } };
+    const names = ['Latitude', 'Longitude', 'Altitude', 'SelectedActivityId', 'LocalTimestamp', 'Address', 'FullAddress', 'AddressNumber', 'StreetName', 'PostCode', 'Place', 'Region', 'Country'];
+    const fields = Object.fromEntries(names.map(name => [name, { value: '' }]));
+    Object.assign(fields.Latitude, { value: '37.98' }); Object.assign(fields.Longitude, { value: '23.72' });
+    fields.LocalTimestamp.value = '2026-10-29T10:00:00'; fields.SelectedActivityId.value = '7';
+    const status = { textContent: '' }, listeners = {}, quillListeners = {}, button = { disabled: false };
+    const elements = { 'browser-antiforgery': { dataset: { subjectId: 'owner-a' } }, 'location-save-status': status,
+        timeAmbiguity: { value: '' }, 'location-adopt-current': { addEventListener: () => {} } };
+    globalThis.document = { getElementById: id => elements[id], querySelector: () => ({ value: 'csrf' }),
+        createElement: () => ({ innerHTML: '', content: { querySelectorAll: () => [] } }) };
+    const form = { dataset: { locationId: '421', locationDetail: JSON.stringify(detail), timeZone: zone },
+        elements: { namedItem: name => fields[name] }, querySelectorAll: () => [button],
+        addEventListener: (type, callback) => { (listeners[type] ||= []).push(callback); } };
+    const quill = { root: { innerHTML: 'original' }, on: (type, callback) => { quillListeners[type] = callback; } };
+    let clear = false;
+    const mount = () => mountProtectedLocationForm(form, quill, () => clear);
+    return { detail, form, fields, status, mount, storage, reloads: () => reloads,
+        input: () => listeners.input.at(-1)({ target: { name: 'LocalTimestamp' } }),
+        submit: () => listeners.submit.at(-1)({ preventDefault: () => {} }),
+        type: html => { quill.root.innerHTML = html; quillListeners['text-change']({}, {}, 'user'); },
+        clear: () => { clear = true; quill.root.innerHTML = '<p><br></p>'; quillListeners['text-change']({}, {}, 'api'); } };
+};
+
+test('REVIEW: a newer toolbar Clear survives an older applied acknowledgement', async () => {
+    const f = await reviewForm(); f.mount(); f.type('older edit');
+    let release, handedOff;
+    const sent = new Promise(resolve => { handedOff = resolve; });
+    globalThis.fetch = async (url, options) => {
+        if (options.method === 'POST') {
+            handedOff(); await new Promise(resolve => { release = resolve; });
+            const state = locationWork(421); return { json: async () => receipt(state.attempts[0]) };
+        }
+        return { ok: true, json: async () => f.detail };
+    };
+    const saving = f.submit(); await sent;
+    f.clear(); release(); await saving;
+    assert.equal(f.reloads(), 0, 'an older acknowledgement must not reload away the newer explicit Clear');
+    assert.equal(locationWork(421).draft.value.clearNotes, true);
+});
+
+test('REVIEW: reload retains the edit-start wall-time zone after a remote coordinate-only change', async () => {
+    const f = await reviewForm(); f.mount();
+    f.fields.LocalTimestamp.value = '2026-10-29T11:00:00'; f.input();
+    // The new GET legitimately renders the current row at New York coordinates; stored capture UTC is unchanged.
+    f.form.dataset.timeZone = 'America/New_York'; f.mount();
+    let posted;
+    globalThis.fetch = async (url, options) => {
+        if (options.method === 'POST') {
+            posted = JSON.parse(options.body);
+            const state = locationWork(421); return { json: async () => receipt(state.attempts[0]) };
+        }
+        return { ok: true, json: async () => f.detail };
+    };
+    await f.submit();
+    assert.equal(posted.changes.eventUtc.value, '2026-10-29T09:00:00Z', 'the draft was authored in Athens, irrespective of the reloaded row zone');
+});
+
+test('REVIEW: reopening inline Activity restores the retained desired selection', async () => {
+    const f = await reviewForm();
+    globalThis.fetch = async () => { throw new Error('offline'); };
+    await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } },
+        { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } }, { activityDetail: f.detail });
+    const { setupActivityEditorEvents } = await import('../../wwwroot/js/util/activity-editor.js');
+    let click, selected;
+    const select = { dataset: {}, tomselect: { addOption: () => {}, setValue: value => { selected = value; } } };
+    globalThis.TomSelect = function () {};
+    const editor = { dataset: { locationId: '421' }, querySelector: () => ({ classList: { toggle: () => {} } }) };
+    const target = { closest: selector => selector === '.activity-edit-toggle' ? { closest: () => editor } : null };
+    globalThis.document.querySelector = () => ({ addEventListener: (_type, handler) => { click = handler; } });
+    const oldGet = document.getElementById;
+    document.getElementById = id => id === 'activitySelect-421' ? select : oldGet(id);
+    setupActivityEditorEvents('#modal');
+    await click({ target, preventDefault: () => {} });
+    assert.equal(selected, '9', 'the retained desired Activity must be restored, rather than its original 7');
+});
+
+test('REVIEW: malformed acknowledgement timestamps cannot settle an otherwise bound action', async () => {
+    const f = await reviewForm();
+    globalThis.fetch = async (url, options) => {
+        if (options.method === 'POST') {
+            const state = locationWork(421);
+            return { json: async () => ({ ...receipt(state.attempts[0]), completedAtUtc: ['2026-10-30'] }) };
+        }
+        return { ok: true, json: async () => f.detail };
+    };
+    const result = await saveLocationMutation(421, f.detail, 'update', { notes: { op: 'clear' } },
+        { uuid: { state: 'known', value: null }, notesHtml: { state: 'known', value: 'original' } });
+    assert.equal(result.success, false, 'the malformed array timestamp must leave the action Unknown');
+});
+
+
+test('REVIEW: a second inline Activity save uses the baseline from the first successful save', async () => {
+    const f = await reviewForm();
+    const fresh = structuredClone(f.detail);
+    fresh.record.activityTypeId = 9; fresh.locationMutation.baseValues.activityTypeId.value = 9;
+    const posts = [];
+    globalThis.fetch = async (url, options) => {
+        if (options.method === 'POST') {
+            posts.push(JSON.parse(options.body));
+            const state = locationWork(421); const active = state.attempts.find(item => item.actionId === state.active);
+            return { json: async () => receipt(active) };
+        }
+        return { ok: true, json: async () => fresh };
+    };
+    const expected = { uuid: { state: 'known', value: null }, activityTypeId: { state: 'known', value: 7 } };
+    const first = await saveLocationMutation(421, f.detail, 'update', { activity: { op: 'set', id: 9 } }, expected, { activityDetail: f.detail });
+    assert.equal(first.success, true);
+    const { updateLocationActivity } = await import('../../wwwroot/js/util/activity-editor.js');
+    await updateLocationActivity(421, 11);
+    assert.equal(posts[1].expected.activityTypeId.value, 9, 'a settled old draft must not override the fresh Activity baseline');
+});
