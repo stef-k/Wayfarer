@@ -188,15 +188,15 @@ public class ApiLocationAdmissionTests : TestBase
 
     /// <summary>Location mutation bearer branches gain the same inactive-user 401 before ownership lookup.</summary>
     [Fact]
-    public async Task InactivePutAndDeleteAreUnauthorized()
+    public async Task RetiredPutAndDeleteCannotWriteForInactiveAccounts()
     {
         var db = CreateDbContext();
         var user = Seed(db);
         user.IsActive = false;
         await db.SaveChangesAsync();
         var controller = Controller(db, new ApiWorkAdmission(64, 8));
-        Assert.IsType<UnauthorizedObjectResult>(await controller.Delete(999));
-        Assert.IsType<UnauthorizedObjectResult>(await controller.Update(999, new LocationUpdateRequestDto()));
+        Assert.Equal(428, Assert.IsType<ObjectResult>(await controller.Delete(999)).StatusCode);
+        Assert.Equal(428, Assert.IsType<ObjectResult>(await controller.Update(999, new LocationUpdateRequestDto())).StatusCode);
     }
 
     /// <summary>Simulates a transient upstream failure without contacting a real provider.</summary>

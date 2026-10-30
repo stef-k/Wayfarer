@@ -139,13 +139,18 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
         Require(value.EnumerateObject().Select(field => field.Name).Order().SequenceEqual(names.Order()));
     }
 
+    /// <summary>Stops invalid structural input before it can acquire execution authority.</summary>
     internal static void Require(bool valid) { if (!valid) throw new MutationProtocolException("mutationInvalid"); }
+    /// <summary>Decodes scalar text without normalizing its observed value.</summary>
     internal static string Text(JsonElement value)
     { Require(value.ValueKind == JsonValueKind.String); var text = value.GetString()!; Require(ActivityCatalog.CanTransport(text)); return text; }
     private static void NullableText(JsonElement value) { if (value.ValueKind != JsonValueKind.Null) Text(value); }
+    /// <summary>Requires canonical lowercase hyphenated identity.</summary>
     internal static Guid Uuid(string value) { Require(Guid.TryParseExact(value, "D", out var id) && id.ToString("D") == value); return id; }
+    /// <summary>Requires finite round-tripped binary64 JSON numbers.</summary>
     internal static double Number(JsonElement value)
     { Require(value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number) && double.IsFinite(number)); return value.GetDouble(); }
+    /// <summary>Validates a complete finite WGS84 pair, including zero.</summary>
     private static void Position(JsonElement value) => Require(ReverseGeocodingService.HasValidCoordinates(Number(value.GetProperty("latitude")), Number(value.GetProperty("longitude"))));
 
     /// <summary>Matches Npgsql's toward-zero microsecond conversion, including instants before the PostgreSQL epoch.</summary>
@@ -168,6 +173,7 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
         hash.AppendData(count); hash.AppendData(bytes);
     }
 
+    /// <summary>Hashes the immutable seven-frame authenticated request binding.</summary>
     internal static string Fingerprint(string owner, int id, Guid baseId, Guid actionId, string adapter, byte[] body)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

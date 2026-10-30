@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.ComponentModel.DataAnnotations;
 
@@ -34,11 +34,6 @@ namespace Wayfarer.Models.ViewModels
         [MaxLength(500)] public string? Place { get; set; }
         [MaxLength(500)] public string? Region { get; set; }
         [MaxLength(500)] public string? Country { get; set; }
-
-        /// <summary>Provider tuple shown by GET and used to reject stale provider publication on POST.</summary>
-        [MaxLength(24)] public string? OriginalReverseGeocodingProvider { get; set; }
-        [MaxLength(16)] public string? OriginalReverseGeocodingStorageMode { get; set; }
-        public DateTimeOffset? OriginalReverseGeocodedAt { get; set; }
 
         /// <summary>Read-only detected provider feature displayed alongside editable address values.</summary>
         /// <summary>Server-owned Location presentation metadata, separate from posted concurrency tokens.</summary>

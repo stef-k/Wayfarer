@@ -42,10 +42,6 @@
                     </details>
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ReturnUrl" />
-                    <input type="hidden" asp-for="OriginalReverseGeocodingProvider" />
-                    <input type="hidden" asp-for="OriginalReverseGeocodingStorageMode" />
-                    @* Preserve publication precision for the exact concurrency comparison. *@
-                    <input type="hidden" asp-for="OriginalReverseGeocodedAt" asp-format="{0:O}" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
                         <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>

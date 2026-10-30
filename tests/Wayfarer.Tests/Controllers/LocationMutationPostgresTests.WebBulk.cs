@@ -1,4 +1,5 @@
 using System.Net;
+using AngleSharp.Html.Parser;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,14 @@ public sealed partial class LocationMutationPostgresTests
             await UseCookieAsync(client, owner);
             var observed = await ProtectedLocationRequest.DetailAsync(client, id);
             Assert.Equal("original", observed.GetProperty("record").GetProperty("notesHtml").GetString());
+            using (var page = await client.GetAsync($"/User/Location/Edit/{id}"))
+            {
+                Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+                var html = await new HtmlParser().ParseDocumentAsync(await page.Content.ReadAsStringAsync());
+                var embedded = JsonSerializer.Deserialize<JsonElement>(html.QuerySelector("#locationForm")!.GetAttribute("data-location-detail")!);
+                Assert.Equal(observed.GetProperty("record").GetProperty("eventUtc").GetString(), embedded.GetProperty("locationMutation").GetProperty("baseValues").GetProperty("eventUtc").GetProperty("value").GetString());
+                Assert.EndsWith(".000000", html.QuerySelector("#LocalTimestamp")!.GetAttribute("value"));
+            }
             var edit = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "set", html = "N1" },
                 position = new { op = "set", latitude = 40.7, longitude = -74.0 }, manualAddress = new { op = "set", fields = new { place = "  My place  ", country = (string?)null } } }, "web-edit", observed);
             var result = await AssertStateAsync(await edit.SendAsync(client), 200, "applied");

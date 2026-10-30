@@ -73,7 +73,7 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
                 if (proof is { Uuid: null })
                 {
                     await using var fence = await LocationDeletionFence.BeginAsync(db, user.Id, token);
-                    if (await db.Users.AsNoTracking().AnyAsync(row => row.Id == user.Id && row.IsActive, token)
+                    if (await LocationMutationAuthority.RevalidateAsync(HttpContext, db, user.Id, token)
                         && !await db.Locations.AnyAsync(row => row.Id == id.Value, token))
                         return StatusCode(404, new { contract = "location-target-absence-1", subjectId = user.Id, locationId = id.Value,
                             uuid = (Guid?)null, baseId = proof.BaseId, state = "absent", observedAtUtc = await LocationMutationService.NowAsync(db, token) });

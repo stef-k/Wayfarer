@@ -146,7 +146,8 @@ public sealed class MapboxGeocodingCorrectionTests
     {
         var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Areas", "Api", "Controllers", "LocationController.cs"));
 
-        Assert.Equal(3, source.Split("catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)").Length - 1);
+        // The two ingestion handlers retain request cancellation; unconditional PUT has been retired.
+        Assert.Equal(2, source.Split("catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)").Length - 1);
     }
 
     private static ReverseGeocodingService CreateParser(string json) => new(

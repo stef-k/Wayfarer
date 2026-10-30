@@ -264,3 +264,21 @@ removed by this job. Cleanup eligibility, queryable attribution removal, vacuum,
 reuse and filesystem reclamation are distinct; arrivals/busy owners/outages can
 grow backlog and disk indefinitely. Defaults are not capacity guarantees and never
 limit the age of phone captures, drafts, deletes or pending work.
+
+## Outcome codes
+
+| HTTP / code | Meaning |
+| --- | --- |
+| 200 applied | Correlated committed action/no-op; fresh detail is separate |
+| 202 pending | Matching reserved first executor, future effects still possible |
+| 409 locationBaseStale | Correlated selected-original rejection; stale group names only |
+| 409 operationIdentityReused | This invocation differs; recover the original separately |
+| 422 mutationInvalid / activityInvalid / baseUnavailable / baseNormalizationUnsupported | Atomic validation rejection; malformed/unscoped bodies cannot claim a receipt |
+| 410 locationDeleted | Affirmative owner/key marker; does not attribute this action as deleter |
+| 404 locationUnavailable | Nonleaking missing/foreign/keyless target; no absence attribution |
+| 409 operationExecutionExpired | Fixed deadline rejection; no late executor publication |
+| 410 operationExpired on POST | Execution forbidden; missing historical evidence stays Unknown |
+| 200 unknown on GET | Observation with explicitly true/false/null future effects |
+| 428 protectedMutationRequired | Retired unsafe route/body refused |
+| 401 mutationAuthenticationRequired / 403 mutationForbidden or antiforgeryInvalid | Hold work; does not settle an older attempt |
+| 429 mutationBusy / 503 mutationOutcomeUnknown / malformed, transport or 5xx | Preserve uncertainty without an independently valid terminal receipt |

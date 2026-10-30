@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
@@ -40,9 +41,11 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
             await db.Database.MigrateAsync();
             await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
             {
+                services.RemoveAll<ApplicationDbContext>();
+                services.AddScoped(_ => fixture.CreateContext());
                 services.AddControllers().AddControllersAsServices();
-                services.AddTransient(_ => ApiLocationAdmissionTests.Controller(db, new ApiWorkAdmission(64, 8)));
-                services.AddTransient(_ => new OwnerLocationController(NullLogger<BaseController>.Instance, db,
+                services.AddTransient(provider => ApiLocationAdmissionTests.Controller(provider.GetRequiredService<ApplicationDbContext>(), new ApiWorkAdmission(64, 8)));
+                services.AddTransient(provider => new OwnerLocationController(NullLogger<BaseController>.Instance, provider.GetRequiredService<ApplicationDbContext>(),
                     new ReverseGeocodingService(new HttpClient(), NullLogger<Wayfarer.Areas.Api.Controllers.BaseApiController>.Instance),
                     new SseService(), new NullPlaceVisitDetectionService()));
             });
@@ -84,24 +87,27 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
             Assert.Equal(2, await db.Locations.CountAsync());
             Assert.Equal(101, await StoredActivityAsync(checkId));
             client.DefaultRequestHeaders.Remove("Idempotency-Key");
-            foreach (var (payload, expected) in new (LocationUpdateRequestDto, int?)[]
+            foreach (var requestedId in new[] { 102, 101, int.MaxValue })
             {
-                (new() { ActivityTypeId = 102 }, 101), (new(), 101),
-                (new() { ActivityTypeId = 101 }, 101),
-                (new() { ActivityTypeId = -1, ActivityName = "\u00a0ΠΕΖΟΠΟΡΙ\u0301Α " }, 104),
-                (new() { ActivityTypeId = int.MaxValue }, null), (new() { ActivityTypeId = -1 }, null),
-                (new() { ActivityTypeId = 102, ClearActivity = true }, null),
-                (new(), null), (new() { ActivityTypeId = 102 }, 101)
-            })
-            {
-                using var put = await client.PutAsJsonAsync($"/api/location/{checkId}", payload);
-                put.EnsureSuccessStatusCode();
-                Assert.Contains("success", await put.Content.ReadAsStringAsync());
-                Assert.Equal(expected, await StoredActivityAsync(checkId));
+                var command = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "set", id = requestedId } });
+                using var written = await command.SendAsync(client);
+                Assert.Equal(requestedId == int.MaxValue ? HttpStatusCode.UnprocessableEntity : HttpStatusCode.OK, written.StatusCode);
+                var receipt = await written.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.Equal(requestedId == int.MaxValue ? "rejected" : "applied", receipt.GetProperty("state").GetString());
+                Assert.Equal(101, await StoredActivityAsync(checkId));
             }
+            var onlyNotes = await ProtectedLocationRequest.CreateAsync(client, checkId, new { notes = new { op = "set", html = "only Notes" } });
+            using (var unchanged = await onlyNotes.SendAsync(client)) unchanged.EnsureSuccessStatusCode();
+            Assert.Equal(101, await StoredActivityAsync(checkId));
+            var clear = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "clear" } });
+            using (var cleared = await clear.SendAsync(client)) cleared.EnsureSuccessStatusCode();
+            Assert.Null(await StoredActivityAsync(checkId));
+            var restore = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "set", id = 102 } });
+            using (var restored = await restore.SendAsync(client)) restored.EnsureSuccessStatusCode();
+            var foreignCommand = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "clear" } });
             client.DefaultRequestHeaders.Authorization = new("Bearer", other.Id);
-            using var forbidden = await client.PutAsJsonAsync($"/api/location/{checkId}", new LocationUpdateRequestDto { ClearActivity = true });
-            Assert.Equal(HttpStatusCode.NotFound, forbidden.StatusCode);
+            using var forbidden = await foreignCommand.SendAsync(client);
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, forbidden.StatusCode);
             Assert.Equal(101, await StoredActivityAsync(checkId));
 
             client.DefaultRequestHeaders.Authorization = null;
@@ -111,14 +117,15 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
             var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
             client.DefaultRequestHeaders.Remove("Cookie");
             client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
-            using var cookiePut = new HttpRequestMessage(HttpMethod.Put, $"/api/location/{checkId}")
-            { Content = JsonContent.Create(new LocationUpdateRequestDto { ActivityTypeId = 102 }) };
-            cookiePut.Headers.Add("RequestVerificationToken", antiforgery);
-            using var cookieResult = await client.SendAsync(cookiePut);
+            client.DefaultRequestHeaders.Add("RequestVerificationToken", antiforgery);
+            var cookieCommand = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "set", id = 102 } });
+            using var cookieResult = await cookieCommand.SendAsync(client);
             cookieResult.EnsureSuccessStatusCode();
             Assert.Equal(101, await StoredActivityAsync(checkId));
-            using var noCsrf = await client.PutAsJsonAsync($"/api/location/{checkId}", new LocationUpdateRequestDto { ClearActivity = true });
-            Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
+            client.DefaultRequestHeaders.Remove("RequestVerificationToken");
+            var noToken = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "clear" } });
+            using var noCsrf = await noToken.SendAsync(client);
+            Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
             var fields = new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = antiforgery, ["Latitude"] = "10", ["Longitude"] = "20",
@@ -130,7 +137,7 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
             Assert.Equal(101, await StoredActivityAsync(webId));
             fields["Id"] = webId.ToString();
             using var edit = await client.PostAsync("/User/Location/Edit", new FormUrlEncodedContent(fields));
-            Assert.Equal(HttpStatusCode.Redirect, edit.StatusCode);
+            Assert.Equal(HttpStatusCode.PreconditionRequired, edit.StatusCode);
             Assert.Equal(101, await StoredActivityAsync(webId));
             Assert.Equal(101, await new ActivityCatalog(db).ResolveIdAsync(102));
         }

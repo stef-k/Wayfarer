@@ -65,17 +65,7 @@ public sealed class LocationMutationController(ApplicationDbContext db, ILogger<
     /// <summary>Revalidates active account, cookie stamp or incoming token while holding final transaction locks.</summary>
     private LocationMutationService Service(string owner) => new(_dbContext, protection, reverse, cache)
     {
-        Authorized = async token =>
-        {
-            var account = await _dbContext.Users.FromSqlInterpolated($$"""
-                SELECT * FROM "AspNetUsers" WHERE "Id" = {{owner}} FOR SHARE
-                """).AsNoTracking().SingleOrDefaultAsync(token);
-            if (account is not { IsActive: true }) return false;
-            if (User.Identity?.IsAuthenticated != true)
-                return await IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext).RevalidateMutationAsync(HttpContext, owner, token);
-            var stamp = User.FindFirstValue("AspNet.Identity.SecurityStamp");
-            return !string.IsNullOrEmpty(stamp) && stamp == account.SecurityStamp;
-        }
+        Authorized = token => LocationMutationAuthority.RevalidateAsync(HttpContext, _dbContext, owner, token)
     };
 
     /// <summary>Correlated terminal rejections retain their full envelope and problem media type.</summary>

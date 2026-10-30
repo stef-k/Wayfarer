@@ -275,8 +275,6 @@ namespace Wayfarer.Areas.User.Controllers
                     Place = location.Place,
                     Region = location.Region,
                     Country = location.Country,
-                    OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider, OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
-                    OriginalReverseGeocodedAt = location.ReverseGeocodedAt,
                 };
 
                 LocationManualAddressEdit.RestoreServerFields(viewModel, location);
