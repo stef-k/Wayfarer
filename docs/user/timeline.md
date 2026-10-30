@@ -70,7 +70,14 @@ Moving a point preserves the exact capture instant and updates the local display
 for the new zone. Explicit time editing uses the zone shown when the form opened;
 the draft keeps that zone and its chosen daylight-saving occurrence across reloads,
 even if another writer moves the point. Choose an occurrence for an ambiguous
-daylight-saving time. Moving also discards
+daylight-saving time. If a retained draft says its time zone is unavailable,
+review or re-enter **Local Date and Time**, choose the earlier/later occurrence
+when needed, and enter the intended zone (for example, `Europe/Athens` or `UTC`).
+Choose **Review time and zone** and confirm the displayed local time, zone and UTC
+instant. Confirmation retains this interpretation before Save; earlier uncertain
+actions still need recovery. Cancel keeps the retained draft and sends nothing.
+If you have not changed the time, you can save Notes and other fields without
+confirming a zone. Moving also discards
 obsolete address information and attempts one authorized replacement. Optional
 lookup failure still saves valid coordinates. Explicit manual components, including
 Clear, win over lookup results. Manual-only address editing makes no provider call.

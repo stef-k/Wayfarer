@@ -1,6 +1,6 @@
 import { notesHtmlForDisplay, notesHtmlForSave } from './notes-images.js';
 import { locationWork, retainLocationDraft, saveLocationMutation, readLocationDetail, adoptLocationOriginals } from './location-mutation.js';
-import { locationEditCommand } from './location-edit-state.js';
+import { locationEditCommand, locationWallTimeUtc } from './location-edit-state.js';
 
 /** Connects the actual Web form to dirty originals, durable drafts, immutable attempts and visible conflict recovery. */
 export const mountProtectedLocationForm = (form, quill, clearNotes) => {
@@ -41,17 +41,38 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     }
     const timeZoneLabel = document.getElementById('location-input-time-zone');
     if (timeZoneLabel) timeZoneLabel.textContent = inputTimeZone || 'unavailable for this retained draft';
+    const timeRecovery = document.getElementById('location-time-recovery');
+    const recoveryZone = document.getElementById('location-recovery-zone');
+    if (timeRecovery) timeRecovery.hidden = !!inputTimeZone;
     const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: clearNotes() || restoredClear,
         detail, inputTimeZone, timeAmbiguity: timeAmbiguity.value });
     const retain = () => {
         try { retainLocationDraft(id, draft()); }
         catch (error) { status.textContent = `Not saved locally: ${error.message}`; }
     };
+    // Only explicit confirmation supplies a missing interpretation; it never replaces originals or old attempts.
+    document.getElementById('location-confirm-time-zone')?.addEventListener('click', () => {
+        if (inputTimeZone) return;
+        try {
+            const zone = recoveryZone.value.trim();
+            if (!zone) throw new Error('Enter a time zone such as Europe/Athens or UTC.');
+            const reviewed = { ...draft(), inputTimeZone: zone };
+            const instant = locationWallTimeUtc(reviewed.current.LocalTimestamp, zone, reviewed.timeAmbiguity);
+            if (!confirm(`Confirm this time interpretation?\nLocal time: ${reviewed.current.LocalTimestamp}\nTime zone: ${zone}\nDST occurrence: ${reviewed.timeAmbiguity || 'not ambiguous'}\nUTC instant: ${instant}\nYour other edits are kept. Save still checks any earlier uncertain action.`)) return;
+            // Persist the new desired generation before enabling time submission, including after reload.
+            retainLocationDraft(id, reviewed);
+            inputTimeZone = zone;
+            timeZoneLabel.textContent = zone;
+            timeRecovery.hidden = true;
+            status.textContent = 'Time and zone confirmed and retained. Save checks any earlier uncertain action before submitting.';
+        } catch (error) { status.textContent = error.message; }
+    });
     form.addEventListener('input', event => {
+        if (event.target === recoveryZone) return;
         if (['Address', 'FullAddress', 'AddressNumber', 'StreetName', 'PostCode', 'Place', 'Region', 'Country'].includes(event.target.name)) manual.add(event.target.name);
         retain();
     });
-    form.addEventListener('change', retain);
+    form.addEventListener('change', event => { if (event.target !== recoveryZone) retain(); });
     quill.on('text-change', () => {
         // Toolbar Clear and image insertion use Quill's API source, but are still new user intent.
         restoredClear = false; retain();
@@ -63,7 +84,7 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         const returnAfterSave = event.submitter?.value === 'return';
         try {
             if (input('LocalTimestamp').value !== initial.LocalTimestamp && !inputTimeZone)
-                throw new Error('This retained draft has no input time zone. Keep its time for review before saving.');
+                throw new Error('The saved time’s zone is unavailable. Review the local time and DST occurrence, enter its time zone below, then choose Review time and zone.');
             const selection = locationEditCommand(initial, values(), [...manual], clearNotes() || restoredClear, inputTimeZone, timeAmbiguity.value);
             if (!Object.keys(selection.changes).length) { status.textContent = 'No changes selected.'; return; }
             const expected = Object.fromEntries(selection.groups.map(group => [group, detail.locationMutation.baseValues[group]]));

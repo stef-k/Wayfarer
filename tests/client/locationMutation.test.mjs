@@ -253,9 +253,12 @@ const mountedForm = async (zone = 'Europe/Athens') => {
     const fields = Object.fromEntries(names.map(name => [name, { value: '' }]));
     Object.assign(fields.Latitude, { value: '37.98' }); Object.assign(fields.Longitude, { value: '23.72' });
     fields.LocalTimestamp.value = '2026-10-29T10:00:00'; fields.SelectedActivityId.value = '7';
-    const status = { textContent: '' }, listeners = {}, quillListeners = {}, button = { disabled: false };
+    const status = { textContent: '' }, listeners = {}, quillListeners = {}, clicks = {}, button = { disabled: false };
+    globalThis.confirm = () => true;
     const elements = { 'browser-antiforgery': { dataset: { subjectId: 'owner-a' } }, 'location-save-status': status,
-        timeAmbiguity: { value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} } };
+        timeAmbiguity: { value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} },
+        'location-time-recovery': { hidden: true }, 'location-recovery-zone': { value: '' },
+        'location-confirm-time-zone': { addEventListener: (_type, callback) => { clicks.confirmZone = callback; } } };
     globalThis.document = { getElementById: id => elements[id], querySelector: () => ({ value: 'csrf' }),
         createElement: () => ({ innerHTML: '', content: { querySelectorAll: () => [] } }) };
     const form = { dataset: { locationId: '421', locationDetail: JSON.stringify(detail), timeZone: zone },
@@ -270,11 +273,134 @@ const mountedForm = async (zone = 'Europe/Athens') => {
         clear = false; mountProtectedLocationForm(form, quill, () => clear);
     };
     return { detail, form, fields, status, quill, elements, listeners, quillListeners, mount, storage, reloads: () => reloads,
+        confirmZone: () => clicks.confirmZone(),
         input: () => listeners.input.at(-1)({ target: { name: 'LocalTimestamp' } }),
         submit: () => listeners.submit.at(-1)({ preventDefault: () => {} }),
         type: html => { quill.root.innerHTML = html; quillListeners['text-change']({}, {}, 'user'); },
         clear: () => { clear = true; quill.root.innerHTML = '<p><br></p>'; quillListeners['text-change']({}, {}, 'api'); } };
 };
+
+test('missing-zone time recovery explicitly confirms and retains the intended instant before saving after reload', async () => {
+    const f = await mountedForm(); f.mount();
+    f.fields.LocalTimestamp.value = '2026-10-25T03:30:00.123456'; f.input(); f.type('retained Notes');
+    const missing = structuredClone(locationWork(421).draft.value); delete missing.inputTimeZone;
+    retainLocationDraft(421, missing);
+    const before = locationWork(421).draft;
+    f.form.dataset.timeZone = 'America/New_York'; f.mount();
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; throw new Error('No dispatch before Save'); };
+    await f.submit();
+    assert.equal(calls, 0); assert.match(f.status.textContent, /zone/i);
+    assert.equal(f.elements['location-time-recovery'].hidden, false);
+    assert.equal(f.elements['location-recovery-zone'].value, '', 'a refreshed zone must never be preselected');
+    f.elements['location-recovery-zone'].value = 'Europe/Athens';
+    f.confirmZone();
+    assert.match(f.status.textContent, /occurs twice/);
+    assert.deepEqual(locationWork(421).draft, before, 'ambiguous time requires an explicit occurrence');
+    f.elements.timeAmbiguity.value = 'later'; f.input();
+    const reviewed = locationWork(421).draft;
+    let confirmation;
+    globalThis.confirm = message => { confirmation = message; return true; };
+    f.confirmZone();
+    const recovered = locationWork(421).draft;
+    assert.notEqual(recovered.generation, reviewed.generation);
+    assert.deepEqual(recovered.value, { ...reviewed.value, inputTimeZone: 'Europe/Athens' });
+    assert.match(confirmation, /2026-10-25T03:30:00.123456/); assert.match(confirmation, /Europe\/Athens/);
+    assert.match(confirmation, /later/); assert.match(confirmation, /2026-10-25T01:30:00.123456Z/);
+    assert.equal(calls, 0); assert.equal(locationWork(421).attempts.length, 0);
+    // A full remount uses durable interpretation, even when the server renders a different zone.
+    f.elements.timeAmbiguity.value = ''; f.mount();
+    assert.equal(f.elements['location-time-recovery'].hidden, true);
+    assert.equal(f.elements['location-input-time-zone'].textContent, 'Europe/Athens');
+    assert.equal(f.elements.timeAmbiguity.value, 'later');
+    let posted;
+    globalThis.fetch = async (_url, options) => {
+        if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
+        posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+    };
+    await f.submit();
+    assert.equal(posted.changes.eventUtc.value, '2026-10-25T01:30:00.123456Z');
+    assert.equal(posted.changes.notes.html, 'retained Notes');
+    assert.deepEqual(posted.expected.eventUtc, before.value.detail.locationMutation.baseValues.eventUtc);
+    assert.equal(f.reloads(), 1);
+});
+
+test('cancelling missing-zone confirmation leaves the entire retained draft intact without dispatch', async () => {
+    const f = await mountedForm(); f.mount();
+    f.fields.LocalTimestamp.value = '2026-10-29T11:00:00'; f.input(); f.type('keep my Notes');
+    const missing = structuredClone(locationWork(421).draft.value); delete missing.inputTimeZone;
+    // Retain the same wrapper shape as an unresolved save, so recovery-field events cannot unwrap it.
+    retainLocationDraft(421, { detail: f.detail, expected: f.detail.locationMutation.baseValues, draft: missing }); f.mount();
+    const before = locationWork(421);
+    let calls = 0; globalThis.fetch = async () => { calls++; throw new Error('No dispatch'); };
+    f.elements['location-recovery-zone'].value = 'Europe/Athens';
+    const event = { target: f.elements['location-recovery-zone'] };
+    f.listeners.input.at(-1)(event); f.listeners.change.at(-1)(event);
+    globalThis.confirm = () => false; f.confirmZone();
+    assert.deepEqual(locationWork(421), before);
+    await f.submit(); assert.equal(calls, 0); assert.deepEqual(locationWork(421), before);
+    f.mount();
+    assert.equal(f.fields.LocalTimestamp.value, '2026-10-29T11:00:00');
+    assert.equal(f.quill.root.innerHTML, 'keep my Notes');
+    assert.equal(f.elements['location-time-recovery'].hidden, false);
+});
+
+test('missing-zone recovery preserves pending attempts and original comparison evidence without bypassing recovery', async () => {
+    const f = await mountedForm(); f.mount();
+    f.fields.LocalTimestamp.value = '2026-10-29T11:00:00'; f.input(); f.type('pending Notes');
+    let posts = 0, inspections = 0;
+    globalThis.fetch = async (_url, options) => {
+        if (options.method === 'POST') posts++; else inspections++;
+        return { json: async () => pendingReceipt(locationWork(421).attempts[0]) };
+    };
+    await f.submit();
+    const missing = structuredClone(locationWork(421).draft.value); delete missing.draft.inputTimeZone;
+    retainLocationDraft(421, missing);
+    const before = locationWork(421);
+    const remote = structuredClone(f.detail); remote.locationMutation.baseValues.eventUtc.value = '2026-10-29T15:00:00Z';
+    f.form.dataset.locationDetail = JSON.stringify(remote); f.form.dataset.timeZone = 'America/New_York'; f.mount();
+    f.elements['location-recovery-zone'].value = 'Europe/Athens'; f.confirmZone();
+    assert.notEqual(locationWork(421).draft.generation, before.draft.generation);
+    assert.deepEqual(locationWork(421).attempts, before.attempts);
+    assert.deepEqual(locationWork(421).draft.value.initial, before.draft.value.draft.initial);
+    assert.deepEqual(locationWork(421).draft.value.detail, before.draft.value.draft.detail);
+    assert.equal(posts, 1); assert.equal(inspections, 0);
+    f.mount(); await f.submit();
+    assert.equal(posts, 1); assert.equal(inspections, 1, 'Save must inspect the pending predecessor');
+    assert.match(f.status.textContent, /pending/); assert.equal(f.reloads(), 0);
+    assert.deepEqual(locationWork(421).attempts, before.attempts);
+    assert.equal(locationWork(421).active, before.active);
+    assert.deepEqual(locationWork(421).draft.value.expected, before.draft.value.expected);
+});
+
+test('missing-zone drafts with untouched time still save unrelated Notes without confirming a zone', async () => {
+    const f = await mountedForm(); f.mount(); f.type('only Notes');
+    const missing = structuredClone(locationWork(421).draft.value); delete missing.inputTimeZone;
+    retainLocationDraft(421, missing); f.mount();
+    let posted;
+    globalThis.fetch = async (_url, options) => {
+        if (options.method !== 'POST') return { ok: true, json: async () => f.detail };
+        posted = JSON.parse(options.body); return { json: async () => receipt(locationWork(421).attempts[0]) };
+    };
+    await f.submit();
+    assert.deepEqual(posted.changes, { notes: { op: 'set', html: 'only Notes' } });
+    assert.equal(posted.expected.eventUtc, undefined); assert.equal(f.reloads(), 1);
+});
+
+test('missing-zone confirmation cannot unblock a time save when durable persistence fails', async () => {
+    const f = await mountedForm(); f.mount();
+    f.fields.LocalTimestamp.value = '2026-10-29T11:00:00'; f.input();
+    const missing = structuredClone(locationWork(421).draft.value); delete missing.inputTimeZone;
+    retainLocationDraft(421, missing); f.mount();
+    const before = locationWork(421);
+    globalThis.localStorage.setItem = () => { throw new Error('storage unavailable'); };
+    let calls = 0; globalThis.fetch = async () => { calls++; throw new Error('No dispatch'); };
+    f.elements['location-recovery-zone'].value = 'Europe/Athens'; f.confirmZone();
+    assert.match(f.status.textContent, /storage unavailable/);
+    assert.deepEqual(locationWork(421), before);
+    await f.submit(); assert.equal(calls, 0);
+    assert.equal(f.elements['location-time-recovery'].hidden, false);
+});
 
 test('a newer toolbar Clear survives an older applied acknowledgement', async () => {
     const f = await mountedForm(); f.mount(); f.type('older edit');

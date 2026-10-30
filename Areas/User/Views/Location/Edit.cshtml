@@ -155,6 +155,14 @@
                     <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone <span id="location-input-time-zone">@ViewData["InputTimeZone"]</span>.</p>
                     <label for="timeAmbiguity">If this local time occurs twice</label>
                     <select id="timeAmbiguity" class="form-select"><option value="">Choose when needed</option><option value="earlier">Earlier occurrence</option><option value="later">Later occurrence</option></select>
+                    @* Recovery is limited to retained drafts missing their original time interpretation. *@
+                    <div id="location-time-recovery" class="border rounded p-2 my-2" hidden>
+                        <p id="location-time-recovery-help">The saved time’s zone is unavailable. Review or re-enter the intended Local Date and Time above and choose an occurrence if needed. Enter the intended time zone, then review and confirm it. Your other edits stay retained. If the time is unchanged, you can save other fields without this step.</p>
+                        <label for="location-recovery-zone" class="form-label">Time zone for this retained time</label>
+                        <input id="location-recovery-zone" type="text" class="form-control" placeholder="Europe/Athens or UTC"
+                               aria-describedby="location-time-recovery-help" autocomplete="off" />
+                        <button id="location-confirm-time-zone" type="button" class="btn btn-outline-primary mt-2">Review time and zone</button>
+                    </div>
                     <div class="form-group">
                         <label for="notes">Add Notes</label>
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>

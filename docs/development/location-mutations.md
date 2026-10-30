@@ -199,8 +199,14 @@ Pending publishers. See the [mobile handoff](../planning/947-mobile-handoff.md).
 Web drafts retain their edit-start input zone and DST occurrence together with
 initial/current strings. Restoring them never derives the zone from current row
 coordinates. Untouched time is omitted, preserving exact capture precision.
-An older retained draft without zone metadata cannot submit a changed wall time;
-keep that time for explicit review rather than guessing its interpretation.
+An older retained draft without zone metadata blocks changed-time submission until
+the user reviews/re-enters the time in the existing control, explicitly supplies a
+zone and confirms the displayed time/zone/DST occurrence and resulting UTC instant.
+Confirmation persists a new desired generation with its time, zone and occurrence
+before enabling submission. Cancel leaves retained work unchanged; failed local
+persistence keeps time submission blocked. Recovery never adopts refreshed
+originals or modifies previous attempts, and Save still recovers an uncertain
+predecessor. Untouched-time drafts can save unrelated fields without this step.
 Toolbar Clear (even when already empty), image insertion and map picks persist
 desired generations before submission. Unresolved inline Activity restores its
 desired selection against retained originals; settled history never overrides
