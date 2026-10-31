@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Changed
+- Add optional private planning to Trip, Region, Place, Area and Segment (#789 WB1):
+  typed repeated/partial/end-only values, explicit precision and optional UTC/IANA
+  clocks, whole-aggregate protected Set/Clear, coherent owner reads and existing
+  Web editor controls with retained drafts and uncertain-save holds. Keep public
+  reads/downloads/cross-owner copies and public freshness free of planning.
+  Add five nullable JSONB columns; extend structural/deletion originals and retain
+  same-ID/type planning through legacy native replacement. Reject unreviewed
+  annotated removal atomically. Personal native v4 files (WB2), Check plan (WB3),
+  future own cloning/versioning and the required new-mobile companion remain
+  separately owned; this does not complete #789.
 - Protect single-record Location edits/deletes with selected originals, exact-byte
   action identities, atomic effect/receipt commits and recovery after uncertain
   replies (#947). Migrate Web Edit, inline Activity and per-row deletion together;

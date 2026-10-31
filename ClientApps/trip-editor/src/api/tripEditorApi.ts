@@ -310,8 +310,9 @@ export const updateArea = async (
 export const deleteArea = async (
   endpoint: string,
   areaId: string,
-  antiforgeryToken: string
-): Promise<EditorMutationResult<EditorAreaDeleteResult>> => sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, null, 'area delete');
+  antiforgeryToken: string,
+  original?: { parentId: string; planning: import('../planning/planningTypes').PlanningAggregate | null }
+): Promise<EditorMutationResult<EditorAreaDeleteResult>> => sendMutation(`${endpoint}/areas/${areaId}`, 'DELETE', antiforgeryToken, original ? { expected: original, operation: 'clear' } : null, 'area delete');
 
 /// Persists the complete area order for one normal region.
 export const orderAreas = async (
@@ -348,8 +349,9 @@ export const patchSegmentNotes = async (
 export const deleteSegment = async (
   endpoint: string,
   segmentId: string,
-  antiforgeryToken: string
-): Promise<EditorMutationResult<EditorSegmentDeleteResult>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'DELETE', antiforgeryToken, null, 'segment delete');
+  antiforgeryToken: string,
+  original?: { parentId: string; planning: import('../planning/planningTypes').PlanningAggregate | null }
+): Promise<EditorMutationResult<EditorSegmentDeleteResult>> => sendMutation(`${endpoint}/segments/${segmentId}`, 'DELETE', antiforgeryToken, original ? { expected: original, operation: 'clear' } : null, 'segment delete');
 
 /// Persists the complete trip-level segment order.
 export const orderSegments = async (

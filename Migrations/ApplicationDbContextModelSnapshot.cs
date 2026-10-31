@@ -522,6 +522,9 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<string>("Planning")
+                        .HasColumnType("jsonb");
+
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
 
@@ -1912,6 +1915,9 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<string>("Planning")
+                        .HasColumnType("jsonb");
+
                     b.Property<Guid>("RegionId")
                         .HasColumnType("uuid");
 
@@ -2058,6 +2064,9 @@ namespace Wayfarer.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<string>("Planning")
+                        .HasColumnType("jsonb");
+
                     b.Property<Guid>("TripId")
                         .HasColumnType("uuid");
 
@@ -2106,6 +2115,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
+
+                    b.Property<string>("Planning")
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("RouteAttribution")
                         .HasMaxLength(500)
@@ -2388,6 +2400,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
+
+                    b.Property<string>("Planning")
+                        .HasColumnType("jsonb");
 
                     b.Property<bool>("ShareProgressEnabled")
                         .HasColumnType("boolean");

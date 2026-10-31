@@ -225,6 +225,13 @@ verify server history separately. For undelivered recordings, follow
 
 ## Move Trip plans
 
+Private structured planning is excluded from current Trip files. Updating an
+existing Trip from an older/native file preserves planning on objects with the
+same IDs and types. If the update would remove an object with private planning,
+it rejects without changing the Trip: keep the original or import a new Trip.
+New objects inherit no planning. The complete personal planning file workflow is
+reserved for WB2; current files are not planning backups.
+
 From your personal **Trips** list:
 
 - **Import Trip** reads Wayfarer-native KML. If the Trip already exists in your

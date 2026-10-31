@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { providePlanningWorkspace } from './planning/planningState';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
@@ -15,6 +16,7 @@ import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, Edit
 const props = defineProps<{ config: BootstrapConfig }>();
 
 const state = ref<EditorTripState | null>(null);
+providePlanningWorkspace(state, props.config.editorEndpoint, props.config.antiforgeryToken);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
 const workspaceElement = ref<HTMLElement | null>(null);

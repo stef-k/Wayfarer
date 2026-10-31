@@ -217,7 +217,7 @@ namespace Wayfarer.Models
                 .HasForeignKey(h => h.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Trip planning setup
+            ConfigurePlanning(builder); // Owner-private typed planning.
             builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
             // Trip ↔ ApplicationUser (cascade on delete)
@@ -490,13 +490,13 @@ namespace Wayfarer.Models
 
             tripIdsToStamp.UnionWith(
                 ChangeTracker.Entries<Trip>()
-                    .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified)
+                    .Where(e => HasReusableChanges(e))
                     .Select(e => e.Entity.Id)
             );
 
             tripIdsToStamp.UnionWith(
                 ChangeTracker.Entries<Region>()
-                    .Where(e => e.State != EntityState.Unchanged)
+                    .Where(e => HasReusableChanges(e))
                     .Select(e => e.State == EntityState.Deleted
                         ? e.OriginalValues.GetValue<Guid>(nameof(Region.TripId))
                         : e.Entity.TripId)
@@ -504,7 +504,7 @@ namespace Wayfarer.Models
 
             tripIdsToStamp.UnionWith(
                 ChangeTracker.Entries<Place>()
-                    .Where(e => e.State != EntityState.Unchanged)
+                    .Where(e => HasReusableChanges(e))
                     .Select(e => e.State == EntityState.Deleted
                         ? e.OriginalValues.GetValue<Guid>(nameof(Place.RegionId))
                         : e.Entity.RegionId)
@@ -515,7 +515,7 @@ namespace Wayfarer.Models
 
             tripIdsToStamp.UnionWith(
                 ChangeTracker.Entries<Segment>()
-                    .Where(e => e.State != EntityState.Unchanged)
+                    .Where(e => HasReusableChanges(e))
                     .Select(e => e.State == EntityState.Deleted
                         ? e.OriginalValues.GetValue<Guid>(nameof(Segment.TripId))
                         : e.Entity.TripId)
@@ -524,7 +524,7 @@ namespace Wayfarer.Models
             // added: include Areas in trip UpdatedAt stamping
             tripIdsToStamp.UnionWith(
                 ChangeTracker.Entries<Area>() // track added/modified/deleted Areas
-                    .Where(e => e.State != EntityState.Unchanged)
+                    .Where(e => HasReusableChanges(e))
                     .Select(e => e.State == EntityState.Deleted
                         // if deleted, get the old RegionId from the original values
                         ? e.OriginalValues.GetValue<Guid>(nameof(Area.RegionId))

@@ -270,7 +270,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 
   if (!(await confirm({
     title: 'Delete segment?',
-    message: 'Delete this segment?',
+    message: 'Delete this segment and its private planning?',
     confirmLabel: 'Delete',
     cancelLabel: 'Keep segment',
     variant: 'danger'
@@ -282,7 +282,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
   isSaving.value = true;
   resetFeedback();
   try {
-    const result = await deleteSegment(props.editorEndpoint, segment.id, props.antiforgeryToken);
+    const result = await deleteSegment(props.editorEndpoint, segment.id, props.antiforgeryToken, { parentId: segment.tripId, planning: segment.planning ?? null });
     emit('mutationApplied', result as EditorMutationResult<unknown>);
     const hidden = new Set(props.hiddenSegmentIds);
     hidden.delete(segment.id);

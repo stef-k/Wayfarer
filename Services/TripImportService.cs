@@ -80,6 +80,7 @@ public partial class TripImportService : ITripImportService
             TripRichNotes.NormalizeDestination(mapped);
             if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
 
+            if (!createNew) await PreserveReplacementPlanningAsync(mapped, userId, cancellationToken);
             var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);
             if (createNew)
             {
@@ -114,10 +115,14 @@ public partial class TripImportService : ITripImportService
             _dbContext.ChangeTracker.Clear();
             return mapped.Id;
         }
-        catch
+        catch (Exception primary)
         {
-            if (transaction is not null) await transaction.RollbackAsync(CancellationToken.None);
             _dbContext.ChangeTracker.Clear();
+            if (transaction is not null)
+            {
+                try { await transaction.RollbackAsync(CancellationToken.None); }
+                catch (Exception rollback) { throw new AggregateException("Native import failed and rollback also failed.", primary, rollback); }
+            }
             throw;
         }
     }
