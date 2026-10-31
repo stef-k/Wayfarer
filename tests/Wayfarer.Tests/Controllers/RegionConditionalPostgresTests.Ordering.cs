@@ -27,6 +27,9 @@ public sealed partial class RegionConditionalPostgresTests
         await db.SaveChangesAsync();
         var future = DateTime.UtcNow.Date.AddDays(1);
         await db.Trips.Where(t => t.Id == graph.TripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, future));
+        var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("at", new("dateTime", "2027-03-02T10:15", "UTC")), "Arrival", "presence", 0),
+            new(Guid.NewGuid(), new("period", End: new("known", new("month", "2027-04"))))]);
+        await db.Regions.Where(r => r.Id == graph.SourceId).ExecuteUpdateAsync(s => s.SetProperty(r => r.Planning, plan));
         var request = await RegionOrderRequestAsync(graph.TripId);
         var before = await RegionOrderStoredAsync(graph.TripId, true);
         var probe = new RegionProbe();
@@ -52,6 +55,7 @@ public sealed partial class RegionConditionalPostgresTests
         var rows = await verify.Regions.Where(r => r.TripId == graph.TripId).ToArrayAsync();
         var ids = (Guid[])request["regionIds"]!;
         Assert.All(rows.Where(r => r.Name != "Unassigned Places"), r => Assert.Equal(Array.IndexOf(ids, r.Id) + 1, r.DisplayOrder));
+        Assert.True(PlanningCodec.Equal(plan, rows.Single(r => r.Id == graph.SourceId).Planning));
         Assert.Equal(17, rows.Single(r => r.Name == "Unassigned Places").DisplayOrder);
         Assert.Equal(before, await RegionOrderStoredAsync(graph.TripId, true));
         Assert.Equal(future, (await verify.Trips.FindAsync(graph.TripId))!.UpdatedAt);

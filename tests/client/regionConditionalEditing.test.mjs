@@ -353,9 +353,11 @@ for (const [label, cover, outcome] of [
   }));
 }
 
-for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 'wrong-material', 'unrelated-effects', 'rejected']) {
+for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 'wrong-material', 'wrong-planning', 'unrelated-effects', 'rejected']) {
   test(`Region order ${outcome}: pinned originals, guarded adoption and page-local unknown hold`, () => withGlobals(async () => {
-    const owner = mount(region({ capabilities: orderCapabilities }));
+    const owner = mount(region({ capabilities: orderCapabilities, planning: { format: 1, entries: [
+      { id: 'entry', label: 'Retain exact visit', when: { form: 'unknown' } }
+    ] } }));
     globalThis.regionConfirm = async () => true;
     const pending = deferred();
     const calls = [];
@@ -389,6 +391,7 @@ for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 
       const result = orderReply(calls[1][1]);
       if (outcome === 'wrong-scope') result.data.tripId = 'foreign-trip';
       if (outcome === 'wrong-material') result.affected.regions[0].originalValues.notesHtml = 'Unexpected';
+      if (outcome === 'wrong-planning') result.affected.regions.find(r => r.id === 'region').planning.entries[0].label = 'Unreviewed visit';
       if (outcome === 'unrelated-effects') result.affected.placeOrdersByRegionId.foreign = [];
       pending.resolve(outcome === 'network' ? Promise.reject(new Error('Lost committed reply')) : outcome === 'rejected'
         ? new Response(JSON.stringify({ title: 'Stale base', code: 'mutation-base-stale' }), { status: 409 }) : new Response(JSON.stringify(result)));
