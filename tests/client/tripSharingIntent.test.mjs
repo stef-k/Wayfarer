@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { createRenderer, nextTick, proxyRefs } from 'vue';
 
 // Qualify the actual App -> TripSidebar -> MetadataEditor using the existing mounted production-client seam.
-const bundle = await build({ stdin: { contents: 'export { default } from "./App.vue";', loader: 'ts',
+const bundle = await build({ stdin: { contents: 'export { default } from "./App.vue"; export { patchMetadata, orderSegments } from "./api/tripEditorApi";', loader: 'ts',
   resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'c3-sharing-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
@@ -38,7 +38,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
       export const disposeConfirmDialogHost = () => {}; export const setConfirmDialogFocusFallback = () => {};` }));
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-const actualApp = (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default;
+const { default: actualApp, patchMetadata, orderSegments } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
 // Self-contained client fixtures mirror the routed contract; no local database/evidence directory is needed.
 const metadata = (enabled = false) => ({ id: 'trip', planning: null, name: 'Trip', notesHtml: '', isPublic: true,
@@ -818,6 +818,10 @@ test('all five independent affected slices preserve newer acknowledged Planning 
   result.affected.places = [JSON.parse(JSON.stringify(graph.placesById.p))];
   result.affected.areas = [JSON.parse(JSON.stringify(graph.areasById.a))];
   result.affected.segments = [JSON.parse(JSON.stringify(graph.segmentsById.s))];
+  // Dispatch the real producer before any Planning acknowledgement; its complete graph arrives later.
+  const gate = deferred();
+  globalThis.fetch = async () => { await gate.promise; return new Response(JSON.stringify(result)); };
+  const older = patchMetadata('/api/trips/trip/editor', 'anti', {});
   const drafts = [];
   for (const [kind, id] of [['metadata', 'trip'], ['region', 'r'], ['place', 'p'], ['area', 'a'], ['segment', 's']]) {
     const draft = parent.planningWorkspace.open({ kind, entityId: id, mode: 'edit' });
@@ -832,7 +836,8 @@ test('all five independent affected slices preserve newer acknowledged Planning 
     draft.entries[0].when.value.local = '2027-03-03';
     drafts.push(draft);
   }
-  parent.applyMutation(result);
+  gate.resolve();
+  parent.applyMutation(await older);
   for (const draft of drafts) {
     const entity = draft.kind === 'trip' ? parent.state.metadata : parent.state[`${draft.kind}sById`][draft.id];
     assert.equal(entity.planning.entries[0].when.value.local, '2027-03-02');
@@ -882,4 +887,102 @@ test('authoritative deletion exposes an individually recoverable Planning draft 
   await discard.props.onClick();
   assert.equal(parent.planningWorkspace.drafts['area/a'], undefined);
   assert.equal(parent.planningWorkspace.dirty(planning.draft), true);
+}));
+
+// Current authoritative Planning must refresh all five clean owners, without exchanging dirty originals.
+const datedPlan = local => ({ format: 1, entries: [{ id: 'entry', when: { form: 'at', value: { precision: 'date', local } } }] });
+const planningTargets = [['metadata', 'trip'], ['region', 'r'], ['place', 'p'], ['area', 'a'], ['segment', 's']];
+const seedPlanningTargets = parent => {
+  for (const [kind, id] of planningTargets.slice(1)) parent.state[`${kind}sById`][id] = { id, regionId: 'r', planning: null };
+};
+const currentPlanningResult = (parent, local) => {
+  const result = JSON.parse(reply(false, { ...parent.state.metadata, planning: datedPlan(local) }));
+  for (const [kind, id] of planningTargets.slice(1)) result.affected[`${kind}s`] = [{ ...parent.state[`${kind}sById`][id], planning: datedPlan(local) }];
+  return result;
+};
+test('current authoritative publication refreshes five clean Planning owners and retains five dirty originals', () => withApp(async ({ parent }) => {
+  seedPlanningTargets(parent);
+  const drafts = planningTargets.map(([kind, entityId]) => parent.planningWorkspace.open({ kind, entityId, mode: 'edit' }));
+  for (const local of ['2027-03-09', '2027-03-10']) {
+    const result = currentPlanningResult(parent, local);
+    globalThis.fetch = async () => new Response(JSON.stringify(result));
+    parent.applyMutation(await patchMetadata('/api/trips/trip/editor', 'anti', {}));
+    for (const draft of drafts) {
+      const entity = draft.kind === 'trip' ? parent.state.metadata : parent.state[`${draft.kind}sById`][draft.id];
+      assert.equal(entity.planning.entries[0].when.value.local, local);
+      assert.equal(draft.original.entries[0].when.value.local, '2027-03-09');
+      assert.equal(draft.entries[0].when.value.local, local === '2027-03-09' ? local : '2027-03-15');
+    }
+    for (const draft of drafts) draft.entries[0].when.value.local = '2027-03-15';
+  }
+}));
+
+for (const outcome of ['valid', 'uncertain', 'rejected']) {
+  test(`deleted Planning recovery survives a ${outcome} late reply and protects exit until individual resolution`, () => withApp(async owner => {
+    const { parent, planning, editor } = owner;
+    seedPlanningTargets(parent);
+    planning.add(); planning.draft.entries[0].when.value.local = '2027-04-01';
+    const draft = parent.planningWorkspace.open({ kind: 'area', entityId: 'a', mode: 'edit' });
+    draft.entries.push(...datedPlan('2027-03-02').entries);
+    let settle;
+    globalThis.fetch = async () => new Promise(done => { settle = done; });
+    const saving = parent.planningWorkspace.save(draft);
+    const deletion = JSON.parse(reply(false)); deletion.deletedIds.areas = ['a']; parent.applyMutation(deletion);
+    await nextTick();
+    assert.equal(owner.button('Discard this Planning draft').props.disabled, true);
+    // Later typing is separate from the exact earlier save, even after authoritative deletion.
+    draft.entries[0].label = 'Retain this';
+    settle(outcome === 'valid' ? new Response(JSON.stringify({ contract: 'planning-1', success: true, applied: true,
+      targetKind: 'area', targetId: 'a', parentId: 'r', planning: datedPlan('2027-03-02') }))
+      : outcome === 'uncertain' ? new Response('{}') : new Response(JSON.stringify({ status: 409, code: 'mutation-base-stale' }), { status: 409 }));
+    await saving; await nextTick();
+    assert.equal(parent.state.areasById.a, undefined);
+    assert.equal(draft.confirmed, outcome === 'valid');
+    assert.equal(draft.uncertain, outcome === 'uncertain');
+    assert.equal(draft.original === null, outcome !== 'valid');
+    assert.equal(parent.planningWorkspace.hasChanges.value, true);
+    assert.ok(parent.planningWorkspace.status());
+    assert.equal(draft.entries[0].label, 'Retain this');
+    assert.equal(owner.button('Discard this Planning draft').props.disabled, outcome === 'uncertain');
+    if (outcome === 'valid') assert.match(owner.visibleText(), /earlier Planning save succeeded.*target remains deleted/i);
+    await editor.backToTrips(); assert.equal(owner.navigations.length, 0); assert.equal(owner.confirmations.length, 1);
+    if (outcome !== 'uncertain') {
+      owner.approve(true); await owner.button('Discard this Planning draft').props.onClick();
+      assert.equal(parent.planningWorkspace.drafts['area/a'], undefined);
+    }
+    assert.equal(parent.planningWorkspace.dirty(planning.draft), true);
+  }));
+}
+
+test('valid late success with no later typing retains deleted recovery and exit protection', () => withApp(async ({ parent, editor, confirmations, navigations }) => {
+  seedPlanningTargets(parent);
+  const draft = parent.planningWorkspace.open({ kind: 'area', entityId: 'a', mode: 'edit' });
+  draft.entries.push(...datedPlan('2027-03-02').entries);
+  let settle; globalThis.fetch = async () => new Promise(done => { settle = done; });
+  const saving = parent.planningWorkspace.save(draft);
+  const deletion = JSON.parse(reply(false)); deletion.deletedIds.areas = ['a']; parent.applyMutation(deletion);
+  settle(new Response(JSON.stringify({ contract: 'planning-1', success: true, applied: true, targetKind: 'area', targetId: 'a', parentId: 'r', planning: datedPlan('2027-03-02') })));
+  await saving;
+  assert.equal(draft.confirmed, true); assert.equal(parent.planningWorkspace.hasChanges.value, true);
+  assert.match(parent.planningWorkspace.status(), /deleted/i);
+  await editor.backToTrips(); assert.equal(confirmations.length, 1); assert.equal(navigations.length, 0);
+}));
+
+test('real Segment ordering and independent affected graph replies cannot restore deleted identities', () => withApp(async ({ parent }) => {
+  seedPlanningTargets(parent); parent.state.segmentOrder = ['s'];
+  const older = currentPlanningResult(parent, '2027-03-09'); older.affected.segmentOrder = ['s'];
+  const gate = deferred(); globalThis.fetch = async () => { await gate.promise; return new Response(JSON.stringify(older)); };
+  const ordering = orderSegments('/api/trips/trip/editor', 'anti', { segmentIds: ['s'] });
+  const draft = parent.planningWorkspace.open({ kind: 'segment', entityId: 's', mode: 'edit' });
+  draft.entries.push(...datedPlan('2027-03-02').entries);
+  const deletion = JSON.parse(reply(false));
+  for (const kind of ['regions', 'places', 'areas', 'segments']) deletion.deletedIds[kind] = Object.keys(parent.state[`${kind}ById`]);
+  parent.applyMutation(deletion);
+  gate.resolve(); parent.applyMutation(await ordering);
+  for (const kind of ['regions', 'places', 'areas', 'segments']) assert.deepEqual(Object.keys(parent.state[`${kind}ById`]), []);
+  assert.deepEqual(parent.state.segmentOrder, []);
+  assert.equal(draft.deleted, true); assert.equal(parent.planningWorkspace.hasChanges.value, true);
+  // A normal later creation still publishes. Session deletion authority concerns the removed identities only.
+  const created = JSON.parse(reply(false)); created.affected.areas = [{ id: 'new', regionId: 'new-region', planning: datedPlan('2027-05-01') }];
+  parent.applyMutation(created); assert.ok(parent.state.areasById.new);
 }));
