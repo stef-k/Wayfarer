@@ -23,6 +23,9 @@ public sealed class PlanningValueTests
         var value = At(precision, local);
         PlanningValidation.Validate(value, "place");
         Assert.True(PlanningCodec.Equal(value, PlanningCodec.Read(PlanningCodec.Write(value))));
+        // MVC's ordinary Web options must use the same absent-qualifier wire shape as persistence.
+        var response = JsonSerializer.SerializeToElement(value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(JsonDocument.Parse(PlanningCodec.Write(value)).RootElement.GetRawText(), response.GetRawText());
     }
 
     /// <summary>Malformed dates, seconds, invented zones and daylight gaps reject independently of the editor.</summary>
@@ -65,4 +68,30 @@ public sealed class PlanningValueTests
     [InlineData("{\"format\":1,\"format\":1,\"entries\":[]}")]
     [InlineData("{\"format\":1,\"entries\":[],\"included\":true}")]
     public void StrictCodecRejects(string json) => Assert.Throws<JsonException>(() => PlanningCodec.Read(json));
+
+    /// <summary>Unknown/flexible intentions and zero allocation retain exact optional content and repeated identities.</summary>
+    [Fact]
+    public void QualificationsAndRepeatedEntriesAreLossless()
+    {
+        var value = new PlanningAggregate(1, [new(EntryId, new("unknown"), "  First visit  ", "presence", 0),
+            new(Guid.NewGuid(), new("flexible")), new(Guid.NewGuid(), new("period", End: new("known", new("month", "9999-12"))))]);
+        PlanningValidation.Validate(value, "place");
+        Assert.True(PlanningCodec.Equal(value, PlanningCodec.Read(PlanningCodec.Write(value))));
+        Assert.Throws<PlanningValidationException>(() => PlanningValidation.Validate(new(1, [value.Entries[0], value.Entries[0]]), "place"));
+        Assert.Throws<PlanningValidationException>(() => PlanningValidation.Validate(new(1,
+            [new(EntryId, new("period", Start: new("unknown"), End: new("flexible")))]), "place"));
+    }
+
+    /// <summary>Trusted unchanged stored clocks survive rule drift with diagnostics; untrusted new clocks reject.</summary>
+    [Fact]
+    public void HistoricalGapIsRetainedWithoutExemptingNewInput()
+    {
+        var historical = At("dateTime", "2027-03-28T01:30", "Europe/London");
+        PlanningValidation.Validate(historical, "place", historical);
+        Assert.Single(PlanningValidation.Diagnostics(historical, "place"));
+        Assert.Throws<PlanningValidationException>(() => PlanningValidation.Validate(historical, "place"));
+        var mixed = new PlanningAggregate(1, [new(EntryId, new("period",
+            Start: new("known", new("dateTime", "2027-04-01T10:00")), End: new("known", new("month", "2027-03"))))]);
+        Assert.Throws<PlanningValidationException>(() => PlanningValidation.Validate(mixed, "place"));
+    }
 }

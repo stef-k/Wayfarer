@@ -80,7 +80,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     internal string IntentFingerprint() => Hash(new { Operation, Web, Destination,
         Location = Pair(Location), Expected = Canonical(Expected), Changes = Canonical(Changes), Orders = Orders.OrderBy(p => p.Key).Select(p => new { p.Key, p.Value }) });
 
-    /// <summary>Exact public material content used by move/reorder originals, including nullable stored order.</summary>
+    /// <summary>Exact owner material content used by move/reorder originals, including nullable stored order.</summary>
     internal static object Original(Place place) => new { place.Id, place.RegionId, place.Name, Notes = RichNotes.Normalize(place.Notes),
         place.Address, Location = Pair(place.Location), place.IconName, place.MarkerColor, place.DisplayOrder,
         place.ResolvedFeatureName, place.ResolvedFeatureType, place.Planning };

@@ -7,16 +7,25 @@ namespace Wayfarer.Models.Planning;
 public sealed record PlanningAggregate(int Format, IReadOnlyList<PlanningEntry> Entries);
 
 /// <summary>A stable local intention, without inferred participation, meaning or duration.</summary>
-public sealed record PlanningEntry(Guid Id, PlanningTiming When, string? Label = null, string? Kind = null, int? AllocationMinutes = null);
+public sealed record PlanningEntry(Guid Id, PlanningTiming When,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Label = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Kind = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? AllocationMinutes = null);
 
 /// <summary>Exclusive At, period, unspecified, unknown or flexible timing.</summary>
-public sealed record PlanningTiming(string Form, PlanningValue? Value = null, PlanningBound? Start = null, PlanningBound? End = null);
+public sealed record PlanningTiming(string Form,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlanningValue? Value = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlanningBound? Start = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlanningBound? End = null);
 
 /// <summary>A missing bound remains distinct from an explicit unknown or flexible bound.</summary>
-public sealed record PlanningBound(string State, PlanningValue? Value = null);
+public sealed record PlanningBound(string State,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PlanningValue? Value = null);
 
 /// <summary>Literal Gregorian civil components and only explicitly authored zone/occurrence choices.</summary>
-public sealed record PlanningValue(string Precision, string Local, string? Zone = null, int? SelectedOffsetSeconds = null);
+public sealed record PlanningValue(string Precision, string Local,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Zone = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? SelectedOffsetSeconds = null);
 
 /// <summary>Immediate mapped boundary shared by the five supported graph entity types.</summary>
 public interface IPlanningTarget

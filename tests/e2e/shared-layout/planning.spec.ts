@@ -27,7 +27,7 @@ test('private planning rough date and later refinement use real editor controls'
   await planning.locator('input[type=time]').fill('10:15');
   await planning.getByRole('button', { name: 'Save planning', exact: true }).click();
   await expect(planning.getByRole('status')).toHaveText('Planning saved.');
-  await page.screenshot({ path: testInfo.outputPath('planning-owner-editor.png') });
+  await page.screenshot({ path: process.env.WAYFARER_PLANNING_SCREENSHOT ?? testInfo.outputPath('planning-owner-editor.png') });
   await page.reload();
   await expect(page.locator('[data-planning] > summary')).toContainText('2027-03-15T10:15');
 });

@@ -4,6 +4,34 @@ import type { EditorTarget } from '../composables/useEditorSurface';
 import type { PlanningAggregate, PlanningAcknowledgement, PlanningEntry, PlanningRequest } from './planningTypes';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+/** Rejects duplicate decoded members before JSON parsing can turn an ambiguous reply into acknowledgement. */
+const readPlanningReply = async <T>(response: Response): Promise<T> => {
+  const wire = await response.text();
+  const stack: Array<Set<string> | null> = [];
+  for (let index = 0; index < wire.length; index++) {
+    const character = wire[index];
+    if (character === '{') stack.push(new Set());
+    else if (character === '[') stack.push(null);
+    else if (character === '}' || character === ']') stack.pop();
+    else if (character === '"') {
+      const start = index++;
+      while (index < wire.length && wire[index] !== '"') {
+        if (wire[index] === '\\') index++;
+        index++;
+      }
+      let next = index + 1;
+      while ([' ', '\t', '\r', '\n'].includes(wire[next] ?? '')) next++;
+      const keys = stack.at(-1);
+      if (wire[next] === ':' && keys) {
+        const name = JSON.parse(wire.slice(start, index + 1)) as string;
+        if (keys.has(name)) throw new Error('Ambiguous planning reply.');
+        keys.add(name);
+      }
+    }
+  }
+  return JSON.parse(wire) as T;
+};
 /** Typed structural equality ignores object member order while preserving authored entry order and absence. */
 export const samePlanning = (left: unknown, right: unknown): boolean => {
   const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
@@ -68,7 +96,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', RequestVerificationToken: antiforgery }, body: JSON.stringify(request)
       });
       if (!response.ok) {
-        const problem = await response.json() as { code?: string; detail?: string };
+        const problem = await readPlanningReply<{ code?: string; detail?: string }>(response);
         const known = [400, 401, 403, 404, 409].includes(response.status) && typeof problem.code === 'string'
           && ['planning-request-invalid', 'planning-value-invalid', 'mutation-authority-unavailable', 'mutation-scope-stale',
             'mutation-base-stale', 'mutation-scope-unavailable', 'mutation-contention'].includes(problem.code);
@@ -76,7 +104,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
         draft.error = problem.detail ?? 'Planning was not applied. Keep the draft and review current values.';
         return;
       }
-      const reply = await response.json() as PlanningAcknowledgement;
+      const reply = await readPlanningReply<PlanningAcknowledgement>(response);
       if (response.redirected || reply.contract !== 'planning-1' || reply.success !== true || reply.applied !== !samePlanning(request.expected.planning, desired)
         || reply.targetKind !== draft.kind || reply.targetId !== draft.id || reply.parentId !== draft.parentId
         || !Object.hasOwn(reply, 'planning') || !samePlanning(reply.planning, desired)) throw new Error('Planning acknowledgement incomplete.');
@@ -100,7 +128,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
     if (draft.pending || draft.uncertain) return;
     const response = await fetch(endpoint, { credentials: 'same-origin', cache: 'no-store' });
     if (!response.ok || response.redirected) throw new Error('Current owner planning could not be loaded.');
-    const graph = await response.json() as EditorTripState;
+    const graph = await readPlanningReply<EditorTripState>(response);
     if (graph.tripId !== state.value?.tripId) throw new Error('Owner scope changed.');
     const entity = draft.kind === 'trip' ? graph.metadata : draft.kind === 'region' ? graph.regionsById[draft.id]
       : draft.kind === 'place' ? graph.placesById[draft.id] : draft.kind === 'area' ? graph.areasById[draft.id] : graph.segmentsById[draft.id];

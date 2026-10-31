@@ -11,6 +11,15 @@ const workspace = inject(planningWorkspaceKey, null);
 const draft = shallowRef<PlanningDraft | null>(null);
 watch(() => props.target.identity, () => { draft.value = workspace?.open(props.target) ?? null; }, { immediate: true });
 const summary = computed(() => draft.value?.original?.entries.map(entry => `${entry.label ? `${entry.label}: ` : ''}${describe(entry.when)}`).join('; '));
+const zoneLosses = computed(() => (draft.value?.entries ?? []).flatMap(entry => {
+  const before = draft.value?.original?.entries.find(item => item.id === entry.id)?.when;
+  return ['value', 'start', 'end'].flatMap(key => {
+    const previous = key === 'value' ? before?.value : before?.[key as 'start' | 'end']?.value;
+    const next = key === 'value' ? entry.when.value : entry.when[key as 'start' | 'end']?.value;
+    return previous?.zone && next && !next.zone
+      ? [`${entry.label || 'Entry'} ${key}: removing zone ${previous.zone}${previous.selectedOffsetSeconds !== undefined ? ` and occurrence offset ${previous.selectedOffsetSeconds}` : ''}; the civil components remain ${next.local}.`] : [];
+  });
+}));
 const reviewError = ref<string | null>(null);
 
 /** One literal summary; no inferred occupancy, nights or travel interpretation. */
@@ -50,6 +59,7 @@ watch(() => props.target.identity, () => { reviewError.value = null; });
     <p v-for="message in workspace?.diagnostics(target)" :key="message" role="status">{{ message }} Stored planning is retained; review explicitly before changing it.</p>
     <p v-if="draft.error" role="alert">{{ draft.error }}</p>
     <p v-if="reviewError" role="alert">{{ reviewError }}</p>
+    <p v-for="loss in zoneLosses" :key="loss" role="status">{{ loss }}</p>
     <p v-if="draft.confirmed" role="status">{{ workspace?.dirty(draft) ? 'Earlier planning saved; newer changes remain unsaved.' : 'Planning saved.' }}</p>
     <fieldset v-for="(entry, index) in draft.entries" :key="entry.id" class="trip-editor-settings-group">
       <legend>{{ entry.label || `Date ${index + 1}` }}</legend>

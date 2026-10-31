@@ -160,7 +160,9 @@ tests cover adjacent behavior; do not multiply their state matrices in the brows
 Read-only inspection at WayfarerApp `e5f8353` confirms that `TripOwner` and
 `TripControls` are synthetic Foundation selection/navigation surfaces. They are
 not backend DTOs or full Trip editors and must not be expanded for WB1. The owning
-Trip delivery phase under WayfarerApp #2 must supply the required companion:
+Trip delivery phase after Foundation #2 must supply the required companion. The
+live #2 explicitly excludes full Trip editing; this batch does not assign that
+work to Foundation or invent a later implementation issue:
 
 - Coherent bearer owner download/refresh using the new owner snapshot, public
   viewer redaction, and lossless DTO/domain/SQLDelight storage of every authored

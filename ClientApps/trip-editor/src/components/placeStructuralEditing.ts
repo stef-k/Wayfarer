@@ -27,7 +27,7 @@ export const completePlace = (value: EditorPlace): boolean => {
     && (original.markerColor?.trim() ? original.markerColor : 'bg-blue') === value.markerColor);
 };
 
-/** Exact public material base; private route/enrichment facts are reviewed in the prepared conditions. */
+/** Exact owner material base; private route/enrichment facts are reviewed in the prepared conditions. */
 export interface PlaceMaterialOriginal {
   id: string; regionId: string; name: string; notes: string | null; address: string | null;
   location: EditorPlace['location']; iconName: string | null; markerColor: string | null; displayOrder: number | null;
@@ -44,7 +44,7 @@ export interface PlaceStructureRequest {
   reviewed?: boolean;
 }
 
-/** Coherent public review projection plus opaque private conditions; never a replacement baseline. */
+/** Coherent owner review projection plus opaque private conditions; never a replacement baseline. */
 export interface PlaceStructurePreview {
   contract: string; operation: string; tripId: string; targetId: string; requiresReview: boolean;
   conditionToken: string; place: PlaceMaterialOriginal | null;
@@ -97,7 +97,7 @@ export const placeStructureRequest = (current: EditorPlaceSaveRequest, before: E
 const storedOrder = (a: { id: string; displayOrder: number | null }, b: { id: string; displayOrder: number | null }): number =>
   Number(a.displayOrder === null) - Number(b.displayOrder === null) || (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id.localeCompare(b.id);
 
-/** Checks the full public material projection before it can support explicit dependency review. */
+/** Checks the full owner material projection before it can support explicit dependency review. */
 const validMaterial = (place: PlaceMaterialOriginal): boolean => Boolean(place && typeof place.id === 'string' && place.id
   && typeof place.regionId === 'string' && place.regionId && typeof place.name === 'string'
   && ['notes', 'address', 'iconName', 'markerColor', 'resolvedFeatureName', 'resolvedFeatureType'].every(key => Object.hasOwn(place, key)

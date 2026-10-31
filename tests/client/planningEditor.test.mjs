@@ -117,3 +117,24 @@ test('malformed success holds replay across remount and public-looking equality 
     assert.equal(workspace.hasChanges.value, true);
   } finally { second?.dispose(); globalThis.fetch = oldFetch; }
 });
+
+test('duplicate-member or false-applied success cannot retire the submitted original', async () => {
+  const oldFetch = globalThis.fetch;
+  try {
+    for (const duplicate of [true, false]) {
+      const { workspace, editor } = fresh();
+      editor.controls.add();
+      const draft = editor.controls.draft;
+      draft.entries[0].when.value.local = '2027-03-02';
+      globalThis.fetch = async (_, init) => {
+        const request = JSON.parse(init.body);
+        const normal = await acknowledgement(request, duplicate ? {} : { applied: false }).text();
+        return new Response(duplicate ? normal.replace('"success":true', '"success":false,"success":true') : normal);
+      };
+      await workspace.save(draft);
+      assert.equal(draft.uncertain, true);
+      assert.equal(draft.original, null);
+      editor.dispose();
+    }
+  } finally { globalThis.fetch = oldFetch; }
+});

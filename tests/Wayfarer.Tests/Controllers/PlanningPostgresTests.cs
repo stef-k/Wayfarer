@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Data.Common;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -193,6 +195,59 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         Assert.False(await verify.Areas.AsNoTracking().AnyAsync(a => a.Id == area.Id));
     }
 
+    /// <summary>A failure after rebuilt children were inserted rolls back graph and retained private planning together.</summary>
+    [PostgresFact]
+    public async Task LateNativeReconciliationFailureRestoresOriginalPlanningAndGraph()
+    {
+        var trip = await SeedAsync();
+        var place = trip.Regions.Single().Places.First();
+        place.Planning = Plan();
+        await using (var initial = fixture.CreateContext())
+        {
+            await initial.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Planning, place.Planning));
+        }
+        var beforeName = trip.Name;
+        trip.Name = "Rejected replacement";
+        var interceptor = new FailAfterRebuild();
+        await using var db = fixture.CreateContext(interceptor);
+        var importer = new TripImportService(db, NullLogger<TripImportService>.Instance);
+        await using var file = new MemoryStream(Encoding.UTF8.GetBytes(TripWayfarerKmlExporter.BuildKml(trip)));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => importer.ImportWayfarerKmlAsync(file, trip.UserId, TripImportMode.Upsert));
+        Assert.Equal("Induced late reconciliation failure", failure.Message);
+        Assert.True(interceptor.Rebuilt);
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(beforeName, (await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Name);
+        Assert.True(PlanningCodec.Equal(place.Planning, (await verify.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id)).Planning));
+        Assert.Equal(2, await verify.Places.CountAsync(p => p.Region.TripId == trip.Id));
+    }
+
+    /// <summary>Concurrent additions to one absent aggregate cannot both acknowledge success or merge implicitly.</summary>
+    [PostgresFact]
+    public async Task ConcurrentAbsentOriginalsHaveExactlyOneWinner()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        await using var app = await HostAsync(db);
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", trip.UserId);
+        var first = Plan();
+        var second = Plan();
+        var url = $"/api/trips/{trip.Id}/planning/trip/{trip.Id}";
+        var responses = await Task.WhenAll(client.PatchAsJsonAsync(url,
+                new { expected = new { parentId = trip.Id, planning = (object?)null }, operation = "set", value = first }),
+            client.PatchAsJsonAsync(url,
+                new { expected = new { parentId = trip.Id, planning = (object?)null }, operation = "set", value = second }));
+        try
+        {
+            Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+            Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
+            await using var verify = fixture.CreateContext();
+            var saved = (await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Planning;
+            Assert.True(PlanningCodec.Equal(responses[0].IsSuccessStatusCode ? first : second, saved));
+        }
+        finally { foreach (var response in responses) response.Dispose(); }
+    }
+
     /// <summary>Supplies real owned graph content with no planning before each routed test.</summary>
     private async Task<Trip> SeedAsync()
     {
@@ -233,5 +288,21 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
     private sealed class Factory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
     {
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+    }
+
+    /// <summary>Injects one failure only after the production importer has actually rebuilt children.</summary>
+    private sealed class FailAfterRebuild : DbCommandInterceptor
+    {
+        /// <summary>Confirms that the injected failure follows actual replacement inserts.</summary>
+        public bool Rebuilt { get; private set; }
+        /// <summary>Rejects the first measurement read after the rebuilt graph was sent to PostgreSQL.</summary>
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("INSERT INTO \"Places\"", StringComparison.Ordinal)) Rebuilt = true;
+            if (Rebuilt && command.CommandText.StartsWith("SELECT", StringComparison.Ordinal)
+                && command.CommandText.Contains("\"Segments\"", StringComparison.Ordinal)) throw new InvalidOperationException("Induced late reconciliation failure");
+            return ValueTask.FromResult(result);
+        }
     }
 }
