@@ -912,12 +912,14 @@ test('current authoritative publication refreshes five clean Planning owners and
   }
   for (const local of ['2027-03-09', '2027-03-10']) {
     const result = currentPlanningResult(parent, local);
+    result.affected.places[0].regionId = 'current-parent';
     globalThis.fetch = async () => new Response(JSON.stringify(result));
     parent.applyMutation(await patchMetadata('/api/trips/trip/editor', 'anti', {}));
     for (const draft of drafts) {
       const entity = draft.kind === 'trip' ? parent.state.metadata : parent.state[`${draft.kind}sById`][draft.id];
       assert.equal(entity.planning.entries[0].when.value.local, local);
       assert.equal(draft.original.entries[0].when.value.local, '2027-03-09');
+      if (draft.kind === 'place') assert.equal(draft.parentId, 'current-parent');
       assert.equal(draft.entries[0].when.value.local, local === '2027-03-09' ? local : '2027-03-15');
     }
     for (const draft of drafts) draft.entries[0].when.value.local = '2027-03-15';
@@ -1015,4 +1017,18 @@ test('mounted Segment order reply cannot undo independent row deletion', () => w
   release(); await ordering; await nextTick();
   assert.equal(parent.state.segmentsById.s, undefined); assert.deepEqual(parent.state.segmentOrder, []);
   assert.equal(calls.length, 2);
+}));
+
+test('late comparison review cannot exchange a deleted recovery original or release its hold', () => withApp(async ({ parent }) => {
+  seedPlanningTargets(parent);
+  const draft = parent.planningWorkspace.open({ kind: 'area', entityId: 'a', mode: 'edit' });
+  draft.entries.push(...datedPlan('2027-03-02').entries);
+  const staleGraph = JSON.parse(JSON.stringify(parent.state)); staleGraph.areasById.a.planning = datedPlan('2027-03-09');
+  let settle; globalThis.fetch = async () => new Promise(done => { settle = done; });
+  const reviewing = parent.planningWorkspace.review(draft);
+  const deletion = JSON.parse(reply(false)); deletion.deletedIds.areas = ['a']; parent.applyMutation(deletion);
+  settle(new Response(JSON.stringify(staleGraph)));
+  await assert.rejects(reviewing, /scope changed/);
+  assert.equal(draft.original, null); assert.equal(draft.deleted, true);
+  assert.equal(parent.planningWorkspace.hasChanges.value, true);
 }));

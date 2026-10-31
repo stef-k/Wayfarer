@@ -60,7 +60,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
   };
   const isDeleted = (kind: string, id: string): boolean => deletedTargets.has(`${kind}/${id}`);
   /** Fresh server snapshots advance clean forms; local attempts fence only older or overlapping publication. */
-  const publishPlanning = <T extends { id: string; planning?: PlanningAggregate | null; planningDiagnostics?: unknown }>(result: object, kind: string, incoming: T, previous?: T): T => {
+  const publishPlanning = <T extends { id: string; regionId?: string; planning?: PlanningAggregate | null; planningDiagnostics?: unknown }>(result: object, kind: string, incoming: T, previous?: T): T => {
     const key = `${kind}/${incoming.id}`;
     const position = dispatches.get(result) ?? ++publicationPosition;
     const draft = drafts[key];
@@ -70,6 +70,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
     if (draft && !dirty(draft)) {
       draft.original = copy(incoming.planning ?? null);
       draft.entries = copy(incoming.planning?.entries ?? []);
+      draft.parentId = incoming.regionId ?? state.value?.tripId ?? draft.parentId;
       draft.confirmed = false;
     }
     return incoming;
