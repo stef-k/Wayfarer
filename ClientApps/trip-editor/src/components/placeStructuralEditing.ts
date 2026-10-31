@@ -32,6 +32,7 @@ export interface PlaceMaterialOriginal {
   id: string; regionId: string; name: string; notes: string | null; address: string | null;
   location: EditorPlace['location']; iconName: string | null; markerColor: string | null; displayOrder: number | null;
   resolvedFeatureName: string | null; resolvedFeatureType: string | null;
+  planning: import('../planning/planningTypes').PlanningAggregate | null;
 }
 
 /** Exact combined intent and retained originals submitted unchanged through preparation and apply. */
@@ -57,7 +58,7 @@ export const placeMaterialOriginal = (place: EditorPlace): PlaceMaterialOriginal
     throw new Error('Original Place content is unavailable. Keep your draft and explicitly review a fresh starting view.');
   return JSON.parse(JSON.stringify({ id: place.id, regionId: original.regionId, name: original.name, notes: original.notesHtml,
     address: original.address!, location: place.location, iconName: original.iconName, markerColor: original.markerColor,
-    displayOrder: original.displayOrder!, resolvedFeatureName: place.resolvedFeatureName ?? null, resolvedFeatureType: place.resolvedFeatureType ?? null }));
+    displayOrder: original.displayOrder!, resolvedFeatureName: place.resolvedFeatureName ?? null, resolvedFeatureType: place.resolvedFeatureType ?? null, planning: place.planning ?? null }));
 };
 
 /** Captures every potential destination once, before membership/order intent is authored. */

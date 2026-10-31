@@ -235,7 +235,7 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(JsonValueKind.Null, published.GetProperty("location").ValueKind);
         var material = new { id = place.Id, regionId = place.RegionId, name = place.Name, notes = place.Notes,
             address = place.Address, location = (object?)null, iconName = place.IconName, markerColor = place.MarkerColor,
-            displayOrder = place.DisplayOrder, resolvedFeatureName = "Historical enrichment", resolvedFeatureType = "landmark" };
+            displayOrder = place.DisplayOrder, resolvedFeatureName = "Historical enrichment", resolvedFeatureType = "landmark", planning = place.Planning };
         var path = operation == "order" ? OrderPath(place.Region.TripId, place.RegionId, false)
             : StructurePath(place, operation == "address", "coordinates");
         var client = operation == "address" ? web : bearer;

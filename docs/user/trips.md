@@ -39,6 +39,43 @@ shown by the editor. Saving again still checks the original values; it does not
 force an overwrite. Older applications and already-open older editor tabs do not
 provide this protection.
 
+## Optional private dates and times
+
+After saving an object, open its existing Trip settings, Region, Place, Area or
+Segment editor and expand **Planning**. Choose **Add date**, use the date picker
+or **Month only**, optionally add an end date or time, then **Save planning**.
+Planning has its own save inside the editor, so ordinary Notes and route edits
+remain independent. Leaving Planning unused changes nothing about ordinary editing.
+
+Saved values appear in the Planning summary. Open it again to refine an existing
+entry without re-entering its date; **Add another date** keeps separate visits.
+**More** offers an optional label, meaning, elapsed allocation or deliberately
+unknown/flexible timing. You can leave all meanings unspecified. A period can have
+only an end: set its start information to **Unspecified**. End means an endpoint,
+not “leave by.” To remove saved planning, remove its entries and save planning.
+
+Dates preserve their entered precision. Clock times may leave the zone unspecified
+or explicitly use UTC/an IANA zone. Repeated clocks can remain unresolved or select
+an occurrence offset. Removing finer precision asks before losing it. No device zone,
+midnight, duration, attendance or travel meaning is filled in automatically.
+
+Rough, incomplete and overlapping plans save normally. Parent dates do not restrict
+child saves. Malformed dates, invalid zone clocks and provably reversed periods
+reject without changing saved planning; the complete draft remains editable.
+A conflict retains your draft and its original comparison. **Review current
+comparison** explicitly adopts a fresh comparison while retaining your draft;
+saving then replaces that object's complete planning, including all entries.
+
+If a save cannot be confirmed, your draft stays in the open workspace and further
+planning saves pause. Opening another editor or docking retains that draft. A page
+reload or leaving loses these in-memory drafts and does not undo the earlier
+request; inspecting equal saved values does not confirm its outcome.
+
+Planning stays private even on public Trips and does not appear on public URLs,
+downloads or another user's copy. Dates written into ordinary Notes keep the
+visibility of those Notes. Check plan, personal planning export/import and the
+required new-mobile companion are separately owned work and are not delivered here.
+
 ## Add Places and Areas
 
 In the editor, select a Region and add a Place. Pick its position on the map or

@@ -18,7 +18,8 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         // Fence the original private route before authentication, errors or status-code re-execution.
         var path = context.Request.Path.Value ?? "";
         var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
-            && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase));
+            && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase)
+                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase));
         context.Response.OnStarting(() =>
         {
             var response = context.Response;

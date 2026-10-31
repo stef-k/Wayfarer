@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PlanningEditor from '../planning/PlanningEditor.vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
@@ -45,6 +46,7 @@ watch(isExpanded, async expanded => {
     </header>
     <div class="trip-editor-surface__body">
       <slot name="body"></slot>
+      <PlanningEditor :target="target" />
     </div>
     <footer class="trip-editor-surface__footer">
       <slot name="footer"></slot>
@@ -84,6 +86,7 @@ watch(isExpanded, async expanded => {
         </header>
         <div class="trip-editor-expanded__body">
           <slot name="body"></slot>
+      <PlanningEditor :target="target" />
         </div>
         <footer class="trip-editor-surface__footer trip-editor-expanded__footer">
           <slot name="footer"></slot>

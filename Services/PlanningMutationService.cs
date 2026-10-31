@@ -59,7 +59,7 @@ internal sealed class PlanningMutationService(ApplicationDbContext db)
             : typeof(T) == typeof(Region) ? "SELECT * FROM public.\"Regions\" WHERE \"Id\" = {0} FOR UPDATE"
             : typeof(T) == typeof(Place) ? "SELECT * FROM public.\"Places\" WHERE \"Id\" = {0} FOR UPDATE"
             : typeof(T) == typeof(Area) ? "SELECT * FROM public.\"Areas\" WHERE \"Id\" = {0} FOR UPDATE"
-            : typeof(T) == typeof(Segment) ? "SELECT * FROM public.\"Segments\" WHERE \"Id\" = {0} FOR UPDATE"
+            : typeof(T) == typeof(Segment) ? "SELECT *, xmin FROM public.\"Segments\" WHERE \"Id\" = {0} FOR UPDATE"
             : throw new InvalidOperationException("Unsupported planning entity type.");
         return db.Set<T>().FromSqlRaw(sql, id).AsNoTracking().SingleOrDefaultAsync(token);
     }

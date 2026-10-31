@@ -95,14 +95,33 @@ public static class PlanningValidation
             var last = Instants(end);
             return first.Length > 0 && last.Length > 0 && last.Max() < first.Min();
         }
-        // Coarse calendar granules compare nominally. A clock in a different/unspecified zone
-        // cannot establish ordering against an unzoned date/month granule.
-        if (start.Precision == "dateTime" || end.Precision == "dateTime") return false;
-        var earliestStart = start.Precision == "month" ? Month.Parse(start.Local).Value : Date.Parse(start.Local).Value;
-        var latestEnd = end.Precision == "month"
-            ? new LocalDate(Month.Parse(end.Local).Value.Year, Month.Parse(end.Local).Value.Month,
-                CalendarSystem.Iso.GetDaysInMonth(Month.Parse(end.Local).Value.Year, Month.Parse(end.Local).Value.Month)) : Date.Parse(end.Local).Value;
-        return latestEnd < earliestStart;
+        // Unzoned civil components can prove nominal ordering across precision levels.
+        // A zoned clock has no established common frame with an unzoned calendar granule.
+        if (start.Zone != null || end.Zone != null) return false;
+        return CivilEdge(end, latest: true) < CivilEdge(start, latest: false);
+    }
+
+    /// <summary>Transient granule edges support ordering without persisting invented civil components.</summary>
+    private static LocalDateTime CivilEdge(PlanningValue value, bool latest)
+    {
+        if (value.Precision == "dateTime") return Minute.Parse(value.Local).Value;
+        var date = value.Precision == "month" ? Month.Parse(value.Local).Value : Date.Parse(value.Local).Value;
+        if (!latest) return date.AtMidnight();
+        if (value.Precision == "month") date = new(date.Year, date.Month, CalendarSystem.Iso.GetDaysInMonth(date.Year, date.Month));
+        return date.At(new LocalTime(23, 59, 59, 999).PlusNanoseconds(999999));
+    }
+
+    /// <summary>Reads remain lossless after TZDB changes; diagnostics invite explicit refinement without rewriting values.</summary>
+    public static IReadOnlyList<PlanningDiagnostic> Diagnostics(PlanningAggregate? aggregate, string kind)
+    {
+        if (aggregate == null) return [];
+        List<PlanningDiagnostic> diagnostics = [];
+        foreach (var entry in aggregate.Entries)
+        {
+            try { Validate(new(aggregate.Format, [entry]), kind); }
+            catch (PlanningValidationException error) { diagnostics.Add(new(entry.Id, "planning-current-rules-review", error.Message)); }
+        }
+        return diagnostics;
     }
 
     /// <summary>Returns all admissible occurrences, retaining an unresolved fold as two possibilities.</summary>
@@ -122,3 +141,6 @@ public static class PlanningValidation
         if (!condition) throw new PlanningValidationException(message);
     }
 }
+
+/// <summary>Owner-only current-rule diagnostic; neither persisted state nor a Check plan result.</summary>
+public sealed record PlanningDiagnostic(Guid EntryId, string Code, string Message);

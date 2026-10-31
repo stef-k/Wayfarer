@@ -12,7 +12,7 @@ public partial class TripImportService
         if (_dbContext.Database.IsRelational())
         {
             // Match lifecycle lock classes. Parent barriers fence additions; re-read all content after waits.
-            await _dbContext.Segments.FromSqlInterpolated($"SELECT * FROM public.\"Segments\" WHERE \"TripId\" = {mapped.Id} ORDER BY \"Id\" FOR UPDATE").AsNoTracking().ToListAsync(token);
+            await _dbContext.Segments.FromSqlInterpolated($"SELECT *, xmin FROM public.\"Segments\" WHERE \"TripId\" = {mapped.Id} ORDER BY \"Id\" FOR UPDATE").AsNoTracking().ToListAsync(token);
             await _dbContext.Places.FromSqlInterpolated($"SELECT p.* FROM public.\"Places\" p JOIN public.\"Regions\" r ON p.\"RegionId\" = r.\"Id\" WHERE r.\"TripId\" = {mapped.Id} ORDER BY p.\"Id\" FOR UPDATE OF p").AsNoTracking().ToListAsync(token);
             await _dbContext.Areas.FromSqlInterpolated($"SELECT a.* FROM public.\"Areas\" a JOIN public.\"Regions\" r ON a.\"RegionId\" = r.\"Id\" WHERE r.\"TripId\" = {mapped.Id} ORDER BY a.\"Id\" FOR UPDATE OF a").AsNoTracking().ToListAsync(token);
             await _dbContext.Regions.FromSqlInterpolated($"SELECT * FROM public.\"Regions\" WHERE \"TripId\" = {mapped.Id} ORDER BY \"Id\" FOR UPDATE").AsNoTracking().ToListAsync(token);
@@ -22,7 +22,11 @@ public partial class TripImportService
             .Include(t => t.Regions).ThenInclude(r => r.Areas).Include(t => t.Segments)
             .AsSplitQuery().SingleOrDefaultAsync(t => t.Id == mapped.Id && t.UserId == owner, token);
         if (current == null) throw new InvalidOperationException("Trip not found or not yours for upsert.");
-        var active = await _dbContext.Users.AsNoTracking().AnyAsync(u => u.Id == owner && u.IsActive, token);
+        if (current.Regions.Any(r => r.UserId != owner || r.Places.Any(p => p.UserId != owner))
+            || current.Segments.Any(s => s.UserId != owner)) throw new TripImportValidationException("The current graph requires reconciliation.");
+        var active = _dbContext.Database.IsRelational()
+            ? (await _dbContext.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {owner} AND \"IsActive\" FOR SHARE").AsNoTracking().ToListAsync(token)).Count > 0
+            : await _dbContext.Users.AsNoTracking().AnyAsync(u => u.Id == owner && u.IsActive, token);
         if (!active) throw new InvalidOperationException("Import authority is no longer valid.");
         Preserve(current.Regions, mapped.Regions, r => r.Id);
         Preserve(current.Regions.SelectMany(r => r.Places), mapped.Regions.SelectMany(r => r.Places), p => p.Id);

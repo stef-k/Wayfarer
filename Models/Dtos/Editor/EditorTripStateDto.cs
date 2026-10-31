@@ -70,6 +70,8 @@ public sealed record EditorTripMetadataDto(
 {
     /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
     public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+    /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
+    public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
     /// <summary>Compatible additive originals for conditional saves; display Notes alone cannot prove null versus empty.</summary>
     public EditorTripMetadataOriginalDto? OriginalValues { get; init; }
@@ -96,6 +98,8 @@ public sealed record EditorRegionDto(
 {
     /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
     public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+    /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
+    public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
     /// <summary>Exact published originals for protected Region saves; display defaults are not original evidence.</summary>
     public EditorRegionOriginalDto? OriginalValues { get; init; }
@@ -123,6 +127,8 @@ public sealed record EditorPlaceDto(
 {
     /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
     public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+    /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
+    public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
     /// <summary>Exact server originals; nullable storage is independent of display defaults.</summary>
     public EditorPlaceOriginalDto? OriginalValues { get; init; }
@@ -151,6 +157,8 @@ public sealed record EditorAreaDto(
 {
     /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
     public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+    /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
+    public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
     /// <summary>Server-origin comparisons, independent of display defaults and GeoJSON precision.</summary>
     public EditorAreaOriginalValues? OriginalValues { get; init; }
@@ -183,6 +191,8 @@ public sealed record EditorSegmentDto(
 {
     /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
     public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+    /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
+    public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
     /// <summary>Exact nullable published Notes, independent of display defaults and opaque route-aggregate evidence.</summary>
     public EditorSegmentNotesOriginalDto? OriginalValues { get; init; }

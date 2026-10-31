@@ -20,7 +20,7 @@ public sealed record RegionDeletionConsequencesDto(
     EditorLifecycleAssociationSampleDto DetachedWaypoints);
 
 /// <summary>Discloses source metadata loss without copying raw HTML into the dialog.</summary>
-public sealed record RegionDeletionMetadataLossDto(bool HasNotes, bool HasCover, bool HasCenter);
+public sealed record RegionDeletionMetadataLossDto(bool HasNotes, bool HasCover, bool HasCenter, bool HasPlanning = false);
 
 /// <summary>Ten-minute, purpose-separated content confirmation, never an operation receipt.</summary>
 public sealed record RegionDeletionConfirmationDto(string Token, DateTimeOffset ExpiresAt);

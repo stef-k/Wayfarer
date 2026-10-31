@@ -25,6 +25,7 @@ const choices: Disposition[] = ['keep', 'delete'];
       <p>Places: {{ controller.state.preview.consequences.movedPlaces.count }} kept, {{ controller.state.preview.consequences.deletedPlaces.count }} deleted.
         Areas: {{ controller.state.preview.consequences.movedAreas.count }} kept, {{ controller.state.preview.consequences.deletedAreas.count }} deleted.</p>
       <p v-if="controller.state.preview.destination.mode !== 'not-required'">{{ controller.state.preview.destination.mode === 'create' ? 'Creates' : 'Appends to existing' }} Unassigned Places.</p>
+      <p>The Region’s private planning is removed. Kept children retain their own planning; deleted children and Segments lose theirs.</p>
       <p>Segments deleted: {{ controller.state.preview.consequences.deletedSegments.count }}.</p>
       <p>Surviving waypoint routes changed: {{ controller.state.preview.consequences.updatedSegments.count }};
         saved waypoint associations removed: {{ controller.state.preview.consequences.detachedWaypoints.count }}.</p>
