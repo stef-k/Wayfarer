@@ -61,13 +61,13 @@ watch(() => props.target.identity, () => { reviewError.value = null; });
 </script>
 
 <template>
-      <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" aria-label="Deleted target Planning recovery">
-        <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : 'Discard it when you no longer need it.' }}</p>
-        <label>Retained Planning ({{ draft.kind }} {{ draft.id }})
-          <textarea readonly :value="JSON.stringify(draft.entries, null, 2)"></textarea>
-        </label>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="draft.pending || draft.uncertain" @click="discardDeletedPlanning(draft)">Discard this Planning draft</button>
-      </section>
+  <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" aria-label="Deleted target Planning recovery">
+    <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : 'Discard it when you no longer need it.' }}</p>
+    <label>Retained Planning ({{ draft.kind }} {{ draft.id }})
+      <textarea readonly :value="JSON.stringify(draft.entries, null, 2)"></textarea>
+    </label>
+    <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="draft.pending || draft.uncertain" @click="discardDeletedPlanning(draft)">Discard this Planning draft</button>
+  </section>
 
   <details v-if="draft" class="trip-editor-panel" data-planning>
     <summary>Planning <span v-if="summary">· {{ summary }}</span></summary>

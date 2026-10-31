@@ -337,8 +337,12 @@ public sealed partial class RegionConditionalPostgresTests
         return (string?)await command.ExecuteScalarAsync();
     }
     /// <summary>Reviewed normal Region planning drift rejects stale ordering without changing the graph.</summary>
-    [PostgresFact]
-    public async Task Planning_RegionOrderAcceptsPlanningDrift()
+    [PostgresTheory]
+    [InlineData("region")]
+    [InlineData("trip")]
+    [InlineData("place")]
+    [InlineData("canonical")]
+    public async Task Planning_RegionOrderBindsOnlyNormalRegionMaterial(string scope)
     {
         var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext();
@@ -347,9 +351,16 @@ public sealed partial class RegionConditionalPostgresTests
         var request = await RegionOrderRequestAsync(graph.TripId);
         await PrepareRegionOrderAsync(web, graph.TripId, true, request);
         var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unknown"))]);
-        using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/region/{graph.SourceId}", new { expected = new { parentId = graph.TripId, planning = (object?)null }, operation = "set", value = plan });
+        var (kind, id, parent) = scope switch
+        {
+            "trip" => ("trip", graph.TripId, graph.TripId),
+            "place" => ("place", graph.PlaceIds[0], graph.SourceId),
+            "canonical" => ("region", graph.DestinationId!.Value, graph.TripId),
+            _ => ("region", graph.SourceId, graph.TripId)
+        };
+        using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/{kind}/{id}", new { expected = new { parentId = parent, planning = (object?)null }, operation = "set", value = plan });
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         using var reordered = await web.PutAsJsonAsync(RegionOrderPath(graph.TripId, true), request);
-        Assert.Equal(HttpStatusCode.Conflict, reordered.StatusCode);
+        Assert.Equal(scope == "region" ? HttpStatusCode.Conflict : HttpStatusCode.OK, reordered.StatusCode);
     }
 }

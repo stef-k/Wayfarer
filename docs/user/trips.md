@@ -45,7 +45,10 @@ After saving an object, open its existing Trip settings, Region, Place, Area or
 Segment editor and expand **Planning**. Choose **Add date**, use the date picker
 or **Month only**, optionally add an end date or time, then **Save planning**.
 Planning has its own save inside the editor, so ordinary Notes and route edits
-remain independent. Leaving Planning unused changes nothing about ordinary editing.
+remain independent. **Save settings & Continue/Exit** saves Trip settings, tags and
+sharing; it does not save Planning or another editor's Notes/routes. Shared status
+and exit confirmation include unsaved, pending and unconfirmed Planning.
+Leaving Planning unused changes nothing about ordinary editing.
 
 Saved values appear in the Planning summary. Open it again to refine an existing
 entry without re-entering its date; **Add another date** keeps separate visits.
@@ -69,7 +72,10 @@ saving then replaces that object's complete planning, including all entries.
 If a save cannot be confirmed, your draft stays in the open workspace and further
 planning saves pause. Opening another editor or docking retains that draft. A page
 reload or leaving loses these in-memory drafts and does not undo the earlier
-request; inspecting equal saved values does not confirm its outcome.
+request; inspecting equal saved values does not confirm its outcome. If a target
+is deleted, its affected Planning draft remains available in an editor for copying
+and **Discard this Planning draft**. Discard requires confirmation and affects
+only that draft. Pending/unconfirmed attempts cannot be discarded this way.
 
 Planning stays private even on public Trips and does not appear on public URLs,
 downloads or another user's copy. Dates written into ordinary Notes keep the

@@ -343,34 +343,35 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         });
     });
     const importer = createTripImporter({
-            fetchImpl: fetch,
-            onRedirect: url => {
-                dupModal?.hide();
-                window.location.href = url;
-            },
-            onDuplicate: () => {
-                showImportChoice(false);
-            },
-            onPlanningLoss: () => showImportChoice(true),
-            showNotices: notices => notices.forEach(notice => {
-                if (notice.code === 'generic_route_simplified') {
-                    wayfarer.showAlert('info', `${notice.segmentName}: route reduced from ${notice.originalCoordinateCount} to ${notice.resultingCoordinateCount} coordinates.`);
-                } else if (notice.code === 'generic_routes_simplified_additional') {
-                    wayfarer.showAlert('info', `${notice.additionalRouteCount} additional routes were simplified.`);
-                }
-            }),
-            showError: message => wayfarer.showAlert('danger', message)
+        fetchImpl: fetch,
+        onRedirect: url => {
+            dupModal?.hide();
+            window.location.href = url;
+        },
+        onDuplicate: () => {
+            showImportChoice(false);
+        },
+        onPlanningLoss: () => showImportChoice(true),
+        showNotices: notices => notices.forEach(notice => {
+            if (notice.code === 'generic_route_simplified') {
+                wayfarer.showAlert('info', `${notice.segmentName}: route reduced from ${notice.originalCoordinateCount} to ${notice.resultingCoordinateCount} coordinates.`);
+            } else if (notice.code === 'generic_routes_simplified_additional') {
+                wayfarer.showAlert('info', `${notice.additionalRouteCount} additional routes were simplified.`);
+            }
+        }),
+        showError: message => wayfarer.showAlert('danger', message)
     });
 
-    document.getElementById('btnUpdate')?.addEventListener('click', () => {
-        dupModal?.hide();
-        void importer.update();
-    });
-
-    document.getElementById('btnCopy')?.addEventListener('click', () => {
-        dupModal?.hide();
-        void importer.createCopy();
-    });
+    // Keep the modal mounted during a choice so a fast refusal cannot be lost in Bootstrap's hide transition.
+    const applyImportChoice = async action => {
+        const buttons = ['btnUpdate', 'btnCopy'].map(id => document.getElementById(id)).filter(Boolean);
+        if (buttons.some(button => button.disabled)) return;
+        buttons.forEach(button => { button.disabled = true; });
+        try { await action(); }
+        finally { buttons.forEach(button => { button.disabled = false; }); }
+    };
+    document.getElementById('btnUpdate')?.addEventListener('click', () => { void applyImportChoice(importer.update); });
+    document.getElementById('btnCopy')?.addEventListener('click', () => { void applyImportChoice(importer.createCopy); });
 
     document.getElementById('btnCancelImport')?.addEventListener('click', () => importer.cancel());
 

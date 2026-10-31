@@ -45,7 +45,14 @@ export const createTripImporter = handlers => {
     let selectedFile = null;
     const upload = async (file, mode = 'Auto') => {
         selectedFile = file;
-        await submitTripImport(file, mode, handlers);
+        await submitTripImport(file, mode, { ...handlers,
+            onDuplicate: () => { selectedFile = file; handlers.onDuplicate(); },
+            onPlanningLoss: () => {
+                selectedFile = file;
+                if (handlers.onPlanningLoss) handlers.onPlanningLoss();
+                else handlers.showError(planningLossExplanation);
+            }
+        });
     };
     return {
         upload,

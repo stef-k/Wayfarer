@@ -759,30 +759,52 @@ for (const clear of [false, true]) test(`M1: normalized submitted values and ${c
 }));
 
 // WB1: production publication and application-controlled exit include separate Planning saves.
-test('Planning-only edits report unsaved and Save & Exit requests explicit separate-save consent',()=>withApp(async owner=>{
- const {editor,planning,navigations,confirmations}=owner;
- assert.ok(planning);planning.add();planning.draft.entries[0].when.value.local='2027-03-02';
- await nextTick(); assert.match(owner.surface.displayedStatus,/Planning.*unsaved/i);
- assert.equal(planning.workspace.hasChanges.value,true);let requests=0;
- globalThis.fetch=async()=>{requests++;throw new Error('unexpected request');};
- await editor.saveAndExit();assert.equal(requests,0);assert.equal(navigations.length,0);assert.equal(confirmations.length,1);assert.match(confirmations[0].message,/separately/i);
- owner.approve(true);await editor.backToTrips();assert.equal(navigations.length,1);
- assert.equal(planning.workspace.hasChanges.value,true);
+test('Planning-only edits report unsaved and Save & Exit requests explicit separate-save consent', () => withApp(async owner => {
+  const { editor, planning, navigations, confirmations } = owner;
+  planning.add();
+  planning.draft.entries[0].when.value.local = '2027-03-02';
+  await nextTick();
+  assert.match(owner.surface.displayedStatus, /Planning.*unsaved/i);
+  assert.equal(planning.workspace.hasChanges.value, true);
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw new Error('unexpected request'); };
+  await editor.saveAndExit();
+  assert.equal(requests, 0);
+  assert.equal(navigations.length, 0);
+  assert.equal(confirmations.length, 1);
+  assert.match(confirmations[0].message, /separately/i);
+  owner.approve(true);
+  await editor.backToTrips();
+  assert.equal(navigations.length, 1);
+  assert.equal(planning.workspace.hasChanges.value, true);
 }));
 
-test('late actual App metadata response preserves acknowledged planning and later edits on reopen',()=>withApp(async owner=>{
- const {editor,planning,parent}=owner;assert.ok(planning);
- let releaseMetadata;const older=metadata();older.name='Changed Trip';older.originalValues.name='Changed Trip';
- globalThis.fetch=async(url,init)=>{
-  if(url.endsWith('/metadata/conditional'))return new Promise(resolve=>{releaseMetadata=()=>resolve(new Response(reply(false,older)));});
-  const req=JSON.parse(init.body);return new Response(JSON.stringify({contract:'planning-1',success:true,applied:true,targetKind:'trip',targetId:'trip',parentId:'trip',planning:req.value}));
- };
- editor.draft.name='Changed Trip';const saving=editor.save(false);
- assert.ok(releaseMetadata);planning.add();planning.draft.entries[0].when.value.local='2027-03-02';
- await planning.workspace.save(planning.draft);assert.equal(parent.state.metadata.planning.entries[0].when.value.local,'2027-03-02');
- releaseMetadata();await saving;await nextTick();assert.equal(parent.state.metadata.planning.entries[0].when.value.local,'2027-03-02');
- const same=planning.workspace.open(editor.target);assert.equal(same.original.entries[0].when.value.local,'2027-03-02');
- same.entries[0].when.value.local='2027-03-05';assert.equal(planning.workspace.dirty(same),true);
+test('late actual App metadata response preserves acknowledged planning and later edits on reopen', () => withApp(async ({ editor, planning, parent }) => {
+  let releaseMetadata;
+  const older = metadata();
+  older.name = 'Changed Trip';
+  older.originalValues.name = 'Changed Trip';
+  globalThis.fetch = async (url, init) => {
+    if (url.endsWith('/metadata/conditional')) return new Promise(resolve => { releaseMetadata = () => resolve(new Response(reply(false, older))); });
+    const request = JSON.parse(init.body);
+    return new Response(JSON.stringify({ contract: 'planning-1', success: true, applied: true,
+      targetKind: 'trip', targetId: 'trip', parentId: 'trip', planning: request.value }));
+  };
+  editor.draft.name = 'Changed Trip';
+  const saving = editor.save(false);
+  assert.ok(releaseMetadata);
+  planning.add();
+  planning.draft.entries[0].when.value.local = '2027-03-02';
+  await planning.workspace.save(planning.draft);
+  assert.equal(parent.state.metadata.planning.entries[0].when.value.local, '2027-03-02');
+  releaseMetadata();
+  await saving;
+  await nextTick();
+  assert.equal(parent.state.metadata.planning.entries[0].when.value.local, '2027-03-02');
+  const same = planning.workspace.open(editor.target);
+  assert.equal(same.original.entries[0].when.value.local, '2027-03-02');
+  same.entries[0].when.value.local = '2027-03-05';
+  assert.equal(planning.workspace.dirty(same), true);
 }));
 
 test('all five independent affected slices preserve newer acknowledged Planning and later drafts', () => withApp(async ({ parent }) => {

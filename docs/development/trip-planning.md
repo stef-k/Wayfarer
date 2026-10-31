@@ -121,7 +121,10 @@ public URLs keep the public audience. Private owner/editor/structural responses,
 including errors, use `private, no-store` and omit public validators. No shared
 planning output, generated-file cache or service-worker cache is introduced.
 
-Place move/reorder material originals now contain complete planning. The existing
+Normal Region reorder and Place move/reorder material originals contain complete
+planning, including absence. Canonical Region content, children and Trip planning
+stay outside Region ordering. Independent coordinate/route dependency projections
+exclude Segment planning while retaining route/anchor/provenance/measurement proof. The existing
 mapped-scalar deletion fingerprints include planning for Regions, children and
 affected Segments, including kept children. Independent route fingerprints and
 coordinate originals retain their narrower footprints. Area/Segment DELETE accepts
@@ -179,3 +182,15 @@ work to Foundation or invent a later implementation issue:
 
 No mobile source was changed or Android/iOS qualification claimed. M1 remains
 required, separately owned and incomplete; WB1 does not complete #789.
+
+## WB1 correction boundaries
+
+Independent mutation affected slices preserve the existing Planning slice at the
+App publication owner; Planning acknowledgements advance only their own aggregate.
+Sidebar dirty status and shared exits include Planning, with separate save scope.
+Authoritative deleted IDs retain affected authored drafts in the workspace, exposed
+for copying and individually confirmed discard. Pending/uncertain attempts stay held.
+Negative receipts require a compatible HTTP/problem status, known code and no
+contradictory or malformed outcome fields; redirects remain uncertain. Equality on
+GET/remount never authorizes replay. The import refusal maps only its fixed 409/code
+to local Cancel/Create copy controls retaining the file; WB2 review remains separate.

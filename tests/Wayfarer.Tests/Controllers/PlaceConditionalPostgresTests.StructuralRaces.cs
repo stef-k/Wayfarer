@@ -259,7 +259,7 @@ public sealed partial class PlaceConditionalPostgresTests
     }
     /// <summary>Coordinate changes preserve independent Segment planning without acquiring its comparison dependency.</summary>
     [PostgresFact]
-    public async Task Planning_CoordinatesConflictWithSegmentPlanning()
+    public async Task Planning_CoordinatesPreserveIndependentSegmentPlanning()
     {
         var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
         await using var db = fixture.CreateContext();
@@ -274,5 +274,7 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         using var moved = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
         Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        await using var verify = fixture.CreateContext();
+        Assert.True(PlanningCodec.Equal(plan, (await verify.Segments.AsNoTracking().SingleAsync(s => s.Id == segmentId)).Planning));
     }
 }

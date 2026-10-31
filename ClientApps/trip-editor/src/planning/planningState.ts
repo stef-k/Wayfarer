@@ -107,7 +107,10 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
         if (response.redirected || !problem || Array.isArray(problem) || typeof problem.code !== 'string'
           || statuses[problem.code] !== response.status || problem.status !== response.status
           || ['success', 'applied'].some(key => Object.hasOwn(problem, key) && problem[key] !== false)
-          || Object.hasOwn(problem, 'outcome') || Object.hasOwn(problem, 'planning')
+          || Object.keys(problem).some(key => !['type', 'title', 'status', 'detail', 'instance', 'code', 'errors', 'success', 'applied'].includes(key))
+          || ['type', 'title', 'instance'].some(key => Object.hasOwn(problem, key) && typeof problem[key] !== 'string')
+          || Object.hasOwn(problem, 'errors') && (!problem.errors || typeof problem.errors !== 'object' || Array.isArray(problem.errors)
+            || Object.values(problem.errors).some(errors => !Array.isArray(errors) || errors.some(error => typeof error !== 'string')))
           || Object.hasOwn(problem, 'detail') && typeof problem.detail !== 'string') throw new Error('Planning acknowledgement unavailable.');
         draft.error = typeof problem.detail === 'string' ? problem.detail : 'Planning was not applied. Keep the draft and review current values.';
         return;
@@ -160,9 +163,8 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
     if (draft.deleted && !draft.pending && !draft.uncertain) delete drafts[`${draft.kind}/${draft.id}`];
   };
   /** Separate Planning status participates in shared Saved labels and exit decisions. */
-  const status = (target?: EditorTarget): string | null => {
-    const selected = target ? current(target) : null;
-    const items = target ? Object.values(drafts).filter(d => d.id === selected?.entity.id && d.kind === selected?.kind) : Object.values(drafts);
+  const status = (): string | null => {
+    const items = Object.values(drafts);
     if (items.some(d => d.uncertain)) return 'Planning save not confirmed';
     if (items.some(d => d.pending)) return 'Planning save pending';
     return items.some(dirty) ? 'Planning unsaved' : null;

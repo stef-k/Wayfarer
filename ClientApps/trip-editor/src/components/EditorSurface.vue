@@ -15,7 +15,7 @@ const props = defineProps<{
 const planningWorkspace = inject(planningWorkspaceKey, null);
 const displayedStatus = computed(() => {
   const planning = planningWorkspace?.status();
-  return planning ? props.statusText.startsWith('Saved') ? planning : `${props.statusText}; ${planning}` : props.statusText;
+  return planning ? `${planning}; other changes: ${props.statusText}` : props.statusText;
 });
 const closeButton = ref<HTMLButtonElement | null>(null);
 const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);

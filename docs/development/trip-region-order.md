@@ -27,7 +27,9 @@ scalar and lifecycle writers coordinate through these same Region/Trip barriers.
 Capture the full authoritative starting view before authoring the order. Normal
 Region originals contain every `id`, actual `displayOrder`, `name`, nullable
 normalized `notes`, exact nullable `coverImageUrl`, and nullable
-`center:{latitude,longitude}`. Canonical `Unassigned Places` is identified by its
+`center:{latitude,longitude}`, plus complete private `planning` (explicit `null` for
+absence). Obtain Planning from the coherent owner snapshot; ordinary public reads
+cannot supply these originals. Canonical `Unassigned Places` is identified by its
 exact stored name regardless of stored order. Its separate original is either
 `null` (explicit absence) or `{id,displayOrder}`. Do not send canonical content or
 its ID in the normal vector. Children are preserved, not content dependencies.
@@ -44,7 +46,8 @@ Example mobile preparation body (two normal Regions, historical canonical order)
         "name": "Athens",
         "notes": null,
         "coverImageUrl": null,
-        "center": { "latitude": 37.98, "longitude": 23.73 }
+        "center": { "latitude": 37.98, "longitude": 23.73 },
+        "planning": null
       },
       {
         "id": "10000000-0000-0000-0000-000000000002",
@@ -52,7 +55,8 @@ Example mobile preparation body (two normal Regions, historical canonical order)
         "name": "Thessaloniki",
         "notes": "<p>Station</p>",
         "coverImageUrl": "https://example.test/station.jpg",
-        "center": null
+        "center": null,
+        "planning": null
       }
     ],
     "canonical": {
@@ -80,7 +84,7 @@ its published nullable `originalValues`, not display Notes/cover defaults.
 Prepared conditions bind owner, Trip, Web/bearer dialect, exact intent and raw
 normal-Region material under the distinct
 `Wayfarer.RegionOrder.Conditions.v1` purpose. Place and deletion proofs cannot
-substitute. Preparation rejects stale public originals rather than adopting a new
+substitute. Preparation rejects stale owner originals rather than adopting a new
 base; raw content is rechecked at final apply. Tokens are transient conditions,
 without a durable receipt, terminality or replay guarantee.
 
@@ -113,6 +117,8 @@ returns `applied:true`. These results describe committed effects only.
 
 A valid vector followed by a Notes edit can both succeed. A material Notes edit
 first makes a previously retained order stale, symmetrically for Web/bearer.
+The same applies to any change in the complete normal Region Planning aggregate.
+Trip, child and canonical Region Planning remain outside this proof.
 Failed apply rolls back orders and freshness together. Commit, rollback, transport
 or response uncertainty is never relabeled a definitive no-effect conflict.
 

@@ -12,7 +12,11 @@
   same-ID/type planning through legacy native replacement. Reject unreviewed
   annotated removal atomically. Personal native v4 files (WB2), Check plan (WB3),
   future own cloning/versioning and the required new-mobile companion remain
-  separately owned; this does not complete #789.
+  separately owned; this does not complete #789. Bind normal Region ordering to
+  complete Planning without adding it to independent coordinate dependencies.
+  Preserve acknowledged Planning across unrelated replies, include separate saves
+  in status/exit consent, expose deleted-target draft recovery, hold contradictory
+  negative replies, and explain import preservation refusals with Cancel/Create copy.
 - Protect single-record Location edits/deletes with selected originals, exact-byte
   action identities, atomic effect/receipt commits and recovery after uncertain
   replies (#947). Migrate Web Edit, inline Activity and per-row deletion together;
