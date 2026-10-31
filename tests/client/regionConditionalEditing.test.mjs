@@ -400,7 +400,7 @@ for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 
       assert.equal(calls[1][1].expected.regions.find(r => r.id === 'region').name, 'Original');
       assert.deepEqual(calls[1][1].regionIds, ['second', 'region']);
       const accepted = outcome === 'success' || outcome === 'newer';
-      const unknown = ['network', 'wrong-scope', 'wrong-material', 'unrelated-effects'].includes(outcome);
+      const unknown = ['network', 'wrong-scope', 'wrong-material', 'wrong-planning', 'unrelated-effects'].includes(outcome);
       assert.equal(owner.applied.length, accepted ? 1 : 0);
       assert.equal(owner.editor.regionDraftState.orderUncertain.value, unknown);
       if (outcome === 'newer') { assert.equal(owner.editor.draft.name, 'Newer scalar intent'); assert.equal(owner.editor.regionDirty, true); }
