@@ -19,7 +19,7 @@ const bundled = await build({ stdin: { contents: script.content, loader: 'ts',
 const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const component = (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default;
 const region = (overrides = {}) => {
-  const value = { id: 'region', tripId: 'trip', name: 'Original', notesHtml: '', coverImage: { rawUrl: 'https://old.test/a.jpg' },
+  const value = { id: 'region', tripId: 'trip', planning: null, name: 'Original', notesHtml: '', coverImage: { rawUrl: 'https://old.test/a.jpg' },
     center: { latitude: 1, longitude: 2 }, displayOrder: 1, isShadow: false,
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
   value.originalValues = { name: value.name, notesHtml: value.notesHtml || null,
@@ -291,7 +291,7 @@ const orderReply = request => {
     // The mapper hides blank covers in display data but preserves exact storage in originalValues.
     const next = region({ id, name: original.name, notesHtml: original.notes ?? '', displayOrder: index + 1, capabilities: orderCapabilities,
       coverImage: original.coverImageUrl === null || /^\p{White_Space}*$/u.test(original.coverImageUrl)
-        ? null : { rawUrl: original.coverImageUrl, proxiedUrl: '/image' }, center: original.center });
+        ? null : { rawUrl: original.coverImageUrl, proxiedUrl: '/image' }, center: original.center, planning: original.planning });
     next.originalValues.coverImage = original.coverImageUrl === null ? null : { rawUrl: original.coverImageUrl };
     return next;
   });
@@ -314,7 +314,7 @@ for (const [label, cover, outcome] of [
     initial.originalValues.coverImage = cover === null ? null : { rawUrl: cover };
     const owner = mount(initial);
     const originals = { regions: [{ id: initial.id, displayOrder: initial.displayOrder, name: initial.originalValues.name,
-      notes: initial.originalValues.notesHtml, coverImageUrl: cover, center: initial.originalValues.center }], canonical: null };
+      notes: initial.originalValues.notesHtml, coverImageUrl: cover, center: initial.originalValues.center, planning: initial.planning }], canonical: null };
     const calls = [];
     globalThis.regionConfirm = async () => true;
     globalThis.fetch = async (url, init) => {
@@ -374,7 +374,7 @@ for (const outcome of ['success', 'newer', 'retired', 'network', 'wrong-scope', 
       const originals = { regions: ['region', 'second'].map(id => {
         const r = owner.props.state.regionsById[id];
         return { id, displayOrder: r.displayOrder, name: r.originalValues.name, notes: r.originalValues.notesHtml,
-          coverImageUrl: r.originalValues.coverImage?.rawUrl ?? null, center: r.originalValues.center };
+          coverImageUrl: r.originalValues.coverImage?.rawUrl ?? null, center: r.originalValues.center, planning: r.planning };
       }), canonical: { id: 'canonical', displayOrder: 17 } };
       owner.update(region({ name: 'Refresh after gesture start', displayOrder: 41, capabilities: orderCapabilities }));
       await nextTick();

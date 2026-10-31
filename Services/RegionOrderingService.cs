@@ -86,7 +86,7 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
         return regions;
     }
 
-    /// <summary>Public material, exact membership/stored orders and canonical presence must still match the client base.</summary>
+    /// <summary>Owner material including planning, exact membership/stored orders and canonical presence must still match the client base.</summary>
     private static void Compare(RegionOrderRequest request, Region[] regions)
     {
         var originals = request.Regions.EnumerateArray().OrderBy(r => r.GetProperty("id").GetGuid()).ToArray();
@@ -98,7 +98,7 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
     /// <summary>Raw scalar content prevents normalized public values from authorizing same-ID material replacement.</summary>
     private static string Fingerprint(Region[] regions) => PlaceStructuralRequest.Hash(regions.Select(r => RegionOrderRequest.IsCanonical(r)
         ? (object)new { r.Id, r.UserId, r.TripId, r.DisplayOrder, Canonical = true }
-        : new { r.Id, r.UserId, r.TripId, r.DisplayOrder, r.Name, r.Notes, r.CoverImageUrl,
+        : new { r.Id, r.UserId, r.TripId, r.DisplayOrder, r.Name, r.Notes, r.CoverImageUrl, r.Planning,
             Center = r.Center == null ? null : Convert.ToHexString(r.Center.AsBinary()), Srid = r.Center?.SRID }));
 
     /// <summary>Only proven rolled-back PostgreSQL transaction aborts become definitive contention responses.</summary>

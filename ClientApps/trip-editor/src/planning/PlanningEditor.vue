@@ -49,13 +49,29 @@ const review = async (): Promise<void> => {
   try { await workspace.review(draft.value); reviewError.value = null; }
   catch (error) { reviewError.value = error instanceof Error ? error.message : 'Review unavailable.'; }
 };
+/** Deleted-target drafts remain individually recoverable; unresolved attempts cannot be discarded. */
+const discardDeletedPlanning = async (draft: PlanningDraft): Promise<void> => {
+  if (draft.pending || draft.uncertain) return;
+  if (await confirm({ title: 'Discard deleted target planning?', message: 'Discard only this retained Planning draft? Copy its contents first if you need them. Other drafts stay.',
+    confirmLabel: 'Discard this draft', cancelLabel: 'Keep draft', variant: 'warning' })) workspace?.discardDeleted(draft);
+};
+
 // Keep known rejection text visible while editing; the workspace owns drafts across remounts.
 watch(() => props.target.identity, () => { reviewError.value = null; });
 </script>
 
 <template>
+      <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" aria-label="Deleted target Planning recovery">
+        <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : 'Discard it when you no longer need it.' }}</p>
+        <label>Retained Planning ({{ draft.kind }} {{ draft.id }})
+          <textarea readonly :value="JSON.stringify(draft.entries, null, 2)"></textarea>
+        </label>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="draft.pending || draft.uncertain" @click="discardDeletedPlanning(draft)">Discard this Planning draft</button>
+      </section>
+
   <details v-if="draft" class="trip-editor-panel" data-planning>
     <summary>Planning <span v-if="summary">· {{ summary }}</span></summary>
+    <p>Save Planning saves only this object’s Planning. Trip settings, Notes and routes use their own save actions.</p>
     <p v-for="message in workspace?.diagnostics(target)" :key="message" role="status">{{ message }} Stored planning is retained; review explicitly before changing it.</p>
     <p v-if="draft.error" role="alert">{{ draft.error }}</p>
     <p v-if="reviewError" role="alert">{{ reviewError }}</p>

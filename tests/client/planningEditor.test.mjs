@@ -74,7 +74,7 @@ test('known rejection keeps complete draft and original; late success advances o
     editor.controls.add();
     const draft = editor.controls.draft;
     draft.entries[0].when.value.local = 'invalid draft';
-    globalThis.fetch = async () => new Response(JSON.stringify({ code: 'planning-value-invalid', detail: 'Correct the value.' }), { status: 400 });
+    globalThis.fetch = async () => new Response(JSON.stringify({ status: 400, code: 'planning-value-invalid', detail: 'Correct the value.' }), { status: 400 });
     await workspace.save(draft);
     assert.equal(draft.entries[0].when.value.local, 'invalid draft');
     assert.equal(draft.original, null);
@@ -135,6 +135,80 @@ test('duplicate-member or false-applied success cannot retire the submitted orig
       assert.equal(draft.uncertain, true);
       assert.equal(draft.original, null);
       editor.dispose();
+    }
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+// Negative acknowledgement validation is the no-replay boundary, including redirected and contradictory failures.
+test('malformed negative acknowledgements retain uncertainty and cannot dispatch again', async () => {
+  const oldFetch = globalThis.fetch;
+  try {
+    for (const overrides of [{ success: true, applied: true }, { success: 'false' }, { applied: null },
+      { status: 409 }, { status: undefined }, { code: 'mutation-base-stale' }, { detail: {} }, { outcome: 'applied' }, { redirected: true }]) {
+      const { workspace, editor } = fresh();
+      editor.controls.add();
+      const draft = editor.controls.draft;
+      draft.entries[0].when.value.local = '2027-03-02';
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls++;
+        const { redirected, ...body } = overrides;
+        const response = new Response(JSON.stringify({ status: 400, code: 'planning-value-invalid', detail: 'Rejected', ...body }), { status: 400 });
+        if (redirected) Object.defineProperty(response, 'redirected', { value: true });
+        return response;
+      };
+      await workspace.save(draft);
+      assert.equal(draft.uncertain, true, JSON.stringify(overrides));
+      assert.equal(draft.original, null);
+      editor.dispose();
+      const reopened = mount(Editor, { target }, workspace);
+      await workspace.save(reopened.controls.draft);
+      await workspace.review(draft);
+      assert.equal(calls, 1);
+      assert.equal(draft.entries[0].when.value.local, '2027-03-02');
+      reopened.dispose();
+    }
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+// Deletion lifetime is shared by Region, Place, Area and Segment; Trip retains its independent draft.
+test('all target drafts survive remount; deleted drafts require individual consent and retain unresolved attempts', async () => {
+  const oldFetch = globalThis.fetch;
+  try {
+    for (const attempt of ['dirty', 'pending', 'uncertain']) {
+      const graph = ref({ tripId: 'trip', metadata: { id: 'trip', planning: null }, regionsById: { r: { id: 'r', planning: null } },
+        placesById: { p: { id: 'p', regionId: 'r', planning: null } }, areasById: { a: { id: 'a', regionId: 'r', planning: null } },
+        segmentsById: { s: { id: 's', planning: null } } });
+      const workspace = createPlanningWorkspace(graph, '/editor', 'anti');
+      let settle;
+      const saves = [];
+      for (const [kind, id] of [['metadata', 'trip'], ['region', 'r'], ['place', 'p'], ['area', 'a'], ['segment', 's']]) {
+        const selected = { kind, entityId: id, mode: 'edit', identity: kind, key: kind };
+        const editor = mount(Editor, { target: selected }, workspace);
+        editor.controls.add();
+        editor.controls.draft.entries[0].when.value.local = '2027-03-02';
+        const draft = editor.controls.draft;
+        editor.dispose();
+        const reopened = mount(Editor, { target: selected }, workspace);
+        assert.equal(reopened.controls.draft, draft);
+        assert.equal(draft.entries[0].when.value.local, '2027-03-02');
+        if (kind === 'area' && attempt !== 'dirty') {
+          globalThis.fetch = async () => attempt === 'uncertain' ? new Response('{}') : new Promise(resolve => { settle = resolve; });
+          saves.push(workspace.save(draft));
+          if (attempt === 'uncertain') await saves.at(-1);
+        }
+        reopened.dispose();
+      }
+      delete graph.value.areasById.a;
+      workspace.reconcileDeleted({ regions: [], places: [], areas: ['a'], segments: [] });
+      const removed = workspace.deletedDrafts.value[0];
+      assert.equal(removed.id, 'a');
+      assert.equal(workspace.open({ kind: 'area', entityId: 'a', mode: 'edit' }), null);
+      workspace.discardDeleted(removed);
+      assert.equal(Boolean(workspace.drafts['area/a']), attempt !== 'dirty');
+      assert.equal(Object.keys(workspace.drafts).length, attempt === 'dirty' ? 4 : 5);
+      if (attempt === 'pending') { settle(new Response('{}')); await Promise.all(saves); assert.equal(removed.uncertain, true); }
+      assert.equal(workspace.hasChanges.value, true);
     }
   } finally { globalThis.fetch = oldFetch; }
 });

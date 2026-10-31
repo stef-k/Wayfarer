@@ -13,7 +13,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
         context.expose({ focusNotes() {}, focusRouteAction: () => false }); return () => null;
       } };` };
-      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface|RegionManager|RegionEditorSurface)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
+      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface|RegionManager|RegionEditorSurface|PlanningEditor|PlanningValueInput)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
       const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
       const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
@@ -41,7 +41,7 @@ const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import
 const actualApp = (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default;
 
 // Self-contained client fixtures mirror the routed contract; no local database/evidence directory is needed.
-const metadata = (enabled = false) => ({ id: 'trip', name: 'Trip', notesHtml: '', isPublic: true,
+const metadata = (enabled = false) => ({ id: 'trip', planning: null, name: 'Trip', notesHtml: '', isPublic: true,
   shareProgressEnabled: enabled, center: null, zoom: null, coverImage: null,
   updatedAt: '2026-10-23T10:00:00Z', publicUrl: '/Public/Trips/trip', progressPublicUrl: enabled ? '/Public/Trips/trip?progress=1' : null,
   originalValues: { name: 'Trip', notesHtml: null, isPublic: true, center: null, zoom: null, coverImage: null } });
@@ -54,6 +54,8 @@ const reply = (enabled, saved = metadata(enabled)) => JSON.stringify({ success: 
   regions: [], places: [], areas: [], segments: [], tags: [], regionOrder: null, segmentOrder: null, tagOrder: null,
   placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
+// Publish refresh fixtures through the same complete-result path used by production saves.
+const publishMetadata = (parent, metadata) => parent.applyMutation(JSON.parse(reply(false, metadata)));
 const enabledReply = reply(true);
 const disabledReply = reply(false);
 const refreshedState = { metadata: metadata(true) };
@@ -87,7 +89,7 @@ const withApp = async action => {
     if (node) node.parent = null;
   };
   const teleportBody = { children: [] };
-  const renderer = createRenderer({ createElement: tag => ({ tagName: tag.toUpperCase(), style: {}, children: [],
+  const renderer = createRenderer({ createElement: tag => ({ tagName: tag.toUpperCase(), style: {}, children: [], options: [],
     addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {},
     getRootNode: () => globalThis.document }), createText: text => ({ text }), createComment: () => ({}),
     insert(node, parent, anchor) {
@@ -111,7 +113,7 @@ const withApp = async action => {
     assert.ok(editor, 'actual production Metadata owner mounted through App and TripSidebar');
     assert.equal(parent.error, null);
     await nextTick();
-    await action({ parent, editor, regionEditor: captured['RegionManager.vue'], navigations, confirmations,
+    await action({ parent, editor, regionEditor: captured['RegionManager.vue'], planning: captured['PlanningEditor.vue'], surface: captured['EditorSurface.vue'], navigations, confirmations,
       approve: value => { approved = value; },
       visibleText: () => textOf(root),
       button: label => descendants(root).find(node => node.tagName === 'BUTTON' && textOf(node) === label) });
@@ -215,7 +217,7 @@ test('C3 control: delayed successful enable retains newer disable and next expli
   const enabling = editor.saveAndExit();
   assert.equal(requests.length, 1);
   editor.visibleShareProgressEnabled = false;
-  parent.applyMetadata({ ...initial.metadata });
+  publishMetadata(parent, { ...initial.metadata });
   await nextTick();
   gate.resolve();
   await enabling;
@@ -289,7 +291,7 @@ test('C3 contract: parent refresh cannot erase newer disable or settle the unkno
   await enabling;
   // Both matching and opposite snapshots are observations, not evidence that the predecessor is terminal.
   for (const [enabled, isPublic] of [[true, true], [false, true], [false, false]]) {
-    parent.applyMetadata({ ...metadata(enabled), isPublic });
+    publishMetadata(parent, { ...metadata(enabled), isPublic });
     await nextTick();
     const refreshed = observation(`unknown-parent-refresh-${enabled}`, owner, requests);
     assert.equal(refreshed.parentSharing, enabled);
@@ -334,8 +336,8 @@ test('C3 recovery: stay retains the choice; approved Leave without saving warns 
   await editor.save(false);
   editor.visibleShareProgressEnabled = false;
   await nextTick();
-  assert.equal(owner.button('Save & Continue').props.disabled, true);
-  assert.equal(owner.button('Save & Exit').props.disabled, true);
+  assert.equal(owner.button('Save settings & Continue').props.disabled, true);
+  assert.equal(owner.button('Save settings & Exit').props.disabled, true);
   const leave = owner.button('Leave without saving');
   assert.ok(leave && !leave.props.disabled, 'an explained, available next action is rendered');
   await leave.props.onClick();
@@ -376,7 +378,7 @@ for (const successful of [false, true]) test(`C3 close/reopen retains in-flight 
   if (!successful) {
     assert.match(owner.visibleText(), /sharing.*not confirmed/i);
     editor.resetDraft();
-    parent.applyMetadata(refreshedState.metadata);
+    publishMetadata(parent, refreshedState.metadata);
     await nextTick();
   }
   await editor.openMetadata();
@@ -432,8 +434,8 @@ test('C3 confirmed validation rejection permits a later explicit sharing save', 
   assert.equal(editor.sharingUnconfirmed, false);
   assert.equal(editor.isDirty, true);
   assert.match(owner.visibleText(), /Review sharing/);
-  assert.equal(owner.button('Save & Exit').props.disabled, false);
-  await owner.button('Save & Exit').props.onClick();
+  assert.equal(owner.button('Save settings & Exit').props.disabled, false);
+  await owner.button('Save settings & Exit').props.onClick();
   assert.equal(calls, 2);
   assert.equal(parent.state.metadata.shareProgressEnabled, true);
   assert.equal(editor.isDirty, false);
@@ -491,7 +493,7 @@ test('F2: uncertain metadata survives refresh, reset, close/reopen and explicit 
   editor.draft.name = 'Trip';
   editor.draft.notesHtml = 'Newer notes';
   for (const name of ['Earlier request', 'Trip']) {
-    parent.applyMetadata({ ...metadata(), name, originalValues: { ...metadata().originalValues, name } });
+    publishMetadata(parent, { ...metadata(), name, originalValues: { ...metadata().originalValues, name } });
     await nextTick();
     editor.resetDraft();
     assert.equal(editor.draft.name, 'Trip');
@@ -505,8 +507,8 @@ test('F2: uncertain metadata survives refresh, reset, close/reopen and explicit 
   await nextTick();
   assert.equal(editor.draft.notesHtml, 'Newer notes');
   assert.equal(parent.editorSurface.isActiveTargetDirty(), true);
-  assert.equal(owner.button('Save & Continue').props.disabled, true);
-  assert.equal(owner.button('Save & Exit').props.disabled, true);
+  assert.equal(owner.button('Save settings & Continue').props.disabled, true);
+  assert.equal(owner.button('Save settings & Exit').props.disabled, true);
   assert.equal(owner.button('Cancel / Reset').props.disabled, true);
   assert.match(owner.visibleText(), /could not confirm.*settings.*retained/i);
   owner.approve(false);
@@ -629,7 +631,7 @@ for (const [label, rawUrl, displayUrl] of [
   const { editor, parent } = owner;
   const coverImage = displayUrl === null ? null : { rawUrl: displayUrl, proxiedUrl: '/Public/ProxyImage' };
   const originalCover = rawUrl === null ? null : { rawUrl };
-  parent.applyMetadata({ ...metadata(), coverImage, originalValues: { ...metadata().originalValues, coverImage: originalCover } });
+  publishMetadata(parent, { ...metadata(), coverImage, originalValues: { ...metadata().originalValues, coverImage: originalCover } });
   await nextTick();
   const saved = { ...parent.state.metadata, name: 'Saved name',
     originalValues: { ...parent.state.metadata.originalValues, name: 'Saved name' } };
@@ -667,7 +669,7 @@ for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImag
       coverImage: { coverImageRawUrl: desired.coverImage.rawUrl }, center: { centerLatitude: 1, centerLongitude: 2 }, zoom: { zoom: 3 } };
     // Make Notes dirty before testing an explicit Clear against unrelated nonempty returned Notes.
     if (field === 'notesHtml') {
-      parent.applyMetadata({ ...metadata(), notesHtml: 'Previous notes',
+      publishMetadata(parent, { ...metadata(), notesHtml: 'Previous notes',
         originalValues: { ...metadata().originalValues, notesHtml: 'Previous notes' } });
       await nextTick();
     }
@@ -733,7 +735,7 @@ for (const invalid of ['missing', 'blank-object', 'U+0085-object', 'U+FEFF-null'
 // Name/cover use .NET whitespace; making private derives a sharing disable; clear center publishes nullable originals.
 for (const clear of [false, true]) test(`M1: normalized submitted values and ${clear ? 'clears' : 'derived sharing'} are acknowledged`, () => withApp(async owner => {
   const { editor, parent } = owner;
-  parent.applyMetadata({ ...metadata(true), notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
+  publishMetadata(parent, { ...metadata(true), notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
     coverImage: { rawUrl: 'https://example.test/old.jpg', proxiedUrl: '/Public/ProxyImage' },
     originalValues: { ...metadata(true).originalValues, notesHtml: 'Previous notes', center: { latitude: 10, longitude: 20 }, zoom: 5,
       coverImage: { rawUrl: 'https://example.test/old.jpg' } } });
@@ -754,4 +756,108 @@ for (const clear of [false, true]) test(`M1: normalized submitted values and ${c
   assert.equal(parent.state.metadata.shareProgressEnabled, false);
   assert.equal(parent.state.metadata.name, saved.name);
   assert.deepEqual(owner.navigations, ['/User/Trip']);
+}));
+
+// WB1: production publication and application-controlled exit include separate Planning saves.
+test('Planning-only edits report unsaved and Save & Exit requests explicit separate-save consent',()=>withApp(async owner=>{
+ const {editor,planning,navigations,confirmations}=owner;
+ assert.ok(planning);planning.add();planning.draft.entries[0].when.value.local='2027-03-02';
+ await nextTick(); assert.match(owner.surface.displayedStatus,/Planning.*unsaved/i);
+ assert.equal(planning.workspace.hasChanges.value,true);let requests=0;
+ globalThis.fetch=async()=>{requests++;throw new Error('unexpected request');};
+ await editor.saveAndExit();assert.equal(requests,0);assert.equal(navigations.length,0);assert.equal(confirmations.length,1);assert.match(confirmations[0].message,/separately/i);
+ owner.approve(true);await editor.backToTrips();assert.equal(navigations.length,1);
+ assert.equal(planning.workspace.hasChanges.value,true);
+}));
+
+test('late actual App metadata response preserves acknowledged planning and later edits on reopen',()=>withApp(async owner=>{
+ const {editor,planning,parent}=owner;assert.ok(planning);
+ let releaseMetadata;const older=metadata();older.name='Changed Trip';older.originalValues.name='Changed Trip';
+ globalThis.fetch=async(url,init)=>{
+  if(url.endsWith('/metadata/conditional'))return new Promise(resolve=>{releaseMetadata=()=>resolve(new Response(reply(false,older)));});
+  const req=JSON.parse(init.body);return new Response(JSON.stringify({contract:'planning-1',success:true,applied:true,targetKind:'trip',targetId:'trip',parentId:'trip',planning:req.value}));
+ };
+ editor.draft.name='Changed Trip';const saving=editor.save(false);
+ assert.ok(releaseMetadata);planning.add();planning.draft.entries[0].when.value.local='2027-03-02';
+ await planning.workspace.save(planning.draft);assert.equal(parent.state.metadata.planning.entries[0].when.value.local,'2027-03-02');
+ releaseMetadata();await saving;await nextTick();assert.equal(parent.state.metadata.planning.entries[0].when.value.local,'2027-03-02');
+ const same=planning.workspace.open(editor.target);assert.equal(same.original.entries[0].when.value.local,'2027-03-02');
+ same.entries[0].when.value.local='2027-03-05';assert.equal(planning.workspace.dirty(same),true);
+}));
+
+test('all five independent affected slices preserve newer acknowledged Planning and later drafts', () => withApp(async ({ parent }) => {
+  const graph = parent.state;
+  graph.regionsById.r = { id: 'r', planning: null };
+  graph.placesById.p = { id: 'p', regionId: 'r', planning: null };
+  graph.areasById.a = { id: 'a', regionId: 'r', planning: null };
+  graph.segmentsById.s = { id: 's', planning: null };
+  const result = JSON.parse(reply(false));
+  result.affected.regions = [JSON.parse(JSON.stringify(graph.regionsById.r))];
+  result.affected.places = [JSON.parse(JSON.stringify(graph.placesById.p))];
+  result.affected.areas = [JSON.parse(JSON.stringify(graph.areasById.a))];
+  result.affected.segments = [JSON.parse(JSON.stringify(graph.segmentsById.s))];
+  const drafts = [];
+  for (const [kind, id] of [['metadata', 'trip'], ['region', 'r'], ['place', 'p'], ['area', 'a'], ['segment', 's']]) {
+    const draft = parent.planningWorkspace.open({ kind, entityId: id, mode: 'edit' });
+    draft.entries.push({ id: `entry-${kind}`, when: { form: 'at', value: { precision: 'date', local: '2027-03-02' } } });
+    globalThis.fetch = async (_, init) => {
+      const request = JSON.parse(init.body);
+      return new Response(JSON.stringify({ contract: 'planning-1', success: true, applied: true,
+        targetKind: draft.kind, targetId: draft.id, parentId: draft.parentId, planning: request.value }));
+    };
+    await parent.planningWorkspace.save(draft);
+    assert.equal(draft.confirmed, true);
+    draft.entries[0].when.value.local = '2027-03-03';
+    drafts.push(draft);
+  }
+  parent.applyMutation(result);
+  for (const draft of drafts) {
+    const entity = draft.kind === 'trip' ? parent.state.metadata : parent.state[`${draft.kind}sById`][draft.id];
+    assert.equal(entity.planning.entries[0].when.value.local, '2027-03-02');
+    assert.equal(draft.original.entries[0].when.value.local, '2027-03-02');
+    assert.equal(draft.entries[0].when.value.local, '2027-03-03');
+  }
+}));
+
+test('pending and uncertain Planning are visible in shared status and application exit consent', () => withApp(async owner => {
+  const { planning, editor } = owner;
+  planning.add();
+  planning.draft.entries[0].when.value.local = '2027-03-02';
+  let settle;
+  globalThis.fetch = async () => new Promise(resolve => { settle = resolve; });
+  const saving = planning.workspace.save(planning.draft);
+  await nextTick();
+  assert.match(owner.surface.displayedStatus, /Planning save pending/);
+  await editor.backToTrips();
+  assert.equal(owner.navigations.length, 0);
+  assert.match(owner.confirmations.at(-1).message, /pending or unconfirmed/);
+  settle(new Response('{}'));
+  await saving;
+  await nextTick();
+  assert.match(owner.surface.displayedStatus, /Planning save not confirmed/);
+  await editor.backToTrips();
+  assert.equal(owner.navigations.length, 0);
+  assert.equal(planning.draft.uncertain, true);
+}));
+
+test('authoritative deletion exposes an individually recoverable Planning draft in the mounted editor', () => withApp(async owner => {
+  const { parent, planning } = owner;
+  parent.state.areasById.a = { id: 'a', regionId: 'r', planning: null };
+  const draft = parent.planningWorkspace.open({ kind: 'area', entityId: 'a', mode: 'edit' });
+  draft.entries.push({ id: 'retained', when: { form: 'unknown' } });
+  planning.add();
+  planning.draft.entries[0].when.value.local = '2027-03-02';
+  const deletion = JSON.parse(reply(false));
+  deletion.deletedIds.areas = ['a'];
+  parent.applyMutation(deletion);
+  await nextTick();
+  assert.match(owner.visibleText(), /This area was deleted/);
+  const discard = owner.button('Discard this Planning draft');
+  assert.ok(discard && !discard.props.disabled);
+  await discard.props.onClick();
+  assert.ok(parent.planningWorkspace.drafts['area/a']);
+  owner.approve(true);
+  await discard.props.onClick();
+  assert.equal(parent.planningWorkspace.drafts['area/a'], undefined);
+  assert.equal(parent.planningWorkspace.dirty(planning.draft), true);
 }));

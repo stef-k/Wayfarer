@@ -39,10 +39,14 @@ export const samePlanning = (left: unknown, right: unknown): boolean => {
   return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 };
 
+/** Independent mutation replies cannot publish an older Planning slice over acknowledged owner state. */
+export const preservePlanning = <T extends { planning?: unknown }>(incoming: T, current?: T): T => current && Object.hasOwn(current, 'planning')
+  ? { ...incoming, planning: current.planning } : incoming;
+
 /** Workspace-lifetime draft; held attempts survive disclosure/target/dock changes. */
 export interface PlanningDraft {
   kind: string; id: string; parentId: string; original: PlanningAggregate | null; entries: PlanningEntry[];
-  pending: boolean; uncertain: boolean; error: string | null; confirmed: boolean;
+  pending: boolean; uncertain: boolean; error: string | null; confirmed: boolean; deleted?: boolean;
 }
 
 /** Creates private planning state inside the existing owner workspace, with no persisted check memory. */
@@ -83,7 +87,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
 
   /** Sends one immutable attempt; later typing remains live and a malformed acknowledgement holds further saves. */
   const save = async (draft: PlanningDraft): Promise<void> => {
-    if (draft.pending || draft.uncertain || !dirty(draft)) return;
+    if (draft.deleted || draft.pending || draft.uncertain || !dirty(draft)) return;
     const desired = value(draft);
     const request: PlanningRequest = { expected: { parentId: draft.parentId, planning: copy(draft.original) },
       operation: desired ? 'set' : 'clear', ...(desired ? { value: desired } : {}) };
@@ -96,12 +100,16 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', RequestVerificationToken: antiforgery }, body: JSON.stringify(request)
       });
       if (!response.ok) {
-        const problem = await readPlanningReply<{ code?: string; detail?: string }>(response);
-        const known = [400, 401, 403, 404, 409].includes(response.status) && typeof problem.code === 'string'
-          && ['planning-request-invalid', 'planning-value-invalid', 'mutation-authority-unavailable', 'mutation-scope-stale',
-            'mutation-base-stale', 'mutation-scope-unavailable', 'mutation-contention'].includes(problem.code);
-        if (!known) throw new Error('Planning acknowledgement unavailable.');
-        draft.error = problem.detail ?? 'Planning was not applied. Keep the draft and review current values.';
+        const problem = await readPlanningReply<Record<string, unknown>>(response);
+        const statuses: Record<string, number> = { 'planning-request-invalid': 400, 'planning-value-invalid': 400,
+          'mutation-authority-unavailable': 401, 'mutation-scope-stale': 409, 'mutation-base-stale': 409,
+          'mutation-scope-unavailable': 404, 'mutation-contention': 409 };
+        if (response.redirected || !problem || Array.isArray(problem) || typeof problem.code !== 'string'
+          || statuses[problem.code] !== response.status || problem.status !== response.status
+          || ['success', 'applied'].some(key => Object.hasOwn(problem, key) && problem[key] !== false)
+          || Object.hasOwn(problem, 'outcome') || Object.hasOwn(problem, 'planning')
+          || Object.hasOwn(problem, 'detail') && typeof problem.detail !== 'string') throw new Error('Planning acknowledgement unavailable.');
+        draft.error = typeof problem.detail === 'string' ? problem.detail : 'Planning was not applied. Keep the draft and review current values.';
         return;
       }
       const reply = await readPlanningReply<PlanningAcknowledgement>(response);
@@ -125,7 +133,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
 
   /** Explicit comparison review retains the desired aggregate. GET equality never settles an uncertain attempt. */
   const review = async (draft: PlanningDraft): Promise<void> => {
-    if (draft.pending || draft.uncertain) return;
+    if (draft.deleted || draft.pending || draft.uncertain) return;
     const response = await fetch(endpoint, { credentials: 'same-origin', cache: 'no-store' });
     if (!response.ok || response.redirected) throw new Error('Current owner planning could not be loaded.');
     const graph = await readPlanningReply<EditorTripState>(response);
@@ -136,14 +144,38 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
     Object.assign(draft, { original: copy(entity.planning ?? null), parentId: 'regionId' in entity ? entity.regionId : graph.tripId,
       error: null, confirmed: false });
   };
-  return { open, save, review, dirty, drafts, diagnostics, hasChanges: computed(() => Object.values(drafts).some(dirty)) };
+  /** Authoritative deletion keeps authored intent reachable; it never settles an in-flight or unknown attempt. */
+  const reconcileDeleted = (ids: { regions: string[]; places: string[]; areas: string[]; segments: string[] }): void => {
+    for (const draft of Object.values(drafts)) {
+      const deleted = draft.kind === 'region' ? ids.regions : draft.kind === 'place' ? ids.places
+        : draft.kind === 'area' ? ids.areas : draft.kind === 'segment' ? ids.segments : [];
+      if (deleted.includes(draft.id)) {
+        if (dirty(draft)) draft.deleted = true;
+        else delete drafts[`${draft.kind}/${draft.id}`];
+      }
+    }
+  };
+  /** Discard is offered only for a known deleted target with no unresolved attempt, after explicit UI consent. */
+  const discardDeleted = (draft: PlanningDraft): void => {
+    if (draft.deleted && !draft.pending && !draft.uncertain) delete drafts[`${draft.kind}/${draft.id}`];
+  };
+  /** Separate Planning status participates in shared Saved labels and exit decisions. */
+  const status = (target?: EditorTarget): string | null => {
+    const selected = target ? current(target) : null;
+    const items = target ? Object.values(drafts).filter(d => d.id === selected?.entity.id && d.kind === selected?.kind) : Object.values(drafts);
+    if (items.some(d => d.uncertain)) return 'Planning save not confirmed';
+    if (items.some(d => d.pending)) return 'Planning save pending';
+    return items.some(dirty) ? 'Planning unsaved' : null;
+  };
+  return { open, save, review, dirty, drafts, diagnostics, reconcileDeleted, discardDeleted, status,
+    deletedDrafts: computed(() => Object.values(drafts).filter(d => d.deleted)), hasChanges: computed(() => Object.values(drafts).some(dirty)) };
 };
 
 /** Component injection stays scoped to the mounted owner/Trip workspace. */
 export const planningWorkspaceKey: InjectionKey<ReturnType<typeof createPlanningWorkspace>> = Symbol('owner planning');
 
 /** Installs the private workspace and its existing browser unload convention at the App boundary. */
-export const providePlanningWorkspace = (state: Ref<EditorTripState | null>, endpoint: string, token: string): void => {
+export const providePlanningWorkspace = (state: Ref<EditorTripState | null>, endpoint: string, token: string) => {
   const workspace = createPlanningWorkspace(state, endpoint, token);
   provide(planningWorkspaceKey, workspace);
   const beforeUnload = (event: BeforeUnloadEvent): void => {
@@ -151,4 +183,5 @@ export const providePlanningWorkspace = (state: Ref<EditorTripState | null>, end
   };
   onMounted(() => window.addEventListener?.('beforeunload', beforeUnload));
   onUnmounted(() => window.removeEventListener?.('beforeunload', beforeUnload));
+  return workspace;
 };

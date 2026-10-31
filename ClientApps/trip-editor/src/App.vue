@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { providePlanningWorkspace } from './planning/planningState';
+import { providePlanningWorkspace, preservePlanning } from './planning/planningState';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
@@ -11,12 +11,12 @@ import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from './segments/editorSegmentPresentation';
-import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripMetadata, EditorTripState, Guid } from './types';
+import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
 const state = ref<EditorTripState | null>(null);
-providePlanningWorkspace(state, props.config.editorEndpoint, props.config.antiforgeryToken);
+const planningWorkspace = providePlanningWorkspace(state, props.config.editorEndpoint, props.config.antiforgeryToken);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
 const workspaceElement = ref<HTMLElement | null>(null);
@@ -163,15 +163,6 @@ onUnmounted(() => {
 function updateMobileDrawerState(event: MediaQueryListEvent): void {
   mobileDrawerActive.value = event.matches;
 }
-
-const applyMetadata = (metadata: EditorTripMetadata): void => {
-  if (!state.value) {
-    return;
-  }
-
-  state.value = { ...state.value, metadata };
-  mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
-};
 
 /// Updates UI-only place selection shared by the sidebar, toolbar, and map marker halo after guarded editor cleanup.
 const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): Promise<boolean> => {
@@ -399,7 +390,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
 
   const next: EditorTripState = {
     ...state.value,
-    metadata: result.affected.metadata ?? state.value.metadata,
+    metadata: result.affected.metadata ? preservePlanning(result.affected.metadata, state.value.metadata) : state.value.metadata,
     regionsById: { ...state.value.regionsById },
     regionOrder: result.affected.regionOrder ?? [...state.value.regionOrder],
     placesById: { ...state.value.placesById },
@@ -438,18 +429,18 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   });
 
   result.affected.regions.forEach(region => {
-    next.regionsById[region.id] = region;
+    next.regionsById[region.id] = preservePlanning(region, next.regionsById[region.id]);
   });
   result.affected.places.forEach(place => {
-    next.placesById[place.id] = place;
+    next.placesById[place.id] = preservePlanning(place, next.placesById[place.id]);
   });
   result.affected.areas.forEach(area => {
-    next.areasById[area.id] = area;
+    next.areasById[area.id] = preservePlanning(area, next.areasById[area.id]);
   });
   result.affected.segments.forEach(segment => {
-    next.segmentsById[segment.id] = segment.externalRouting
+    next.segmentsById[segment.id] = preservePlanning(segment.externalRouting
       ? segment
-      : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null };
+      : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null }, next.segmentsById[segment.id]);
   });
   result.affected.tags.forEach(tag => {
     next.tagsBySlug[tag.slug] = tag;
@@ -479,6 +470,7 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     activePlaceDraftPreview.value = null;
   }
 
+  planningWorkspace.reconcileDeleted(result.deletedIds);
   state.value = next;
   mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
 };
@@ -567,7 +559,6 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
         :route-editor="routeEditor"
-        @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @place-draft-preview-changed="applyPlaceDraftPreview"
         @segment-route-draft-preview-changed="applySegmentRouteDraftPreview"

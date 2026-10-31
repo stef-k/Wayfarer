@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { planningWorkspaceKey } from '../planning/planningState';
 import PlanningEditor from '../planning/PlanningEditor.vue';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, inject, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 
@@ -10,6 +11,12 @@ const props = defineProps<{
   statusText: string;
 }>();
 
+// The existing surface status includes the independently saved Planning draft.
+const planningWorkspace = inject(planningWorkspaceKey, null);
+const displayedStatus = computed(() => {
+  const planning = planningWorkspace?.status();
+  return planning ? props.statusText.startsWith('Saved') ? planning : `${props.statusText}; ${planning}` : props.statusText;
+});
 const closeButton = ref<HTMLButtonElement | null>(null);
 const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);
 const isActive = computed(() => props.controller.isTargetActive(props.target));
@@ -39,7 +46,7 @@ watch(isExpanded, async expanded => {
         <small v-if="target.subtitle">{{ target.subtitle }}</small>
       </div>
       <div class="trip-editor-surface__controls">
-        <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+        <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
         <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">Expand Editor</button>
         <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">Close</button>
       </div>
@@ -79,7 +86,7 @@ watch(isExpanded, async expanded => {
             <small v-if="target.subtitle">{{ target.subtitle }}</small>
           </div>
           <div class="trip-editor-surface__controls">
-            <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+            <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
             <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">Dock to sidebar</button>
             <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
           </div>

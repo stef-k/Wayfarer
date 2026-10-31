@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.Planning;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Models;
 using Xunit;
@@ -255,5 +256,23 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.Equal(HttpStatusCode.InternalServerError, result.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(15, (await verify.Places.FindAsync(place.Id))!.Location!.Y);
+    }
+    /// <summary>Coordinate changes preserve independent Segment planning without acquiring its comparison dependency.</summary>
+    [PostgresFact]
+    public async Task Planning_CoordinatesConflictWithSegmentPlanning()
+    {
+        var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        var place = await db.Places.Include(p => p.Region).SingleAsync(p => p.Id == graph.PlaceIds[0]);
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, graph.UserId);
+        var request = CoordinateRequest(place, true, 2.25, 2.25);
+        await PrepareStructureAsync(web, place, true, "coordinates", request);
+        var segmentId = graph.EndpointIds[0];
+        var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unknown"))]);
+        using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/segment/{segmentId}", new { expected = new { parentId = graph.TripId, planning = (object?)null }, operation = "set", value = plan });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var moved = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
     }
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { genericImportFailure, submitTripImport } from '../../wwwroot/js/Areas/User/Trip/tripImportClient.js';
+import { genericImportFailure, submitTripImport, createTripImporter, planningLossExplanation } from '../../wwwroot/js/Areas/User/Trip/tripImportClient.js';
 
 const createHandlers = (fetchImpl) => {
     const result = { duplicates: 0, errors: [], notices: [], redirects: [] };
@@ -96,4 +96,40 @@ test('multipart import and duplicate-mode retry retain file/mode and send the pa
         assert.equal(options.body.get('mode'), index === 0 ? 'Auto' : 'CreateNew');
         assert.equal(await options.body.get('file').text(), 'kml');
     }
+});
+
+// The selected-file owner is the one used by the actual duplicate/refusal modal.
+test('planning-loss refusal offers fixed choices, retains the file for Create copy and cancellation sends nothing', async () => {
+    for (const cancel of [false, true]) {
+        const calls = [];
+        const { handlers, result } = createHandlers(async (_, options) => {
+            calls.push(options.body);
+            if (calls.length === 1) return new Response(JSON.stringify({ status: 'duplicate' }));
+            if (calls.length === 2) return new Response(JSON.stringify({ status: 'error', code: 'planning_loss_requires_review', message: '<script>arbitrary server text</script>' }), { status: 409 });
+            return new Response(JSON.stringify({ status: 'success', redirectUrl: '/User/Trip/Edit/copy' }));
+        });
+        let refusals = 0;
+        handlers.onPlanningLoss = () => { refusals++; };
+        const importer = createTripImporter(handlers);
+        await importer.upload(sampleFile);
+        await importer.update();
+        assert.equal(result.duplicates, 1);
+        assert.equal(refusals, 1);
+        assert.deepEqual(result.errors, []);
+        if (cancel) importer.cancel();
+        await importer.createCopy();
+        assert.equal(calls.length, cancel ? 2 : 3);
+        if (!cancel) {
+            assert.equal(calls[2].get('mode'), 'CreateNew');
+            assert.equal(await calls[2].get('file').text(), 'kml');
+            assert.deepEqual(result.redirects, ['/User/Trip/Edit/copy']);
+        }
+    }
+});
+
+test('specific refusal fallback uses only the fixed local explanation', async () => {
+    const { handlers, result } = createHandlers(async () => new Response(JSON.stringify({ status: 'error', code: 'planning_loss_requires_review', message: 'Unsafe arbitrary text' }), { status: 409 }));
+    await submitTripImport(sampleFile, 'Upsert', handlers);
+    assert.deepEqual(result.errors, [planningLossExplanation]);
+    assert.doesNotMatch(result.errors[0], /try again|Unsafe arbitrary/);
 });

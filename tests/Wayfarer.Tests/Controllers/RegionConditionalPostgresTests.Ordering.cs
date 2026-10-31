@@ -1,4 +1,5 @@
 using System.Net;
+using Wayfarer.Models.Planning;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -334,5 +335,21 @@ public sealed partial class RegionConditionalPostgresTests
             """, connection);
         command.Parameters.AddWithValue(tripId); command.Parameters.AddWithValue(preservation);
         return (string?)await command.ExecuteScalarAsync();
+    }
+    /// <summary>Reviewed normal Region planning drift rejects stale ordering without changing the graph.</summary>
+    [PostgresFact]
+    public async Task Planning_RegionOrderAcceptsPlanningDrift()
+    {
+        var graph = await Wayfarer.Tests.Models.RegionDeletionTestGraph.SeedAsync(fixture);
+        await using var db = fixture.CreateContext();
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, graph.UserId);
+        var request = await RegionOrderRequestAsync(graph.TripId);
+        await PrepareRegionOrderAsync(web, graph.TripId, true, request);
+        var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unknown"))]);
+        using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/region/{graph.SourceId}", new { expected = new { parentId = graph.TripId, planning = (object?)null }, operation = "set", value = plan });
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var reordered = await web.PutAsJsonAsync(RegionOrderPath(graph.TripId, true), request);
+        Assert.Equal(HttpStatusCode.Conflict, reordered.StatusCode);
     }
 }
