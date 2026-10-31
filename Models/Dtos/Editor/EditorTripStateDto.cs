@@ -68,6 +68,9 @@ public sealed record EditorTripMetadataDto(
     string? PublicUrl,
     string? ProgressPublicUrl)
 {
+    /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
+    public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+
     /// <summary>Compatible additive originals for conditional saves; display Notes alone cannot prove null versus empty.</summary>
     public EditorTripMetadataOriginalDto? OriginalValues { get; init; }
 }
@@ -91,6 +94,9 @@ public sealed record EditorRegionDto(
     bool IsShadow,
     EditorEntityCapabilitiesDto Capabilities)
 {
+    /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
+    public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+
     /// <summary>Exact published originals for protected Region saves; display defaults are not original evidence.</summary>
     public EditorRegionOriginalDto? OriginalValues { get; init; }
 }
@@ -115,6 +121,9 @@ public sealed record EditorPlaceDto(
     EditorPlaceVisitSummaryDto VisitSummary,
     EditorEntityCapabilitiesDto Capabilities)
 {
+    /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
+    public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+
     /// <summary>Exact server originals; nullable storage is independent of display defaults.</summary>
     public EditorPlaceOriginalDto? OriginalValues { get; init; }
 }
@@ -140,6 +149,9 @@ public sealed record EditorAreaDto(
     int DisplayOrder,
     EditorEntityCapabilitiesDto Capabilities)
 {
+    /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
+    public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+
     /// <summary>Server-origin comparisons, independent of display defaults and GeoJSON precision.</summary>
     public EditorAreaOriginalValues? OriginalValues { get; init; }
 }
@@ -169,6 +181,9 @@ public sealed record EditorSegmentDto(
     EditorEntityCapabilitiesDto Capabilities,
     EditorExternalRoutingCapabilityDto? ExternalRouting = null)
 {
+    /// <summary>Owner-private complete planning original; never emitted through reusable/public DTOs.</summary>
+    public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; init; }
+
     /// <summary>Exact nullable published Notes, independent of display defaults and opaque route-aggregate evidence.</summary>
     public EditorSegmentNotesOriginalDto? OriginalValues { get; init; }
 

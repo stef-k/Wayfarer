@@ -8,8 +8,15 @@ namespace Wayfarer.Models
     /// <summary>
     /// Represents a user-drawn polygonal area within a Region.
     /// </summary>
-    public class Area
+    public class Area : Wayfarer.Models.Planning.IPlanningTarget
     {
+        /// <summary>Owner-private typed intentions; public/raw serialization and ordinary forms never include them.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.Validation.ValidateNever]
+        public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; set; }
+
         /// <summary>Primary key.</summary>
         public Guid Id { get; set; }
 

@@ -79,6 +79,7 @@ public static class EditorTripStateMapper
             publicUrl,
             progressPublicUrl)
         {
+            Planning = trip.Planning,
             OriginalValues = new(trip.Name, RichNotes.Normalize(trip.Notes), trip.IsPublic,
                 trip.CoverImageUrl == null ? null : new EditorImageUpdateRequest(trip.CoverImageUrl),
                 new(trip.CenterLat, trip.CenterLon), trip.Zoom)
@@ -101,6 +102,7 @@ public static class EditorTripStateMapper
             isShadow,
             isShadow ? ShadowCapabilities() : EditableRegionCapabilities())
         {
+            Planning = region.Planning,
             OriginalValues = new(region.Name, RichNotes.Normalize(region.Notes),
                 region.CoverImageUrl == null ? null : new EditorImageUpdateRequest(region.CoverImageUrl), ToCoordinate(region.Center))
         };
@@ -153,6 +155,7 @@ public static class EditorTripStateMapper
             EditableLeafCapabilities(),
             externalRouting)
         {
+            Planning = segment.Planning,
             OriginalValues = new(RichNotes.Normalize(segment.Notes)),
             OriginalRouteToken = originalRouteToken
         };
@@ -193,6 +196,7 @@ public static class EditorTripStateMapper
             visitSummary,
             EditableLeafCapabilities())
         {
+            Planning = place.Planning,
             OriginalValues = new(regionId, place.Name, RichNotes.Normalize(place.Notes), place.IconName, place.MarkerColor) { DisplayOrder = place.DisplayOrder, Address = place.Address }
         };
 
@@ -211,6 +215,7 @@ public static class EditorTripStateMapper
             area.DisplayOrder ?? 0,
             EditableLeafCapabilities())
         {
+            Planning = area.Planning,
             OriginalValues = new(regionId, area.Name, RichNotes.Normalize(area.Notes), area.FillHex, AreaGeometryIdentity.For(area.Geometry))
         };
 

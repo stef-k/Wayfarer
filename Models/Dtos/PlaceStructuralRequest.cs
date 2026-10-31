@@ -83,7 +83,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     /// <summary>Exact public material content used by move/reorder originals, including nullable stored order.</summary>
     internal static object Original(Place place) => new { place.Id, place.RegionId, place.Name, Notes = RichNotes.Normalize(place.Notes),
         place.Address, Location = Pair(place.Location), place.IconName, place.MarkerColor, place.DisplayOrder,
-        place.ResolvedFeatureName, place.ResolvedFeatureType };
+        place.ResolvedFeatureName, place.ResolvedFeatureType, place.Planning };
 
     /// <summary>Compares values semantically while preserving missing versus explicit null.</summary>
     internal static bool Equal(JsonElement original, object? current) => JsonElement.DeepEquals(original, JsonSerializer.SerializeToElement(current, Json));

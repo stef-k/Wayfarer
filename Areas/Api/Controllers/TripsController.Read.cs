@@ -40,7 +40,7 @@ public partial class TripsController
 
     /// <summary>Owns graph, identity, projection and cleanup on the same fresh tracked context.</summary>
     private async Task<IActionResult> ReadTripSnapshotAsync(Guid id,
-        IDbContextFactory<ApplicationDbContext> contexts, JsonOptions jsonOptions, CancellationToken token)
+        IDbContextFactory<ApplicationDbContext> contexts, JsonOptions jsonOptions, CancellationToken token, bool ownerPrivate = false)
     {
         ApplicationDbContext? read = null;
         IDbContextTransaction? transaction = null;
@@ -62,7 +62,7 @@ public partial class TripsController
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(t => t.Id == id, token);
             if (trip is null) return NotFound();
-            if (!trip.IsPublic)
+            if (ownerPrivate || !trip.IsPublic)
             {
                 // Binding failures must not be swallowed by the legacy lookup-exception adapter.
                 var resolver = IncomingApiTokenResolver.BindReadContext(HttpContext, read);
@@ -75,7 +75,7 @@ public partial class TripsController
             token.ThrowIfCancellationRequested();
             // Exactly one serialization pass, using the same options and UTF-8 media type as MVC.
             // No entity or deferred projection survives the database boundary.
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(dto, jsonOptions.JsonSerializerOptions);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(ownerPrivate ? (object)new { trip = dto, planning = PlanningOwnerSnapshot.FromTrip(trip) } : dto, jsonOptions.JsonSerializerOptions);
             token.ThrowIfCancellationRequested();
             return File(bytes, "application/json; charset=utf-8");
         }

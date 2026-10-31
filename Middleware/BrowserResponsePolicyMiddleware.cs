@@ -15,6 +15,10 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
     {
         // Preserve the original connection-page policy through downstream short circuits and error re-execution.
         var connectionPage = context.Request.Path.StartsWithSegments("/User/ApiToken", StringComparison.OrdinalIgnoreCase);
+        // Fence the original private route before authentication, errors or status-code re-execution.
+        var path = context.Request.Path.Value ?? "";
+        var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
+            && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase));
         context.Response.OnStarting(() =>
         {
             var response = context.Response;
@@ -22,6 +26,13 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
             {
                 response.Headers.CacheControl = "no-store";
                 response.Headers.Pragma = "no-cache";
+            }
+            if (privatePlanning)
+            {
+                response.Headers.CacheControl = "private, no-store";
+                response.Headers.Pragma = "no-cache";
+                response.Headers.Remove("ETag");
+                response.Headers.Remove("Last-Modified");
             }
             var embed = context.Items.ContainsKey(EmbedKey)
                 && response.StatusCode is >= 200 and < 300

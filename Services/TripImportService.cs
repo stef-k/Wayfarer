@@ -80,6 +80,7 @@ public partial class TripImportService : ITripImportService
             TripRichNotes.NormalizeDestination(mapped);
             if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
 
+            if (!createNew) await PreserveReplacementPlanningAsync(mapped, userId, cancellationToken);
             var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);
             if (createNew)
             {

@@ -17,8 +17,15 @@ public enum EstimatedDurationSource
 /// <summary>
 /// Represents a travel segment or leg between two places in a trip.
 /// </summary>
-public class Segment
+public class Segment : Wayfarer.Models.Planning.IPlanningTarget
 {
+        /// <summary>Owner-private typed intentions; public/raw serialization and ordinary forms never include them.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.Validation.ValidateNever]
+        public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; set; }
+
     /// <summary>PostgreSQL xmin value used only through opaque editor aggregate tokens.</summary>
     public uint RowVersion { get; set; }
     /// <summary>Primary key.</summary>
