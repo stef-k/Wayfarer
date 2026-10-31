@@ -17,6 +17,10 @@
   Preserve acknowledged Planning across unrelated replies, include separate saves
   in status/exit consent, expose deleted-target draft recovery, hold contradictory
   negative replies, and explain import preservation refusals with Cancel/Create copy.
+  Bound Planning publication by workspace dispatch order so current authoritative
+  refreshes still apply. Preserve deletion authority and recovery/exit protection
+  across late replies, and stabilize tied public collection order by identity
+  without changing stored order or public freshness.
 - Protect single-record Location edits/deletes with selected originals, exact-byte
   action identities, atomic effect/receipt commits and recovery after uncertain
   replies (#947). Migrate Web Edit, inline Activity and per-row deletion together;

@@ -75,7 +75,10 @@ reload or leaving loses these in-memory drafts and does not undo the earlier
 request; inspecting equal saved values does not confirm its outcome. If a target
 is deleted, its affected Planning draft remains available in an editor for copying
 and **Discard this Planning draft**. Discard requires confirmation and affects
-only that draft. Pending/unconfirmed attempts cannot be discarded this way.
+only that draft. If an earlier save succeeds after deletion, recovery still needs
+that explicit discard: the earlier save succeeded, but the target remains deleted.
+Exit protection stays active until recovery is resolved. Pending/unconfirmed
+attempts cannot be discarded this way.
 
 Planning stays private even on public Trips and does not appear on public URLs,
 downloads or another user's copy. Dates written into ordinary Notes keep the

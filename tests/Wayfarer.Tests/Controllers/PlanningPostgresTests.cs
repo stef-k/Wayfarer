@@ -30,10 +30,12 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
     private readonly TestLogProvider logs = new();
 
     /// <summary>All five target types preserve disjoint content and reject stale/absent originals atomically.</summary>
-    [PostgresFact]
-    public async Task ProtectedWritesAndPrivatePublicSnapshots()
+    [PostgresTheory]
+    [InlineData(null)]
+    [InlineData(7)]
+    public async Task ProtectedWritesAndPrivatePublicSnapshots(int? tiedPlaceOrder)
     {
-        var trip = await SeedAsync();
+        var trip = await SeedAsync(tiedPlaceOrder);
         await using var db = fixture.CreateContext();
         await using var app = await HostAsync(db);
         using var client = app.GetTestClient();
@@ -82,6 +84,7 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         var persisted = await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id);
         Assert.Equal(JsonDocument.Parse(before).RootElement.GetProperty("updatedAt").GetDateTime(), persisted.UpdatedAt);
         Assert.False(JsonSerializer.SerializeToElement(persisted).TryGetProperty("Planning", out _));
+        Assert.All(await verify.Places.Where(p => p.Region.TripId == trip.Id).ToArrayAsync(), p => Assert.Equal(tiedPlaceOrder, p.DisplayOrder));
         var clone = await new TripCloneCoordinator(verify).CloneAsync(trip.Id, other.Id);
         fixture.RegisterTrip(clone.ClonedTripId!.Value);
         verify.ChangeTracker.Clear();
@@ -249,13 +252,13 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
     }
 
     /// <summary>Supplies real owned graph content with no planning before each routed test.</summary>
-    private async Task<Trip> SeedAsync()
+    private async Task<Trip> SeedAsync(int? tiedPlaceOrder = null)
     {
         var user = await fixture.CreateUserAsync();
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Planning privacy", IsPublic = true };
         var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region" };
-        var first = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "One", Location = new Point(23, 37) { SRID = 4326 } };
-        var last = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "Two", Location = new Point(24, 38) { SRID = 4326 } };
+        var first = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "One", DisplayOrder = tiedPlaceOrder, Location = new Point(23, 37) { SRID = 4326 } };
+        var last = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "Two", DisplayOrder = tiedPlaceOrder, Location = new Point(24, 38) { SRID = 4326 } };
         region.Places.Add(first); region.Places.Add(last);
         region.Areas.Add(new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Area", Geometry = new Polygon(new LinearRing([new(23, 37), new(24, 37), new(24, 38), new(23, 37)])) { SRID = 4326 } });
         trip.Regions.Add(region);

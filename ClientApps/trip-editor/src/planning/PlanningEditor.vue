@@ -62,7 +62,7 @@ watch(() => props.target.identity, () => { reviewError.value = null; });
 
 <template>
   <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" aria-label="Deleted target Planning recovery">
-    <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : 'Discard it when you no longer need it.' }}</p>
+    <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : draft.confirmed ? 'The earlier Planning save succeeded; this target remains deleted. Discard this recovery when you no longer need it.' : 'Discard it when you no longer need it.' }}</p>
     <label>Retained Planning ({{ draft.kind }} {{ draft.id }})
       <textarea readonly :value="JSON.stringify(draft.entries, null, 2)"></textarea>
     </label>
@@ -76,7 +76,7 @@ watch(() => props.target.identity, () => { reviewError.value = null; });
     <p v-if="draft.error" role="alert">{{ draft.error }}</p>
     <p v-if="reviewError" role="alert">{{ reviewError }}</p>
     <p v-for="loss in zoneLosses" :key="loss" role="status">{{ loss }}</p>
-    <p v-if="draft.confirmed" role="status">{{ workspace?.dirty(draft) ? 'Earlier planning saved; newer changes remain unsaved.' : 'Planning saved.' }}</p>
+    <p v-if="draft.confirmed" role="status">{{ draft.deleted ? 'The earlier Planning save succeeded; this target remains deleted.' : workspace?.dirty(draft) ? 'Earlier planning saved; newer changes remain unsaved.' : 'Planning saved.' }}</p>
     <fieldset v-for="(entry, index) in draft.entries" :key="entry.id" class="trip-editor-settings-group">
       <legend>{{ entry.label || `Date ${index + 1}` }}</legend>
       <PlanningValueInput v-if="entry.when.form === 'at' && entry.when.value" :value="entry.when.value" label="At" />

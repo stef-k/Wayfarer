@@ -39,6 +39,19 @@ import type {
   ValidationProblemDetails
 } from '../types';
 
+/** Mounted owners capture dispatch order locally; no publication metadata is sent to or trusted from the server. */
+const publicationOwners = new Map<string, () => (result: object) => void>();
+
+/** Registers only the current workspace lifetime and removes only its own registration on unmount. */
+export const observeMutationDispatch = (endpoint: string, capture: () => (result: object) => void): (() => void) => {
+  publicationOwners.set(endpoint, capture);
+  return () => { if (publicationOwners.get(endpoint) === capture) publicationOwners.delete(endpoint); };
+};
+
+/** Captures before network dispatch, including result bodies delayed independently of response headers. */
+export const captureMutationPublication = (url: string): ((result: object) => void) =>
+  [...publicationOwners].find(([endpoint]) => url.startsWith(`${endpoint}/`))?.[1]() ?? (() => undefined);
+
 export class ExternalRouteProposalError extends Error {
   constructor(readonly code: string) { super(code); }
 }
@@ -155,6 +168,7 @@ export const patchMetadata = async (
   antiforgeryToken: string,
   request: EditorMetadataConditionalRequest
 ): Promise<EditorMutationResult<EditorTripMetadata>> => {
+  const publish = captureMutationPublication(`${endpoint}/metadata/conditional`);
   const response = await fetch(`${endpoint}/metadata/conditional`, {
     method: 'PATCH',
     headers: {
@@ -179,7 +193,9 @@ export const patchMetadata = async (
     throw new EditorMutationHttpError(`Trip settings could not be confirmed (${response.status}). Keep your draft and review current values before saving again.`, response.status);
   }
 
-  return (await response.json()) as EditorMutationResult<EditorTripMetadata>;
+  const result = await response.json() as EditorMutationResult<EditorTripMetadata>;
+  publish(result);
+  return result;
 };
 
 /// Replaces the complete trip-level tag set through the same-origin editor API.
@@ -387,6 +403,7 @@ const sendMutation = async <TData>(
     headers[segmentConfirmation ? 'X-Wayfarer-Clear-Route-Confirmation' : 'X-Wayfarer-Dependency-Confirmation'] = confirmationToken;
   }
 
+  const publish = captureMutationPublication(url);
   const response = await fetch(url, init);
   requireSession(response);
   if (response.status === 400) {
@@ -407,5 +424,7 @@ const sendMutation = async <TData>(
     throw new EditorMutationHttpError(`Trip Editor ${label} returned ${response.status}`, response.status);
   }
 
-  return (await response.json()) as EditorMutationResult<TData>;
+  const result = await response.json() as EditorMutationResult<TData>;
+  publish(result);
+  return result;
 };

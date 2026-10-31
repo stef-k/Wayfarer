@@ -46,7 +46,7 @@ public static class TripDtoMapper
         Require(trip.Segments!.All(segment => segment is not null && segment.Waypoints is not null
             && segment.Waypoints.All(waypoint => waypoint is not null)));
         var segments = new List<ApiTripSegmentDto>();
-        foreach (var segment in trip.Segments!.OrderBy(item => item.DisplayOrder))
+        foreach (var segment in trip.Segments!.OrderBy(item => item.DisplayOrder).ThenBy(item => item.Id))
         {
             token.ThrowIfCancellationRequested();
             Require(segment is not null && IsFinite(segment.EstimatedDistanceKm));
@@ -91,7 +91,7 @@ public static class TripDtoMapper
         if (!valid) throw new InvalidDataException("Required Trip content could not be projected.");
     }
 
-    /// <summary>Maps public Trip fields, using prevalidated Segment projections when supplied.</summary>
+    /// <summary>Maps public Trip fields with identity tie-breakers, preserving authored and nullable orders.</summary>
     public static ApiTripDto ToApiDto(this Trip trip, IReadOnlyList<ApiTripSegmentDto> resolvedSegments)
     {
         if (trip == null)
@@ -113,11 +113,12 @@ public static class TripDtoMapper
             UpdatedAt = trip.UpdatedAt,
             Regions = trip.Regions?
                 .Where(r => r != null)
-                .OrderBy(r => r.DisplayOrder)
+                .OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id)
                 .Select(ToApiDto)
                 .ToList(),
-            Segments = resolvedSegments.OrderBy(segment => segment.DisplayOrder).ToList(),
+            Segments = resolvedSegments.OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id).ToList(),
             Tags = trip.Tags?
+                .OrderBy(tag => tag.Id)
                 .Select(t => new ApiTagDto
                 {
                     Id = t.Id,
@@ -146,12 +147,12 @@ public static class TripDtoMapper
             Center = region.Center is Point pt ? new[] { pt.X, pt.Y } : null,
             Places = region.Places?
                 .Where(p => p != null)
-                .OrderBy(p => p.DisplayOrder)
+                .OrderBy(p => p.DisplayOrder).ThenBy(p => p.Id)
                 .Select(ToApiDto)
                 .ToList(),
             Areas = region.Areas?
                 .Where(a => a != null)
-                .OrderBy(a => a.DisplayOrder)
+                .OrderBy(a => a.DisplayOrder).ThenBy(a => a.Id)
                 .Select(ToApiDto)
                 .ToList()
         };

@@ -185,12 +185,30 @@ required, separately owned and incomplete; WB1 does not complete #789.
 
 ## WB1 correction boundaries
 
-Independent mutation affected slices preserve the existing Planning slice at the
-App publication owner; Planning acknowledgements advance only their own aggregate.
+The mounted workspace captures independent mutation dispatch order through the shared
+API (including Segment ordering and Region deletion), using local object identity;
+no ordering token enters server contracts or unrelated mutation comparisons. At App
+publication, a local Planning attempt/acknowledgement fences replies dispatched
+before it. Pending/uncertain attempts keep their published snapshot. Later current
+responses can refresh clean Planning on all five types, including clean open forms;
+dirty originals and later typing remain separate from the published server snapshot.
 Sidebar dirty status and shared exits include Planning, with separate save scope.
 Authoritative deleted IDs retain affected authored drafts in the workspace, exposed
-for copying and individually confirmed discard. Pending/uncertain attempts stay held.
+for copying and individually confirmed discard. Deleted identities stay absent for the
+mounted session, including after draft discard, so late affected replies cannot
+recreate them. New identities still publish normally. A valid delayed Planning
+acknowledgement records the earlier success and advances its comparison, but neither
+restores the target nor releases its recovery/exit hold. Explicit individual discard
+resolves that recovery; pending/uncertain attempts stay held. An explicit comparison
+review also checks deletion and intervening operations after its read returns.
 Negative receipts require a compatible HTTP/problem status, known code and no
 contradictory or malformed outcome fields; redirects remain uncertain. Equality on
 GET/remount never authorizes replay. The import refusal maps only its fixed 409/code
 to local Cancel/Create copy controls retaining the file; WB2 review remains separate.
+
+Public Region, Place, Area and Segment projections use identity as the tie-breaker
+for equal DisplayOrder, with existing null Place orders still first. Unordered Tags
+also project by identity. Stored orders and public freshness remain unchanged.
+Waypoint positions already require a unique complete sequence at the strict read
+boundary. Exact public bytes are compared across private writes without sorting or
+normalizing responses in the assertion.

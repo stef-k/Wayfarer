@@ -29,8 +29,8 @@ public class TripDtoMapperTests : TestBase
         Assert.Equal(new[] { first, second }, before.Regions!.Select(item => item.Id));
         Assert.Equal(new[] { first, second }, before.Segments!.Select(item => item.Id));
         Assert.Equal(new[] { first, second }, before.Tags!.Select(item => item.Id));
-        Assert.Equal(new[] { first, second, explicitOrder }, before.Regions.First().Places!.Select(item => item.Id));
-        Assert.Equal(new[] { first, second }, before.Regions.First().Areas!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second, explicitOrder }, before.Regions!.First().Places!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second }, before.Regions!.First().Areas!.Select(item => item.Id));
         trip.Regions = trip.Regions.Reverse().ToList();
         trip.Tags = trip.Tags.Reverse().ToList();
         region.Places = region.Places.Reverse().ToList();

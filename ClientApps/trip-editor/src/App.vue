@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { providePlanningWorkspace, preservePlanning } from './planning/planningState';
+import { providePlanningWorkspace } from './planning/planningState';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
@@ -388,9 +388,10 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     return;
   }
 
+  planningWorkspace.reconcileDeleted(result.deletedIds);
   const next: EditorTripState = {
     ...state.value,
-    metadata: result.affected.metadata ? preservePlanning(result.affected.metadata, state.value.metadata) : state.value.metadata,
+    metadata: result.affected.metadata ? planningWorkspace.publishPlanning(result, 'trip', result.affected.metadata, state.value.metadata) : state.value.metadata,
     regionsById: { ...state.value.regionsById },
     regionOrder: result.affected.regionOrder ?? [...state.value.regionOrder],
     placesById: { ...state.value.placesById },
@@ -429,16 +430,20 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   });
 
   result.affected.regions.forEach(region => {
-    next.regionsById[region.id] = preservePlanning(region, next.regionsById[region.id]);
+    if (planningWorkspace.isDeleted('region', region.id)) return;
+    next.regionsById[region.id] = planningWorkspace.publishPlanning(result, 'region', region, next.regionsById[region.id]);
   });
   result.affected.places.forEach(place => {
-    next.placesById[place.id] = preservePlanning(place, next.placesById[place.id]);
+    if (planningWorkspace.isDeleted('place', place.id)) return;
+    next.placesById[place.id] = planningWorkspace.publishPlanning(result, 'place', place, next.placesById[place.id]);
   });
   result.affected.areas.forEach(area => {
-    next.areasById[area.id] = preservePlanning(area, next.areasById[area.id]);
+    if (planningWorkspace.isDeleted('area', area.id)) return;
+    next.areasById[area.id] = planningWorkspace.publishPlanning(result, 'area', area, next.areasById[area.id]);
   });
   result.affected.segments.forEach(segment => {
-    next.segmentsById[segment.id] = preservePlanning(segment.externalRouting
+    if (planningWorkspace.isDeleted('segment', segment.id)) return;
+    next.segmentsById[segment.id] = planningWorkspace.publishPlanning(result, 'segment', segment.externalRouting
       ? segment
       : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null }, next.segmentsById[segment.id]);
   });
@@ -470,7 +475,6 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     activePlaceDraftPreview.value = null;
   }
 
-  planningWorkspace.reconcileDeleted(result.deletedIds);
   state.value = next;
   mapAdapter?.render(next, hiddenSegmentIds.value, selectedPlaceId.value);
 };

@@ -13,7 +13,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
         context.expose({ focusNotes() {}, focusRouteAction: () => false }); return () => null;
       } };` };
-      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface|RegionManager|RegionEditorSurface|PlanningEditor|PlanningValueInput)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
+      if (!/(?:App|TripSidebar|MetadataEditor|EditorSurface|RegionManager|RegionEditorSurface|SegmentManager|PlanningEditor|PlanningValueInput)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
       const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
       const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
@@ -81,7 +81,7 @@ const withApp = async action => {
   globalThis.ShadowRoot = class {};
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
-  globalThis.window = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  globalThis.window = { Sortable: { create: () => ({ destroy() {} }) }, matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
   globalThis.fetch = async () => new Response(JSON.stringify(initial));
   const remove = node => {
@@ -113,7 +113,7 @@ const withApp = async action => {
     assert.ok(editor, 'actual production Metadata owner mounted through App and TripSidebar');
     assert.equal(parent.error, null);
     await nextTick();
-    await action({ parent, editor, regionEditor: captured['RegionManager.vue'], planning: captured['PlanningEditor.vue'], surface: captured['EditorSurface.vue'], navigations, confirmations,
+    await action({ parent, editor, regionEditor: captured['RegionManager.vue'], segmentEditor: captured['SegmentManager.vue'], planning: captured['PlanningEditor.vue'], surface: captured['EditorSurface.vue'], navigations, confirmations,
       approve: value => { approved = value; },
       visibleText: () => textOf(root),
       button: label => descendants(root).find(node => node.tagName === 'BUTTON' && textOf(node) === label) });
@@ -903,6 +903,13 @@ const currentPlanningResult = (parent, local) => {
 test('current authoritative publication refreshes five clean Planning owners and retains five dirty originals', () => withApp(async ({ parent }) => {
   seedPlanningTargets(parent);
   const drafts = planningTargets.map(([kind, entityId]) => parent.planningWorkspace.open({ kind, entityId, mode: 'edit' }));
+  // Prior local acknowledgements protect only older publications, never every future refresh.
+  for (const draft of drafts) {
+    draft.entries.push(...datedPlan('2027-03-02').entries);
+    globalThis.fetch = async (_, init) => new Response(JSON.stringify({ contract: 'planning-1', success: true, applied: true,
+      targetKind: draft.kind, targetId: draft.id, parentId: draft.parentId, planning: JSON.parse(init.body).value }));
+    await parent.planningWorkspace.save(draft);
+  }
   for (const local of ['2027-03-09', '2027-03-10']) {
     const result = currentPlanningResult(parent, local);
     globalThis.fetch = async () => new Response(JSON.stringify(result));
@@ -985,4 +992,27 @@ test('real Segment ordering and independent affected graph replies cannot restor
   // A normal later creation still publishes. Session deletion authority concerns the removed identities only.
   const created = JSON.parse(reply(false)); created.affected.areas = [{ id: 'new', regionId: 'new-region', planning: datedPlan('2027-05-01') }];
   parent.applyMutation(created); assert.ok(parent.state.areasById.new);
+}));
+
+// Execute SegmentManager's real delayed producer and independent row deletion through the mounted parent.
+test('mounted Segment order reply cannot undo independent row deletion', () => withApp(async owner => {
+  const { parent, segmentEditor } = owner;
+  const segment = { id: 's', tripId: 'trip', fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [],
+    planning: null, externalRouting: null, route: null, effectiveRoute: null, mode: 'Walk', displayOrder: 1,
+    estimatedDistanceKm: null, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic', notesHtml: '', capabilities: { canEdit: true, canDelete: true } };
+  parent.state.segmentsById.s = segment; parent.state.segmentOrder = ['s']; await nextTick();
+  const older = JSON.parse(reply(false)); older.affected.segments = [segment]; older.affected.segmentOrder = ['s'];
+  const deletion = JSON.parse(reply(false)); deletion.deletedIds.segments = ['s']; deletion.affected.segmentOrder = [];
+  let release; const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init.method]);
+    if (url.endsWith('/segments/order')) return new Promise(done => { release = () => done(new Response(JSON.stringify(older))); });
+    assert.equal(init.method, 'DELETE'); return new Response(JSON.stringify(deletion));
+  };
+  const ordering = segmentEditor.reorder(['s'], ['s']); assert.ok(release);
+  owner.approve(true); await segmentEditor.deleteSegmentFromRow(segment); await nextTick();
+  assert.equal(parent.state.segmentsById.s, undefined);
+  release(); await ordering; await nextTick();
+  assert.equal(parent.state.segmentsById.s, undefined); assert.deepEqual(parent.state.segmentOrder, []);
+  assert.equal(calls.length, 2);
 }));
