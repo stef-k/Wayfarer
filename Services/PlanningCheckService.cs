@@ -20,7 +20,7 @@ public static class PlanningCheckService
         List<string> reused = [], invalidated = [];
         var inputs = RevalidateEntries(items, setup.Entries, reused, invalidated);
         var selected = items.Where(i => i.Selected).ToArray();
-        var travellerDependency = Fingerprint(selected.Select(i => new { i.Key, i.ParentId, Kind = Effective(i, inputs).Kind }));
+        var travellerDependency = Fingerprint(selected.OrderBy(i => i.Key, StringComparer.Ordinal).Select(i => new { i.Key, i.ParentId, Kind = Effective(i, inputs).Kind }));
         var single = setup.SingleTraveller;
         if (single && setup.TravellerDependency != null && setup.TravellerDependency != travellerDependency)
         { single = false; invalidated.Add("Single-traveller premise: selected participants changed."); }
@@ -75,7 +75,7 @@ public static class PlanningCheckService
         foreach (var r in graph.RegionsById.Values) Append("region", r.Id, graph.TripId, r.Name, r.Planning, r.Center);
         foreach (var p in graph.PlacesById.Values) Append("place", p.Id, p.RegionId, p.Name, p.Planning, p.Location);
         foreach (var a in graph.AreasById.Values) Append("area", a.Id, a.RegionId, a.Name, a.Planning, a.Geometry);
-        foreach (var s in graph.SegmentsById.Values) Append("segment", s.Id, graph.TripId, $"Journey {s.Mode}", s.Planning, new { s.FromPlaceId, s.ToPlaceId, s.WaypointPlaceIds, s.Route, s.EffectiveRoute });
+        foreach (var s in graph.SegmentsById.Values) Append("segment", s.Id, graph.TripId, $"Journey {s.Mode}", s.Planning, JourneyRoute(graph, s));
         // Candidates include unclassified parent entries, which can be explicitly interpreted as windows.
         return items.Select(item => item with { ParentWindows = items.Where(w => w.Key != item.Key && w.TargetId != item.TargetId &&
             (w.Kind == "trip" || w.Kind == "region" && w.TargetId == item.ParentId)).Select(w => w.Key).ToArray() }).ToList();
@@ -89,7 +89,7 @@ public static class PlanningCheckService
         foreach (var item in items)
         {
             if (!prior.TryGetValue(item.Key, out var input)) continue;
-            var contextDependency = Fingerprint(new { item.Key, item.ParentId, Windows = (input.Context ?? []).Select(k => {
+            var contextDependency = Fingerprint(new { item.Key, item.ParentId, Windows = (input.Context ?? []).Order(StringComparer.Ordinal).Select(k => {
                 var w = items.SingleOrDefault(i => i.Key == k); return new { Key = k, w?.ParentId, w?.Entry.Kind }; }) });
             if (input.Dependency != null && input.Dependency != item.Dependency)
             {
@@ -127,7 +127,8 @@ public static class PlanningCheckService
         IReadOnlyDictionary<string, string?> prior, bool single, List<PlanningCheckFinding> findings, List<string> reused, List<string> invalidated)
     {
         Dictionary<string, string?> current = [];
-        var presence = selected.Where(i => Effective(i, inputs).Kind == "presence").ToArray();
+        // Both pair identity and dependency use stable entry order, independent of display enumeration.
+        var presence = selected.Where(i => Effective(i, inputs).Kind == "presence").OrderBy(i => i.Key, StringComparer.Ordinal).ToArray();
         var count = 0;
         var totalPairs = (long)presence.Length * (presence.Length - 1) / 2;
         for (var a = 0; a < presence.Length && count < 2048; a++)
@@ -136,7 +137,7 @@ public static class PlanningCheckService
             {
                 count++;
                 var first = presence[a]; var second = presence[b];
-                var key = string.Join('|', new[] { first.Key, second.Key }.Order());
+                var key = string.Join('|', first.Key, second.Key);
                 var dependency = Fingerprint(new { first.Dependency, Second = second.Dependency });
                 var incompatible = prior.TryGetValue(key, out var old) && (old == null || old == dependency);
                 if (incompatible) { current[key] = dependency; if (old != null) reused.Add("Incompatible-location assessment"); }
@@ -157,11 +158,15 @@ public static class PlanningCheckService
     {
         var from = items[transfer.From]; var to = items[transfer.To];
         var segment = transfer.SegmentId.HasValue ? graph.SegmentsById.GetValueOrDefault(transfer.SegmentId.Value) : null;
-        object? Location(PlanningCheckItem item) => item.Kind == "place" ? graph.PlacesById[item.TargetId].Location
-            : item.Kind == "area" ? graph.AreasById[item.TargetId].Geometry : (object?)item.ParentId;
+        object? Location(PlanningCheckItem item) => item.Kind switch {
+            "place" => graph.PlacesById[item.TargetId].Location,
+            "area" => graph.AreasById[item.TargetId].Geometry,
+            "region" => graph.RegionsById[item.TargetId].Center,
+            "segment" => JourneyRoute(graph, graph.SegmentsById[item.TargetId]),
+            _ => item.ParentId
+        };
         var dependency = Fingerprint(new { from.Key, from.ParentId, FromLocation = Location(from), To = to.Key, ToParent = to.ParentId, ToLocation = Location(to),
-            Segment = segment == null ? null : new { segment.Id, segment.FromPlaceId, segment.ToPlaceId, segment.WaypointPlaceIds, segment.WaypointRouteVertexIndices,
-                segment.Mode, segment.TransportProfileId, segment.Route, segment.EffectiveRoute, segment.EstimatedDurationMinutes, segment.EstimatedDurationSource } });
+            Segment = segment == null ? null : new { Route = JourneyRoute(graph, segment), segment.EstimatedDurationMinutes, segment.EstimatedDurationSource } });
         if (transfer.Dependency != null && transfer.Dependency != dependency)
         {
             transfer = transfer with { Relevant = false, Allowance = "unknown", Connection = "unknown" };
@@ -188,6 +193,18 @@ public static class PlanningCheckService
         if (transfer.WhatIfRelease is { } release) assumptions += $" What-if release: {release.Local} ({release.Zone ?? "zone unspecified"}); saved intentions and history unchanged.";
         foreach (var comparison in comparisons) Add(findings, "movement", [from.Key, to.Key], comparison with { Message = comparison.Message + assumptions });
         return transfer;
+    }
+
+    /// <summary>Directional Journey evidence includes ordered anchors and their current locations, without labels, times or display order.</summary>
+    private static object JourneyRoute(EditorTripStateDto graph, EditorSegmentDto segment)
+    {
+        var anchors = new Guid?[] { segment.FromPlaceId }.Concat(segment.WaypointPlaceIds.Select(id => (Guid?)id)).Append(segment.ToPlaceId);
+        return new { segment.Id, segment.FromPlaceId, segment.ToPlaceId, segment.WaypointPlaceIds, segment.WaypointRouteVertexIndices,
+            segment.Mode, segment.TransportProfileId, segment.Route, segment.EffectiveRoute,
+            AnchorLocations = anchors.Select(id => {
+                var place = id.HasValue ? graph.PlacesById.GetValueOrDefault(id.Value) : null;
+                return new { Id = id, place?.RegionId, place?.Location };
+            }).ToArray() };
     }
 
     /// <summary>Included or explicitly unnecessary extras are counted zero additional times, never silently defaulted.</summary>

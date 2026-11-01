@@ -128,15 +128,108 @@ public sealed class PlanningCheckTests
         Assert.True(expired.Setup.Transfers.Single().Relevant);
         foreach (var changed in new[] { segment with { Mode = "bus" }, segment with { EstimatedDurationMinutes = 45 } })
         {
-            var reviewed = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = changed } }, "alice", saved.Setup, Now);
+            var editedAllowance = saved.Setup with { Transfers = [saved.Setup.Transfers[0] with { AllowanceMinutes = 10 }] };
+            var reviewed = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = changed } }, "alice", editedAllowance, Now);
             Assert.False(reviewed.Setup.Transfers.Single().Relevant);
             Assert.Equal("unknown", reviewed.Setup.Transfers.Single().Allowance);
             Assert.Contains(reviewed.Findings, f => f.Check == "movement" && f.Result.Status == "unknown");
+            Assert.Equal(new[] { window }, reviewed.Setup.Entries[museum].Context);
+            Assert.True(reviewed.Setup.SingleTraveller);
         }
         var place = graph.PlacesById.Values.First();
         var places = graph.PlacesById.ToDictionary(); places[place.Id] = place with { Location = new(25, 35) };
+        var allowanceEdit = saved.Setup with { Transfers = [saved.Setup.Transfers[0] with { AllowanceMinutes = 10 }] };
+        var relocated = PlanningCheckService.Run(graph with { PlacesById = places }, "alice", allowanceEdit, Now);
+        Assert.False(relocated.Setup.Transfers.Single().Relevant);
+        Assert.Equal(new[] { window }, relocated.Setup.Entries[lunch].Context);
+        var unchanged = PlanningCheckService.Run(graph, "alice", allowanceEdit, Now);
+        Assert.Empty(unchanged.Invalidated);
+        Assert.True(unchanged.Setup.Transfers.Single().Relevant);
+        Assert.Contains(unchanged.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == 20);
+    }
+
+    /// <summary>Release and arrival Journeys bind their own routes and anchor locations even with an independent manual estimate.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Journey_route_dependencies_are_independent_of_estimate_source_and_recompute_only_changed_times(bool arrival)
+    {
+        var graph = Graph();
+        var (_, museum, lunch, _) = Initial(graph);
+        var origin = graph.PlacesById.Values.Single(p => p.Name == "Museum");
+        var destination = graph.PlacesById.Values.Single(p => p.Name == "Lunch");
+        var segmentId = Guid.NewGuid();
+        var entry = (arrival ? destination : origin).Planning!.Entries[0] with { Kind = "travel" };
+        var segment = new EditorSegmentDto(segmentId, graph.TripId, origin.Id, destination.Id, [], [], "rail", null, false,
+            10, 30, "Manual", "", null, null, "", 0, new(true, true, true, true, true, false, false)) { Planning = new(1, [entry]) };
+        graph = graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = segment } };
+        var journey = $"segment/{segmentId}/{entry.Id}";
+        var setup = new PlanningCheckSetup { Transfers = [new(arrival ? museum : journey, arrival ? journey : lunch,
+            EstimateMinutes: 30, Relevant: true, Allowance: "additional", AllowanceMinutes: 15, Connection: "none")] };
+        var saved = PlanningCheckService.Run(graph, "alice", setup, Now);
+        Assert.Contains(saved.Findings, f => f.Check == "movement" && f.Result.Minutes == 15);
+        foreach (var changed in new[] {
+            segment with { FromPlaceId = destination.Id, ToPlaceId = origin.Id },
+            segment with { Mode = "bus" }, segment with { TransportProfileId = Guid.NewGuid() },
+            segment with { WaypointPlaceIds = [destination.Id], WaypointRouteVertexIndices = [1] },
+            segment with { Route = JsonSerializer.SerializeToElement(new { type = "LineString", coordinates = new[] { new[] { 2, 2 }, new[] { 3, 3 } } }) } })
+        {
+            var reviewed = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = changed } }, "alice", saved.Setup, Now);
+            Assert.False(reviewed.Setup.Transfers.Single().Relevant);
+            Assert.Contains(reviewed.Invalidated, message => message.Contains("Movement"));
+            Assert.DoesNotContain(reviewed.Findings, f => f.Check == "movement" && f.Result.Status == "completed");
+        }
+        // Change the anchor other than the selected Place; raw route geometry can stay absent or unchanged.
+        var anchor = arrival ? destination : origin;
+        var places = graph.PlacesById.ToDictionary(); places[anchor.Id] = anchor with { Location = new(25, 35) };
         var relocated = PlanningCheckService.Run(graph with { PlacesById = places }, "alice", saved.Setup, Now);
         Assert.False(relocated.Setup.Transfers.Single().Relevant);
+        var renamed = segment with { NotesHtml = "Label context only", Planning = new(1, [entry with { Label = "Renamed" }]) };
+        var labelOnly = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = renamed } }, "alice", saved.Setup, Now);
+        Assert.Empty(labelOnly.Invalidated);
+        var changedTime = entry.When with { Start = new("known", new("dateTime", "2027-03-02T12:15", "UTC")), End = new("known", new("dateTime", "2027-03-02T11:15", "UTC")) };
+        var timing = entry with { When = arrival ? entry.When with { Start = changedTime.Start } : entry.When with { End = changedTime.End } };
+        var timeOnly = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = segment with { Planning = new(1, [timing]) } } }, "alice", saved.Setup, Now);
+        Assert.Empty(timeOnly.Invalidated);
+        Assert.True(timeOnly.Setup.Transfers.Single().Relevant);
+        Assert.Contains(timeOnly.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == (arrival ? 30 : 0));
+    }
+
+    /// <summary>Model display reordering preserves assessed participants and canonical physical pairs; material changes still reopen them.</summary>
+    [Fact]
+    public void Physical_premises_survive_display_order_but_not_membership_meaning_or_location_changes()
+    {
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "alice", Name = "Trip" };
+        PlanningAggregate Presence() => new(1, [new(Guid.NewGuid(), new("period",
+            Start: new("known", new("dateTime", "2027-03-02T10:00", "UTC")), End: new("known", new("dateTime", "2027-03-02T12:00", "UTC"))), Kind: "presence")]);
+        var first = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, Name = "First", Center = new Point(0, 0), DisplayOrder = 0, Planning = Presence() };
+        var second = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, Name = "Second", Center = new Point(1, 1), DisplayOrder = 1, Planning = Presence() };
+        trip.Regions = [first, second];
+        EditorTripStateDto Project() => EditorTripStateMapper.ToEditorState(trip, new Dictionary<Guid, IReadOnlyList<PlaceVisitEvent>>(), null!, null, null);
+        var graph = Project();
+        var keys = PlanningCheckService.Run(graph, "alice", new(), Now).Inventory.Select(i => i.Key).Order(StringComparer.Ordinal).ToArray();
+        var pair = string.Join('|', keys);
+        var saved = PlanningCheckService.Run(graph, "alice", new() { SingleTraveller = true,
+            Incompatible = new Dictionary<string, string?> { [pair] = null } }, Now);
+        Assert.Contains(saved.Findings, f => f.Check == "physical" && f.Result.Status == "contradiction");
+        first.DisplayOrder = 1; second.DisplayOrder = 0;
+        var reordered = PlanningCheckService.Run(Project(), "alice", saved.Setup, Now);
+        Assert.Empty(reordered.Invalidated);
+        Assert.True(reordered.Setup.SingleTraveller);
+        Assert.Equal(saved.Setup.Incompatible[pair], reordered.Setup.Incompatible[pair]);
+        Assert.Contains(reordered.Reused, r => r.Contains("Incompatible-location"));
+        Assert.Contains(reordered.Findings, f => f.Check == "physical" && f.Result.Status == "contradiction");
+        second.Center = new Point(2, 2);
+        var relocated = PlanningCheckService.Run(Project(), "alice", saved.Setup, Now);
+        Assert.Empty(relocated.Setup.Incompatible);
+        Assert.True(relocated.Setup.SingleTraveller);
+        second.Planning = new(1, [second.Planning!.Entries[0] with { Kind = "stay" }]);
+        var meaning = PlanningCheckService.Run(Project(), "alice", saved.Setup, Now);
+        Assert.False(meaning.Setup.SingleTraveller);
+        Assert.Empty(meaning.Setup.Incompatible);
+        var membership = PlanningCheckService.Run(graph, "alice", saved.Setup with { Selection = [keys[0]] }, Now);
+        Assert.False(membership.Setup.SingleTraveller);
+        Assert.Empty(membership.Setup.Incompatible);
     }
 
     /// <summary>Stay/window overlap is legitimate; arbitrary IDs do not supply incompatible-location evidence.</summary>

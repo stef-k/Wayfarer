@@ -14,12 +14,20 @@ const add = (): void => {
   if (!props.setup.transfers.some(t => t.from === from.value && t.to === to.value))
     props.setup.transfers.push({ from: from.value, to: to.value, relevant: false, allowance: 'unknown', connection: 'unknown' });
 };
-/** Explicit input changes are new assessments; old directional relevance bindings must not silently survive them. */
+/** Editing extras normalizes blank numbers while preserving the evidence supporting route relevance. */
 const changed = (transfer: CheckTransfer): void => {
-  transfer.dependency = null;
   for (const key of ['estimateMinutes', 'allowanceMinutes', 'connectionMinutes'] as const)
     if (typeof transfer[key] !== 'number') transfer[key] = null;
 };
+/** A new estimate source requires relevance and inclusion treatment to be assessed for that source. */
+const sourceChanged = (transfer: CheckTransfer): void => {
+  transfer.relevant = false;
+  transfer.allowance = 'unknown';
+  transfer.connection = 'unknown';
+  reassess(transfer);
+};
+/** Only an explicit source/relevance reassessment can replace the directional evidence binding. */
+const reassess = (transfer: CheckTransfer): void => { transfer.dependency = null; changed(transfer); };
 const whatIf = (transfer: CheckTransfer, local: string): void => {
   transfer.whatIfRelease = local ? { ...transfer.whatIfRelease, precision: 'dateTime', local } : null;
   transfer.whatIfAt = null;
@@ -35,9 +43,9 @@ const whatIf = (transfer: CheckTransfer, local: string): void => {
     <button type="button" class="btn btn-outline-light btn-sm" :disabled="!from || !to || from === to" @click="add">Assess this movement</button>
     <fieldset v-for="(transfer, index) in setup.transfers" :key="`${transfer.from}|${transfer.to}`">
       <legend>{{ items.find(i => i.key === transfer.from)?.name }} → {{ items.find(i => i.key === transfer.to)?.name }}</legend>
-      <label class="trip-editor-field"><span>Estimate source</span><select v-model="transfer.segmentId" @change="changed(transfer)"><option :value="null">My estimate for this check</option><option v-for="segment in Object.values(segments)" :key="segment.id" :value="segment.id">{{ segment.mode }} · {{ segment.estimatedDurationMinutes ?? 'Unknown' }} min · {{ segment.estimatedDurationSource }} · {{ places[segment.fromPlaceId ?? '']?.name ?? 'Origin unknown' }} → {{ places[segment.toPlaceId ?? '']?.name ?? 'Destination unknown' }}</option></select></label>
-      <label v-if="!transfer.segmentId" class="trip-editor-field"><span>Travel estimate in minutes</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
-      <label><input v-model="transfer.relevant" type="checkbox" @change="changed(transfer)" /> This estimate is relevant to this direction, locations and travel mode</label>
+      <label class="trip-editor-field"><span>Estimate source</span><select v-model="transfer.segmentId" @change="sourceChanged(transfer)"><option :value="null">My estimate for this check</option><option v-for="segment in Object.values(segments)" :key="segment.id" :value="segment.id">{{ segment.mode }} · {{ segment.estimatedDurationMinutes ?? 'Unknown' }} min · {{ segment.estimatedDurationSource }} · {{ places[segment.fromPlaceId ?? '']?.name ?? 'Origin unknown' }} → {{ places[segment.toPlaceId ?? '']?.name ?? 'Destination unknown' }}</option></select></label>
+      <label v-if="!transfer.segmentId" class="trip-editor-field"><span>Travel estimate in minutes</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="sourceChanged(transfer)" /></label>
+      <label><input v-model="transfer.relevant" type="checkbox" @change="reassess(transfer)" /> This estimate is relevant to this direction, locations and travel mode</label>
       <template v-for="extra in ['allowance', 'connection'] as const" :key="extra">
         <label class="trip-editor-field"><span>{{ extra === 'allowance' ? 'Rest / buffer allowance' : 'Necessary connection information' }}</span><select v-model="transfer[extra]" @change="changed(transfer)"><option value="unknown">Unknown / Skip</option><option value="none">None needed for this check</option><option value="included">Already included in the selected estimate</option><option value="additional">Additional minutes, counted once</option></select></label>
         <label v-if="transfer[extra] === 'additional'" class="trip-editor-field"><span>Additional {{ extra }} minutes (not already counted in estimate or gap)</span><input v-if="extra === 'allowance'" v-model.number="transfer.allowanceMinutes" type="number" min="0" step="1" @change="changed(transfer)" /><input v-else v-model.number="transfer.connectionMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>

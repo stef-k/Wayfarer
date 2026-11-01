@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { createRenderer, h, nextTick, provide, proxyRefs, reactive, ref } from 'vue';
 
 // Mount the shipped review component/state owner; only rendering and transport are substituted.
-const bundle = await build({ stdin: { contents: `export { default as Review } from './PlanCheck.vue'; export * from './planningState';
+const bundle = await build({ stdin: { contents: `export { default as Review } from './PlanCheck.vue'; export { default as Movement } from './CheckMovement.vue'; export * from './planningState';
   export * from '../composables/useEditorSurface';`, resolveDir: 'ClientApps/trip-editor/src/planning', loader: 'ts' },
   bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'], plugins: [{ name: 'review-owner', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
@@ -17,7 +17,7 @@ const bundle = await build({ stdin: { contents: `export { default as Review } fr
     builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = async () => true;' }));
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-const { Review, createPlanningWorkspace, planningWorkspaceKey, useEditorSurface } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+const { Review, Movement, createPlanningWorkspace, planningWorkspaceKey, useEditorSurface } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode: () => ({}), nextSibling: () => null });
 const storage = () => {
   const values = new Map();
@@ -42,6 +42,125 @@ const mount = (state = graph(), surface = useEditorSurface()) => {
   return { stateRef, workspace, props, get controls() { return controls; }, dispose: () => app.unmount() };
 };
 const target = { key: 'metadata', identity: 'metadata', kind: 'metadata', mode: 'edit', title: 'Trip' };
+
+// Save and check owns only the Planning versions present at the explicit action, across every save await.
+test('Planning first typed during the ordinary save stays dirty and requires a new explicit choice', async () => {
+  globalThis.localStorage = storage();
+  const oldFetch = globalThis.fetch;
+  const surface = useEditorSurface();
+  let ordinaryDirty = true;
+  let finishOrdinary;
+  const unregister = surface.registerTargetHandler(target.key, { isDirty: () => ordinaryDirty, discard() {},
+    save: async () => { await new Promise(resolve => { finishOrdinary = resolve; }); ordinaryDirty = false; } });
+  await surface.activateTarget(target);
+  const mounted = mount(graph(), surface);
+  const calls = [];
+  try {
+    globalThis.fetch = async (url, init) => {
+      const body = JSON.parse(init.body); calls.push({ url, body });
+      return url.endsWith('/check') ? Response.json(response(body)) : Response.json({ contract: 'planning-1', success: true,
+        applied: true, targetKind: 'trip', targetId: 'trip', parentId: 'trip', planning: body.value });
+    };
+    mounted.controls.review.request();
+    const draft = mounted.workspace.open(target);
+    const saving = mounted.controls.review.saveAndCheck();
+    await nextTick();
+    draft.entries[0].when.value.local = '2027-03-20';
+    finishOrdinary(); await saving;
+    assert.equal(calls.length, 0);
+    assert.equal(mounted.workspace.hasChanges.value, true);
+    assert.equal(draft.entries[0].when.value.local, '2027-03-20');
+    assert.equal(mounted.controls.choices, true);
+    assert.match(mounted.controls.error, /remain unsaved/);
+    await mounted.controls.review.run();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url.endsWith('/check'), true);
+    assert.equal(JSON.stringify(calls[0].body).includes('2027-03-20'), false);
+    assert.equal(mounted.workspace.hasChanges.value, true);
+    await mounted.controls.review.saveAndCheck();
+    assert.equal(calls[1].body.value.entries[0].when.value.local, '2027-03-20');
+    assert.equal(calls[2].url.endsWith('/check'), true);
+    assert.equal(mounted.workspace.hasChanges.value, false);
+  } finally { mounted.dispose(); unregister(); surface.clearActiveTarget(); globalThis.fetch = oldFetch; }
+});
+
+test('later draft edits or new draft membership during an earlier Planning save stop subsequent saves', async () => {
+  const oldFetch = globalThis.fetch;
+  // Exercise both version and membership changes at the same mounted protected-save seam.
+  for (const newDraft of [false, true]) {
+    globalThis.localStorage = storage();
+    const state = graph();
+    state.regionsById.region = { id: 'region', regionId: 'trip', name: 'Region', planning: { format: 1, entries: [entry('region-entry')] } };
+    const mounted = mount(state);
+    try {
+      const first = mounted.workspace.open(target);
+      first.entries[0].when.value.local = '2027-03-09';
+      const regionTarget = { key: 'region/region', kind: 'region', entityId: 'region', mode: 'edit' };
+      let later = newDraft ? null : mounted.workspace.open(regionTarget);
+      if (later) later.entries[0].when.value.local = '2027-03-10';
+      const calls = [];
+      let acknowledge;
+      globalThis.fetch = async (url, init) => {
+        const body = JSON.parse(init.body); calls.push({ url, body });
+        if (calls.length === 1) return new Promise(resolve => { acknowledge = resolve; });
+        return url.endsWith('/check') ? Response.json(response(body)) : Response.json({ contract: 'planning-1', success: true,
+          applied: true, targetKind: 'region', targetId: 'region', parentId: 'trip', planning: body.value });
+      };
+      mounted.controls.review.request();
+      const saving = mounted.controls.review.saveAndCheck();
+      await nextTick();
+      later ??= mounted.workspace.open(regionTarget);
+      later.entries[0].when.value.local = '2027-03-20';
+      acknowledge(Response.json({ contract: 'planning-1', success: true, applied: true, targetKind: 'trip', targetId: 'trip', parentId: 'trip', planning: calls[0].body.value }));
+      await saving;
+      assert.equal(calls.length, 1);
+      assert.equal(mounted.workspace.dirty(first), false);
+      assert.equal(mounted.workspace.dirty(later), true);
+      assert.equal(later.original.entries[0].when.value.local, '2027-03-02');
+      assert.equal(later.entries[0].when.value.local, '2027-03-20');
+      assert.equal(mounted.controls.choices, true);
+      assert.match(mounted.controls.error, /remain unsaved/);
+      assert.equal(mounted.controls.result, null);
+    } finally { mounted.dispose(); }
+  }
+  globalThis.fetch = oldFetch;
+});
+
+test('allowance edits preserve relevance evidence; only source or explicit relevance assessment replaces it', () => {
+  let controls;
+  const setup = reactive({ transfers: [{ from: 'from', to: 'to', relevant: true, dependency: 'assessed-route',
+    allowance: 'additional', allowanceMinutes: 15, connection: 'included', connectionMinutes: null }] });
+  const component = { ...Movement, setup(values, context) { controls = proxyRefs(Movement.setup(values, context)); return () => null; } };
+  const app = renderer.createApp({ setup: () => () => h(component, { setup, items: [], segments: {}, places: {} }) });
+  app.mount({});
+  try {
+    const transfer = setup.transfers[0];
+    transfer.allowanceMinutes = 10;
+    controls.changed(transfer);
+    assert.equal(transfer.dependency, 'assessed-route');
+    assert.equal(transfer.relevant, true);
+    assert.equal(transfer.connection, 'included');
+    controls.sourceChanged(transfer);
+    assert.equal(transfer.relevant, false);
+    assert.equal(transfer.allowance, 'unknown');
+    assert.equal(transfer.connection, 'unknown');
+    transfer.relevant = true;
+    controls.reassess(transfer);
+    assert.equal(transfer.dependency, null);
+    assert.equal(transfer.relevant, true);
+  } finally { app.unmount(); }
+});
+
+test('scope selection retains traveller evidence for service membership revalidation', () => {
+  globalThis.localStorage = storage();
+  const mounted = mount();
+  try {
+    mounted.controls.setup.singleTraveller = true;
+    mounted.controls.setup.travellerDependency = 'assessed-participants';
+    mounted.controls.select({ key: 'trip/trip/visit' }, false);
+    assert.equal(mounted.controls.setup.travellerDependency, 'assessed-participants');
+  } finally { mounted.dispose(); }
+});
 
 test('mounted owner shows saved results before questions, keeps known findings beside Unknown and dismiss/recheck resurfaces', async () => {
   globalThis.localStorage = storage();

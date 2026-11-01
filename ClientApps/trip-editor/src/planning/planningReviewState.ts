@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue';
 import type { EditorTripState } from '../types';
 import type { EditorTarget } from '../composables/useEditorSurface';
-import type { createPlanningWorkspace } from './planningState';
+import { samePlanning, type createPlanningWorkspace, type PlanningDraft } from './planningState';
 import { emptyCheckSetup, type CheckResult, type CheckSetup } from './planningCheckTypes';
 
 const storageKey = 'wayfarer.latest-owner-planning-check';
@@ -131,18 +131,32 @@ export const createPlanningReview = (options: {
   const saveAndCheck = async (): Promise<void> => {
     if (held.value) return;
     const scope = identity();
+    // Capture every open draft before the ordinary await, including clean drafts that may acquire later typing.
+    const version = (draft: PlanningDraft) => copy({ kind: draft.kind, id: draft.id, parentId: draft.parentId,
+      original: draft.original, entries: draft.entries, deleted: draft.deleted ?? false });
+    const intended = Object.entries(options.workspace?.drafts ?? {}).map(([key, draft]) => ({ key, draft, version: version(draft) }));
+    const applicable = (): boolean => Object.keys(options.workspace?.drafts ?? {}).length === intended.length
+      && intended.every(saved => options.workspace?.drafts[saved.key] === saved.draft && samePlanning(version(saved.draft), saved.version));
+    const retainChoice = (): void => {
+      choices.value = true;
+      error.value = 'Changes remain unsaved or unconfirmed. Use their existing save controls, check the saved version, or return to editing.';
+    };
     try { await options.saveOrdinary(); }
     catch {
       if (scope === identity() && !disposed) error.value = 'The ordinary save did not complete. Drafts remain separate; use their save controls or check the saved version.';
       return;
     }
     if (scope !== identity() || disposed) return;
-    for (const draft of Object.values(options.workspace?.drafts ?? {})) {
-      if (options.workspace?.dirty(draft)) await options.workspace.save(draft);
+    if (!applicable() || held.value) { retainChoice(); return; }
+    for (const saved of intended) {
+      if (!applicable() || held.value) { retainChoice(); return; }
+      if (options.workspace?.dirty(saved.draft)) await options.workspace.save(saved.draft);
       if (scope !== identity() || disposed) return;
-      if (draft.error || draft.uncertain || draft.pending) break;
+      if (saved.draft.error || options.workspace?.dirty(saved.draft)) { retainChoice(); return; }
+      // Only this acknowledged save may advance its captured comparison original.
+      saved.version = version(saved.draft);
     }
-    if (dirty()) { error.value = 'Changes remain unsaved or unconfirmed. Use their existing save controls, check the saved version, or return to editing.'; return; }
+    if (!applicable() || dirty()) { retainChoice(); return; }
     await run();
   };
   const clear = (): void => { reset(); clearStorage(); };

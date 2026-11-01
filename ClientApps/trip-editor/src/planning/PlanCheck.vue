@@ -33,7 +33,7 @@ const interpret = (key: string, field: keyof CheckEntryInput, value: unknown): v
 const select = (item: CheckItem, checked: boolean): void => {
   const keys = setup.value.selection ?? items.value.map(i => i.key);
   setup.value.selection = checked ? [...new Set([...keys, item.key])] : keys.filter(k => k !== item.key);
-  setup.value.travellerDependency = null;
+  // Keep the previous participant evidence: changing scope is not a renewed single-traveller assessment.
 };
 const selectContext = (item: CheckItem, key: string, checked: boolean): void => {
   const keys = input(item.key).context ?? [];
