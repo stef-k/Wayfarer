@@ -99,3 +99,12 @@ fn oriented_crops_validate_and_preserve_mirrors() {
             .all(|(a, b)| a.iter().zip(b.0).all(|(a, b)| a.abs_diff(b) < 35))
     );
 }
+
+/// Encoded bytes are rejected independently of signature, geometry and decoder allocation.
+#[test]
+fn avatar_encoded_byte_limit_precedes_decode() {
+    assert_eq!(
+        avatar(&vec![0; 15 * 1024 * 1024 + 1], None),
+        Err(Failure::TooLarge)
+    );
+}

@@ -41,6 +41,12 @@ public sealed class ProfilePhotoHelperTests
         Assert.Equal((256u, 256u), (output.Width, output.Height));
         Assert.Equal(MagickFormat.WebP, output.Format);
         Assert.Null(output.GetExifProfile()); Assert.Null(output.GetColorProfile()); Assert.Null(output.GetXmpProfile());
+        if (fixture.EndsWith(".png", StringComparison.Ordinal))
+        {
+            Assert.True(output.HasAlpha);
+            using var pixels = output.GetPixels();
+            Assert.InRange((int)pixels.GetPixel(128, 128).ToColor()!.A, 185, 198);
+        }
         Assert.InRange(result.Bytes!.Length, 1, 256 * 1024);
         ImageHelperSupervisorTests.AssertReaped(result.ProcessId);
     }

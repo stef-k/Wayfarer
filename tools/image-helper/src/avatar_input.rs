@@ -52,6 +52,10 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
         ..Default::default()
     };
     let mut decoder = Decoder::new_with_limits(bytes, limits).map_err(jpeg_error)?;
+    dimensions(
+        decoder.header().width as u32,
+        decoder.header().height as u32,
+    )?;
     let gray = decoder.jpeg_color_space() == ColorSpace::Grayscale;
     let cmyk = matches!(
         decoder.jpeg_color_space(),
@@ -220,4 +224,19 @@ fn strict_jpeg_completion(bytes: &[u8]) -> Result<()> {
     // SAFETY: this invocation exclusively owns the handle and uses it no further.
     unsafe { tj::tj3Destroy(handle) };
     result
+}
+
+#[cfg(test)]
+mod tests {
+    /// Axis, pixel and nonpositive geometry limits are independent positive source evidence.
+    #[test]
+    fn avatar_geometry_limits_are_independent() {
+        assert_eq!(super::dimensions(8000, 5000), Ok(40_000_000));
+        assert_eq!(super::dimensions(16_385, 1), Err(crate::Failure::TooLarge));
+        assert_eq!(
+            super::dimensions(10_000, 4001),
+            Err(crate::Failure::TooLarge)
+        );
+        assert_eq!(super::dimensions(0, 10), Err(crate::Failure::Source));
+    }
 }
