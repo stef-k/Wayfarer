@@ -111,6 +111,38 @@ This is the A+B prerequisite in [#862](https://github.com/stef-k/Wayfarer/issues
 Native export/import fidelity remains separately owned by #814. See the
 [accepted design](activity-reconciliation-design.md) for the slice boundaries.
 
+### Manual Activity consolidation
+
+From **Admin → Activity Types**, choose **Consolidate** beside the source, select an
+existing destination and preview their names and aggregate Location counts. The
+confirmation contains no owner-level history. Confirm to move every source Location
+across owners while changing only `ActivityTypeId`. The destination keeps its ID and
+name. Distinct nonblank source prose follows the migration policy above: retain
+destination prose as primary, or use source prose if absent; append a distinct
+source description under its original name/ID heading. Exact repeats are not added.
+
+![Admin Activity consolidation confirmation](../images/admin-activity-consolidation.png)
+
+One repeatable-read transaction updates the destination description, reassigns
+Locations and older redirects, removes the source, then inserts its permanent
+numeric redirect. Removing the live source before inserting its redirect respects
+the existing overlap guard; runtime guards are never disabled. Older retired IDs
+point directly to the final destination, and retired IDs cannot be reused.
+
+Confirmation checks PostgreSQL `xmin` versions for these two catalog rows only.
+Missing, identical or changed choices are rejected. Counts are advisory and may
+change before confirmation. Concurrent catalog edits cannot be silently overwritten
+or deleted by consolidation: repeatable-read conflicts and existing restrictive FKs
+roll back the entire operation, with refresh/retry guidance. A conflicting import,
+Admin operation or consolidation may fail safely; no automatic retries or general
+coordination mechanism are added. Ordinary Admin CRUD and constrained deletion keep
+their existing behavior.
+
+Numeric redirects preserve persisted/queued ID integrity; they are **not name
+aliases**. Future imports of the retired source name may create a new Activity under
+the existing name-matching rules. Consolidation is manual, with no automatic merge,
+background cleanup or undo action. No database migration is required for #865.
+
 ### Activity reconciliation during location imports
 
 The #863 worker uses the concrete `ActivityCatalogReconciler` with its current
