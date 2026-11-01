@@ -156,6 +156,7 @@ import {
     }
     // Expire idle markers too; removed/deselected markers must never be recreated by a late timer.
     const marker = latestMarkers.get(userId);
+    marker.profilePhotoLocation = loc;
     clearTimeout(marker.presenceExpiryTimer);
     marker.presenceExpiryTimer = scheduleLocationExpiry(loc, () => {
       if (latestMarkers.get(userId) === marker) upsertLatestForUser(userId, loc);
@@ -576,7 +577,12 @@ import {
     });
   }
   // Backend color/photo references refresh independently of location sharing.
-  bindGroupPhotos(groupId, () => loadLatest().catch(() => {}));
+  bindGroupPhotos(groupId, () => {
+    // Repaint existing identities without changing selection, dates or map framing.
+    latestMarkers.forEach((marker, userId) => {
+      if (marker.profilePhotoLocation) upsertLatestForUser(userId, marker.profilePhotoLocation);
+    });
+  });
 
   // Disable remove buttons for owner and last manager (org)
   function updateRemoveButtons(){

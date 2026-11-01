@@ -156,6 +156,7 @@ import {
     }
     // Expire idle markers too; removed/deselected markers must never be recreated by a late timer.
     const marker = latestMarkers.get(userId);
+    marker.profilePhotoLocation = loc;
     clearTimeout(marker.presenceExpiryTimer);
     marker.presenceExpiryTimer = scheduleLocationExpiry(loc, () => {
       if (latestMarkers.get(userId) === marker) upsertLatestForUser(userId, loc);
@@ -576,7 +577,12 @@ import {
   }
 
   // Backend identity references refresh on focus; normal SSE membership invalidation reloads this page.
-  bindGroupPhotos(groupId, () => loadLatest().catch(() => {}));
+  bindGroupPhotos(groupId, () => {
+    // Repaint existing identities without changing selection, dates or map framing.
+    latestMarkers.forEach((marker, userId) => {
+      if (marker.profilePhotoLocation) upsertLatestForUser(userId, marker.profilePhotoLocation);
+    });
+  });
   document.querySelectorAll('#userSidebar .only-this').forEach(btn => {
     btn.addEventListener('click', function(){
       const targetId = this.getAttribute('data-user-id');

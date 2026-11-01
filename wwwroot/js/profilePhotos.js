@@ -38,6 +38,12 @@ export const bindGroupPhotos = (groupId, changed = () => {}) => {
     try {
       const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members`, { cache: 'no-store' });
       const members = response.ok ? await response.json() : [];
+      if ([401, 403, 404].includes(response.status)) {
+        // Persisted membership/session loss invalidates the whole existing Group page.
+        document.querySelectorAll('.profile-photo img').forEach(image => image.remove());
+        window.location.reload();
+        return;
+      }
       const byId = new Map(members.map(member => [member.userId, member]));
       document.querySelectorAll('[data-photo-user]').forEach(container => {
         const member = byId.get(container.dataset.photoUser);
