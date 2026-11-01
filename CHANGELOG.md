@@ -9,6 +9,9 @@
   keep ordinary saves independent. Add targeted check-only inputs, protected
   Save and check / Check saved version / Return choices, bounded latest private
   device setup with dependency/identity fencing, and transient counted dismissal.
+  Preserve later Planning typing through every Save and check await. Bind Journey
+  endpoints independently of estimate source, retain relevance evidence on allowance
+  edits, and reuse unchanged physical premises through display reordering.
   No planning/history/estimate mutation, provider calls, new migration or export of
   local setup. Final combined backend/Web acceptance remains separate; mobile
   agents own their implementation and qualification.

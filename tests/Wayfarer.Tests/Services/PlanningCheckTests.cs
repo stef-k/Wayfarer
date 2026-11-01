@@ -126,7 +126,8 @@ public sealed class PlanningCheckTests
         var expired = PlanningCheckService.Run(graph, "alice", saved.Setup, Now.AddMinutes(31));
         Assert.Null(expired.Setup.Transfers.Single().WhatIfRelease);
         Assert.True(expired.Setup.Transfers.Single().Relevant);
-        foreach (var changed in new[] { segment with { Mode = "bus" }, segment with { EstimatedDurationMinutes = 45 } })
+        foreach (var changed in new[] { segment with { Mode = "bus" }, segment with { EstimatedDurationMinutes = 45 },
+            segment with { Route = JsonSerializer.SerializeToElement(new { type = "LineString", coordinates = new[] { new[] { 2, 2 }, new[] { 3, 3 } } }) } })
         {
             var editedAllowance = saved.Setup with { Transfers = [saved.Setup.Transfers[0] with { AllowanceMinutes = 10 }] };
             var reviewed = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = changed } }, "alice", editedAllowance, Now);
@@ -187,8 +188,9 @@ public sealed class PlanningCheckTests
         var renamed = segment with { NotesHtml = "Label context only", Planning = new(1, [entry with { Label = "Renamed" }]) };
         var labelOnly = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = renamed } }, "alice", saved.Setup, Now);
         Assert.Empty(labelOnly.Invalidated);
-        var changedTime = entry.When with { Start = new("known", new("dateTime", "2027-03-02T12:15", "UTC")), End = new("known", new("dateTime", "2027-03-02T11:15", "UTC")) };
-        var timing = entry with { When = arrival ? entry.When with { Start = changedTime.Start } : entry.When with { End = changedTime.End } };
+        var timing = entry with { When = arrival
+            ? entry.When with { Start = new("known", new("dateTime", "2027-03-02T12:15", "UTC")) }
+            : entry.When with { End = new("known", new("dateTime", "2027-03-02T11:15", "UTC")) } };
         var timeOnly = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = segment with { Planning = new(1, [timing]) } } }, "alice", saved.Setup, Now);
         Assert.Empty(timeOnly.Invalidated);
         Assert.True(timeOnly.Setup.Transfers.Single().Relevant);

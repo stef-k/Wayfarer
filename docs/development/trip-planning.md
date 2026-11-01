@@ -218,7 +218,11 @@ ordinary/Planning drafts and mutable check inputs. Dirty drafts offer **Save and
 check**, **Check saved version**, or **Return to editing**. Save and check calls
 the active ordinary form's existing protected save and the existing Planning
 workspace saves; failure, unknown outcome or later typing leaves the draft hold
-intact and prevents assessment as saved. A fresh review does not merge its snapshot
+intact and prevents assessment as saved. The action captures the Planning draft set
+and versions before awaiting the ordinary save. Before each subsequent save it
+checks that membership and intended content still apply. Typing during either the
+ordinary save or an earlier Planning save stays dirty and returns to the explicit
+save/saved-version choice; normal editing remains available. A fresh review does not merge its snapshot
 into any mutation original. No Save on entry action is offered here; durable
 refinements use the existing Planning form and its protected save.
 
@@ -235,7 +239,14 @@ Revalidation binds meanings/frames/dwell to membership, location, saved qualifie
 and rules; occurrence choices also bind clocks. Context selection binds parent
 membership/meaning while current bounds recompute coverage. Directional route,
 anchors, locations, mode and estimate changes reopen transfer relevance/extras;
-label-only edits reuse them. What-if releases bind timing/frame evidence and
+release/arrival Journeys carry their own directional route and anchor-location
+evidence even with a manual onward estimate. Label-only edits reuse answers and
+time-only changes recompute results. Editing allowance or connection treatment and
+minutes preserves route-relevance evidence; choosing a different estimate clears
+its relevance and inclusion premises until explicitly reassessed. Participant sets,
+physical pairs and selected context unions use stable entry identity order, so
+display reordering preserves unchanged answers. Scope selection retains the old
+traveller evidence for membership revalidation. What-if releases bind timing/frame evidence and
 expire after 30 minutes or a UTC-day change. No what-if changes planning, estimates
 or observed history. New entries remain visible; removed/reparented links reopen.
 Edits stale displayed reviews, and request/identity positions fence late replies.

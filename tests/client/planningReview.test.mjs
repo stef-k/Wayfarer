@@ -121,9 +121,8 @@ test('later draft edits or new draft membership during an earlier Planning save 
       assert.equal(mounted.controls.choices, true);
       assert.match(mounted.controls.error, /remain unsaved/);
       assert.equal(mounted.controls.result, null);
-    } finally { mounted.dispose(); }
+    } finally { mounted.dispose(); globalThis.fetch = oldFetch; }
   }
-  globalThis.fetch = oldFetch;
 });
 
 test('allowance edits preserve relevance evidence; only source or explicit relevance assessment replaces it', () => {
