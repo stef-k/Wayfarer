@@ -109,8 +109,11 @@ public sealed class NativeKmlV4Tests
 
     /// <summary>Includes a repeated date and whitespace-bearing label without inferred meaning or zones.</summary>
     internal static PlanningAggregate Plan() => new(1, [
-        new(Guid.NewGuid(), new("at", new("month", "2027-03")), "  Spring <&>  "),
+        new(Guid.NewGuid(), new("at", new("month", "2027-03")), "  Spring <&>  ", Kind: "window"),
         new(Guid.NewGuid(), new("period", End: new("known", new("date", "2027-03-15")))),
         new(Guid.NewGuid(), new("at", new("dateTime", "2027-10-31T02:30", "Europe/Berlin", 3600)), AllocationMinutes: 0),
-        new(Guid.NewGuid(), new("flexible"))]);
+        new(Guid.NewGuid(), new("flexible")),
+        new(Guid.NewGuid(), new("at", new("month", "2027-03")), "  Return visit  ", AllocationMinutes: 90),
+        new(Guid.NewGuid(), new("period", Start: new("known", new("dateTime", "2027-03-15T10:15", "UTC")), End: new("flexible"))),
+        new(Guid.NewGuid(), new("unknown"))]);
 }

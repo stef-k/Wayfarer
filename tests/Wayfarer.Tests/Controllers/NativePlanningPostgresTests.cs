@@ -18,6 +18,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Planning;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Parsers;
 using Wayfarer.Util;
@@ -196,6 +197,8 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         var area = incoming.Regions.First().Areas.Single();
         area.Id = foreign.Regions.First().Areas.Single().Id;
         var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+        var foreignTarget = TripWayfarerKmlExporter.BuildKml(new Trip { Id = foreign.Id, Name = "Untrusted target" }, true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ReviewNativeAsync(File(foreignTarget), trip.UserId));
         await Assert.ThrowsAsync<TripImportValidationException>(() => service.ReviewNativeAsync(File(TripWayfarerKmlExporter.BuildKml(incoming, true)), trip.UserId));
         var invalid = TripWayfarerKmlExporter.BuildKml(incoming, true).Replace("2027-03", "2027-13", StringComparison.Ordinal);
         await Assert.ThrowsAsync<FormatException>(() => service.ImportWayfarerKmlAsync(File(invalid), trip.UserId, TripImportMode.CreateNew));
@@ -261,6 +264,8 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
     private async Task<Trip> SeedAsync()
     {
         var user = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var profile = await db.Set<TransportProfile>().AsNoTracking().SingleAsync(p => p.Key == "walk");
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Native rich Trip", Notes = "<p>Trip &amp; Notes</p>", IsPublic = true,
             CoverImageUrl = "https://example.invalid/cover.png", CenterLat = 37, CenterLon = 23, Zoom = 9, Planning = NativeKmlV4Tests.Plan() };
         var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region", DisplayOrder = 3, Notes = "<p>Region</p>", Center = new Point(23, 37) { SRID = 4326 }, Planning = NativeKmlV4Tests.Plan() };
@@ -279,13 +284,17 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
                 EstimatedDistanceKm = 1.23456789, EstimatedDuration = TimeSpan.FromTicks(1234567890), Planning = NativeKmlV4Tests.Plan(),
                 RouteGeometry = custom ? new LineString(places.Select(p => p.Location!.Coordinate).ToArray()) { SRID = 4326 } : null,
                 RouteProvider = custom ? "geoapify" : null, RouteStorageMode = custom ? "persistent" : null, RouteAttribution = custom ? "Attribution" : null,
+                TransportProfileId = custom ? profile.Id : null, RouteTransportProfileId = custom ? profile.Id : null,
+                RouteMappingMode = custom ? "walk" : null, RouteProviderConfigurationId = custom ? Guid.NewGuid() : null,
+                RouteProviderConfigurationVersion = custom ? 17 : null,
+                RouteInstructionsJson = custom ? JsonSerializer.Serialize(new[] { new RouteInstruction("Continue <safely>", "continue", 0, 2, 1234.56789, 123.456789) }) : null,
                 RouteGeneratedAt = custom ? new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero) : null };
             segment.Waypoints.Add(new() { SegmentId = segment.Id, PlaceId = places[1].Id, Position = 0, RouteVertexIndex = custom ? 1 : null });
             trip.Segments.Add(segment);
         }
         var tag = new Tag { Slug = $"wb2-rich-{Guid.NewGuid():N}", Name = $"WB2 Rich {Guid.NewGuid():N}" };
         trip.Tags.Add(tag); fixture.RegisterTag(tag); fixture.RegisterTrip(trip.Id);
-        await using var db = fixture.CreateContext(); db.Trips.Add(trip); await db.SaveChangesAsync(); return trip;
+        db.Trips.Add(trip); await db.SaveChangesAsync(); return trip;
     }
 
     private Task<Microsoft.AspNetCore.Builder.WebApplication> HostAsync(ApplicationDbContext db) => IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>

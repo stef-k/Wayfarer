@@ -16,6 +16,9 @@ public partial class TripImportService
             ? await _dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         try
         {
+            // Uploaded IDs cannot acquire foreign graph barriers; admission is rechecked after waits below.
+            if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == source.TripId && t.UserId == owner, cancellationToken))
+                throw new InvalidOperationException("Trip not found or not yours for upsert.");
             var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking().ToDictionaryAsync(p => p.Key, cancellationToken);
             var incoming = WayfarerKmlAggregateMapper.Map(source, owner, profiles, false);
             TripRichNotes.NormalizeDestination(incoming);
