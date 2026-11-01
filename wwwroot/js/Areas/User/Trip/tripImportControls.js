@@ -1,4 +1,4 @@
-import { createTripImporter, uncertainImport } from './tripImportClient.js';
+import { createTripImporter, uncertainImport, abandonImportConfirmation } from './tripImportClient.js';
 
 /** Presents literal authored civil values and optional qualifiers without inferred dates or zones. */
 const describeEntry = entry => {
@@ -71,6 +71,8 @@ export const mountTripImport = () => {
         get('btnApplyImport').disabled = blocked || state.reviewStale || (state.review?.planning || []).some(r => r.state === 'removed' && state.choices.get(r.key) !== 'remove');
         get('btnUpdate').textContent = state.review ? 'Refresh review' : 'Review update';
         get('btnCancelImport').disabled = state.busy;
+        get('btnAbandonImport').hidden = !state.uncertain;
+        get('btnAbandonImport').disabled = state.busy;
         for (const id of ['importFile', 'importFileMyMaps']) document.getElementById(id).disabled = state.busy || state.uncertain;
     };
     const importer = createTripImporter({ fetchImpl: fetch, onState: render,
@@ -91,5 +93,6 @@ export const mountTripImport = () => {
     get('btnApplyImport').addEventListener('click', () => { void importer.apply(); });
     get('btnCopy').addEventListener('click', () => { void importer.createCopy(); });
     get('btnCancelImport').addEventListener('click', importer.cancel);
+    get('btnAbandonImport').addEventListener('click', () => importer.abandon(window.confirm(abandonImportConfirmation)));
     if (importer.state.uncertain) { root.hidden = false; render(importer.state); }
 };

@@ -43,7 +43,7 @@ public static partial class WayfarerKmlParser
         if (owner == document) return "trip";
         if (owner.Name == Kml + "Folder" && owner.Parent == document && Values(owner, "RegionId").Count == 1) return "region";
         if (owner.Name != Kml + "Placemark" || owner.Parent?.Name != Kml + "Folder" || owner.Parent.Parent != document) return null;
-        if (owner.Parent.Element(Kml + "name")?.Value == "Segments" && Values(owner, "SegmentId").Count == 1) return "segment";
+        if (IsSegmentContainer(owner.Parent) && Values(owner, "SegmentId").Count == 1) return "segment";
         if (Values(owner.Parent, "RegionId").Count != 1) return null;
         if (Values(owner, "AreaId").Count == 1 && owner.Element(Kml + "Polygon") != null) return "area";
         return Values(owner, "PlaceId").Count == 1 ? "place" : null;
@@ -66,7 +66,7 @@ public static partial class WayfarerKmlParser
             var kind = NativeOwnerKind(owner, document);
             if (kind == null)
             {
-                if (owner.Name == Kml + "Folder" && owner.Parent == document && owner.Element(Kml + "name")?.Value == "Segments"
+                if (owner.Parent == document && IsSegmentContainer(owner)
                     && !owner.Elements(Kml + "ExtendedData").Any()) continue;
                 throw new FormatException("Unsupported native graph structure.");
             }

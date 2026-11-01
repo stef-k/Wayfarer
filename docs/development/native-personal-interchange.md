@@ -130,10 +130,17 @@ a failed commit confirmation is explicitly uncertain.
 A lost, redirected, malformed or unexpected mutating response, including
 `import_outcome_unknown`, cannot establish rollback. The mounted Web disables
 import/update/CreateNew and retains intent, with an owner-scoped tab-session
-in-flight hold across reload. Check My Trips separately. GET equality is not a
-receipt or permission to retry. This bounded hold adds no synchronization or
-automatic outcome-recovery framework. A File is retained in the mounted page;
-reload retains the hold, not the browser File object.
+in-flight hold across reload. Check My Trips opens an inspection page; neither
+that visit nor GET equality establishes the earlier outcome. **Abandon unresolved
+attempt…** requires confirmation that the earlier import may have succeeded,
+server work is not cancelled or rolled back, and repetition may create another
+copy. Confirmation retires the local File, review and choices without resending
+them. The earlier outcome stays unknown; a new file selection and deliberate
+import action are required. Cancelling the confirmation preserves the hold.
+Per-attempt local markers fence late replies from abandoned requests, without
+adding receipts or automatic retry. The owner-scoped hold is limited to this tab
+session, not other tabs/devices; closing the tab can lose it. A File is retained
+in the mounted page; reload retains the hold, not the browser File object.
 
 ## Privacy and validation
 

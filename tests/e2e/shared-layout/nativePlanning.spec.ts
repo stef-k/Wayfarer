@@ -58,7 +58,7 @@ test('native personal download and reviewed update use real controls and retain 
   await expect(page.locator('[data-planning] > summary')).toContainText('2027-04');
 });
 
-test('native import cancellation sends nothing and uncertain replies hold all mounted controls across reload', async ({ page }) => {
+test('native import uncertainty recovery is reachable and requires confirmed abandonment and a new file', async ({ page }) => {
   const id = process.env.WAYFARER_E2E_TRIP_ID!;
   await login(page);
   const response = await page.request.get(`/Trip/ExportPersonalWayfarerKml/${id}?includePrivatePlanning=true`);
@@ -78,4 +78,38 @@ test('native import cancellation sends nothing and uncertain replies hold all mo
   await expect(page.locator('#importFile')).toBeDisabled();
   await page.reload(); await expect(page.locator('#importFile')).toBeDisabled();
   await expect(page.locator('#trip-import-controls')).toContainText('outcome could not be confirmed');
+  const abandon = controls.getByRole('button', { name: 'Abandon unresolved attempt…' });
+  await expect(abandon).toBeVisible();
+  await expect(controls).toContainText('may already have succeeded');
+  await expect(controls).toContainText('tab session');
+  // Inspecting Trips is available but does not resolve the outcome or release the hold.
+  const opened = page.waitForEvent('popup');
+  await controls.getByRole('link', { name: 'Check My Trips' }).click();
+  const inspection = await opened; await inspection.waitForLoadState(); await inspection.close();
+  await expect(page.locator('#importFile')).toBeDisabled(); expect(writes).toBe(1);
+  page.once('dialog', async dialog => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toContain('does not cancel or roll back server work');
+    expect(dialog.message()).toContain('may create another copy');
+    await dialog.dismiss();
+  });
+  await abandon.click(); await expect(page.locator('#importFile')).toBeDisabled();
+  await expect(abandon).toBeVisible(); expect(writes).toBe(1);
+  await controls.screenshot({ path: process.env.WAYFARER_NATIVE_SCREENSHOTS + '/import-recovery.png' });
+  page.once('dialog', dialog => dialog.accept()); await abandon.click();
+  await expect(abandon).toBeHidden(); await expect(page.locator('#importFile')).toBeEnabled();
+  await expect(controls).toContainText('earlier import outcome is still unknown');
+  await expect(controls.locator('#importPlanningRows')).toBeEmpty();
+  await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeHidden();
+  await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeDisabled();
+  await expect(controls.getByRole('button', { name: 'Create new Trip' })).toBeDisabled();
+  expect(writes).toBe(1);
+  // Selecting a file is the next deliberate request; the abandoned review/permits are absent.
+  const freshRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/User/Trip/Import');
+  await select();
+  const body = (await freshRequest).postData()!;
+  expect(body).not.toContain('name="reviewToken"'); expect(body).not.toContain('name="choices"');
+  await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeEnabled();
+  await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeHidden();
+  expect(writes).toBe(2); expect(page.url()).toContain('/User/Trip');
 });

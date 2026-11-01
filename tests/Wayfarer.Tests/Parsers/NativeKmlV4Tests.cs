@@ -107,6 +107,33 @@ public sealed class NativeKmlV4Tests
 
     private static WayfarerKmlClassification Parse(string text) => WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(text)));
 
+    /// <summary>A Region label cannot admit misplaced Segment metadata or hide malformed Region identity.</summary>
+    [Theory]
+    [InlineData("segment-in-region")]
+    [InlineData("invalid-region-id")]
+    [InlineData("duplicate-region-id")]
+    public void RegionNamedSegmentsCannotMasqueradeAsTransportContainer(string fault)
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var trip = new Trip { Id = Guid.NewGuid(), Name = "Trip" };
+        trip.Regions.Add(new Region { Id = Guid.NewGuid(), TripId = trip.Id, Name = "Segments", Planning = Plan() });
+        var xml = XDocument.Parse(TripWayfarerKmlExporter.BuildKml(trip, true));
+        var folder = xml.Descendants(k + "Folder").Single();
+        var data = folder.Element(k + "ExtendedData")!;
+        var identity = data.Elements(k + "Data").Single(d => (string?)d.Attribute("name") == "RegionId");
+        if (fault == "invalid-region-id") identity.Element(k + "value")!.Value = "invalid";
+        else if (fault == "duplicate-region-id") data.Add(new XElement(identity));
+        else
+        {
+            var fields = new Dictionary<string, string> { ["SegmentId"] = Guid.NewGuid().ToString(), ["TripId"] = trip.Id.ToString(),
+                ["Mode"] = "walk", ["TransportProfileKey"] = "", ["DurationTicks"] = "", ["DurationSource"] = "Automatic",
+                ["DisplayOrder"] = "0", ["HasCustomRoute"] = "false", ["WaypointPlaceIds"] = "", ["WaypointRouteVertexIndices"] = "" };
+            folder.Add(new XElement(k + "Placemark", new XElement(k + "ExtendedData", fields.Select(f =>
+                new XElement(k + "Data", new XAttribute("name", f.Key), new XElement(k + "value", f.Value))))));
+        }
+        Assert.Throws<FormatException>(() => Parse(xml.ToString()));
+    }
+
     /// <summary>Includes a repeated date and whitespace-bearing label without inferred meaning or zones.</summary>
     internal static PlanningAggregate Plan() => new(1, [
         new(Guid.NewGuid(), new("at", new("month", "2027-03")), "  Spring <&>  ", Kind: "window"),

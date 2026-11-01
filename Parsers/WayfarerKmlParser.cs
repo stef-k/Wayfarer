@@ -105,11 +105,11 @@ public static partial class WayfarerKmlParser
     private static WayfarerKmlDocument ParseDocument(XElement owner, int version)
     {
         var tripId = RequiredGuid(owner, "TripId");
-        var regions = owner.Elements(Kml + "Folder").Where(folder => folder.Element(Kml + "name")?.Value != "Segments")
+        var regions = owner.Elements(Kml + "Folder").Where(folder => !IsSegmentContainer(folder))
             .Select(folder => ParseRegion(folder, version, tripId)).ToArray();
         EnsureUnique(regions.Select(region => region.Id), "Region");
         EnsureUnique(regions.SelectMany(region => region.Areas).Select(area => area.Id), "Area");
-        var segmentsFolder = owner.Elements(Kml + "Folder").SingleOrDefault(folder => folder.Element(Kml + "name")?.Value == "Segments");
+        var segmentsFolder = owner.Elements(Kml + "Folder").SingleOrDefault(IsSegmentContainer);
         var segments = segmentsFolder?.Elements(Kml + "Placemark")
             .Where(placemark => version != 1 || HasParseableV1LineString(placemark))
             .Select(pm => { ValidateDeclaredParent(pm, "TripId", tripId); return ParseSegment(pm, version); }).ToArray() ?? [];
@@ -118,6 +118,10 @@ public static partial class WayfarerKmlParser
             Scalar(owner, "CoverImageUrl"), Scalar(owner, "NotesHtml"), OptionalDouble(owner, "CenterLat"),
             OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments, ParsePlanning(owner, "trip"));
     }
+
+    /// <summary>Region identity takes precedence over any authored label, including malformed identity claims.</summary>
+    private static bool IsSegmentContainer(XElement folder) => folder.Name == Kml + "Folder"
+        && Values(folder, "RegionId").Count == 0 && folder.Element(Kml + "name")?.Value == "Segments";
 
     private static WayfarerKmlRegion ParseRegion(XElement owner, int version, Guid tripId)
     {

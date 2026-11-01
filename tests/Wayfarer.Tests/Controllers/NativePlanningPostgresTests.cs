@@ -31,10 +31,14 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
     /// <summary>Every reusable field and typed intention survives the actual v4 download/import/owner-read path.</summary>
-    [PostgresFact]
-    public async Task RichActualDownloadToCreateNewAndOwnerReadPreservesCompleteContent()
+    [PostgresTheory]
+    [InlineData("ordinary")]
+    [InlineData("empty")]
+    [InlineData("empty-with-segments")]
+    [InlineData("populated")]
+    public async Task RichActualDownloadToCreateNewAndOwnerReadPreservesCompleteContent(string namedRegion)
     {
-        var trip = await SeedAsync();
+        var trip = await SeedAsync(namedRegion);
         await using var db = fixture.CreateContext();
         await using var app = await HostAsync(db);
         using var client = app.GetTestClient();
@@ -261,7 +265,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
     }
 
     /// <summary>Rich source owns every geometry/reference/provenance seam and all five planning aggregates.</summary>
-    private async Task<Trip> SeedAsync()
+    private async Task<Trip> SeedAsync(string namedRegion = "ordinary")
     {
         var user = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
@@ -277,7 +281,12 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         region.Areas.Add(new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Holed Area", DisplayOrder = 5, FillHex = "#123456", Notes = "<p>Area</p>", Planning = NativeKmlV4Tests.Plan(),
             Geometry = new Polygon(new LinearRing([new(23, 37), new(24, 37), new(24, 38), new(23, 38), new(23, 37)]), [new LinearRing([new(23.2, 37.2), new(23.4, 37.2), new(23.4, 37.4), new(23.2, 37.2)])]) { SRID = 4326 } });
         trip.Regions.Add(region);
-        foreach (var custom in new[] { true, false })
+        // Authored Region names never identify the transport container, even for an empty annotated Region.
+        if (namedRegion == "populated") region.Name = "Segments";
+        if (namedRegion is "empty" or "empty-with-segments")
+            trip.Regions.Add(new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Segments",
+                DisplayOrder = 7, Notes = "<p>Empty but planned</p>", Center = new Point(25, 39) { SRID = 4326 }, Planning = NativeKmlV4Tests.Plan() });
+        foreach (var custom in namedRegion == "empty" ? Array.Empty<bool>() : new[] { true, false })
         {
             var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, FromPlaceId = places[0].Id, ToPlaceId = places[2].Id,
                 Mode = custom ? "walk" : "", DisplayOrder = custom ? 0 : 4, Notes = "<p>Route</p>", EstimatedDurationSource = custom ? EstimatedDurationSource.Automatic : EstimatedDurationSource.Manual,

@@ -359,6 +359,12 @@
 
 ### Fixed
 
+- Preserve native Regions named “Segments”, including empty annotated Regions,
+  independently of the transport Segment container in personal and legacy imports
+  (#789, PR #955 F1). Add confirmed local abandonment of an uncertain Web import
+  without replay, cancellation or an inferred server outcome; a separate import
+  requires a new file selection and warns of possible duplicate copies (F2).
+
 - Remove exact Linux CLR diagnostic FIFO/socket residue from managed browser roots
   after retained child shutdown, preserving ownership, birth-token, path and link
   checks and refusal of live or unrelated resources (#937).

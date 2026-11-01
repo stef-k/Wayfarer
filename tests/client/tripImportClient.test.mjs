@@ -24,6 +24,65 @@ const mount = (fetchImpl, options) => {
 };
 const store = () => { const values = new Map(); return { getItem: k => values.get(k), setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) }; };
 
+// Recovery retires local intent only; neither inspection nor abandonment claims a server outcome.
+test('lost reply, reload, cancelled recovery and confirmed abandonment require a separately selected import', async () => {
+    const storage = store();
+    const { importer, observed } = mount((url, init, n) => {
+        if (n === 1) return duplicate(); if (n === 2) return review(); throw new Error('lost reply');
+    }, { storage, owner: 'owner' });
+    await importer.upload(file); await importer.update(); importer.choose('trip/root', 'use');
+    await importer.apply();
+    assert.equal(importer.abandon(false), false);
+    assert.equal(importer.state.file, file); assert.equal(importer.state.choices.get('trip/root'), 'use');
+    const reopened = mount(() => duplicate(), { storage, owner: 'owner' });
+    assert.equal(reopened.importer.state.uncertain, true);
+    assert.equal(reopened.importer.abandon(false), false);
+    await reopened.importer.upload(file); await reopened.importer.createCopy();
+    assert.equal(reopened.observed.calls.length, 0);
+    assert.equal(reopened.importer.abandon(true), true);
+    const state = reopened.importer.state;
+    assert.equal(state.uncertain, false); assert.equal(state.file, null);
+    assert.equal(state.review, null); assert.equal(state.choices.size, 0);
+    assert.match(state.message, /still unknown/);
+    await reopened.importer.update(); await reopened.importer.apply(); await reopened.importer.createCopy();
+    assert.equal(reopened.observed.calls.length, 0); assert.deepEqual(reopened.observed.redirects, []);
+    const fresh = new Blob(['separately selected file']);
+    await reopened.importer.upload(fresh);
+    assert.equal(reopened.observed.calls.length, 1);
+    assert.equal(await reopened.observed.calls[0].body.get('file').text(), 'separately selected file');
+    assert.equal(reopened.observed.calls[0].body.get('reviewToken'), null);
+    assert.deepEqual(reopened.observed.calls[0].body.getAll('choices'), []);
+    assert.equal(observed.calls.length, 3);
+    assert.equal(importer.abandon(true), false); // The obsolete page cannot retire a later attempt.
+});
+
+test('confirmed abandonment discards the mounted file, review and explicit choices without sending', async () => {
+    const { importer, observed } = mount((url, init, n) => {
+        if (n === 1) return duplicate(); if (n === 2) return review(); throw new Error('lost reply');
+    });
+    await importer.upload(file); await importer.update(); importer.choose('trip/root', 'use'); await importer.apply();
+    assert.equal(importer.abandon(true), true);
+    assert.equal(importer.state.file, null); assert.equal(importer.state.review, null); assert.equal(importer.state.choices.size, 0);
+    await importer.apply(); await importer.createCopy(); assert.equal(observed.calls.length, 3);
+});
+
+test('a late abandoned reply cannot redirect, publish success or release a separate import hold', async () => {
+    let finishOld, finishNew;
+    const storage = store();
+    const old = mount(() => new Promise(resolve => { finishOld = resolve; }), { storage, owner: 'owner' });
+    const pendingOld = old.importer.upload(file);
+    const fresh = mount(() => new Promise(resolve => { finishNew = resolve; }), { storage, owner: 'owner' });
+    assert.equal(fresh.importer.abandon(true), true);
+    const pendingNew = fresh.importer.upload(new Blob(['new attempt']));
+    const hold = storage.getItem('wayfarer:native-import-pending:owner');
+    finishOld(success()); await pendingOld;
+    assert.deepEqual(old.observed.redirects, []); assert.deepEqual(old.observed.notices, []);
+    assert.equal(fresh.importer.state.busy, true);
+    assert.equal(storage.getItem('wayfarer:native-import-pending:owner'), hold);
+    finishNew(duplicate()); await pendingNew;
+    assert.equal(fresh.observed.duplicates, 1); assert.deepEqual(fresh.observed.redirects, []);
+});
+
 test('multipart upload preserves exact bytes, modes and real antiforgery header without overriding the boundary', async () => {
     const { importer, observed } = mount((url, init, n) => n === 1 ? duplicate() : success());
     await importer.upload(file);

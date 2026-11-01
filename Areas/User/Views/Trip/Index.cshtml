@@ -335,6 +335,8 @@
         <button type="button" id="btnCopy" class="btn btn-outline-secondary">Create new Trip</button>
         <button type="button" id="btnCancelImport" class="btn btn-outline-secondary">Cancel</button>
         <a href="/User/Trip" target="_blank" rel="noopener" class="btn btn-link">Check My Trips</a>
+        @* This explicit local recovery never represents a server cancellation or a confirmed outcome. *@
+        <button type="button" id="btnAbandonImport" class="btn btn-outline-danger" hidden>Abandon unresolved attempt…</button>
     </div>
 </section>
 

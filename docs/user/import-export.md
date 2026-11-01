@@ -256,6 +256,14 @@ The selected file and choices remain available on recoverable errors. If the Tri
 changed, refresh the review and inspect its current content before applying again.
 An uncertain response holds further imports in that tab, including after reload.
 Use **Check My Trips** to inspect separately; do not send the file again blindly.
+The earlier import may already have succeeded. Visiting Trips or finding matching
+data does not confirm its outcome. To begin a separate import, choose **Abandon
+unresolved attempt…** and confirm the warning. Cancelling keeps the hold.
+Confirmation discards the retained file, review and choices without resending
+them; it does not cancel or roll back server work. The earlier outcome remains
+unknown. Select a file again deliberately; repeating an import may create another
+copy. The hold applies only to this tab session, not other tabs or devices, and
+closing the tab can lose it. Reload keeps the hold but loses the selected File.
 An invalid, unsupported or misplaced planning payload rejects the entire file,
 rather than reporting successful geography-only recovery. Keep the original file.
 
