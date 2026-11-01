@@ -1,0 +1,26 @@
+@model Wayfarer.Models.Trip
+@* Owner controls are available only in the explicit authenticated User view, including for public Trips. *@
+@if ((ViewBag.IsOwner as bool? ?? false) && string.Equals(ViewContext.RouteData.Values["area"]?.ToString(), "User", StringComparison.OrdinalIgnoreCase))
+{
+    <li><button type="button" id="personal-native-export" class="dropdown-item">Wayfarer KML…</button></li>
+    <li>
+        <dialog id="personal-native-dialog" class="rounded border shadow p-4" aria-labelledby="personal-native-title">
+            <form id="personal-native-form" action="/Trip/ExportPersonalWayfarerKml/@Model.Id" method="get">
+                <h2 id="personal-native-title" class="h5">Export Wayfarer KML</h2>
+                <label class="d-block my-3"><input type="checkbox" name="includePrivatePlanning" value="true" autocomplete="off" /> Include private planning</label>
+                <p class="small" style="max-width: 32rem">This file includes private dates, times and planning details. Anyone you share it with can read them. Server access controls cannot revoke an already downloaded file.</p>
+                <p id="personal-native-error" role="status"></p>
+                <button type="submit" class="btn btn-primary">Download KML</button>
+                <button type="button" id="cancel-personal-native" class="btn btn-outline-secondary">Cancel</button>
+            </form>
+        </dialog>
+        <script type="module" src="~/js/Trip/personalNativeExport.js" asp-append-version="true"></script>
+    </li>
+}
+else
+{
+    <li><a id="export-wayfarer" class="dropdown-item" href="/Trip/ExportWayfarerKml/@Model.Id">Wayfarer KML</a></li>
+}
+<li><a id="export-mymaps" class="dropdown-item" href="/Trip/ExportGoogleMyMapsKml/@Model.Id">Google My Maps KML</a></li>
+<li><a id="export-pdf" class="dropdown-item" href="/Trip/ExportPdf/@Model.Id" target="_blank">Export PDF</a></li>
+<li><span class="dropdown-item-text small text-muted">Private planning is excluded in Google My Maps KML, PDF and other formats.</span></li>

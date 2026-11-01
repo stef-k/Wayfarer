@@ -323,30 +323,20 @@
     </div>
 </div>
 
-<!-- ▼ NEW duplicate / upsert modal -->
-<div class="modal fade" id="dupModal" tabindex="-1" aria-labelledby="importChoiceTitle" aria-describedby="importChoiceMessage">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content shadow-lg">
-            <div class="modal-header">
-                <h5 class="modal-title" id="importChoiceTitle">Import choices</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close import choices"></button>
-            </div>
-            <div class="modal-body" id="importChoiceMessage" role="status">
-                A trip with the same ID is already in your account.
-                <br/>What would you like to do?
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="btnCancelImport" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="btnUpdate" class="btn btn-primary">
-                    <i class="bi bi-arrow-repeat me-1"></i> Update existing
-                </button>
-                <button type="button" id="btnCopy" class="btn btn-outline-secondary">
-                    <i class="bi bi-files me-1"></i> Create copy
-                </button>
-            </div>
-        </div>
+@* Review is mounted separately from Bootstrap transitions so retained files and errors stay reachable. *@
+<section id="trip-import-controls" class="card p-3 my-3" hidden aria-label="Import review" data-owner="@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value">
+    <h3 id="importSelectedFile" class="h5"></h3>
+    <p id="importChoiceMessage" role="status"></p>
+    <p>Update replaces geography, Notes, tags and routes together. Omitted private planning is preserved. Create new leaves the original Trip unchanged.</p>
+    <div id="importPlanningRows"></div>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" id="btnUpdate" class="btn btn-outline-primary">Review update</button>
+        <button type="button" id="btnApplyImport" class="btn btn-primary" hidden>Apply reviewed update</button>
+        <button type="button" id="btnCopy" class="btn btn-outline-secondary">Create new Trip</button>
+        <button type="button" id="btnCancelImport" class="btn btn-outline-secondary">Cancel</button>
+        <a href="/User/Trip" target="_blank" rel="noopener" class="btn btn-link">Check My Trips</a>
     </div>
-</div>
+</section>
 
 <!-- ▼ Place Context Map modal (stacked above backfill modal) -->
 <div class="modal fade" id="placeContextModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">

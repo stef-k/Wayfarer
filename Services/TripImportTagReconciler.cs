@@ -17,13 +17,28 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
     public async Task<IReadOnlyList<Tag>> ReconcileAsync(IEnumerable<string> tokens, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(tokens);
+        IReadOnlyList<string> slugs;
+        try { slugs = ValidateTokens(tokens); }
+        catch (TripImportValidationException)
+        {
+            logger.LogWarning("KML import tag token cannot be represented safely.");
+            throw;
+        }
+        var tags = new List<Tag>(slugs.Count);
+        foreach (var slug in slugs)
+            tags.Add(await ResolveAsync(slug, cancellationToken));
+        return tags;
+    }
+
+    /// <summary>Read-only validation shared by review and transactional reconciliation.</summary>
+    internal static IReadOnlyList<string> ValidateTokens(IEnumerable<string> tokens)
+    {
         var slugs = new List<string>();
         foreach (var token in tokens)
         {
             if (string.IsNullOrWhiteSpace(token)) continue;
             if (!TryGetCanonicalSlug(token, out var slug))
             {
-                logger.LogWarning("KML import tag token cannot be represented safely.");
                 throw new TripImportValidationException("The import contains an invalid tag.");
             }
             if (!slugs.Contains(slug, StringComparer.Ordinal)) slugs.Add(slug);
@@ -32,10 +47,7 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
         if (slugs.Count > MaxTagsPerTrip)
             throw new TripImportValidationException("The import contains too many tags.");
 
-        var tags = new List<Tag>(slugs.Count);
-        foreach (var slug in slugs)
-            tags.Add(await ResolveAsync(slug, cancellationToken));
-        return tags;
+        return slugs;
     }
 
     /// <summary>Derives a nonempty canonical import identity without a random fallback.</summary>

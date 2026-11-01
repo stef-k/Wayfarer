@@ -2,6 +2,7 @@ using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Models.Planning;
 
 namespace Wayfarer.Parsers;
 
@@ -9,24 +10,26 @@ namespace Wayfarer.Parsers;
 public sealed record WayfarerKmlDocument(
     int Version, Guid TripId, string Name, string? CoverImageUrl, string? Notes,
     double? CenterLat, double? CenterLon, int? Zoom, IReadOnlyList<string> Tags,
-    IReadOnlyList<WayfarerKmlRegion> Regions, IReadOnlyList<WayfarerKmlSegment> Segments);
+    IReadOnlyList<WayfarerKmlRegion> Regions, IReadOnlyList<WayfarerKmlSegment> Segments,
+    PlanningAggregate? Planning = null);
 
 /// <summary>Detached Region transport data.</summary>
 public sealed record WayfarerKmlRegion(
     Guid Id, string Name, int DisplayOrder, string? Notes, Point? Center,
-    IReadOnlyList<WayfarerKmlPlace> Places, IReadOnlyList<WayfarerKmlArea> Areas);
+    IReadOnlyList<WayfarerKmlPlace> Places, IReadOnlyList<WayfarerKmlArea> Areas, PlanningAggregate? Planning = null);
 
 /// <summary>Detached Place transport data.</summary>
 public sealed record WayfarerKmlPlace(
-    Guid Id, string Name, int DisplayOrder, string? Notes, string? IconName,
+    Guid Id, string Name, int? DisplayOrder, string? Notes, string? IconName,
     string? MarkerColor, string? Address, Point? Location,
     string? ResolvedFeatureName = null, string? ResolvedFeatureType = null,
     string? AddressEnrichmentProvider = null, string? AddressEnrichmentStorageMode = null,
-    DateTimeOffset? AddressEnrichedAt = null);
+    DateTimeOffset? AddressEnrichedAt = null, PlanningAggregate? Planning = null);
 
 /// <summary>Detached Area transport data.</summary>
 public sealed record WayfarerKmlArea(
-    Guid Id, string Name, int DisplayOrder, string? Notes, string? FillHex, Polygon? Geometry);
+    Guid Id, string Name, int DisplayOrder, string? Notes, string? FillHex, Polygon? Geometry,
+    PlanningAggregate? Planning = null);
 
 /// <summary>Detached Segment transport data with explicit route and measurement provenance.</summary>
 public sealed record WayfarerKmlSegment(
@@ -34,10 +37,10 @@ public sealed record WayfarerKmlSegment(
     double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource DurationSource,
     int DisplayOrder, string? Notes, bool HasCustomRoute, IReadOnlyList<Guid> WaypointPlaceIds,
     IReadOnlyList<int?> WaypointRouteVertexIndices, LineString? Geometry,
-    SegmentRouteProvenance? RouteProvenance = null);
+    SegmentRouteProvenance? RouteProvenance = null, PlanningAggregate? Planning = null);
 
 /// <summary>Structural classification for one parsed KML document.</summary>
-public enum WayfarerKmlKind { Generic, NativeV1, NativeV2, NativeV3 }
+public enum WayfarerKmlKind { Generic, NativeV1, NativeV2, NativeV3, NativeV4 }
 
 /// <summary>Retains one hardened detached XML document with its structural native classification.</summary>
 public sealed record WayfarerKmlClassification(

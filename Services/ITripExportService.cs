@@ -2,6 +2,10 @@ namespace Wayfarer.Parsers;
 
 public interface ITripExportService
 {
+    /// <summary>Exports an authenticated owner's coherent native snapshot; inclusion is explicit and defaults off.</summary>
+    Task<PersonalNativeExport> GeneratePersonalNativeAsync(Guid tripId, string owner,
+        bool includePrivatePlanning, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Builds a KML in our internal format that round-trips 1:1.
     /// </summary>

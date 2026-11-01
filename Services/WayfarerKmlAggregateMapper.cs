@@ -15,6 +15,12 @@ internal static class WayfarerKmlAggregateMapper
         bool remapIdentities,
         Guid? targetTripId = null)
     {
+        var identities = new[] { source.TripId }.Concat(source.Regions.Select(r => r.Id))
+            .Concat(source.Regions.SelectMany(r => r.Places).Select(p => p.Id))
+            .Concat(source.Regions.SelectMany(r => r.Areas).Select(a => a.Id)).Concat(source.Segments.Select(s => s.Id)).ToArray();
+        if (identities.Any(id => id == Guid.Empty) || identities.Distinct().Count() != identities.Length
+            || source.Regions.Count(r => r.Name == "Unassigned Places") > 1)
+            throw new TripImportValidationException("The native graph contains ambiguous identities or Regions.");
         var tripId = targetTripId ?? (remapIdentities ? Guid.NewGuid() : source.TripId);
         var regionIds = MapIds(source.Regions.Select(region => region.Id), remapIdentities, "Region");
         var sourcePlaces = source.Regions.SelectMany(region => region.Places).ToArray();
@@ -31,7 +37,8 @@ internal static class WayfarerKmlAggregateMapper
             CenterLon = source.CenterLon,
             Zoom = source.Zoom,
             IsPublic = false,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
+            Planning = CopyPlanning(source.Planning, remapIdentities)
         };
 
         var places = new Dictionary<Guid, Place>();
@@ -40,7 +47,8 @@ internal static class WayfarerKmlAggregateMapper
             var region = new Region
             {
                 Id = regionIds[sourceRegion.Id], TripId = tripId, UserId = userId, Name = sourceRegion.Name,
-                DisplayOrder = sourceRegion.DisplayOrder, Notes = sourceRegion.Notes, Center = Copy(sourceRegion.Center)
+                DisplayOrder = sourceRegion.DisplayOrder, Notes = sourceRegion.Notes, Center = Copy(sourceRegion.Center),
+                Planning = CopyPlanning(sourceRegion.Planning, remapIdentities)
             };
             trip.Regions.Add(region);
             foreach (var sourcePlace in sourceRegion.Places)
@@ -54,7 +62,8 @@ internal static class WayfarerKmlAggregateMapper
                     AddressEnrichmentProvider = sourcePlace.AddressEnrichmentProvider,
                     AddressEnrichmentStorageMode = sourcePlace.AddressEnrichmentStorageMode,
                     AddressEnrichedAt = sourcePlace.AddressEnrichedAt,
-                    Location = Copy(sourcePlace.Location)
+                    Location = Copy(sourcePlace.Location),
+                    Planning = CopyPlanning(sourcePlace.Planning, remapIdentities)
                 };
                 region.Places.Add(place);
                 places[sourcePlace.Id] = place;
@@ -68,6 +77,7 @@ internal static class WayfarerKmlAggregateMapper
                     DisplayOrder = sourceArea.DisplayOrder,
                     Notes = sourceArea.Notes,
                     FillHex = sourceArea.FillHex,
+                    Planning = CopyPlanning(sourceArea.Planning, remapIdentities),
                     Geometry = Copy(sourceArea.Geometry) ?? throw new TripImportValidationException("Area geometry is required.")
                 });
         }
@@ -94,15 +104,16 @@ internal static class WayfarerKmlAggregateMapper
                 ToPlaceId = toId, ToPlace = sourceSegment.ToPlaceId.HasValue ? places[sourceSegment.ToPlaceId.Value] : null,
                 Mode = sourceSegment.Mode, TransportProfileId = profile?.Id,
                 RouteGeometry = sourceSegment.HasCustomRoute ? Copy(sourceSegment.Geometry) : null,
-                EstimatedDistanceKm = source.Version == 3 ? sourceSegment.DistanceKm : null,
-                EstimatedDuration = source.Version == 3 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
+                EstimatedDistanceKm = source.Version is 3 or 4 ? sourceSegment.DistanceKm : null,
+                EstimatedDuration = source.Version is 3 or 4 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
                     ? sourceSegment.Duration : null,
                 EstimatedDurationSource = sourceSegment.DurationSource,
                 DisplayOrder = sourceSegment.DisplayOrder,
-                Notes = sourceSegment.Notes
+                Notes = sourceSegment.Notes,
+                Planning = CopyPlanning(sourceSegment.Planning, remapIdentities)
             };
             sourceSegment.RouteProvenance?.ApplyTo(segment);
-            if (source.Version == 3)
+            if (source.Version is 3 or 4)
             {
                 try { SegmentMeasurementState.Validate(segment); }
                 catch (InvalidOperationException exception) { throw new TripImportValidationException(exception.Message); }
@@ -160,7 +171,7 @@ internal static class WayfarerKmlAggregateMapper
             throw new TripImportValidationException("Manual duration is required.");
         if (segment.Duration is { Ticks: < 0 })
             throw new TripImportValidationException("Manual duration is outside the supported range.");
-        if (version != 3 && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)
+        if (version is not (3 or 4) && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)
             throw new TripImportValidationException("Unavailable Automatic duration metadata must be empty.");
     }
 
@@ -186,6 +197,10 @@ internal static class WayfarerKmlAggregateMapper
                 throw new TripImportValidationException("Fallback compatibility geometry does not match its anchor chain.");
         }
     }
+
+    /// <summary>New graph objects receive fresh local entry keys; retained targets keep selected keys.</summary>
+    internal static Wayfarer.Models.Planning.PlanningAggregate? CopyPlanning(Wayfarer.Models.Planning.PlanningAggregate? value, bool remap) =>
+        value == null || !remap ? value : value with { Entries = value.Entries.Select(e => e with { Id = Guid.NewGuid() }).ToArray() };
 
     private static Point? Copy(Point? point) => point is null ? null : new Point(point.X, point.Y) { SRID = point.SRID };
     private static LineString? Copy(LineString? line) => line is null ? null : new LineString(line.Coordinates.Select(c => new Coordinate(c.X, c.Y)).ToArray()) { SRID = line.SRID };

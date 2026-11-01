@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 
@@ -11,6 +12,7 @@ public partial class TripImportService : ITripImportService
     readonly ApplicationDbContext _dbContext;
     readonly ILogger<TripImportService> _log;
     readonly ITripImportTagReconciler _tagReconciler;
+    readonly NativeImportReviewProtection _review;
 
     /// <summary>Creates an importer for focused tests without changing production DI composition.</summary>
     internal TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log)
@@ -19,14 +21,20 @@ public partial class TripImportService : ITripImportService
     }
 
     /// <summary>Creates an importer with the shared tag persistence boundary.</summary>
+    internal TripImportService(ApplicationDbContext dbContext, ILogger<TripImportService> log, ITripImportTagReconciler tagReconciler)
+        : this(dbContext, log, tagReconciler, new EphemeralDataProtectionProvider()) { }
+
+    /// <summary>Production review permits use the existing persistent application Data Protection authority.</summary>
     public TripImportService(
         ApplicationDbContext dbContext,
         ILogger<TripImportService> log,
-        ITripImportTagReconciler tagReconciler)
+        ITripImportTagReconciler tagReconciler,
+        IDataProtectionProvider protection)
     {
         _dbContext = dbContext;
         _log = log;
         _tagReconciler = tagReconciler;
+        _review = new(protection);
     }
 
     /// <summary>Classifies one hardened document and dispatches to isolated native or generic persistence.</summary>
@@ -36,9 +44,10 @@ public partial class TripImportService : ITripImportService
         TripImportMode mode = TripImportMode.Auto,
         CancellationToken cancellationToken = default)
     {
-        var classification = await WayfarerKmlParser.ClassifyAndParseAsync(kmlStream, cancellationToken);
+        if (!Enum.IsDefined(mode)) throw new TripImportValidationException("Unsupported import mode.");
+        var (classification, digest) = await ReadInputAsync(kmlStream, cancellationToken);
         if (classification.Document is not null)
-            return new(await ImportNativeAsync(classification.Document, userId, mode, cancellationToken), []);
+            return new(await ImportNativeAsync(classification.Document, userId, mode, digest, null, cancellationToken), []);
         try
         {
             return await ImportGenericAsync(classification.Source, userId, mode, cancellationToken);
@@ -55,6 +64,8 @@ public partial class TripImportService : ITripImportService
         WayfarerKmlDocument source,
         string userId,
         TripImportMode mode,
+        string digest,
+        NativeImportApproval? approval,
         CancellationToken cancellationToken)
     {
         if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
@@ -62,6 +73,7 @@ public partial class TripImportService : ITripImportService
         await using var transaction = _dbContext.Database.IsRelational()
             ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;
+        var committing = false;
         try
         {
             var existing = await _dbContext.Trips.AsNoTracking()
@@ -80,7 +92,13 @@ public partial class TripImportService : ITripImportService
             TripRichNotes.NormalizeDestination(mapped);
             if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
 
-            if (!createNew) await PreserveReplacementPlanningAsync(mapped, userId, cancellationToken);
+            if (!createNew)
+            {
+                var current = await LockReplacementAsync(mapped.Id, userId, cancellationToken);
+                await ValidateReplacementIdentitiesAsync(mapped, cancellationToken);
+                _review.Apply(current, mapped, NativeImportReviewProtection.Binding(current, userId, digest), approval);
+            }
+            else await RequireActiveImportOwnerAsync(userId, cancellationToken);
             var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);
             if (createNew)
             {
@@ -98,6 +116,7 @@ public partial class TripImportService : ITripImportService
                 target.CenterLat = mapped.CenterLat;
                 target.CenterLon = mapped.CenterLon;
                 target.Zoom = mapped.Zoom;
+                target.Planning = mapped.Planning;
                 target.UpdatedAt = DateTime.UtcNow;
                 target.Tags.Clear();
                 foreach (var tag in reconciledTags) target.Tags.Add(tag);
@@ -109,9 +128,13 @@ public partial class TripImportService : ITripImportService
             _dbContext.ChangeTracker.Clear();
             await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
                 _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken,
-                preserveSavedMeasurements: source.Version == 3);
+                preserveSavedMeasurements: source.Version is 3 or 4);
             await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
-            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                committing = true;
+                await transaction.CommitAsync(cancellationToken);
+            }
             _dbContext.ChangeTracker.Clear();
             return mapped.Id;
         }
@@ -123,6 +146,7 @@ public partial class TripImportService : ITripImportService
                 try { await transaction.RollbackAsync(CancellationToken.None); }
                 catch (Exception rollback) { throw new AggregateException("Native import failed and rollback also failed.", primary, rollback); }
             }
+            if (committing) throw new NativeImportOutcomeUnknownException();
             throw;
         }
     }
@@ -164,12 +188,12 @@ public partial class TripImportService : ITripImportService
             var expected = source.Segments[index];
             if (!persisted.TryGetValue(mapped.Segments.ElementAt(index).Id, out var actual))
                 throw new TripImportValidationException("An imported Segment identity changed during reconciliation.");
-            if ((source.Version == 3 || expected.DistanceKm.HasValue) && actual.EstimatedDistanceKm != expected.DistanceKm)
+            if ((source.Version is 3 or 4 || expected.DistanceKm.HasValue) && actual.EstimatedDistanceKm != expected.DistanceKm)
                 throw new TripImportValidationException("Distance compatibility metadata does not match canonical reconciliation.");
             if (expected.DurationSource == EstimatedDurationSource.Manual
                 && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Manual duration did not reconcile exactly.");
-            if (expected.DurationSource == EstimatedDurationSource.Automatic && (source.Version == 3 || expected.Duration.HasValue)
+            if (expected.DurationSource == EstimatedDurationSource.Automatic && (source.Version is 3 or 4 || expected.Duration.HasValue)
                 && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Automatic duration compatibility metadata does not match canonical reconciliation.");
         }

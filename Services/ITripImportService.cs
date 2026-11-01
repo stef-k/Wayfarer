@@ -33,6 +33,13 @@ public sealed record TripImportResult(
 
 public interface ITripImportService
 {
+    /// <summary>Validates the whole native file and previews replacement against locked current owner content.</summary>
+    Task<NativeImportReview> ReviewNativeAsync(Stream kmlStream, string currentUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>Revalidates exact bytes, authority, membership, complete originals and selected permits atomically.</summary>
+    Task<TripImportResult> ImportReviewedNativeAsync(Stream kmlStream, string currentUserId,
+        NativeImportApproval approval, CancellationToken cancellationToken = default);
+
     /// <summary>Parses a Wayfarer-Extended-KML file and stores it.</summary>
     /// <returns>The imported Trip identity and bounded simplification notices.</returns>
     Task<TripImportResult> ImportWayfarerKmlAsync(

@@ -64,7 +64,7 @@ public class TripImportTagReconcilerTests : TestBase
         await db.SaveChangesAsync();
         var service = new TripImportService(db, NullLogger<TripImportService>.Instance, CreateReconciler(db));
 
-        await service.ImportWayfarerKmlAsync(ToStream(CreateKml(trip.Id, "fresh")), user.Id, TripImportMode.Upsert);
+        await service.ImportWithReviewAsync(ToStream(CreateKml(trip.Id, "fresh")), user.Id, TripImportMode.Upsert);
 
         Assert.Equal(new[] { "fresh" }, (await db.Trips.Include(value => value.Tags).SingleAsync(value => value.Id == trip.Id)).Tags.Select(tag => tag.Slug));
     }

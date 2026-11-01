@@ -5,7 +5,7 @@ import {
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
-import { createTripImporter, planningLossExplanation } from './tripImportClient.js';
+import { mountTripImport } from './tripImportControls.js';
 import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../../embedSharing.js';
 
 (() => {
@@ -319,61 +319,8 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         });
     };
 
-    /* ------------------------------------------------ Import trip */
-    const importInput      = document.getElementById('importFile');       // Wayfarer
-    const importInputMyMap = document.getElementById('importFileMyMaps'); // My Maps
-    const dupModalEl = document.getElementById('dupModal');
-    const dupModal = dupModalEl ? new bootstrap.Modal(dupModalEl) : null;
-    // Reuse the accessible duplicate modal for the bounded preservation refusal.
-    const showImportChoice = planningLoss => {
-        const message = document.getElementById('importChoiceMessage');
-        if (message) message.textContent = planningLoss ? planningLossExplanation : 'A trip with the same ID is already in your account. What would you like to do?';
-        const update = document.getElementById('btnUpdate');
-        if (update) update.hidden = planningLoss;
-        dupModal?.show();
-    };
-
-    /* ------------------------------------------------ file-picker hooks ----- */
-    [importInput, importInputMyMap].forEach(inp => {
-        if (!inp) return;
-        inp.addEventListener('change', e => {
-            const file = e.target.files?.[0];
-            if (file) importer.upload(file);            // default mode = Auto
-            inp.value = '';
-        });
-    });
-    const importer = createTripImporter({
-        fetchImpl: fetch,
-        onRedirect: url => {
-            dupModal?.hide();
-            window.location.href = url;
-        },
-        onDuplicate: () => {
-            showImportChoice(false);
-        },
-        onPlanningLoss: () => showImportChoice(true),
-        showNotices: notices => notices.forEach(notice => {
-            if (notice.code === 'generic_route_simplified') {
-                wayfarer.showAlert('info', `${notice.segmentName}: route reduced from ${notice.originalCoordinateCount} to ${notice.resultingCoordinateCount} coordinates.`);
-            } else if (notice.code === 'generic_routes_simplified_additional') {
-                wayfarer.showAlert('info', `${notice.additionalRouteCount} additional routes were simplified.`);
-            }
-        }),
-        showError: message => wayfarer.showAlert('danger', message)
-    });
-
-    // Keep the modal mounted during a choice so a fast refusal cannot be lost in Bootstrap's hide transition.
-    const applyImportChoice = async action => {
-        const buttons = ['btnUpdate', 'btnCopy'].map(id => document.getElementById(id)).filter(Boolean);
-        if (buttons.some(button => button.disabled)) return;
-        buttons.forEach(button => { button.disabled = true; });
-        try { await action(); }
-        finally { buttons.forEach(button => { button.disabled = false; }); }
-    };
-    document.getElementById('btnUpdate')?.addEventListener('click', () => { void applyImportChoice(importer.update); });
-    document.getElementById('btnCopy')?.addEventListener('click', () => { void applyImportChoice(importer.createCopy); });
-
-    document.getElementById('btnCancelImport')?.addEventListener('click', () => importer.cancel());
+    // The import control owns retained files, explicit planning review and unknown-outcome holds.
+    mountTripImport();
 
     /* ------------------------------------------------ Backfill functionality */
     const backfillModalEl = document.getElementById('backfillModal');

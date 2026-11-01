@@ -21,10 +21,14 @@ public sealed class TripImportCompositionLoggingTests
             .AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(Guid.NewGuid().ToString()))
             .AddScoped<ITripImportTagReconciler, TripImportTagReconciler>()
             .AddScoped<ITripImportService, TripImportService>()
+            .AddDataProtection().Services
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         await using var scope = provider.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<ITripImportService>();
 
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Users.Add(new ApplicationUser { Id = "composition-user", UserName = "composition-user", IsActive = true });
+        await db.SaveChangesAsync();
         await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
             ToStream(CreateKml(Guid.NewGuid(), "---")), "composition-user", TripImportMode.CreateNew));
 

@@ -19,7 +19,10 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         var path = context.Request.Path.Value ?? "";
         var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
             && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase)
-                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase));
+                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase))
+            || path.StartsWith("/Trip/ExportPersonalWayfarerKml/", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/User/Trip/Import", StringComparison.OrdinalIgnoreCase)
+            || path.Equals("/User/Trip/ReviewImport", StringComparison.OrdinalIgnoreCase);
         context.Response.OnStarting(() =>
         {
             var response = context.Response;

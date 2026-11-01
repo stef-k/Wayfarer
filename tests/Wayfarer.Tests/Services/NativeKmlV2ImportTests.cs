@@ -19,7 +19,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
         walk.IsActive = false;
         await db.SaveChangesAsync();
         var ids = Ids();
-        var importedId = await Service(db).ImportWayfarerKmlAsync(Stream(Fallback(ids)), user.Id, TripImportMode.CreateNew);
+        var importedId = await Service(db).ImportWithReviewAsync(Stream(Fallback(ids)), user.Id, TripImportMode.CreateNew);
 
         var segment = await db.Segments.Include(item => item.Waypoints).SingleAsync(item => item.TripId == importedId);
         var waypoint = Assert.Single(segment.Waypoints);
@@ -37,7 +37,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
         var kml = Fallback(ids).Replace("<value>false</value>", "<value>true</value>", StringComparison.Ordinal)
             .Replace("<value>null</value>", "<value>1</value>", StringComparison.Ordinal);
 
-        var importedId = await Service(db).ImportWayfarerKmlAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
+        var importedId = await Service(db).ImportWithReviewAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
 
         var segment = await db.Segments.Include(item => item.Waypoints).SingleAsync(item => item.TripId == importedId);
         Assert.Equal(new[] { 0d, 1d, 2d }, segment.RouteGeometry!.Coordinates.Select(coordinate => coordinate.X));
@@ -53,7 +53,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
                 "<Data name=\"DurationSeconds\"><value>90</value></Data>", StringComparison.Ordinal)
             .Replace("<value>Automatic</value>", "<value>Manual</value>", StringComparison.Ordinal);
 
-        var importedId = await Service(db).ImportWayfarerKmlAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
+        var importedId = await Service(db).ImportWithReviewAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
 
         var segment = await db.Segments.SingleAsync(item => item.TripId == importedId);
         Assert.Equal(EstimatedDurationSource.Manual, segment.EstimatedDurationSource);
@@ -72,7 +72,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
         db.Trips.Add(target);
         await db.SaveChangesAsync();
 
-        var importedId = await Service(db).ImportWayfarerKmlAsync(Stream(Fallback(ids)), user.Id, TripImportMode.Upsert);
+        var importedId = await Service(db).ImportWithReviewAsync(Stream(Fallback(ids)), user.Id, TripImportMode.Upsert);
 
         Assert.False(await db.Regions.AnyAsync(region => region.Id == staleRegionId));
         Assert.Equal(3, (await db.Regions.Include(region => region.Places).SingleAsync(region => region.TripId == importedId)).Places.Count);
@@ -93,7 +93,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
             "<Data name=\"TransportProfileKey\"><value>unknown-profile</value></Data>", StringComparison.Ordinal);
 
         await Assert.ThrowsAsync<TripImportValidationException>(() =>
-            Service(db).ImportWayfarerKmlAsync(Stream(kml), user.Id, TripImportMode.Upsert));
+            Service(db).ImportWithReviewAsync(Stream(kml), user.Id, TripImportMode.Upsert));
 
         Assert.Equal("Original name", (await db.Trips.AsNoTracking().SingleAsync(trip => trip.Id == ids[0])).Name);
         Assert.Empty(db.ChangeTracker.Entries());
@@ -108,7 +108,7 @@ public sealed class NativeKmlV2ImportTests : TestBase
             <LineString><coordinates>0,0,0 0.5,0.25,0 1,1,0</coordinates></LineString></Placemark></Document></kml>
             """;
 
-        var importedId = await Service(db).ImportWayfarerKmlAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
+        var importedId = await Service(db).ImportWithReviewAsync(Stream(kml), user.Id, TripImportMode.CreateNew);
 
         var segment = await db.Segments.Include(item => item.Waypoints).SingleAsync(item => item.TripId == importedId);
         Assert.Empty(segment.Waypoints);

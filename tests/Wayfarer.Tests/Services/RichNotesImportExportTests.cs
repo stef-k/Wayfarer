@@ -50,7 +50,7 @@ public sealed class RichNotesImportExportTests : TestBase
             data.Elements().Single().Value = Unsafe;
         var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
         using var input = new MemoryStream(Encoding.UTF8.GetBytes(document.ToString()));
-        var result = await service.ImportWayfarerKmlAsync(input, user.Id, mode);
+        var result = await service.ImportWithReviewAsync(input, user.Id, mode);
         var stored = await db.Trips.Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas).Include(t => t.Segments).Include(t => t.Tags)
             .SingleAsync(t => t.Id == result.TripId);
@@ -83,7 +83,7 @@ public sealed class RichNotesImportExportTests : TestBase
                         new XElement(k + "coordinates", "0,0 1,0 1,1 0,0")))))))));
         using var input = new MemoryStream(Encoding.UTF8.GetBytes(document.ToString()));
         await new TripImportService(db, NullLogger<TripImportService>.Instance)
-            .ImportWayfarerKmlAsync(input, user.Id, TripImportMode.CreateNew);
+            .ImportWithReviewAsync(input, user.Id, TripImportMode.CreateNew);
         Assert.Equal(Safe, db.Places.Single().Notes);
         Assert.Equal(Safe, db.Areas.Single().Notes);
         // Export is a separate historical boundary: bypass ingress deliberately for both descriptions.

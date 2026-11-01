@@ -11,7 +11,7 @@ using Wayfarer.Services;
 namespace Wayfarer.Parsers;
 
 /// <summary>Safely classifies and parses versioned Wayfarer-native KML into detached transport data.</summary>
-public static class WayfarerKmlParser
+public static partial class WayfarerKmlParser
 {
     /// <summary>Existing XML character budget for the materialized Trip import document.</summary>
     public const long MaximumDocumentCharacters = 10 * 1024 * 1024;
@@ -48,6 +48,7 @@ public static class WayfarerKmlParser
     {
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
         var versionValues = Values(document, "WayfarerSchemaVersion");
+        ValidatePlanningPlacement(source, document, versionValues);
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
         var hasV2Fields = document.Descendants(Kml + "Placemark").Any(owner => owner.Elements(Kml + "ExtendedData")
             .Elements(Kml + "Data").Any(data => data.Attribute("name") is { Value: var name } && V2OnlyFields.Contains(name)));
@@ -62,11 +63,12 @@ public static class WayfarerKmlParser
                 "1" => WayfarerKmlKind.NativeV1,
                 "2" => WayfarerKmlKind.NativeV2,
                 "3" => WayfarerKmlKind.NativeV3,
+                "4" => WayfarerKmlKind.NativeV4,
                 _ => throw new FormatException("Unsupported Wayfarer schema version.")
             };
             if (kind == WayfarerKmlKind.NativeV1 && hasV2Fields)
                 throw new FormatException("Version 1 KML cannot contain version 2 Segment metadata.");
-            if (kind != WayfarerKmlKind.NativeV3 && hasV3Fields)
+            if (kind is not (WayfarerKmlKind.NativeV3 or WayfarerKmlKind.NativeV4) && hasV3Fields)
                 throw new FormatException("Version 3 Segment metadata requires schema version 3.");
         }
         else
@@ -79,7 +81,7 @@ public static class WayfarerKmlParser
             if (tripIds.Count > 1) throw new FormatException("Duplicate Trip identity metadata.");
         }
         return new(kind, kind == WayfarerKmlKind.Generic ? null : ParseDocument(
-            document, kind switch { WayfarerKmlKind.NativeV3 => 3, WayfarerKmlKind.NativeV2 => 2, _ => 1 }), source);
+            document, kind switch { WayfarerKmlKind.NativeV4 => 4, WayfarerKmlKind.NativeV3 => 3, WayfarerKmlKind.NativeV2 => 2, _ => 1 }), source);
     }
 
     /// <summary>Compatibility wrapper for existing v1 parser callers.</summary>
@@ -113,7 +115,7 @@ public static class WayfarerKmlParser
         EnsureUnique(segments.Select(segment => segment.Id), "Segment");
         return new(version, tripId, owner.Element(Kml + "name")?.Value ?? "Imported trip",
             Scalar(owner, "CoverImageUrl"), Scalar(owner, "NotesHtml"), OptionalDouble(owner, "CenterLat"),
-            OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments);
+            OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments, ParsePlanning(owner, "trip"));
     }
 
     private static WayfarerKmlRegion ParseRegion(XElement owner, int version)
@@ -129,7 +131,7 @@ public static class WayfarerKmlParser
         var lon = OptionalDouble(owner, "CenterLon");
         if (lat.HasValue != lon.HasValue) throw new FormatException("Region center coordinates must be complete.");
         return new(id, owner.Element(Kml + "name")?.Value ?? "Region", OptionalInt(owner, "DisplayOrder") ?? 0,
-            Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas);
+            Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas, ParsePlanning(owner, "region"));
     }
 
     private static WayfarerKmlPlace ParsePlace(XElement owner, int version)
@@ -140,16 +142,16 @@ public static class WayfarerKmlParser
             Scalar(owner, "AddressEnrichmentProvider"), Scalar(owner, "AddressEnrichmentStorageMode"),
             Scalar(owner, "AddressEnrichedAt"));
         return new(RequiredGuid(owner, "PlaceId"), owner.Element(Kml + "name")?.Value ?? "Place",
-            OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "IconName"),
+            version is 3 or 4 ? OptionalInt(owner, "DisplayOrder") : OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "IconName"),
             Scalar(owner, "MarkerColor"), Scalar(owner, "Address"), string.IsNullOrWhiteSpace(coordinate) ? null : ParsePoint(coordinate),
-            feature.Name, feature.Type, feature.Provider, feature.StorageMode, feature.EnrichedAt);
+            feature.Name, feature.Type, feature.Provider, feature.StorageMode, feature.EnrichedAt, ParsePlanning(owner, "place"));
     }
 
     /// <summary>Reads every standard Polygon boundary for all supported native versions before any persistence.</summary>
     private static WayfarerKmlArea ParseArea(XElement owner, int version) =>
         new(RequiredGuid(owner, "AreaId"), owner.Element(Kml + "name")?.Value ?? "Area",
             OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "FillHex"),
-            KmlPolygonGeometry.Parse(owner));
+            KmlPolygonGeometry.Parse(owner), ParsePlanning(owner, "area"));
 
     /// <summary>Reads each version's distinct duration representation and optional v3 persisted route provenance.</summary>
     private static WayfarerKmlSegment ParseSegment(XElement owner, int version)
@@ -178,13 +180,13 @@ public static class WayfarerKmlParser
             RequiredScalar(owner, "Mode"), RequiredScalar(owner, "TransportProfileKey"), OptionalDouble(owner, "DistanceKm"),
             ParseDuration(owner, version), source, RequiredInt(owner, "DisplayOrder"), Scalar(owner, "NotesHtml"),
             RequiredBool(owner, "HasCustomRoute"), waypointIds, indices, geometry,
-            version == 3 ? ParseRouteProvenance(owner) : null);
+            version is 3 or 4 ? ParseRouteProvenance(owner) : null, ParsePlanning(owner, "segment"));
     }
 
     /// <summary>Keeps v2 integer seconds distinct from v3 exact ticks at PostgreSQL interval precision.</summary>
     private static TimeSpan? ParseDuration(XElement owner, int version)
     {
-        if (version == 3)
+        if (version is 3 or 4)
         {
             if (Scalar(owner, "DurationSeconds") != null)
                 throw new FormatException("Version 3 uses DurationTicks, not DurationSeconds.");
@@ -229,25 +231,25 @@ public static class WayfarerKmlParser
     {
         var trip = new Trip { Id = source.TripId, Name = source.Name, CoverImageUrl = source.CoverImageUrl, Notes = source.Notes,
             CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom, UpdatedAt = DateTime.UtcNow, IsPublic = false,
-            Tags = source.Tags.Select(token => new Tag { Slug = token, Name = token }).ToList() };
+            Planning = source.Planning, Tags = source.Tags.Select(token => new Tag { Slug = token, Name = token }).ToList() };
         trip.Regions = source.Regions.Select(region => new Region { Id = region.Id, TripId = source.TripId, Name = region.Name,
-            DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center,
+            DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center, Planning = region.Planning,
             Places = region.Places.Select(place => new Place { Id = place.Id, RegionId = region.Id, Name = place.Name,
                 DisplayOrder = place.DisplayOrder, Notes = place.Notes, IconName = place.IconName, MarkerColor = place.MarkerColor,
                 Address = place.Address, Location = place.Location, ResolvedFeatureName = place.ResolvedFeatureName,
                 ResolvedFeatureType = place.ResolvedFeatureType, AddressEnrichmentProvider = place.AddressEnrichmentProvider,
-                AddressEnrichmentStorageMode = place.AddressEnrichmentStorageMode, AddressEnrichedAt = place.AddressEnrichedAt }).ToList(),
+                AddressEnrichmentStorageMode = place.AddressEnrichmentStorageMode, AddressEnrichedAt = place.AddressEnrichedAt, Planning = place.Planning }).ToList(),
             Areas = region.Areas.Select(area => new Area { Id = area.Id, RegionId = region.Id, Name = area.Name,
-                DisplayOrder = area.DisplayOrder, Notes = area.Notes, FillHex = area.FillHex,
+                DisplayOrder = area.DisplayOrder, Notes = area.Notes, FillHex = area.FillHex, Planning = area.Planning,
                 Geometry = area.Geometry ?? throw new FormatException("Area geometry is required.") }).ToList() }).ToList();
         var places = trip.Regions.SelectMany(region => region.Places.Select(place => (region, place))).ToDictionary(item => item.place.Id);
         foreach (var (region, place) in places.Values) place.Region = region;
         trip.Segments = source.Segments.Select(segment => new Segment { Id = segment.Id, TripId = source.TripId,
             FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Mode = segment.Mode,
-            EstimatedDistanceKm = source.Version == 3 ? segment.DistanceKm : null,
+            EstimatedDistanceKm = source.Version is 3 or 4 ? segment.DistanceKm : null,
             EstimatedDuration = segment.Duration,
             EstimatedDurationSource = segment.DurationSource, DisplayOrder = segment.DisplayOrder, Notes = segment.Notes,
-            RouteGeometry = segment.HasCustomRoute ? segment.Geometry : null }).ToList();
+            Planning = segment.Planning, RouteGeometry = segment.HasCustomRoute ? segment.Geometry : null }).ToList();
         for (var index = 0; index < trip.Segments.Count; index++)
             source.Segments[index].RouteProvenance?.ApplyTo(trip.Segments.ElementAt(index));
         return trip;
@@ -260,7 +262,8 @@ public static class WayfarerKmlParser
         {
             var name = (string?)data.Attribute("name");
             if (string.IsNullOrEmpty(name)) continue;
-            if (!result.TryAdd(name, data.Element(Kml + "value")?.Value ?? "")) throw new FormatException($"Duplicate {name} metadata.");
+            if (data.Elements(Kml + "value").Count() > 1 || !result.TryAdd(name, data.Element(Kml + "value")?.Value ?? ""))
+                throw new FormatException("Duplicate native metadata.");
         }
         return result;
     }
