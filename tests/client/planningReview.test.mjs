@@ -55,6 +55,8 @@ test('mounted owner shows saved results before questions, keeps known findings b
     assert.equal(mounted.controls.summary.attention, 1);
     assert.equal(mounted.controls.summary.unknown, 1);
     assert.equal(mounted.controls.items.length, 1);
+    mounted.controls.interpret('trip/trip/visit', 'allocationMinutes', 0);
+    assert.equal(mounted.controls.setup.entries['trip/trip/visit'].allocationMinutes, 0);
     assert.deepEqual(JSON.parse(requests[0].init.body).entries, {});
     assert.equal(requests[0].url, '/api/trips/trip/editor/planning/check');
     assert.equal(requests[0].init.cache, 'no-store');
@@ -216,4 +218,23 @@ test('denied owner access clears setup, a foreign-owner reply is fenced, and a d
     await pending;
     assert.equal(mounted.controls.result, null);
   } finally { mounted.dispose(); globalThis.fetch = oldFetch; }
+});
+
+test('blocked device storage leaves the mounted editor and optional review usable', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const oldFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('Storage denied'); } });
+  let mounted;
+  try {
+    mounted = mount();
+    globalThis.fetch = async (_, init) => Response.json(response(JSON.parse(init.body)));
+    await mounted.controls.review.run();
+    assert.ok(mounted.controls.result);
+    assert.match(mounted.controls.storageNotice, /unavailable/);
+    assert.equal(mounted.workspace.hasChanges.value, false);
+  } finally {
+    mounted?.dispose(); globalThis.fetch = oldFetch;
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else delete globalThis.localStorage;
+  }
 });

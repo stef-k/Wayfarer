@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- Add optional Web **Check plan** (#789 WB3): fresh coherent saved-entry inventory,
+  explicit context-window unions with gaps, qualified physical checks and movement
+  slack/estimate risk. Show known findings beside Unknown and explicit exclusions;
+  keep ordinary saves independent. Add targeted check-only inputs, protected
+  Save and check / Check saved version / Return choices, bounded latest private
+  device setup with dependency/identity fencing, and transient counted dismissal.
+  No planning/history/estimate mutation, provider calls, new migration or export of
+  local setup. Final combined backend/Web acceptance remains separate; mobile
+  agents own their implementation and qualification.
 - Complete native personal export/import (#789 WB2): owner-only, default-off native
   v4 planning inclusion with downloaded-file disclosure; public/default output
   remains v3. Preserve typed planning, holes, graph references/order, Notes/tags,
@@ -10,8 +19,8 @@
   with Keep/Use/Clear and annotated-removal consent, atomic replacement, retained
   Web files/choices and uncertain-outcome replay holds. Reject incompatible or
   ambiguous planning-bearing files before fallback. Document consumer contracts;
-  no new migration or application-version change. WB3 and final combined review
-  follow separately; mobile agents own mobile implementation and qualification.
+  no new migration or application-version change. WB3 is described above; final
+  combined review remains separate. Mobile agents own their qualification.
 - Add optional private planning to Trip, Region, Place, Area and Segment (#789 WB1):
   typed repeated/partial/end-only values, explicit precision and optional UTC/IANA
   clocks, whole-aggregate protected Set/Clear, coherent owner reads and existing
@@ -19,8 +28,8 @@
   reads/downloads/cross-owner copies and public freshness free of planning.
   Add five nullable JSONB columns; extend structural/deletion originals and retain
   same-ID/type planning through legacy native replacement. Reject unreviewed
-  annotated removal atomically. Personal native v4 files are delivered by WB2 above. Check plan (WB3),
-  future own cloning/versioning and the separately owned mobile companion remain
+  annotated removal atomically. Personal native v4 files and Check plan are
+  described above. Future own cloning/versioning and the mobile companion remain
   separately owned; this does not complete #789. Bind normal Region ordering to
   complete Planning without adding it to independent coordinate dependencies.
   Preserve acknowledged Planning across unrelated replies, include separate saves

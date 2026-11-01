@@ -12,3 +12,11 @@ export interface PlanningAggregate { format: 1; entries: PlanningEntry[] }
 export interface PlanningRequest { expected: { parentId: string; planning: PlanningAggregate | null }; operation: 'set' | 'clear'; value?: PlanningAggregate }
 /** Confirmed response for one submitted attempt, not an idempotency receipt. */
 export interface PlanningAcknowledgement { contract: string; success: boolean; applied: boolean; targetKind: string; targetId: string; parentId: string; planning: PlanningAggregate | null }
+
+/** Literal shared owner summary preserves precision/absence without implying occupancy or a deadline. */
+export const describePlanningTiming = (when: PlanningTiming): string => {
+  const value = (item: PlanningValue) => `${item.local} (${item.precision}${item.precision === 'dateTime' ? `, ${item.zone ?? 'zone unspecified'}` : ''})`;
+  if (when.form === 'at' && when.value) return value(when.value);
+  if (when.form === 'period') return `Start ${when.start?.value ? value(when.start.value) : when.start?.state ?? 'unspecified'} → End ${when.end?.value ? value(when.end.value) : when.end?.state ?? 'unspecified'}`;
+  return when.form;
+};

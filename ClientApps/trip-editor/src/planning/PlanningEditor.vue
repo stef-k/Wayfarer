@@ -3,7 +3,7 @@ import { computed, inject, ref, shallowRef, watch } from 'vue';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import { confirm } from '../composables/useConfirmDialog';
 import { planningWorkspaceKey, type PlanningDraft } from './planningState';
-import type { PlanningEntry, PlanningTiming } from './planningTypes';
+import { describePlanningTiming as describe, type PlanningEntry, type PlanningTiming } from './planningTypes';
 import PlanningValueInput from './PlanningValueInput.vue';
 
 const props = defineProps<{ target: EditorTarget }>();
@@ -21,14 +21,6 @@ const zoneLosses = computed(() => (draft.value?.entries ?? []).flatMap(entry => 
   });
 }));
 const reviewError = ref<string | null>(null);
-
-/** One literal summary; no inferred occupancy, nights or travel interpretation. */
-function describe(when: PlanningTiming): string {
-  const value = (item: NonNullable<PlanningTiming['value']>) => `${item.local} (${item.precision}${item.precision === 'dateTime' ? `, ${item.zone ?? 'zone unspecified'}` : ''})`;
-  if (when.form === 'at' && when.value) return value(when.value);
-  if (when.form === 'period') return `Start ${when.start?.value ? value(when.start.value) : when.start?.state ?? 'unspecified'} → End ${when.end?.value ? value(when.end.value) : when.end?.state ?? 'unspecified'}`;
-  return when.form;
-}
 
 /** Opening Planning alone creates no intention; adding a date is an explicit action. */
 const add = (): void => { draft.value?.entries.push({ id: crypto.randomUUID(), when: { form: 'at', value: { precision: 'date', local: '' } } }); };

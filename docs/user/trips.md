@@ -83,8 +83,58 @@ attempts cannot be discarded this way.
 Planning stays private even on public Trips and does not appear on public URLs,
 downloads or another user's copy. Dates written into ordinary Notes keep the
 visibility of those Notes. Personal planning export/import uses [native v4 files](import-export.md#move-trip-plans).
-Check plan and the
-required new-mobile companion are separately owned work and are not delivered here.
+
+## Check plan when it helps
+
+Choose **Check plan** in the Web editor to review every current saved entry in
+the Trip. **Check this entity only** limits the review to the open entity and
+shows the rest as unassessed. Ordinary editing and saving never need a check or
+warning acknowledgement.
+
+Saved information produces results immediately: completed checks, definite or
+possible mismatches, timing contradictions, estimate risks and Unknown appear
+together. **Coverage and targeted check inputs** lists all saved entries, including
+rough dates and explicitly excluded alternatives. Supply only what an unresolved
+check needs, or choose **Leave unresolved/Skip**. Changing these inputs does not
+change saved planning. Use the normal Planning form to save a durable refinement.
+
+For context, explicitly choose the relevant parent windows. Their union retains
+gaps: a visit from 10:30 to 11:30 against 10:00–11:00 is 30 minutes outside;
+10:30–12:30 against 10:00–11:00 and 12:00–13:00 is 60 minutes outside. Parent
+ownership itself is not a time constraint. Stay availability and planning windows
+can overlap activities. A physical contradiction requires assessed presence,
+incompatible locations and an explicit one-traveller premise.
+
+For movement, select release → arrival entries and a relevant saved or manual
+estimate. A Segment is optional and no route provider is called. Confirm whether
+allowance/connection time is additional, already included in the selected estimate,
+unnecessary or unknown. Account for each rest once; other saved activities are not
+automatically deducted from this pair's gap. A 60-minute gap minus 30 minutes of
+travel and 15 additional minutes leaves **15 minutes estimated slack**. A missing
+estimate, dwell, necessary zone or connection remains Unknown. End is an endpoint,
+not an arrival deadline. Estimates do not guarantee arrival or attention compatibility.
+
+If you have drafts, choose **Save and check**, **Check saved version**, or **Return
+to editing**. Saves use their existing protection; unconfirmed saves or later
+typing remain unsaved and cannot become acknowledged facts merely by checking.
+Later edits mark the displayed review stale.
+
+The latest check setup can be reused on this device for the same owner and Trip.
+**Using last inputs · review/change** shows reused and reopened assumptions.
+Changed locations, route estimates, membership, clocks or rules reopen affected
+questions. A current-release what-if lasts at most 30 minutes on the same UTC day
+and changes no planning, route estimate or observed history. **Clear latest private
+inputs** removes the setup. Another owner/Trip cannot reuse it; it is never exported,
+copied or publicly displayed. Cleared/unavailable device storage needs fresh inputs.
+
+**Dismiss for this review** collapses a finding while retaining its count.
+**Check again** recomputes and resurfaces persistent findings. Unknown and excluded
+entries remain explicit; completed scoped checks never certify the whole Trip.
+Mobile implementation and qualification remain owned by the mobile agents.
+
+![Check plan partial results beside Unknown](../images/trip-check-plan-results.png)
+
+![Explicit choice when drafts are unsaved](../images/trip-check-plan-drafts.png)
 
 ## Add Places and Areas
 

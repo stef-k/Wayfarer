@@ -37,7 +37,9 @@ export const createPlanningReview = (options: {
   let partition = '';
   let disposed = false;
   let assigning = false;
-  const storage = options.storage ?? globalThis.localStorage;
+  let storage = options.storage;
+  try { storage ??= globalThis.localStorage; }
+  catch { storageNotice.value = 'Device storage is unavailable; inputs last only in this open editor.'; }
   const identity = (): string => `${options.state().ownerId ?? ''}/${options.state().tripId}`;
   const dirty = (): boolean => options.ordinaryDirty() || Boolean(options.workspace?.hasChanges.value);
   const held = computed(() => Object.values(options.workspace?.drafts ?? {}).some(d => d.pending || d.uncertain || d.deleted));
@@ -82,6 +84,7 @@ export const createPlanningReview = (options: {
     const ownerId = options.state().ownerId;
     if (!ownerId) { error.value = 'Refresh the owner editor before checking.'; return; }
     busy.value = true;
+    if (result.value) stale.value = true;
     error.value = null;
     try {
       const response = await fetch(`${options.endpoint}/planning/check`, { method: 'POST', credentials: 'same-origin', cache: 'no-store',

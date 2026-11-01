@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { EditorSegment } from '../types';
+import type { EditorSegment, EditorPlace } from '../types';
 import type { CheckItem, CheckSetup, CheckTransfer } from './planningCheckTypes';
+import { describePlanningTiming } from './planningTypes';
 
-const props = defineProps<{ setup: CheckSetup; items: CheckItem[]; segments: Record<string, EditorSegment> }>();
+const props = defineProps<{ setup: CheckSetup; items: CheckItem[]; segments: Record<string, EditorSegment>; places: Record<string, EditorPlace> }>();
 const from = ref('');
 const to = ref('');
-const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || item.entry.id.slice(0, 8)}`;
+const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || describePlanningTiming(item.entry.when)}`;
 /** Selecting a pair establishes only this requested movement check, never schedule order or stored route links. */
 const add = (): void => {
   if (!from.value || !to.value || from.value === to.value || props.setup.transfers.length >= 64) return;
@@ -34,7 +35,7 @@ const whatIf = (transfer: CheckTransfer, local: string): void => {
     <button type="button" class="btn btn-outline-light btn-sm" :disabled="!from || !to || from === to" @click="add">Assess this movement</button>
     <fieldset v-for="(transfer, index) in setup.transfers" :key="`${transfer.from}|${transfer.to}`">
       <legend>{{ items.find(i => i.key === transfer.from)?.name }} → {{ items.find(i => i.key === transfer.to)?.name }}</legend>
-      <label class="trip-editor-field"><span>Estimate source</span><select v-model="transfer.segmentId" @change="changed(transfer)"><option :value="null">My estimate for this check</option><option v-for="segment in Object.values(segments)" :key="segment.id" :value="segment.id">{{ segment.mode }} · {{ segment.estimatedDurationMinutes ?? 'Unknown' }} min · {{ segment.estimatedDurationSource }} · {{ segment.fromPlaceId }} → {{ segment.toPlaceId }}</option></select></label>
+      <label class="trip-editor-field"><span>Estimate source</span><select v-model="transfer.segmentId" @change="changed(transfer)"><option :value="null">My estimate for this check</option><option v-for="segment in Object.values(segments)" :key="segment.id" :value="segment.id">{{ segment.mode }} · {{ segment.estimatedDurationMinutes ?? 'Unknown' }} min · {{ segment.estimatedDurationSource }} · {{ places[segment.fromPlaceId ?? '']?.name ?? 'Origin unknown' }} → {{ places[segment.toPlaceId ?? '']?.name ?? 'Destination unknown' }}</option></select></label>
       <label v-if="!transfer.segmentId" class="trip-editor-field"><span>Travel estimate in minutes</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
       <label><input v-model="transfer.relevant" type="checkbox" @change="changed(transfer)" /> This estimate is relevant to this direction, locations and travel mode</label>
       <template v-for="extra in ['allowance', 'connection'] as const" :key="extra">

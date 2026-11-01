@@ -5,6 +5,7 @@ import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import { planningWorkspaceKey } from './planningState';
 import { createPlanningReview } from './planningReviewState';
 import type { CheckEntryInput, CheckItem } from './planningCheckTypes';
+import { describePlanningTiming } from './planningTypes';
 import CheckMovement from './CheckMovement.vue';
 import './planCheck.css';
 
@@ -18,7 +19,7 @@ const items = computed(() => result.value?.inventory ?? []);
 const byKey = computed(() => Object.fromEntries(items.value.map(i => [i.key, i])));
 const scope = computed(() => setup.value.selection === null ? 'Whole Trip · every current saved entry' : 'Explicit selection · remainder unassessed');
 const findings = computed(() => (result.value?.findings ?? []).filter(f => showDismissed.value || !dismissed.value.includes(f.id)));
-const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || item.entry.id.slice(0, 8)}`;
+const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || describePlanningTiming(item.entry.when)}`;
 const names = (keys: string[]): string => keys.map(key => byKey.value[key] ? label(byKey.value[key]!) : 'Removed entry').join(' → ');
 /** Local refinement creates no planning aggregate and cannot become a protected save original. */
 const input = (key: string): CheckEntryInput => setup.value.entries[key] ??= {};
@@ -39,7 +40,11 @@ const selectContext = (item: CheckItem, key: string, checked: boolean): void => 
   interpret(item.key, 'context', checked ? [...new Set([...keys, key])] : keys.filter(k => k !== key));
 };
 const wholeTrip = (): void => { setup.value.selection = null; review.request(); };
-const incompatible = (keys: string[]): void => { setup.value.incompatible[[...keys].sort().join('|')] = null; };
+const physicalKey = (keys: string[]): string => [...keys].sort().join('|');
+const incompatible = (keys: string[], checked = true): void => {
+  if (checked) setup.value.incompatible[physicalKey(keys)] = null;
+  else delete setup.value.incompatible[physicalKey(keys)];
+};
 /** Saved endpoint zones need no question; only absent clocks or interpreted civil windows can use this input. */
 const needsZone = (item: CheckItem): boolean => {
   const timing = item.entry.when;
@@ -49,7 +54,8 @@ const needsZone = (item: CheckItem): boolean => {
 };
 /** Only checks affected by a fold ask for an occurrence; saved explicit choices remain authoritative. */
 const occurrenceValues = (item: CheckItem) => {
-  if (!result.value?.findings.some(f => f.entries.includes(item.key) && /fold|occurrence/.test(f.result.message))) return [];
+  if (!Object.values(setup.value.entries[item.key]?.occurrences ?? {}).some(v => v != null)
+    && !result.value?.findings.some(f => f.entries.includes(item.key) && /fold|occurrence/.test(f.result.message))) return [];
   const timing = item.entry.when;
   return (['value', 'start', 'end'] as const).flatMap(key => {
     const value = key === 'value' ? timing.value : timing[key]?.value;
@@ -105,10 +111,11 @@ const skip = (event: Event): void => {
           <summary>Coverage and targeted check inputs · {{ items.length }} saved entries</summary>
           <p>Use saved facts first. Supply only facts an Unknown result needs. Leave unresolved/Skip retains Unknown. Inputs here stay private on this device and never change planning or exports.</p>
           <label v-if="setup.singleTraveller || result.findings.some(f => f.check === 'physical' && f.result.message.includes('single-traveller'))"><input v-model="setup.singleTraveller" type="checkbox" @change="setup.travellerDependency = null" /> One traveller for this selected scope</label>
+          <label v-for="finding in result.findings.filter(f => f.check === 'physical' && f.entries.length === 2 && (f.result.message.includes('incompatible locations') || Object.hasOwn(setup.incompatible, physicalKey(f.entries))))" :key="finding.id"><input type="checkbox" :checked="Object.hasOwn(setup.incompatible, physicalKey(finding.entries))" @change="incompatible(finding.entries, ($event.target as HTMLInputElement).checked)" /> {{ names(finding.entries) }}: locations require separate presence</label>
           <p v-if="!items.length">No saved planning entries in this Trip.</p>
           <details v-for="item in items" :key="item.key" class="plan-check__entry">
             <summary>{{ label(item) }} · {{ item.selected ? 'assessed scope' : 'unassessed remainder' }}</summary>
-            <p>Saved: {{ item.entry.when }} · {{ item.entry.kind || 'meaning unspecified' }}</p>
+            <p>Saved: {{ describePlanningTiming(item.entry.when) }} · {{ item.entry.kind || 'meaning unspecified' }}</p>
             <label><input type="checkbox" :checked="setup.selection === null || setup.selection.includes(item.key)" @change="select(item, ($event.target as HTMLInputElement).checked)" /> Assess this entry for this check</label>
             <label v-if="!item.entry.kind" class="trip-editor-field"><span>Meaning for this check only</span>
               <select :value="setup.entries[item.key]?.kind ?? ''" @change="interpret(item.key, 'kind', ($event.target as HTMLSelectElement).value)">
@@ -127,7 +134,7 @@ const skip = (event: Event): void => {
             </fieldset>
             <button type="button" class="btn btn-outline-secondary btn-sm" @click="skip">Leave unresolved/Skip</button>
           </details>
-          <CheckMovement :setup="setup" :items="items" :segments="state.segmentsById" />
+          <CheckMovement :setup="setup" :items="items" :segments="state.segmentsById" :places="state.placesById" />
           <button type="button" class="btn btn-primary btn-sm" :disabled="busy" @click="review.run">Use for this check · check saved version</button>
         </details>
         <button type="button" class="btn btn-outline-light btn-sm" :disabled="busy" @click="review.request()">Check again</button>

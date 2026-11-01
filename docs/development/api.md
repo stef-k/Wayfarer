@@ -896,11 +896,16 @@ bulk tools require explicit `operationScope:bulk`; they use Apply-time membershi
 and final locked Notes for append, without automatic uncertain replay or
 single-record receipts. Web Create retains its existing full-form validation.
 
-## Private Trip planning (#789 WB1)
+## Private Trip planning (#789 WB1/WB3)
 
 See [typed planning, coherent owner snapshots and protected Set/Clear](trip-planning.md)
-for the format-1 contract, privacy, mutation originals, migration and required
-new-mobile companion. Public full Trip reads retain their reusable audience.
+for the format-1 contract, privacy, mutation originals, migration and separately
+owned mobile companion. The optional cookie/antiforgery
+`POST /api/trips/{tripId}/editor/planning/check` reads one coherent saved owner
+snapshot and returns `planning-check-1` inventory, independent findings and
+revalidated private setup. It performs no planning write or provider call.
+See [check request/response, bounds and reuse](trip-planning.md#optional-web-checks-wb3).
+Public full Trip reads retain their reusable audience.
 
 ## Owned Trip Region and Place integrations
 

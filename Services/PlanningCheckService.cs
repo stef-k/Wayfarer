@@ -129,11 +129,12 @@ public static class PlanningCheckService
         Dictionary<string, string?> current = [];
         var presence = selected.Where(i => Effective(i, inputs).Kind == "presence").ToArray();
         var count = 0;
-        for (var a = 0; a < presence.Length; a++)
+        var totalPairs = (long)presence.Length * (presence.Length - 1) / 2;
+        for (var a = 0; a < presence.Length && count < 2048; a++)
         {
-            for (var b = a + 1; b < presence.Length; b++)
+            for (var b = a + 1; b < presence.Length && count < 2048; b++)
             {
-                if (++count > 2048) continue;
+                count++;
                 var first = presence[a]; var second = presence[b];
                 var key = string.Join('|', new[] { first.Key, second.Key }.Order());
                 var dependency = Fingerprint(new { first.Dependency, Second = second.Dependency });
@@ -145,7 +146,7 @@ public static class PlanningCheckService
                     PlanningIntervals.Resolve(Effective(second, inputs), inputs.GetValueOrDefault(second.Key)?.Zone), single, incompatible));
             }
         }
-        if (count > 2048) Add(findings, "physical", presence.Select(i => i.Key).ToArray(), new("unknown", $"{count - 2048} further physical pairs are unassessed beyond the 2048-pair bound. Narrow the displayed selection explicitly."));
+        if (totalPairs > 2048) Add(findings, "physical", presence.Select(i => i.Key).ToArray(), new("unknown", $"{totalPairs - 2048} further physical pairs are unassessed beyond the 2048-pair bound. Narrow the displayed selection explicitly."));
         return current;
     }
 
@@ -167,7 +168,8 @@ public static class PlanningCheckService
             invalidated.Add("Movement route/location/estimate changed: confirm relevance and extras again.");
         }
         else if (transfer.Dependency != null) reused.Add("Movement estimate relevance and allowance treatment");
-        var whatIfDependency = Fingerprint(new { from.Dependency, from.Entry.When, Rules = DateTimeZoneProviders.Tzdb.VersionId });
+        var whatIfDependency = Fingerprint(new { from.Dependency, from.Entry.When, inputs.GetValueOrDefault(from.Key)?.Zone,
+            inputs.GetValueOrDefault(from.Key)?.Occurrences, Rules = DateTimeZoneProviders.Tzdb.VersionId });
         if (transfer.WhatIfRelease != null && transfer.WhatIfAt != null && (transfer.WhatIfDependency != whatIfDependency
             || now - transfer.WhatIfAt > TimeSpan.FromMinutes(30) || now.UtcDateTime.Date != transfer.WhatIfAt.Value.UtcDateTime.Date || transfer.WhatIfAt > now))
         { transfer = transfer with { WhatIfRelease = null, WhatIfAt = null }; invalidated.Add("What-if release expired or its timing evidence changed."); }

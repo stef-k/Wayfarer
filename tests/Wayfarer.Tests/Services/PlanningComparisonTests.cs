@@ -83,4 +83,17 @@ public class PlanningComparisonTests
         Assert.NotNull(PlanningIntervals.Endpoint(point, true).Problem);
         Assert.NotNull(PlanningIntervals.Endpoint(new(Guid.NewGuid(), new("period", End: new("known", Clock("12:00")))), false).Problem);
     }
+
+    /// <summary>Elapsed gaps resolve explicit zones before civil/date-line order and never use a machine zone.</summary>
+    [Fact]
+    public void Movement_resolves_date_line_and_explicit_zero_without_inventing_missing_zone()
+    {
+        var source = new PlanningEntry(Guid.NewGuid(), new("at", new("dateTime", "2027-03-05T22:00", "Pacific/Honolulu")), AllocationMinutes: 0);
+        var destination = new PlanningEntry(Guid.NewGuid(), new("at", new("dateTime", "2027-03-07T02:00", "Asia/Tokyo")));
+        var result = Assert.Single(PlanningComparisons.Movement(PlanningIntervals.Endpoint(source, true), PlanningIntervals.Endpoint(destination, false), 480, 0, true));
+        Assert.Equal("completed", result.Status);
+        Assert.Equal(60, result.Minutes);
+        Assert.Equal("unknown", Assert.Single(PlanningComparisons.Movement(PlanningIntervals.Endpoint(source, true),
+            PlanningIntervals.Endpoint(destination with { When = new("at", destination.When.Value! with { Zone = null }) }, false), 0, 0, true)).Status);
+    }
 }

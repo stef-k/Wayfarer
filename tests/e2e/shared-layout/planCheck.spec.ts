@@ -5,6 +5,7 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 test('optional Check plan keeps known findings beside Unknown and never silently saves drafts', async ({ page }, testInfo) => {
   const config = loadSharedLayoutConfig();
   const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto('/Identity/Account/Login');
   await page.getByLabel('Username').fill(config.username);
   await page.getByLabel('Password').fill(config.password);
@@ -49,13 +50,15 @@ test('optional Check plan keeps known findings beside Unknown and never silently
   await expect(check).toContainText('1 collapsed findings; counts retained.');
   await check.getByRole('button', { name: 'Check again', exact: true }).click();
   await expect(mismatch).toBeVisible();
-  await check.screenshot({ path: process.env.WAYFARER_CHECK_SCREENSHOTS ? `${process.env.WAYFARER_CHECK_SCREENSHOTS}/partial-results.png` : testInfo.outputPath('partial-results.png') });
+  await check.locator('summary').filter({ hasText: 'Coverage and targeted check inputs' }).click();
+  await check.getByRole('button', { name: 'Check plan', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: process.env.WAYFARER_CHECK_SCREENSHOTS ? `${process.env.WAYFARER_CHECK_SCREENSHOTS}/partial-results.png` : testInfo.outputPath('partial-results.png') });
   const planning = page.locator('[data-planning]');
   await planning.locator('summary').first().click();
   await planning.getByRole('button', { name: 'Add another date', exact: true }).click();
   await check.getByRole('button', { name: 'Check plan', exact: true }).click();
   await expect(check.getByRole('group', { name: 'Choose version to check' })).toBeVisible();
-  await check.screenshot({ path: process.env.WAYFARER_CHECK_SCREENSHOTS ? `${process.env.WAYFARER_CHECK_SCREENSHOTS}/draft-choice.png` : testInfo.outputPath('draft-choice.png') });
+  await page.screenshot({ path: process.env.WAYFARER_CHECK_SCREENSHOTS ? `${process.env.WAYFARER_CHECK_SCREENSHOTS}/draft-choice.png` : testInfo.outputPath('draft-choice.png') });
   await check.getByRole('button', { name: 'Check saved version', exact: true }).click();
   await expect(mismatch).toBeVisible();
   expect(writes).toBe(0);
