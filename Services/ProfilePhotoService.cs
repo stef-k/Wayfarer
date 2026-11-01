@@ -136,7 +136,8 @@ public sealed class ProfilePhotoService(IServiceScopeFactory scopes, ProfilePhot
         foreach (var name in candidates)
         {
             ct.ThrowIfCancellationRequested();
-            if (referenced.Contains(Guid.ParseExact(name[..32], "N"))) continue;
+            // A pointer references only .webp; a restored leftover .tmp is never active.
+            if (name.EndsWith(".webp", StringComparison.Ordinal) && referenced.Contains(Guid.ParseExact(name[..32], "N"))) continue;
             try { storage.Delete(name); }
             catch (IOException) { logger.LogWarning("Profile photo cleanup deferred."); }
         }

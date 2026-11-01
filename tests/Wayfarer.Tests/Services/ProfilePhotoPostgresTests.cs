@@ -220,6 +220,8 @@ public sealed class ProfilePhotoPostgresTests(PostgresImportTestFixture fixture)
         var again = await photos.MutateAsync(user.Id, removed.StateToken, null, default);
         Assert.NotEqual(removed.StateToken, again.StateToken);
         var current = await photos.MutateAsync(user.Id, again.StateToken, "winner"u8.ToArray(), default);
+        // A restored temp with the current UUID is still orphaned: only .webp is referenced.
+        File.WriteAllText(Path.Combine(storage.Store.Root, current.ProfilePhoto!.Version + ".tmp"), "restored orphan");
         await photos.SweepAsync(default);
         Assert.Single(Directory.GetFiles(storage.Store.Root));
         await using (var db = fixture.CreateContext()) await db.Users.Where(u => u.Id == user.Id).ExecuteDeleteAsync();
