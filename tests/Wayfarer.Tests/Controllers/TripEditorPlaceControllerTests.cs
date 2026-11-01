@@ -76,6 +76,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         Assert.Contains(db.Places, p => p.Id == place.Id);
     }
 
+    /// <summary>Complete Region ordering preserves a genuine non-null Planning original.</summary>
     [Fact]
     public async Task OrderPlacesPersistsCompleteRegionOrder()
     {

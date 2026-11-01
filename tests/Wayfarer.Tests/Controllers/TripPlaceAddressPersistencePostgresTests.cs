@@ -26,6 +26,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
 {
     private static readonly DateTimeOffset OriginalEnrichedAt = new(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
     private static readonly ResolvedFeatureTuple OriginalMetadata = new("Old feature", "building", "geoapify", "persistent", OriginalEnrichedAt);
+    /// <summary>Real private material that every move and rollback must preserve.</summary>
     private static readonly PlanningAggregate OriginalPlanning = new(1, [new(Guid.NewGuid(), new("at", new("month", "2027-03")))]);
 
     /// <summary>Commits invalidation, waypoint movement, measurements and Region ordering together.</summary>
