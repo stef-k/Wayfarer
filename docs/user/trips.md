@@ -104,6 +104,9 @@ gaps: a visit from 10:30 to 11:30 against 10:00–11:00 is 30 minutes outside;
 ownership itself is not a time constraint. Stay availability and planning windows
 can overlap activities. A physical contradiction requires assessed presence,
 incompatible locations and an explicit one-traveller premise.
+Explicit zero-minute presence counts as a moment: equal moments or a moment inside
+an occupied interval can conflict. An interval's end is exclusive; unknown dwell
+remains Unknown.
 
 For movement, select release → arrival entries and a relevant saved or manual
 estimate. A Segment is optional and no route provider is called. Confirm whether
@@ -114,6 +117,14 @@ travel and 15 additional minutes leaves **15 minutes estimated slack**. A missin
 estimate, dwell, necessary zone or connection remains Unknown. End is an endpoint,
 not an arrival deadline. Estimates do not guarantee arrival or attention compatibility.
 
+**Add Arrive by deadline for this check** supplies a separate structured target,
+including for a destination with only an End. Results label saved **Intended
+arrival** and check-only **Arrive by** separately. For release 11:00, intended
+arrival 13:00, deadline 12:00 and 90 minutes travel with no extras, the deadline
+has **30 minutes estimate risk** while the saved intention stays unchanged.
+Change/remove the deadline here; minute precision and a resolved zone are needed
+for elapsed comparison. It follows the same private setup rules below.
+
 If you have drafts, choose **Save and check**, **Check saved version**, or **Return
 to editing**. Saves use their existing protection; unconfirmed saves or later
 typing remain unsaved and cannot become acknowledged facts merely by checking.
@@ -122,7 +133,11 @@ Later edits mark the displayed review stale.
 The latest check setup can be reused on this device for the same owner and Trip.
 **Using last inputs · review/change** shows reused and reopened assumptions.
 Changed locations, route estimates, membership, clocks or rules reopen affected
-questions. A current-release what-if lasts at most 30 minutes on the same UTC day
+questions. Source confirmation
+shows current read-only anchors, mode, estimate and provenance from the check.
+After choosing a new source, check saved version to load it before confirming
+relevance. A further change reopens the assessment; your editor drafts remain
+separate. A current-release what-if lasts at most 30 minutes on the same UTC day
 and changes no planning, route estimate or observed history. **Clear latest private
 inputs** removes the setup. Another owner/Trip cannot reuse it; it is never exported,
 copied or publicly displayed. Cleared/unavailable device storage needs fresh inputs.

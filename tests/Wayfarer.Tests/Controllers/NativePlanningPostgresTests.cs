@@ -132,11 +132,13 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         var saved = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
         Assert.True(PlanningCodec.Equal(action == "clear" ? null : action == "use" ? incoming.Planning : oldPlan, saved.Planning));
         Assert.True(PlanningCodec.Equal(absent.Planning, saved.Regions.SelectMany(r => r.Places).Single(p => p.Id == absent.Id).Planning));
-        // v3 has no payload, including at the Trip root. It never becomes an implicit reset.
+        // v3 omits Planning and Region covers. Planning is retained specially; reusable legacy content is replaced.
         var legacy = TripWayfarerKmlExporter.BuildKml(saved);
         var retained = await service.ReviewNativeAsync(File(legacy), trip.UserId);
         await service.ImportReviewedNativeAsync(File(legacy), trip.UserId, new(retained.Token, []));
         var after = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        Assert.Null(after.Regions.Single().CoverImageUrl);
+        saved.Regions.Single().CoverImageUrl = null;
         Assert.Equal(TripWayfarerKmlExporter.BuildKml(saved, true).Replace(saved.UpdatedAt.ToString("O"), "TIME"),
             TripWayfarerKmlExporter.BuildKml(after, true).Replace(after.UpdatedAt.ToString("O"), "TIME"));
     }
@@ -377,7 +379,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         var keys = PlanningCheckService.Run(graph, trip.UserId, new(), DateTimeOffset.UtcNow).Inventory.Where(i => i.Kind == "place").Select(i => i.Key).Order(StringComparer.Ordinal).Take(2).ToArray();
         var check = PlanningCheckService.Run(graph, trip.UserId, new() { Selection = keys, SingleTraveller = true,
             Incompatible = new Dictionary<string, string?> { [string.Join('|', keys)] = null } }, DateTimeOffset.UtcNow);
-        var physical = Assert.Single(check.Findings.Where(f => f.Check == "physical"));
+        var physical = Assert.Single(check.Findings, f => f.Check == "physical");
         Assert.Equal("contradiction", physical.Result.Status);
     }
 

@@ -93,13 +93,13 @@ public sealed class PlanningCheckTests
         var setup = Alice(museum, lunch, window);
         var transfer = setup.Transfers[0] with { EstimateMinutes = 90, Allowance = "none" };
         var noDeadline = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer] }, Now);
-        Assert.Equal("unknown", Assert.Single(noDeadline.Findings.Where(f => f.Check == "movement")).Result.Status);
+        Assert.Equal("unknown", Assert.Single(noDeadline.Findings, f => f.Check == "movement").Result.Status);
         var known = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer with { ArrivalDeadline = new("dateTime", "2027-03-02T12:00", "UTC") }] }, Now);
         Assert.Contains(known.Findings, f => f.Result.Status == "risk" && f.Result.Minutes == 30 && f.Result.Message.Contains("Arrive by"));
         foreach (var deadline in new PlanningValue[] { new("date", "2027-03-02"), new("dateTime", "2027-03-02T12:00"), new("dateTime", "2027-10-31T01:30", "Europe/London") })
         {
             var unknown = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer with { ArrivalDeadline = deadline }] }, Now);
-            Assert.Equal("unknown", Assert.Single(unknown.Findings.Where(f => f.Result.Message.Contains("Arrive by"))).Result.Status);
+            Assert.Equal("unknown", Assert.Single(unknown.Findings, f => f.Result.Message.Contains("Arrive by")).Result.Status);
         }
         Assert.Throws<PlanningValidationException>(() => PlanningCheckService.Run(graph, "alice", setup with {
             Transfers = [transfer with { ArrivalDeadline = new("dateTime", "2027-03-28T01:30", "Europe/London") }] }, Now));
@@ -140,6 +140,12 @@ public sealed class PlanningCheckTests
             Assert.NotEqual(displayed.MovementEvidence[0].Dependency, changed.MovementEvidence[0].Dependency);
             Assert.Contains(newer.Mode, changed.EstimateSources[0].Description);
         }
+        var relocatedPlaces = graph.PlacesById.ToDictionary();
+        relocatedPlaces[to.Id] = to with { Name = "Current destination", Location = new(25, 35) };
+        var relocated = PlanningCheckService.Run(graph with { PlacesById = relocatedPlaces }, "alice", reconfirmed, Now);
+        Assert.False(relocated.Setup.Transfers[0].Relevant);
+        Assert.Contains("Current destination (25, 35)", relocated.EstimateSources[0].Description);
+        Assert.Contains("Current destination (25, 35)", relocated.MovementEvidence[0].Description);
     }
 
     /// <summary>Independent Unknowns cannot suppress completed supported checks, risk or exact context findings.</summary>

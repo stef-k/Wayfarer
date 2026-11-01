@@ -211,6 +211,7 @@ public static class PlanningCheckService
     /// <summary>Human-readable current locations describe advisory evidence without publishing any mutation state.</summary>
     private static string DescribeLocation(EditorTripStateDto graph, PlanningCheckItem item)
     {
+        if (item.Kind == "segment") return $"{item.Name}: {DescribeSource(graph, graph.SegmentsById[item.TargetId])}";
         var point = item.Kind switch {
             "place" => graph.PlacesById[item.TargetId].Location,
             "region" => graph.RegionsById[item.TargetId].Center,

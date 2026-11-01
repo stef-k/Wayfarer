@@ -50,6 +50,11 @@ public sealed class NativeKmlV4Tests
             Assert.Null(Parse(legacy).Document!.Regions.Single().CoverImageUrl);
             Assert.DoesNotContain("Planning", legacy);
         }
+        foreach (var coverValue in new string?[] { null, "" })
+        {
+            region.CoverImageUrl = coverValue;
+            Assert.Equal(coverValue, Parse(TripWayfarerKmlExporter.BuildKml(trip, true)).Document!.Regions.Single().CoverImageUrl);
+        }
     }
 
     /// <summary>Reserved payloads cannot masquerade as legacy or third-party geography.</summary>

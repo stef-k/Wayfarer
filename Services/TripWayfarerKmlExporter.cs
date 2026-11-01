@@ -65,7 +65,7 @@ public static class TripWayfarerKmlExporter
             ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
             ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes) ?? ""),
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
-        if (includePrivatePlanning) AddData(folder, ("CoverImageUrl", region.CoverImageUrl ?? ""));
+        if (includePrivatePlanning && region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
         foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
             folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));

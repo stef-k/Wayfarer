@@ -140,7 +140,7 @@ public static partial class WayfarerKmlParser
         if (lat.HasValue != lon.HasValue) throw new FormatException("Region center coordinates must be complete.");
         return new(id, owner.Element(Kml + "name")?.Value ?? "Region", OptionalInt(owner, "DisplayOrder") ?? 0,
             Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas, ParsePlanning(owner, "region"),
-            version == 4 ? Scalar(owner, "CoverImageUrl") : null);
+            version == 4 ? DirectData(owner).GetValueOrDefault("CoverImageUrl") : null);
     }
 
     private static WayfarerKmlPlace ParsePlace(XElement owner, int version)

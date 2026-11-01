@@ -179,6 +179,7 @@ test('reconfirmation describes the fresh source, retains its binding and local d
     props.setup = mounted.controls.setup;
     props.sources = mounted.controls.result.estimateSources;
     props.evidence = mounted.controls.result.movementEvidence;
+    await nextTick();
     assert.match(props.sources[0].description, /45 min.*Current From/);
     const transfer = props.setup.transfers[0];
     transfer.relevant = true; movement.reassess(transfer);
@@ -196,6 +197,7 @@ test('reconfirmation describes the fresh source, retains its binding and local d
     assert.match(retained, /arrivalDeadline/);
     assert.equal(retained.includes('estimateSources'), false);
     mounted.props.state = { ...graph(), ownerId: 'bob' };
+    await nextTick();
     assert.equal(mounted.controls.setup.transfers.length, 0);
     assert.equal(globalThis.localStorage.values.size, 0);
   } finally { app.unmount(); mounted.dispose(); globalThis.fetch = oldFetch; }

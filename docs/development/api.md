@@ -904,6 +904,11 @@ owned mobile companion. The optional cookie/antiforgery
 `POST /api/trips/{tripId}/editor/planning/check` reads one coherent saved owner
 snapshot and returns `planning-check-1` inventory, independent findings and
 revalidated private setup. It performs no planning write or provider call.
+The reply includes current read-only `estimateSources` and per-pair
+`movementEvidence`; relevance confirmation retains the displayed dependency.
+Optional transfer `arrivalDeadline` uses the structured value contract only in
+private check setup. Results distinguish saved intended arrival from arrive by;
+stored End never becomes a deadline. No planning mutation/export schema changes.
 See [check request/response, bounds and reuse](trip-planning.md#optional-web-checks-wb3).
 Public full Trip reads retain their reusable audience.
 
