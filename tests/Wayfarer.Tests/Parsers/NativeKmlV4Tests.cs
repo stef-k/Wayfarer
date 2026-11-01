@@ -91,6 +91,20 @@ public sealed class NativeKmlV4Tests
     public void MisplacedReservedDataRejectsBeforeFallback(string payload) =>
         Assert.Throws<FormatException>(() => Parse($"<kml xmlns='http://www.opengis.net/kml/2.2'><Document><Folder>{payload}</Folder></Document></kml>"));
 
+    /// <summary>Duplicate XML coordinates are ambiguous content, even when the first geometry is usable.</summary>
+    [Fact]
+    public void PersonalPointCannotSilentlyChooseBetweenDuplicateCoordinateValues()
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var trip = new Trip { Id = Guid.NewGuid(), Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Name = "Region" };
+        region.Places.Add(new Place { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Place", Location = new NetTopologySuite.Geometries.Point(23, 37) { SRID = 4326 } });
+        trip.Regions.Add(region);
+        var xml = XDocument.Parse(TripWayfarerKmlExporter.BuildKml(trip, true));
+        xml.Descendants(k + "Point").Single().Add(new XElement(k + "coordinates", "24,38,0"));
+        Assert.Throws<FormatException>(() => Parse(xml.ToString()));
+    }
+
     private static WayfarerKmlClassification Parse(string text) => WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(text)));
 
     /// <summary>Includes a repeated date and whitespace-bearing label without inferred meaning or zones.</summary>

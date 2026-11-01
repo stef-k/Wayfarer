@@ -30,7 +30,11 @@ public static partial class WayfarerKmlParser
                 || claim.Parent?.Name != Kml + "ExtendedData" || owner == null || NativeOwnerKind(owner, document) == null)
                 throw new FormatException("Misplaced private planning metadata.");
         }
-        if (v4) ValidateV4Structure(document);
+        if (v4)
+        {
+            if (source.Root?.Name != Kml + "kml") throw new FormatException("Invalid native KML root.");
+            ValidateV4Structure(document);
+        }
     }
 
     /// <summary>Recognizes only direct graph nodes, never a similarly named ignored nested folder.</summary>
@@ -74,6 +78,10 @@ public static partial class WayfarerKmlParser
             if (owner.Elements(Kml + "name").Count() > 1 || owner.Elements().Count(e => e.Name == Kml + "Point"
                 || e.Name == Kml + "Polygon" || e.Name == Kml + "LineString") > 1)
                 throw new FormatException("Ambiguous native content.");
+            foreach (var geometry in owner.Elements().Where(e => e.Name == Kml + "Point" || e.Name == Kml + "LineString"))
+                if (geometry.Elements(Kml + "coordinates").Count() != 1 || geometry.Descendants(Kml + "coordinates").Count() != 1
+                    || geometry.Element(Kml + "coordinates")!.HasElements)
+                    throw new FormatException("Ambiguous native coordinates.");
             if (kind == "region" || kind == "segment")
             {
                 if (RequiredGuid(owner, "TripId") != RequiredGuid(document, "TripId")) throw new FormatException("Invalid graph membership.");
