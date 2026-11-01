@@ -44,7 +44,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         User.LocationProviderSettings.ChooseProvider User.LocationProviderSettings.ConsentMapboxPermanent
         User.LocationProviderSettings.VerifyMapboxPermanent User.LocationProviderSettings.VerifyGeoapify
         User.LocationProviderSettings.BackfillGeoapify User.LocationProviderSettings.Revoke User.LocationProviderSettings.SaveGuard
-        User.Trip.Create User.Trip.Delete User.Trip.ToggleShareProgress User.Trip.Clone User.TripImport.Import
+        User.Trip.Create User.Trip.Delete User.Trip.ToggleShareProgress User.Trip.Clone User.TripImport.Import User.TripImport.ReviewImport
         User.TripTags.Attach User.TripTags.Remove User.Visit.Edit User.Visit.Delete
         Api.Backfill.Apply Api.Backfill.Clear Api.ExternalRouteProposals.Generate Api.Groups.Create
         Api.Groups.ToggleOrgPeerVisibility Api.Groups.SetMemberOrgPeerVisibilityAccess Api.Groups.Leave Api.Groups.RemoveMember

@@ -24,7 +24,7 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using var context = fixture.CreateContext();
         var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
 
-        var tripId = await service.ImportWayfarerKmlAsync(
+        var tripId = await service.ImportWithReviewAsync(
             ToStream(CreateGenericRouteKml("Ella to Kandy by TRAIN")), user.Id, TripImportMode.CreateNew);
         fixture.RegisterTrip(tripId);
 
@@ -46,7 +46,7 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using var context = fixture.CreateContext();
         var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
 
-        await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
+        await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWithReviewAsync(
             ToStream(CreateOversizedGenericRouteKml("walk", $"{rejectedTag}, ---")),
             user.Id,
             TripImportMode.CreateNew));
@@ -58,7 +58,7 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
             Assert.Empty(await failedVerification.Tags.Where(tag => tag.Slug == rejectedTag).ToListAsync());
         }
 
-        var result = await service.ImportWayfarerKmlAsync(
+        var result = await service.ImportWithReviewAsync(
             ToStream(CreateOversizedGenericRouteKml("walk", "")), user.Id, TripImportMode.CreateNew);
         fixture.RegisterTrip(result.TripId);
 
@@ -145,9 +145,9 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using var first = fixture.CreateContext(barrier);
         await using var second = fixture.CreateContext(barrier);
         var firstTask = new TripImportService(first, NullLogger<TripImportService>.Instance, CreateReconciler(first))
-            .ImportWayfarerKmlAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), firstUser.Id, TripImportMode.CreateNew);
+            .ImportWithReviewAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), firstUser.Id, TripImportMode.CreateNew);
         var secondTask = new TripImportService(second, NullLogger<TripImportService>.Instance, CreateReconciler(second))
-            .ImportWayfarerKmlAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), secondUser.Id, TripImportMode.CreateNew);
+            .ImportWithReviewAsync(ToStream(CreateKml(Guid.NewGuid(), slug)), secondUser.Id, TripImportMode.CreateNew);
 
         var tripIds = await Task.WhenAll(firstTask, secondTask);
         fixture.RegisterTrip(tripIds[0]);
@@ -199,14 +199,14 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using (var duplicateContext = fixture.CreateContext())
         {
             var service = new TripImportService(duplicateContext, NullLogger<TripImportService>.Instance, CreateReconciler(duplicateContext));
-            await Assert.ThrowsAsync<TripDuplicateException>(() => service.ImportWayfarerKmlAsync(ToStream(CreateKml(existingTrip.Id, existingTag.Slug)), user.Id, TripImportMode.Auto));
+            await Assert.ThrowsAsync<TripDuplicateException>(() => service.ImportWithReviewAsync(ToStream(CreateKml(existingTrip.Id, existingTag.Slug)), user.Id, TripImportMode.Auto));
         }
 
         Guid cloneId;
         await using (var cloneContext = fixture.CreateContext())
         {
             var service = new TripImportService(cloneContext, NullLogger<TripImportService>.Instance, CreateReconciler(cloneContext));
-            cloneId = await service.ImportWayfarerKmlAsync(
+            cloneId = await service.ImportWithReviewAsync(
                 ToStream(CreateKml(existingTrip.Id, $" {existingTag.Slug}, {importedSlug}, {existingTag.Slug.ToUpperInvariant()}, ,  ")),
                 user.Id,
                 TripImportMode.CreateNew);
@@ -221,7 +221,7 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         {
             var service = new TripImportService(upsertContext, NullLogger<TripImportService>.Instance, CreateReconciler(upsertContext));
             var upsertSlug = $"fixture-upsert-{Guid.NewGuid():N}";
-            await service.ImportWayfarerKmlAsync(ToStream(CreateKml(existingTrip.Id, upsertSlug)), user.Id, TripImportMode.Upsert);
+            await service.ImportWithReviewAsync(ToStream(CreateKml(existingTrip.Id, upsertSlug)), user.Id, TripImportMode.Upsert);
             var upserted = await upsertContext.Trips.Include(trip => trip.Tags).SingleAsync(trip => trip.Id == existingTrip.Id);
             Assert.Equal(new[] { upsertSlug }, upserted.Tags.Select(tag => tag.Slug));
             fixture.RegisterTag(upserted.Tags.Single());
@@ -230,7 +230,7 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         await using (var failureContext = fixture.CreateContext())
         {
             var service = new TripImportService(failureContext, NullLogger<TripImportService>.Instance, CreateReconciler(failureContext));
-            await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
+            await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWithReviewAsync(
                 ToStream(CreateKml(Guid.NewGuid(), $"fixture-rollback-{Guid.NewGuid():N}, ---")), user.Id, TripImportMode.CreateNew));
         }
 

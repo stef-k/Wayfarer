@@ -4,25 +4,26 @@ using System.Text.Json;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.Planning;
 using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>Serializes the active saved Trip state as deterministic native KML v3.</summary>
+/// <summary>Serializes reusable content as native v3, or complete personal planning under explicit native v4 inclusion.</summary>
 public static class TripWayfarerKmlExporter
 {
     private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
     /// <summary>Preserves the active measurement set and rejects malformed geometry, identities or numbers.</summary>
-    public static string BuildKml(Trip trip)
+    public static string BuildKml(Trip trip, bool includePrivatePlanning = false)
     {
         ArgumentNullException.ThrowIfNull(trip);
         ValidateAggregate(trip);
 
         var document = new XElement(Kml + "Document", new XElement(Kml + "name", trip.Name));
         AddData(document,
-            ("WayfarerSchemaVersion", "3"),
+            ("WayfarerSchemaVersion", includePrivatePlanning ? "4" : "3"),
             ("TripId", GuidText(trip.Id)),
             ("UpdatedAt", trip.UpdatedAt.ToString("O", Invariant)),
             ("CoverImageUrl", trip.CoverImageUrl ?? ""),
@@ -31,6 +32,7 @@ public static class TripWayfarerKmlExporter
             ("CenterLon", Number(trip.CenterLon)),
             ("Zoom", Number(trip.Zoom)),
             ("Tags", string.Join(',', trip.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Slug))));
+        AddPlanning(document, trip, "trip", includePrivatePlanning);
         document.Add(trip.Regions.SelectMany(region => region.Places)
             .Select(place => (place.IconName, place.MarkerColor)).Distinct()
             .Select(icon => new XElement(Kml + "Style", new XAttribute("id", $"wf_{icon.IconName}_{icon.MarkerColor}"),
@@ -38,35 +40,39 @@ public static class TripWayfarerKmlExporter
                     new XElement(Kml + "href", $"/icons/wayfarer-map-icons/dist/png/marker/{icon.MarkerColor}/{icon.IconName}.png"))))));
 
         foreach (var region in trip.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Id))
-            document.Add(BuildRegion(region, trip.Id));
+            document.Add(BuildRegion(region, trip.Id, includePrivatePlanning));
 
         if (trip.Segments.Count > 0)
         {
             var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", "Segments"));
             foreach (var segment in trip.Segments.OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id))
-                folder.Add(BuildSegment(segment, trip.Id));
+                folder.Add(BuildSegment(segment, trip.Id, includePrivatePlanning));
             document.Add(folder);
         }
 
-        return new XDocument(new XDeclaration("1.0", "utf-8", "yes"),
+        var result = new XDocument(new XDeclaration("1.0", "utf-8", "yes"),
             new XElement(Kml + "kml", document)).ToString();
+        if (result.Length > WayfarerKmlParser.MaximumDocumentCharacters)
+            throw new InvalidOperationException("The complete native export exceeds the supported file limit.");
+        return result;
     }
 
-    private static XElement BuildRegion(Region region, Guid tripId)
+    private static XElement BuildRegion(Region region, Guid tripId, bool includePrivatePlanning)
     {
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));
         AddData(folder,
             ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
             ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes) ?? ""),
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
+        AddPlanning(folder, region, "region", includePrivatePlanning);
         foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
-            folder.Add(BuildPlace(place, region.Id));
+            folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));
         foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Id))
-            folder.Add(BuildArea(area, region.Id));
+            folder.Add(BuildArea(area, region.Id, includePrivatePlanning));
         return folder;
     }
 
-    private static XElement BuildPlace(Place place, Guid regionId)
+    private static XElement BuildPlace(Place place, Guid regionId, bool includePrivatePlanning)
     {
         var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", place.Name),
             new XElement(Kml + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"));
@@ -79,26 +85,28 @@ public static class TripWayfarerKmlExporter
             ("AddressEnrichmentProvider", place.AddressEnrichmentProvider ?? ""),
             ("AddressEnrichmentStorageMode", place.AddressEnrichmentStorageMode ?? ""),
             ("AddressEnrichedAt", place.AddressEnrichedAt?.ToUniversalTime().ToString("O") ?? ""));
+        AddPlanning(placemark, place, "place", includePrivatePlanning);
         if (place.Location is not null)
             placemark.Add(new XElement(Kml + "Point", new XElement(Kml + "coordinates", CoordinateText(place.Location.Coordinate))));
         return placemark;
     }
 
     /// <summary>Preserves each Area ring as its own standard KML boundary without changing native metadata.</summary>
-    private static XElement BuildArea(Area area, Guid regionId)
+    private static XElement BuildArea(Area area, Guid regionId, bool includePrivatePlanning)
     {
         var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", area.Name));
         AddData(placemark,
             ("AreaId", GuidText(area.Id)), ("RegionId", GuidText(regionId)),
             ("DisplayOrder", Number(area.DisplayOrder)), ("FillHex", area.FillHex ?? ""),
             ("NotesHtml", RichNotes.Normalize(area.Notes) ?? ""));
+        AddPlanning(placemark, area, "area", includePrivatePlanning);
         if (area.Geometry is Polygon polygon)
             placemark.Add(new XElement(Kml + "Polygon", KmlPolygonGeometry.WriteBoundaries(polygon)));
         return placemark;
     }
 
     /// <summary>Writes the active double, exact duration ticks and existing credential-free route provenance.</summary>
-    private static XElement BuildSegment(Segment segment, Guid tripId)
+    private static XElement BuildSegment(Segment segment, Guid tripId, bool includePrivatePlanning)
     {
         var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
         var hasCustomRoute = segment.RouteGeometry is not null;
@@ -118,6 +126,7 @@ public static class TripWayfarerKmlExporter
         AddData(placemark, ("TripId", GuidText(tripId)));
         AddData(placemark, ("RouteProvenance", SegmentRouteProvenance.Capture(segment) is { } provenance
             ? JsonSerializer.Serialize(provenance) : ""));
+        AddPlanning(placemark, segment, "segment", includePrivatePlanning);
         if (line is not null)
             placemark.Add(new XElement(Kml + "LineString", new XElement(Kml + "tessellate", "1"),
                 new XElement(Kml + "coordinates", string.Join(' ', line.Coordinates.Select(CoordinateText)))));
@@ -162,6 +171,17 @@ public static class TripWayfarerKmlExporter
                 throw new InvalidOperationException("Segment mode and transport profile key do not match.");
             SegmentMeasurementState.Validate(segment);
         }
+    }
+
+    /// <summary>Encodes trusted saved values without losing historical zone choices or optional qualifiers.</summary>
+    private static void AddPlanning(XElement owner, IPlanningTarget target, string kind, bool include)
+    {
+        if (!include || target.Planning is not { } value) return;
+        PlanningValidation.Validate(value, kind, value);
+        var json = PlanningCodec.Write(value);
+        if (json.Length > WayfarerKmlParser.MaximumPlanningCharacters)
+            throw new InvalidOperationException("The complete planning aggregate exceeds the supported limit.");
+        AddData(owner, ("Planning", json));
     }
 
     private static void AddData(XElement owner, params (string Name, string Value)[] values) =>

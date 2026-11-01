@@ -1562,7 +1562,9 @@ present. Provider credentials,
 verification, availability and current planning speeds do not participate in
 reading, transferring or cloning an already accepted result.
 
-New native Trip exports declare `WayfarerSchemaVersion=3`. Geometry, identities,
+Default native Trip exports declare `WayfarerSchemaVersion=3`; owner opt-in selects
+v4. See [personal native interchange](native-personal-interchange.md) for the complete
+file codec, owner actions, import review/choice permits, atomicity and cache contract. Geometry, identities,
 waypoint integrity, ownership and numerical validity remain checked. The native
 version controls the following distinct representations:
 
@@ -1570,9 +1572,9 @@ version controls the following distinct representations:
 | --- | --- | --- |
 | v1 / recognized versionless legacy | `DurationMin` | Established Manual normalization and geometry/planning reconciliation. |
 | v2 | Integer `DurationSeconds` | Established canonical compatibility checks; no reinterpretation as fractional time. |
-| v3 | Integer `DurationTicks` | Exact active `TimeSpan` ticks; values must be nonnegative multiples of 10, matching PostgreSQL interval microseconds. |
+| v3/v4 | Integer `DurationTicks` | Exact active `TimeSpan` ticks; values must be nonnegative multiples of 10, matching PostgreSQL interval microseconds. |
 
-V3 writes `DistanceKm` with round-trip double precision and carries existing
+V3/v4 write `DistanceKm` with round-trip double precision and carries existing
 credential-free source metadata in `RouteProvenance` JSON: `Provider`,
 `StorageMode`, `MappingMode`, `GeneratedAt`, `Attribution`, `InstructionsJson`,
 `TransportProfileId`, `ProviderConfigurationId`, `ProviderConfigurationVersion`.
@@ -1580,9 +1582,9 @@ Configuration/profile IDs in this provenance are historical scalar identities,
 not execution authority. The actual planning profile still resolves through
 `TransportProfileKey`. JSON members are bounded and duplicate/unknown claims,
 unsupported retention rights and invalid normalized instructions are rejected.
-Neither `DurationTicks` in older versions nor `DurationSeconds` in v3 is accepted.
+Neither `DurationTicks` in older versions nor `DurationSeconds` in v3/v4 is accepted.
 
-V3 imports and clones preserve valid nulls, active values and Manual intent
+V3/v4 imports and existing clones preserve valid nulls, active values and Manual intent
 without numerical recalculation. Finite nonnegative historical estimates remain
 valid even when current geometry/planning produces different numbers. Missing
 source metadata stays unknown; numerical differences never invent provider
@@ -1615,8 +1617,8 @@ as `FormatException` through the established `invalid_kml` response. Detached
 parsing finishes before either import path tracks a new graph or the native
 upsert transaction replaces children; the existing transaction owners are unchanged.
 
-These standard boundaries are supported by all current native v1/v2/v3 readers,
-including recognized versionless v1. Native export stays at schema v3. This does
+These standard boundaries are supported by all current native v1/v2/v3/v4 readers,
+including recognized versionless v1. Default native export stays at v3; owner planning inclusion uses v4. This does
 not qualify older Wayfarer readers or the external Google My Maps service. The
 change only affects Polygon Area interchange; existing saved Areas and the
 Region/Place/Segment contracts remain unchanged.

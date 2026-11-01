@@ -7,6 +7,35 @@ namespace Wayfarer.Tests.Parsers;
 /// <summary>Focused structural classification and legacy-v1 compatibility tests.</summary>
 public sealed class WayfarerKmlParserTests
 {
+    /// <summary>Supported legacy versions classify Regions by identity, including an authored transport-like name.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("1")]
+    [InlineData("2")]
+    [InlineData("3")]
+    public void LegacyRegionNamedSegmentsRetainsEmptyAndPopulatedContent(string? version)
+    {
+        var tripId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+        var placeId = Guid.NewGuid();
+        var versionData = version == null ? "" : $"<Data name='WayfarerSchemaVersion'><value>{version}</value></Data>";
+        var kml = $"""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+            {versionData}<Data name="TripId"><value>{tripId}</value></Data></ExtendedData>
+            <Folder><name>Segments</name><ExtendedData><Data name="RegionId"><value>{regionId}</value></Data>
+            <Data name="NotesHtml"><value>&lt;p&gt;Retain me&lt;/p&gt;</value></Data></ExtendedData></Folder>
+            </Document></kml>
+            """;
+        var empty = Assert.Single(Parse(kml).Document!.Regions);
+        Assert.Equal(regionId, empty.Id); Assert.Equal("Segments", empty.Name);
+        Assert.Equal("<p>Retain me</p>", empty.Notes); Assert.Empty(empty.Places);
+        var populated = kml.Replace("</Folder>", $"""
+            <Placemark><name>Inside</name><ExtendedData><Data name="PlaceId"><value>{placeId}</value></Data>
+            </ExtendedData><Point><coordinates>23,37</coordinates></Point></Placemark></Folder>
+            """);
+        Assert.Equal(placeId, Assert.Single(Assert.Single(Parse(populated).Document!.Regions).Places).Id);
+    }
+
     /// <summary>Proves structurally native versionless KML selects v1 and preserves zero-waypoint custom behavior.</summary>
     [Fact]
     public void ClassifyAndParse_VersionlessNativeStructure_SelectsV1()

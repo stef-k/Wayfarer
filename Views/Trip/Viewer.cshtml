@@ -200,39 +200,7 @@
                                         <hr class="dropdown-divider"/>
                                     </li>
                                 }
-                                <li>
-                                    <a id="export-wayfarer"
-                                       class="dropdown-item"
-                                       asp-area=""
-                                       asp-controller="TripExport"
-                                       asp-action="ExportWayfarerKml"
-                                       asp-route-id="@Model.Id"
-                                       title="Export Trip to Wayfarer KML">
-                                        <i class="bi bi-filetype-xml me-1"></i>Wayfarer KML
-                                    </a>
-                                </li>
-                                <li>
-                                    <a id="export-mymaps"
-                                       class="dropdown-item"
-                                       asp-area=""
-                                       asp-controller="TripExport"
-                                       asp-action="ExportGoogleMyMapsKml"
-                                       asp-route-id="@Model.Id"
-                                       title="Export Trip to Google My Maps KML">
-                                        <i class="bi bi-map me-1"></i>Google My Maps KML
-                                    </a>
-                                </li>
-                                <li>
-                                    <a id="export-pdf"
-                                       class="dropdown-item"
-                                       asp-area=""
-                                       asp-controller="TripExport"
-                                       asp-action="ExportPdf"
-                                       asp-route-id="@Model.Id"
-                                       title="Export Trip to PDF guide" target="_blank">
-                                        <i class="bi bi-filetype-pdf me-1"></i>Export PDF
-                                    </a>
-                                </li>
+                                <partial name="~/Views/Trip/_NativeExport.cshtml" model="Model" />
                             </ul>
                         </div>
 

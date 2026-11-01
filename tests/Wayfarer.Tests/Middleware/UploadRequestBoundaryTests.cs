@@ -89,8 +89,11 @@ public sealed class UploadRequestBoundaryTests : TestBase
         using var host = await StartHost(CreateDbContext(), ImportStaging.Create(CreateTestDirectory()), Settings(1), Mock.Of<ITripImportService>());
         var actions = host.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().Where(a => a.EndpointMetadata.OfType<UserFileUploadAttribute>().Any()).ToArray();
-        Assert.Equal(3, actions.Length);
-        var trip = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController));
+        Assert.Equal(4, actions.Length);
+        var trip = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController) && a.ActionName == "Import");
+        var review = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController) && a.ActionName == "ReviewImport");
+        Assert.NotEmpty(review.MethodInfo.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), false));
+        Assert.Equal(WayfarerKmlParser.MaximumEncodedDocumentBytes, Assert.Single(review.MethodInfo.GetCustomAttributes(typeof(RequestFormLimitsAttribute), false).Cast<RequestFormLimitsAttribute>()).MultipartBodyLengthLimit);
         var location = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(LocationImportController));
         var managed = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(Wayfarer.Areas.Api.Controllers.MobileLocationImportsController));
         Assert.Contains(managed.EndpointMetadata, item => item is ManagedImportUploadAttribute);

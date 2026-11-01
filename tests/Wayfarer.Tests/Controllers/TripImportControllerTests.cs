@@ -143,7 +143,7 @@ public class TripImportControllerTests : TestBase
 
         var json = Assert.IsType<JsonResult>(result);
         Assert.Equal(500, json.StatusCode);
-        Assert.Equal("import_failed", json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
+        Assert.Equal("import_outcome_unknown", json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
         Assert.DoesNotContain("postgres", json.Value?.GetType().GetProperty("message")?.GetValue(json.Value)?.ToString());
     }
 

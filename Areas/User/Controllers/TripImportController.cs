@@ -29,8 +29,22 @@ public class TripImportController : BaseController
     [RequestFormLimits(MultipartBodyLengthLimit = Wayfarer.Parsers.WayfarerKmlParser.MaximumEncodedDocumentBytes)]
     public async Task<IActionResult> Import(
         IFormFile       file,
-        TripImportMode  mode = TripImportMode.Auto)
+        TripImportMode  mode = TripImportMode.Auto, string? reviewToken = null, [FromForm] string[]? choices = null)
     {
+        return await HandleAsync(file, mode, reviewToken, choices, reviewOnly: false);
+    }
+
+    /// <summary>Read-only owner review shares upload limits, antiforgery and safe errors with import.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Wayfarer.Middleware.UserFileUpload]
+    [RequestFormLimits(MultipartBodyLengthLimit = Wayfarer.Parsers.WayfarerKmlParser.MaximumEncodedDocumentBytes)]
+    public Task<IActionResult> ReviewImport(IFormFile file) => HandleAsync(file, TripImportMode.Upsert, null, null, reviewOnly: true);
+
+    /// <summary>Preserves the bounded response contract without reflecting untrusted file/exception text.</summary>
+    private async Task<IActionResult> HandleAsync(IFormFile file, TripImportMode mode, string? reviewToken, string[]? choices, bool reviewOnly)
+    {
+        Response.Headers.CacheControl = "private, no-store";
         if (file is null || file.Length == 0)
             return ImportError(StatusCodes.Status400BadRequest, "invalid_file", "Select a KML file to import.");
 
@@ -40,7 +54,12 @@ public class TripImportController : BaseController
 
         try
         {
-            var result = await _svc.ImportWayfarerKmlAsync(stream, userId, mode, HttpContext.RequestAborted);
+            if (reviewOnly) return Json(new { status = "review", review = await _svc.ReviewNativeAsync(stream, userId, HttpContext.RequestAborted) });
+            if (reviewToken != null && mode != TripImportMode.Upsert)
+                return ImportError(400, "import_choices_invalid", "The selected import choices are invalid.");
+            var result = reviewToken == null
+                ? await _svc.ImportWayfarerKmlAsync(stream, userId, mode, HttpContext.RequestAborted)
+                : await _svc.ImportReviewedNativeAsync(stream, userId, new(reviewToken, choices ?? []), HttpContext.RequestAborted);
             var redirectUrl = $"/User/Trip/Edit/{result.TripId:D}";
             if (result.IsGenericWithRoutes)
             {
@@ -59,10 +78,10 @@ public class TripImportController : BaseController
         {
             return Json(new { status = "duplicate", tripId = ex.TripId });
         }
-        catch (TripImportPlanningLossException ex)
+        catch (NativeImportReviewException ex)
         {
             Response.Headers.CacheControl = "private, no-store";
-            return ImportError(StatusCodes.Status409Conflict, "planning_loss_requires_review", ex.Message);
+            return ImportError(StatusCodes.Status409Conflict, ex.Code, ex.Message);
         }
         catch (TripImportValidationException ex)
         {
@@ -98,7 +117,7 @@ public class TripImportController : BaseController
         {
             _logger.LogError("Trip import failed for user {UserId}; failure type {ExceptionType}; request {RequestId}",
                 userId, ex.GetType().Name, HttpContext.TraceIdentifier);
-            return ImportError(StatusCodes.Status500InternalServerError, "import_failed", "Import failed. Please try again.");
+            return ImportError(StatusCodes.Status500InternalServerError, "import_outcome_unknown", "The import outcome could not be confirmed. Check My Trips before starting another import.");
         }
     }
 

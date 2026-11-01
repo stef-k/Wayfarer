@@ -6,6 +6,10 @@ namespace Wayfarer.Middleware;
 public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
 {
     private static readonly object EmbedKey = new();
+    private static readonly object PrivateKey = new();
+
+    /// <summary>Retains private download policy through downstream error re-execution.</summary>
+    public static void RequirePrivateResponse(HttpContext context) => context.Items[PrivateKey] = true;
 
     /// <summary>Marks a public embed after its controller has completed visibility checks.</summary>
     public static void AllowPublicEmbed(HttpContext context) => context.Items[EmbedKey] = true;
@@ -19,7 +23,10 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         var path = context.Request.Path.Value ?? "";
         var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
             && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase)
-                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase));
+                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase))
+            || path.StartsWith("/Trip/ExportPersonalWayfarerKml/", StringComparison.OrdinalIgnoreCase)
+            || path.TrimEnd('/').Equals("/User/Trip/Import", StringComparison.OrdinalIgnoreCase)
+            || path.TrimEnd('/').Equals("/User/Trip/ReviewImport", StringComparison.OrdinalIgnoreCase);
         context.Response.OnStarting(() =>
         {
             var response = context.Response;
@@ -28,7 +35,7 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
                 response.Headers.CacheControl = "no-store";
                 response.Headers.Pragma = "no-cache";
             }
-            if (privatePlanning)
+            if (privatePlanning || context.Items.ContainsKey(PrivateKey))
             {
                 response.Headers.CacheControl = "private, no-store";
                 response.Headers.Pragma = "no-cache";

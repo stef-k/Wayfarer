@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
@@ -39,12 +40,33 @@ namespace Wayfarer.Controllers
 
             if (!trip.IsPublic)
             {
+                Wayfarer.Middleware.BrowserResponsePolicyMiddleware.RequirePrivateResponse(HttpContext);
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (userId == null || trip.UserId != userId)
                     throw new UnauthorizedAccessException("You are not authorized to export this trip.");
             }
 
             return trip;
+        }
+
+        /// <summary>Distinct authenticated owner action: public visibility cannot upgrade download authority.</summary>
+        [HttpGet]
+        [Authorize(Roles = "User")]
+        public async Task<IActionResult> ExportPersonalWayfarerKml(Guid id, bool includePrivatePlanning = false)
+        {
+            Response.Headers.CacheControl = "private, no-store";
+            try
+            {
+                var owner = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (owner == null) return Unauthorized();
+                var download = await _exportSvc.GeneratePersonalNativeAsync(id, owner, includePrivatePlanning, HttpContext.RequestAborted);
+                return File(System.Text.Encoding.UTF8.GetBytes(download.Kml), "application/vnd.google-earth.kml+xml", $"{download.Name}-Wayfarer.kml");
+            }
+            catch (UnauthorizedAccessException) { return NotFound(); }
+            catch (Exception error) when (error is InvalidOperationException or Wayfarer.Models.Planning.PlanningValidationException)
+            {
+                return UnprocessableEntity("The complete personal export cannot be encoded within the supported format and limits.");
+            }
         }
 
         /// <summary>Exports native KML after access checks; serialization failures use the existing server-error handler.</summary>

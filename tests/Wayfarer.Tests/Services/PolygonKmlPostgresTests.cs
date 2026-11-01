@@ -34,7 +34,7 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
         await using (var import = fixture.CreateContext())
         {
             using var stream = Stream(xml);
-            importedId = (await Importer(import).ImportWayfarerKmlAsync(stream, original.UserId, TripImportMode.CreateNew)).TripId;
+            importedId = (await Importer(import).ImportWithReviewAsync(stream, original.UserId, TripImportMode.CreateNew)).TripId;
             fixture.RegisterTrip(importedId);
         }
         await using (var verification = fixture.CreateContext())
@@ -48,7 +48,7 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
             // Native authoritative replacement is a second supported persistence path.
             await using var upsert = fixture.CreateContext();
             using var stream = Stream(xml);
-            var result = await Importer(upsert).ImportWayfarerKmlAsync(stream, original.UserId, TripImportMode.Upsert);
+            var result = await Importer(upsert).ImportWithReviewAsync(stream, original.UserId, TripImportMode.Upsert);
             Assert.Equal(importedId, result.TripId);
             await using var verification = fixture.CreateContext();
             AssertAreas(original, await ReadTripAsync(verification, importedId));
@@ -73,7 +73,7 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
         {
             using var stream = Stream(xml.ToString());
             await Assert.ThrowsAsync<FormatException>(() =>
-                Importer(import).ImportWayfarerKmlAsync(stream, original.UserId, mode));
+                Importer(import).ImportWithReviewAsync(stream, original.UserId, mode));
             Assert.Empty(import.ChangeTracker.Entries());
         }
         await using var verification = fixture.CreateContext();
@@ -113,7 +113,7 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
             using var stream = Stream(xml.ToString());
             await Assert.ThrowsAsync<FormatException>(async () =>
             {
-                var result = await Importer(import).ImportWayfarerKmlAsync(stream, original.UserId, mode);
+                var result = await Importer(import).ImportWithReviewAsync(stream, original.UserId, mode);
                 fixture.RegisterTrip(result.TripId); // Retain fixture cleanup even when the regression accepts input.
             });
             Assert.Empty(import.ChangeTracker.Entries());

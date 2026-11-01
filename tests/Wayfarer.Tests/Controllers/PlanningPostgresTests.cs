@@ -138,7 +138,7 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         await using var db = fixture.CreateContext();
         var importer = new TripImportService(db, NullLogger<TripImportService>.Instance);
         await using (var file = new MemoryStream(Encoding.UTF8.GetBytes(kml)))
-            await importer.ImportWayfarerKmlAsync(file, trip.UserId, TripImportMode.Upsert);
+            await importer.ImportWithReviewAsync(file, trip.UserId, TripImportMode.Upsert);
         await using var verify = fixture.CreateContext();
         var saved = await verify.Trips.AsNoTracking().Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas).Include(t => t.Segments).SingleAsync(t => t.Id == trip.Id);
@@ -149,7 +149,7 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         Assert.NotNull(saved.Segments.Single().Planning);
         trip.Regions.Single().Areas.Clear();
         await using var removal = new MemoryStream(Encoding.UTF8.GetBytes(TripWayfarerKmlExporter.BuildKml(trip)));
-        await Assert.ThrowsAsync<TripImportPlanningLossException>(() => importer.ImportWayfarerKmlAsync(removal, trip.UserId, TripImportMode.Upsert));
+        await Assert.ThrowsAsync<NativeImportReviewException>(() => importer.ImportWithReviewAsync(removal, trip.UserId, TripImportMode.Upsert));
         Assert.Single(await verify.Areas.AsNoTracking().Where(a => a.Region.TripId == trip.Id).ToArrayAsync());
     }
 
@@ -215,7 +215,7 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         await using var db = fixture.CreateContext(interceptor);
         var importer = new TripImportService(db, NullLogger<TripImportService>.Instance);
         await using var file = new MemoryStream(Encoding.UTF8.GetBytes(TripWayfarerKmlExporter.BuildKml(trip)));
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => importer.ImportWayfarerKmlAsync(file, trip.UserId, TripImportMode.Upsert));
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => importer.ImportWithReviewAsync(file, trip.UserId, TripImportMode.Upsert));
         Assert.Equal("Induced late reconciliation failure", failure.Message);
         Assert.True(interceptor.Rebuilt);
         await using var verify = fixture.CreateContext();
