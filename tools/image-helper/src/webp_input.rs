@@ -10,11 +10,20 @@ use std::{io::Cursor, ops::Range};
 
 /// Require one authoritative image payload, consistent metadata flags and complete decoding.
 pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
-    let authority = admit(bytes)?;
+    decode_with_geometry(bytes, dimensions, 128 * 1024 * 1024)
+}
+
+/// Decoder-owned memory excludes caller output; the child ceiling remains authoritative.
+pub(crate) fn decode_with_geometry(
+    bytes: &[u8],
+    geometry: fn(u32, u32) -> Result<usize>,
+    budget: usize,
+) -> Result<Raster> {
+    let authority = admit(bytes, geometry)?;
     let mut decoder = image_webp::WebPDecoder::new(Cursor::new(bytes)).map_err(webp_error)?;
-    decoder.set_memory_limit(128 * 1024 * 1024);
+    decoder.set_memory_limit(budget);
     let (width, height) = decoder.dimensions();
-    dimensions(width, height)?;
+    geometry(width, height)?;
     if decoder.is_animated()
         || (width, height) != authority.geometry
         || decoder.has_alpha() != authority.alpha
@@ -56,7 +65,7 @@ struct Authority {
 }
 
 /// Validate exact extent, padding, placement, duplicate known chunks and animation contradictions.
-fn admit(bytes: &[u8]) -> Result<Authority> {
+fn admit(bytes: &[u8], geometry_check: fn(u32, u32) -> Result<usize>) -> Result<Authority> {
     if bytes.len() < 12
         || &bytes[..4] != b"RIFF"
         || &bytes[8..12] != b"WEBP"
@@ -90,7 +99,7 @@ fn admit(bytes: &[u8]) -> Result<Authority> {
                 }
                 flags = data[0];
                 let geometry = (read24(&data[4..7]) + 1, read24(&data[7..10]) + 1);
-                dimensions(geometry.0, geometry.1)?;
+                geometry_check(geometry.0, geometry.1)?;
                 canvas = Some(geometry);
             }
             b"ANIM" | b"ANMF" => return Err(Failure::Source),
@@ -121,7 +130,7 @@ fn admit(bytes: &[u8]) -> Result<Authority> {
         offset = next;
     }
     let payload = payload.ok_or(Failure::Source)?;
-    let (geometry, payload_alpha) = payload_info(bytes, payload)?;
+    let (geometry, payload_alpha) = payload_info(bytes, payload, geometry_check)?;
     alpha |= payload_alpha;
     if canvas.is_some_and(|expected| expected != geometry)
         || flags & 0x2c != metadata
@@ -144,7 +153,11 @@ fn metadata_chunk(seen: &mut u8, flag: u8) -> Result<()> {
 
 /// Ask the same public codec to read a simple bounded payload, avoiding a custom VP8 parser.
 /// This temporary encoded copy is dropped before the original container is pixel-decoded.
-fn payload_info(bytes: &[u8], range: Range<usize>) -> Result<((u32, u32), bool)> {
+fn payload_info(
+    bytes: &[u8],
+    range: Range<usize>,
+    geometry_check: fn(u32, u32) -> Result<usize>,
+) -> Result<((u32, u32), bool)> {
     let mut simple = zeroed(12 + range.len())?;
     simple[..4].copy_from_slice(b"RIFF");
     let length = simple.len() as u32 - 8;
@@ -153,7 +166,7 @@ fn payload_info(bytes: &[u8], range: Range<usize>) -> Result<((u32, u32), bool)>
     simple[12..].copy_from_slice(&bytes[range]);
     let decoder = image_webp::WebPDecoder::new(Cursor::new(simple)).map_err(webp_error)?;
     let geometry = decoder.dimensions();
-    dimensions(geometry.0, geometry.1)?;
+    geometry_check(geometry.0, geometry.1)?;
     Ok((geometry, decoder.has_alpha()))
 }
 

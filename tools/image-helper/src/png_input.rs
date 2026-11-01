@@ -12,8 +12,8 @@ pub(crate) fn options() -> png::DecodeOptions {
 }
 
 /// Calculate filtered bytes from original samples, including only nonempty Adam7 passes.
-fn filtered_length(info: &Info<'_>) -> Result<usize> {
-    dimensions(info.width, info.height)?;
+fn filtered_length(info: &Info<'_>, geometry: fn(u32, u32) -> Result<usize>) -> Result<usize> {
+    geometry(info.width, info.height)?;
     let passes = [
         (0, 0, 8, 8),
         (4, 0, 8, 8),
@@ -45,6 +45,14 @@ fn filtered_length(info: &Info<'_>) -> Result<usize> {
 /// Consume every chunk with CRC checks, fully inflate, and require IEND at exact EOF.
 /// The scratch buffer and its region are never reset or compacted during admission.
 pub(crate) fn admit(bytes: &[u8]) -> Result<()> {
+    admit_with_geometry(bytes, dimensions)
+}
+
+/// Avatar admission shares the strict completion witness with its own geometry policy.
+pub(crate) fn admit_with_geometry(
+    bytes: &[u8],
+    geometry: fn(u32, u32) -> Result<usize>,
+) -> Result<()> {
     let mut decoder = StreamingDecoder::new_with_options(options());
     let mut scratch = Vec::new();
     let mut region = UnfilterRegion::default();
@@ -68,7 +76,7 @@ pub(crate) fn admit(bytes: &[u8]) -> Result<()> {
                 _ => {}
             },
             Decoded::ChunkComplete(kind) if &kind.0 == b"IHDR" => {
-                let length = filtered_length(decoder.info().ok_or(Failure::Source)?)?;
+                let length = filtered_length(decoder.info().ok_or(Failure::Source)?, geometry)?;
                 scratch = zeroed(length.checked_add(1).ok_or(Failure::TooLarge)?)?;
                 expected = Some(length);
             }

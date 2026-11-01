@@ -134,6 +134,13 @@
       "license": "MIT OR Apache-2.0"
     },
     {
+      "name": "glob",
+      "version": "0.3.4",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
       "name": "image",
       "version": "0.25.10",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -166,6 +173,13 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "a0d8a1c652b51dbb85c3c3164b1da63b88dafcc3fc12ecceb52f7577738c21f1",
       "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "libwebp-sys",
+      "version": "0.14.4",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "6b3a87b44e34d17161e4f17d92a463d596cb13825dcd1758ed18fd3a721e189c",
+      "license": "MIT"
     },
     {
       "name": "litrs",
@@ -776,6 +790,26 @@
       "sha256": "74594d183c260e288e145bdd40c92d33081ca71ed27dc3d11dbd65f3668bb282",
       "source_sha256": "025c0dd1236493fcd5b6386b68453852e6528722bd5f8dce5949e94d225e7a60",
       "normalization": "Trailing whitespace removed from official HTML; all notice text retained."
+    },
+    {
+      "notice": "glob 0.3.4 / LICENSE-MIT",
+      "sha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+    },
+    {
+      "notice": "glob 0.3.4 / LICENSE-APACHE",
+      "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / Cargo.toml.orig",
+      "sha256": "53dc1c7f36fa009b29a75294709df3606aa712f6432990a06cae90496d4de063"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / vendor/COPYING",
+      "sha256": "5fc4a917a185fc4ff0411ee2b8febb48031f83286beade2a1e3602df71e784a3"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / vendor/PATENTS",
+      "sha256": "a4f7fabf7710d73826fdb236d2df41a60b765dbc3a286f0793458b8ce1d9ea56"
     }
   ]
 }

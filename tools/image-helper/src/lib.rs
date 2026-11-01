@@ -1,4 +1,7 @@
 //! Image policy and transform. HTTP, caches and process admission stay in C#.
+mod avatar;
+mod avatar_color;
+mod avatar_input;
 mod color;
 mod gif_input;
 mod jpeg_input;
@@ -7,6 +10,8 @@ mod png_input;
 mod raster;
 mod transform;
 mod webp_input;
+
+pub use avatar::{AvatarCrop, avatar};
 
 pub use transform::{OutputFormat, Recipe, transform};
 
@@ -35,6 +40,7 @@ pub enum Failure {
     Arguments,
     TooLarge,
     Source,
+    Unsupported,
     Unavailable,
 }
 
@@ -45,6 +51,7 @@ impl Failure {
             Self::Arguments => 2,
             Self::TooLarge => 3,
             Self::Source => 4,
+            Self::Unsupported => 5,
             Self::Unavailable => 70,
         }
     }
@@ -55,6 +62,7 @@ impl Failure {
             Self::Arguments => "invalid transform arguments",
             Self::TooLarge => "source exceeds image limits",
             Self::Source => "unsupported or malformed source image",
+            Self::Unsupported => "unsupported photo format",
             Self::Unavailable => "image processing unavailable",
         }
     }
