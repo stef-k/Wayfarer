@@ -211,3 +211,19 @@ The application reserves one no-queue upload slot before body reads. Its fixed
 60-second lifetime includes upload, helper (at most min(30s,remaining)) and
 publication; cancellation/reap precedes admission release. Proxy/PDF recipes
 and the qualified WebP decoder remain unchanged.
+
+The two checked-in avatar capacity fixtures are generated nonpersonal 8000×5000
+images. `avatar-progressive-cmyk-40mp.jpg` is the retained design-review Pillow
+CMYK constant (71,47,10,8), quality85/progressive; SHA-256
+`a403825e9bcb4e39391817e7433f12b7d6fdec76dae5c73ee58534cf676c672b`.
+`avatar-rgba16-40mp.png` is a generated RGBA16 PNG with alternating
+(20000,25000,50000,32768)/(40000,25000,50000,65535) samples, zlib6,
+filter0 rows; SHA-256
+`1368a8f9951ac80ae47bf9f0b73c6e7a8a7be9cb97099dce52ec06febb6391a6`.
+`ProfilePhotoHelperTests` runs both through the actual contained supervisor and
+independently decodes completed output. These are focused capacity examples,
+not a claim that every possible 40-MP encoding has been exhaustively qualified.
+
+`avatar-gray-icc.jpg` is generated from the retained `gray-icc.png` with Pillow
+JPEG quality95 and the same gray ICC profile, covering gray-channel normalization.
+Its SHA-256 is `6a608884c60feb85e910ae89e7266e87656cc7d8672042d1b86381970ea23a54`.

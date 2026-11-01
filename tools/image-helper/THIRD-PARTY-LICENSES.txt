@@ -17122,7 +17122,6 @@ system-dylib = [
 ] # Use the system-installed dylib instead of compiling a static library from the vendor
 generate-bindings = ["dep:bindgen"] # Generate ffi.rs based on the compile target
 
-
 ===== libwebp-sys 0.14.4 / vendor/COPYING =====
 Copyright (c) 2010, Google Inc. All rights reserved.
 
@@ -17155,6 +17154,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+
 ===== libwebp-sys 0.14.4 / vendor/PATENTS =====
 Additional IP Rights Grant (Patents)
 ------------------------------------
@@ -17179,4 +17179,28 @@ constitute direct or contributory patent infringement, or inducement of
 patent infringement, then any patent rights granted to you under this License
 for these implementations of WebM shall terminate as of the date such
 litigation is filed.
+
+
+===== libwebp-sys 0.14.4 / MIT terms from package declaration =====
+Binding authors: XianYou <xianyou.cyq@alibaba-inc.com>, Kornel Lesiński <kornel@geekhood.net>.
+License: MIT, as declared in the published package Cargo.toml (included above).
+The package supplies no standalone binding license text. Complete MIT terms:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 

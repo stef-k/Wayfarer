@@ -52,12 +52,15 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
         ..Default::default()
     };
     let mut decoder = Decoder::new_with_limits(bytes, limits).map_err(jpeg_error)?;
+    let gray = decoder.jpeg_color_space() == ColorSpace::Grayscale;
     let cmyk = matches!(
         decoder.jpeg_color_space(),
         ColorSpace::Cmyk | ColorSpace::Ycck
     );
     decoder = decoder.with_output_format(if cmyk {
         PixelFormat::Cmyk
+    } else if gray {
+        PixelFormat::Grayscale
     } else {
         PixelFormat::Rgb
     });
@@ -79,7 +82,13 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
         width: decoded.width as u32,
         height: decoded.height as u32,
         samples: Samples::Eight(decoded.data),
-        layout: if cmyk { Layout::Rgba } else { Layout::Rgb },
+        layout: if cmyk {
+            Layout::Rgba
+        } else if gray {
+            Layout::Gray
+        } else {
+            Layout::Rgb
+        },
         cmyk,
         profile: decoded
             .icc_profile
@@ -197,9 +206,9 @@ fn strict_jpeg_completion(bytes: &[u8]) -> Result<()> {
                 output.as_mut_ptr(),
                 pitch,
                 if cmyk {
-                    tj::TJPF_TJPF_CMYK as i32
+                    tj::TJPF_TJPF_CMYK
                 } else {
-                    tj::TJPF_TJPF_RGB as i32
+                    tj::TJPF_TJPF_RGB
                 },
             ) != 0
             {

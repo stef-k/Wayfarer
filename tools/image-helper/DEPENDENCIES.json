@@ -793,11 +793,11 @@
     },
     {
       "notice": "glob 0.3.4 / LICENSE-MIT",
-      "sha256": "14435fbcd271e2783f721b57b7bf4f6502c1379249a4300e0e5bb774686c2d90"
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
     },
     {
       "notice": "glob 0.3.4 / LICENSE-APACHE",
-      "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
     },
     {
       "notice": "libwebp-sys 0.14.4 / Cargo.toml.orig",
@@ -805,11 +805,16 @@
     },
     {
       "notice": "libwebp-sys 0.14.4 / vendor/COPYING",
-      "sha256": "5fc4a917a185fc4ff0411ee2b8febb48031f83286beade2a1e3602df71e784a3"
+      "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
     },
     {
       "notice": "libwebp-sys 0.14.4 / vendor/PATENTS",
-      "sha256": "a4f7fabf7710d73826fdb236d2df41a60b765dbc3a286f0793458b8ce1d9ea56"
+      "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / MIT terms from package declaration",
+      "sha256": "508edcfe2faf70f4be0418c8947d4ead86a2a4d2a2eb310c2b5b07f5a56e196b",
+      "source": "MIT declaration and authors from Cargo.toml.orig; complete standard MIT grant"
     }
   ]
 }

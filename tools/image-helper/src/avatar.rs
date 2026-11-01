@@ -17,8 +17,9 @@ pub fn avatar(bytes: &[u8], crop: Option<AvatarCrop>) -> Result<Vec<u8>> {
     }
     let raster = avatar_input::decode(bytes)?;
     let mut pixels = image::DynamicImage::ImageRgba8(avatar_color::normalize(&raster)?);
-    pixels.apply_orientation(raster.orientation);
+    let orientation = raster.orientation;
     drop(raster);
+    pixels.apply_orientation(orientation);
     let size = pixels.width().min(pixels.height());
     let crop = crop.unwrap_or(AvatarCrop {
         x: (pixels.width() - size) / 2,
@@ -89,14 +90,16 @@ fn encode(pixels: &[u8], side: u32) -> Result<Vec<u8>> {
     if length == 0 || pointer.is_null() {
         return Err(Failure::Unavailable);
     }
-    let result = if length > 256 * 1024 {
-        Err(Failure::Unavailable)
-    } else {
-        let mut output = zeroed(length)?;
-        // SAFETY: libwebp returned exactly length initialized bytes, still live here.
-        output.copy_from_slice(unsafe { std::slice::from_raw_parts(pointer, length) });
-        Ok(output)
-    };
+    let result = (|| {
+        if length > 256 * 1024 {
+            Err(Failure::Unavailable)
+        } else {
+            let mut output = zeroed(length)?;
+            // SAFETY: libwebp returned exactly length initialized bytes, still live here.
+            output.copy_from_slice(unsafe { std::slice::from_raw_parts(pointer, length) });
+            Ok(output)
+        }
+    })();
     // SAFETY: matching allocator; pointer is neither borrowed nor used afterwards.
     unsafe { libwebp_sys::WebPFree(pointer.cast()) };
     result

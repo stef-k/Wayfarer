@@ -14,6 +14,9 @@ fn static_photos_are_small_square_and_never_enlarged() {
         "photo.jpg",
         "static.webp",
         "cmyk-tagged.jpg",
+        "cmyk-untagged.jpg",
+        "gray-icc.png",
+        "avatar-gray-icc.jpg",
         "gamma16-linear.png",
     ] {
         let output = avatar(&fixture(name), None).unwrap_or_else(|e| panic!("{name}: {e:?}"));
