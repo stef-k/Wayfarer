@@ -44,11 +44,11 @@ public sealed partial class PlaceRegionLifecycleService
         return new(trip, place, regions, siblings, segments, anchors, profiles, coordinates);
     }
 
-    /// <summary>Full moved/reordered content; coordinate dependencies exclude unrelated target/sibling Notes and Trip metadata.</summary>
+    /// <summary>Full moved/reordered content; coordinate dependencies exclude unrelated Planning, Notes and Trip metadata.</summary>
     private string PlaceStructureFingerprint(PlaceStructuralSnapshot snapshot, PlaceStructuralRequest request)
     {
         object Scalars(object entity) => _dbContext.Model.FindEntityType(entity.GetType())!.GetProperties()
-            .Where(p => !p.IsShadowProperty() && (entity is not Segment || p.Name is not (nameof(Segment.RowVersion) or nameof(Segment.Notes)))).OrderBy(p => p.Name, StringComparer.Ordinal)
+            .Where(p => !p.IsShadowProperty() && (entity is not Segment || p.Name is not (nameof(Segment.RowVersion) or nameof(Segment.Notes) or nameof(Segment.Planning)))).OrderBy(p => p.Name, StringComparer.Ordinal)
             .Select(p => new { p.Name, Value = FingerprintValue(p.PropertyInfo!.GetValue(entity)) }).ToArray();
         var place = snapshot.Place;
         return PlaceStructuralRequest.Hash(new

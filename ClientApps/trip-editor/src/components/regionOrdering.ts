@@ -3,7 +3,7 @@ import type { EditorRegion, EditorTripState, EditorMutationResult, EditorRegionO
 /** Exact material content of reordered Regions; canonical content/children are outside the order footprint. */
 export interface RegionOrderMaterial {
   id: string; displayOrder: number; name: string; notes: string | null;
-  coverImageUrl: string | null; center: EditorRegion['center'];
+  coverImageUrl: string | null; center: EditorRegion['center']; planning: NonNullable<EditorRegion['planning']> | null;
 }
 /** Complete original normal membership plus explicit canonical absence or identity/stored order. */
 export interface RegionOrderOriginals {
@@ -22,10 +22,10 @@ const sorted = (rows: RegionOrderMaterial[]): RegionOrderMaterial[] => [...rows]
 /** Copies original storage evidence instead of cover/display Notes defaults. */
 const material = (region: EditorRegion): RegionOrderMaterial => {
   const original = region?.originalValues;
-  if (!original || !['name', 'notesHtml', 'coverImage', 'center'].every(key => Object.hasOwn(original, key)) || !Number.isInteger(region.displayOrder))
+  if (!original || !['name', 'notesHtml', 'coverImage', 'center'].every(key => Object.hasOwn(original, key)) || !Object.hasOwn(region, 'planning') || !Number.isInteger(region.displayOrder))
     throw new Error('Original Region material is unavailable. Keep the order and explicitly review a fresh starting view.');
   return { id: region.id, displayOrder: region.displayOrder, name: original.name, notes: original.notesHtml,
-    coverImageUrl: original.coverImage?.rawUrl ?? null, center: original.center };
+    coverImageUrl: original.coverImage?.rawUrl ?? null, center: original.center, planning: region.planning ?? null };
 };
 
 /** Captures the full authoritative state synchronously before a prompt, preparation or later prop refresh. */

@@ -8,8 +8,15 @@ namespace Wayfarer.Models
     /// <summary>
     /// Represents a trip composed of regions, places, and segments.
     /// </summary>
-    public class Trip
+    public class Trip : Wayfarer.Models.Planning.IPlanningTarget
     {
+        /// <summary>Owner-private typed intentions; public/raw serialization and ordinary forms never include them.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.BindNever]
+        [Microsoft.AspNetCore.Mvc.ModelBinding.Validation.ValidateNever]
+        public Wayfarer.Models.Planning.PlanningAggregate? Planning { get; set; }
+
         /// <summary>Primary key.</summary>
         [Key]
         public Guid Id { get; set; }

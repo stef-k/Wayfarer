@@ -12,6 +12,37 @@ namespace Wayfarer.Tests.Models;
 /// </summary>
 public class TripDtoMapperTests : TestBase
 {
+    /// <summary>Tied authored orders use identity; null remains before explicit Place order, without storage edits.</summary>
+    [Fact]
+    public void ToApiDto_TiedCollectionsAreStableAcrossLoadedOrder()
+    {
+        var first = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var second = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var explicitOrder = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        var region = new Region { Id = first, DisplayOrder = 7,
+            Places = [new Place { Id = second }, new Place { Id = explicitOrder, DisplayOrder = -1 }, new Place { Id = first }],
+            Areas = [new Area { Id = second, DisplayOrder = 4 }, new Area { Id = first, DisplayOrder = 4 }] };
+        var trip = new Trip { Regions = [new Region { Id = second, DisplayOrder = 7 }, region],
+            Tags = [new Tag { Id = second, Name = "B", Slug = "b" }, new Tag { Id = first, Name = "A", Slug = "a" }] };
+        ApiTripSegmentDto[] segments = [new() { Id = second, DisplayOrder = 3 }, new() { Id = first, DisplayOrder = 3 }];
+        var before = trip.ToApiDto(segments);
+        Assert.Equal(new[] { first, second }, before.Regions!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second }, before.Segments!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second }, before.Tags!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second, explicitOrder }, before.Regions!.First().Places!.Select(item => item.Id));
+        Assert.Equal(new[] { first, second }, before.Regions!.First().Areas!.Select(item => item.Id));
+        trip.Regions = trip.Regions.Reverse().ToList();
+        trip.Tags = trip.Tags.Reverse().ToList();
+        region.Places = region.Places.Reverse().ToList();
+        region.Areas = region.Areas.Reverse().ToList();
+        var after = trip.ToApiDto(segments.Reverse().ToArray());
+        Assert.Equal(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(before), System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(after));
+        Assert.All(region.Places.Where(item => item.Id != explicitOrder), item => Assert.Null(item.DisplayOrder));
+        Assert.Equal(-1, region.Places.Single(item => item.Id == explicitOrder).DisplayOrder);
+        Assert.All(trip.Regions, item => Assert.Equal(7, item.DisplayOrder));
+        Assert.All(region.Areas, item => Assert.Equal(4, item.DisplayOrder));
+    }
+
     [Fact]
     public void ToApiDto_Trip_MapsCollectionsAndOrder()
     {

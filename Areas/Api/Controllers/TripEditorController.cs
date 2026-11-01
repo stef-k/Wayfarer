@@ -88,6 +88,8 @@ public sealed partial class TripEditorController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
+        await using var snapshot = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken) : null;
         var trip = await _dbContext.Trips
             .AsNoTracking()
             .Include(t => t.Regions).ThenInclude(r => r.Places)

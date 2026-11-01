@@ -35,12 +35,18 @@ public sealed class CanonicalRegionMigrationPostgresTests(PostgresMigrationTestF
             Id = Guid.NewGuid(), Trip = trip, UserId = other.Id,
             Name = "Unassigned Places", DisplayOrder = 0, Notes = "Retain second"
         };
-        db.Regions.AddRange(first, second);
-        await db.SaveChangesAsync();
-        db.ChangeTracker.Clear();
+        // Seed only columns present at the historical revision; today's mapped entities include later columns.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "Trips" ("Id", "UserId", "Name", "IsPublic")
+            VALUES ({trip.Id}, {trip.UserId}, {trip.Name}, false);
+            INSERT INTO "Regions" ("Id", "TripId", "UserId", "Name", "DisplayOrder", "Notes")
+            VALUES ({first.Id}, {trip.Id}, {first.UserId}, {first.Name}, {first.DisplayOrder}, {first.Notes}),
+                   ({second.Id}, {trip.Id}, {second.UserId}, {second.Name}, {second.DisplayOrder}, {second.Notes});
+            """);
+        var history = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
         var before = await db.Regions.AsNoTracking().Where(region => region.TripId == trip.Id)
             .OrderBy(region => region.Id).Select(region => new { region.Id, region.Name, region.UserId, region.DisplayOrder, region.Notes }).ToArrayAsync();
-        var timestamp = (await db.Trips.AsNoTracking().SingleAsync(item => item.Id == trip.Id)).UpdatedAt;
+        var timestamp = await db.Trips.Where(item => item.Id == trip.Id).Select(item => item.UpdatedAt).SingleAsync();
 
         var failure = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync());
 
@@ -48,9 +54,10 @@ public sealed class CanonicalRegionMigrationPostgresTests(PostgresMigrationTestF
         Assert.Contains("duplicate exact Unassigned Places", failure.MessageText);
         Assert.Contains("maintainer-approved reconciliation", failure.Hint);
         Assert.DoesNotContain(current, await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(history, (await db.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Equal(before, await db.Regions.AsNoTracking().Where(region => region.TripId == trip.Id)
             .OrderBy(region => region.Id).Select(region => new { region.Id, region.Name, region.UserId, region.DisplayOrder, region.Notes }).ToArrayAsync());
-        Assert.Equal(timestamp, (await db.Trips.AsNoTracking().SingleAsync(item => item.Id == trip.Id)).UpdatedAt);
+        Assert.Equal(timestamp, await db.Trips.Where(item => item.Id == trip.Id).Select(item => item.UpdatedAt).SingleAsync());
 
         // Only this disposable synthetic fixture is reconciled to qualify the successful migration path.
         await db.Regions.Where(region => region.Id == second.Id).ExecuteDeleteAsync();

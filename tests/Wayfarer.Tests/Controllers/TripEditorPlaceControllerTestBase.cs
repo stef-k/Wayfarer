@@ -155,10 +155,11 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
                 .OrderBy(p => p.DisplayOrder == null).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Id)
                 .Concat(r == destination ? new[] { placeId } : []).ToArray());
         }
-        var prepared = await SendJson(controller, c => c.PreparePlaceUpdate(tripId, placeId, token), JsonSerializer.Serialize(request));
+        // Match the Web wire convention for nested typed originals as well as the anonymous envelope.
+        var prepared = await SendJson(controller, c => c.PreparePlaceUpdate(tripId, placeId, token), JsonSerializer.Serialize(request, JsonSerializerOptions.Web));
         if (prepared is not OkObjectResult ok) return prepared;
         request["conditionToken"] = JsonSerializer.SerializeToElement(ok.Value).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
-        return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), JsonSerializer.Serialize(request));
+        return await SendJson(controller, c => c.UpdatePlace(tripId, placeId, token), JsonSerializer.Serialize(request, JsonSerializerOptions.Web));
     }
 
     /// <summary>Retains existing ordering assertions while explicitly supplying all content originals and reviewed conditions.</summary>
@@ -170,16 +171,17 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
         try { request = JsonSerializer.Deserialize<Dictionary<string, object?>>(authoredIntent)!; }
         catch (JsonException) { return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), authoredIntent); }
         request["expected"] = new { places = places.Select(Material).ToArray() };
-        var prepared = await SendJson(controller, c => c.PrepareEditorPlaceOrder(tripId, regionId, token), JsonSerializer.Serialize(request));
+        var prepared = await SendJson(controller, c => c.PrepareEditorPlaceOrder(tripId, regionId, token), JsonSerializer.Serialize(request, JsonSerializerOptions.Web));
         if (prepared is not OkObjectResult ok) return prepared;
         request["conditionToken"] = JsonSerializer.SerializeToElement(ok.Value).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
-        return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), JsonSerializer.Serialize(request));
+        return await SendJson(controller, c => c.OrderPlaces(tripId, regionId, token), JsonSerializer.Serialize(request, JsonSerializerOptions.Web));
     }
 
     private static object? Coordinate(Place place) => place.Location == null ? null : new { latitude = place.Location.Y, longitude = place.Location.X };
+    /// <summary>Copies complete fixture originals, including private Planning, for full-content move/order comparisons.</summary>
     private static object Material(Place place) => new { id = place.Id, regionId = place.RegionId, name = place.Name, notes = RichNotes.Normalize(place.Notes),
         address = place.Address, location = Coordinate(place), iconName = place.IconName, markerColor = place.MarkerColor,
-        displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType };
+        displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType, planning = place.Planning };
 
     /// <summary>
     /// Asserts that an action returned a validation problem response.

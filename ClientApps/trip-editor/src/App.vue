@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { providePlanningWorkspace } from './planning/planningState';
 import { loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
@@ -10,11 +11,12 @@ import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from './segments/editorSegmentPresentation';
-import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripMetadata, EditorTripState, Guid } from './types';
+import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
 
 const state = ref<EditorTripState | null>(null);
+const planningWorkspace = providePlanningWorkspace(state, props.config.editorEndpoint, props.config.antiforgeryToken);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
 const workspaceElement = ref<HTMLElement | null>(null);
@@ -161,15 +163,6 @@ onUnmounted(() => {
 function updateMobileDrawerState(event: MediaQueryListEvent): void {
   mobileDrawerActive.value = event.matches;
 }
-
-const applyMetadata = (metadata: EditorTripMetadata): void => {
-  if (!state.value) {
-    return;
-  }
-
-  state.value = { ...state.value, metadata };
-  mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
-};
 
 /// Updates UI-only place selection shared by the sidebar, toolbar, and map marker halo after guarded editor cleanup.
 const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPopup?: boolean } = {}): Promise<boolean> => {
@@ -395,9 +388,10 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     return;
   }
 
+  planningWorkspace.reconcileDeleted(result.deletedIds);
   const next: EditorTripState = {
     ...state.value,
-    metadata: result.affected.metadata ?? state.value.metadata,
+    metadata: result.affected.metadata ? planningWorkspace.publishPlanning(result, 'trip', result.affected.metadata, state.value.metadata) : state.value.metadata,
     regionsById: { ...state.value.regionsById },
     regionOrder: result.affected.regionOrder ?? [...state.value.regionOrder],
     placesById: { ...state.value.placesById },
@@ -436,18 +430,22 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   });
 
   result.affected.regions.forEach(region => {
-    next.regionsById[region.id] = region;
+    if (planningWorkspace.isDeleted('region', region.id)) return;
+    next.regionsById[region.id] = planningWorkspace.publishPlanning(result, 'region', region, next.regionsById[region.id]);
   });
   result.affected.places.forEach(place => {
-    next.placesById[place.id] = place;
+    if (planningWorkspace.isDeleted('place', place.id)) return;
+    next.placesById[place.id] = planningWorkspace.publishPlanning(result, 'place', place, next.placesById[place.id]);
   });
   result.affected.areas.forEach(area => {
-    next.areasById[area.id] = area;
+    if (planningWorkspace.isDeleted('area', area.id)) return;
+    next.areasById[area.id] = planningWorkspace.publishPlanning(result, 'area', area, next.areasById[area.id]);
   });
   result.affected.segments.forEach(segment => {
-    next.segmentsById[segment.id] = segment.externalRouting
+    if (planningWorkspace.isDeleted('segment', segment.id)) return;
+    next.segmentsById[segment.id] = planningWorkspace.publishPlanning(result, 'segment', segment.externalRouting
       ? segment
-      : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null };
+      : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null }, next.segmentsById[segment.id]);
   });
   result.affected.tags.forEach(tag => {
     next.tagsBySlug[tag.slug] = tag;
@@ -565,7 +563,6 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :coordinate-picker="coordinatePicker"
         :polygon-editor="polygonEditor"
         :route-editor="routeEditor"
-        @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
         @place-draft-preview-changed="applyPlaceDraftPreview"
         @segment-route-draft-preview-changed="applySegmentRouteDraftPreview"

@@ -33,7 +33,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  saved: [metadata: EditorTripMetadata];
   mutationApplied: [result: EditorMutationResult<unknown>];
 }>();
 
@@ -68,7 +67,7 @@ const sharingHoldMessage = computed(() =>
   'Leaving or reloading loses the retained choice and does not undo the earlier change.');
 const metadataHoldMessage = 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.';
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
-/// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
+/// Combines metadata, tag, share-progress, region, segment, and Planning drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
 const shareProgressUnavailable = computed(() => !draft.isPublic || !props.metadata.isPublic);
 const visibleShareProgressEnabled = computed({
@@ -213,7 +212,6 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
       savedMetadata = result.affected.metadata ?? result.data;
       draftState.acknowledge(savedMetadata, submitted, shareProgressEditedDuringSave);
       warnings.value = result.warnings ?? [];
-      emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
 
@@ -232,7 +230,6 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
       const result = await patchShareProgress(props.editorEndpoint, props.antiforgeryToken, { enabled: submittedSharing });
       savedMetadata = result.affected.metadata ?? result.data;
       draftState.acknowledgeSharing(savedMetadata);
-      emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
   } catch (error) {
@@ -308,7 +305,7 @@ function confirmDiscardTripEditorChanges(): Promise<boolean> {
   });
   return confirm({
     title: 'Discard changes?',
-    message: 'Discard unsaved trip editor changes and return to Trips?',
+    message: 'Leave unsaved editor changes and return to Trips? Planning is saved separately with Save Planning; Trip settings actions do not save it. Leaving loses retained drafts and does not undo pending or unconfirmed attempts.',
     confirmLabel: 'Discard',
     cancelLabel: 'Stay',
     variant: 'warning'
@@ -482,8 +479,8 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     </template>
 
     <template #footer>
-      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">Save &amp; Continue</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">Save &amp; Exit</button>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">Save settings &amp; Continue</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">Save settings &amp; Exit</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">Cancel / Reset</button>
       <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
     </template>

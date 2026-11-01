@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Wayfarer.Services;
+using Wayfarer.Models.Planning;
 using Wayfarer.Util;
 
 namespace Wayfarer.Models.Dtos;
@@ -21,14 +22,15 @@ internal sealed record RegionOrderRequest(JsonElement Regions, JsonElement Canon
             List<Guid> originals = [];
             foreach (var region in regions.EnumerateArray())
             {
-                var fields = PlaceStructuralRequest.Fields(region, "id", "displayOrder", "name", "notes", "coverImageUrl", "center");
-                if (fields.Count != 6 || !fields["displayOrder"].TryGetInt32(out _) || fields["name"].ValueKind != JsonValueKind.String
+                var fields = PlaceStructuralRequest.Fields(region, "id", "displayOrder", "name", "notes", "coverImageUrl", "center", "planning");
+                if (fields.Count != 7 || !fields["displayOrder"].TryGetInt32(out _) || fields["name"].ValueKind != JsonValueKind.String
                     || new[] { "notes", "coverImageUrl" }.Any(key => fields[key].ValueKind is not (JsonValueKind.String or JsonValueKind.Null))) throw Invalid();
                 if (fields["center"].ValueKind != JsonValueKind.Null)
                 {
                     var pair = PlaceStructuralRequest.Fields(fields["center"], "latitude", "longitude");
                     if (pair.Count != 2 || pair.Values.Any(v => !v.TryGetDouble(out var number) || !double.IsFinite(number))) throw Invalid();
                 }
+                if (fields["planning"].ValueKind != JsonValueKind.Null) PlanningCodec.Read(fields["planning"].GetRawText());
                 originals.Add(CreationConditionalRequest.Id(fields["id"]));
             }
             if (originals.Distinct().Count() != originals.Count) throw Invalid();
@@ -49,9 +51,9 @@ internal sealed record RegionOrderRequest(JsonElement Regions, JsonElement Canon
         catch (Exception error) when (error is JsonException or InvalidOperationException or FormatException) { throw Invalid(); }
     }
 
-    /// <summary>Public material originals use published Notes and exact stored cover/order rather than display defaults.</summary>
+    /// <summary>Owner material originals include complete planning and use published Notes and exact stored cover/order rather than display defaults.</summary>
     internal static object Original(Region region) => new { region.Id, region.DisplayOrder, region.Name,
-        Notes = RichNotes.Normalize(region.Notes), region.CoverImageUrl, Center = PlaceStructuralRequest.Pair(region.Center) };
+        Notes = RichNotes.Normalize(region.Notes), region.CoverImageUrl, Center = PlaceStructuralRequest.Pair(region.Center), region.Planning };
 
     /// <summary>Canonical content and children are outside this operation; its identity and historical order are protected.</summary>
     internal static object? CanonicalOriginal(Region[] regions) => regions.Where(IsCanonical).Select(r => (object)new { r.Id, r.DisplayOrder }).SingleOrDefault();

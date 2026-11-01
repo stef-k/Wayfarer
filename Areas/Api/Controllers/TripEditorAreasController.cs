@@ -72,8 +72,8 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _areaMutations.DeleteAreaAsync(tripId, areaId, userId!, cancellationToken);
-        return ToActionResult(outcome);
+        return await new PlanningDeletionGuard(_dbContext).DeleteAsync(tripId, areaId, userId!, "area", Request.Body,
+            async () => ToActionResult(await _areaMutations.DeleteAreaAsync(tripId, areaId, userId!, cancellationToken)), cancellationToken);
     }
 
     /// <summary>

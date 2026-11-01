@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
+import { planningWorkspaceKey } from '../planning/planningState';
 import MetadataEditor from './MetadataEditor.vue';
 import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
@@ -43,7 +44,6 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  metadataSaved: [metadata: EditorTripState['metadata']];
   mutationApplied: [result: EditorMutationResult<unknown>];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   placeDraftPreviewChanged: [preview: PlaceDraftMarkerPreview | null];
@@ -108,7 +108,9 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
 });
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
 // Combine child-owned flags without feeding the parent's aggregate back into either editor.
-const hasAnyDraftChanges = computed(() => regionDraftDirty.value || segmentDraftDirty.value);
+// Shared navigation accounts for independently saved Planning across all five target editors.
+const planningWorkspace = inject(planningWorkspaceKey, null);
+const hasAnyDraftChanges = computed(() => regionDraftDirty.value || segmentDraftDirty.value || Boolean(planningWorkspace?.hasChanges.value));
 /// Resolves the visible phone drawer height while preserving the active shared editor.
 const drawerMode = computed<MobileDrawerState>(() => {
   if (props.editorSurface.isMapWorkActive.value) {
@@ -314,7 +316,6 @@ function normalize(value: string): string {
             :trip-index-url="tripIndexUrl"
             :has-region-draft-changes="hasAnyDraftChanges"
             :auto-open="!mobileDrawerActive"
-            @saved="metadata => emit('metadataSaved', metadata)"
             @mutation-applied="result => emit('mutationApplied', result)"
           />
 

@@ -48,7 +48,7 @@ public sealed partial class PlaceConditionalPostgresTests
             var normal = regions.Where(r => r.Name != "Unassigned Places").ToArray();
             var canonical = regions.Single(r => r.Name == "Unassigned Places");
             request = new() { ["expected"] = new { regions = normal.Select(r => new { r.Id, r.DisplayOrder, r.Name, notes = RichNotes.Normalize(r.Notes),
-                r.CoverImageUrl, center = r.Center == null ? null : new { latitude = r.Center.Y, longitude = r.Center.X } }).ToArray(), canonical = new { canonical.Id, canonical.DisplayOrder } },
+                r.CoverImageUrl, r.Planning, center = r.Center == null ? null : new { latitude = r.Center.Y, longitude = r.Center.X } }).ToArray(), canonical = new { canonical.Id, canonical.DisplayOrder } },
                 ["regionIds"] = normal.Select(r => r.Id).Reverse().ToArray() };
         }
         else

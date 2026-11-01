@@ -148,7 +148,7 @@ public sealed partial class PlaceConditionalPostgresTests
 
     private static object Material(Place place) => new { id = place.Id, regionId = place.RegionId, name = place.Name,
         notes = RichNotes.Normalize(place.Notes), address = place.Address, location = Coordinate(place), iconName = place.IconName,
-        markerColor = place.MarkerColor, displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType };
+        markerColor = place.MarkerColor, displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType, planning = place.Planning };
     private static object? Coordinate(Place place) => place.Location == null ? null : new { latitude = place.Location.Y, longitude = place.Location.X };
     private static Dictionary<string, object?> CoordinateRequest(Place place, bool web, double latitude, double longitude) => web
         ? new() { ["expected"] = new { regionId = place.RegionId, location = Coordinate(place) }, ["changes"] = new { location = new { latitude, longitude } } }

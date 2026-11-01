@@ -2,6 +2,8 @@ import type { Guid, GeoJsonLineString, EditorEntityCapabilities, EditorExternalR
 
 /** Complete published Segment, retaining existing route and measurement contracts. */
 export interface EditorSegment {
+  /** Complete private intentions from the coherent owner snapshot. */
+  planning?: import('../planning/planningTypes').PlanningAggregate | null;
   id: Guid;
   tripId: Guid;
   fromPlaceId: Guid | null;

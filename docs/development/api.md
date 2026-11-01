@@ -896,6 +896,12 @@ bulk tools require explicit `operationScope:bulk`; they use Apply-time membershi
 and final locked Notes for append, without automatic uncertain replay or
 single-record receipts. Web Create retains its existing full-form validation.
 
+## Private Trip planning (#789 WB1)
+
+See [typed planning, coherent owner snapshots and protected Set/Clear](trip-planning.md)
+for the format-1 contract, privacy, mutation originals, migration and required
+new-mobile companion. Public full Trip reads retain their reusable audience.
+
 ## Owned Trip Region and Place integrations
 
 The general Trip API supports selected **bearer-owned** plan operations used by

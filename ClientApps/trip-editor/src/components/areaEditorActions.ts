@@ -119,7 +119,7 @@ export function useAreaEditorActions(context: any) {
 
     if (!(await confirm({
       title: 'Delete area?',
-      message: 'Delete this area?',
+      message: 'Delete this area and its private planning?',
       confirmLabel: 'Delete',
       cancelLabel: 'Keep area',
       variant: 'danger'
@@ -131,7 +131,7 @@ export function useAreaEditorActions(context: any) {
     context.resetFeedback();
     try {
       const deletedTarget = context.activeAreaTarget.value;
-      const result = await deleteArea(context.props.editorEndpoint, context.activeArea.value.id, context.props.antiforgeryToken);
+      const result = await deleteArea(context.props.editorEndpoint, context.activeArea.value.id, context.props.antiforgeryToken, { parentId: context.activeArea.value.regionId, planning: context.activeArea.value.planning ?? null });
       context.emit('mutationApplied', result as EditorMutationResult<unknown>);
       context.areaDraftState.reset(null);
       context.areaCreateBaselineRequest.value = null;

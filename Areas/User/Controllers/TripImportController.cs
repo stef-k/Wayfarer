@@ -59,6 +59,11 @@ public class TripImportController : BaseController
         {
             return Json(new { status = "duplicate", tripId = ex.TripId });
         }
+        catch (TripImportPlanningLossException ex)
+        {
+            Response.Headers.CacheControl = "private, no-store";
+            return ImportError(StatusCodes.Status409Conflict, "planning_loss_requires_review", ex.Message);
+        }
         catch (TripImportValidationException ex)
         {
             _logger.LogWarning("Trip import validation failed for user {UserId} Failure type: {ExceptionType}; request {RequestId}", userId, ex.GetType().Name, HttpContext.TraceIdentifier);

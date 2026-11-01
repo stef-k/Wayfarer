@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
 
@@ -57,8 +58,8 @@ public sealed partial class TripEditorController
             return authFailure;
         }
 
-        var outcome = await _segmentMutations.DeleteSegmentAsync(tripId, segmentId, userId!, cancellationToken);
-        return ToActionResult(outcome);
+        return await new PlanningDeletionGuard(_dbContext).DeleteAsync(tripId, segmentId, userId!, "segment", Request.Body,
+            async () => ToActionResult(await _segmentMutations.DeleteSegmentAsync(tripId, segmentId, userId!, cancellationToken)), cancellationToken);
     }
 
     /// <summary>

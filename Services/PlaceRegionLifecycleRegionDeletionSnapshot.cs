@@ -111,7 +111,7 @@ public sealed partial class PlaceRegionLifecycleService
             DeletionSample(endpoint), DeletionSample(surviving.Select(x => x.Id)),
             new(associations.Length, associations.Take(5).ToArray(), associations.Length > 5));
         return new(1, s.Trip.Id, s.Source.Id, s.Source.Name, choices.Places, choices.Areas, s.Destination, effects,
-            new(!string.IsNullOrWhiteSpace(s.Source.Notes), !string.IsNullOrWhiteSpace(s.Source.CoverImageUrl), s.Source.Center != null),
+            new(!string.IsNullOrWhiteSpace(s.Source.Notes), !string.IsNullOrWhiteSpace(s.Source.CoverImageUrl), s.Source.Center != null, s.Source.Planning != null),
             _confirmation.IssueRegionDeletion(userId, s.Trip.Id, s.Source.Id, choices.Places, choices.Areas,
                 s.Destination, RegionDeletionFingerprint(s)));
     }

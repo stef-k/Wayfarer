@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { captureMutationPublication } from '../api/tripEditorApi';
 import { completePlace } from './placeStructuralEditing';
 import { completeSegment } from './segmentNotesDraft';
 import { completeVisitProgress } from './placeConditionalDraft';
@@ -106,6 +107,7 @@ export const createRegionDeletionController = (options: {
     }
     const ownsAttempt = (): boolean => options.isCurrent() && options.storage.getItem(options.scopeKey) === encoded;
     try {
+      const publish = captureMutationPublication(`${options.endpoint}/regions/${options.sourceId}/deletion`);
       const response = await post('deletion', { ...choices(), confirmationToken: state.preview.confirmation.token });
       const body = await response.json();
       if (!ownsAttempt()) return false;
@@ -113,6 +115,7 @@ export const createRegionDeletionController = (options: {
           && body.data?.sourceRegionId === options.sourceId && body.data?.places === attempt.places && body.data?.areas === attempt.areas) {
         validateRegionDeletionAcknowledgement(body, state.preview);
         // Apply slices before releasing the hold or clearing the deleted target/draft.
+        publish(body);
         options.onSuccess(body);
         options.storage.removeItem(options.scopeKey);
         if (typeof window !== 'undefined') window.dispatchEvent(new Event('region-deletion-hold'));

@@ -28,6 +28,8 @@ export interface EditorTripState {
 }
 
 export interface EditorTripMetadata {
+  /** Complete private aggregate; absence must be explicit in owner snapshots. */
+  planning?: import('./planning/planningTypes').PlanningAggregate | null;
   id: Guid;
   name: string;
   notesHtml: string;
@@ -44,6 +46,8 @@ export interface EditorTripMetadata {
 }
 
 export interface EditorRegion {
+  /** Complete private aggregate; absence must be explicit in owner snapshots. */
+  planning?: import('./planning/planningTypes').PlanningAggregate | null;
   id: Guid;
   tripId: Guid;
   name: string;
@@ -98,6 +102,8 @@ export interface EditorPlaceConditionalRequest {
 }
 
 export interface EditorPlace {
+  /** Complete private aggregate; absence must be explicit in owner snapshots. */
+  planning?: import('./planning/planningTypes').PlanningAggregate | null;
   id: Guid;
   tripId: Guid;
   regionId: Guid;
@@ -117,6 +123,8 @@ export interface EditorPlace {
 }
 
 export interface EditorArea {
+  /** Complete private aggregate; absence must be explicit in owner snapshots. */
+  planning?: import('./planning/planningTypes').PlanningAggregate | null;
   id: Guid;
   tripId: Guid;
   regionId: Guid;

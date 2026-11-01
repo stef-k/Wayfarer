@@ -355,7 +355,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(JsonValueKind.Null, place.GetProperty("location").ValueKind);
     }
 
-    /// <summary>Checks the supported full Web projection and identical affected Place, including nullable originals.</summary>
+    /// <summary>Checks the authenticated owner Web projection, including private Planning and identical affected Place.</summary>
     private static JsonElement AssertEditorPlaceShape(JsonElement root)
     {
         Assert.Equal(new[] { "affected", "data", "deletedIds", "success", "warnings" },
@@ -363,7 +363,8 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.True(root.GetProperty("success").GetBoolean());
         var place = root.GetProperty("data");
         Assert.Equal(new[] { "id", "tripId", "regionId", "name", "notesHtml", "address", "resolvedFeatureName",
-            "resolvedFeatureType", "location", "iconName", "markerColor", "displayOrder", "visitSummary", "capabilities", "originalValues" }.Order(),
+            "resolvedFeatureType", "location", "iconName", "markerColor", "displayOrder", "visitSummary", "capabilities", "originalValues",
+            "planning", "planningDiagnostics" }.Order(),
             place.EnumerateObject().Select(item => item.Name).Order());
         Assert.Equal(place.GetRawText(), Assert.Single(root.GetProperty("affected").GetProperty("places").EnumerateArray()).GetRawText());
         return place;
