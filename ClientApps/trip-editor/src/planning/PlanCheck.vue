@@ -25,6 +25,7 @@ const input = (key: string): CheckEntryInput => setup.value.entries[key] ??= {};
 const interpret = (key: string, field: keyof CheckEntryInput, value: unknown): void => {
   const next = { ...input(key), [field]: value === '' ? null : value };
   if (field === 'context') next.contextDependency = null;
+  if (field === 'occurrences') next.occurrenceDependency = null;
   setup.value.entries[key] = next;
 };
 /** Selection is temporary; excluded entries remain visible and new entries cannot acquire hidden certification. */
@@ -39,6 +40,22 @@ const selectContext = (item: CheckItem, key: string, checked: boolean): void => 
 };
 const wholeTrip = (): void => { setup.value.selection = null; review.request(); };
 const incompatible = (keys: string[]): void => { setup.value.incompatible[[...keys].sort().join('|')] = null; };
+/** Saved endpoint zones need no question; only absent clocks or interpreted civil windows can use this input. */
+const needsZone = (item: CheckItem): boolean => {
+  const timing = item.entry.when;
+  const values = [timing.value, timing.start?.value, timing.end?.value].filter(v => v != null);
+  return values.some(v => v.precision === 'dateTime' && !v.zone)
+    || (item.entry.kind ?? setup.value.entries[item.key]?.kind) === 'window' && values.some(v => v.precision !== 'dateTime');
+};
+/** Only checks affected by a fold ask for an occurrence; saved explicit choices remain authoritative. */
+const occurrenceValues = (item: CheckItem) => {
+  if (!result.value?.findings.some(f => f.entries.includes(item.key) && /fold|occurrence/.test(f.result.message))) return [];
+  const timing = item.entry.when;
+  return (['value', 'start', 'end'] as const).flatMap(key => {
+    const value = key === 'value' ? timing.value : timing[key]?.value;
+    return value?.precision === 'dateTime' && value.selectedOffsetSeconds == null ? [{ key, value }] : [];
+  });
+};
 /** Skipping closes only this question; Unknown and its count remain in the displayed review. */
 const skip = (event: Event): void => {
   const details = (event.currentTarget as HTMLElement).closest('details');
@@ -80,14 +97,14 @@ const skip = (event: Event): void => {
             <small>{{ names(finding.entries) }}</small>
             <p>{{ finding.result.message }}</p>
             <button v-if="!dismissed.includes(finding.id) && !['completed', 'excluded'].includes(finding.result.status)" type="button" class="btn btn-outline-secondary btn-sm" @click="dismissed.push(finding.id)">Dismiss for this review</button>
-            <button v-if="finding.check === 'physical' && finding.result.status === 'unknown' && finding.entries.length === 2" type="button" class="btn btn-outline-light btn-sm" @click="incompatible(finding.entries)">These locations require separate presence</button>
+            <button v-if="finding.check === 'physical' && finding.result.status === 'unknown' && finding.result.message.includes('incompatible locations') && finding.entries.length === 2" type="button" class="btn btn-outline-light btn-sm" @click="incompatible(finding.entries)">These locations require separate presence</button>
           </article>
         </div>
         <p v-if="dismissed.length">{{ dismissed.length }} collapsed findings; counts retained. <button type="button" class="btn btn-link btn-sm" @click="showDismissed = !showDismissed">{{ showDismissed ? 'Hide dismissed' : 'Show dismissed' }}</button></p>
         <details class="plan-check__inputs">
           <summary>Coverage and targeted check inputs · {{ items.length }} saved entries</summary>
           <p>Use saved facts first. Supply only facts an Unknown result needs. Leave unresolved/Skip retains Unknown. Inputs here stay private on this device and never change planning or exports.</p>
-          <label><input v-model="setup.singleTraveller" type="checkbox" @change="setup.travellerDependency = null" /> One traveller for this selected scope</label>
+          <label v-if="setup.singleTraveller || result.findings.some(f => f.check === 'physical' && f.result.message.includes('single-traveller'))"><input v-model="setup.singleTraveller" type="checkbox" @change="setup.travellerDependency = null" /> One traveller for this selected scope</label>
           <p v-if="!items.length">No saved planning entries in this Trip.</p>
           <details v-for="item in items" :key="item.key" class="plan-check__entry">
             <summary>{{ label(item) }} · {{ item.selected ? 'assessed scope' : 'unassessed remainder' }}</summary>
@@ -98,9 +115,10 @@ const skip = (event: Event): void => {
                 <option value="">Leave unresolved/Skip</option><option value="window">Planning window</option><option value="presence">Activity requiring presence</option><option value="stay">Stay/base availability</option><option value="travel">Journey</option>
               </select>
             </label>
-            <label class="trip-editor-field"><span>Needed zone / civil-window interpretation for this check</span><input :value="setup.entries[item.key]?.zone ?? ''" placeholder="Leave unresolved, or UTC / IANA zone" @change="interpret(item.key, 'zone', ($event.target as HTMLInputElement).value)" /></label>
-            <small>Applies only where a zone is absent, or to civil-window edges. Saved zones and fold choices stay authoritative.</small>
-            <label v-if="item.entry.when.form === 'at' && item.entry.allocationMinutes == null && !['window', 'stay'].includes(item.entry.kind ?? setup.entries[item.key]?.kind ?? '')" class="trip-editor-field"><span>Needed elapsed dwell for this check (minutes)</span><input type="number" min="0" step="1" :value="setup.entries[item.key]?.allocationMinutes ?? ''" @change="interpret(item.key, 'allocationMinutes', ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value))" /></label>
+            <label v-if="needsZone(item)" class="trip-editor-field"><span>Needed zone / civil-window interpretation for this check</span><input :value="setup.entries[item.key]?.zone ?? ''" placeholder="Leave unresolved, or UTC / IANA zone" @change="interpret(item.key, 'zone', ($event.target as HTMLInputElement).value)" /></label>
+            <small v-if="needsZone(item)">Applies only where a zone is absent, or to civil-window edges. Saved zones and fold choices stay authoritative.</small>
+            <label v-for="occurrence in occurrenceValues(item)" :key="occurrence.key" class="trip-editor-field"><span>{{ occurrence.key }} occurrence UTC offset in seconds for this check · {{ occurrence.value.local }} ({{ occurrence.value.zone || setup.entries[item.key]?.zone || 'zone unspecified' }})</span><input type="number" step="1" :value="setup.entries[item.key]?.occurrences?.[occurrence.key] ?? ''" @change="interpret(item.key, 'occurrences', { ...setup.entries[item.key]?.occurrences, [occurrence.key]: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })" /></label>
+            <label v-if="item.entry.when.form === 'at' && item.entry.when.value?.precision === 'dateTime' && item.entry.allocationMinutes == null && !['window', 'stay'].includes(item.entry.kind ?? setup.entries[item.key]?.kind ?? '')" class="trip-editor-field"><span>Needed elapsed dwell for this check (minutes)</span><input type="number" min="0" step="1" :value="setup.entries[item.key]?.allocationMinutes ?? ''" @change="interpret(item.key, 'allocationMinutes', ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value))" /></label>
             <fieldset v-if="item.parentWindows.length"><legend>Choose explicitly relevant parent-window union</legend>
               <template v-for="key in item.parentWindows" :key="key">
                 <label v-if="byKey[key]?.entry.kind === 'window' || setup.entries[key]?.kind === 'window'"><input type="checkbox" :checked="setup.entries[item.key]?.context?.includes(key) ?? false" @change="selectContext(item, key, ($event.target as HTMLInputElement).checked)" /> {{ byKey[key] ? label(byKey[key]!) : key }}</label>

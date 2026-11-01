@@ -4,6 +4,7 @@ import type { PlanningEntry, PlanningValue } from './planningTypes';
 export interface CheckEntryInput {
   kind?: PlanningEntry['kind'] | null; zone?: string | null; allocationMinutes?: number | null;
   context?: string[] | null; dependency?: string | null; contextDependency?: string | null;
+  occurrences?: Partial<Record<'value' | 'start' | 'end', number | null>> | null; occurrenceDependency?: string | null;
 }
 /** Each allowance is explicitly additional, included, unnecessary or unresolved. */
 export type CheckTreatment = 'unknown' | 'none' | 'included' | 'additional';

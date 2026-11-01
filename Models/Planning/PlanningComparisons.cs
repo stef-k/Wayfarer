@@ -25,7 +25,7 @@ public static class PlanningComparisons
         var violations = outside.Count(v => v.Outside);
         if (violations == 0) return new("completed", "Complete child coverage is inside the selected parent-window union.");
         if (violations < outside.Length) return new("possible", "Some supported placements exceed the selected union; others are contained. Resolve the fold for certainty.");
-        var exact = outside.Length == 1;
+        var exact = outside.Length == 1 && child.Values[0].Frame == "instant";
         var minutes = exact ? outside[0].Ticks / (double)PlanningIntervals.TicksPerMinute : (double?)null;
         return new("mismatch", exact && !child.Values[0].Moment
             ? $"{minutes:0.###} minutes definitely outside the selected parent-window union."

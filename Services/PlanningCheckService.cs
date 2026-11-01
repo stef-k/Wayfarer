@@ -67,7 +67,7 @@ public static class PlanningCheckService
             foreach (var entry in aggregate?.Entries ?? [])
             {
                 var key = $"{kind}/{id}/{entry.Id}";
-                var dependency = Fingerprint(new { kind, id, parent, entry.When, entry.Kind, entry.AllocationMinutes, location, Rules = DateTimeZoneProviders.Tzdb.VersionId });
+                var dependency = Fingerprint(new { EntityKind = kind, id, parent, entry.When.Form, Meaning = entry.Kind, entry.AllocationMinutes, location, Rules = DateTimeZoneProviders.Tzdb.VersionId });
                 items.Add(new(key, kind, id, parent, name, entry, selection == null || selection.Contains(key), [], dependency));
             }
         }
@@ -93,14 +93,17 @@ public static class PlanningCheckService
                 var w = items.SingleOrDefault(i => i.Key == k); return new { Key = k, w?.ParentId, w?.Entry.Kind }; }) });
             if (input.Dependency != null && input.Dependency != item.Dependency)
             {
-                input = input with { Kind = null, Zone = null, AllocationMinutes = null };
+                input = input with { Kind = null, Zone = null, AllocationMinutes = null, Occurrences = null };
                 invalidated.Add($"{item.Name}: changed entry/location/rules reopened interpretations.");
             }
             else if (input.Dependency != null) reused.Add($"{item.Name}: entry interpretations");
             if (input.ContextDependency != null && input.ContextDependency != contextDependency)
             { input = input with { Context = null }; invalidated.Add($"{item.Name}: context membership changed."); }
             else if (input.Context is { Count: > 0 } && input.ContextDependency != null) reused.Add($"{item.Name}: selected parent windows (coverage recomputed)");
-            current[item.Key] = input with { Dependency = item.Dependency, ContextDependency = contextDependency };
+            var occurrenceDependency = Fingerprint(new { item.Entry.When, input.Zone, Rules = DateTimeZoneProviders.Tzdb.VersionId });
+            if (input.OccurrenceDependency != null && input.OccurrenceDependency != occurrenceDependency)
+            { input = input with { Occurrences = null }; invalidated.Add($"{item.Name}: changed clock/zone reopened occurrence choice."); }
+            current[item.Key] = input with { Dependency = item.Dependency, ContextDependency = contextDependency, OccurrenceDependency = occurrenceDependency };
         }
         if (prior.Keys.Any(k => !items.Any(i => i.Key == k))) invalidated.Add("Inputs for removed entries were discarded.");
         return current;
@@ -110,7 +113,13 @@ public static class PlanningCheckService
     private static PlanningEntry Effective(PlanningCheckItem item, IReadOnlyDictionary<string, PlanningCheckEntryInput> inputs)
     {
         var input = inputs.GetValueOrDefault(item.Key);
-        return item.Entry with { Kind = item.Entry.Kind ?? input?.Kind, AllocationMinutes = item.Entry.AllocationMinutes ?? input?.AllocationMinutes };
+        PlanningValue? Occurrence(PlanningValue? value, string key) => value == null || value.SelectedOffsetSeconds != null
+            || input?.Occurrences?.GetValueOrDefault(key) is not { } offset ? value : value with { SelectedOffsetSeconds = offset };
+        var timing = item.Entry.When;
+        timing = timing with { Value = Occurrence(timing.Value, "value"),
+            Start = timing.Start == null ? null : timing.Start with { Value = Occurrence(timing.Start.Value, "start") },
+            End = timing.End == null ? null : timing.End with { Value = Occurrence(timing.End.Value, "end") } };
+        return item.Entry with { When = timing, Kind = item.Entry.Kind ?? input?.Kind, AllocationMinutes = item.Entry.AllocationMinutes ?? input?.AllocationMinutes };
     }
 
     /// <summary>Joint occupation is bounded; overflow is visible Unknown, never silently certified.</summary>
@@ -158,7 +167,7 @@ public static class PlanningCheckService
             invalidated.Add("Movement route/location/estimate changed: confirm relevance and extras again.");
         }
         else if (transfer.Dependency != null) reused.Add("Movement estimate relevance and allowance treatment");
-        var whatIfDependency = Fingerprint(new { from.Dependency, Rules = DateTimeZoneProviders.Tzdb.VersionId });
+        var whatIfDependency = Fingerprint(new { from.Dependency, from.Entry.When, Rules = DateTimeZoneProviders.Tzdb.VersionId });
         if (transfer.WhatIfRelease != null && transfer.WhatIfAt != null && (transfer.WhatIfDependency != whatIfDependency
             || now - transfer.WhatIfAt > TimeSpan.FromMinutes(30) || now.UtcDateTime.Date != transfer.WhatIfAt.Value.UtcDateTime.Date || transfer.WhatIfAt > now))
         { transfer = transfer with { WhatIfRelease = null, WhatIfAt = null }; invalidated.Add("What-if release expired or its timing evidence changed."); }
@@ -172,7 +181,10 @@ public static class PlanningCheckService
         var comparisons = PlanningComparisons.Movement(PlanningIntervals.Endpoint(Effective(from, inputs), true, inputs.GetValueOrDefault(from.Key)?.Zone, transfer.WhatIfRelease),
             PlanningIntervals.Endpoint(Effective(to, inputs), false, inputs.GetValueOrDefault(to.Key)?.Zone), estimate,
             allowance + connection, allowance != null && connection != null);
-        foreach (var comparison in comparisons) Add(findings, "movement", [from.Key, to.Key], comparison);
+        var source = transfer.SegmentId.HasValue ? $"selected Segment {segment?.Mode ?? "unavailable"} ({segment?.EstimatedDurationSource ?? "unknown"})" : "check-only manual estimate";
+        var assumptions = $" Source: {source}; relevance {(transfer.Relevant ? "confirmed" : "unresolved")}; allowance {transfer.Allowance}, connection {transfer.Connection}.";
+        if (transfer.WhatIfRelease is { } release) assumptions += $" What-if release: {release.Local} ({release.Zone ?? "zone unspecified"}); saved intentions and history unchanged.";
+        foreach (var comparison in comparisons) Add(findings, "movement", [from.Key, to.Key], comparison with { Message = comparison.Message + assumptions });
         return transfer;
     }
 
@@ -194,7 +206,8 @@ public static class PlanningCheckService
             throw new PlanningValidationException("Check setup exceeds its bounded scope; narrow the selection.");
         foreach (var input in setup.Entries.Values)
             if (input == null || input.Kind != null && input.Kind is not ("window" or "presence" or "stay" or "travel")
-                || input.AllocationMinutes < 0 || input.Context?.Count > 128 || input.Zone?.Length > 100)
+                || input.AllocationMinutes < 0 || input.Context?.Count > 128 || input.Context?.Any(string.IsNullOrWhiteSpace) == true || input.Zone?.Length > 100
+                || input.Occurrences?.Any(pair => pair.Key is not ("value" or "start" or "end") || pair.Value is < -86400 or > 86400) == true)
                 throw new PlanningValidationException("Choose supported check interpretations and nonnegative elapsed minutes.");
         foreach (var t in setup.Transfers)
         {

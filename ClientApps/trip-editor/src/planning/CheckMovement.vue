@@ -14,9 +14,13 @@ const add = (): void => {
     props.setup.transfers.push({ from: from.value, to: to.value, relevant: false, allowance: 'unknown', connection: 'unknown' });
 };
 /** Explicit input changes are new assessments; old directional relevance bindings must not silently survive them. */
-const changed = (transfer: CheckTransfer): void => { transfer.dependency = null; };
+const changed = (transfer: CheckTransfer): void => {
+  transfer.dependency = null;
+  for (const key of ['estimateMinutes', 'allowanceMinutes', 'connectionMinutes'] as const)
+    if (typeof transfer[key] !== 'number') transfer[key] = null;
+};
 const whatIf = (transfer: CheckTransfer, local: string): void => {
-  transfer.whatIfRelease = local ? { precision: 'dateTime', local } : null;
+  transfer.whatIfRelease = local ? { ...transfer.whatIfRelease, precision: 'dateTime', local } : null;
   transfer.whatIfAt = null;
   transfer.whatIfDependency = null;
 };
@@ -34,15 +38,16 @@ const whatIf = (transfer: CheckTransfer, local: string): void => {
       <label v-if="!transfer.segmentId" class="trip-editor-field"><span>Travel estimate in minutes</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
       <label><input v-model="transfer.relevant" type="checkbox" @change="changed(transfer)" /> This estimate is relevant to this direction, locations and travel mode</label>
       <template v-for="extra in ['allowance', 'connection'] as const" :key="extra">
-        <label class="trip-editor-field"><span>{{ extra === 'allowance' ? 'Rest / buffer allowance' : 'Necessary connection information' }}</span><select v-model="transfer[extra]" @change="changed(transfer)"><option value="unknown">Unknown / Skip</option><option value="none">None needed for this check</option><option value="included">Already included in the estimate or saved activity</option><option value="additional">Additional minutes, counted once</option></select></label>
-        <label v-if="transfer[extra] === 'additional'" class="trip-editor-field"><span>Additional {{ extra }} minutes (not already in the estimate or saved activities)</span><input v-if="extra === 'allowance'" v-model.number="transfer.allowanceMinutes" type="number" min="0" step="1" @change="changed(transfer)" /><input v-else v-model.number="transfer.connectionMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
+        <label class="trip-editor-field"><span>{{ extra === 'allowance' ? 'Rest / buffer allowance' : 'Necessary connection information' }}</span><select v-model="transfer[extra]" @change="changed(transfer)"><option value="unknown">Unknown / Skip</option><option value="none">None needed for this check</option><option value="included">Already included in the selected estimate</option><option value="additional">Additional minutes, counted once</option></select></label>
+        <label v-if="transfer[extra] === 'additional'" class="trip-editor-field"><span>Additional {{ extra }} minutes (not already counted in estimate or gap)</span><input v-if="extra === 'allowance'" v-model.number="transfer.allowanceMinutes" type="number" min="0" step="1" @change="changed(transfer)" /><input v-else v-model.number="transfer.connectionMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
       </template>
       <details><summary>What if the release is different?</summary>
         <p>A current-release assumption lasts at most 30 minutes on this UTC day and changes no intention, estimate or observed history.</p>
         <label class="trip-editor-field"><span>What-if release clock</span><input type="datetime-local" :value="transfer.whatIfRelease?.local ?? ''" @change="whatIf(transfer, ($event.target as HTMLInputElement).value)" /></label>
-        <label v-if="transfer.whatIfRelease" class="trip-editor-field"><span>What-if release zone</span><input v-model="transfer.whatIfRelease.zone" placeholder="UTC or IANA zone; no device default" /></label>
+        <label v-if="transfer.whatIfRelease" class="trip-editor-field"><span>What-if release zone</span><input v-model="transfer.whatIfRelease.zone" placeholder="UTC or IANA zone; no device default" @change="() => { if (transfer.whatIfRelease && !transfer.whatIfRelease.zone) delete transfer.whatIfRelease.zone; transfer.whatIfAt = null; transfer.whatIfDependency = null }" /></label>
       </details>
       <button type="button" class="btn btn-outline-secondary btn-sm" @click="setup.transfers.splice(index, 1)">Remove this movement check</button>
     </fieldset>
+    <small>Other saved activities are not automatically deducted from this pair's gap. Select the relevant release/arrival entries and account for each rest once.</small>
   </fieldset>
 </template>

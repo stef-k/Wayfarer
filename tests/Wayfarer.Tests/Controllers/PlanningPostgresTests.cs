@@ -15,6 +15,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Planning;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -28,6 +29,51 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
     private readonly TestLogProvider logs = new();
+
+    /// <summary>The new actual cookie route uses the established coherent read, is private/CSRF-protected and has no writes.</summary>
+    [PostgresFact]
+    public async Task CheckSavedPlanningIsPrivateAdvisoryAndDoesNotExportLocalSetup()
+    {
+        var trip = await SeedAsync();
+        trip.Planning = Plan();
+        await using (var seed = fixture.CreateContext()) { seed.Update(trip); await seed.SaveChangesAsync(); }
+        await using var db = fixture.CreateContext();
+        await using var app = await HostAsync(db);
+        using var client = app.GetTestClient();
+        var publicBytes = await client.GetByteArrayAsync($"/api/trips/{trip.Id}");
+        UserConnectionTokenHttpTests.Cookie(client, app.Services, trip.UserId);
+        var path = $"/api/trips/{trip.Id}/editor/planning/check";
+        using var csrf = await client.PostAsJsonAsync(path, new PlanningCheckSetup());
+        Assert.Equal(HttpStatusCode.BadRequest, csrf.StatusCode);
+        Assert.True(csrf.Headers.CacheControl!.NoStore);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
+        using var response = await client.PostAsJsonAsync(path, new PlanningCheckSetup { SingleTraveller = true });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.True(response.Headers.CacheControl.NoStore);
+        Assert.Null(response.Headers.ETag);
+        var review = (await response.Content.ReadFromJsonAsync<PlanningCheckResult>())!;
+        Assert.Equal("planning-check-1", review.Contract);
+        Assert.Equal(trip.UserId, review.OwnerId);
+        Assert.Single(review.Inventory);
+        Assert.Equal("unknown", review.Findings.Single().Result.Status);
+        Assert.Equal(publicBytes, await client.GetByteArrayAsync($"/api/trips/{trip.Id}"));
+        var export = TripWayfarerKmlExporter.BuildKml(trip, includePrivatePlanning: true);
+        Assert.DoesNotContain("singleTraveller", export);
+        Assert.DoesNotContain("planning-check-1", export);
+        await using var verify = fixture.CreateContext();
+        Assert.True(PlanningCodec.Equal(trip.Planning, (await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Planning));
+        Assert.Equal(JsonDocument.Parse(publicBytes).RootElement.GetProperty("updatedAt").GetDateTime(),
+            (await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).UpdatedAt);
+        var other = await fixture.CreateUserAsync();
+        using var otherClient = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(otherClient, app.Services, other.Id);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(otherClient);
+        using var denied = await otherClient.PostAsJsonAsync(path, new PlanningCheckSetup());
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        Assert.True(denied.Headers.CacheControl!.NoStore);
+        Assert.DoesNotContain("2027", await denied.Content.ReadAsStringAsync());
+    }
 
     /// <summary>All five target types preserve disjoint content and reject stale/absent originals atomically.</summary>
     [PostgresTheory]

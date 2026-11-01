@@ -87,11 +87,13 @@ export const createPlanningReview = (options: {
       const response = await fetch(`${options.endpoint}/planning/check`, { method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', RequestVerificationToken: options.antiforgery }, body: JSON.stringify(copy(setup.value)) });
       if (disposed || request !== position || scope !== identity() || scope !== partition) return;
-      if (response.status === 401 || response.status === 403) { reset(); clearStorage(); throw new Error('Owner access changed. Private check setup cleared; reload the editor.'); }
+      if (response.status === 401 || response.status === 403) {
+        reset(); clearStorage(); error.value = 'Owner access changed. Private check setup cleared; reload the editor.'; return;
+      }
       if (!response.ok || response.redirected) throw new Error('Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.');
       const reply = await response.json() as CheckResult;
       if (disposed || request !== position || scope !== identity()) return;
-      if (reply.ownerId !== ownerId) { reset(); clearStorage(); throw new Error('Owner changed. Private check setup cleared; reload the editor.'); }
+      if (reply.ownerId !== ownerId) { reset(); clearStorage(); error.value = 'Owner changed. Private check setup cleared; reload the editor.'; return; }
       if (reply.contract !== 'planning-check-1' || reply.tripId !== options.state().tripId || !Array.isArray(reply.inventory) || !Array.isArray(reply.findings)
         || !reply.setup || !Array.isArray(reply.reused) || !Array.isArray(reply.invalidated)) throw new Error('Check result is incomplete. Saved planning is unchanged.');
       assigning = true;
@@ -126,7 +128,11 @@ export const createPlanningReview = (options: {
   const saveAndCheck = async (): Promise<void> => {
     if (held.value) return;
     const scope = identity();
-    await options.saveOrdinary();
+    try { await options.saveOrdinary(); }
+    catch {
+      if (scope === identity() && !disposed) error.value = 'The ordinary save did not complete. Drafts remain separate; use their save controls or check the saved version.';
+      return;
+    }
     if (scope !== identity() || disposed) return;
     for (const draft of Object.values(options.workspace?.drafts ?? {})) {
       if (options.workspace?.dirty(draft)) await options.workspace.save(draft);

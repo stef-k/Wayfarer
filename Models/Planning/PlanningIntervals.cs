@@ -51,6 +51,11 @@ public static class PlanningIntervals
         var timing = entry.When;
         if (timing.Form == "period")
         {
+            if (timing.Start?.Value is { Precision: "dateTime" } && timing.End?.Value is { Precision: "dateTime" })
+            {
+                var coverage = Resolve(entry, zone);
+                if (coverage.Inconsistent) return coverage;
+            }
             var value = release ? timing.End?.Value : timing.Start?.Value;
             return value == null ? Unknown(release ? "Release/end is unknown." : "Arrival/start is unknown.") : Points(value, zone, false);
         }

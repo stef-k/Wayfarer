@@ -21,7 +21,8 @@ public sealed record PlanningCheckSetup
 
 /// <summary>Saved values win; missing facts can be interpreted for this check without changing an entry.</summary>
 public sealed record PlanningCheckEntryInput(string? Kind = null, string? Zone = null, int? AllocationMinutes = null,
-    IReadOnlyList<string>? Context = null, string? Dependency = null, string? ContextDependency = null);
+    IReadOnlyList<string>? Context = null, string? Dependency = null, string? ContextDependency = null,
+    IReadOnlyDictionary<string, int?>? Occurrences = null, string? OccurrenceDependency = null);
 
 /// <summary>Explicit source and inclusion treatment. No provider is called and no minimum connection is invented.</summary>
 public sealed record PlanningCheckTransfer(string From, string To, Guid? SegmentId = null, double? EstimateMinutes = null,
