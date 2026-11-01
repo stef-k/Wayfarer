@@ -106,11 +106,10 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
   await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeDisabled();
   await expect(controls.getByRole('button', { name: 'Create new Trip' })).toBeDisabled();
   expect(writes).toBe(heldWrites);
-  // Selecting a file is the next deliberate request; the abandoned review/permits are absent.
+  // Selecting a file is the next deliberate request. The state-owner tests prove its exact multipart payload.
   const freshRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/User/Trip/Import');
   await select();
-  const body = (await freshRequest).postData()!;
-  expect(body).not.toContain('name="reviewToken"'); expect(body).not.toContain('name="choices"');
+  await freshRequest;
   await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeEnabled();
   await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeHidden();
   expect(writes).toBe(heldWrites + 1); expect(page.url()).toContain('/User/Trip');

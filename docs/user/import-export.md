@@ -267,6 +267,8 @@ closing the tab can lose it. Reload keeps the hold but loses the selected File.
 An invalid, unsupported or misplaced planning payload rejects the entire file,
 rather than reporting successful geography-only recovery. Keep the original file.
 
+![The reload hold exposes an explicit abandonment control and My Trips inspection](../images/trip-native-import-recovery.png)
+
 ![An explicit Use imported choice in the Web review; Keep existing is initially selected](../images/trip-native-import-review.png)
 
 From your personal **Trips** list:
