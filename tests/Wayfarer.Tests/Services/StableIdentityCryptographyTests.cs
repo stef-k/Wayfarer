@@ -153,6 +153,8 @@ public sealed class StableIdentityCryptographyTests
             // Transient owner/scope-bound history cursors are separate from durable provider credentials.
             "Wayfarer.LocationHistory.Continuation.v1",
             "Wayfarer.LocationProviders.PersonalCredentials.v1",
+            // Transient native import review/choice permits are separate from durable provider credentials.
+            "Wayfarer.NativeImport.Review.v1",
             "Wayfarer.PlaceCoordinates.Conditions.v1",
             "Wayfarer.PlaceDeletion.Content.v1",
             "Wayfarer.PlaceMove.Conditions.v1",
