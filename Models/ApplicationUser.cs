@@ -12,6 +12,12 @@ namespace Wayfarer.Models
         // The user attributes are protected and cannot be changed if IsProtected = true
         public bool IsProtected { get; set; }
 
+        /// <summary>Immutable generated photo-file identity, independent of Identity mutation state.</summary>
+        public Guid? ProfilePhotoVersion { get; set; }
+
+        /// <summary>Explicit account-wide consent, retained across replacement/removal and default off.</summary>
+        public bool ShowProfilePhotoOnPublicTrips { get; set; }
+
         // Is user's timeline public? defaults to false
         public bool IsTimelinePublic { get; set; }
 

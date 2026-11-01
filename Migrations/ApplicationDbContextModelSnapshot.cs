@@ -466,11 +466,19 @@ namespace Wayfarer.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("ProfilePhotoVersion")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("PublicTimelineTimeThreshold")
                         .HasColumnType("text");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
+
+                    b.Property<bool>("ShowProfilePhotoOnPublicTrips")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("TimelineTitle")
                         .HasMaxLength(80)
@@ -491,6 +499,8 @@ namespace Wayfarer.Migrations
                     b.HasIndex("NormalizedUserName")
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
+
+                    b.HasIndex("ProfilePhotoVersion");
 
                     b.HasIndex("UserName")
                         .IsUnique();

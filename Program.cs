@@ -442,6 +442,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         }
 
         LocationMutationCleanupJob.Configure(scheduler);
+        ProfilePhotoCleanupJob.Configure(scheduler);
         return scheduler;
     });
 
@@ -588,6 +589,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<IMobileCurrentUserAccessor, MobileCurrentUserAccessor>();
     builder.Services.AddScoped<ITripTagService, TripTagService>();
     builder.Services.AddSingleton<IUserColorService, UserColorService>();
+    builder.Services.AddSingleton<ProfilePhotoStorage>();
+    builder.Services.AddScoped<ProfilePhotoService>();
+    builder.Services.AddScoped<ProfilePhotoUpload>();
+    builder.Services.AddScoped<ProfilePhotoCleanupJob>();
     builder.Services.AddSingleton<IIconColorProvider, IconColorProvider>();
     builder.Services.Configure<MobileSseOptions>(builder.Configuration.GetSection("MobileSse"));
     builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<MobileSseOptions>>().Value);

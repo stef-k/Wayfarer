@@ -151,36 +151,7 @@ public class MobileGroupsController : MobileApiController
             .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived, cancellationToken);
         if (group == null) return NotFound();
 
-        var members = await (from m in DbContext.GroupMembers
-                where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
-                join u in DbContext.Users on m.UserId equals u.Id
-                select new { Member = m, User = u })
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var results = members
-            .Select(x =>
-            {
-                var username = x.User.UserName ?? string.Empty;
-                var isSelf = string.Equals(x.User?.Id, user!.Id, StringComparison.Ordinal);
-                var color = _colorService.GetColorHex(username);
-
-                return new GroupMemberDto
-                {
-                    UserId = x.User?.Id ?? string.Empty,
-                    UserName = username,
-                    DisplayName = x.User?.DisplayName ?? string.Empty,
-                    GroupRole = x.Member.Role,
-                    Status = x.Member.Status,
-                    ColorHex = color,
-                    IsSelf = isSelf,
-                    OrgPeerVisibilityAccessDisabled = x.Member.OrgPeerVisibilityAccessDisabled
-                };
-            })
-            .OrderBy(m => m.UserName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return Ok(results);
+        return Ok(await GroupRoster.ReadAsync(DbContext, groupId, user!.Id, mobile: true, ct: cancellationToken, colors: _colorService));
     }
 
     [HttpPost("{groupId:guid}/locations/latest")]

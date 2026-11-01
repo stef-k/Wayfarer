@@ -26,6 +26,8 @@ public sealed record ImageTransform
     public int Quality { get; init; }
     /// <summary>Only auto, jpeg and png are valid.</summary>
     public string OutputFormat { get; init; }
+    /// <summary>Optional oriented square for the fixed avatar command only.</summary>
+    public ProfilePhotoCrop? AvatarCrop { get; init; }
     /// <summary>Effective configured stdin byte budget, never greater than the 200 MiB admin ceiling.</summary>
     public int MaximumInputBytes { get; init; }
     /// <summary>Bounded verified stdout byte budget, never greater than 50 MiB.</summary>
@@ -33,7 +35,7 @@ public sealed record ImageTransform
 }
 
 /// <summary>The HTTP owner maps TooLarge to 400, Failed to 404 and Unavailable to 503.</summary>
-public enum ImageTransformStatus { Success, TooLarge, Failed, Unavailable }
+public enum ImageTransformStatus { Success, TooLarge, Failed, Unavailable, Unsupported }
 
 /// <summary>Only success carries image bytes; process identity supports independent cleanup checks.</summary>
 public sealed record ImageTransformResult(
@@ -42,3 +44,6 @@ public sealed record ImageTransformResult(
     string? MimeType = null,
     int? ExitCode = null,
     int? ProcessId = null);
+
+/// <summary>Integer square in oriented source pixels; authoritative geometry remains in the helper.</summary>
+public sealed record ProfilePhotoCrop(int X, int Y, int Size);

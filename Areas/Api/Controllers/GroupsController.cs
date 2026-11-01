@@ -78,23 +78,7 @@ public class GroupsController : ControllerBase
                      m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (!isMember || !await _db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, ct)) return StatusCode(403);
 
-        var roster = await (from m in _db.GroupMembers
-                where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
-                join u in _db.Users on m.UserId equals u.Id
-                select new { m, u })
-            .AsNoTracking()
-            .ToListAsync(ct);
-
-        var payload = roster.Select(x => new GroupMemberDto
-        {
-            UserId = x.u.Id,
-            UserName = x.u.UserName ?? string.Empty,
-            DisplayName = x.u.DisplayName,
-            GroupRole = x.m.Role,
-            Status = x.m.Status
-        }).ToList();
-
-        return Ok(payload);
+        return Ok(await GroupRoster.ReadAsync(_db, groupId, CurrentUserId, ct: ct));
     }
 
     /// <summary>Returns only the active caller's authorized latest group locations.</summary>
