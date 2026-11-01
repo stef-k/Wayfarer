@@ -31,6 +31,10 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         var privatePhoto = path.StartsWith("/api/profile-photo/", StringComparison.OrdinalIgnoreCase)
             || ((path.StartsWith("/api/groups/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/api/mobile/groups/", StringComparison.OrdinalIgnoreCase))
                 && path.Contains("/members", StringComparison.OrdinalIgnoreCase));
+        var groupPage = path.TrimEnd('/');
+        var privateGroupPhotoPage = (groupPage.StartsWith("/User/Groups/", StringComparison.OrdinalIgnoreCase)
+                || groupPage.StartsWith("/Manager/Groups/", StringComparison.OrdinalIgnoreCase))
+            && (groupPage.EndsWith("/Map", StringComparison.OrdinalIgnoreCase) || groupPage.EndsWith("/Members", StringComparison.OrdinalIgnoreCase));
         var publicPhoto = path.StartsWith("/Public/Trips/", StringComparison.OrdinalIgnoreCase)
             && path.Contains("/owner-photo/", StringComparison.OrdinalIgnoreCase);
         context.Response.OnStarting(() =>
@@ -41,7 +45,7 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
                 response.Headers.CacheControl = "no-store";
                 response.Headers.Pragma = "no-cache";
             }
-            if (privatePlanning || privatePhoto || context.Items.ContainsKey(PrivateKey))
+            if (privatePlanning || privatePhoto || privateGroupPhotoPage || context.Items.ContainsKey(PrivateKey))
             {
                 response.Headers.CacheControl = "private, no-store";
                 response.Headers.Pragma = "no-cache";
