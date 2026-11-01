@@ -46,7 +46,10 @@ public static class SegmentMeasurementWriterReconciler
                 dbContext, proposal, refreshCanonicalState: dbContext.Database.IsRelational(), cancellationToken);
             if (!result.Succeeded)
                 throw new InvalidOperationException(string.Join(" ", result.Errors));
+            // Persist this aggregate before another reconciliation refreshes shared anchor identities.
+            // The caller still owns the single transaction, including rollback of every earlier Segment.
+            await dbContext.SaveChangesAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
         }
-        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

@@ -67,7 +67,7 @@ public partial class TripImportService
             throw new TripImportValidationException("The imported identities cannot be applied to this Trip.");
     }
 
-    /// <summary>Fences current writers and preserves same-ID/type planning through legacy native replacement.</summary>
+    /// <summary>Fences current writers, then reads complete current owner originals after all lock waits.</summary>
     private async Task<Trip> LockReplacementAsync(Guid tripId, string owner, CancellationToken token)
     {
         if (_dbContext.Database.IsRelational())

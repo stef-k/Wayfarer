@@ -1,6 +1,8 @@
 /** Every personal download starts unchecked and bypasses HTTP caches, HEAD probes and iframe fallbacks. */
 const dialog = document.getElementById('personal-native-dialog');
 const form = document.getElementById('personal-native-form');
+// Bootstrap hides the menu after its action; the modal must have a visible ancestor.
+if (dialog) document.body.append(dialog);
 let downloading = false;
 document.getElementById('personal-native-export')?.addEventListener('click', () => {
     if (downloading) return;

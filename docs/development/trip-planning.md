@@ -1,8 +1,9 @@
-# Private Trip planning (WB1, #789)
+# Private Trip planning (WB1/WB2, #789)
 
-WB1 adds optional owner planning to Trip, Region, Place, Area and Segment. It does
-not implement Check plan, remembered check inputs, native v4 personal files,
-future own cloning/versioning or the separately owned mobile companion.
+WB1 adds optional owner planning to Trip, Region, Place, Area and Segment. WB2 adds
+[complete native personal interchange](native-personal-interchange.md). Check plan,
+remembered check inputs, future own cloning/versioning and mobile implementation
+remain separately owned. Mobile qualification does not block backend/Web acceptance.
 
 ## Values and storage
 
@@ -132,14 +133,13 @@ the Clear-shaped original body to bind planning loss; a missing body can delete
 only a currently unplanned target. Their existing confirmation controls include
 private planning in the deletion description.
 
-Native v1–v3 upsert locks current child sets and parents before replacement, retains
-planning by exact same type/ID and restores it with the rebuilt graph inside the
-existing graph/tag/measurement transaction. Root planning stays untouched. Newly
-identified objects inherit nothing. Removing/reidentifying an annotated object
-rejects atomically with `planning_loss_requires_review`; the owner may cancel or
-CreateNew. WB2 supplies file-bound overwrite/removal/Keep/Use/Clear review and the
-complete v4 round trip. WB1 never silently resets planning and does not disable
-ordinary legacy imports or unplanned removals.
+Native v1–v4 replacement locks current child sets and parents, retains omitted
+planning by exact type/ID including the Trip root, and restores/applies/clears it
+inside the graph/tag/measurement transaction. Every update requires a file-bound
+current-content review. Keep is the default for differences; Use imported and
+explicit Clear are separate choices. Annotated removal/reidentification requires
+loss consent. See the [HTTP and format contract](native-personal-interchange.md)
+for permits, stale reviews, authority, cache separation and unknown-outcome holds.
 
 ## Migration and qualification
 
@@ -180,8 +180,9 @@ work to Foundation or invent a later implementation issue:
   model. Cross-owner cloning stays redacted; future own Keep/Start belongs to #911.
 - WB3 supported checks and bounded owner/Trip-device input reuse in that package.
 
-No mobile source was changed or Android/iOS qualification claimed. M1 remains
-required, separately owned and incomplete; WB1 does not complete #789.
+No mobile source was changed or Android/iOS qualification claimed. Mobile remains separately owned and incomplete; mobile agents implement and qualify
+it. That work is not a backend/Web acceptance or #789 closure prerequisite. WB3
+and final combined backend/Web review remain outside WB2.
 
 ## WB1 correction boundaries
 
@@ -203,8 +204,8 @@ resolves that recovery; pending/uncertain attempts stay held. An explicit compar
 review also checks deletion and intervening operations after its read returns.
 Negative receipts require a compatible HTTP/problem status, known code and no
 contradictory or malformed outcome fields; redirects remain uncertain. Equality on
-GET/remount never authorizes replay. The import refusal maps only its fixed 409/code
-to local Cancel/Create copy controls retaining the file; WB2 review remains separate.
+GET/remount never authorizes replay. WB2 replaces the earlier bounded import-loss refusal with the reviewed import
+controls and retains files/choices on recoverable failures.
 
 Public Region, Place, Area and Segment projections use identity as the tie-breaker
 for equal DisplayOrder, with existing null Place orders still first. Unordered Tags

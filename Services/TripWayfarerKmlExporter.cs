@@ -9,7 +9,7 @@ using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>Serializes the active saved Trip state as deterministic native KML v3.</summary>
+/// <summary>Serializes reusable content as native v3, or complete personal planning under explicit native v4 inclusion.</summary>
 public static class TripWayfarerKmlExporter
 {
     private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";

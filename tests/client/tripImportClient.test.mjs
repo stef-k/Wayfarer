@@ -1,135 +1,141 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { genericImportFailure, submitTripImport, createTripImporter, planningLossExplanation } from '../../wwwroot/js/Areas/User/Trip/tripImportClient.js';
+import { createTripImporter, submitTripImport, genericImportFailure, uncertainImport } from '../../wwwroot/js/Areas/User/Trip/tripImportClient.js';
 
-const createHandlers = (fetchImpl) => {
-    const result = { duplicates: 0, errors: [], notices: [], redirects: [] };
-    return {
-        result,
-        handlers: {
-            fetchImpl,
-            onRedirect: url => result.redirects.push(url),
-            onDuplicate: () => result.duplicates++,
-            showNotices: notices => result.notices.push(...notices),
-            showError: message => result.errors.push(message)
-        }
-    };
-};
-
-// The production page renders this field; the caller must copy its value into the header.
+const id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+const file = new Blob(['exact selected bytes'], { type: 'application/vnd.google-earth.kml+xml' });
+const reply = (value, status = 200) => new Response(JSON.stringify(value), { status });
+const duplicate = () => reply({ status: 'duplicate', tripId: id });
+const success = () => reply({ status: 'success', tripId: id, redirectUrl: `/User/Trip/Edit/${id}`, notices: [{ code: 'notice' }] });
+const review = () => reply({ status: 'review', review: { token: 'root-token', tripId: id, planning: [
+    { key: 'trip/root', state: 'conflict', choices: [{ action: 'keep', token: 'keep-token' }, { action: 'use', token: 'use-token' }, { action: 'clear', token: 'clear-token' }] },
+    { key: 'place/removed', state: 'removed', choices: [{ action: 'remove', token: 'remove-token' }] }
+] } });
 globalThis.document = { querySelector: () => ({ value: 'authentic-page-token' }) };
+const mount = (fetchImpl, options) => {
+    const observed = { errors: [], redirects: [], duplicates: 0, notices: [], calls: [] };
+    const handlers = { fetchImpl: async function (url, init) {
+        assert.equal(this, globalThis);
+        observed.calls.push({ url, ...init });
+        return fetchImpl(url, init, observed.calls.length);
+    }, showError: m => observed.errors.push(m), onRedirect: u => observed.redirects.push(u),
+    onDuplicate: () => observed.duplicates++, showNotices: n => observed.notices.push(...n) };
+    return { importer: createTripImporter(handlers, options), handlers, observed };
+};
+const store = () => { const values = new Map(); return { getItem: k => values.get(k), setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) }; };
 
-const sampleFile = new Blob(['kml'], { type: 'application/vnd.google-earth.kml+xml' });
-
-test('reports bounded notices and follows the canonical success URL', async () => {
-    let receiver;
-    const { handlers, result } = createHandlers(function () {
-        receiver = this;
-        return Promise.resolve({
-            json: async () => ({
-                status: 'success',
-                redirectUrl: '/User/Trip/Edit/test-trip',
-                notices: [{ code: 'generic_route_simplified', originalCoordinateCount: 1500, resultingCoordinateCount: 400 }]
-            })
-        });
-    });
-
-    await submitTripImport(sampleFile, 'Auto', handlers);
-
-    assert.equal(receiver, globalThis);
-    assert.deepEqual(result.redirects, ['/User/Trip/Edit/test-trip']);
-    assert.equal(result.notices.length, 1);
-});
-
-test('uses the fixed message when fetch rejects', async () => {
-    const { handlers, result } = createHandlers(async () => { throw new Error('network detail'); });
-
-    await submitTripImport(sampleFile, 'Auto', handlers);
-
-    assert.deepEqual(result.errors, [genericImportFailure]);
-});
-
-test('uses the fixed message when JSON is malformed', async () => {
-    const { handlers, result } = createHandlers(async () => ({ redirected: false, json: async () => { throw new SyntaxError('raw body'); } }));
-
-    await submitTripImport(sampleFile, 'Auto', handlers);
-
-    assert.deepEqual(result.errors, [genericImportFailure]);
-});
-
-test('uses the fixed message for a non-JSON response without reading text', async () => {
-    const { handlers, result } = createHandlers(async () => ({
-        redirected: false,
-        json: async () => { throw new SyntaxError('html response'); },
-        text: () => { throw new Error('response body must not be read'); }
-    }));
-
-    await submitTripImport(sampleFile, 'Auto', handlers);
-
-    assert.deepEqual(result.errors, [genericImportFailure]);
-});
-
-test('keeps the duplicate import callback compatible', async () => {
-    const { handlers, result } = createHandlers(async () => ({ redirected: false, json: async () => ({ status: 'duplicate', tripId: 'ignored-by-client' }) }));
-
-    await submitTripImport(sampleFile, 'Auto', handlers);
-
-    assert.equal(result.duplicates, 1);
-    assert.deepEqual(result.errors, []);
-});
-
-
-test('multipart import and duplicate-mode retry retain file/mode and send the page token header', async () => {
-    const calls = [];
-    const { handlers } = createHandlers(async (url, options) => {
-        calls.push({ url, options });
-        return { json: async () => ({ status: 'duplicate' }) };
-    });
-    await submitTripImport(sampleFile, 'Auto', handlers);
-    await submitTripImport(sampleFile, 'CreateNew', handlers);
-    assert.equal(calls.length, 2);
-    for (const [index, { url, options }] of calls.entries()) {
-        assert.equal(url, '/User/Trip/Import');
-        assert.equal(options.method, 'POST');
-        assert.equal(options.headers.RequestVerificationToken, 'authentic-page-token');
-        assert.equal(options.headers['Content-Type'], undefined);
-        assert.equal(options.body.get('mode'), index === 0 ? 'Auto' : 'CreateNew');
-        assert.equal(await options.body.get('file').text(), 'kml');
+test('multipart upload preserves exact bytes, modes and real antiforgery header without overriding the boundary', async () => {
+    const { importer, observed } = mount((url, init, n) => n === 1 ? duplicate() : success());
+    await importer.upload(file);
+    await importer.createCopy();
+    assert.equal(observed.duplicates, 1);
+    assert.deepEqual(observed.redirects, [`/User/Trip/Edit/${id}`]);
+    assert.equal(observed.notices.length, 1);
+    for (const [index, call] of observed.calls.entries()) {
+        assert.equal(call.url, '/User/Trip/Import'); assert.equal(call.method, 'POST');
+        assert.equal(call.cache, 'no-store'); assert.equal(call.credentials, 'same-origin');
+        assert.equal(call.headers.RequestVerificationToken, 'authentic-page-token');
+        assert.equal(call.headers['Content-Type'], undefined);
+        assert.equal(call.body.get('mode'), index === 0 ? 'Auto' : 'CreateNew');
+        assert.equal(await call.body.get('file').text(), 'exact selected bytes');
     }
 });
 
-// The selected-file owner is the one used by the actual duplicate/refusal modal.
-test('planning-loss refusal offers fixed choices, retains the file for Create copy and cancellation sends nothing', async () => {
-    for (const cancel of [false, true]) {
-        const calls = [];
-        const { handlers, result } = createHandlers(async (_, options) => {
-            calls.push(options.body);
-            if (calls.length === 1) return new Response(JSON.stringify({ status: 'duplicate' }));
-            if (calls.length === 2) return new Response(JSON.stringify({ status: 'error', code: 'planning_loss_requires_review', message: '<script>arbitrary server text</script>' }), { status: 409 });
-            return new Response(JSON.stringify({ status: 'success', redirectUrl: '/User/Trip/Edit/copy' }));
-        });
-        let refusals = 0;
-        handlers.onPlanningLoss = () => { refusals++; };
-        const importer = createTripImporter(handlers);
-        await importer.upload(sampleFile);
-        await importer.update();
-        assert.equal(result.duplicates, 1);
-        assert.equal(refusals, 1);
-        assert.deepEqual(result.errors, []);
-        if (cancel) importer.cancel();
-        await importer.createCopy();
-        assert.equal(calls.length, cancel ? 2 : 3);
-        if (!cancel) {
-            assert.equal(calls[2].get('mode'), 'CreateNew');
-            assert.equal(await calls[2].get('file').text(), 'kml');
-            assert.deepEqual(result.redirects, ['/User/Trip/Edit/copy']);
-        }
+test('review sends no mutation, Keep defaults, and Use/Clear/removal are exclusive selected permits', async () => {
+    for (const action of ['keep', 'use', 'clear']) {
+        const { importer, observed } = mount((url, init, n) => n === 1 ? duplicate() : n === 2 ? review() : success());
+        await importer.upload(file); await importer.update();
+        assert.equal(observed.calls[1].url, '/User/Trip/ReviewImport');
+        assert.equal(importer.state.choices.get('trip/root'), 'keep');
+        assert.equal(importer.state.choices.get('place/removed'), '');
+        importer.choose('trip/root', action); importer.choose('place/removed', 'remove');
+        await importer.apply();
+        const body = observed.calls[2].body;
+        assert.equal(body.get('reviewToken'), 'root-token');
+        assert.deepEqual(body.getAll('choices'), [`${action}-token`, 'remove-token']);
+        assert.equal(importer.state.file, file);
     }
 });
 
-test('specific refusal fallback uses only the fixed local explanation', async () => {
-    const { handlers, result } = createHandlers(async () => new Response(JSON.stringify({ status: 'error', code: 'planning_loss_requires_review', message: 'Unsafe arbitrary text' }), { status: 409 }));
-    await submitTripImport(sampleFile, 'Upsert', handlers);
-    assert.deepEqual(result.errors, [planningLossExplanation]);
-    assert.doesNotMatch(result.errors[0], /try again|Unsafe arbitrary/);
+test('known stale rejection retains file and choices, requires fresh review and never auto-applies it', async () => {
+    const { importer, observed } = mount((url, init, n) => n === 1 ? duplicate() : n === 3
+        ? reply({ status: 'error', code: 'import_review_stale', message: '<script>unsafe text</script>' }, 409) : review());
+    await importer.upload(file); await importer.update();
+    importer.choose('trip/root', 'use'); importer.choose('place/removed', 'remove');
+    await importer.apply();
+    assert.equal(importer.state.file, file); assert.equal(importer.state.choices.get('trip/root'), 'use');
+    await importer.apply(); assert.equal(observed.calls.length, 3);
+    await importer.update(); assert.equal(observed.calls.length, 4);
+    assert.equal(importer.state.choices.get('trip/root'), 'use'); assert.equal(importer.state.reviewStale, false);
+    assert.doesNotMatch(observed.errors.join(), /unsafe|script/);
+});
+
+test('cancellation sends nothing, preserves the selection and cannot fall through to Create new', async () => {
+    const { importer, observed } = mount(() => duplicate());
+    await importer.upload(file); importer.cancel();
+    await importer.createCopy(); await importer.update(); await importer.apply();
+    assert.equal(observed.calls.length, 1); assert.equal(importer.state.file, file);
+});
+
+test('recoverable file errors retain the file and permit a separate explicit Create new action', async () => {
+    const { importer, observed } = mount((url, init, n) => n === 1 ? reply({ status: 'error', code: 'validation_failed' }, 422) : success());
+    await importer.upload(file);
+    assert.deepEqual(observed.errors, [genericImportFailure]); assert.equal(importer.state.file, file);
+    assert.equal(importer.state.uncertain, false); await importer.createCopy();
+    assert.equal(observed.calls.length, 2);
+});
+
+test('read-only review transport failure retains choices and is safely refreshable', async () => {
+    const { importer, observed } = mount((url, init, n) => {
+        if (n === 1) return duplicate(); if (n === 3) throw new Error('network'); return review();
+    });
+    await importer.upload(file); await importer.update(); importer.choose('trip/root', 'clear');
+    await importer.update(); assert.equal(importer.state.uncertain, false); assert.equal(importer.state.choices.get('trip/root'), 'clear');
+    await importer.update(); assert.equal(observed.calls.length, 4);
+});
+
+for (const failure of ['network', 'non-json', 'redirect', 'malformed-success', 'server-unknown']) test(`${failure} holds mutating replay across reload and preserves the in-flight file and choices`, async () => {
+    const storage = store();
+    const { importer, observed } = mount((url, init, n) => {
+        if (n === 1) return duplicate(); if (n === 2) return review();
+        if (failure === 'network') throw new Error('private transport text');
+        if (failure === 'non-json') return new Response('<html>untrusted</html>');
+        if (failure === 'redirect') return { redirected: true, json: async () => ({ status: 'success' }) };
+        if (failure === 'malformed-success') return reply({ status: 'success', redirectUrl: 'https://untrusted.invalid/' });
+        return reply({ status: 'error', code: 'import_outcome_unknown', message: 'unsafe' }, 500);
+    }, { storage, owner: 'owner' });
+    await importer.upload(file); await importer.update(); importer.choose('trip/root', 'use');
+    await importer.apply(); assert.equal(importer.state.uncertain, true); assert.equal(importer.state.file, file);
+    assert.equal(importer.state.choices.get('trip/root'), 'use');
+    await importer.apply(); await importer.createCopy(); await importer.update(); await importer.upload(new Blob(['other']));
+    assert.equal(observed.calls.length, 3);
+    const reopened = mount(() => { throw new Error('must not send'); }, { storage, owner: 'owner' }).importer;
+    assert.equal(reopened.state.uncertain, true); await reopened.upload(file);
+    assert.equal(mount(() => duplicate(), { storage, owner: 'other-owner' }).importer.state.uncertain, false);
+});
+
+test('an in-flight request fences later file selection and cancellation without discarding its exact bytes', async () => {
+    let finish; const storage = store();
+    const { importer, observed } = mount(() => new Promise(resolve => { finish = resolve; }), { storage, owner: 'owner' });
+    const running = importer.upload(file);
+    assert.equal(mount(() => duplicate(), { storage, owner: 'owner' }).importer.state.uncertain, true);
+    await importer.upload(new Blob(['later'])); importer.cancel();
+    finish(duplicate()); await running;
+    assert.equal(observed.calls.length, 1); assert.equal(importer.state.file, file); assert.equal(importer.state.cancelled, false);
+});
+
+test('legacy direct entry point reports uncertainty without exposing transport or response text', async () => {
+    const { handlers, observed } = mount(async () => { throw new Error('private text'); });
+    await submitTripImport(file, 'Auto', handlers);
+    assert.deepEqual(observed.errors, [uncertainImport]);
+});
+
+for (const [payload, status] of [
+    [{ status: 'error', code: 'validation_failed', applied: true }, 409],
+    [{ status: 'success', tripId: id, redirectUrl: `/User/Trip/Edit/${id}`, notices: [] }, 202],
+    [{ status: 'success', tripId: id, redirectUrl: `/User/Trip/Edit/${id}` }, 200]
+]) test(`contradictory or incomplete ${status} outcome cannot release replay`, async () => {
+    const { importer, observed } = mount(() => reply(payload, status));
+    await importer.upload(file); assert.equal(importer.state.uncertain, true);
+    await importer.createCopy(); assert.equal(observed.calls.length, 1);
 });

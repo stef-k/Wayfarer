@@ -44,6 +44,15 @@ export const mountTripImport = () => {
                 }
                 details.append(summary, list); field.append(details);
             }
+            if (row.state === 'conflict') {
+                const removed = row.current.entries.filter(entry => !row.imported.entries.some(next => next.id === entry.id));
+                if (removed.length) {
+                    const warning = document.createElement('p'); warning.textContent = 'Use imported planning removes these existing entries:';
+                    const list = document.createElement('ol');
+                    for (const entry of removed) { const item = document.createElement('li'); item.textContent = describeEntry(entry); list.append(item); }
+                    field.append(warning, list);
+                }
+            }
             for (const choice of row.choices) {
                 const wrapper = document.createElement('label'); wrapper.className = 'd-block mb-2';
                 const input = document.createElement('input');
@@ -59,7 +68,7 @@ export const mountTripImport = () => {
         get('btnUpdate').disabled = blocked;
         get('btnCopy').disabled = blocked;
         get('btnApplyImport').hidden = !state.review;
-        get('btnApplyImport').disabled = blocked || (state.review?.planning || []).some(r => r.state === 'removed' && state.choices.get(r.key) !== 'remove');
+        get('btnApplyImport').disabled = blocked || state.reviewStale || (state.review?.planning || []).some(r => r.state === 'removed' && state.choices.get(r.key) !== 'remove');
         get('btnUpdate').textContent = state.review ? 'Refresh review' : 'Review update';
         get('btnCancelImport').disabled = state.busy;
         for (const id of ['importFile', 'importFileMyMaps']) document.getElementById(id).disabled = state.busy || state.uncertain;

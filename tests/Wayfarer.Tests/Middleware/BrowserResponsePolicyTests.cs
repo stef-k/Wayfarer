@@ -11,6 +11,32 @@ namespace Wayfarer.Tests.Middleware;
 /// <summary>Checks final response headers through real response-start and error-handler execution.</summary>
 public sealed class BrowserResponsePolicyTests
 {
+    /// <summary>Private file policies survive errors before controller execution, including trailing-slash routes.</summary>
+    [Theory]
+    [InlineData("/Trip/ExportPersonalWayfarerKml/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")]
+    [InlineData("/User/Trip/Import/")]
+    [InlineData("/User/Trip/ReviewImport")]
+    public async Task PrivateFileErrorReexecutionCannotPublishValidators(string path)
+    {
+        using var host = await new HostBuilder().ConfigureWebHost(web => web.UseTestServer().Configure(app =>
+        {
+            app.UseMiddleware<BrowserResponsePolicyMiddleware>();
+            app.UseExceptionHandler("/error");
+            app.Run(async context =>
+            {
+                if (context.Request.Path != "/error") throw new InvalidOperationException("Private file failure");
+                context.Response.Headers.CacheControl = "public, max-age=100";
+                context.Response.Headers.ETag = "\"public-validator\"";
+                context.Response.Headers.LastModified = "Sun, 01 Nov 2026 00:00:00 GMT";
+                await context.Response.WriteAsync("safe error");
+            });
+        })).StartAsync();
+        using var response = await host.GetTestClient().GetAsync(path);
+        Assert.True(response.Headers.CacheControl!.Private && response.Headers.CacheControl.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Null(response.Content.Headers.LastModified);
+    }
+
     /// <summary>Only successful HTML explicitly approved by its controller may be embedded externally.</summary>
     [Theory]
     [InlineData(false, 200, "text/html", false)]

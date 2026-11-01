@@ -47,6 +47,7 @@ public static partial class WayfarerKmlParser
     private static WayfarerKmlClassification Classify(XDocument source)
     {
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
+        if (source.Root!.Elements(Kml + "Document").Count() != 1) throw new FormatException("Ambiguous KML Document.");
         var versionValues = Values(document, "WayfarerSchemaVersion");
         ValidatePlanningPlacement(source, document, versionValues);
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
@@ -105,22 +106,24 @@ public static partial class WayfarerKmlParser
     {
         var tripId = RequiredGuid(owner, "TripId");
         var regions = owner.Elements(Kml + "Folder").Where(folder => folder.Element(Kml + "name")?.Value != "Segments")
-            .Select(folder => ParseRegion(folder, version)).ToArray();
+            .Select(folder => ParseRegion(folder, version, tripId)).ToArray();
         EnsureUnique(regions.Select(region => region.Id), "Region");
         EnsureUnique(regions.SelectMany(region => region.Areas).Select(area => area.Id), "Area");
         var segmentsFolder = owner.Elements(Kml + "Folder").SingleOrDefault(folder => folder.Element(Kml + "name")?.Value == "Segments");
         var segments = segmentsFolder?.Elements(Kml + "Placemark")
             .Where(placemark => version != 1 || HasParseableV1LineString(placemark))
-            .Select(pm => ParseSegment(pm, version)).ToArray() ?? [];
+            .Select(pm => { ValidateDeclaredParent(pm, "TripId", tripId); return ParseSegment(pm, version); }).ToArray() ?? [];
         EnsureUnique(segments.Select(segment => segment.Id), "Segment");
         return new(version, tripId, owner.Element(Kml + "name")?.Value ?? "Imported trip",
             Scalar(owner, "CoverImageUrl"), Scalar(owner, "NotesHtml"), OptionalDouble(owner, "CenterLat"),
             OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments, ParsePlanning(owner, "trip"));
     }
 
-    private static WayfarerKmlRegion ParseRegion(XElement owner, int version)
+    private static WayfarerKmlRegion ParseRegion(XElement owner, int version, Guid tripId)
     {
         var id = RequiredGuid(owner, "RegionId");
+        ValidateDeclaredParent(owner, "TripId", tripId);
+        foreach (var child in owner.Elements(Kml + "Placemark")) ValidateDeclaredParent(child, "RegionId", id);
         var places = owner.Elements(Kml + "Placemark").Where(pm => pm.Element(Kml + "Polygon") is null)
             .Select(pm => ParsePlace(pm, version)).ToArray();
         var areas = owner.Elements(Kml + "Placemark").Where(pm => pm.Element(Kml + "Polygon") is not null)

@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Changed
+- Complete native personal export/import (#789 WB2): owner-only, default-off native
+  v4 planning inclusion with downloaded-file disclosure; public/default output
+  remains v3. Preserve typed planning, holes, graph references/order, Notes/tags,
+  provenance and exact measurements. Add file/current-content-bound update review
+  with Keep/Use/Clear and annotated-removal consent, atomic replacement, retained
+  Web files/choices and uncertain-outcome replay holds. Reject incompatible or
+  ambiguous planning-bearing files before fallback. Document consumer contracts;
+  no new migration or application-version change. WB3 and final combined review
+  follow separately; mobile agents own mobile implementation and qualification.
 - Add optional private planning to Trip, Region, Place, Area and Segment (#789 WB1):
   typed repeated/partial/end-only values, explicit precision and optional UTC/IANA
   clocks, whole-aggregate protected Set/Clear, coherent owner reads and existing
@@ -10,8 +19,8 @@
   reads/downloads/cross-owner copies and public freshness free of planning.
   Add five nullable JSONB columns; extend structural/deletion originals and retain
   same-ID/type planning through legacy native replacement. Reject unreviewed
-  annotated removal atomically. Personal native v4 files (WB2), Check plan (WB3),
-  future own cloning/versioning and the required new-mobile companion remain
+  annotated removal atomically. Personal native v4 files are delivered by WB2 above. Check plan (WB3),
+  future own cloning/versioning and the separately owned mobile companion remain
   separately owned; this does not complete #789. Bind normal Region ordering to
   complete Planning without adding it to independent coordinate dependencies.
   Preserve acknowledged Planning across unrelated replies, include separate saves

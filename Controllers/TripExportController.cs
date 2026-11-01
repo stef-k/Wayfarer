@@ -40,6 +40,7 @@ namespace Wayfarer.Controllers
 
             if (!trip.IsPublic)
             {
+                Wayfarer.Middleware.BrowserResponsePolicyMiddleware.RequirePrivateResponse(HttpContext);
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (userId == null || trip.UserId != userId)
                     throw new UnauthorizedAccessException("You are not authorized to export this trip.");

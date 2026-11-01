@@ -3,6 +3,8 @@ export const genericImportFailure = 'The import could not be applied. Your file 
 export const uncertainImport = 'The import outcome could not be confirmed. Check My Trips before starting another import. Sending this file again is held in this tab.';
 const safeCodes = new Set(['invalid_file', 'validation_failed', 'invalid_kml', 'import_review_required', 'import_review_stale', 'import_choices_invalid', 'import_loss_consent_required', 'generic_kml_processing_limit', 'generic_route_geometry_unsupported']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Contradictory or extended outcome fields are not a safe negative acknowledgement. */
+const onlyKeys = (payload, keys) => Object.keys(payload).every(key => keys.includes(key));
 
 /** One multipart request, with exact selected bytes and protected per-target intent. */
 export const requestTripImport = async (file, mode, handlers, approval = null, reviewOnly = false) => {
@@ -20,12 +22,15 @@ export const requestTripImport = async (file, mode, handlers, approval = null, r
         });
         const payload = await response.json();
         if (response.redirected) return { status: reviewOnly ? 'error' : 'uncertain' };
-        if (reviewOnly && response.ok && payload?.status === 'review' && typeof payload.review?.token === 'string'
+        if (reviewOnly && response.status === 200 && payload?.status === 'review' && typeof payload.review?.token === 'string'
             && uuid.test(payload.review.tripId) && Array.isArray(payload.review.planning)) return payload;
-        if (!reviewOnly && payload?.status === 'success' && (response.ok ?? true) && uuid.test(payload.tripId)
+        if (!reviewOnly && response.status === 200 && payload?.status === 'success' && Array.isArray(payload.notices)
+            && onlyKeys(payload, ['status', 'tripId', 'redirectUrl', 'notices']) && uuid.test(payload.tripId)
             && payload.redirectUrl === `/User/Trip/Edit/${payload.tripId}`) return payload;
-        if (!reviewOnly && payload?.status === 'duplicate' && (response.ok ?? true) && uuid.test(payload.tripId)) return payload;
-        if (payload?.status === 'error' && safeCodes.has(payload.code) && response.status >= 400 && response.status < 500)
+        if (!reviewOnly && response.status === 200 && payload?.status === 'duplicate'
+            && onlyKeys(payload, ['status', 'tripId']) && uuid.test(payload.tripId)) return payload;
+        if (payload?.status === 'error' && onlyKeys(payload, ['status', 'code', 'message'])
+            && safeCodes.has(payload.code) && response.status >= 400 && response.status < 500)
             return { status: 'error', code: payload.code };
         return { status: reviewOnly ? 'error' : 'uncertain' };
     } catch { return { status: reviewOnly ? 'error' : 'uncertain' }; }
@@ -44,7 +49,7 @@ export const submitTripImport = async (file, mode, handlers) => {
 /** Owns the selected File, review and choices; a lost mutating reply holds every import action across reload. */
 export const createTripImporter = (handlers, { storage = null, owner = '' } = {}) => {
     const holdKey = `wayfarer:native-import-pending:${owner}`;
-    const state = { file: null, review: null, choices: new Map(), busy: false, uncertain: false, cancelled: false, message: '' };
+    const state = { file: null, review: null, choices: new Map(), busy: false, uncertain: false, cancelled: false, reviewStale: false, message: '' };
     try { state.uncertain = storage?.getItem(holdKey) === 'pending'; }
     catch { state.uncertain = true; }
     const publish = () => handlers.onState?.(state);
@@ -56,7 +61,7 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
         } catch { return false; }
     };
     const run = async (mode, reviewOnly = false, approval = null) => {
-        if (!state.file || state.busy || state.uncertain) return;
+        if (!state.file || state.busy || state.uncertain || state.cancelled) return;
         state.busy = true;
         state.cancelled = false;
         if (!reviewOnly && !setHold(true)) {
@@ -70,6 +75,7 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
         else if (!reviewOnly && !setHold(false)) state.uncertain = true;
         if (result.status === 'review') {
             state.review = result.review;
+            state.reviewStale = false;
             // Retain explicit intent on fresh review; the user must inspect and apply again.
             for (const row of result.review.planning) {
                 const previous = state.choices.get(row.key);
@@ -80,6 +86,7 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
             handlers.onRedirect(result.redirectUrl);
         } else if (result.status === 'duplicate') handlers.onDuplicate();
         else if (result.status === 'error') {
+            if (!reviewOnly && mode === 'Upsert') state.reviewStale = true;
             state.message = result.code === 'import_review_stale' ? 'The Trip or file changed. Refresh the review, inspect the current content, then apply your choices.' : genericImportFailure;
             handlers.showError(state.message);
         }
@@ -89,12 +96,12 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
         state,
         upload: async (file, mode = 'Auto') => {
             if (state.busy || state.uncertain) return;
-            state.file = file; state.review = null; state.choices.clear();
+            state.file = file; state.review = null; state.choices.clear(); state.cancelled = false; state.reviewStale = false;
             await run(mode);
         },
         update: () => run('Upsert', true),
         apply: () => {
-            if (!state.review) return;
+            if (!state.review || state.reviewStale) return;
             const choices = state.review.planning.flatMap(row => {
                 const permit = row.choices.find(c => c.action === state.choices.get(row.key));
                 return permit ? [permit.token] : [];

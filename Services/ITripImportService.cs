@@ -5,7 +5,7 @@ public sealed class TripImportValidationException(string message) : Exception(me
 
 public enum TripImportMode
 {
-    Auto,       // default: upsert if owned, else copy (status-quo)
+    Auto,       // default: ask about an owned duplicate; otherwise create a private copy
     Upsert,     // force update an existing trip you own
     CreateNew   // always clone – ignore TripId inside the file
 }

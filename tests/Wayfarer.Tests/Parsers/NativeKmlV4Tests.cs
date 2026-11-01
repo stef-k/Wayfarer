@@ -58,6 +58,31 @@ public sealed class NativeKmlV4Tests
         Assert.Throws<FormatException>(() => Parse(xml.ToString()));
     }
 
+    /// <summary>Strictness applies to otherwise valid content, not just to an already-empty aggregate.</summary>
+    [Theory]
+    [InlineData("alias")]
+    [InlineData("nested-duplicate")]
+    [InlineData("field")]
+    [InlineData("zone")]
+    [InlineData("xml-value")]
+    public void AmbiguousOrUnsupportedClaimsRejectValidSurroundingContent(string fault)
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var xml = XDocument.Parse(TripWayfarerKmlExporter.BuildKml(new Trip { Id = Guid.NewGuid(), Name = "Trip", Planning = Plan() }, true));
+        var data = xml.Descendants(k + "Data").Single(e => (string?)e.Attribute("name") == "Planning");
+        var value = data.Element(k + "value")!;
+        value.Value = fault switch
+        {
+            "alias" => value.Value.Replace("\"format\":1", "\"format\":1,\"Format\":1"),
+            "nested-duplicate" => value.Value.Replace("\"form\":\"at\"", "\"form\":\"at\",\"form\":\"at\""),
+            "field" => value.Value.Replace("\"format\":1", "\"format\":1,\"originals\":{}"),
+            "zone" => value.Value.Replace("Europe/Berlin", "Unsupported/Zone"),
+            _ => value.Value
+        };
+        if (fault == "xml-value") data.Add(new XElement(k + "value", value.Value));
+        Assert.Throws<FormatException>(() => Parse(xml.ToString()));
+    }
+
     /// <summary>Notes that contain prose are safe; XML payloads in ignored folders or namespaces are not.</summary>
     [Theory]
     [InlineData("<Planning>{}</Planning>")]

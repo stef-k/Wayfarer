@@ -41,7 +41,13 @@ internal sealed class NativeImportReviewProtection(IDataProtectionProvider prote
     /// <summary>Includes absent aggregates, membership, all reusable material and exact saved measurements.</summary>
     internal static string Binding(Trip current, string owner, string digest) => Convert.ToHexString(SHA256.HashData(
         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { owner, digest, mode = "Upsert", current.Id,
-            current.IsPublic, Content = TripWayfarerKmlExporter.BuildKml(current, true) }))));
+            current.IsPublic, Content = TripWayfarerKmlExporter.BuildKml(current, true),
+            RawNotes = NativeTripGraph.Targets(current).OrderBy(t => t.Kind).ThenBy(t => t.Id).Select(t => t.Target switch
+            {
+                Trip trip => trip.Notes, Region region => region.Notes, Place place => place.Notes,
+                Area area => area.Notes, Segment segment => segment.Notes, _ => null
+            }),
+            Tags = current.Tags.OrderBy(t => t.Id).Select(t => new { t.Id, t.Name, t.Slug }) }))));
 
     internal string Issue(string binding, string key, string action) => protector.Protect(JsonSerializer.Serialize(
         new Permit(binding, key, action, DateTimeOffset.UtcNow.AddMinutes(20))));

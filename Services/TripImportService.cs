@@ -90,7 +90,7 @@ public partial class TripImportService : ITripImportService
                 source, userId, profiles, remapIdentities: createNew,
                 targetTripId: createNew ? null : source.TripId);
             TripRichNotes.NormalizeDestination(mapped);
-            if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
+            if (createNew && source.Version != 4) mapped.Name = $"{mapped.Name} (Imported)";
 
             if (!createNew)
             {
@@ -108,6 +108,8 @@ public partial class TripImportService : ITripImportService
             else
             {
                 await ReplaceNativeChildrenAsync(mapped, cancellationToken);
+                // Replacement clears the tracker; use these canonical tags when loading existing joins.
+                _dbContext.AttachRange(reconciledTags);
                 var target = await _dbContext.Trips.Include(trip => trip.Tags)
                     .SingleAsync(trip => trip.Id == source.TripId && trip.UserId == userId, cancellationToken);
                 target.Name = mapped.Name;

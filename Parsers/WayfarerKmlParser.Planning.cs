@@ -6,6 +6,13 @@ namespace Wayfarer.Parsers;
 
 public static partial class WayfarerKmlParser
 {
+    /// <summary>Older files may omit parent metadata; a supplied contradictory reference is never authoritative.</summary>
+    private static void ValidateDeclaredParent(XElement owner, string field, Guid expected)
+    {
+        if (OptionalGuid(owner, field) is { } supplied && supplied != expected)
+            throw new FormatException("Invalid native graph membership.");
+    }
+
     /// <summary>Bounds the complete codec value before JSON materialization; no truncation is permitted.</summary>
     public const int MaximumPlanningCharacters = 262144;
 
@@ -90,6 +97,8 @@ public static partial class WayfarerKmlParser
         if (json.Length > MaximumPlanningCharacters) throw new FormatException("Planning exceeds the supported limit.");
         try
         {
+            using var syntax = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            RejectAmbiguousProperties(syntax.RootElement);
             var value = PlanningCodec.Read(json);
             PlanningValidation.Validate(value, kind);
             return value;
@@ -97,6 +106,20 @@ public static partial class WayfarerKmlParser
         catch (Exception error) when (error is JsonException or PlanningValidationException)
         {
             throw new FormatException("The private planning payload is invalid or incompatible.");
+        }
+    }
+
+    /// <summary>The shared Web codec is case-insensitive; spelling aliases must not become duplicate semantic keys.</summary>
+    private static void RejectAmbiguousProperties(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Array)
+            foreach (var item in value.EnumerateArray()) RejectAmbiguousProperties(item);
+        if (value.ValueKind != JsonValueKind.Object) return;
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in value.EnumerateObject())
+        {
+            if (!names.Add(property.Name)) throw new JsonException();
+            RejectAmbiguousProperties(property.Value);
         }
     }
 }

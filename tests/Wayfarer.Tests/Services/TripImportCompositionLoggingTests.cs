@@ -27,7 +27,7 @@ public sealed class TripImportCompositionLoggingTests
         var service = scope.ServiceProvider.GetRequiredService<ITripImportService>();
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Users.Add(new ApplicationUser { Id = "composition-user", UserName = "composition-user", IsActive = true });
+        db.Users.Add(new ApplicationUser { Id = "composition-user", UserName = "composition-user", DisplayName = "Composition", IsActive = true });
         await db.SaveChangesAsync();
         await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
             ToStream(CreateKml(Guid.NewGuid(), "---")), "composition-user", TripImportMode.CreateNew));

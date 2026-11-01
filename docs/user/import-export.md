@@ -225,15 +225,41 @@ verify server history separately. For undelivered recordings, follow
 
 ## Move Trip plans
 
-Private structured planning is excluded from current Trip files. Updating an
-existing Trip from an older/native file preserves planning on objects with the
-same IDs and types. If the update would remove an object with private planning,
-it rejects without changing the Trip. The import dialog explains the refusal and
-retains the selected file: **Cancel** keeps the original, while **Create copy**
-imports that file as a separate Trip without the original's private Planning.
-Repeating Update existing cannot resolve this refusal.
-New objects inherit no planning. The complete personal planning file workflow is
-reserved for WB2; current files are not planning backups.
+From your own **View/Export Trip** page, choose **Wayfarer KML**. **Include
+private planning** starts unchecked every time. Unchecked downloads use native
+v3 with no private planning. Check it for a native v4 personal file preserving
+all saved planning entries, precision, zones and optional details together with
+the reusable Trip content, including Area holes, routes, Notes and tags.
+
+“This file includes private dates, times and planning details. Anyone you share
+it with can read them. Server access controls cannot revoke an already downloaded
+file.” Only the authenticated owner can make this download, including for their
+public Trips. Public Trip pages and other viewers cannot include private planning.
+Google My Maps KML, PDF and other formats exclude private planning and offer no
+Include control. Third-party KML viewers are not personal round-trip tools; older
+Wayfarer readers that support only v1–v3 reject v4.
+
+![Personal native export with inclusion explicitly selected; it starts unchecked](../images/trip-personal-native-export.png)
+
+When a file matches an owned Trip, choose **Review update** or **Create new Trip**.
+An update replaces reusable Trip content together. Omitted planning preserves the
+existing aggregate, including Trip-level planning. Equal planning needs no conflict
+choice; empty targets accept included valid planning. For different existing
+planning, **Keep existing** is initially selected. Choose **Use imported planning**
+for that entire object's entries, or choose **Clear existing planning** explicitly.
+Inspect the existing/imported entries before applying. Removing or reidentifying
+an annotated object needs separate loss consent. Cancel keeps the original;
+Create new makes a private Trip with fresh identities and leaves the original
+unchanged. New objects never inherit existing planning from matching names or IDs.
+
+The selected file and choices remain available on recoverable errors. If the Trip
+changed, refresh the review and inspect its current content before applying again.
+An uncertain response holds further imports in that tab, including after reload.
+Use **Check My Trips** to inspect separately; do not send the file again blindly.
+An invalid, unsupported or misplaced planning payload rejects the entire file,
+rather than reporting successful geography-only recovery. Keep the original file.
+
+![An explicit Use imported choice in the Web review; Keep existing is initially selected](../images/trip-native-import-review.png)
 
 From your personal **Trips** list:
 
@@ -262,8 +288,8 @@ holes outside the shell) reject the entire import, without a partial new Trip or
 partial replacement of an existing Trip. Import does not repair a footprint or
 discard a bad hole. Existing saved Areas are unchanged by export.
 
-This uses standard KML boundaries in native versions 1, 2 and 3, including
-recognized versionless legacy files; no new schema version is needed. Older
+This uses standard KML boundaries in native versions 1, 2, 3 and 4, including
+recognized versionless legacy files. Older
 Wayfarer readers may lose holes. Fidelity through the external Google My Maps
 service depends on that service and is not established by Wayfarer's round trips.
 
@@ -289,11 +315,12 @@ Timeline exports still omit that identifier. Queue-recovery files carry it for
 
 Native Trip KML preserves Regions, Places, Areas, ordered From/Via/To connections,
 route geometry, the saved distance and duration, and automatic/manual duration
-choices. Current exports use native version 3 so provider estimates, fractional
+choices. Default exports use native version 3; personal planning inclusion selects v4.
+Both preserve provider estimates, fractional
 seconds and retained route attribution survive import and copying. Wayfarer
 estimates are equally valid; a provider connection is not required to transfer a
 Trip. A different planning speed at the destination does not replace the saved
-version 3 values.
+v3/v4 values.
 
 Existing version 1 and 2 files remain readable under their established import
 rules. Older Wayfarer releases that support only those versions cannot read new
