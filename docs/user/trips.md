@@ -125,6 +125,8 @@ has **30 minutes estimate risk** while the saved intention stays unchanged.
 Change/remove the deadline here; minute precision and a resolved zone are needed
 for elapsed comparison. It follows the same private setup rules below.
 
+![Current source confirmation and check-only Arrive by input](../images/trip-check-arrival-deadline.png)
+
 If you have drafts, choose **Save and check**, **Check saved version**, or **Return
 to editing**. Saves use their existing protection; unconfirmed saves or later
 typing remain unsaved and cannot become acknowledged facts merely by checking.

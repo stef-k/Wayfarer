@@ -227,7 +227,7 @@ deadline estimate risk. An end-only destination still has Unknown intended arriv
 but can use the explicit deadline. Removing/changing it recomputes that assessment
 without altering saved values or unrelated relevance. Coarse, unzoned or unresolved
 fold deadlines remain Unknown; an invalid new value rejects. The deadline lives
-only in the bounded private setup and is excluded from storage, originals, files
+only in the bounded private setup and is excluded from planning persistence, originals, files
 and copies along with all other check inputs.
 
 Input bounds are 512 entry refinements, 64 transfers, 2048 location assessments,

@@ -169,8 +169,7 @@ public static class PlanningCheckService
             _ => item.ParentId
         };
         var dependency = Fingerprint(new { from.Key, from.ParentId, FromLocation = Location(from), To = to.Key, ToParent = to.ParentId, ToLocation = Location(to),
-            Segment = segment == null ? null : new { Route = JourneyRoute(graph, segment), segment.EstimatedDurationMinutes, segment.EstimatedDurationSource },
-            ManualEstimate = transfer.SegmentId.HasValue ? null : transfer.EstimateMinutes });
+            Segment = segment == null ? null : new { Route = JourneyRoute(graph, segment), segment.EstimatedDurationMinutes, segment.EstimatedDurationSource } });
         if (transfer.Dependency != null && transfer.Dependency != dependency)
         {
             transfer = transfer with { Relevant = false, Allowance = "unknown", Connection = "unknown" };
