@@ -50,6 +50,9 @@
                                 <div class="btn-group" role="group">
                                     <a asp-action="Edit" asp-route-id="@activityType.Id" class="btn btn-primary btn-sm">Edit</a>
 
+                                    @* Consolidation has its own destination selection and confirmation. *@
+                                    <a asp-action="Consolidate" asp-route-sourceId="@activityType.Id" class="btn btn-warning btn-sm">Consolidate</a>
+
                                     <a asp-action="Delete" asp-route-id="@activityType.Id" class="btn btn-danger btn-sm">Delete</a>
                                 </div>
                             </td>

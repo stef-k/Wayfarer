@@ -18,7 +18,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
 {
     // Explicit cookie contracts, not a blanket rule that treats read-only POSTs as mutations.
     private const string CookieActions = """
-        Admin.ActivityType.Create Admin.ActivityType.Edit Admin.ActivityType.DeleteConfirmed
+        Admin.ActivityType.Create Admin.ActivityType.Edit Admin.ActivityType.DeleteConfirmed Admin.ActivityType.ConsolidateConfirmed
         Admin.ApiToken.Create Admin.ApiToken.Regenerate Admin.ApiToken.Delete
         Admin.Jobs.StartJob Admin.Jobs.PauseJob Admin.Jobs.ResumeJob Admin.Jobs.CancelJob
         Admin.Settings.Update Admin.Settings.DeleteAllMapTileCache Admin.Settings.DeleteLruCache

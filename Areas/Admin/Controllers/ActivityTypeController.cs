@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Npgsql;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Wayfarer.Models.ViewModels;
 
 namespace Wayfarer.Areas.Admin.Controllers
 {
@@ -207,6 +209,52 @@ namespace Wayfarer.Areas.Admin.Controllers
             catch (Exception ex)
             {
                 _dbContext.Entry(activityType).State = EntityState.Detached;
+                HandlePersistenceError(ex);
+            }
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>Offers existing destinations and an aggregate-only confirmation without loading owner history.</summary>
+        [HttpGet]
+        public async Task<IActionResult> Consolidate(int sourceId, int? destinationId)
+        {
+            var entries = await new ActivityCatalog(_dbContext).GetConsolidationEntriesAsync(
+                sourceId, destinationId ?? 0, HttpContext.RequestAborted);
+            var source = entries.SingleOrDefault(a => a.Id == sourceId);
+            var destination = entries.SingleOrDefault(a => a.Id == destinationId);
+            if (source is null || (destinationId.HasValue && (sourceId == destinationId || destination is null)))
+            {
+                SetAlert("Choose two different existing Activities. Please refresh and try again.", "warning");
+                return RedirectToAction(nameof(Index));
+            }
+            var choices = await _dbContext.ActivityTypes.AsNoTracking().Where(a => a.Id != sourceId)
+                .OrderBy(a => a.Name).Select(a => new SelectListItem(a.Name, a.Id.ToString(), a.Id == destinationId))
+                .ToListAsync(HttpContext.RequestAborted);
+            SetPageTitle("Consolidate Activities");
+            return View(new ActivityConsolidationViewModel { Source = source, Destination = destination, Destinations = choices });
+        }
+
+        /// <summary>Confirms the selected catalog versions and reports expected rollback conflicts as refresh/retry guidance.</summary>
+        [HttpPost, ActionName("Consolidate")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConsolidateConfirmed(int sourceId, int destinationId,
+            string? sourceVersion, string? destinationVersion)
+        {
+            try
+            {
+                var completed = ModelState.IsValid && await new ActivityCatalog(_dbContext).ConsolidateAsync(
+                    sourceId, destinationId, sourceVersion, destinationVersion, HttpContext.RequestAborted);
+                SetAlert(completed ? "Activities consolidated successfully. The source ID is permanently retired."
+                    : "The Activity choices are invalid or have changed. Please refresh and confirm again.", completed ? "success" : "warning");
+            }
+            catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.SerializationFailure
+                or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.ForeignKeyViolation
+                or PostgresErrorCodes.LockNotAvailable or PostgresErrorCodes.QueryCanceled)
+            {
+                SetAlert("Another operation conflicted with consolidation. No consolidation changes were saved. Please refresh and try again.", "warning");
+            }
+            catch (Exception ex)
+            {
                 HandlePersistenceError(ex);
             }
             return RedirectToAction(nameof(Index));

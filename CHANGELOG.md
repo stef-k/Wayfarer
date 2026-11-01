@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Changed
+- Add manual Admin Activity consolidation (#865): preview catalog names and aggregate
+  Location counts, then atomically move classifications, preserve distinct nonblank
+  descriptions and permanently redirect retired numeric IDs to the destination.
+  Reject stale choices and conflicting operations safely with refresh/retry guidance.
+  Names are not aliases: future imports may recreate the retired source name.
 - Add optional Web **Check plan** (#789 WB3): fresh coherent saved-entry inventory,
   explicit context-window unions with gaps, qualified physical checks and movement
   slack/estimate risk. Show known findings beside Unknown and explicit exclusions;

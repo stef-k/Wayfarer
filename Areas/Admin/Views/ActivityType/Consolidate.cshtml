@@ -1,0 +1,37 @@
+@model Wayfarer.Models.ViewModels.ActivityConsolidationViewModel
+
+@* Only catalog names and aggregate counts are rendered; versions bind the two confirmed catalog rows. *@
+<h1 class="text-center fs-3">Consolidate Activities</h1>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p>Source: <strong>@Model.Source.Name</strong> — @Model.Source.LocationCount Location(s) across all owners.</p>
+        <form method="get" asp-action="Consolidate" asp-area="Admin" asp-controller="ActivityType">
+            <input type="hidden" name="sourceId" value="@Model.Source.Id" />
+            <label for="destinationId" class="form-label">Existing destination Activity</label>
+            <select id="destinationId" name="destinationId" asp-items="Model.Destinations" class="form-select mb-3" required>
+                <option value="">Choose a destination</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Preview consolidation</button>
+        </form>
+        @if (Model.Destination is { } destination)
+        {
+            <hr />
+            <p>Destination: <strong>@destination.Name</strong> — @destination.LocationCount existing Location(s) across all owners.</p>
+            <div class="alert alert-warning">
+                Move all Locations from <strong>@Model.Source.Name</strong> to <strong>@destination.Name</strong>.
+                Only their Activity classification changes. Distinct nonblank descriptions are preserved.
+                The source Activity is removed and its numeric ID permanently redirects to the destination.
+                Counts may change before confirmation; all source Locations at consolidation are included.
+                This cannot be undone here. Future imports of the source name may create a new Activity; names are not aliases.
+            </div>
+            <form method="post" asp-action="Consolidate" asp-area="Admin" asp-controller="ActivityType">
+                <input type="hidden" name="sourceId" value="@Model.Source.Id" />
+                <input type="hidden" name="destinationId" value="@destination.Id" />
+                <input type="hidden" name="sourceVersion" value="@Model.Source.Version" />
+                <input type="hidden" name="destinationVersion" value="@destination.Version" />
+                <button type="submit" class="btn btn-danger">Confirm consolidation</button>
+            </form>
+        }
+        <a asp-action="Index" class="btn btn-secondary mt-3">Cancel</a>
+    </div>
+</div>
