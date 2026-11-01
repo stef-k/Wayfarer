@@ -3,6 +3,7 @@ import { computed, inject, ref, watch } from 'vue';
 import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import { planningWorkspaceKey } from '../planning/planningState';
+import PlanCheck from '../planning/PlanCheck.vue';
 import MetadataEditor from './MetadataEditor.vue';
 import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
@@ -303,6 +304,7 @@ function normalize(value: string): string {
       </nav>
 
       <div class="trip-editor-mobile-drawer__body">
+        <PlanCheck :state="state" :endpoint="editorEndpoint" :antiforgery="antiforgeryToken" :ordinary-dirty="regionDraftDirty || segmentDraftDirty" :surface="editorSurface" />
         <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"

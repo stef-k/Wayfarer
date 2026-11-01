@@ -37,6 +37,7 @@ public static class EditorTripStateMapper
         return new EditorTripStateDto
         {
             TripId = trip.Id,
+            OwnerId = trip.UserId,
             Metadata = ToMetadata(trip, publicUrl, progressPublicUrl),
             RegionsById = regions.ToDictionary(r => r.Id, ToRegion),
             RegionOrder = regions.Select(r => r.Id).ToList(),

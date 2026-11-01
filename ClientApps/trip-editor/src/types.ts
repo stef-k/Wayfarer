@@ -11,6 +11,10 @@ export type Guid = string;
 
 export interface EditorTripState {
   tripId: Guid;
+  /** Private snapshot identity fences the one bounded device-local check setup. */
+  ownerId?: string;
+  /** Serving zone rules invalidate instant-dependent interpretations on refresh. */
+  zoneRulesVersion?: string;
   metadata: EditorTripMetadata;
   regionsById: Record<Guid, EditorRegion>;
   regionOrder: Guid[];

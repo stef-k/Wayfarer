@@ -72,9 +72,8 @@ const regionCreateBaselineRequest = ref<EditorRegionSaveRequest | null>(null);
 const placeCreateBaselineRequest = ref<EditorPlaceSaveRequest | null>(null);
 const placeCreateBaselineDraft = ref<EditorPlaceDraft | null>(null);
 const areaCreateBaselineRequest = ref<EditorAreaSaveRequest | null>(null);
-let unregisterRegionHandler: (() => void) | null = null;
-let unregisterPlaceHandler: (() => void) | null = null;
-let unregisterAreaHandler: (() => void) | null = null;
+// The three ordinary draft handlers share one mounted registration/cleanup lifetime.
+const unregisterHandlers: Array<() => void> = [];
 const placeCoordinateMapWork = reactive<PlaceCoordinateMapWorkState>({ coordinate: null, stopPick: null });
 const areaPolygonMapWork = reactive<AreaPolygonMapWorkState>({ geometry: null, stopEdit: null });
 
@@ -357,24 +356,17 @@ watch(
 );
 
 onMounted(() => {
-  unregisterRegionHandler = props.editorSurface.registerTargetHandler(regionDraftKey, {
-    isDirty: () => regionDirty.value,
-    discard: discardRegionDraft
-  });
-  unregisterPlaceHandler = props.editorSurface.registerTargetHandler(placeDraftKey, {
-    isDirty: () => placeDirty.value,
-    discard: discardPlaceDraft
-  });
-  unregisterAreaHandler = props.editorSurface.registerTargetHandler(areaDraftKey, {
-    isDirty: () => areaDirty.value,
-    discard: discardAreaDraft
-  });
+  for (const [key, dirty, save, discard] of [
+    [regionDraftKey, regionDirty, saveDraft, discardRegionDraft],
+    [placeDraftKey, placeDirty, savePlaceDraft, discardPlaceDraft],
+    [areaDraftKey, areaDirty, saveAreaDraft, discardAreaDraft]
+  ] as const) {
+    unregisterHandlers.push(props.editorSurface.registerTargetHandler(key, { isDirty: () => dirty.value, save, discard }));
+  }
 });
 
 onUnmounted(() => {
-  unregisterRegionHandler?.();
-  unregisterPlaceHandler?.();
-  unregisterAreaHandler?.();
+  unregisterHandlers.forEach(unregister => unregister());
   stopPlaceCoordinatePick(placeCoordinateMapWork);
   stopAreaPolygonEdit(areaPolygonMapWork);
   emit('dirtyStateChanged', false);
