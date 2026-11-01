@@ -308,7 +308,8 @@ public sealed partial class ApiTripSnapshotPostgresTests(PostgresImportTestFixtu
             var places = await db.Places.AsNoTracking().Where(p => p.RegionId == place.RegionId || p.RegionId == destination).ToArrayAsync();
             request["expected"] = new { place = new { id = place.Id, regionId = place.RegionId, name = place.Name,
                 notes = Wayfarer.Util.RichNotes.Normalize(place.Notes), address = place.Address, location, iconName = place.IconName,
-                markerColor = place.MarkerColor, displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName, resolvedFeatureType = place.ResolvedFeatureType },
+                markerColor = place.MarkerColor, displayOrder = place.DisplayOrder, resolvedFeatureName = place.ResolvedFeatureName,
+                resolvedFeatureType = place.ResolvedFeatureType, planning = place.Planning },
                 placesByRegion = new[] { place.RegionId, destination }.ToDictionary(id => id, id => places.Where(p => p.RegionId == id).OrderBy(p => p.Id).Select(p => new { id = p.Id, displayOrder = p.DisplayOrder }).ToArray()) };
             request["placeIdsByRegion"] = new Dictionary<Guid, Guid[]> { [place.RegionId] = [], [destination] = [place.Id] };
             request["changes"] = new { regionId = destination, name, location = new { latitude = 39d, longitude = 25d } };

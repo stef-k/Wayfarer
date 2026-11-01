@@ -83,6 +83,8 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         var trip = SeedTripGraph(db, "owner-user");
         var region = trip.Regions.Single(r => r.Name == "Thessaloniki");
         var first = region.Places.First();
+        // A real non-null original must survive the full-content ordering comparison and write.
+        first.Planning = new(1, [new(Guid.NewGuid(), new("at", new("month", "2027-03")))]);
         var second = new Place { Id = Guid.NewGuid(), UserId = "owner-user", Region = region, RegionId = region.Id, Name = "Second", DisplayOrder = 2 };
         db.Places.Add(second);
         db.SaveChanges();
@@ -98,6 +100,8 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
         Assert.Equal(envelope.Data.PlaceOrder, envelope.Affected.PlaceOrdersByRegionId[region.Id]);
         Assert.Equal(1, db.Places.Single(p => p.Id == second.Id).DisplayOrder);
         Assert.Equal(2, db.Places.Single(p => p.Id == first.Id).DisplayOrder);
+        Assert.True(Wayfarer.Models.Planning.PlanningCodec.Equal(first.Planning,
+            db.Places.AsNoTracking().Single(p => p.Id == first.Id).Planning));
     }
 
     [Fact]

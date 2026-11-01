@@ -11,6 +11,7 @@ using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Models.Planning;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -25,6 +26,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
 {
     private static readonly DateTimeOffset OriginalEnrichedAt = new(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
     private static readonly ResolvedFeatureTuple OriginalMetadata = new("Old feature", "building", "geoapify", "persistent", OriginalEnrichedAt);
+    private static readonly PlanningAggregate OriginalPlanning = new(1, [new(Guid.NewGuid(), new("at", new("month", "2027-03")))]);
 
     /// <summary>Commits invalidation, waypoint movement, measurements and Region ordering together.</summary>
     [PostgresTheory]
@@ -43,6 +45,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var stored = await verify.Places.AsNoTracking().SingleAsync(place => place.Id == seed.PlaceId);
         Assert.Equal("Manual replacement", stored.Address);
         Assert.Equal(default, Metadata(stored));
+        Assert.True(PlanningCodec.Equal(OriginalPlanning, stored.Planning));
         Assert.Equal(stored.Address, envelope.Data.Address);
         Assert.Equal(stored.ResolvedFeatureName, envelope.Data.ResolvedFeatureName);
         Assert.Equal(stored.ResolvedFeatureType, envelope.Data.ResolvedFeatureType);
@@ -161,6 +164,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
 
         Assert.Same(original, thrown);
         Assert.Single(probe.Attempts);
+        Assert.True(probe.SavedPlaceChanges > 0, "The injected failure must follow successful relational Place writes.");
         await AssertOriginalStoredAsync(seed);
         Assert.DoesNotContain(db.ChangeTracker.Entries(), entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
         await db.SaveChangesAsync(CancellationToken.None);
@@ -201,6 +205,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         var target = new Region { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Name = "Target", DisplayOrder = 2 };
         var from = Place(region, "From", 20, 10);
         var waypoint = Place(region, "Waypoint", 21, 11);
+        waypoint.Planning = OriginalPlanning;
         var to = Place(region, "To", 23, 12);
         waypoint.Address = "Old address";
         waypoint.ResolvedFeatureName = OriginalMetadata.Name;
@@ -268,6 +273,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         Assert.Equal("Waypoint", place.Name);
         Assert.Equal("Original notes", place.Notes);
         Assert.Equal(OriginalMetadata, Metadata(place));
+        Assert.True(PlanningCodec.Equal(OriginalPlanning, place.Planning));
         Assert.Equal(new Coordinate(21, 11), place.Location!.Coordinate);
         Assert.Equal(seed.RegionId, place.RegionId);
         Assert.Equal(new[] { seed.FromPlaceId, seed.PlaceId, seed.ToPlaceId }, await db.Places.Where(item => item.RegionId == seed.RegionId)
@@ -329,6 +335,8 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         private bool _placeSave;
         /// <summary>Gets the tuple proposed by each actual lifecycle save attempt.</summary>
         public List<ResolvedFeatureTuple> Attempts { get; } = [];
+        /// <summary>Gets the affected-entry count observed only after a relational Place save completes.</summary>
+        public int? SavedPlaceChanges { get; private set; }
 
         /// <summary>Ignores admission saves and records only canonical Place mutations.</summary>
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
@@ -344,6 +352,7 @@ public sealed class TripPlaceAddressPersistencePostgresTests(PostgresMigrationTe
         public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
             CancellationToken cancellationToken = default)
         {
+            if (_placeSave) SavedPlaceChanges = result;
             if (_placeSave && Attempts.Count == 1 && failure != null)
             {
                 _placeSave = false;
