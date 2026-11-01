@@ -25,6 +25,15 @@ const mount = (fetchImpl, options) => {
 const store = () => { const values = new Map(); return { getItem: k => values.get(k), setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) }; };
 
 // Recovery retires local intent only; neither inspection nor abandonment claims a server outcome.
+test('the existing pending marker survives ordinary reload until explicit confirmed abandonment', () => {
+    const storage = store(); storage.setItem('wayfarer:native-import-pending:owner', 'pending');
+    const { importer, observed } = mount(() => { throw new Error('must not send'); }, { storage, owner: 'owner' });
+    assert.equal(importer.state.uncertain, true); assert.equal(importer.abandon(false), false);
+    assert.equal(storage.getItem('wayfarer:native-import-pending:owner'), 'pending');
+    assert.equal(importer.abandon(true), true); assert.equal(importer.state.uncertain, false);
+    assert.equal(observed.calls.length, 0); assert.deepEqual(observed.redirects, []);
+});
+
 test('lost reply, reload, cancelled recovery and confirmed abandonment require a separately selected import', async () => {
     const storage = store();
     const { importer, observed } = mount((url, init, n) => {

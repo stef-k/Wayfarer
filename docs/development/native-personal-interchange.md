@@ -22,6 +22,12 @@ tags and credential-free route/address provenance. Saved estimates are not
 recalculated using destination profile speeds. Provenance identifiers remain
 historical scalars, never credential or mutation authority.
 
+Region Folders are identified by their native `RegionId`, independently of the
+authored name. A Region named `Segments` stays a Region, including when empty or
+alongside the transport container. Only a `Segments` Folder without Region
+identity is the transport container; validation and parsing use that same rule
+for child ownership. Malformed Region identity is rejected, never discarded.
+
 Each annotated Document (Trip), Region Folder or Place/Area/Segment Placemark
 has one XML-escaped `Data name="Planning"` value in ExtendedData. Its JSON is the
 complete nonempty format-1 `PlanningAggregate` from `PlanningCodec`, retaining

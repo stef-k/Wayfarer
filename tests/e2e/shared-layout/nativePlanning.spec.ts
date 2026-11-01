@@ -73,6 +73,8 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
   await page.route('**/User/Trip/Import', route => route.abort(), { times: 1 });
   await controls.getByRole('button', { name: 'Apply reviewed update' }).click();
   await expect(controls).toContainText('outcome could not be confirmed');
+  const heldWrites = writes; // Includes the deliberate duplicate lookup before the lost update reply.
+  expect(heldWrites).toBe(2);
   await expect(controls.getByRole('button', { name: 'Create new Trip' })).toBeDisabled();
   await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeDisabled();
   await expect(page.locator('#importFile')).toBeDisabled();
@@ -86,7 +88,7 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
   const opened = page.waitForEvent('popup');
   await controls.getByRole('link', { name: 'Check My Trips' }).click();
   const inspection = await opened; await inspection.waitForLoadState(); await inspection.close();
-  await expect(page.locator('#importFile')).toBeDisabled(); expect(writes).toBe(1);
+  await expect(page.locator('#importFile')).toBeDisabled(); expect(writes).toBe(heldWrites);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('confirm');
     expect(dialog.message()).toContain('does not cancel or roll back server work');
@@ -94,7 +96,7 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
     await dialog.dismiss();
   });
   await abandon.click(); await expect(page.locator('#importFile')).toBeDisabled();
-  await expect(abandon).toBeVisible(); expect(writes).toBe(1);
+  await expect(abandon).toBeVisible(); expect(writes).toBe(heldWrites);
   await controls.screenshot({ path: process.env.WAYFARER_NATIVE_SCREENSHOTS + '/import-recovery.png' });
   page.once('dialog', dialog => dialog.accept()); await abandon.click();
   await expect(abandon).toBeHidden(); await expect(page.locator('#importFile')).toBeEnabled();
@@ -103,7 +105,7 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
   await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeHidden();
   await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeDisabled();
   await expect(controls.getByRole('button', { name: 'Create new Trip' })).toBeDisabled();
-  expect(writes).toBe(1);
+  expect(writes).toBe(heldWrites);
   // Selecting a file is the next deliberate request; the abandoned review/permits are absent.
   const freshRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/User/Trip/Import');
   await select();
@@ -111,5 +113,5 @@ test('native import uncertainty recovery is reachable and requires confirmed aba
   expect(body).not.toContain('name="reviewToken"'); expect(body).not.toContain('name="choices"');
   await expect(controls.getByRole('button', { name: 'Review update', exact: true })).toBeEnabled();
   await expect(controls.getByRole('button', { name: 'Apply reviewed update' })).toBeHidden();
-  expect(writes).toBe(2); expect(page.url()).toContain('/User/Trip');
+  expect(writes).toBe(heldWrites + 1); expect(page.url()).toContain('/User/Trip');
 });
