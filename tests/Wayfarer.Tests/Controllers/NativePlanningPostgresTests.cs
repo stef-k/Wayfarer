@@ -58,6 +58,15 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.Equal(destination.Id, saved.UserId);
         var source = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
         Assert.Equal(source.Name, saved.Name);
+        foreach (var region in saved.Regions)
+        {
+            var before = source.Regions.Single(r => r.Name == region.Name);
+            Assert.Equal(before.Name, region.Name);
+            Assert.Equal(before.CoverImageUrl, region.CoverImageUrl);
+            Assert.Equal(before.DisplayOrder, region.DisplayOrder);
+            Assert.Equal(before.Notes, region.Notes);
+            Assert.Equal(before.Center, region.Center);
+        }
         var originalTargets = NativeTripGraph.Targets(source).ToDictionary(t => (t.Kind, t.Name));
         var idMap = new Dictionary<Guid, Guid>();
         foreach (var target in NativeTripGraph.Targets(saved))
@@ -92,6 +101,9 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
             Assert.True(PlanningCodec.Equal(target.Target.Planning, PlanningCodec.Read(value.GetRawText())));
         }
         Assert.Equal(3, snapshot.GetProperty("planning").GetProperty("places").EnumerateObject().Count());
+        var ownerRegions = snapshot.GetProperty("trip").GetProperty("regions").EnumerateArray();
+        foreach (var region in source.Regions)
+            Assert.Equal(region.CoverImageUrl, ownerRegions.Single(r => r.GetProperty("name").GetString() == region.Name).GetProperty("coverImageUrl").GetString());
     }
 
     /// <summary>Omission, equal/absent and differing aggregates use whole-target Keep/Use/Clear choices.</summary>
@@ -264,6 +276,135 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.False(await verify.Tags.AnyAsync(t => t.Slug == slug));
     }
 
+    /// <summary>Native replacement reopens only affected check evidence through the actual routed snapshot.</summary>
+    [PostgresFact]
+    public async Task ReplacementRevalidatesOnlyAffectedCheckInputs()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var current = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        db.Attach(current);
+        PlanningAggregate Period(string start, string end, string kind) => new(1, [new(Guid.NewGuid(), new("period",
+            Start: new("known", new("dateTime", "2027-03-02T" + start, "UTC")),
+            End: new("known", new("dateTime", "2027-03-02T" + end, "UTC"))), Kind: kind)]);
+        current.Planning = null;
+        var region = current.Regions.Single();
+        region.Planning = Period("09:00", "18:00", "window");
+        var from = region.Places.Single(p => p.Name == "From");
+        var to = region.Places.Single(p => p.Name == "To");
+        from.Planning = Period("10:00", "11:00", "presence");
+        to.Planning = Period("12:00", "13:00", "presence");
+        var segment = current.Segments.Single(s => s.EstimatedDurationSource == EstimatedDurationSource.Manual);
+        segment.EstimatedDuration = TimeSpan.FromMinutes(30);
+        await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        await using var app = await HostAsync(db);
+        using var client = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(client, app.Services, trip.UserId);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
+        app.Environment.WebRootPath = CreateTestDirectory();
+        async Task<Wayfarer.Models.Dtos.PlanningCheckResult> Check(Wayfarer.Models.Dtos.PlanningCheckSetup setup)
+        {
+            using var response = await client.PostAsJsonAsync($"/api/trips/{trip.Id}/editor/planning/check", setup);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.CacheControl!.Private && response.Headers.CacheControl.NoStore);
+            return (await response.Content.ReadFromJsonAsync<Wayfarer.Models.Dtos.PlanningCheckResult>())!;
+        }
+        var initial = await Check(new());
+        var fromKey = initial.Inventory.Single(i => i.TargetId == from.Id).Key;
+        var toKey = initial.Inventory.Single(i => i.TargetId == to.Id).Key;
+        var windowKey = initial.Inventory.Single(i => i.TargetId == region.Id).Key;
+        var setup = new Wayfarer.Models.Dtos.PlanningCheckSetup {
+            SingleTraveller = true,
+            Entries = new Dictionary<string, Wayfarer.Models.Dtos.PlanningCheckEntryInput> { [fromKey] = new(Context: [windowKey]), [toKey] = new(Context: [windowKey]) },
+            Transfers = [new(fromKey, toKey, SegmentId: segment.Id, Relevant: true, Allowance: "additional", AllowanceMinutes: 15, Connection: "none")]
+        };
+        var accepted = await Check(setup);
+        Assert.Contains(accepted.Findings, f => f.Check == "movement" && f.Result.Minutes == 15);
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+        async Task Replace(Trip incoming, bool personal, params string[] useKeys)
+        {
+            var xml = TripWayfarerKmlExporter.BuildKml(incoming, personal);
+            var review = await service.ReviewNativeAsync(File(xml), trip.UserId);
+            var choices = review.Planning.Where(r => useKeys.Contains(r.Key)).Select(r => r.Choices.Single(c => c.Action == "use").Token).ToArray();
+            await service.ImportReviewedNativeAsync(File(xml), trip.UserId, new(review.Token, choices));
+        }
+        current.Notes = "<p>Independent imported Notes</p>";
+        region.DisplayOrder = 17;
+        await Replace(current, false);
+        var unchanged = await Check(accepted.Setup);
+        Assert.Empty(unchanged.Invalidated);
+        Assert.True(unchanged.Setup.Transfers.Single().Relevant);
+        Assert.Contains(unchanged.Findings, f => f.Check == "movement" && f.Result.Minutes == 15);
+        current = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        current.Segments.Single(s => s.Id == segment.Id).EstimatedDuration = TimeSpan.FromMinutes(45);
+        await Replace(current, true);
+        var changed = await Check(unchanged.Setup);
+        Assert.False(changed.Setup.Transfers.Single().Relevant);
+        Assert.Equal(new[] { windowKey }, changed.Setup.Entries[toKey].Context);
+        Assert.True(changed.Setup.SingleTraveller);
+        var reconfirmed = await Check(changed.Setup with { Transfers = [changed.Setup.Transfers.Single() with { Relevant = true, Allowance = "additional", AllowanceMinutes = 15, Connection = "none" }] });
+        Assert.Contains(reconfirmed.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == 0);
+        Assert.Contains("45 min", changed.EstimateSources.Single(s => s.Id == segment.Id).Description);
+        Assert.Contains("45 min", Assert.Single(changed.MovementEvidence).Description);
+        Assert.Equal(changed.Setup.Transfers[0].Dependency, changed.MovementEvidence[0].Dependency);
+        current = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        var changedFrom = current.Regions.Single().Places.Single(p => p.Id == from.Id);
+        changedFrom.Planning = new(1, [changedFrom.Planning!.Entries[0] with { Id = Guid.NewGuid() }]);
+        await Replace(current, true, $"place/{from.Id:D}");
+        var reidentified = await Check(changed.Setup);
+        Assert.DoesNotContain(fromKey, reidentified.Setup.Entries.Keys);
+        Assert.Empty(reidentified.Setup.Transfers);
+        Assert.True(reidentified.Inventory.Single(i => i.TargetId == from.Id).Selected);
+        Assert.False(reidentified.Setup.SingleTraveller);
+        Assert.Equal(new[] { windowKey }, reidentified.Setup.Entries[toKey].Context);
+    }
+
+    /// <summary>Personal import retains explicit moments and the service assesses simultaneous incompatible presence.</summary>
+    [PostgresFact]
+    public async Task ImportedSimultaneousPresenceMoments()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var incoming = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        foreach (var place in incoming.Regions.Single().Places)
+            place.Planning = new(1, [new(Guid.NewGuid(), new("at", new("dateTime", "2027-03-02T11:00", "UTC")), Kind: "presence", AllocationMinutes: 0)]);
+        var xml = TripWayfarerKmlExporter.BuildKml(incoming, true);
+        var result = await new TripImportService(db, NullLogger<TripImportService>.Instance).ImportWayfarerKmlAsync(File(xml), trip.UserId, TripImportMode.CreateNew);
+        fixture.RegisterTrip(result.TripId);
+        var saved = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == result.TripId);
+        Assert.All(saved.Regions.Single().Places, p => Assert.Equal(0, p.Planning!.Entries[0].AllocationMinutes));
+        var graph = Wayfarer.Models.Dtos.Editor.EditorTripStateMapper.ToEditorState(saved, new Dictionary<Guid, IReadOnlyList<PlaceVisitEvent>>(), null!, null, null);
+        var keys = PlanningCheckService.Run(graph, trip.UserId, new(), DateTimeOffset.UtcNow).Inventory.Where(i => i.Kind == "place").Select(i => i.Key).Order(StringComparer.Ordinal).Take(2).ToArray();
+        var check = PlanningCheckService.Run(graph, trip.UserId, new() { Selection = keys, SingleTraveller = true,
+            Incompatible = new Dictionary<string, string?> { [string.Join('|', keys)] = null } }, DateTimeOffset.UtcNow);
+        var physical = Assert.Single(check.Findings.Where(f => f.Check == "physical"));
+        Assert.Equal("contradiction", physical.Result.Status);
+    }
+
+    /// <summary>Retained Region replacement applies the intended cover and rejects cover-only drift after review.</summary>
+    [PostgresFact]
+    public async Task RegionCoverReplacementBindsCurrentOriginal()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var incoming = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        var regionId = incoming.Regions.Single().Id;
+        const string intended = "https://example.invalid/imported-region-cover.png";
+        const string newer = "https://example.invalid/newer-region-cover.png";
+        incoming.Regions.Single().CoverImageUrl = intended;
+        var xml = TripWayfarerKmlExporter.BuildKml(incoming, true);
+        var importer = new TripImportService(db, NullLogger<TripImportService>.Instance);
+        var review = await importer.ReviewNativeAsync(File(xml), trip.UserId);
+        await importer.ImportReviewedNativeAsync(File(xml), trip.UserId, new(review.Token, []));
+        Assert.Equal(intended, (await db.Regions.AsNoTracking().SingleAsync(r => r.Id == regionId)).CoverImageUrl);
+        review = await importer.ReviewNativeAsync(File(xml), trip.UserId);
+        // Cover-only persistence drift proves material binding without relying on a Trip timestamp bump.
+        await db.Regions.Where(r => r.Id == regionId).ExecuteUpdateAsync(s => s.SetProperty(r => r.CoverImageUrl, newer));
+        var rejected = await Assert.ThrowsAsync<NativeImportReviewException>(() => importer.ImportReviewedNativeAsync(File(xml), trip.UserId, new(review.Token, [])));
+        Assert.Equal("import_review_stale", rejected.Code);
+        Assert.Equal(newer, (await db.Regions.AsNoTracking().SingleAsync(r => r.Id == regionId)).CoverImageUrl);
+    }
+
     /// <summary>Rich source owns every geometry/reference/provenance seam and all five planning aggregates.</summary>
     private async Task<Trip> SeedAsync(string namedRegion = "ordinary")
     {
@@ -272,7 +413,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         var profile = await db.Set<TransportProfile>().AsNoTracking().SingleAsync(p => p.Key == "walk");
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Native rich Trip", Notes = "<p>Trip &amp; Notes</p>", IsPublic = true,
             CoverImageUrl = "https://example.invalid/cover.png", CenterLat = 37, CenterLon = 23, Zoom = 9, Planning = NativeKmlV4Tests.Plan() };
-        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region", DisplayOrder = 3, Notes = "<p>Region</p>", Center = new Point(23, 37) { SRID = 4326 }, Planning = NativeKmlV4Tests.Plan() };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region", CoverImageUrl = "https://example.invalid/region.png?x=1&y=2", DisplayOrder = 3, Notes = "<p>Region</p>", Center = new Point(23, 37) { SRID = 4326 }, Planning = NativeKmlV4Tests.Plan() };
         var places = new[] { "From", "Via", "To" }.Select((name, i) => new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = name,
             DisplayOrder = i == 0 ? null : i * 3, Notes = $"<p>{name}</p>", IconName = "marker", MarkerColor = "blue", Address = $"Address {i}", Location = new Point(23 + i * 0.01, 37 + i * 0.01) { SRID = 4326 },
             ResolvedFeatureName = $"Feature {i}", ResolvedFeatureType = "amenity", AddressEnrichmentProvider = "geoapify", AddressEnrichmentStorageMode = "persistent",

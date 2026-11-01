@@ -48,6 +48,7 @@ internal static class WayfarerKmlAggregateMapper
             {
                 Id = regionIds[sourceRegion.Id], TripId = tripId, UserId = userId, Name = sourceRegion.Name,
                 DisplayOrder = sourceRegion.DisplayOrder, Notes = sourceRegion.Notes, Center = Copy(sourceRegion.Center),
+                CoverImageUrl = sourceRegion.CoverImageUrl,
                 Planning = CopyPlanning(sourceRegion.Planning, remapIdentities)
             };
             trip.Regions.Add(region);

@@ -64,6 +64,31 @@ public class PlanningComparisonTests
         Assert.Equal("completed", PlanningComparisons.Physical(Range("10:00", "11:00"), Range("11:00", "12:00"), true, true).Status);
     }
 
+    /// <summary>Moments occupy their point; spans include their start and exclude their end in either argument order.</summary>
+    [Theory]
+    [InlineData("11:00", "11:00", "11:00", "11:00", "contradiction")]
+    [InlineData("10:00", "10:00", "10:00", "11:00", "contradiction")]
+    [InlineData("10:30", "10:30", "10:00", "11:00", "contradiction")]
+    [InlineData("11:00", "11:00", "10:00", "11:00", "completed")]
+    [InlineData("11:00", "11:00", "11:01", "11:01", "completed")]
+    public void Physical_moments_respect_half_open_occupation(string a, string b, string c, string d, string expected)
+    {
+        Assert.Equal(expected, PlanningComparisons.Physical(Range(a, b), Range(c, d), true, true).Status);
+        Assert.Equal(expected, PlanningComparisons.Physical(Range(c, d), Range(a, b), true, true).Status);
+    }
+
+    /// <summary>Folds keep possible presence; absent dwell and absent physical premises never become a contradiction or pass.</summary>
+    [Fact]
+    public void Physical_moments_retain_uncertainty_and_require_both_premises()
+    {
+        var point = new PlanningEntry(Guid.NewGuid(), new("at", new("dateTime", "2027-10-31T01:30", "Europe/London")), Kind: "presence", AllocationMinutes: 0);
+        var fixedPoint = point with { When = new("at", new("dateTime", "2027-10-31T01:30", "UTC")) };
+        Assert.Equal("possible", PlanningComparisons.Physical(PlanningIntervals.Resolve(point), PlanningIntervals.Resolve(fixedPoint), true, true).Status);
+        Assert.Equal("unknown", PlanningComparisons.Physical(PlanningIntervals.Resolve(point with { AllocationMinutes = null }), PlanningIntervals.Resolve(fixedPoint), true, true).Status);
+        Assert.Equal("unknown", PlanningComparisons.Physical(PlanningIntervals.Resolve(fixedPoint), PlanningIntervals.Resolve(fixedPoint), false, true).Status);
+        Assert.Equal("unknown", PlanningComparisons.Physical(PlanningIntervals.Resolve(fixedPoint), PlanningIntervals.Resolve(fixedPoint), true, false).Status);
+    }
+
     [Fact]
     public void Alice_missing_estimate_shortfall_negative_gap_and_included_buffers_remain_distinct()
     {

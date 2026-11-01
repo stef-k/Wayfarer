@@ -55,7 +55,7 @@ public static partial class WayfarerKmlParser
         var fields = new Dictionary<string, string[]>
         {
             ["trip"] = ["WayfarerSchemaVersion", "TripId", "UpdatedAt", "CoverImageUrl", "NotesHtml", "CenterLat", "CenterLon", "Zoom", "Tags"],
-            ["region"] = ["RegionId", "TripId", "DisplayOrder", "NotesHtml", "CenterLat", "CenterLon"],
+            ["region"] = ["RegionId", "TripId", "DisplayOrder", "NotesHtml", "CenterLat", "CenterLon", "CoverImageUrl"],
             ["place"] = ["PlaceId", "RegionId", "DisplayOrder", "NotesHtml", "IconName", "MarkerColor", "Address", "ResolvedFeatureName", "ResolvedFeatureType", "AddressEnrichmentProvider", "AddressEnrichmentStorageMode", "AddressEnrichedAt"],
             ["area"] = ["AreaId", "RegionId", "DisplayOrder", "NotesHtml", "FillHex"],
             ["segment"] = ["SegmentId", "FromPlaceId", "ToPlaceId", "Mode", "TransportProfileKey", "DistanceKm", "DurationTicks", "DurationSource", "DisplayOrder", "NotesHtml", "HasCustomRoute", "WaypointPlaceIds", "WaypointRouteVertexIndices", "TripId", "RouteProvenance"]

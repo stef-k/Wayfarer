@@ -44,10 +44,10 @@ public static class PlanningIntervals
         return Unknown("Coverage needs supported known bounds; missing, unknown and flexible values are not zero.");
     }
 
-    /// <summary>A release uses stored End or known At allocation; arrival uses Start/At, never stored End as a deadline.</summary>
-    public static PlanningPlacements Endpoint(PlanningEntry entry, bool release, string? zone = null, PlanningValue? whatIf = null)
+    /// <summary>Stored arrival uses Start/At, never End; an explicit check-only release/deadline supplies its own endpoint.</summary>
+    public static PlanningPlacements Endpoint(PlanningEntry entry, bool release, string? zone = null, PlanningValue? checkValue = null)
     {
-        if (whatIf != null) return Points(whatIf, zone, false);
+        if (checkValue != null) return Points(checkValue, zone, false);
         var timing = entry.When;
         if (timing.Form == "period")
         {

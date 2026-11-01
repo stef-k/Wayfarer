@@ -13,6 +13,8 @@ export interface CheckTransfer {
   from: string; to: string; segmentId?: string | null; estimateMinutes?: number | null; relevant: boolean;
   allowance: CheckTreatment; allowanceMinutes?: number | null; connection: CheckTreatment; connectionMinutes?: number | null;
   dependency?: string | null; whatIfRelease?: PlanningValue | null; whatIfAt?: string | null; whatIfDependency?: string | null;
+  /** Explicit arrive-by input, separate from intended Start/At and never copied into planning. */
+  arrivalDeadline?: PlanningValue | null;
 }
 /** Only one bounded latest setup is retained on this device; dismissals/results are transient. */
 export interface CheckSetup {
@@ -29,10 +31,16 @@ export interface CheckFinding {
   id: string; check: string; entries: string[];
   result: { status: 'completed' | 'unknown' | 'inconsistent' | 'possible' | 'mismatch' | 'contradiction' | 'risk' | 'excluded'; message: string; minutes?: number | null };
 }
+/** Current read-only source options and the evidence actually shown for a requested direction. */
+export interface CheckSource { id: string; description: string }
+export interface CheckMovementEvidence {
+  from: string; to: string; segmentId?: string | null; estimateMinutes?: number | null; dependency: string; description: string;
+}
 /** Fresh server comparison result with sanitized dependency-bound local reuse. */
 export interface CheckResult {
   contract: string; ownerId: string; tripId: string; zoneRulesVersion: string;
   inventory: CheckItem[]; findings: CheckFinding[]; setup: CheckSetup; reused: string[]; invalidated: string[];
+  estimateSources: CheckSource[]; movementEvidence: CheckMovementEvidence[];
 }
 
 /** Whole current inventory is the default, with no implicit premises, zero estimates or allowances. */

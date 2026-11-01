@@ -46,8 +46,9 @@ public static class PlanningCheckService
             Add(findings, "context", new[] { item.Key }.Concat(context).ToArray(), comparison);
         }
         var incompatible = Physical(selected, inputs, setup.Incompatible, single, findings, reused, invalidated);
+        List<PlanningCheckMovementEvidence> evidence = [];
         var transfers = setup.Transfers.Where(t => byKey.ContainsKey(t.From) && byKey.ContainsKey(t.To)).Select(t =>
-            Transfer(graph, t, byKey, inputs, now, findings, reused, invalidated)).ToArray();
+            Transfer(graph, t, byKey, inputs, now, findings, reused, invalidated, evidence)).ToArray();
         if (transfers.Length != setup.Transfers.Count) invalidated.Add("Movement links to deleted entries were removed.");
         if (selected.Count(i => Effective(i, inputs).Kind == "presence") > 1 && !transfers.Any(t => byKey[t.From].Selected && byKey[t.To].Selected))
             Add(findings, "movement", selected.Where(i => Effective(i, inputs).Kind == "presence").Select(i => i.Key).ToArray(), new("unknown", "Movement has no selected pair. Choose release → arrival entries; display order does not establish travel."));
@@ -55,7 +56,8 @@ public static class PlanningCheckService
             Add(findings, "coverage", [item.Key], new("excluded", "Explicitly outside this temporary selection; remains saved and unassessed."));
         var current = setup with { Entries = inputs, SingleTraveller = single, TravellerDependency = travellerDependency,
             Transfers = transfers, Incompatible = incompatible };
-        return new("planning-check-1", ownerId, graph.TripId, DateTimeZoneProviders.Tzdb.VersionId, items, findings, current, reused, invalidated);
+        return new("planning-check-1", ownerId, graph.TripId, DateTimeZoneProviders.Tzdb.VersionId, items, findings, current, reused, invalidated,
+            graph.SegmentsById.Values.Select(s => new PlanningCheckSource(s.Id, DescribeSource(graph, s))).ToArray(), evidence);
     }
 
     /// <summary>Entity-owned entry keys cannot join other Trips; parent lists are candidates, never inferred constraints.</summary>
@@ -154,7 +156,8 @@ public static class PlanningCheckService
     /// <summary>Directional route/location evidence invalidates estimates and extras; time-sensitive releases have a short lifetime.</summary>
     private static PlanningCheckTransfer Transfer(EditorTripStateDto graph, PlanningCheckTransfer transfer,
         IReadOnlyDictionary<string, PlanningCheckItem> items, IReadOnlyDictionary<string, PlanningCheckEntryInput> inputs,
-        DateTimeOffset now, List<PlanningCheckFinding> findings, List<string> reused, List<string> invalidated)
+        DateTimeOffset now, List<PlanningCheckFinding> findings, List<string> reused, List<string> invalidated,
+        List<PlanningCheckMovementEvidence> evidence)
     {
         var from = items[transfer.From]; var to = items[transfer.To];
         var segment = transfer.SegmentId.HasValue ? graph.SegmentsById.GetValueOrDefault(transfer.SegmentId.Value) : null;
@@ -166,7 +169,8 @@ public static class PlanningCheckService
             _ => item.ParentId
         };
         var dependency = Fingerprint(new { from.Key, from.ParentId, FromLocation = Location(from), To = to.Key, ToParent = to.ParentId, ToLocation = Location(to),
-            Segment = segment == null ? null : new { Route = JourneyRoute(graph, segment), segment.EstimatedDurationMinutes, segment.EstimatedDurationSource } });
+            Segment = segment == null ? null : new { Route = JourneyRoute(graph, segment), segment.EstimatedDurationMinutes, segment.EstimatedDurationSource },
+            ManualEstimate = transfer.SegmentId.HasValue ? null : transfer.EstimateMinutes });
         if (transfer.Dependency != null && transfer.Dependency != dependency)
         {
             transfer = transfer with { Relevant = false, Allowance = "unknown", Connection = "unknown" };
@@ -180,19 +184,51 @@ public static class PlanningCheckService
         { transfer = transfer with { WhatIfRelease = null, WhatIfAt = null }; invalidated.Add("What-if release expired or its timing evidence changed."); }
         transfer = transfer with { Dependency = dependency, WhatIfDependency = whatIfDependency,
             WhatIfAt = transfer.WhatIfRelease != null ? transfer.WhatIfAt ?? now : null };
+        var source = transfer.SegmentId.HasValue ? segment == null ? "Selected Segment unavailable" : DescribeSource(graph, segment)
+            : $"Check-only manual estimate: {transfer.EstimateMinutes?.ToString() ?? "Unknown"} min";
+        evidence.Add(new(from.Key, to.Key, transfer.SegmentId, transfer.EstimateMinutes, dependency,
+            $"{DescribeLocation(graph, from)} → {DescribeLocation(graph, to)}. {source}"));
         if (!from.Selected || !to.Selected)
         { Add(findings, "movement", [from.Key, to.Key], new("excluded", "Movement pair is outside this selection.")); return transfer; }
         var estimate = transfer.Relevant ? transfer.SegmentId.HasValue ? segment?.EstimatedDurationMinutes : transfer.EstimateMinutes : null;
         var allowance = Extra(transfer.Allowance, transfer.AllowanceMinutes);
         var connection = Extra(transfer.Connection, transfer.ConnectionMinutes);
-        var comparisons = PlanningComparisons.Movement(PlanningIntervals.Endpoint(Effective(from, inputs), true, inputs.GetValueOrDefault(from.Key)?.Zone, transfer.WhatIfRelease),
-            PlanningIntervals.Endpoint(Effective(to, inputs), false, inputs.GetValueOrDefault(to.Key)?.Zone), estimate,
-            allowance + connection, allowance != null && connection != null);
-        var source = transfer.SegmentId.HasValue ? $"selected Segment {segment?.Mode ?? "unavailable"} ({segment?.EstimatedDurationSource ?? "unknown"})" : "check-only manual estimate";
+        var releaseEndpoint = PlanningIntervals.Endpoint(Effective(from, inputs), true, inputs.GetValueOrDefault(from.Key)?.Zone, transfer.WhatIfRelease);
         var assumptions = $" Source: {source}; relevance {(transfer.Relevant ? "confirmed" : "unresolved")}; allowance {transfer.Allowance}, connection {transfer.Connection}.";
         if (transfer.WhatIfRelease is { } release) assumptions += $" What-if release: {release.Local} ({release.Zone ?? "zone unspecified"}); saved intentions and history unchanged.";
-        foreach (var comparison in comparisons) Add(findings, "movement", [from.Key, to.Key], comparison with { Message = comparison.Message + assumptions });
+        void Compare(PlanningPlacements target, string predicate)
+        {
+            foreach (var comparison in PlanningComparisons.Movement(releaseEndpoint, target, estimate, allowance + connection, allowance != null && connection != null))
+                Add(findings, "movement", [from.Key, to.Key], comparison with { Message = predicate + ": " + comparison.Message + assumptions });
+        }
+        Compare(PlanningIntervals.Endpoint(Effective(to, inputs), false, inputs.GetValueOrDefault(to.Key)?.Zone), "Intended arrival (saved Start/At)");
+        if (transfer.ArrivalDeadline is { } deadline)
+            Compare(PlanningIntervals.Endpoint(Effective(to, inputs), false, checkValue: deadline),
+                $"Arrive by {deadline.Local} ({deadline.Precision}; {deadline.Zone ?? "zone unspecified"}) · check only");
         return transfer;
+    }
+
+    /// <summary>Human-readable current locations describe advisory evidence without publishing any mutation state.</summary>
+    private static string DescribeLocation(EditorTripStateDto graph, PlanningCheckItem item)
+    {
+        var point = item.Kind switch {
+            "place" => graph.PlacesById[item.TargetId].Location,
+            "region" => graph.RegionsById[item.TargetId].Center,
+            _ => null
+        };
+        return point == null ? item.Name : $"{item.Name} ({point.Latitude}, {point.Longitude})";
+    }
+
+    /// <summary>Current route anchors, estimate and provenance are advisory descriptions, separate from the editor graph.</summary>
+    private static string DescribeSource(EditorTripStateDto graph, EditorSegmentDto segment)
+    {
+        string Anchor(Guid? id)
+        {
+            var place = id.HasValue ? graph.PlacesById.GetValueOrDefault(id.Value) : null;
+            return place == null ? "Unknown anchor" : $"{place.Name} ({place.Location?.Latitude}, {place.Location?.Longitude})";
+        }
+        var anchors = new Guid?[] { segment.FromPlaceId }.Concat(segment.WaypointPlaceIds.Select(id => (Guid?)id)).Append(segment.ToPlaceId);
+        return $"{segment.Mode} · {segment.EstimatedDurationMinutes?.ToString() ?? "Unknown"} min · {segment.EstimatedDurationSource} · {string.Join(" → ", anchors.Select(Anchor))} · {(segment.HasCustomRoute ? "Saved custom route" : "Anchor route")} · {segment.EstimatedDistanceKm?.ToString() ?? "Unknown"} km";
     }
 
     /// <summary>Directional Journey evidence includes ordered anchors and their current locations, without labels, times or display order.</summary>
@@ -235,6 +271,7 @@ public static class PlanningCheckService
                 || !ValidTreatment(t.Allowance) || !ValidTreatment(t.Connection))
                 throw new PlanningValidationException("Choose distinct movement entries, supported treatment and nonnegative finite minutes.");
             if (t.WhatIfRelease != null) PlanningValidation.Validate(new(1, [new(Guid.NewGuid(), new("at", t.WhatIfRelease))]), "trip");
+            if (t.ArrivalDeadline != null) PlanningValidation.Validate(new(1, [new(Guid.NewGuid(), new("at", t.ArrivalDeadline))]), "trip");
         }
     }
 

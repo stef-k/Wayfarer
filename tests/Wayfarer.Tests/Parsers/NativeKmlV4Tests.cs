@@ -26,6 +26,32 @@ public sealed class NativeKmlV4Tests
         Assert.Equal(WayfarerKmlKind.NativeV4, Parse(TripWayfarerKmlExporter.BuildKml(trip, true)).Kind);
     }
 
+    /// <summary>V4 preserves Region covers with XML escaping; legacy/default output retains its established omission.</summary>
+    [Fact]
+    public void RegionCoverIsPersonalV4ContentAndOptionalForOlderFiles()
+    {
+        var trip = new Trip { Id = Guid.NewGuid(), Name = "Trip" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Name = "Region", CoverImageUrl = "https://example.invalid/cover?a=1&b=2" };
+        trip.Regions.Add(region);
+        var personal = TripWayfarerKmlExporter.BuildKml(trip, true);
+        Assert.Equal(region.CoverImageUrl, Parse(personal).Document!.Regions.Single().CoverImageUrl);
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var xml = XDocument.Parse(personal);
+        var folder = xml.Descendants(k + "Folder").Single();
+        var cover = folder.Descendants(k + "Data").Single(e => (string?)e.Attribute("name") == "CoverImageUrl");
+        cover.AddAfterSelf(new XElement(cover));
+        Assert.Throws<FormatException>(() => Parse(xml.ToString()));
+        cover.Remove();
+        folder.Descendants(k + "Data").Single(e => (string?)e.Attribute("name") == "CoverImageUrl").Remove();
+        Assert.Null(Parse(xml.ToString()).Document!.Regions.Single().CoverImageUrl);
+        foreach (var version in new[] { "1", "2", "3" })
+        {
+            var legacy = TripWayfarerKmlExporter.BuildKml(trip).Replace("<value>3</value>", $"<value>{version}</value>");
+            Assert.Null(Parse(legacy).Document!.Regions.Single().CoverImageUrl);
+            Assert.DoesNotContain("Planning", legacy);
+        }
+    }
+
     /// <summary>Reserved payloads cannot masquerade as legacy or third-party geography.</summary>
     [Theory]
     [InlineData(null)]
