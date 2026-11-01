@@ -21,6 +21,8 @@ export interface EditorTarget {
 export interface EditorTargetHandler {
   isDirty: () => boolean;
   discard: () => void;
+  /** Explicit Save and check invokes the same protected save as the active entity's form. */
+  save?: () => Promise<void>;
 }
 
 export interface MapWorkOptions {
@@ -79,6 +81,7 @@ export function useEditorSurface() {
     finishMapWork,
     invalidateMapWork,
     isActiveTargetDirty,
+    saveActiveTarget,
     isTargetActive,
     replaceActiveTarget,
     registerTargetHandler
@@ -174,6 +177,13 @@ export function isActiveTargetDirty(): boolean {
   }
 
   return handlers.get(target.key)?.isDirty() ?? false;
+}
+
+/** Saves only the active ordinary form, preserving its existing errors, immutable attempts and newer typing. */
+export async function saveActiveTarget(): Promise<void> {
+  const target = activeTarget.value;
+  const handler = target ? handlers.get(target.key) : null;
+  if (handler?.isDirty()) await handler.save?.();
 }
 
 export function enterMapWork(options: MapWorkOptions): boolean {

@@ -122,6 +122,7 @@ watch(() => JSON.stringify(routeMapWork.work), publishPresentation, { flush: 'sy
 onMounted(() => {
   unregisterHandler = props.editorSurface.registerTargetHandler(segmentDraftKey, {
     isDirty: () => isDirty.value,
+    save: saveDraft,
     discard: discardDraft
   });
 });

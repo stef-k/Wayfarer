@@ -164,6 +164,7 @@ onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
   unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
     isDirty: () => isDirty.value,
+    save: () => save(false),
     discard: resetDraft
   });
   if (props.autoOpen !== false) {

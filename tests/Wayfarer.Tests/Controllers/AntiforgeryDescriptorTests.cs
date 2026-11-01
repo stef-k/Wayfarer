@@ -53,7 +53,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.OrderAreas Api.TripEditor.PatchMetadata Api.TripEditor.CreateRegion Api.TripEditor.UpdateRegion
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace Api.TripEditor.PatchPlanning
-        Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
+        Api.TripEditor.CheckPlanning Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
         Api.TripEditor.PreviewPlaceDeletion Api.TripEditor.ConfirmPlaceDeletion
         Api.TripEditor.PreparePlaceUpdate Api.TripEditor.PrepareEditorPlaceOrder
         Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.PrepareEditorRegionOrder Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace

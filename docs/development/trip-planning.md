@@ -1,9 +1,11 @@
-# Private Trip planning (WB1/WB2, #789)
+# Private Trip planning (WB1/WB2/WB3, #789)
 
 WB1 adds optional owner planning to Trip, Region, Place, Area and Segment. WB2 adds
-[complete native personal interchange](native-personal-interchange.md). Check plan,
-remembered check inputs, future own cloning/versioning and mobile implementation
-remain separately owned. Mobile qualification does not block backend/Web acceptance.
+[complete native personal interchange](native-personal-interchange.md). WB3 adds
+optional saved-version checks and bounded device-local check inputs in the Web editor.
+Future own cloning/versioning and mobile implementation remain separately owned.
+Mobile qualification does not block backend/Web acceptance. Final combined backend/Web
+contract and adversarial acceptance is separate from this implementation package.
 
 ## Values and storage
 
@@ -141,6 +143,123 @@ explicit Clear are separate choices. Annotated removal/reidentification requires
 loss consent. See the [HTTP and format contract](native-personal-interchange.md)
 for permits, stale reviews, authority, cache separation and unknown-outcome holds.
 
+## Optional Web checks (WB3)
+
+`POST /api/trips/{tripId}/editor/planning/check` accepts `PlanningCheckSetup` from
+an authenticated User cookie plus antiforgery, with a 256 KiB body limit. It calls
+the existing repeatable-read owner editor reader once and compares that coherent
+snapshot. The additive private editor fields `ownerId` and `zoneRulesVersion`
+partition local setup and bind serving rules. No public DTO, planning writer,
+import/export schema, database migration or bearer mutation contract changes.
+The established private response middleware covers successes, denial, malformed
+input and errors with `private, no-store`, without public validators. The service
+has no persistence/provider dependency; editor capability projection resolves
+configuration only and does not request directions.
+
+The strict request has these optional check-only inputs (empty `{}` runs first):
+
+| Field | Meaning |
+| --- | --- |
+| `selection` | Null/default includes every current entry; an explicit entry-key array narrows this review. Keys are `kind/targetUuid/entryUuid`, scoped to this snapshot. |
+| `singleTraveller`, `travellerDependency` | Explicit premise and its selected-participant binding. Changed membership reopens it. |
+| `entries[key]` | Missing meaning, interpreted zone, elapsed allocation, selected parent `context` keys, optional `occurrences` offsets for `value`/`start`/`end`, and dependency bindings. Saved facts win. |
+| `transfers` | Explicit `from` → `to` keys, optional `segmentId` or manual `estimateMinutes`, `relevant`, allowance/connection treatments and minutes, and optional `whatIfRelease`. |
+| `incompatible` | Explicit assessed incompatible-location pairs, keyed by sorted entry keys joined with `\|`; null means newly assessed, a returned binding supports later reuse. Distinct IDs alone are insufficient. |
+
+For example, a transfer carries `relevant: true`, `estimateMinutes: 30`,
+`allowance: "additional"`, `allowanceMinutes: 15`, `connection: "none"`. Treatments
+are `unknown`, `none`, `included` in the selected estimate, or `additional`.
+Unknown is never zero. Additional minutes must not already be counted in the
+estimate or gap; other saved activities are not automatically deducted from a
+chosen pair. Select the relevant release/arrival endpoints and account for rests
+once. No minimum connection time or route estimate is invented.
+
+The `planning-check-1` response contains owner/Trip/rules identity, complete
+`inventory`, independent `findings`, revalidated `setup`, `reused` and `invalidated`
+input descriptions. Every inventory row retains saved entry facts, identity,
+selection and parent-window candidates. Findings carry participating keys and
+`completed`, `mismatch`, `possible`, `unknown`, `inconsistent`, `contradiction`,
+`risk` or `excluded`, with an explanation and minutes only where justified.
+These are advisory results, never receipts or saved originals. Invalid request
+structure/limits returns 400 `planning-check-invalid`; existing read authority and
+availability failures retain their normal statuses and private policy.
+
+`PlanningIntervals` uses serving NodaTime rules, retaining both fold mappings.
+Exact occupied intervals use [start,end); At needs explicit allocation, including
+zero for a moment. Coarse presence, mixed/unbounded coverage and missing necessary
+zones stay Unknown. Explicit civil windows include their final named granule;
+stay checkout is exclusive. Same-frame civil-window unions can compare civil
+coverage without claiming elapsed minutes. Interpreting their edges in an explicit
+zone supports instant comparisons with clocked children. Local occurrence choices
+fill only absent saved choices and revalidate the clock/zone/rules before reuse.
+
+Containment evaluates full child coverage against the explicitly selected union,
+retaining gaps and overlapping each covered span only once. Unresolved context
+never defaults from ownership. Every supported placement outside is definite;
+some contained and some outside is possible. Inconsistent selected input prevents
+a containment verdict rather than being silently dropped. Physical occupation
+uses assessed presence plus explicit single-traveller/incompatible-location
+premises; stays and windows do not occupy their complete availability spans.
+
+Movement uses release End/known At allocation and target Start/At, never destination
+End as a deadline. Negative exact gaps remain contradictions even without an
+estimate. A relevant estimate can establish risk before unknown extras; 120 − 180
+is a 60-minute risk. Alice's 60 − 30 − 15 is 15 minutes estimated slack, with source
+and inclusion treatment displayed, without an arrival/attention guarantee.
+
+Input bounds are 512 entry refinements, 64 transfers, 2048 location assessments,
+4096 explicit selection keys and 128 context keys per entry. Computation supports
+at most 256 admissible containment placements and 2048 physical pairs. Exceeding a
+comparison bound produces explicit Unknown remainder; inventory is never truncated
+or silently promoted to a whole-Trip consistency result.
+
+The mounted `PlanCheck` owner separates displayed results from saved graph facts,
+ordinary/Planning drafts and mutable check inputs. Dirty drafts offer **Save and
+check**, **Check saved version**, or **Return to editing**. Save and check calls
+the active ordinary form's existing protected save and the existing Planning
+workspace saves; failure, unknown outcome or later typing leaves the draft hold
+intact and prevents assessment as saved. The action captures the Planning draft set
+and versions before awaiting the ordinary save. Before each subsequent save it
+checks that membership and intended content still apply. Typing during either the
+ordinary save or an earlier Planning save stays dirty and returns to the explicit
+save/saved-version choice; normal editing remains available. A fresh review does not merge its snapshot
+into any mutation original. No Save on entry action is offered here; durable
+refinements use the existing Planning form and its protected save.
+
+Exactly one latest setup is retained in localStorage under
+`wayfarer.latest-owner-planning-check`, bounded to 256 KiB and owner/Trip keyed.
+The next authenticated editor snapshot fences/clears another partition before
+rendering private review data. Denied access or a foreign owner reply clears it.
+Results and dismissals are never stored. Unavailable storage is explicit and
+falls back to this editor lifetime. No cross-device reuse, history, relationship
+graph or preferences framework is promised. Native/private exports and copies
+consume planning only and never read this local record.
+
+Revalidation binds meanings/frames/dwell to membership, location, saved qualifiers
+and rules; occurrence choices also bind clocks. Context selection binds parent
+membership/meaning while current bounds recompute coverage. Directional route,
+anchors, locations, mode and estimate changes reopen transfer relevance/extras;
+release/arrival Journeys carry their own directional route and anchor-location
+evidence even with a manual onward estimate. Label-only edits reuse answers and
+time-only changes recompute results. Editing allowance or connection treatment and
+minutes preserves route-relevance evidence; choosing a different estimate clears
+its relevance and inclusion premises until explicitly reassessed. Participant sets,
+physical pairs and selected context unions use stable entry identity order, so
+display reordering preserves unchanged answers. Scope selection retains the old
+traveller evidence for membership revalidation. What-if releases bind timing/frame evidence and
+expire after 30 minutes or a UTC-day change. No what-if changes planning, estimates
+or observed history. New entries remain visible; removed/reparented links reopen.
+Edits stale displayed reviews, and request/identity positions fence late replies.
+Dismissal collapses a finding while retaining its count; the next review resurfaces
+it. Clear latest private inputs removes only this bounded setup and presentation.
+
+Qualification: pure `PlanningComparisonTests` and `PlanningCheckTests`, mounted
+`planningReview.test.mjs`, the existing real PostgreSQL cookie route/privacy case,
+and one managed actual-control smoke `--grep 'optional Check plan keeps known findings'`.
+Calculation/state matrices stay at the lower seams. Reuse unchanged accepted
+WB1/WB2 persistence, import/export and public-projection evidence at its recorded
+scope; this package does not requalify mobile, deployment or production.
+
 ## Migration and qualification
 
 `20261031191725_AddPrivatePlanning` adds five nullable JSONB columns without
@@ -181,8 +300,8 @@ work to Foundation or invent a later implementation issue:
 - WB3 supported checks and bounded owner/Trip-device input reuse in that package.
 
 No mobile source was changed or Android/iOS qualification claimed. Mobile remains separately owned and incomplete; mobile agents implement and qualify
-it. That work is not a backend/Web acceptance or #789 closure prerequisite. WB3
-and final combined backend/Web review remain outside WB2.
+it. That work is not a backend/Web acceptance or #789 closure prerequisite. Final
+combined backend/Web review remains separate from WB3 implementation.
 
 ## WB1 correction boundaries
 

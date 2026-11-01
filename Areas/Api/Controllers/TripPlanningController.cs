@@ -2,6 +2,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
+using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Models.Planning;
+using System.Text.Json;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -39,6 +43,27 @@ public partial class TripsController
 
 public sealed partial class TripEditorController
 {
+    /// <summary>Advisory owner-only comparison against one fresh coherent snapshot; check setup is never persisted.</summary>
+    [HttpPost("planning/check")]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(262144)]
+    public async Task<IActionResult> CheckPlanning(Guid tripId, CancellationToken cancellationToken)
+    {
+        var failure = RequireEditorUser(out var userId);
+        if (failure != null) return failure;
+        try
+        {
+            var setup = await JsonSerializer.DeserializeAsync<PlanningCheckSetup>(Request.Body, PlanningCodec.Json, cancellationToken)
+                ?? throw new JsonException();
+            // Reuse the existing repeatable-read owner graph; no second planning read or public fallback.
+            var read = await GetEditorState(tripId, cancellationToken);
+            if (read is not OkObjectResult { Value: EditorTripStateDto graph }) return read;
+            return Ok(PlanningCheckService.Run(graph, userId!, setup, DateTimeOffset.UtcNow));
+        }
+        catch (JsonException) { return BadRequest(new { code = "planning-check-invalid", detail = "Supply a supported bounded check setup." }); }
+        catch (PlanningValidationException error) { return BadRequest(new { code = "planning-check-invalid", detail = error.Message }); }
+    }
+
     /// <summary>Cookie/User/antiforgery planning save; private errors and successes bypass caches.</summary>
     [HttpPatch("planning/{kind}/{targetId:guid}")]
     [ValidateAntiForgeryToken]

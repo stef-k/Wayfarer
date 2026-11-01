@@ -11,6 +11,12 @@ public sealed record EditorTripStateDto
     /// <summary>Identifier of the trip loaded into the editor workspace.</summary>
     public Guid TripId { get; init; }
 
+    /// <summary>Private owner partition for device-local check setup; never emitted in public Trip DTOs.</summary>
+    public string OwnerId { get; init; } = string.Empty;
+
+    /// <summary>Serving rules bind instant-dependent review inputs, without converting authored clocks.</summary>
+    public string ZoneRulesVersion { get; init; } = NodaTime.DateTimeZoneProviders.Tzdb.VersionId;
+
     /// <summary>Top-level trip metadata used by the read-only workspace shell.</summary>
     public required EditorTripMetadataDto Metadata { get; init; }
 

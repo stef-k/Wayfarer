@@ -2,8 +2,9 @@
 
 WB2 extends the existing native pipeline, rather than introducing synchronization,
 receipts or a second planning schema. WB1's [typed value contract](trip-planning.md)
-is shared by storage, owner reads and the personal file codec. Check plan (WB3),
-future cloning/versioning and mobile implementation are separate work.
+is shared by storage, owner reads and the personal file codec. Web
+[Check plan (WB3)](trip-planning.md#optional-web-checks-wb3) keeps local setup out
+of this format. Future cloning/versioning and mobile implementation are separate work.
 
 ## Formats and fidelity
 

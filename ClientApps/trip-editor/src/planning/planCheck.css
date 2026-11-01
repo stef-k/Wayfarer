@@ -1,0 +1,16 @@
+/* Scoped review presentation keeps known findings and unresolved work visible in the existing editor. */
+.plan-check { display: grid; gap: .65rem; }
+.plan-check p { margin: .3rem 0; }
+.plan-check details { margin-block: .45rem; }
+.plan-check label { display: block; margin-block: .4rem; }
+.plan-check fieldset { border: 1px solid var(--bs-border-color, #718096); border-radius: .4rem; padding: .6rem; margin-block: .65rem; }
+.plan-check legend { float: none; width: auto; font-size: 1rem; padding-inline: .2rem; }
+.plan-check__results { display: grid; gap: .65rem; max-height: 28rem; overflow: auto; }
+.plan-check__finding { border-inline-start: 3px solid #718096; padding: .6rem; background: var(--bs-tertiary-bg, #202833); }
+.plan-check__finding strong, .plan-check__finding small { display: block; }
+.plan-check__finding[data-status="contradiction"], .plan-check__finding[data-status="mismatch"], .plan-check__finding[data-status="inconsistent"] { border-color: #ef8181; }
+.plan-check__finding[data-status="risk"], .plan-check__finding[data-status="possible"] { border-color: #e8bd61; }
+.plan-check__finding[data-status="completed"] { border-color: #7abda6; }
+.plan-check__choices { display: flex; flex-wrap: wrap; gap: .5rem; }
+.plan-check__choices p { flex-basis: 100%; }
+.plan-check__entry { border-block-end: 1px solid var(--bs-border-color, #718096); padding-bottom: .5rem; }
