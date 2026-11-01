@@ -38,11 +38,20 @@ public static class PlanningComparisons
         var error = Problem([first, second]);
         if (error != null) return error;
         if (first.Values[0].Frame != second.Values[0].Frame) return new("unknown", "Occupation needs a common comparable frame.");
-        var overlap = first.Values.SelectMany(a => second.Values.Select(b => !a.Moment && !b.Moment && a.Start < b.End && b.Start < a.End)).ToArray();
+        var overlap = first.Values.SelectMany(a => second.Values.Select(b => OccupiedTogether(a, b))).ToArray();
         if (!overlap.Any(v => v)) return new("completed", "No occupied overlap in these placements. Adjacency establishes no transfer time.");
         if (!singleTraveller || !incompatible) return new("unknown", "Occupied overlap needs an explicit single-traveller premise and assessed incompatible locations.");
         return overlap.All(v => v) ? new("contradiction", "One traveller requires simultaneous presence at assessed incompatible locations.")
             : new("possible", "Some supported placements require simultaneous presence at incompatible locations.");
+    }
+
+    /// <summary>Equal moments share presence; a span contains its start and excludes its end.</summary>
+    private static bool OccupiedTogether(PlanningInterval a, PlanningInterval b)
+    {
+        if (a.Moment && b.Moment) return a.Start == b.Start;
+        if (a.Moment) return b.Start <= a.Start && a.Start < b.End;
+        if (b.Moment) return a.Start <= b.Start && b.Start < a.End;
+        return a.Start < b.End && b.Start < a.End;
     }
 
     /// <summary>Reports known ordering/risk before unresolved extras; estimates never become guarantees.</summary>

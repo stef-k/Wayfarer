@@ -134,7 +134,7 @@ const skip = (event: Event): void => {
             </fieldset>
             <button type="button" class="btn btn-outline-secondary btn-sm" @click="skip">Leave unresolved/Skip</button>
           </details>
-          <CheckMovement :setup="setup" :items="items" :segments="state.segmentsById" :places="state.placesById" />
+          <CheckMovement :setup="setup" :items="items" :sources="result.estimateSources" :evidence="result.movementEvidence" />
           <button type="button" class="btn btn-primary btn-sm" :disabled="busy" @click="review.run">Use for this check · check saved version</button>
         </details>
         <button type="button" class="btn btn-outline-light btn-sm" :disabled="busy" @click="review.request()">Check again</button>

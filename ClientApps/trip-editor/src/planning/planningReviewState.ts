@@ -98,7 +98,8 @@ export const createPlanningReview = (options: {
       if (disposed || request !== position || scope !== identity()) return;
       if (reply.ownerId !== ownerId) { reset(); clearStorage(); error.value = 'Owner changed. Private check setup cleared; reload the editor.'; return; }
       if (reply.contract !== 'planning-check-1' || reply.tripId !== options.state().tripId || !Array.isArray(reply.inventory) || !Array.isArray(reply.findings)
-        || !reply.setup || !Array.isArray(reply.reused) || !Array.isArray(reply.invalidated)) throw new Error('Check result is incomplete. Saved planning is unchanged.');
+        || !reply.setup || !Array.isArray(reply.reused) || !Array.isArray(reply.invalidated)
+        || !Array.isArray(reply.estimateSources) || !Array.isArray(reply.movementEvidence)) throw new Error('Check result is incomplete. Saved planning is unchanged.');
       assigning = true;
       setup.value = copy(reply.setup);
       assigning = false;

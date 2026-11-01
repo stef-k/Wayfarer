@@ -16,7 +16,8 @@ public sealed record WayfarerKmlDocument(
 /// <summary>Detached Region transport data.</summary>
 public sealed record WayfarerKmlRegion(
     Guid Id, string Name, int DisplayOrder, string? Notes, Point? Center,
-    IReadOnlyList<WayfarerKmlPlace> Places, IReadOnlyList<WayfarerKmlArea> Areas, PlanningAggregate? Planning = null);
+    IReadOnlyList<WayfarerKmlPlace> Places, IReadOnlyList<WayfarerKmlArea> Areas, PlanningAggregate? Planning = null,
+    string? CoverImageUrl = null);
 
 /// <summary>Detached Place transport data.</summary>
 public sealed record WayfarerKmlPlace(

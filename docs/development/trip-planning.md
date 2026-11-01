@@ -163,7 +163,7 @@ The strict request has these optional check-only inputs (empty `{}` runs first):
 | `selection` | Null/default includes every current entry; an explicit entry-key array narrows this review. Keys are `kind/targetUuid/entryUuid`, scoped to this snapshot. |
 | `singleTraveller`, `travellerDependency` | Explicit premise and its selected-participant binding. Changed membership reopens it. |
 | `entries[key]` | Missing meaning, interpreted zone, elapsed allocation, selected parent `context` keys, optional `occurrences` offsets for `value`/`start`/`end`, and dependency bindings. Saved facts win. |
-| `transfers` | Explicit `from` → `to` keys, optional `segmentId` or manual `estimateMinutes`, `relevant`, allowance/connection treatments and minutes, and optional `whatIfRelease`. |
+| `transfers` | Explicit `from` → `to` keys, optional `segmentId` or manual `estimateMinutes`, `relevant`, allowance/connection treatments and minutes, optional `whatIfRelease` and structured `arrivalDeadline`. |
 | `incompatible` | Explicit assessed incompatible-location pairs, keyed by sorted entry keys joined with `\|`; null means newly assessed, a returned binding supports later reuse. Distinct IDs alone are insufficient. |
 
 For example, a transfer carries `relevant: true`, `estimateMinutes: 30`,
@@ -176,7 +176,14 @@ once. No minimum connection time or route estimate is invented.
 
 The `planning-check-1` response contains owner/Trip/rules identity, complete
 `inventory`, independent `findings`, revalidated `setup`, `reused` and `invalidated`
-input descriptions. Every inventory row retains saved entry facts, identity,
+input descriptions. `estimateSources` supplies current read-only Segment selector
+descriptions; `movementEvidence` supplies each checked pair's displayed source and
+directional `dependency`. These come from that same snapshot, never the open editor
+graph. After choosing a new source, check once to display its evidence before
+confirming relevance. Reconfirmation sends that displayed binding, including when
+relevance was reopened; another source change before checking reopens it again.
+Descriptors/results never enter mutation state, originals or retained setup.
+Every inventory row retains saved entry facts, identity,
 selection and parent-window candidates. Findings carry participating keys and
 `completed`, `mismatch`, `possible`, `unknown`, `inconsistent`, `contradiction`,
 `risk` or `excluded`, with an explanation and minutes only where justified.
@@ -199,13 +206,29 @@ never defaults from ownership. Every supported placement outside is definite;
 some contained and some outside is possible. Inconsistent selected input prevents
 a containment verdict rather than being silently dropped. Physical occupation
 uses assessed presence plus explicit single-traveller/incompatible-location
-premises; stays and windows do not occupy their complete availability spans.
+premises; stays and windows do not occupy their complete availability spans. Equal
+explicit moments conflict under those premises. A moment conflicts at a span's
+included start or interior, but not at its exclusive end. Positive spans can be
+adjacent. Fold alternatives retain possible conclusions; missing dwell is Unknown.
 
 Movement uses release End/known At allocation and target Start/At, never destination
 End as a deadline. Negative exact gaps remain contradictions even without an
 estimate. A relevant estimate can establish risk before unknown extras; 120 − 180
 is a 60-minute risk. Alice's 60 − 30 − 15 is 15 minutes estimated slack, with source
 and inclusion treatment displayed, without an arrival/attention guarantee.
+
+An optional transfer `arrivalDeadline` is a structured `PlanningValue` with the same
+precision/zone/occurrence validation as planning values. The existing value controls
+start empty and infer no date, time or zone. Results identify **Intended arrival
+(saved Start/At)** and **Arrive by … · check only** separately. Release 11:00,
+intended arrival 13:00, explicit deadline 12:00 and relevant 90-minute travel with
+confirmed zero extras produce 30 minutes intended-arrival slack and 30 minutes
+deadline estimate risk. An end-only destination still has Unknown intended arrival
+but can use the explicit deadline. Removing/changing it recomputes that assessment
+without altering saved values or unrelated relevance. Coarse, unzoned or unresolved
+fold deadlines remain Unknown; an invalid new value rejects. The deadline lives
+only in the bounded private setup and is excluded from planning persistence, originals, files
+and copies along with all other check inputs.
 
 Input bounds are 512 entry refinements, 64 transfers, 2048 location assessments,
 4096 explicit selection keys and 128 context keys per entry. Computation supports

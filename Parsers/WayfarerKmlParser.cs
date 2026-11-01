@@ -123,6 +123,7 @@ public static partial class WayfarerKmlParser
     private static bool IsSegmentContainer(XElement folder) => folder.Name == Kml + "Folder"
         && Values(folder, "RegionId").Count == 0 && folder.Element(Kml + "name")?.Value == "Segments";
 
+    /// <summary>Reads the optional v4 cover without inventing content absent from supported legacy files.</summary>
     private static WayfarerKmlRegion ParseRegion(XElement owner, int version, Guid tripId)
     {
         var id = RequiredGuid(owner, "RegionId");
@@ -138,7 +139,8 @@ public static partial class WayfarerKmlParser
         var lon = OptionalDouble(owner, "CenterLon");
         if (lat.HasValue != lon.HasValue) throw new FormatException("Region center coordinates must be complete.");
         return new(id, owner.Element(Kml + "name")?.Value ?? "Region", OptionalInt(owner, "DisplayOrder") ?? 0,
-            Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas, ParsePlanning(owner, "region"));
+            Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas, ParsePlanning(owner, "region"),
+            version == 4 ? DirectData(owner).GetValueOrDefault("CoverImageUrl") : null);
     }
 
     private static WayfarerKmlPlace ParsePlace(XElement owner, int version)
@@ -240,7 +242,7 @@ public static partial class WayfarerKmlParser
             CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom, UpdatedAt = DateTime.UtcNow, IsPublic = false,
             Planning = source.Planning, Tags = source.Tags.Select(token => new Tag { Slug = token, Name = token }).ToList() };
         trip.Regions = source.Regions.Select(region => new Region { Id = region.Id, TripId = source.TripId, Name = region.Name,
-            DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center, Planning = region.Planning,
+            DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center, Planning = region.Planning, CoverImageUrl = region.CoverImageUrl,
             Places = region.Places.Select(place => new Place { Id = place.Id, RegionId = region.Id, Name = place.Name,
                 DisplayOrder = place.DisplayOrder, Notes = place.Notes, IconName = place.IconName, MarkerColor = place.MarkerColor,
                 Address = place.Address, Location = place.Location, ResolvedFeatureName = place.ResolvedFeatureName,

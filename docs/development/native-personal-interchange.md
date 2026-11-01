@@ -23,6 +23,18 @@ tags and credential-free route/address provenance. Saved estimates are not
 recalculated using destination profile speeds. Provenance identifiers remain
 historical scalars, never credential or mutation authority.
 
+Personal v4 also carries optional Region `CoverImageUrl` ExtendedData through the
+typed parser and both graph projections. Missing means null; an explicit empty
+value stays empty. Duplicate/unsupported metadata still rejects. Current import
+review material includes the Region cover through the complete v4 writer, so a
+cover-only change invalidates a stale review even without a timestamp change.
+Default/public v3 output is unchanged and omits Region covers; supported v1–v3
+imports and older v4 files without this field supply no cover. Legacy replacement
+retains its existing reusable-content replacement behavior, so an omitted cover
+becomes absent; the special omission-preservation rule below applies to Planning.
+Use personal v4 to retain Region covers through export/replacement. Fidelity tests
+compare persisted source Region fields with imported owner content as well as XML.
+
 Region Folders are identified by their native `RegionId`, independently of the
 authored name. A Region named `Segments` stays a Region, including when empty or
 alongside the transport container. Only a `Segments` Folder without Region

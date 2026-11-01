@@ -30,7 +30,7 @@ const response = (setup, overrides = {}) => ({ contract: 'planning-check-1', own
   inventory: [{ key: 'trip/trip/visit', kind: 'trip', targetId: 'trip', parentId: 'trip', name: 'Trip', entry: entry(), selected: true, parentWindows: [], dependency: 'dep' }],
   findings: [{ id: 'context/1', check: 'context', entries: ['trip/trip/visit'], result: { status: 'mismatch', message: '30 minutes definitely outside', minutes: 30 } },
     { id: 'meaning/2', check: 'meaning', entries: ['trip/trip/visit'], result: { status: 'unknown', message: 'Meaning needed' } }],
-  setup, reused: [], invalidated: [], ...overrides });
+  setup, reused: [], invalidated: [], estimateSources: [], movementEvidence: [], ...overrides });
 const mount = (state = graph(), surface = useEditorSurface()) => {
   const stateRef = ref(state);
   const workspace = createPlanningWorkspace(stateRef, '/api/trips/trip/editor', 'anti');
@@ -125,12 +125,13 @@ test('later draft edits or new draft membership during an earlier Planning save 
   }
 });
 
-test('allowance edits preserve relevance evidence; only source or explicit relevance assessment replaces it', () => {
+test('allowance edits preserve relevance evidence; explicit assessment binds the displayed source', () => {
   let controls;
   const setup = reactive({ transfers: [{ from: 'from', to: 'to', relevant: true, dependency: 'assessed-route',
     allowance: 'additional', allowanceMinutes: 15, connection: 'included', connectionMinutes: null }] });
   const component = { ...Movement, setup(values, context) { controls = proxyRefs(Movement.setup(values, context)); return () => null; } };
-  const app = renderer.createApp({ setup: () => () => h(component, { setup, items: [], segments: {}, places: {} }) });
+  const evidence = [{ from: 'from', to: 'to', dependency: 'displayed-route', description: 'Current manual source' }];
+  const app = renderer.createApp({ setup: () => () => h(component, { setup, items: [], sources: [], evidence }) });
   app.mount({});
   try {
     const transfer = setup.transfers[0];
@@ -145,9 +146,61 @@ test('allowance edits preserve relevance evidence; only source or explicit relev
     assert.equal(transfer.connection, 'unknown');
     transfer.relevant = true;
     controls.reassess(transfer);
-    assert.equal(transfer.dependency, null);
+    assert.equal(transfer.dependency, 'displayed-route');
     assert.equal(transfer.relevant, true);
   } finally { app.unmount(); }
+});
+
+// The mounted controls consume read-only reply descriptors while dirty editor originals remain untouched.
+test('reconfirmation describes the fresh source, retains its binding and local deadlines never enter mutation state', async () => {
+  globalThis.localStorage = storage();
+  const oldFetch = globalThis.fetch;
+  const state = graph();
+  state.segmentsById.segment = { id: 'segment', estimatedDurationMinutes: 30 };
+  const mounted = mount(state);
+  const draft = mounted.workspace.open(target);
+  draft.entries[0].when.value.local = '2027-03-09';
+  const before = JSON.stringify({ state: mounted.stateRef.value, draft });
+  let movement;
+  const props = reactive({ setup: mounted.controls.setup, items: [], sources: [], evidence: [] });
+  const component = { ...Movement, setup(values, context) { movement = proxyRefs(Movement.setup(values, context)); return () => null; } };
+  const app = renderer.createApp({ render: () => h(component, props) }); app.mount({});
+  const sent = [];
+  try {
+    globalThis.fetch = async (_, init) => {
+      const setup = JSON.parse(init.body); sent.push(setup);
+      return Response.json(response({ ...setup, transfers: [{ from: 'from', to: 'to', segmentId: 'segment', relevant: false,
+        dependency: sent.length === 1 ? 'source-45' : 'source-60', allowance: 'unknown', connection: 'unknown', arrivalDeadline: setup.transfers[0]?.arrivalDeadline }] }, {
+        estimateSources: [{ id: 'segment', description: sent.length === 1 ? 'walk · 45 min · Manual · Current From → Current To' : 'bus · 60 min · Manual · Current From → Current To' }],
+        movementEvidence: [{ from: 'from', to: 'to', segmentId: 'segment', dependency: sent.length === 1 ? 'source-45' : 'source-60', description: 'Current anchors and estimate' }]
+      }));
+    };
+    await mounted.controls.review.run();
+    props.setup = mounted.controls.setup;
+    props.sources = mounted.controls.result.estimateSources;
+    props.evidence = mounted.controls.result.movementEvidence;
+    await nextTick();
+    assert.match(props.sources[0].description, /45 min.*Current From/);
+    const transfer = props.setup.transfers[0];
+    transfer.relevant = true; movement.reassess(transfer);
+    assert.equal(transfer.dependency, 'source-45');
+    movement.addDeadline(transfer);
+    assert.deepEqual(transfer.arrivalDeadline, { precision: 'date', local: '' });
+    transfer.arrivalDeadline = { precision: 'dateTime', local: '2027-03-02T12:00', zone: 'UTC' };
+    await mounted.controls.review.run();
+    assert.equal(sent[1].transfers[0].dependency, 'source-45');
+    assert.equal(mounted.controls.setup.transfers[0].relevant, false);
+    assert.match(mounted.controls.result.estimateSources[0].description, /bus.*60 min/);
+    assert.equal(sent[1].transfers[0].arrivalDeadline.local, '2027-03-02T12:00');
+    assert.equal(JSON.stringify({ state: mounted.stateRef.value, draft }), before);
+    const retained = [...globalThis.localStorage.values.values()][0];
+    assert.match(retained, /arrivalDeadline/);
+    assert.equal(retained.includes('estimateSources'), false);
+    mounted.props.state = { ...graph(), ownerId: 'bob' };
+    await nextTick();
+    assert.equal(mounted.controls.setup.transfers.length, 0);
+    assert.equal(globalThis.localStorage.values.size, 0);
+  } finally { app.unmount(); mounted.dispose(); globalThis.fetch = oldFetch; }
 });
 
 test('scope selection retains traveller evidence for service membership revalidation', () => {

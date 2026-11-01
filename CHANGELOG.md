@@ -370,6 +370,12 @@
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed
+- Correct #789 combined findings C1–C4: preserve Region covers in personal native
+  v4 and bind them into import review originals; assess explicit simultaneous
+  presence moments and half-open interval boundaries; show current check-snapshot
+  source evidence and bind relevance reconfirmation to it; add a structured
+  check-only Arrive by deadline distinct from saved intended arrival. Keep default
+  v3 behavior, private setup boundaries and selective invalidation unchanged.
 
 - Preserve native Regions named “Segments”, including empty annotated Regions,
   independently of the transport Segment container in personal and legacy imports

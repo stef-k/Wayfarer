@@ -38,7 +38,7 @@ internal sealed class NativeImportReviewProtection(IDataProtectionProvider prote
     private readonly IDataProtector protector = protection.CreateProtector("Wayfarer.NativeImport.Review.v1");
     private sealed record Permit(string Binding, string Key, string Action, DateTimeOffset Expires);
 
-    /// <summary>Includes absent aggregates, membership, all reusable material and exact saved measurements.</summary>
+    /// <summary>Includes absent aggregates, membership, v4 Region covers, all reusable material and exact saved measurements.</summary>
     internal static string Binding(Trip current, string owner, string digest) => Convert.ToHexString(SHA256.HashData(
         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { owner, digest, mode = "Upsert", current.Id,
             current.IsPublic, Content = TripWayfarerKmlExporter.BuildKml(current, true),

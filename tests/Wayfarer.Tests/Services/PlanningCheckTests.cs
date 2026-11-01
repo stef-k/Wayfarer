@@ -44,6 +44,110 @@ public sealed class PlanningCheckTests
         Transfers = [new(museum, lunch, EstimateMinutes: 30, Relevant: true, Allowance: "additional", AllowanceMinutes: 15, Connection: "none")]
     };
 
+    /// <summary>An explicit check-only arrive-by target is independent of the saved intended arrival.</summary>
+    [Fact]
+    public void Check_local_deadline_reports_risk_without_rewriting_saved_intended_arrival()
+    {
+        var graph = Graph();
+        var destination = graph.PlacesById.Values.Single(p => p.Name == "Lunch");
+        var entry = destination.Planning!.Entries[0] with { When = new("period",
+            Start: new("known", new("dateTime", "2027-03-02T13:00", "UTC")),
+            End: new("known", new("dateTime", "2027-03-02T14:00", "UTC"))) };
+        var places = graph.PlacesById.ToDictionary();
+        places[destination.Id] = destination with { Planning = new(1, [entry]) };
+        graph = graph with { PlacesById = places };
+        var (_, museum, lunch, window) = Initial(graph);
+        var setup = Alice(museum, lunch, window);
+        // Exercise the strict product wire contract, including the formerly missing approved input.
+        var wire = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(setup, PlanningCodec.Json))!;
+        var transfer = wire["transfers"]![0]!;
+        transfer["estimateMinutes"] = 90;
+        transfer["allowance"] = "none";
+        transfer["arrivalDeadline"] = JsonSerializer.SerializeToNode(new PlanningValue("dateTime", "2027-03-02T12:00", "UTC"), PlanningCodec.Json);
+        setup = JsonSerializer.Deserialize<PlanningCheckSetup>(wire.ToJsonString(), PlanningCodec.Json)!;
+        var before = JsonSerializer.Serialize(graph);
+        var result = PlanningCheckService.Run(graph, "alice", setup, Now);
+        Assert.Contains(result.Findings, f => f.Check == "movement" && f.Result.Status == "risk" && f.Result.Minutes == 30 && f.Result.Message.Contains("Arrive by"));
+        Assert.Contains(result.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == 30 && f.Result.Message.Contains("Intended arrival"));
+        var later = result.Setup with { Transfers = [result.Setup.Transfers[0] with { ArrivalDeadline = new("dateTime", "2027-03-02T12:30", "UTC") }] };
+        var changed = PlanningCheckService.Run(graph, "alice", later, Now);
+        Assert.Empty(changed.Invalidated);
+        Assert.True(changed.Setup.Transfers[0].Relevant);
+        Assert.Contains(changed.Findings, f => f.Result.Status == "completed" && f.Result.Minutes == 0 && f.Result.Message.Contains("Arrive by"));
+        var removed = PlanningCheckService.Run(graph, "alice", later with { Transfers = [later.Transfers[0] with { ArrivalDeadline = null }] }, Now);
+        Assert.DoesNotContain(removed.Findings, f => f.Result.Message.Contains("Arrive by"));
+        Assert.Contains(removed.Findings, f => f.Result.Status == "completed" && f.Result.Minutes == 30 && f.Result.Message.Contains("Intended arrival"));
+        Assert.Equal(before, JsonSerializer.Serialize(graph));
+    }
+
+    /// <summary>End-only targets support an explicit local deadline; coarse, unzoned and unresolved fold deadlines stay Unknown.</summary>
+    [Fact]
+    public void End_only_never_supplies_an_implicit_deadline_and_local_values_use_existing_validation()
+    {
+        var graph = Graph();
+        var destination = graph.PlacesById.Values.Single(p => p.Name == "Lunch");
+        var entry = destination.Planning!.Entries[0] with { When = new("period", End: new("known", new("dateTime", "2027-03-02T13:00", "UTC"))) };
+        var places = graph.PlacesById.ToDictionary(); places[destination.Id] = destination with { Planning = new(1, [entry]) };
+        graph = graph with { PlacesById = places };
+        var (_, museum, lunch, window) = Initial(graph);
+        var setup = Alice(museum, lunch, window);
+        var transfer = setup.Transfers[0] with { EstimateMinutes = 90, Allowance = "none" };
+        var noDeadline = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer] }, Now);
+        Assert.Equal("unknown", Assert.Single(noDeadline.Findings, f => f.Check == "movement").Result.Status);
+        var known = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer with { ArrivalDeadline = new("dateTime", "2027-03-02T12:00", "UTC") }] }, Now);
+        Assert.Contains(known.Findings, f => f.Result.Status == "risk" && f.Result.Minutes == 30 && f.Result.Message.Contains("Arrive by"));
+        foreach (var deadline in new PlanningValue[] { new("date", "2027-03-02"), new("dateTime", "2027-03-02T12:00"), new("dateTime", "2027-10-31T01:30", "Europe/London") })
+        {
+            var unknown = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [transfer with { ArrivalDeadline = deadline }] }, Now);
+            Assert.Equal("unknown", Assert.Single(unknown.Findings, f => f.Result.Message.Contains("Arrive by")).Result.Status);
+        }
+        Assert.Throws<PlanningValidationException>(() => PlanningCheckService.Run(graph, "alice", setup with {
+            Transfers = [transfer with { ArrivalDeadline = new("dateTime", "2027-03-28T01:30", "Europe/London") }] }, Now));
+    }
+
+    /// <summary>Reconfirmation binds the displayed 45-minute source; a second change reopens only its assessment.</summary>
+    [Fact]
+    public void Movement_source_descriptors_and_confirmation_share_the_current_snapshot()
+    {
+        var graph = Graph();
+        var (_, museum, lunch, window) = Initial(graph);
+        var from = graph.PlacesById.Values.Single(p => p.Name == "Museum");
+        var to = graph.PlacesById.Values.Single(p => p.Name == "Lunch");
+        var segmentId = Guid.NewGuid();
+        var segment = new EditorSegmentDto(segmentId, graph.TripId, from.Id, to.Id, [], [], "walk", null, false, 1, 30, "Manual", "", null, null, "", 0, new(true, true, true, true, true, false, false));
+        graph = graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = segment } };
+        var setup = Alice(museum, lunch, window);
+        var initial = PlanningCheckService.Run(graph, "alice", setup with { Transfers = [setup.Transfers[0] with { SegmentId = segmentId }] }, Now);
+        graph = graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = segment with { EstimatedDurationMinutes = 45 } } };
+        var displayed = PlanningCheckService.Run(graph, "alice", initial.Setup, Now);
+        Assert.False(displayed.Setup.Transfers[0].Relevant);
+        Assert.Contains("45 min", displayed.EstimateSources.Single().Description);
+        Assert.Contains("Museum (0, 0) → Lunch (1, 1)", displayed.MovementEvidence.Single().Description);
+        var reconfirmed = displayed.Setup with { Transfers = [displayed.Setup.Transfers[0] with { Relevant = true,
+            Dependency = displayed.MovementEvidence.Single().Dependency, Allowance = "additional", AllowanceMinutes = 15, Connection = "none" }] };
+        var accepted = PlanningCheckService.Run(graph, "alice", reconfirmed, Now);
+        Assert.True(accepted.Setup.Transfers[0].Relevant);
+        Assert.Contains(accepted.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == 0);
+        Assert.Empty(PlanningCheckService.Run(graph, "alice", accepted.Setup, Now).Invalidated);
+        foreach (var newer in new[] { segment with { EstimatedDurationMinutes = 60 }, segment with { EstimatedDurationMinutes = 45, Mode = "bus" },
+            segment with { EstimatedDurationMinutes = 45, FromPlaceId = to.Id, ToPlaceId = from.Id } })
+        {
+            var changed = PlanningCheckService.Run(graph with { SegmentsById = new Dictionary<Guid, EditorSegmentDto> { [segmentId] = newer } }, "alice", reconfirmed, Now);
+            Assert.False(changed.Setup.Transfers[0].Relevant);
+            Assert.Equal("unknown", changed.Setup.Transfers[0].Allowance);
+            Assert.True(changed.Setup.SingleTraveller);
+            Assert.Equal(new[] { window }, changed.Setup.Entries[lunch].Context);
+            Assert.NotEqual(displayed.MovementEvidence[0].Dependency, changed.MovementEvidence[0].Dependency);
+            Assert.Contains(newer.Mode, changed.EstimateSources[0].Description);
+        }
+        var relocatedPlaces = graph.PlacesById.ToDictionary();
+        relocatedPlaces[to.Id] = to with { Name = "Current destination", Location = new(25, 35) };
+        var relocated = PlanningCheckService.Run(graph with { PlacesById = relocatedPlaces }, "alice", reconfirmed, Now);
+        Assert.False(relocated.Setup.Transfers[0].Relevant);
+        Assert.Contains("Current destination (25, 35)", relocated.EstimateSources[0].Description);
+        Assert.Contains("Current destination (25, 35)", relocated.MovementEvidence[0].Description);
+    }
+
     /// <summary>Independent Unknowns cannot suppress completed supported checks, risk or exact context findings.</summary>
     [Fact]
     public void Alice_completes_scoped_checks_and_mixed_Trip_retains_rough_Unknown_without_mutation()

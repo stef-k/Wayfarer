@@ -35,7 +35,8 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
     public async Task CheckSavedPlanningIsPrivateAdvisoryAndDoesNotExportLocalSetup()
     {
         var trip = await SeedAsync();
-        trip.Planning = Plan();
+        trip.Planning = new(1, [new(Guid.NewGuid(), new("at", new("dateTime", "2027-03-02T11:00", "UTC")), AllocationMinutes: 0),
+            new(Guid.NewGuid(), new("at", new("dateTime", "2027-03-02T13:00", "UTC")))]);
         await using (var seed = fixture.CreateContext()) { seed.Update(trip); await seed.SaveChangesAsync(); }
         await using var db = fixture.CreateContext();
         await using var app = await HostAsync(db);
@@ -55,12 +56,21 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
         var review = (await response.Content.ReadFromJsonAsync<PlanningCheckResult>())!;
         Assert.Equal("planning-check-1", review.Contract);
         Assert.Equal(trip.UserId, review.OwnerId);
-        Assert.Single(review.Inventory);
-        Assert.Equal("unknown", review.Findings.Single().Result.Status);
+        Assert.Equal(2, review.Inventory.Count);
+        Assert.All(review.Findings, f => Assert.Equal("unknown", f.Result.Status));
+        var setup = new PlanningCheckSetup { Transfers = [new(review.Inventory[0].Key, review.Inventory[1].Key,
+            EstimateMinutes: 90, Relevant: true, Allowance: "none", Connection: "none", ArrivalDeadline: new("dateTime", "2027-03-02T12:00", "UTC"))] };
+        using var deadlineResponse = await client.PostAsJsonAsync(path, setup);
+        Assert.Equal(HttpStatusCode.OK, deadlineResponse.StatusCode);
+        Assert.True(deadlineResponse.Headers.CacheControl!.Private && deadlineResponse.Headers.CacheControl.NoStore);
+        var deadlineCheck = (await deadlineResponse.Content.ReadFromJsonAsync<PlanningCheckResult>())!;
+        Assert.Contains(deadlineCheck.Findings, f => f.Result.Status == "risk" && f.Result.Minutes == 30 && f.Result.Message.Contains("Arrive by"));
         Assert.Equal(publicBytes, await client.GetByteArrayAsync($"/api/trips/{trip.Id}"));
         var export = TripWayfarerKmlExporter.BuildKml(trip, includePrivatePlanning: true);
         Assert.DoesNotContain("singleTraveller", export);
         Assert.DoesNotContain("planning-check-1", export);
+        Assert.DoesNotContain("arrivalDeadline", export);
+        Assert.DoesNotContain("2027-03-02T12:00", export);
         await using var verify = fixture.CreateContext();
         Assert.True(PlanningCodec.Equal(trip.Planning, (await verify.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Planning));
         Assert.Equal(JsonDocument.Parse(publicBytes).RootElement.GetProperty("updatedAt").GetDateTime(),

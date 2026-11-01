@@ -57,6 +57,7 @@ public static class TripWayfarerKmlExporter
         return result;
     }
 
+    /// <summary>Personal v4 includes the editable Region cover; default/public v3 retains its established shape.</summary>
     private static XElement BuildRegion(Region region, Guid tripId, bool includePrivatePlanning)
     {
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));
@@ -64,6 +65,7 @@ public static class TripWayfarerKmlExporter
             ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
             ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes) ?? ""),
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
+        if (includePrivatePlanning && region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
         foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
             folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));
