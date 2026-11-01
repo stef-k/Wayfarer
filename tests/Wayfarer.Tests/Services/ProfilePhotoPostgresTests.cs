@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using System.Data.Common;
+using Microsoft.AspNetCore.TestHost;
+using System.Net.Http.Json;
 using Moq;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
@@ -20,6 +22,91 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ProfilePhotoPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Both managed erasure adapters commit removal of the same photo reference, without photo hooks.</summary>
+    [PostgresTheory]
+    [InlineData("Admin")]
+    [InlineData("Manager")]
+    public async Task ManagedErasureAdaptersCommitRowDeletion(string role)
+    {
+        var caller = await fixture.CreateUserAsync();
+        var target = await fixture.CreateUserAsync();
+        using var storage = new PhotoTestStorage();
+        var version = Guid.NewGuid();
+        await storage.Store.PublishAsync(version, "normalized"u8.ToArray(), default);
+        await using var db = fixture.CreateContext();
+        var userRole = await db.Roles.SingleOrDefaultAsync(r => r.Name == "User");
+        var createdRole = userRole == null;
+        userRole ??= new IdentityRole { Id = "photo-role-" + Guid.NewGuid(), Name = "User", NormalizedName = "USER" };
+        if (createdRole) db.Roles.Add(userRole);
+        db.UserRoles.Add(new IdentityUserRole<string> { UserId = target.Id, RoleId = userRole.Id });
+        await db.SaveChangesAsync();
+        await db.Users.Where(u => u.Id == target.Id).ExecuteUpdateAsync(p => p.SetProperty(u => u.ProfilePhotoVersion, (Guid?)version));
+        try
+        {
+            var root = Path.GetDirectoryName(Path.GetDirectoryName(storage.Store.Root))!;
+            await using var app = await IdentityRouteHost.StartAsync(db, root, services => services.AddSingleton(storage.Store));
+            using var client = app.GetTestClient();
+            var cookie = IdentityRouteHost.Cookie(app.Services, caller.Id, role);
+            client.DefaultRequestHeaders.Add("Cookie", cookie);
+            var token = await IdentityRouteHost.AntiforgeryAsync(client);
+            var afCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+            client.DefaultRequestHeaders.Remove("Cookie"); client.DefaultRequestHeaders.Add("Cookie", cookie + "; " + afCookie);
+            client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
+            using var result = await client.PostAsync($"/{role}/Users/DeleteConfirmed", new FormUrlEncodedContent(new Dictionary<string, string> { ["id"] = target.Id }));
+            Assert.Equal(System.Net.HttpStatusCode.Redirect, result.StatusCode);
+            await using var fresh = fixture.CreateContext();
+            Assert.False(await fresh.Users.AnyAsync(u => u.Id == target.Id));
+        }
+        finally
+        {
+            await using var cleanup = fixture.CreateContext();
+            await cleanup.UserRoles.Where(link => link.UserId == target.Id).ExecuteDeleteAsync();
+            if (createdRole) await cleanup.Roles.Where(r => r.Id == userRole.Id).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Real cookie/antiforgery/multipart/helper publication joins the independently proven lower seams.</summary>
+    [PostgresFact]
+    public async Task RoutedMultipartUploadPublishesAndIdentitySelfErasureRevokesBeforeSweep()
+    {
+        var user = await fixture.CreateUserAsync();
+        using var storage = new PhotoTestStorage();
+        using var provider = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+        var photos = new ProfilePhotoService(provider.GetRequiredService<IServiceScopeFactory>(), storage.Store, NullLogger<ProfilePhotoService>.Instance);
+        var root = Path.GetDirectoryName(Path.GetDirectoryName(storage.Store.Root))!;
+        await using var db = fixture.CreateContext();
+        if (!await db.ApplicationSettings.AnyAsync()) db.ApplicationSettings.Add(new ApplicationSettings());
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, root, services =>
+        {
+            services.AddSingleton(storage.Store);
+            services.AddSingleton(photos);
+        });
+        using var client = app.GetTestClient();
+        var cookie = IdentityRouteHost.Cookie(app.Services, user.Id);
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
+        var antiforgery = await IdentityRouteHost.AntiforgeryAsync(client);
+        var afCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+        client.DefaultRequestHeaders.Remove("Cookie"); client.DefaultRequestHeaders.Add("Cookie", cookie + "; " + afCookie);
+        client.DefaultRequestHeaders.Add("RequestVerificationToken", antiforgery);
+        var state = await client.GetFromJsonAsync<ProfilePhotoState>("/api/profile-photo/me");
+        using var body = new MultipartFormDataContent();
+        body.Add(new ByteArrayContent(await File.ReadAllBytesAsync(Path.Combine(Wayfarer.Tests.Util.ImageHelperSupervisorTests.Fixtures, "orientation-7.png"))), "photo", "photo.png");
+        body.Add(new StringContent(state!.StateToken), "expectedStateToken");
+        body.Add(new StringContent("0"), "cropX"); body.Add(new StringContent("8"), "cropY"); body.Add(new StringContent("31"), "cropSize");
+        using var response = await client.PostAsync("/api/profile-photo/me", body);
+        Assert.True(response.IsSuccessStatusCode, response.IsSuccessStatusCode ? "" : await response.Content.ReadAsStringAsync());
+        var saved = await response.Content.ReadFromJsonAsync<ProfilePhotoState>();
+        Assert.NotNull(saved!.ProfilePhoto);
+        using var erased = await client.PostAsync("/Identity/Account/Manage/DeletePersonalData", new FormUrlEncodedContent([]));
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, erased.StatusCode);
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Users.AnyAsync(u => u.Id == user.Id));
+        Assert.Null(await photos.OwnerVersionAsync(user.Id, Guid.ParseExact(saved.ProfilePhoto.Version, "N"), default));
+        await photos.SweepAsync(default);
+        Assert.Empty(Directory.GetFiles(storage.Store.Root));
+    }
+
     /// <summary>Definite precommit failure, lost acknowledgement and dead session converge by fresh authority.</summary>
     [PostgresTheory]
     [InlineData("before")]
@@ -92,6 +179,13 @@ public sealed class ProfilePhotoPostgresTests(PostgresImportTestFixture fixture)
         File.CreateSymbolicLink(path, Path.Combine(storage.Store.Root, current.ProfilePhoto!.Version + ".webp"));
         await photos.SweepAsync(default); Assert.True(File.Exists(path));
         File.Delete(path); File.WriteAllText(path, "retryable orphan");
+        using (var uncertain = new ServiceCollection().AddScoped(_ => fixture.CreateContext(new ReferenceLookupFailure())).BuildServiceProvider())
+        {
+            var unavailable = new ProfilePhotoService(uncertain.GetRequiredService<IServiceScopeFactory>(), storage.Store, NullLogger<ProfilePhotoService>.Instance);
+            await unavailable.SweepAsync(default);
+            Assert.True(File.Exists(path));
+            Assert.NotNull(photos.Read(Guid.ParseExact(current.ProfilePhoto.Version, "N")));
+        }
         var restarted = new ProfilePhotoService(provider.GetRequiredService<IServiceScopeFactory>(), storage.Store, NullLogger<ProfilePhotoService>.Instance);
         await restarted.SweepAsync(default);
         Assert.False(File.Exists(path)); Assert.NotNull(restarted.Read(Guid.ParseExact(current.ProfilePhoto.Version, "N")));
@@ -151,6 +245,13 @@ public sealed class ProfilePhotoPostgresTests(PostgresImportTestFixture fixture)
             if (command.CommandText.StartsWith("UPDATE \"AspNetUsers\"", StringComparison.Ordinal)) await command.Connection!.CloseAsync();
             return result;
         }
+    }
+
+    private sealed class ReferenceLookupFailure : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData,
+            InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default) =>
+            throw new IOException("Reference authority unavailable.");
     }
 }
 

@@ -468,7 +468,14 @@ At minimum, keep a recovery set containing:
 
 - PostgreSQL dump/backup;
 - complete active Data Protection ring;
-- durable Uploads and import files;
+- durable Uploads and import files, including `uploads/profile-photos` below the
+  configured DataRoot. Profile photos use the existing writable service-owned
+  Uploads tree (0700 directory/0600 files), with no new volume or setting. Back
+  up/restore this directory together with the database while writers are stopped
+  for a coherent photo recovery point. Online dump plus capture is not atomic.
+  Historical backups keep their existing retention; live account deletion does
+  not rewrite them. Startup/five-minute cleanup removes restored orphans; a
+  missing referenced file gives fallback/404 without silently clearing its pointer;
 - enough protected deployment configuration to reconstruct the service.
 
 Capture these with writers stopped when you need a strong cross-component recovery

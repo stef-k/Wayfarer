@@ -18,7 +18,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.OwnerDisplayName))
 {
     <div class="text-muted small mb-3">
-        <i class="bi bi-person"></i> by @Model.OwnerDisplayName
+        <partial name="_PublicOwnerPhoto" model="@Model.OwnerProfilePhoto" /><i class="bi bi-person"></i> by @Model.OwnerDisplayName
     </div>
 }
 

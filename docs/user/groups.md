@@ -118,3 +118,13 @@ it does not delete the person's own Timeline. Other members may still have copie
 of information they saw, and your memberships in other Groups remain separate.
 
 [User guide](index.md) · [Documentation home](../README.md)
+
+## Optional member photos on the Web
+
+An optional [Profile photo](index.md#add-an-optional-profile-photo) can appear in
+User/Manager rosters, latest-location markers and selected member/location details.
+The backend color ring remains the same. Missing or failed photos fall back to a
+name letter, then plain color. Historical samples remain dots. Photos have the
+Group roster audience even when a member has disabled location sharing; seeing
+a photo never authorizes that member's locations. Normal roster/page-focus
+refresh updates references; an already displayed copy may remain until refresh.

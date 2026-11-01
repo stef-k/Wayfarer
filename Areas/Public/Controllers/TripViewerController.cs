@@ -126,6 +126,7 @@ public class TripViewerController : BaseController
             {
                 Id = t.Id,
                 OwnerDisplayName = t.User.DisplayName,
+                OwnerProfilePhoto = ProfilePhotoReference.Public(t.User.IsActive && t.User.ShowProfilePhotoOnPublicTrips ? t.User.ProfilePhotoVersion : null, t.Id),
                 Name = t.Name,
                 NotesExcerpt = Wayfarer.Util.RichNotes.ToPlainText(t.Notes),
                 CoverImageUrl = t.CoverImageUrl,
@@ -303,6 +304,7 @@ public class TripViewerController : BaseController
                 t.Id,
                 t.UserId,
                 OwnerDisplayName = t.User.DisplayName,
+                OwnerProfilePhoto = ProfilePhotoReference.Public(t.User.IsActive && t.User.ShowProfilePhotoOnPublicTrips ? t.User.ProfilePhotoVersion : null, t.Id),
                 t.Name,
                 t.Notes,
                 t.CoverImageUrl,
@@ -331,6 +333,7 @@ public class TripViewerController : BaseController
         {
             Id = trip.Id,
             OwnerDisplayName = trip.OwnerDisplayName,
+            OwnerProfilePhoto = trip.OwnerProfilePhoto,
             Name = trip.Name,
             NotesExcerpt = trip.Notes,
             CoverImageUrl = trip.CoverImageUrl,

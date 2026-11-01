@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Add optional Web Profile photos (#881), accessible crop controls, private exact-Group
+  identity and an independent default-off account preference for public Trip names.
+  Preserve backend colors/history dots and exclude photos from print/thumbnails/exports.
+  Normalize bounded JPEG/PNG/static WebP through the contained helper, fence mutations
+  with Identity concurrency state, and recover private durable orphans after erasure.
+  Reject private/no-store origins in the generic image proxy. Adds nullable photo
+  identity/default-off consent migration; uses existing Uploads storage. Mobile UI
+  implementation and native qualification remain separately owned.
 - Add manual Admin Activity consolidation (#865): preview catalog names and aggregate
   Location counts, then atomically move classifications, preserve distinct nonblank
   descriptions and permanently redirect retired numeric IDs to the destination.

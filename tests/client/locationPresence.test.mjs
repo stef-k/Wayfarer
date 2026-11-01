@@ -84,8 +84,7 @@ for (const area of ['User', 'Manager']) {
             clearTimeout: id => callbacks.delete(id) };
         const context = vm.createContext({ ...timers, latestMarkers, map: {},
             Date: class extends Date { static now() { return clock; } },
-            idToInfoMap: () => new Map(), colorFromString: () => 'red',
-            latestIconHtml: (_, live) => live ? 'live' : 'latest', buildTooltipHtml: () => 'Location',
+            idToInfoMap: () => new Map(), photoBadge: () => 'photo', buildTooltipHtml: () => 'Location',
             openLocationModal: () => {},
             L: { divIcon: options => options, marker: (_, options) => { clock += renderDelay; return { icon: options.icon, handlers: {},
                 bindTooltip(text) { this.tooltip = text; return this; }, on(type, fn) { this.handlers[type] = fn; },
@@ -95,17 +94,17 @@ for (const area of ['User', 'Manager']) {
             const scheduleLocationExpiry = ${scheduleLocationExpiry.toString()};\n${source.slice(start, end)}`, context);
         context.location = { ...fresh, presenceObservedAtUtc: null };
         vm.runInContext('upsertLatestForUser("owner", location)', context);
-        assert.equal(latestMarkers.get('owner').icon.html, 'latest');
+        assert.match(latestMarkers.get('owner').icon.className, /wf-marker--latest/);
         assert.equal(callbacks.size, 0);
         context.location = fresh;
         vm.runInContext('upsertLatestForUser("owner", location)', context);
         const marker = latestMarkers.get('owner');
-        assert.equal(marker.icon.html, 'live');
+        assert.match(marker.icon.className, /wf-marker--live/);
         const expiry = [...callbacks.values()][0];
         assert.equal(expiry.delay, 299001);
         clock = now + expiry.delay;
         expiry.fn();
-        assert.equal(marker.icon.html, 'latest');
+        assert.match(marker.icon.className, /wf-marker--latest/);
         assert.match(marker.tooltip, /Latest Location/);
         assert.equal(callbacks.size, 0);
         clock = now;
@@ -123,12 +122,12 @@ for (const area of ['User', 'Manager']) {
             context.location = { ...fresh, presenceObservedAtUtc: new Date(now - 300000 + remaining).toISOString() };
             vm.runInContext('upsertLatestForUser("owner", location)', context);
             const atBoundary = latestMarkers.get('owner');
-            assert.equal(atBoundary.icon.html, 'live');
+            assert.match(atBoundary.icon.className, /wf-marker--live/);
             const due = [...callbacks.values()][0];
             assert.equal(due.delay, 1);
             clock += due.delay;
             due.fn();
-            assert.equal(atBoundary.icon.html, 'latest');
+            assert.match(atBoundary.icon.className, /wf-marker--latest/);
             assert.equal(callbacks.size, 0);
         }
     });

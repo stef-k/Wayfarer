@@ -19,6 +19,9 @@ public sealed class PublicTripIndexItem
     /// <summary>Display name of the trip owner (for attribution).</summary>
     public string? OwnerDisplayName { get; set; }
 
+    /// <summary>Optional account-opted-in reference scoped to this public Trip.</summary>
+    public Wayfarer.Services.ProfilePhotoReference? OwnerProfilePhoto { get; set; }
+
     /// <summary>Plain text excerpt of the trip notes (HTML stripped, ~140 characters).</summary>
     public string? NotesExcerpt { get; set; }
 

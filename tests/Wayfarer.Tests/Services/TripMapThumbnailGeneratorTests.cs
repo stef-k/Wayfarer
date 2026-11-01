@@ -212,7 +212,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
             .ReturnsAsync(response.Object);
         var styled = new TaskCompletionSource<IElementHandle>();
         page.Setup(item => item.AddStyleTagAsync(It.Is<PageAddStyleTagOptions>(options =>
-                options.Content == ".wayfarer-embed-full-view { display: none !important; }")))
+                options.Content == ".wayfarer-embed-full-view, .profile-photo { display: none !important; }")))
             .Returns(styled.Task);
         page.Setup(item => item.ScreenshotAsync(It.Is<PageScreenshotOptions>(options =>
                 options.Type == ScreenshotType.Jpeg && options.Quality == 85 && options.FullPage == false)))

@@ -1,3 +1,4 @@
+import { photoBadge, memberPhotoInfo, bindGroupPhotos } from '../../../profilePhotos.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { bindGroupSharingControls, refreshGroupState } from '../../../groupSharingControls.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
@@ -106,7 +107,7 @@ import {
   }
   function idToInfoMap() {
     const m = new Map();
-    document.querySelectorAll('#userSidebar input.user-select').forEach(b => m.set(b.getAttribute('data-user-id'), { username: b.getAttribute('data-username'), display: b.getAttribute('data-display') }));
+    document.querySelectorAll('#userSidebar input.user-select').forEach(b => m.set(b.getAttribute('data-user-id'), memberPhotoInfo(b)));
     return m;
   }
   // Clear all selection-driven layers to reflect an empty selection.
@@ -125,11 +126,9 @@ import {
     if (!resp.ok) throw new Error('Request failed');
     return await resp.json();
   }
-  function colorFromString(str) { let h=0; for (let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return 'hsl(' + h + ',80%,45%)'; }
-  function latestIconHtml(baseColor, isLive){ const cls = isLive ? 'wf-marker wf-marker--live' : 'wf-marker wf-marker--latest'; return `<div class="${cls}" style="--wf-color:${baseColor}"></div>`; }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
   function buildTooltipHtml(info, loc){
-    const u=(info.username||'') + (info.display? (' ('+info.display+')') : '');
+    const u=escapeHtml(info.username||'') + (info.display? (' ('+escapeHtml(info.display)+')') : '');
     const timestamps = getLocationTimestampInfo(loc);
     const addr=locationAddressText(loc, loc.fullAddress||loc.address||loc.place||'');
     let recordedLine = timestamps.source || 'Recorded time unavailable';
@@ -142,9 +141,9 @@ import {
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
     const info=idToInfoMap().get(userId)||{ username:'', display:''};
-    const base=colorFromString(info.username||'user');
+    const base=info.colorHex || '#808080';
     const live=isLiveLocation(loc);
-    const icon=L.divIcon({ html: latestIconHtml(base, live), className:'', iconSize:[20,20], iconAnchor:[10,10] });
+    const icon=L.divIcon({ html: photoBadge(info), className: live ? 'wf-marker wf-marker--live profile-marker' : 'wf-marker wf-marker--latest profile-marker', iconSize:[32,32], iconAnchor:[16,16] });
     const statusHtml = live ? ' <span style="color:#dc3545">Live Location</span>' : ' <span style="color:#198754">Latest Location</span>';
     const tooltip = buildTooltipHtml(info, loc) + statusHtml;
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
@@ -239,7 +238,7 @@ import {
       if (!loc.isLatestLocation) {
         const uid = loc.userId || '';
         const info = idToInfoMap().get(uid) || { username: uid, display: '' };
-        const base = colorFromString(info.username || uid || 'user');
+        const base = info.colorHex || '#808080';
         let group = restClusters.get(uid);
         if (!group) {
           group = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: true, chunkedLoading: true });
@@ -471,12 +470,7 @@ import {
             const colorChip = '<span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>';
             const checkboxHTML = checkbox.outerHTML;
             label.innerHTML = `${colorChip}${checkboxHTML}${highlightedUsername} (${highlightedDisplay})`;
-            // Re-apply color to chip after HTML replacement
-            const chip = label.querySelector('.user-color');
-            const originalChip = li.querySelector('.user-color');
-            if (chip && originalChip) {
-              chip.style.backgroundColor = originalChip.style.backgroundColor || colorFromString(username);
-            }
+            label.querySelector('.user-color')?.replaceWith(photoBadge(memberPhotoInfo(checkbox)));
           }
         }
 
@@ -581,11 +575,8 @@ import {
     });
   }
 
-  // Color chips and Only buttons
-  document.querySelectorAll('#userSidebar .user-item').forEach(li => {
-    const cb = li.querySelector('input.user-select'); const chip = li.querySelector('.user-color');
-    if (cb && chip) { const color = colorFromString(cb.getAttribute('data-username')||'user'); chip.style.backgroundColor = color; }
-  });
+  // Backend identity references refresh on focus; normal SSE membership invalidation reloads this page.
+  bindGroupPhotos(groupId, () => loadLatest().catch(() => {}));
   document.querySelectorAll('#userSidebar .only-this').forEach(btn => {
     btn.addEventListener('click', function(){
       const targetId = this.getAttribute('data-user-id');
@@ -633,7 +624,7 @@ import {
       + `<div class=\"col-12\"><strong>Notes:</strong><div class=\"border p-1\">${hasNotes? notes : ''}</div></div>`
       + `</div>`
       + `</div>`;
-    const el = document.getElementById('modalContent'); if (el) el.innerHTML = html; new bootstrap.Modal(document.getElementById('locationModal')).show();
+    const el = document.getElementById('modalContent'); if (el) { el.innerHTML = html; const info = idToInfoMap().get(location.userId); if (info) el.prepend(photoBadge(info)); } new bootstrap.Modal(document.getElementById('locationModal')).show();
   }
 
 })();

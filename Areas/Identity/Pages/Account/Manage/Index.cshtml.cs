@@ -52,6 +52,10 @@ namespace Wayfarer.Areas.Identity.Pages.Account.Manage
         {
             [Display(Name = "Display Name")]
             public string DisplayName { get; set; }
+
+            /// <summary>Independent retained consent for current and future public Trip photos.</summary>
+            [Display(Name = "Show my profile photo beside my name on my public Trips")]
+            public bool ShowProfilePhotoOnPublicTrips { get; set; }
         }
 
         private async Task LoadAsync(ApplicationUser user)
@@ -71,7 +75,8 @@ namespace Wayfarer.Areas.Identity.Pages.Account.Manage
 
             Input = new InputModel
             {
-                DisplayName = displayName
+                DisplayName = displayName,
+                ShowProfilePhotoOnPublicTrips = user.ShowProfilePhotoOnPublicTrips
             };
         }
 
@@ -101,13 +106,15 @@ namespace Wayfarer.Areas.Identity.Pages.Account.Manage
                 return Page();
             }
 
-            if (Input.DisplayName != user.DisplayName)
+            if (Input.DisplayName != user.DisplayName || Input.ShowProfilePhotoOnPublicTrips != user.ShowProfilePhotoOnPublicTrips)
             {
                 user.DisplayName = Input.DisplayName;
+                user.ShowProfilePhotoOnPublicTrips = Input.ShowProfilePhotoOnPublicTrips;
+                // Identity compares the original ConcurrencyStamp, preserving concurrent photo writes.
                 IdentityResult updateResult = await _userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
                 {
-                    StatusMessage = "Unexpected error when trying to update the display name.";
+                    StatusMessage = "The profile changed or could not be saved. Refresh and save your preferences again.";
                     return RedirectToPage();
                 }
             }

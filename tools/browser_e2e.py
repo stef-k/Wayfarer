@@ -193,6 +193,9 @@ class BrowserRun:
             raise RuntimeError('Browser endpoint is already occupied')
         if self.profile == 'shared-layout' and not port_free(5173):
             raise RuntimeError('Managed Vite endpoint 5173 is already occupied')
+        # The application's durable root is an existing service-owned prerequisite;
+        # subsystems create their namespaces rather than substituting another root.
+        (self.root.path / 'DataRoot').mkdir(mode=0o700)
         copy_source(self.repository, self.source)
         # Ordinary-only disposable trees cannot contain npm's optional .bin symlinks.
         self.checked('npm-ci', [*npm_command(), 'ci', '--bin-links=false', '--no-audit', '--no-fund'])

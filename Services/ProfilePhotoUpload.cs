@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
 using Wayfarer.Parsers;
@@ -30,6 +29,7 @@ public sealed class ProfilePhotoUpload(ProfilePhotoService photos, IApplicationS
             var (bytes, token, crop) = await ReadAsync(request, (int)maximum, ct);
             var remaining = TimeSpan.FromSeconds(60) - time.GetElapsedTime(started);
             ct.ThrowIfCancellationRequested();
+            if (remaining <= TimeSpan.Zero) throw new ProfilePhotoException(408, "photo_upload_timeout");
             var result = await TransformAsync(bytes, crop, remaining, ct);
             if (result.Status != ImageTransformStatus.Success)
                 throw result.Status switch
@@ -86,6 +86,12 @@ public sealed class ProfilePhotoUpload(ProfilePhotoService photos, IApplicationS
             }
         }
         catch (InvalidDataException) { throw new ProfilePhotoException(400, "invalid_photo"); }
+        catch (IOException error) when (error is not BadHttpRequestException && !ct.IsCancellationRequested)
+        { throw new ProfilePhotoException(400, "invalid_photo"); }
+        // Consume the normal request through EOF before publication so the host's
+        // 16-MiB ceiling also covers multipart epilogue/read-ahead bytes. The same
+        // overall token stops this immediately on expiry; timeout handling aborts it.
+        await request.Body.CopyToAsync(Stream.Null, ct);
         if (bytes is not { Length: > 0 }) throw new ProfilePhotoException(400, "invalid_photo");
         if (!fields.TryGetValue("expectedStateToken", out var token) || string.IsNullOrWhiteSpace(token))
             throw new ProfilePhotoException(400, "invalid_photo_state");

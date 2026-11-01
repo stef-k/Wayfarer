@@ -98,7 +98,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(item.OwnerDisplayName))
                         {
                             <p class="text-muted small mb-2">
-                                <i class="bi bi-person"></i> by @item.OwnerDisplayName
+                                <partial name="_PublicOwnerPhoto" model="@item.OwnerProfilePhoto" /><i class="bi bi-person"></i> by @item.OwnerDisplayName
                             </p>
                         }
 

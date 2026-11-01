@@ -1,0 +1,44 @@
+import { expect, test } from '@playwright/test';
+import path from 'node:path';
+import { loadSharedLayoutConfig } from './sharedLayoutConfig';
+
+/** One mounted Profile/Group journey; lower seams own authorization and failure matrices. */
+test('profile photo crop save Group display remove fallback and retained public preference', async ({ page }, testInfo) => {
+    const config = loadSharedLayoutConfig();
+    await page.goto('/Identity/Account/Login');
+    await page.getByLabel('Username').fill(config.username);
+    await page.getByLabel('Password').fill(config.password);
+    await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
+    await page.goto('/Identity/Account/Manage');
+    await expect(page.locator('#photo-status')).toContainText('state refreshed');
+    await expect(page.locator('#Input_ShowProfilePhotoOnPublicTrips')).not.toBeChecked();
+    await page.locator('#photo-file').setInputFiles(path.resolve('tools/image-helper/fixtures/orientation-7.png'));
+    await expect(page.locator('#photo-framing')).toBeVisible();
+    await page.locator('#photo-zoom').focus(); await page.keyboard.press('ArrowRight');
+    await page.locator('#photo-pan-x').focus(); await page.keyboard.press('ArrowRight');
+    await page.screenshot({ path: process.env.WAYFARER_PROFILE_PHOTO_SCREENSHOT || testInfo.outputPath('profile-photo.png'), fullPage: true });
+    const saved = page.waitForResponse(response => response.url().endsWith('/api/profile-photo/me') && response.request().method() === 'POST');
+    await page.locator('#photo-save').click();
+    const result = await saved;
+    expect(result.status(), result.ok() ? '' : await result.text()).toBe(200);
+    await expect(page.locator('#current-profile-photo')).toBeVisible();
+    const token = await page.locator('#profile-form input[name="__RequestVerificationToken"]').inputValue();
+    const created = await page.request.post('/api/groups', { headers: { RequestVerificationToken: token }, data: { name: 'Profile photo browser group' } });
+    expect(created.status()).toBe(201);
+    const group = await created.json();
+    await page.goto(`/User/Groups/Map?groupId=${group.id}`);
+    await expect(page.locator('#userSidebar .profile-photo img')).toHaveCount(1);
+    await expect.poll(() => page.locator('#userSidebar .profile-photo img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.goto('/Identity/Account/Manage');
+    await expect(page.locator('#photo-status')).toContainText('state refreshed');
+    await page.locator('#Input_ShowProfilePhotoOnPublicTrips').check();
+    await Promise.all([page.waitForURL(url => url.pathname.endsWith('/Account/Manage')), page.locator('#update-profile-button').click()]);
+    await expect(page.locator('#photo-consent')).toContainText('consent is ON');
+    const removed = page.waitForResponse(response => response.url().endsWith('/api/profile-photo/me') && response.request().method() === 'DELETE');
+    await page.locator('#photo-remove').click(); expect((await removed).status()).toBe(200);
+    await expect(page.locator('#current-profile-photo')).toBeHidden();
+    await expect(page.locator('#Input_ShowProfilePhotoOnPublicTrips')).toBeChecked();
+    await page.goto(`/User/Groups/Map?groupId=${group.id}`);
+    await expect(page.locator('#userSidebar .profile-photo img')).toHaveCount(0);
+    await expect(page.locator('#userSidebar .profile-photo')).toContainText('S');
+});

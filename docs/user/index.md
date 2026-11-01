@@ -41,6 +41,33 @@ password. Change an initial password supplied by someone else. Production
 instances require at least **15 characters**, including an uppercase letter,
 a lowercase letter, a digit and a non-alphanumeric character.
 
+### Add an optional profile photo
+
+Open **My Account → Profile**, select JPEG, PNG or static WebP (up to 15 MiB,
+40 megapixels and 16,384 pixels per side), then use the circular preview and
+labelled zoom/position controls or drag to frame it. **Save photo** stores a
+small normalized image; **Cancel selection** keeps your current photo. Export
+HEIC/HEIF phone photos to a supported format first. A failed replacement keeps
+the current photo when failure is definite.
+
+Your photo is private to you and active members of the exact eligible Group.
+It does not grant location access. Group identities keep their existing color;
+missing/failed photos show a display-name/username letter or plain color.
+Historical map points remain dots.
+
+The separate **Show my profile photo beside my name on my public Trips**
+checkbox defaults off. Save the Profile form to change it. It applies to all
+your current/future public Trips and photos. Removing or replacing a photo
+retains this preference; a later upload may therefore be public. Downloaded or
+already displayed copies cannot be recalled. Photos are excluded from print,
+generated thumbnails, timelines and exports.
+
+After a conflict or uncertain result, choose **Refresh photo state**, check the
+saved public-consent message, then make a separate Save/Remove choice. No photo
+mutation is automatically retried. **Remove photo** revokes subsequent reads;
+private orphan bytes are normally cleaned at the next healthy five-minute sweep.
+Mobile photo presentation is separately implemented and qualified.
+
 ### Protect your account with two-factor authentication
 
 In **My Account > Two-factor authentication**, follow the authenticator setup,

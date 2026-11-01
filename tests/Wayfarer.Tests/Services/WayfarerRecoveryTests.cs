@@ -28,6 +28,8 @@ public sealed class WayfarerRecoveryTests
         var source = Path.Combine(fixture.Path, "source");
         Directory.CreateDirectory(Path.Combine(source, "imports"));
         Directory.CreateDirectory(Path.Combine(source, "empty"));
+        Directory.CreateDirectory(Path.Combine(source, "profile-photos"));
+        File.WriteAllBytes(Path.Combine(source, "profile-photos", "00112233445566778899aabbccddeeff.webp"), [8, 9, 10]);
         File.WriteAllBytes(Path.Combine(source, "imports", "upload"), [0, 255, 3, 4]);
         var archive = Path.Combine(fixture.Path, "uploads.tar.gz");
         new DirectoryCapture().Capture(source, archive, "uploads", CancellationToken.None);
@@ -36,6 +38,7 @@ public sealed class WayfarerRecoveryTests
         ArchiveVerifier.ValidateDirectory(archive, target, CancellationToken.None);
         Assert.Equal(new byte[] { 0, 255, 3, 4 }, File.ReadAllBytes(Path.Combine(target, "imports", "upload")));
         Assert.True(Directory.Exists(Path.Combine(target, "empty")));
+        Assert.Equal(new byte[] { 8, 9, 10 }, File.ReadAllBytes(Path.Combine(target, "profile-photos", "00112233445566778899aabbccddeeff.webp")));
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path.Combine(target, "imports", "upload")));
         Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(Path.Combine(target, "empty")));
     }

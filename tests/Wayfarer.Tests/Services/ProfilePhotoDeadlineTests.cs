@@ -13,16 +13,19 @@ using Xunit;
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Controlled body progress cannot reset or monopolize the process-wide avatar slot.</summary>
-public sealed class ProfilePhotoDeadlineTests
+[Collection(PostgresImportTestCollection.Name)]
+public sealed class ProfilePhotoDeadlineTests(PostgresImportTestFixture fixture)
 {
     /// <summary>Expire a progressing stream at 60 seconds, then prove next admission and the remaining helper budget.</summary>
-    [Fact]
+    [PostgresFact]
     public async Task OverallDeadlineStopsReadsAndReleasesSlotWithoutPublication()
     {
         using var storage = new PhotoTestStorage();
-        using var provider = new ServiceCollection().BuildServiceProvider();
+        using var provider = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
         var service = new ProfilePhotoService(provider.GetRequiredService<IServiceScopeFactory>(), storage.Store, NullLogger<ProfilePhotoService>.Instance);
         var settings = new Mock<IApplicationSettingsService>(); settings.Setup(s => s.GetSettings()).Returns(new ApplicationSettings());
+        var user = await fixture.CreateUserAsync();
+        var state = await service.OwnerStateAsync(user.Id, default);
         var time = new DeadlineClock();
         var calls = 0;
         var upload = new ProfilePhotoUpload(service, settings.Object, time)
@@ -30,25 +33,26 @@ public sealed class ProfilePhotoDeadlineTests
             TransformAsync = (_, _, remaining, ct) =>
             {
                 calls++; Assert.InRange(remaining.TotalSeconds, 4.9, 5.1); Assert.False(ct.IsCancellationRequested);
-                return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unsupported));
+                return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Success, "normalized"u8.ToArray(), "image/webp"));
             }
         };
         using var stream = new SlowMultipart();
         var request = new DefaultHttpContext().Request;
         request.ContentType = "multipart/form-data; boundary=photo-boundary";
         request.Body = stream;
-        var operation = upload.UploadAsync(request, "owner", default);
+        var operation = upload.UploadAsync(request, user.Id, default);
         await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
         time.Advance(TimeSpan.FromSeconds(60));
         var timeout = await Assert.ThrowsAsync<ProfilePhotoException>(() => operation.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal("photo_upload_timeout", timeout.Code); Assert.Equal(0, calls);
         Assert.True(stream.Cancelled); Assert.False(Directory.Exists(storage.Store.Root));
         using var body = new MultipartFormDataContent("photo-boundary");
-        body.Add(new StringContent("S0"), "expectedStateToken"); body.Add(new ByteArrayContent("input"u8.ToArray()), "photo", "photo.png");
+        body.Add(new StringContent(state!.StateToken), "expectedStateToken"); body.Add(new ByteArrayContent(await File.ReadAllBytesAsync(Path.Combine(Wayfarer.Tests.Util.ImageHelperSupervisorTests.Fixtures, "opaque.png"))), "photo", "photo.png");
         var encoded = await body.ReadAsByteArrayAsync();
         request.Body = new OnFirstRead(encoded, () => time.Advance(TimeSpan.FromSeconds(55)));
-        var next = await Assert.ThrowsAsync<ProfilePhotoException>(() => upload.UploadAsync(request, "owner", default));
-        Assert.Equal("unsupported_photo_format", next.Code); Assert.Equal(1, calls);
+        var next = await upload.UploadAsync(request, user.Id, default);
+        Assert.NotNull(next.ProfilePhoto);
+        Assert.Equal(1, calls);
     }
 
     /// <summary>The stream advances headers and bytes, then waits cancellably rather than reaching EOF.</summary>

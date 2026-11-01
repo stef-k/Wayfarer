@@ -6,6 +6,9 @@
 @{
     ViewData["LoadLeaflet"] = true;
     Layout = "_Layout";
+    // Public consent affects only owner-name identity, never exported or captured content.
+    var ownerPhoto = Model.IsPublic && Model.User is { IsActive: true, ShowProfilePhotoOnPublicTrips: true }
+        ? Wayfarer.Services.ProfilePhotoReference.Public(Model.User.ProfilePhotoVersion, Model.Id) : null;
     bool owner = ViewBag.IsOwner as bool? ?? false;
     bool hideSidebar = ViewContext.HttpContext.Request.Query["print"] == "1";
     ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill p-0";
@@ -236,7 +239,7 @@
                 @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
                 {
                     <div class="col-6">
-                        <span class="text-muted">Trip by:</span> @Model.User.DisplayName
+                        <span class="text-muted">Trip by:</span> <partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName
                     </div>
                 }
                 <div class="@(!string.IsNullOrWhiteSpace(Model.User?.DisplayName) ? "col-6" : "col-12")">
@@ -275,7 +278,7 @@
                             <i class="bi bi-check2-circle"></i>
                             @if (!owner && !string.IsNullOrEmpty(Model.User?.DisplayName))
                             {
-                                <span>@Model.User.DisplayName visited</span>
+                                <span><partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName visited</span>
                             }
                             @visitedPlaces / @totalPlaces @(totalPlaces == 1 ? "place" : "places")
                         </small>
@@ -395,7 +398,7 @@
                     @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
                     {
                         <div class="col-md-6">
-                            <strong class="text-muted">Trip by:</strong> @Model.User.DisplayName
+                            <strong class="text-muted">Trip by:</strong> <partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName
                         </div>
                     }
                     <div class="col-md-6">
@@ -666,7 +669,7 @@
                         <i class="bi bi-trophy me-2 text-warning"></i>
                         @if (!string.IsNullOrEmpty(Model.User?.DisplayName))
                         {
-                            <span>@Model.User.DisplayName's @Model.Name - Trip Progress</span>
+                            <span><partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName's @Model.Name - Trip Progress</span>
                         }
                         else
                         {
@@ -858,6 +861,8 @@
             const printWindow = window.open('', '', 'width=800,height=600');
             const modalContent = document.querySelector('#readable-modal-body').cloneNode(true);
 
+            // Photo pixels must not enter the readable print clone.
+            modalContent.querySelectorAll('.profile-photo').forEach(photo => photo.remove());
             // Remove the back-to-top button from print
             const backToTopInPrint = modalContent.querySelector('#btn-back-to-top');
             if (backToTopInPrint) {

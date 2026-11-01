@@ -30,6 +30,7 @@
         <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.5.3/dist/MarkerCluster.css" />
         <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.5.3/dist/MarkerCluster.Default.css" />
     }
+    <link rel="stylesheet" href="~/css/profile-photo.css" asp-append-version="true" />
 </head>
 <!-- The embed document fits its viewport; the host page owns ordinary scrolling. -->
 <body data-bs-theme="light" class="h-100">
@@ -64,6 +65,7 @@
     }
 
     @Html.FrontendGlobalScripts()
+    <script type="module" src="~/js/profilePhotos.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 
 </body>

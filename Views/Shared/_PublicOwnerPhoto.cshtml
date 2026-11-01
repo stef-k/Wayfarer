@@ -1,0 +1,6 @@
+@model Wayfarer.Services.ProfilePhotoReference
+@* Only an opted-in current public-Trip reference is rendered beside an existing owner name. *@
+@if (Model != null)
+{
+    <span class="profile-photo public-owner-photo"><img src="@Model.Url" alt="Trip owner profile photo" /></span>
+}

@@ -7,8 +7,8 @@ namespace Wayfarer.Services;
 /// <summary>One concrete owner for persisted photo state, exact-context reads and durable orphan recovery.</summary>
 public sealed class ProfilePhotoService(IServiceScopeFactory scopes, ProfilePhotoStorage storage, ILogger<ProfilePhotoService> logger)
 {
-    // Dedicated transaction lock: ASCII WFPHOTO, separate from import/composition locks.
-    private const long LockKey = 0x574650484f544f;
+    // Dedicated two-int namespace, separate from import locks and all hashed bigint user locks.
+    private const int LockNamespace = 881;
 
     /// <summary>Issue a nonempty Identity stamp even for legacy absent-photo accounts.</summary>
     public async Task<ProfilePhotoState?> OwnerStateAsync(string owner, CancellationToken ct)
@@ -18,7 +18,7 @@ public sealed class ProfilePhotoService(IServiceScopeFactory scopes, ProfilePhot
         await using var transaction = await BeginAsync(db, ct);
         var user = await LockedOwnerAsync(db, owner, ct);
         if (user == null) return null;
-        if (string.IsNullOrEmpty(user.ConcurrencyStamp))
+        if (string.IsNullOrWhiteSpace(user.ConcurrencyStamp))
         {
             user.ConcurrencyStamp = Guid.NewGuid().ToString();
             await db.Users.Where(u => u.Id == owner).ExecuteUpdateAsync(p => p.SetProperty(u => u.ConcurrencyStamp, user.ConcurrencyStamp), ct);
@@ -116,7 +116,9 @@ public sealed class ProfilePhotoService(IServiceScopeFactory scopes, ProfilePhot
     /// <summary>Complete successive batches, with one fresh primary reference query under the publication lock per batch.</summary>
     public async Task SweepAsync(CancellationToken ct)
     {
-        foreach (var batch in storage.Batches()) await SweepBatchAsync(batch, ct);
+        try { foreach (var batch in storage.Batches()) await SweepBatchAsync(batch, ct); }
+        catch (Exception error) when (error is IOException or System.Data.Common.DbException)
+        { logger.LogWarning("Profile photo cleanup deferred; storage/database authority unavailable."); }
     }
 
     /// <summary>No DB uncertainty authorizes unlink; unknown entries and IO failures remain retry evidence.</summary>
@@ -159,7 +161,7 @@ public sealed class ProfilePhotoService(IServiceScopeFactory scopes, ProfilePhot
         try
         {
             await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '2s'; SET LOCAL statement_timeout = '3s'", ct);
-            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({LockKey})", ct);
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({LockNamespace}, 1)", ct);
             return transaction;
         }
         catch { await transaction.DisposeAsync(); throw; }
