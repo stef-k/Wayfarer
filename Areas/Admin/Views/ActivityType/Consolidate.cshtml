@@ -5,14 +5,17 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <p>Source: <strong>@Model.Source.Name</strong> — @Model.Source.LocationCount Location(s) across all owners.</p>
-        <form method="get" asp-action="Consolidate" asp-area="Admin" asp-controller="ActivityType">
-            <input type="hidden" name="sourceId" value="@Model.Source.Id" />
-            <label for="destinationId" class="form-label">Existing destination Activity</label>
-            <select id="destinationId" name="destinationId" asp-items="Model.Destinations" class="form-select mb-3" required>
-                <option value="">Choose a destination</option>
-            </select>
-            <button type="submit" class="btn btn-primary">Preview consolidation</button>
-        </form>
+        @if (Model.Destination is null)
+        {
+            <form method="get" asp-action="Consolidate" asp-area="Admin" asp-controller="ActivityType">
+                <input type="hidden" name="sourceId" value="@Model.Source.Id" />
+                <label for="destinationId" class="form-label">Existing destination Activity</label>
+                <select id="destinationId" name="destinationId" asp-items="Model.Destinations" class="form-select mb-3" required>
+                    <option value="">Choose a destination</option>
+                </select>
+                <button type="submit" class="btn btn-primary">Preview consolidation</button>
+            </form>
+        }
         @if (Model.Destination is { } destination)
         {
             <hr />
@@ -31,6 +34,7 @@
                 <input type="hidden" name="destinationVersion" value="@destination.Version" />
                 <button type="submit" class="btn btn-danger">Confirm consolidation</button>
             </form>
+            <a asp-action="Consolidate" asp-route-sourceId="@Model.Source.Id" class="btn btn-link mt-2">Choose another destination</a>
         }
         <a asp-action="Index" class="btn btn-secondary mt-3">Cancel</a>
     </div>

@@ -121,6 +121,8 @@ name. Distinct nonblank source prose follows the migration policy above: retain
 destination prose as primary, or use source prose if absent; append a distinct
 source description under its original name/ID heading. Exact repeats are not added.
 
+![Admin Activity consolidation confirmation](../images/admin-activity-consolidation.png)
+
 One repeatable-read transaction updates the destination description, reassigns
 Locations and older redirects, removes the source, then inserts its permanent
 numeric redirect. Removing the live source before inserting its redirect respects

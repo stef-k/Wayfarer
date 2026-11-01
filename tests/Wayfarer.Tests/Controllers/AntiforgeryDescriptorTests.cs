@@ -110,7 +110,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
             });
         }
         var admins = unsafeActions.Where(action => action.RouteValues["area"] == "Admin").ToArray();
-        Assert.Equal(23, admins.Length);
+        Assert.Equal(24, admins.Length);
         Assert.All(admins, action => Assert.Contains(action.FilterDescriptors,
             filter => filter.Filter is ValidateAntiForgeryTokenAttribute));
         foreach (var key in BearerActions.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
