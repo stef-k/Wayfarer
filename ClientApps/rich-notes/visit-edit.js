@@ -1,9 +1,10 @@
+import { mountRazorNotes } from './razor';
 /**
  * Visit Edit - Form + Map for editing a visit event
  * Allows editing timestamps, location (via map click), appearance, and notes.
  */
 
-import { createTileLayer } from '../../../retryTileLayer.js';
+import { createTileLayer } from '../../wwwroot/js/retryTileLayer.js';
 
 // Wayfarer marker icon dimensions used by the shared map icon assets.
 const WF_WIDTH = 28;
@@ -21,15 +22,16 @@ const buildPngIconUrl = (icon, color) => {
 
 let map = null;
 let marker = null;
-let quill = null;
 
-document.addEventListener('DOMContentLoaded', () => {
+const mountVisitEdit = () => {
     initMap();
-    initQuill();
+    initNotes();
     initDeleteConfirmation();
     initIconColorSync();
     initLocationPings();
-});
+};
+
+
 
 /**
  * Initialize Leaflet map with visit marker
@@ -128,62 +130,13 @@ const initIconColorSync = () => {
     if (colorSelect) colorSelect.addEventListener('change', updateMarkerIcon);
 };
 
-/**
- * Proxy external image URLs for display
- * @param {HTMLElement} root - Container element with images to proxy
- */
-const proxyImages = (root) => {
-    root.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('src');
-        if (src && !src.startsWith('data:') && !src.startsWith('/Public/ProxyImage') && !img.dataset.original) {
-            img.dataset.original = src;
-            img.setAttribute('src', `/Public/ProxyImage?url=${encodeURIComponent(src)}`);
-        }
+/** Bind only the independent Visit snapshot's NotesHtml field; MVC retains validation and save ownership. */
+const initNotes = () => {
+    const notes = mountRazorNotes(document.getElementById('notes'));
+    document.getElementById('visitForm').addEventListener('submit', () => {
+        document.getElementById('hiddenNotes').value = notes.getValue();
     });
-};
-
-/**
- * Initialize Quill rich text editor for notes
- */
-const initQuill = () => {
-    const notesContainer = document.getElementById('notes');
-    if (!notesContainer) return;
-
-    quill = new Quill('#notes', {
-        theme: 'snow',
-        modules: {
-            toolbar: [
-                [{ 'header': [1, 2, 3, false] }],
-                ['bold', 'italic', 'underline', 'strike'],
-                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                ['link', 'image'],
-                ['clean']
-            ]
-        }
-    });
-
-    // Load existing content and proxy images
-    const existingContent = notesContainer.dataset.notesContent;
-    if (existingContent) {
-        quill.root.innerHTML = existingContent;
-        proxyImages(quill.root);
-    }
-
-    // Proxy images on text changes (for newly inserted images)
-    quill.on('text-change', () => {
-        proxyImages(quill.root);
-    });
-
-    // Sync to hidden input on form submit
-    const form = document.getElementById('visitForm');
-    if (form) {
-        form.addEventListener('submit', () => {
-            const hiddenNotes = document.getElementById('hiddenNotes');
-            if (hiddenNotes) {
-                hiddenNotes.value = quill.root.innerHTML;
-            }
-        });
-    }
+    window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
 };
 
 /**
@@ -334,3 +287,6 @@ const formatLocationTimestamp = (ts) => {
         hour: '2-digit', minute: '2-digit'
     });
 };
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountVisitEdit, { once: true });
+else mountVisitEdit();

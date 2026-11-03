@@ -26,7 +26,7 @@ defineEmits<{
 
 const notesEditor = ref<{ focusEditor: () => void } | null>(null);
 
-/** Delegates Reset focus to the real Quill editing surface. */
+/** Delegates Reset focus to the shared native editing surface. */
 function focusNotes(): void {
   notesEditor.value?.focusEditor();
 }

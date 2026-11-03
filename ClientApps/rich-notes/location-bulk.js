@@ -1,8 +1,7 @@
-import { notesHtmlForDisplay, notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
-// js/Areas/User/Location/BulkEditNotes.js
+import { mountRazorNotes } from './razor';
 // JavaScript for the Bulk Edit Notes view
 
-document.addEventListener('DOMContentLoaded', function () {
+const mountLocationBulk = () => {
     // Cache filter elements and submit button
     const countrySelect = document.getElementById('Country');
     const regionSelect = document.getElementById('Region');
@@ -76,70 +75,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initial count
     updateCount();
 
-    // ------------------ Quill Initialization ------------------
-    // Proxy image creation before Quill can attach a remote src to the live editor.
-    registerNoteImageBlot(Quill);
-    var quill = new Quill('#notes', {
-        theme: 'snow',
-        placeholder: 'Add your notes...',
-        modules: {
-            clipboard: {matchVisual: false},
-            toolbar: [
-                [{'header': [1, 2, 3, 4, 5, 6, false]}],
-                ['bold', 'italic', 'underline'],
-                [{'list': 'ordered'}, {'list': 'bullet'}],
-                ['link', 'image'],
-                [{'font': []}],
-                ['clean']
-            ]
-        }
+    // Filters and advisory counts are independent of the ordinary Apply-time POST.
+    // Clearing the editor does not select the separate ClearNotes operation.
+    const notes = mountRazorNotes(document.getElementById('notes'));
+    document.getElementById('locationForm').addEventListener('submit', () => {
+        document.getElementById('hiddenNotes').value = notes.isClear() ? '' : notes.getValue();
     });
+    window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
+};
 
-    // Prevent base64 images
-    quill.on('text-change', function () {
-        document.querySelectorAll('.ql-editor img').forEach(img => {
-            if (img.src.startsWith('data:image')) img.remove();
-        });
-    });
-
-    // Add Clear button
-    var toolbar = quill.getModule('toolbar');
-    var clearBtn = document.createElement('span');
-    clearBtn.classList.add('ql-clear');
-    clearBtn.innerText = 'Clear';
-    toolbar.container.appendChild(clearBtn);
-    clearBtn.addEventListener('click', () => quill.setText(''));
-
-    // Image handler
-    toolbar.addHandler('image', function () {
-        new bootstrap.Modal(document.getElementById('imageModal')).show();
-    });
-
-    let savedRange = null;
-    quill.on('selection-change', range => {
-        if (range) savedRange = range;
-    });
-
-    document.getElementById('insertImageBtn').addEventListener('click', () => {
-        const url = document.getElementById('imageUrl').value;
-        if (!url) return alert('Please enter a valid image URL.');
-        if (savedRange) {
-            quill.setSelection(savedRange.index, savedRange.length);
-            quill.insertEmbed(savedRange.index, 'image', url);
-        } else quill.insertEmbed(quill.getLength(), 'image', url);
-        bootstrap.Modal.getInstance(document.getElementById('imageModal')).hide();
-    });
-
-    document.getElementById('imageModal').addEventListener('hidden.bs.modal', () => {
-        document.getElementById('imageUrl').value = '';
-    });
-
-    // Load existing notes
-    quill.root.innerHTML = notesHtmlForDisplay(document.getElementById('notes').dataset.notesContent);
-
-    // On submit copy HTML
-    document.getElementById('locationForm')
-        .addEventListener('submit', () => {
-            document.getElementById('hiddenNotes').value = notesHtmlForSave(quill.root.innerHTML);
-        });
-});
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountLocationBulk, { once: true });
+else mountLocationBulk();

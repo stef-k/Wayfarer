@@ -1,7 +1,7 @@
-import { notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
-import { createTileLayer } from '../../../retryTileLayer.js';
+import { mountRazorNotes } from './razor';
+import { createTileLayer } from '../../wwwroot/js/retryTileLayer.js';
 
-document.addEventListener("DOMContentLoaded", function () {
+const mountLocationCreate = () => {
 
     if (typeof L !== 'undefined') {
         // Initialize the map with a global zoom level (default zoom level for demonstration)
@@ -67,60 +67,14 @@ document.addEventListener("DOMContentLoaded", function () {
     var localDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
 
     // Set the value of the datetime-local input field
-    document.getElementById('LocalTimestamp').value = localDateTime;
+    if (!document.getElementById('LocalTimestamp').value) document.getElementById('LocalTimestamp').value = localDateTime;
 
-    // Proxy image creation before Quill can attach a remote src to the live editor.
-    registerNoteImageBlot(Quill);
-    var quill = new Quill('#notes', {
-        theme: 'snow',
-        modules: {
-            clipboard: {
-                matchVisual: false
-            },
-            toolbar: {
-                container: [
-                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-                    ['bold', 'italic', 'underline'],  // Bold, Italic, Underline
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],  // Lists
-                    ['link', 'image'],  // Link
-                    [{ 'font': [] }],  // Add font family option if needed
-                    ['clean']
-                ],
-                handlers: {
-
-                }
-            }
-        }
+    // Ordinary MVC submission owns validation; Notes changes only after authoring or explicit Clear.
+    const notes = mountRazorNotes(document.getElementById('notes'));
+    document.getElementById('notes').closest('form').addEventListener('submit', () => {
+        document.getElementById('Notes').value = notes.isClear() ? '' : notes.getValue();
     });
-    var toolbar = quill.getModule('toolbar');
-
-    var clearText = document.createElement('span');
-    clearText.classList.add('ql-clear');
-    clearText.innerText = 'Clear';
-    clearText.setAttribute('data-tooltip', 'Clear editor text');
-    toolbar.container.appendChild(clearText);
-
-    clearText.addEventListener('click', function () {
-        quill.setText(''); // Clears the editor content
-    });
-    // Prevent base64 images from being inserted when pasted
-    quill.on("text-change", function () {
-        const editor = document.querySelector(".ql-editor");
-        const images = editor.querySelectorAll("img");
-
-        images.forEach((img) => {
-            if (img.src.startsWith("data:image")) {
-                img.remove(); // Remove the pasted image
-            }
-        });
-    });
-
-    // handler form submision and quill field
-    var form = document.getElementById('notes').closest('form');
-    form.addEventListener('submit', function () {
-        var notes = document.getElementById('Notes');
-        notes.value = notesHtmlForSave(quill.root.innerHTML); // Save HTML content of the editor
-    });
+    window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
 
     // Initialize TomSelect on Activity dropdown with API-based loading
     if (typeof TomSelect !== 'undefined') {
@@ -150,6 +104,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-});
+};
 
-
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountLocationCreate, { once: true });
+else mountLocationCreate();

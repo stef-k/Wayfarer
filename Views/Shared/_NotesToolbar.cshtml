@@ -1,0 +1,18 @@
+@model bool
+@* Visit retains H1-H3/strike; Location retains fonts and its explicit Clear action. *@
+<div id="notes-toolbar" class="rich-notes-toolbar" role="toolbar" aria-label="Notes formatting">
+    <select data-heading aria-label="Heading"><option value="0">Paragraph</option>
+        @for (var level = 1; level <= (Model ? 3 : 6); level++) { <option value="@level">Heading @level</option> }
+    </select>
+    <button type="button" data-action="bold" data-mark="bold" aria-pressed="false">Bold</button>
+    <button type="button" data-action="italic" data-mark="italic" aria-pressed="false">Italic</button>
+    <button type="button" data-action="underline" data-mark="underline" aria-pressed="false">Underline</button>
+    @if (Model) { <button type="button" data-action="strike" data-mark="strike" aria-pressed="false">Strike</button> }
+    <button type="button" data-action="ordered">Ordered list</button>
+    <button type="button" data-action="bullet">Bullet list</button>
+    <button type="button" data-action="link">Link</button>
+    <button type="button" data-action="image">Image</button>
+    @if (!Model) { <select data-font aria-label="Font"><option value="">Default font</option><option value="serif">Serif</option><option value="monospace">Monospace</option></select> }
+    <button type="button" data-action="remove">Remove formatting</button>
+    @if (!Model) { <button type="button" data-action="clear">Clear</button> }
+</div>
