@@ -97,7 +97,7 @@ public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixtu
         await Assert.ThrowsAsync<InvalidOperationException>(() => preparation.BeginAsync("text", false, default));
         await preparation.BeginAsync("text", true, default);
         while (!await preparation.PrepareBatchAsync("text", default)) { }
-        foreach (var stale in new string?[] { oldText, null, "history-text-1;arbitrary" })
+        foreach (var stale in new string?[] { oldText, "history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f", null, "history-text-1;arbitrary" })
         {
             await db.Locations.Where(item => item.Id == row.Id).ExecuteUpdateAsync(setters => setters.SetProperty(item => item.HistoryTextVersion, stale)
                 .SetProperty(item => item.HistorySearchText, stale == null ? null : "VISIBLE\nCAFE ROAD"));

@@ -182,6 +182,33 @@ public sealed partial class TripMetadataConditionalPostgresTests(PostgresImportT
         Assert.Equal(HttpStatusCode.Conflict, staleNull.StatusCode);
     }
 
+    /// <summary>Compatibility removal changes publication, never unrelated storage or a frozen submitted proof.</summary>
+    [PostgresFact]
+    public async Task RetiredAttributes_UnrelatedSavePreservesStorageAndStaleOriginalRejects()
+    {
+        const string stored = "<p class=\"ql-align-right\" style=\"text-align: right;\">Before</p>";
+        const string published = "<p style=\"text-align: right;\">Before</p>";
+        var trip = await SeedAsync(stored);
+        await using var db = fixture.CreateContext();
+        await using var app = await StartAsync(db);
+        using var web = await WebAsync(app, trip.UserId);
+        var metadata = Wayfarer.Models.Dtos.Editor.EditorTripStateMapper.ToMetadata(trip, null, null);
+        Assert.Equal(published, metadata.NotesHtml);
+        Assert.Equal(stored, trip.Notes);
+        using var unrelated = await PatchAsync(web, trip.Id, true, new { name = trip.Name }, new { name = "Renamed" });
+        Assert.Equal(HttpStatusCode.OK, unrelated.StatusCode);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(stored, (await verification.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Notes);
+        using var stale = await PatchAsync(web, trip.Id, true, new { notesHtml = stored }, new { notesHtml = "Edited" });
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal(stored, (await verification.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Notes);
+        using var edited = await PatchAsync(web, trip.Id, true, new { notesHtml = published },
+            new { notesHtml = "<p style=\"text-align: center;\"><span style=\"font-family: serif;\">Edited</span></p>" });
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        Assert.Equal("<p style=\"text-align: center;\"><span style=\"font-family: serif;\">Edited</span></p>",
+            (await verification.Trips.AsNoTracking().SingleAsync(t => t.Id == trip.Id)).Notes);
+    }
+
     /// <summary>Malformed, unknown, duplicate and missing-original inputs never become unconditional writes.</summary>
     [PostgresTheory]
     [InlineData("{}")]

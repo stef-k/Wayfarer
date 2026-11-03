@@ -147,9 +147,18 @@ history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)
 history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f
 ~~~
 
+W3 of #939 now selects **`history-text-2`**. Removing vendor-specific span deletion
+changes visible text extraction: `<span class="ql-ui">visible</span>` now contributes
+`VISIBLE` instead of disappearing. The previous R1 text generation therefore needs
+the existing explicit controlled text rebuild before text search becomes ready.
+Time generation, writer authority, environment qualification and canonical Notes
+remain unchanged. No startup/background preparation or Notes rewrite is introduced.
+The command sequence in this page remains operator-controlled; source cleanup does
+not execute it. Old text cursors and preparation state cannot authorize the new ID.
+
 These are opaque historical names. Their embedded versions do not report the
-currently executing runtime. Future semantic changes may use `history-time-2` or
-`history-text-2`; do not rename a compatible generation for cosmetic reasons.
+currently executing runtime. Future semantic changes use a new affected ID; do not rename a compatible
+generation for cosmetic reasons.
 `history-writers-1` retains its unchanged atomic-writer meaning.
 
 ### Environment qualification versus preparation

@@ -11,8 +11,8 @@ internal static class LocationHistoryDerivation
 {
     /// <summary>Opaque semantic ID retained from qualified R1 data; provenance is reported separately.</summary>
     internal const string TimeVersion = "history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)";
-    /// <summary>Opaque semantic ID: compatible qualified servicing must not rename or restamp existing rows.</summary>
-    internal const string TextVersion = "history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f";
+    /// <summary>Semantic text generation after removing vendor-specific content deletion; requires controlled preparation.</summary>
+    internal const string TextVersion = "history-text-2";
 
     /// <summary>Only these columns are excluded from canonical snapshot comparison and accepted owner edits.</summary>
     internal static bool IsDerived(string name) => name is nameof(Location.CaptureLocalTimestamp)

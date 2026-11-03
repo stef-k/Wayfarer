@@ -269,7 +269,7 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           handle.focus();
           await Probe.nextTick();
           const untouched = owner[draft].notesHtml;
-          await owner[save](false);
+          if (kind !== 'segment') await owner[save](false);
           handle.editor.commands.selectAll();
           handle.editor.commands.insertContent('First');
           await Probe.nextTick();

@@ -35,8 +35,6 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.Contains("<span style=\"font-family: serif;\">Serif</span>", result);
         Assert.Contains("href=\"https://example.test/page\"", result);
         Assert.Contains("src=\"https://cdn.example.test/image.jpg\"", result);
-        Assert.DoesNotContain("ql-align-left", result);
-        Assert.DoesNotContain("ql-ui", result);
         Assert.DoesNotContain("onclick", result);
         Assert.DoesNotContain("onerror", result);
     }
