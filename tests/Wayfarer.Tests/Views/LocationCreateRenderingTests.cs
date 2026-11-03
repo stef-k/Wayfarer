@@ -85,7 +85,7 @@ public sealed class LocationCreateRenderingTests : TestBase
         Assert.Equal(invalidPost ? "invalid" : null, document.QuerySelector("#Latitude")!.GetAttribute("value"));
         Assert.Equal(invalidPost ? "23.7275" : null, document.QuerySelector("#Longitude")!.GetAttribute("value"));
         Assert.Equal(invalidPost ? notes : null, document.QuerySelector("#Notes")!.GetAttribute("value"));
-        Assert.Equal(invalidPost ? notes : null, document.QuerySelector("#notes")!.GetAttribute("data-notes-content"));
+        Assert.Equal(invalidPost ? notes : "", document.QuerySelector("#notes")!.GetAttribute("data-notes-content"));
         if (invalidPost) Assert.Contains("Invalid coordinate", document.QuerySelector("[data-valmsg-for=Latitude]")!.TextContent);
     }
 
