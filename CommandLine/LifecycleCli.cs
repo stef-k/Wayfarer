@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Util;
+using System.Text.Json;
 
 namespace Wayfarer.CommandLine;
 
@@ -19,9 +21,12 @@ internal static class LifecycleCli
         if (args is ["healthcheck"]) return await HealthcheckAsync();
         if (!ValidArguments(args))
         {
-            await error.WriteLineAsync("Usage: database migrate|seed; admin bootstrap|reset <username> --stdin; user find <username>; healthcheck");
+            await error.WriteLineAsync("Usage: database migrate|prepare-history|history-status|seed; admin bootstrap|reset <username> --stdin; user find <username>; healthcheck");
             return 2;
         }
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler cancel = (_, value) => { value.Cancel = true; cancellation.Cancel(); };
+        Console.CancelKeyPress += cancel;
         try
         {
             var builder = WebApplication.CreateBuilder(Array.Empty<string>());
@@ -40,38 +45,62 @@ internal static class LifecycleCli
             await using var scope = app.Services.CreateAsyncScope();
             var services = scope.ServiceProvider;
             var db = services.GetRequiredService<ApplicationDbContext>();
-            if (args[0] == "database") await DatabaseAsync(args[1], db, services);
+            if (args[0] == "database") await DatabaseAsync(args[1], db, services, output, cancellation.Token);
             else if (args[0] == "user") return await FindAsync(args[2], services, output);
             else await AdminAsync(args[1], args[2], input, services);
-            await output.WriteLineAsync("Maintenance completed.");
+            if (args is not ["database", "history-status"]) await output.WriteLineAsync("Maintenance completed.");
             return 0;
+        }
+        catch (HistoryQualificationException)
+        {
+            await error.WriteLineAsync("History preparation failed: use a qualified target build/runtime/globalization profile; rebuilding cannot qualify it. Keep writers stopped and resume maintenance after correction.");
+            return 1;
+        }
+        catch (OperationCanceledException)
+        {
+            await error.WriteLineAsync("History preparation interrupted: committed batches remain resumable. Keep writers stopped; use managed update resume or native database prepare-history after schema verification.");
+            return 130;
         }
         catch (Exception)
         {
-            await error.WriteLineAsync("Maintenance failed. Verify prerequisites and protected input; no web server or jobs were started.");
+            await error.WriteLineAsync("Maintenance failed. Verify schema, history indexes/extension privileges, qualified target rules, database capacity and protected input. Keep writers stopped; reconcile the helper before managed resume, or verify schema before native database prepare-history. No web server or jobs were started.");
             return 1;
         }
+        finally { Console.CancelKeyPress -= cancel; }
     }
 
     /// <summary>Accepts only documented forms; passwords cannot be supplied in command arguments.</summary>
-    private static bool ValidArguments(string[] args) => args is ["database", "migrate" or "seed"]
+    private static bool ValidArguments(string[] args) => args is ["database", "migrate" or "prepare-history" or "history-status" or "seed"]
         or ["admin", "bootstrap" or "reset", _, "--stdin"] or ["user", "find", _];
 
-    /// <summary>Owns schema mutation separately from idempotent reference seeding.</summary>
-    private static async Task DatabaseAsync(string operation, ApplicationDbContext db, IServiceProvider services)
+    /// <summary>Owns offline schema then derived-data maintenance; preparation-only resume never replays schema mutation.</summary>
+    internal static async Task DatabaseAsync(string operation, ApplicationDbContext db, IServiceProvider services,
+        TextWriter output, CancellationToken token)
     {
-        await ApplicationReadiness.ValidateExtensionsAsync(db, CancellationToken.None);
+        await ApplicationReadiness.ValidateExtensionsAsync(db, token);
+        if (operation == "history-status")
+        {
+            var statuses = await new LocationHistoryPreparation(db).InspectAsync(token);
+            await output.WriteLineAsync(JsonSerializer.Serialize(new { Ready = statuses.All(status => status.Ready), Generations = statuses }));
+            return;
+        }
         if (operation == "migrate")
         {
             var known = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
             if ((await db.Database.GetAppliedMigrationsAsync()).Any(migration => !known.Contains(migration)))
                 throw new InvalidOperationException("Unknown migration history.");
-            await db.Database.MigrateAsync();
+            await db.Database.MigrateAsync(token);
             await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(services);
+        }
+        else await ApplicationReadiness.ValidateSchemaAsync(db, token);
+        if (operation is "migrate" or "prepare-history")
+        {
+            await output.WriteLineAsync("History preparation: verifying current generations; keep writers stopped until maintenance completes.");
+            await new LocationHistoryPreparation(db).EnsureAsync(status => output.WriteLineAsync(
+                $"History preparation: {status.Kind}; prepared={status.Prepared}; pending={status.Pending}; ready={status.Ready}"), token);
         }
         else
         {
-            await ApplicationReadiness.ValidateSchemaAsync(db, CancellationToken.None);
             await ApplicationDbContextSeed.SeedAsync(services.GetRequiredService<UserManager<ApplicationUser>>(),
                 services.GetRequiredService<RoleManager<IdentityRole>>(), services, includeDevelopmentAdmin: false);
         }

@@ -9,8 +9,8 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
 {
     internal const string WriterVersion = "history-writers-1";
 
-    /// <summary>Starts declared maintenance for selected generations; ordinary prepare resumes existing state.</summary>
-    internal async Task BeginAsync(string kind, bool rebuild, CancellationToken token)
+    /// <summary>Starts declared maintenance; ensure selects changed binary generations atomically, while manual prepare only resumes.</summary>
+    internal async Task BeginAsync(string kind, bool rebuild, CancellationToken token, bool ensureCurrent = false)
     {
         ValidateKind(kind);
         db.HistoryEnvironment.Require(kind == "time", kind == "text");
@@ -24,8 +24,11 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
             db.Add(state);
             rebuild = true;
         }
-        else if (state.TargetVersion != version && !rebuild)
-            throw new InvalidOperationException("Rule identity changed; explicitly rebuild the affected generation.");
+        else if (state.TargetVersion != version || state.WriterVersion != WriterVersion)
+        {
+            if (ensureCurrent) rebuild = true;
+            else if (!rebuild) throw new InvalidOperationException("Rule identity changed; explicitly rebuild the affected generation.");
+        }
         if (rebuild)
         {
             state.TargetVersion = version;
@@ -42,6 +45,38 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
         await db.SaveChangesAsync(token);
         await transaction.CommitAsync(token);
         db.ChangeTracker.Clear();
+    }
+
+    /// <summary>Offline target maintenance selects only changed generations and resumes committed batches without resetting progress.</summary>
+    internal async Task EnsureAsync(Func<HistoryPreparationStatus, Task>? progress, CancellationToken token)
+    {
+        db.HistoryEnvironment.Require(true, true);
+        foreach (var kind in new[] { "time", "text" }) await BeginAsync(kind, false, token, ensureCurrent: true);
+        foreach (var kind in new[] { "time", "text" })
+        {
+            var status = await StatusAsync(kind, token);
+            if (progress is not null) await progress(status);
+            if (status.Ready) continue;
+            bool complete;
+            do
+            {
+                complete = await PrepareBatchAsync(kind, token);
+                if (progress is not null) await progress(await StatusAsync(kind, token));
+            } while (!complete);
+            await db.Database.ExecuteSqlRawAsync("ANALYZE \"Locations\"", token);
+        }
+        if (!(await InspectAsync(token)).All(status => status.Ready))
+            throw new InvalidOperationException("History preparation remains incomplete.");
+    }
+
+    /// <summary>Independently verifies both generations, physical prerequisites and stale rows in one read-only snapshot.</summary>
+    internal async Task<HistoryPreparationStatus[]> InspectAsync(CancellationToken token)
+    {
+        await using var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, token) : null;
+        var statuses = new[] { await StatusAsync("time", token), await StatusAsync("text", token) };
+        if (transaction is not null) await transaction.CommitAsync(token);
+        return statuses;
     }
 
     /// <summary>Commits at most 500 locked final rows and their checkpoint together; cancellation rolls the batch back.</summary>
