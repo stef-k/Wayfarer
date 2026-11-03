@@ -22,6 +22,32 @@ Tests that opt into PostgreSQL may still skip when the guarded database is not a
 
 Mocked/InMemory/controller tests prove their own seam. They do not automatically prove PostgreSQL constraints, transactions, migrations or PostGIS behavior.
 
+## Native rich Notes editor (W1)
+
+`npm run test:rich-notes` uses the installed, version-matched Playwright Chromium
+for native Tiptap commands in a real DOM without an application host. It checks
+independent text/link/image/style facts, selection/marks, native paste/list commands,
+Remove formatting, unchanged input and undo. It is separate from the ordinary
+Node-only `test:client` selection; provision Chromium using the existing browser
+instructions below. `test:client` continues to own protected-form save/recovery.
+
+Run the single mounted W1 smoke with the existing managed supervisor:
+
+~~~sh
+npm run test:e2e:shared-layout -- --grep 'Location Tiptap toolbar'
+~~~
+
+It creates run-owned Location data, uses actual toolbar/dialog/typing and the real
+secure proxy against `https://httpbin.org/image/png`, then verifies canonical saved
+references and standard font CSS from actual server publication. This focused
+integration smoke needs outbound server HTTPS to that public image. It does not
+mock the proxy or turn an unavailable origin into a product failure.
+
+Vite owns Location Edit and Trip entries. Location Edit no longer has an auto-linked
+MvcFrontendKit script. `ViteAssets.Read` includes CSS from imported chunks for both
+entries. Other Razor editors still use their established bundles and Quill until
+W2/W3. Build with `npm run build`; development also needs `npm run dev` on 5173.
+
 ## Coverage reports
 
 From the checkout, use Python 3.12+ and the installed .NET SDK:

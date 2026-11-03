@@ -19,7 +19,8 @@
     "smoke:trip-editor:assets:dev": "node tools/trip-editor-asset-smoke.mjs --mode=development",
     "smoke:trip-editor:assets:published": "node tools/trip-editor-asset-smoke.mjs --mode=published",
     "test:cleanup": "node tools/test-cleanup.mjs",
-    "test:cleanup:safety": "node --test tests/client/testCleanup.test.mjs"
+    "test:cleanup:safety": "node --test tests/client/testCleanup.test.mjs",
+    "test:rich-notes": "node --test tests/editor/*.test.mjs"
   },
   "dependencies": {
     "@tiptap/core": "3.32.2",

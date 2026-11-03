@@ -46,6 +46,15 @@ test('coordinate movement omits unchanged time/manual prefill and keeps explicit
     assert.equal(locationWallTimeUtc('2026-10-25T03:30', 'Europe/Athens', 'later'), '2026-10-25T01:30:00Z');
 });
 
+test('Notes unchanged, deliberately empty and explicit Clear retain distinct request intent', () => {
+    const initial = { Latitude: '37.98', Longitude: '23.72', LocalTimestamp: '2026-10-29T10:15:00',
+        Notes: '<p class="ql-align-center">original</p>', SelectedActivityId: '7', Altitude: '' };
+    assert.equal(locationEditCommand(initial, { ...initial, Altitude: '12' }, [], false, 'UTC', '').changes.notes, undefined);
+    assert.deepEqual(locationEditCommand(initial, { ...initial, Notes: '' }, [], false, 'UTC', '').changes.notes, { op: 'set', html: '' });
+    assert.deepEqual(locationEditCommand(initial, { ...initial, Notes: '' }, [], true, 'UTC', '').changes.notes, { op: 'clear' });
+    assert.deepEqual(locationEditCommand({ ...initial, Notes: '' }, { ...initial, Notes: '' }, [], true, 'UTC', '').changes.notes, { op: 'clear' });
+});
+
 test('actual lost-response client path recovers same identity and preserves newer typing during the request', async () => {
     const storage = new Map();
     globalThis.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) };
@@ -253,7 +262,7 @@ const mountedForm = async (zone = 'Europe/Athens') => {
     const fields = Object.fromEntries(names.map(name => [name, { value: '' }]));
     Object.assign(fields.Latitude, { value: '37.98' }); Object.assign(fields.Longitude, { value: '23.72' });
     fields.LocalTimestamp.value = '2026-10-29T10:00:00'; fields.SelectedActivityId.value = '7';
-    const status = { textContent: '' }, listeners = {}, quillListeners = {}, clicks = {}, button = { disabled: false };
+    const status = { textContent: '' }, listeners = {}, editorListeners = {}, clicks = {}, button = { disabled: false };
     globalThis.confirm = () => true;
     const elements = { 'browser-antiforgery': { dataset: { subjectId: 'owner-a' } }, 'location-save-status': status,
         timeAmbiguity: { value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} },
@@ -264,22 +273,22 @@ const mountedForm = async (zone = 'Europe/Athens') => {
     const form = { dataset: { locationId: '421', locationDetail: JSON.stringify(detail), timeZone: zone },
         elements: { namedItem: name => fields[name] }, querySelectorAll: () => [button],
         addEventListener: (type, callback) => { (listeners[type] ||= []).push(callback); } };
-    const quill = { root: { innerHTML: 'original' },
-        getValue: () => quill.root.innerHTML, adopt: html => { quill.root.innerHTML = html; },
-        onChange: callback => { quillListeners['text-change'] = callback; }, isClear: () => clear };
+    const notesEditor = { html: 'original',
+        getValue: () => notesEditor.html, adopt: html => { notesEditor.html = html; },
+        onChange: callback => { editorListeners['text-change'] = callback; }, isClear: () => clear };
     let clear = false;
     const mount = () => {
         // Reload replaces DOM listeners but preserves local/session storage.
         for (const key of Object.keys(listeners)) delete listeners[key];
-        for (const key of Object.keys(quillListeners)) delete quillListeners[key];
-        clear = false; mountProtectedLocationForm(form, quill);
+        for (const key of Object.keys(editorListeners)) delete editorListeners[key];
+        clear = false; mountProtectedLocationForm(form, notesEditor);
     };
-    return { detail, form, fields, status, quill, elements, listeners, quillListeners, mount, storage, reloads: () => reloads,
+    return { detail, form, fields, status, notesEditor, elements, listeners, editorListeners, mount, storage, reloads: () => reloads,
         confirmZone: () => clicks.confirmZone(),
         input: () => listeners.input.at(-1)({ target: { name: 'LocalTimestamp' } }),
         submit: () => listeners.submit.at(-1)({ preventDefault: () => {} }),
-        type: html => { quill.root.innerHTML = html; quillListeners['text-change']({}, {}, 'user'); },
-        clear: () => { clear = true; quill.root.innerHTML = '<p><br></p>'; quillListeners['text-change']({}, {}, 'api'); } };
+        type: html => { notesEditor.html = html; editorListeners['text-change']({}, {}, 'user'); },
+        clear: () => { clear = true; notesEditor.html = '<p><br></p>'; editorListeners['text-change']({}, {}, 'api'); } };
 };
 
 test('missing-zone time recovery explicitly confirms and retains the intended instant before saving after reload', async () => {
@@ -343,7 +352,7 @@ test('cancelling missing-zone confirmation leaves the entire retained draft inta
     await f.submit(); assert.equal(calls, 0); assert.deepEqual(locationWork(421), before);
     f.mount();
     assert.equal(f.fields.LocalTimestamp.value, '2026-10-29T11:00:00');
-    assert.equal(f.quill.root.innerHTML, 'keep my Notes');
+    assert.equal(f.notesEditor.html, 'keep my Notes');
     assert.equal(f.elements['location-time-recovery'].hidden, false);
 });
 
@@ -423,7 +432,7 @@ test('a newer toolbar Clear survives an older applied acknowledgement', async ()
     assert.notEqual(locationWork(421).draft.generation, locationWork(421).attempts[0].generation);
     f.mount();
     assert.equal(locationWork(421).draft.value.clearNotes, true);
-    assert.equal(f.quill.root.innerHTML, '<p><br></p>');
+    assert.equal(f.notesEditor.html, '<p><br></p>');
 });
 
 test('reload retains the edit-start wall-time zone after a remote coordinate-only change', async () => {
@@ -568,8 +577,8 @@ test('C1 independent form Notes survive inline Activity settlement and restorati
     const firstAttempt = structuredClone(locationWork(421).attempts[0]);
     assert.deepEqual(locationWork(421).draft, retained);
     assert.notEqual(locationWork(421).settledGeneration, retained.generation);
-    f.form.dataset.locationDetail = JSON.stringify(fresh); f.quill.root.innerHTML = 'server Notes'; f.mount();
-    assert.equal(f.quill.root.innerHTML, 'important unsent Notes');
+    f.form.dataset.locationDetail = JSON.stringify(fresh); f.notesEditor.html = 'server Notes'; f.mount();
+    assert.equal(f.notesEditor.html, 'important unsent Notes');
     assert.deepEqual(locationWork(421).draft, retained);
     await activity.click('toggle'); activity.choose('11'); await activity.click('save');
     assert.equal(posts[1].expected.activityTypeId.value, 9);
@@ -774,7 +783,7 @@ test('actual page map picks retain both programmatic coordinates through the edi
     const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
     const source = await readFile(new URL('../../ClientApps/rich-notes/location-edit.js', import.meta.url), 'utf8');
     vm.runInNewContext(source.replace(/^import .*;$/gm, ''), { document, Event, window: { addEventListener() {} },
-        mountProtectedLocationForm, mountRazorNotes: () => f.quill, createTileLayer: () => ({ addTo: () => {} }),
+        mountProtectedLocationForm, mountRazorNotes: () => f.notesEditor, createTileLayer: () => ({ addTo: () => {} }),
         L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) } });
     ready();
     pick({ latlng: { lat: 51.5, lng: 0 } });

@@ -177,7 +177,7 @@ public static class RichNotes
             : element.LocalName is "p" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" ? "text-align" : null;
         if (property is null) return false;
         var declarations = new CssParser().ParseDeclaration(element.GetAttribute("style") ?? string.Empty);
-        var value = declarations.GetPropertyValue(property).Trim().ToLowerInvariant();
+        var value = (declarations?.GetPropertyValue(property) ?? string.Empty).Trim().ToLowerInvariant();
         var allowed = property == "font-family" ? value is "serif" or "monospace"
             : value is "left" or "center" or "right" or "justify";
         if (!allowed) return false;

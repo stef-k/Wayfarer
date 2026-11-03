@@ -79,11 +79,21 @@ test('shared native editor commands preserve text/references and finite styles',
         assert.doesNotMatch(result.html, /javascript:|data:image/); assert.equal(result.rejected, true);
         assert.deepEqual(result.safe, [true, true, true, true, false, false]);
     });
+    await t.test('native keyboard list nesting and meaningful whitespace remain editable', async () => {
+        await run('<blockquote><h6>  A&nbsp;  B<br>C </h6></blockquote>', String.raw`
+            const text = handle.editor.getText({ blockSeparator: '\n' });
+            if (!text.includes('  A\u00a0  B\nC ')) throw new Error('Whitespace or hard break was lost');
+            handle.adopt('<ul><li><p>first</p></li></ul>'); handle.editor.commands.focus('end');`);
+        await page.keyboard.press('Enter'); await page.keyboard.type('second'); await page.keyboard.press('Tab');
+        assert.match(await page.evaluate(() => handle.editor.getHTML()), /<ul>.*<ul>/);
+        await page.keyboard.press('Shift+Tab');
+        assert.equal(await page.locator('#notes ul ul').count(), 0);
+    });
     await t.test('failed image references remain canonical and never load directly', async () => {
         const result = await run('<p><img src="https://images.example.test/old"></p>', `
             const before = handle.getValue(); const rejected = handle.insertImage('data:image/png;base64,AA');
             handle.editor.commands.focus('end'); handle.insertImage('https://images.example.test/new');
-            return { before, rejected, value: handle.getValue(), sources: [...document.querySelectorAll('#notes img')].map(x => x.getAttribute('src')) };`);
+            return { before, rejected, value: handle.getValue(), sources: [...document.querySelectorAll('#notes img[src]')].map(x => x.getAttribute('src')) };`);
         assert.equal(result.rejected, false); assert.match(result.before, /https:\/\/images.example.test\/old/);
         assert.doesNotMatch(result.value, /ProxyImage/); assert.equal(result.sources.length, 2);
         assert.ok(result.sources.every(source => source.startsWith('/Public/ProxyImage?url=')));

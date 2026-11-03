@@ -16,12 +16,16 @@ export const mountRazorNotes = (host: HTMLElement) => {
     if ((event.target as Element).closest('button')) event.preventDefault();
   });
   editor.on('selectionUpdate', handle.saveSelection);
-  editor.on('transaction', () => {
-    handle.saveSelection();
+  /** Keep controls descriptive when selection, undo or external adoption changes the active formatting. */
+  const syncControls = () => {
     toolbar.querySelectorAll<HTMLButtonElement>('[data-mark]').forEach(button => {
       button.setAttribute('aria-pressed', String(editor.isActive(button.dataset.mark!)));
     });
-  });
+    toolbar.querySelector<HTMLSelectElement>('[data-heading]')!.value = String(editor.getAttributes('heading').level ?? 0);
+    toolbar.querySelector<HTMLSelectElement>('[data-font]')!.value = editor.getAttributes('textStyle').fontFamily ?? '';
+  };
+  editor.on('transaction', () => { handle.saveSelection(); syncControls(); });
+  syncControls();
 
   /** Native upstream commands retain their own history, list and selection behavior. */
   toolbar.addEventListener('click', event => {
@@ -42,14 +46,14 @@ export const mountRazorNotes = (host: HTMLElement) => {
     }
   });
   toolbar.querySelector<HTMLSelectElement>('[data-heading]')!.addEventListener('change', event => {
-    handle.restoreSelection();
     const level = Number((event.target as HTMLSelectElement).value) as 1 | 2 | 3 | 4 | 5 | 6;
+    handle.restoreSelection();
     if (level) editor.chain().focus().setHeading({ level }).run();
     else editor.chain().focus().setParagraph().run();
   });
   toolbar.querySelector<HTMLSelectElement>('[data-font]')!.addEventListener('change', event => {
-    handle.restoreSelection();
     const font = (event.target as HTMLSelectElement).value;
+    handle.restoreSelection();
     if (font) editor.chain().focus().setFontFamily(font).run();
     else editor.chain().focus().unsetFontFamily().run();
   });

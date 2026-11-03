@@ -6,8 +6,9 @@ namespace Wayfarer.Util;
 public static class ViteAssets
 {
     /// <summary>Visits imported chunks once so shared styles are included for every consuming Razor entry.</summary>
-    public static (string? Script, IReadOnlyList<string> Css) Read(string webRoot, string entryScript)
+    public static (string? Script, IReadOnlyList<string> Css) Read(string? webRoot, string entryScript)
     {
+        if (string.IsNullOrEmpty(webRoot)) return (null, Array.Empty<string>());
         var path = Path.Combine(webRoot, "vite", "trip-editor", "manifest.json");
         if (!File.Exists(path)) return (null, Array.Empty<string>());
         using var manifest = JsonDocument.Parse(File.ReadAllText(path));
