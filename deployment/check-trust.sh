@@ -36,8 +36,10 @@ if [[ "${1:-}" == --node ]]; then
 const tls = require('node:tls');
 const { X509Certificate } = require('node:crypto');
 const [major, minor, patch] = process.versions.node.split('.').map(Number);
-if (major !== 24 || minor < 22 || (minor === 22 && patch < 1)) {
-  throw new Error('Build/provisioning requires Node 24.22.1+ within Node 24.');
+// Keep the qualified minimum independent of the exact reproducible build pin.
+if (!/^24\.\d+\.\d+$/.test(process.versions.node) ||
+    major !== 24 || minor < 22 || (minor === 22 && patch < 1)) {
+  throw new Error('Build/provisioning requires stable Node 24.22.1+ within Node 24.');
 }
 // Defaults include enabled bundled/system roots and NODE_EXTRA_CA_CERTS. Add the
 // required host store too: OpenSSL's lazy defaults are absent from the default view.

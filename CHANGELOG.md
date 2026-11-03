@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Changed
+- Pin reproducible frontend builds to Node 24.22.2. Offline Windows CI cleanup
+  selects the highest verified preinstalled stable Node 24 at or above the existing
+  24.22.1 security minimum, with executable/version, x64 and npm checks. Preserve
+  certificate-trust validation and reject prereleases, other majors and older versions.
 - Add optional Web Profile photos (#881), accessible crop controls, private exact-Group
   identity and an independent default-off account preference for public Trip names.
   Preserve backend colors/history dots and exclude photos from print/thumbnails/exports.

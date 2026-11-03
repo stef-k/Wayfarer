@@ -12,10 +12,12 @@ This is the starting point for working on the Wayfarer web application. It cover
 - Native Linux/WSL2 AMD64 or ARM64 image processing: Rust 1.90.0 plus C/C++, CMake,
   NASM on x64 and `pkg-config` at build time; `util-linux` at runtime.
   [Image helper packaging and dependency policy](../../tools/image-helper/README.md).
-- Node.js 24.22.1 and npm for reproducible builds. `.nvmrc` pins the verified patch
+- Node.js 24.22.2 and npm for reproducible builds. `.nvmrc` pins the verified patch
   for `nvm` and both CI setup-node steps, matching the immutable Docker build Node.
   Existing native build/provisioning hosts may use Node 24.22.1+ within Node 24;
-  `bash deployment/check-trust.sh --node` checks the minimum and effective roots before downloads.
+  `bash deployment/check-trust.sh --node` checks stable versions and effective roots before downloads.
+  Offline Windows cleanup selects the highest verified preinstalled Node 24 at or
+  above that security minimum; it does not require the exact build pin.
 - PostgreSQL 18 with PostGIS for local development and guarded relational tests. `citext` is also used by the EF model.
 - Ubuntu 24.04 on Linux or WSL2 is the complete development baseline, including imaging.
   Native Windows application builds exclude the Linux image helper. Native Windows

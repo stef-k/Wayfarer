@@ -1,5 +1,5 @@
-# Patched bundled Node roots, independently inspected at this immutable index (#915).
-FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
+# Exact frontend build pin; bundled Node roots are checked at this immutable index.
+FROM node:24.22.2-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS node
 # Build the locked helper natively. Rust and codec build tools stay in this stage.
 FROM rust:1.90.0-slim-bookworm@sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9 AS image-helper
 # Signed Debian metadata/package verification precedes Cargo's first HTTPS download.

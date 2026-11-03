@@ -107,7 +107,7 @@ class RunnerTrustTests(unittest.TestCase):
         step = step.split('\n      - ', 1)[0]
         self.assertIn("if: runner.os == 'Windows'", step)
         self.assertIn('shell: pwsh', step)
-        for required in ['$env:RUNNER_TOOL_CACHE', 'Get-Content .nvmrc', '^3\\.12\\.\\d+$',
+        for required in ['$env:RUNNER_TOOL_CACHE', '[version]\'24.22.1\'', '^3\\.12\\.\\d+$',
                          'node.exe', 'python.exe', '$LASTEXITCODE', 'throw', '$env:GITHUB_PATH']:
             self.assertIn(required, step)
         self.assertNotRegex(step, r'setup-(?:node|python)|Invoke-WebRequest|\bpip\b|\binstall\b')
@@ -186,7 +186,7 @@ class RunnerTrustTests(unittest.TestCase):
     def test_node_selection_pins_verified_patch_before_node_guard(self):
         """A major-only selector must not accept the runner's cached Node 24.21.0."""
         version = (ROOT / '.nvmrc').read_text().strip()
-        self.assertEqual(version, '24.22.1')
+        self.assertEqual(version, '24.22.2')
         self.assertIn(f'FROM node:{version}-bookworm-slim@sha256:',
                       (ROOT / 'Dockerfile').read_text())
         workflow = WORKFLOW.read_text()
@@ -199,3 +199,64 @@ class RunnerTrustTests(unittest.TestCase):
         job = job_body(workflow, 'test')
         self.assertLess(job.index('uses: actions/setup-node@'),
                         job.index('bash deployment/check-trust.sh --node'))
+
+    def run_windows_selection(self, installations):
+        """Run the shipped PowerShell step with disposable executable tool-cache entries."""
+        script = step_script(job_body(WORKFLOW.read_text(), 'cleanup-safety'),
+                             'Select provisioned Windows cleanup tools')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for version, options in installations:
+                folder = root / 'node' / version / 'x64'
+                folder.mkdir(parents=True)
+                if options.get('node', True):
+                    node = folder / 'node.exe'
+                    node.write_text('#!/bin/sh\n' +
+                        f'if [ "$1" = --version ]; then echo "{options.get("actual", "v" + version)}"; '
+                        f'else echo "{options.get("arch", "x64")}"; fi\n'
+                        f'exit {options.get("exit", 0)}\n')
+                    node.chmod(0o755)
+                if options.get('npm', True):
+                    (folder / 'npm.cmd').write_text('@echo off\n')
+            python = root / 'Python/3.12.10/x64/python.exe'
+            python.parent.mkdir(parents=True)
+            python.write_text('#!/bin/sh\necho 3.12.10\n')
+            python.chmod(0o755)
+            selected = root / 'selected.txt'
+            result = subprocess.run(['pwsh', '-NoProfile', '-NonInteractive', '-Command', script],
+                                    cwd=ROOT, text=True, capture_output=True,
+                                    env=dict(os.environ, RUNNER_TOOL_CACHE=directory,
+                                             GITHUB_PATH=str(selected)))
+            paths = selected.read_text(encoding='utf-8-sig').splitlines() if selected.exists() else []
+            return result, [str(Path(p).relative_to(root)) for p in paths]
+
+    def test_windows_node_selects_highest_eligible_numeric_version(self):
+        """The minimum, newer patches/minors and numeric ordering survive shuffled cache order."""
+        for versions, expected in [(['24.22.1'], '24.22.1'), (['24.22.2'], '24.22.2'),
+                                   (['24.23.0'], '24.23.0'),
+                                   (['24.22.9', '24.23.0', '24.22.10'], '24.23.0'),
+                                   (['24.22.10', '24.22.2', '24.22.9'], '24.22.10')]:
+            with self.subTest(versions=versions):
+                result, paths = self.run_windows_selection([(v, {}) for v in versions])
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(paths, [f'node/{expected}/x64', 'Python/3.12.10/x64'])
+
+    def test_windows_node_rejects_ineligible_or_incomplete_caches(self):
+        """Names alone cannot admit unsafe, missing, mismatched or wrong-architecture tools."""
+        cases = [[], [('24.21.9', {}), ('24.22.0', {}), ('22.23.4', {}),
+                      ('25.0.0', {}), ('24.23.0-rc.1', {})]]
+        cases += [[('24.22.2', options)] for options in [
+            {'node': False}, {'npm': False}, {'actual': 'v24.22.1'},
+            {'actual': 'v24.22.2-rc.1'}, {'arch': 'arm64'}, {'exit': 1}]]
+        for installations in cases:
+            with self.subTest(installations=installations):
+                result, paths = self.run_windows_selection(installations)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('No eligible provisioned Node', result.stderr)
+                self.assertEqual(paths, [])
+        # Ignore invalid higher candidates and still choose the highest verified tool.
+        result, paths = self.run_windows_selection([
+            ('24.24.0', {'npm': False}), ('24.23.0', {'actual': 'v25.0.0'}),
+            ('24.22.2', {}), ('24.22.1', {}), ('24.25.0-rc.1', {})])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(paths[0], 'node/24.22.2/x64')

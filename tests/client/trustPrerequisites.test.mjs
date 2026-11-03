@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { X509Certificate } from 'node:crypto';
 import { rootCertificates } from 'node:tls';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 
 // Assessed public G3 certificate; no private key or external download is needed.
 const g3 = `-----BEGIN CERTIFICATE-----
@@ -68,5 +70,23 @@ test('trust guard checks OpenSSL and bundled Node defaults including extra roots
     });
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /Host trust is unqualified|G3 is still trusted/);
+  }
+});
+
+// Execute the shipped Node guard with alternate version metadata and real TLS roots.
+test('preinstalled tooling accepts only stable Node 24 at the qualified security minimum', () => {
+  const script = fs.readFileSync(guard, 'utf8').split("<<'JS'\n")[1].split('\nJS\n')[0];
+  const require = createRequire(import.meta.url);
+  for (const version of ['24.22.1', '24.22.2', '24.22.10', '24.23.0']) {
+    assert.doesNotThrow(() => runInNewContext(script, {
+      require, process: { versions: { node: version }, version: `v${version}` },
+      console: { log: () => {} }
+    }), version);
+  }
+  for (const version of ['24.21.9', '24.22.0', '22.23.4', '25.0.0', '24.23.0-rc.1', '24.22.1-rc.1']) {
+    assert.throws(() => runInNewContext(script, {
+      require, process: { versions: { node: version }, version: `v${version}` },
+      console: { log: () => {} }
+    }), /requires (?:stable )?Node 24.22.1/, version);
   }
 });
