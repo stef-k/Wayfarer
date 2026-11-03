@@ -83,7 +83,8 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         var notes = NullableString(key, value);
         if (desired && RichNotes.ContainsDataImageSource(notes))
             throw Invalid(key, "Notes images must use external image URLs, not data:image sources.");
-        return RichNotes.Normalize(notes);
+        // Submitted originals are frozen proof values; only authored replacements use current normalization.
+        return desired ? RichNotes.Normalize(notes) : notes;
     }
 
     /// <summary>Retains exact original URLs; desired URLs use the existing trim/HTTP policy.</summary>

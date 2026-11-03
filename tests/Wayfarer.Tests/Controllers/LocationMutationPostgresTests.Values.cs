@@ -13,12 +13,13 @@ public sealed partial class LocationMutationPostgresTests
     [PostgresFact]
     public async Task RetiredAttributes_ReadAndUnrelatedProtectedSavePreserveNotes()
     {
-        var (_, credential, id) = await SeedAsync();
+        var (owner, credential, id) = await SeedAsync();
         const string stored = "<p class=\"ql-align-right\">Historical</p>";
         await using (var db = fixture.CreateContext())
             await db.Locations.Where(row => row.Id == id).ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Notes, stored));
         await WithHostAsync(credential, async client =>
         {
+            await UseCookieAsync(client, owner);
             var detail = await ProtectedLocationRequest.DetailAsync(client, id);
             Assert.Equal("<p>Historical</p>", detail.GetProperty("record").GetProperty("notesHtml").GetString());
             var request = await ProtectedLocationRequest.CreateAsync(client, id,

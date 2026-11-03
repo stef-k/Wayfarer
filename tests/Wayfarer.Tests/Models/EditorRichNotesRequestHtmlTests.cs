@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Wayfarer.Models.Dtos.Editor;
+using Wayfarer.Models.Dtos;
 using Xunit;
 
 namespace Wayfarer.Tests.Models;
@@ -186,6 +187,37 @@ public sealed class EditorRichNotesRequestHtmlTests
         }
         """), out var segment, out _));
         Assert.Equal(expectedNotesHtml, segment.NotesHtml);
+    }
+
+    /// <summary>All scalar owners retain frozen originals across sanitizer changes, while replacements use current HTML policy.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConditionalParsersKeepExactOriginalNotes(bool web)
+    {
+        const string original = "<p class=\"ql-align-right\">Original</p>";
+        const string desired = "<p style=\"text-align: center\" onclick=\"bad()\">Edited</p>";
+        const string normalized = "<p style=\"text-align: center;\">Edited</p>";
+        var key = web ? "notesHtml" : "notes";
+        // Place and Area additionally require parent evidence; no production owner is substituted.
+        MemoryStream Body(bool parent = false)
+        {
+            var expected = new Dictionary<string, object?> { [key] = original };
+            if (parent) expected["regionId"] = Guid.Parse("c4487473-30df-4574-bb19-72e5ba3c84c5");
+            return new(JsonSerializer.SerializeToUtf8Bytes(new { expected, changes = new Dictionary<string, string> { [key] = desired } }));
+        }
+        using var tripBody = Body();
+        var trip = await TripMetadataConditionalRequest.ReadAsync(tripBody, web, default);
+        Assert.Equal(original, trip.Expected["notes"]); Assert.Equal(normalized, trip.Changes["notes"]);
+        using var regionBody = Body();
+        var region = await RegionConditionalRequest.ReadAsync(regionBody, web, default);
+        Assert.Equal(original, region.Expected["notes"]); Assert.Equal(normalized, region.Changes["notes"]);
+        using var placeBody = Body(true);
+        var place = await PlaceConditionalRequest.ReadAsync(placeBody, web, new HashSet<string>(), new HashSet<string>(), default);
+        Assert.Equal(original, place.Expected["notes"]); Assert.Equal(normalized, place.Changes["notes"]);
+        using var areaBody = Body(true);
+        var area = await AreaConditionalRequest.ReadAsync(areaBody, web, default);
+        Assert.Equal(original, area.Expected["notes"]); Assert.Equal(normalized, area.Changes["notes"]);
     }
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();

@@ -74,7 +74,8 @@ internal sealed record RegionConditionalRequest(Dictionary<string, object?> Expe
         if (key is "notes" or "notesHtml")
         {
             if (desired && RichNotes.ContainsDataImageSource(text)) throw Invalid(key, "Notes images must use external image URLs.");
-            return RichNotes.Normalize(text);
+            // Submitted originals are frozen proof values; only authored replacements use current normalization.
+            return desired ? RichNotes.Normalize(text) : text;
         }
         if (!desired) return text;
         if (string.IsNullOrWhiteSpace(text)) return null;
