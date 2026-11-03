@@ -11,6 +11,10 @@ defineProps<{
   draft: RegionDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
+  /** Owner-selected visible Notes replacement; local echoes do not advance it. */
+  notesAdoption: number;
+  /** An explicit reset/session change retires the mounted Notes instance. */
+  notesSession?: number;
   formSummaryErrors: string[];
   isDirty: boolean;
   isSaving: boolean;
@@ -34,6 +38,8 @@ defineEmits<{
         :draft="draft"
         :field-errors="fieldErrors"
         :form-id="formId"
+        :notes-session="notesSession"
+        :notes-adoption="notesAdoption"
         :form-summary-errors="formSummaryErrors"
         :is-saving="isSaving"
         @save="$emit('save')"

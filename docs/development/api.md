@@ -1109,8 +1109,9 @@ may reflect disjoint concurrent edits; newer draft values never validate an olde
 attempt. Mismatches in these comparable fields retain uncertainty without replay
 or Saved. Notes must supply typed, complete originals consistent with their display
 projection, within the same Trip and correlated immutable attempt. The client and
-server HTML policies differ (for example, Quill/client allow `sms:` links while
-the server removes their `href`; tag and image-proxy canonicalization also differ).
+server HTML policies can still differ for historical/raw input (for example,
+unsupported tags or image-proxy canonicalization). The shared Tiptap authoring
+surface now uses the server's finite link schemes, fonts and alignment choices.
 The response supplies no canonical submitted-Notes echo or digest, so it does not
 establish exact submitted-Notes equality for nonempty HTML. An explicit empty
 Clear must return empty Notes. Otherwise, client validation uses the existing

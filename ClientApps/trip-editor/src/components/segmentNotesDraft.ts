@@ -91,6 +91,8 @@ export const createSegmentNotesDraft = (options: {
   const uncertain = ref(false);
   const routeHeld = ref(false);
   const session = ref(0);
+  // Notes adoption is independent of route/session identity and local v-model echoes.
+  const notesAdoption = ref(0);
   let original: string | null | undefined;
   let routeChangedDuringSave = false;
   let submittedNotes: string | null | undefined;
@@ -114,7 +116,9 @@ export const createSegmentNotesDraft = (options: {
   watch(options.current, next => {
     if (!next || next.id !== draft.id || pending.value || uncertain.value || routeHeld.value) return;
     if (buildSegmentRequest(draft).notesHtml !== buildSegmentRequest(baseline.value).notesHtml) return;
+    const previousNotes = draft.notesHtml;
     draft.notesHtml = baseline.value.notesHtml = toSegmentDraft(next).notesHtml;
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
     pin(next);
     // Parent refresh alone never silently rebases the aggregate token or route dependencies.
   });
@@ -164,6 +168,7 @@ export const createSegmentNotesDraft = (options: {
       });
       if (!currentAttempt()) return;
       const next = validate(result);
+      const previousNotes = draft.notesHtml;
       const newer = buildSegmentRequest(draft).notesHtml !== desired ? draft.notesHtml : null;
       const incoming = toSegmentDraft(next);
       // End observation before authoritative adoption; our own updates are not authored route changes.
@@ -176,6 +181,7 @@ export const createSegmentNotesDraft = (options: {
         baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
         Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
       }
+      if (draft.notesHtml !== previousNotes) notesAdoption.value++;
       pin(next);
       options.applied(result);
       options.saved();
@@ -190,6 +196,7 @@ export const createSegmentNotesDraft = (options: {
 
   /** Adopts only a validated complete acknowledgement, retaining any newer Notes obligation. */
   const acceptComplete = (next: EditorSegment): EditorSegmentDraft => {
+    const previousNotes = draft.notesHtml;
     const incoming = toSegmentDraft(next);
     const newer = buildSegmentRequest(draft).notesHtml !== submittedNotes ? draft.notesHtml : null;
     pending.value = false;
@@ -204,6 +211,7 @@ export const createSegmentNotesDraft = (options: {
       baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
       Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
     }
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
     pin(next);
     return incoming;
   };
@@ -280,5 +288,5 @@ export const createSegmentNotesDraft = (options: {
     }
   };
 
-  return { held, save, reset, acceptComplete, retainRoute: () => routeHeld.value };
+  return { session, notesAdoption, held, save, reset, acceptComplete, retainRoute: () => routeHeld.value };
 };

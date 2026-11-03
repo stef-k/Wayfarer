@@ -16,6 +16,8 @@ const assign = (target: EditorAreaDraft, source: EditorAreaDraft, field: Field):
 export const createAreaDraftState = () => {
   const draft = reactive(emptyAreaDraft());
   const baseline = reactive(emptyAreaDraft());
+  // Owner-selected visible replacements have an identity independent of emitted HTML.
+  const notesAdoption = ref(0);
   const originals = reactive<Partial<EditorAreaOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
@@ -45,10 +47,12 @@ export const createAreaDraftState = () => {
   /** Refreshes clean fields only; parent drift cannot silently rebind an existing draft to another Region. */
   const refresh = (next: EditorArea | null): void => {
     if (!next || next.id !== draft.id || next.regionId !== baseline.regionId || pending.value || uncertain.value) return;
+    const previousNotes = draft.notesHtml;
     const current = buildAreaRequest(draft);
     const before = buildAreaRequest(baseline);
     const incoming = toAreaDraft(next, null);
     for (const field of fields) if (same(current[field], before[field])) adopt(field, incoming, next);
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
   /** Selects exact dirty intent and fails closed if the server did not publish the required originals. */
@@ -74,6 +78,7 @@ export const createAreaDraftState = () => {
       || fields.some(field => !Object.hasOwn(next.originalValues!, field)) || !next.originalValues.regionId
       || draft.id && next.id !== draft.id || draft.regionId !== next.regionId)
       throw new Error('The Area save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
+    const previousNotes = draft.notesHtml;
     const current = buildAreaRequest(draft);
     const before = buildAreaRequest(baseline);
     const retained = clone(draft);
@@ -87,7 +92,8 @@ export const createAreaDraftState = () => {
     draft.id = baseline.id = next.id;
     draft.regionId = baseline.regionId = next.regionId;
     originals.regionId = next.originalValues?.regionId;
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
-  return { draft, baseline, pending, uncertain, reset, refresh, request, acknowledge, session: () => session.value };
+  return { draft, baseline, notesAdoption, pending, uncertain, reset, refresh, request, acknowledge, session: () => session.value };
 };

@@ -18,7 +18,7 @@ test('Location Tiptap toolbar, dialogs and real image proxy preserve protected N
     await page.goto('/User/Location/Create');
     await page.locator('#Latitude').fill('37.98'); await page.locator('#Longitude').fill('23.72');
     await page.locator('#LocalTimestamp').fill('2026-11-03T10:15');
-    await page.locator('.ql-editor').fill('Original Notes');
+    await page.locator('.rich-notes-content').fill('Original Notes');
     await Promise.all([page.waitForURL(/\/User\/Location\/Edit\//), page.getByRole('button', { name: 'Add Location', exact: true }).click()]);
     const editor = page.getByRole('textbox', { name: 'Add Notes' });
     await expect(editor).toBeVisible();

@@ -100,8 +100,12 @@ function resolveBuildOutputDir(args) {
 function runBuiltAssetSmoke(buildOutputDir) {
   console.log(`[built] Validating ${path.relative(rootDir, buildOutputDir) || '.'}.`);
   const manifest = readTripEditorManifest(buildOutputDir);
-  validateManifestEntry(manifest, tripEditorEntryKey, buildOutputDir, new Set());
-  console.log('[built] PASS: Trip Editor manifest entry and all referenced build assets are non-empty.');
+  const visited = new Set();
+  for (const entry of [tripEditorEntryKey, 'ClientApps/rich-notes/location-edit.js',
+    'ClientApps/rich-notes/location-create.js', 'ClientApps/rich-notes/location-bulk.js', 'ClientApps/rich-notes/visit-edit.js']) {
+    validateManifestEntry(manifest, entry, buildOutputDir, visited);
+  }
+  console.log('[built] PASS: Trip and all four Razor entries and their imported assets are non-empty.');
 }
 
 // Reads the generated Vite manifest shared by deterministic and published asset checks.

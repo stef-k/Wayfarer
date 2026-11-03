@@ -22,6 +22,8 @@ const assign = (target: RegionDraft, source: RegionDraft, field: Field): void =>
 export const createRegionDraftState = () => {
   const draft = reactive(emptyRegionDraft());
   const baseline = reactive(emptyRegionDraft());
+  // Owner-selected visible replacements have an identity independent of emitted HTML.
+  const notesAdoption = ref(0);
   const originals = reactive<Partial<EditorRegionOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
@@ -57,10 +59,12 @@ export const createRegionDraftState = () => {
   /** Clean fields follow props; dirty values and their original comparisons stay pinned. */
   const refresh = (next: EditorRegion | null): void => {
     if (!next || next.id !== draft.id || pending.value || uncertain.value) return;
+    const previousNotes = draft.notesHtml;
     const current = buildRegionRequest(draft);
     const before = buildRegionRequest(baseline);
     const incoming = toRegionDraft(next);
     for (const field of fields) if (same(current[field], before[field])) adopt(field, incoming, next);
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
   /** Dirty-only requests fail closed when the server omitted exact original evidence. */
@@ -79,6 +83,7 @@ export const createRegionDraftState = () => {
 
   /** Advances acknowledged bases before parent props update, retaining newer edits and explicit reversals. */
   const acknowledge = (next: EditorRegion, submitted: EditorRegionConditionalRequest): void => {
+    const previousNotes = draft.notesHtml;
     const current = buildRegionRequest(draft);
     const before = buildRegionRequest(baseline);
     const incoming = toRegionDraft(next);
@@ -91,7 +96,8 @@ export const createRegionDraftState = () => {
     }
     draft.id = next.id;
     baseline.id = next.id;
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
-  return { draft, baseline, pending, uncertain, creationUncertain, orderingPending, orderUncertain, orderIntent, creationOriginals, beginCreate, reset, refresh, request, acknowledge, session: () => session.value };
+  return { draft, baseline, notesAdoption, pending, uncertain, creationUncertain, orderingPending, orderUncertain, orderIntent, creationOriginals, beginCreate, reset, refresh, request, acknowledge, session: () => session.value };
 };

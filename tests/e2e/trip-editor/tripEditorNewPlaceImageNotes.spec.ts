@@ -30,7 +30,7 @@ test.describe('Trip Editor new-place notes image URL parity', () => {
     const form = page.locator('#trip-editor-place-form');
     await insertImageUrl(form, imageUrl);
 
-    const image = richEditor(form).locator('.ql-editor img');
+    const image = richEditor(form).locator('.rich-notes-content img');
     await expect(image).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Fnew-place\.png$/);
     await expectLoadedImages(image);
 
@@ -45,7 +45,7 @@ test.describe('Trip Editor new-place notes image URL parity', () => {
     expectCanonicalNotes(requests[0].body.value.notesHtml, [imageUrl]);
   });
 
-  test('new place notes remove failed image URL previews without saving broken proxy markup', async ({ page }) => {
+  test('new place notes retain failed canonical references with proxy failure feedback', async ({ page }) => {
     await signIn(page);
     await loadWorkspace(page);
     await routeProxyResponse(page, htmlUrl, { status: 200, contentType: 'text/html', body: '<!doctype html><title>Not an image</title>' });
@@ -194,19 +194,19 @@ function richEditor(form: Locator): Locator {
 }
 
 async function insertImageUrl(form: Locator, url: string): Promise<void> {
-  await richEditor(form).locator('.ql-image').click();
+  await richEditor(form).getByRole('button', { name: 'Image', exact: true }).click();
   const dialog = form.page().getByRole('dialog', { name: 'Insert image URL' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Image URL').fill(url);
   await dialog.getByRole('button', { name: 'Insert Image' }).click();
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog).not.toBeVisible();
 }
 
 async function expectRejectedImageUrl(form: Locator, url: string): Promise<void> {
   const encoded = encodeURIComponent(url);
-  await expect(form.getByRole('status')).toContainText('Image URL could not be loaded');
-  await expect(richEditor(form).locator(`.ql-editor img[src*="${encoded}"]`)).toHaveCount(0);
-  await expect(richEditor(form).locator('.ql-editor')).not.toContainText(url);
+  await expect(form.getByRole('status')).toContainText('Image preview unavailable');
+  await expect(richEditor(form).locator(`.rich-notes-content img[src*="${encoded}"]`)).toHaveCount(1);
+  await expect(richEditor(form).locator('.rich-notes-content')).not.toContainText(url);
 }
 
 async function expectLoadedImages(images: Locator): Promise<void> {

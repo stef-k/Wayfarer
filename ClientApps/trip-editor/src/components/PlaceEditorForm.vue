@@ -10,6 +10,10 @@ const props = defineProps<{
   draft: EditorPlaceDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
+  /** Owner-selected visible Notes replacement; local echoes do not advance it. */
+  notesAdoption: number;
+  /** An explicit reset/session change retires the mounted Notes instance. */
+  notesSession?: number;
   formSummaryErrors: string[];
   isSaving: boolean;
   normalRegions: EditorRegion[];
@@ -45,7 +49,7 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <RichNotesEditor :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
+    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <label class="trip-editor-field">
       <span>Address</span>

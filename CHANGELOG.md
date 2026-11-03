@@ -8,12 +8,24 @@
   images reject the whole transfer with feedback. Preserve finite font/alignment
   styles using valid whitespace/comments around CSS priority tokens and declaration
   boundaries, including duplicate-declaration precedence (#962).
+- Migrate the remaining Web Notes consumers to the shared Tiptap 3.32.2 engine
+  (#939 W2): Location Create, Bulk Notes, Visit Edit and all five Trip owners.
+  Preserve ordinary MVC validation, bulk execution/selection, feature-owned drafts,
+  immutable save attempts and uncertain-outcome recovery. Repeated FIFO prop echoes
+  retain newer typing and live selection/history. Explicit owner adoption also
+  replaces coalesced local reversals and retires obsolete history; creation/edit
+  reset retires only its Notes session. Create validation retains the attempted timestamp. Keep Visit
+  strike and H1–H3, Trip alignment/fonts, labelled URL dialogs and independent instances.
+  Reject unsupported transfers before insertion with feedback; keep canonical image
+  URLs, secure proxy previews and failed-reference feedback. Render standard HTML/styles;
+  historical formatting may need manual repair. Final dependency/copied-distribution
+  removal and published output reconciliation remain W3; independent W2 acceptance is pending.
 - Replace Quill in protected Location Edit with the shared native Tiptap editor
   (#939 W1). Keep untouched Notes and existing protected save/recovery ownership.
   Add finite standard font/alignment CSS to rich-note normalization; retain older
   Quill classes. Remove formatting preserves text, links and images; image previews
   stay behind the secure proxy. Older formatting may need manual adjustment when
-  edited. Remaining Razor/Vue consumers and final Quill removal await W2/W3.
+  edited. Remaining consumers are covered by W2 above; final Quill removal awaits W3.
 - Pin reproducible frontend builds to Node 24.22.2. Offline Windows CI cleanup
   selects the highest verified preinstalled stable Node 24 at or above the existing
   24.22.1 security minimum, with executable/version, x64 and npm checks. Preserve

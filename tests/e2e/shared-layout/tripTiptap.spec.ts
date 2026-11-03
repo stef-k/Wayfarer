@@ -1,0 +1,46 @@
+import { expect, test } from '@playwright/test';
+import { loadSharedLayoutConfig } from './sharedLayoutConfig';
+
+/** One W2 Vue journey; native component/owner tests own synchronization and recovery permutations. */
+test('Trip Tiptap Vue interaction retains formatting, dialogs and saved HTML', async ({ page }, testInfo) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  await page.route('**/api/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
+  await page.goto(`/User/Trip/Edit/${tripId}`);
+  const form = page.locator('#trip-editor-metadata-form');
+  const editor = form.getByRole('textbox', { name: 'Notes', exact: true });
+  await expect(editor).toBeVisible();
+  expect(await page.locator('script[src*="quill"]').count()).toBe(0);
+  await editor.fill('W2 Native notes');
+  await editor.press('Control+End');
+  await form.getByRole('button', { name: 'Bold', exact: true }).click();
+  await editor.pressSequentially(' bold');
+  await expect(editor.locator('strong')).toHaveText(' bold');
+  await editor.press('Control+A');
+  await form.getByRole('combobox', { name: 'Font', exact: true }).selectOption('serif');
+  await form.getByRole('combobox', { name: 'Alignment', exact: true }).selectOption('center');
+  await form.getByRole('button', { name: 'Link', exact: true }).click();
+  const link = page.getByRole('dialog', { name: 'Edit link', exact: true });
+  await link.getByRole('textbox', { name: 'Link URL' }).fill('/Public/Trips');
+  await link.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(editor.locator('a')).toContainText('W2 Native notes');
+  await form.getByRole('button', { name: 'Image', exact: true }).click();
+  const image = page.getByRole('dialog', { name: 'Insert image URL', exact: true });
+  await image.getByRole('textbox', { name: 'Image URL' }).press('Escape');
+  await expect(editor).toBeFocused();
+  const save = page.waitForResponse(response => response.url().endsWith('/metadata/conditional') && response.request().method() === 'PATCH');
+  await page.getByRole('button', { name: 'Save settings & Continue', exact: true }).click();
+  expect((await save).ok()).toBeTruthy();
+  await expect(page.locator('.trip-editor-save-state').filter({ hasText: /^Saved/ }).first()).toBeVisible();
+  const state = await (await page.request.get(`/api/trips/${tripId}/editor`)).json();
+  expect(state.metadata.notesHtml).toContain('font-family: serif;');
+  expect(state.metadata.notesHtml).toContain('text-align: center;');
+  expect(state.metadata.notesHtml).toContain('href="/Public/Trips"');
+  await page.reload();
+  await expect(form.getByRole('textbox', { name: 'Notes', exact: true }).locator('a')).toContainText('W2 Native notes');
+  await form.locator('.trip-editor-rich-notes').screenshot({ path: process.env.WAYFARER_W2_SCREENSHOT || testInfo.outputPath('trip-tiptap.png') });
+});

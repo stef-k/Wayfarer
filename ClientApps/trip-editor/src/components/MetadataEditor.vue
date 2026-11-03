@@ -50,7 +50,7 @@ const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
 /// Discarding this interaction revokes pending exit permission without retiring an HTTP attempt.
-let editSession = 0;
+const editSession = ref(0);
 /// Distinguishes explicit sharing input during this save from privacy-driven clearing.
 let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
@@ -173,13 +173,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  editSession++;
+  editSession.value++;
   unregisterSurfaceHandler?.();
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
 const resetDraft = (): void => {
-  editSession++;
+  editSession.value++;
   draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
   tagInput.value = '';
   tagSuggestions.value = [];
@@ -196,7 +196,7 @@ const saveAndExit = async (): Promise<void> => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   if (isSaving.value || saveUnconfirmed.value) return;
-  const savingSession = editSession;
+  const savingSession = editSession.value;
   shareProgressEditedDuringSave = false;
   isSaving.value = true;
   saveError.value = null;
@@ -259,7 +259,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
     draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
-    if (exitAfterSave && savingSession === editSession && !isDirty.value) {
+    if (exitAfterSave && savingSession === editSession.value && !isDirty.value) {
       await backToTrips();
     }
   }
@@ -449,7 +449,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           </template>
         </section>
 
-        <RichNotesEditor editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+        <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
           <span>Cover Image URL</span>

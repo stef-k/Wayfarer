@@ -1,0 +1,13 @@
+@* Native dialog provides focus containment, Escape and explicit follow without editor navigation. *@
+<dialog id="notes-dialog" aria-labelledby="notes-dialog-title">
+    <h2 id="notes-dialog-title" class="fs-5">Edit link</h2>
+    <label for="notes-url" class="form-label">URL</label>
+    <input id="notes-url" type="text" class="form-control" autocomplete="off" />
+    <p id="notes-dialog-error" role="alert"></p>
+    <div class="d-flex gap-2 flex-wrap">
+        <button id="notes-dialog-apply" type="button" class="btn btn-primary">Apply</button>
+        <button id="notes-dialog-unlink" data-link-only type="button" class="btn btn-outline-secondary">Unlink</button>
+        <button id="notes-dialog-follow" data-link-only type="button" class="btn btn-outline-secondary">Follow link</button>
+        <button id="notes-dialog-cancel" type="button" class="btn btn-secondary">Cancel</button>
+    </div>
+</dialog>

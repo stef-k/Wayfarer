@@ -1,8 +1,10 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @model Wayfarer.Models.ViewModels.VisitEditViewModel
 @{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
-    ViewData["LoadQuill"] = true;
+    ViewData["LoadQuill"] = false;
+    var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/visit-edit.js");
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
@@ -118,12 +120,13 @@
 
                     <!-- Notes -->
                     <div class="mb-3">
-                        <label asp-for="NotesHtml" class="form-label">Notes</label>
+                        <label id="notes-label" class="form-label">Notes</label>
+                        <partial name="_NotesToolbar" model="@(true)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.NotesHtml))"></div>
                         <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.NotesHtml))" />
-                        <small class="text-muted">
-                            You cannot paste images here. Use the image button from the toolbar to insert an image from a URL.
-                        </small>
+                        <span asp-validation-for="NotesHtml" class="text-danger"></span>
+                        <small class="text-muted">Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
+                        <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -211,6 +214,20 @@
     </div>
 </div>
 
+<partial name="_NotesDialog" />
+
+@section Styles {
+    @foreach (var href in notesAssets.Css) { <link rel="stylesheet" href="@href" /> }
+}
+
 @section Scripts {
-    @Html.FrontendViewScripts()
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/rich-notes/visit-edit.js"></script>
+    }
+    else if (notesAssets.Script is not null)
+    {
+        <script type="module" src="@notesAssets.Script"></script>
+    }
 }

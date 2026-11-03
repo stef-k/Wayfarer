@@ -1,353 +1,203 @@
 <script setup lang="ts">
-import Quill, { type Range } from 'quill';
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { displayImageSource } from '../displayHelpers';
-import { canonicalImageSource, containsDataImageReference, isDataImageSource, isUnsafeImageSource, normalizeNotesHtml } from '../notes/notesHtml';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { createNotesEditor, isSafeNotesLink, type NotesEditor } from '../../../rich-notes/editor';
+import '../../../rich-notes/editor.css';
 
 const props = defineProps<{
   editorId: string;
   label: string;
   modelValue: string;
+  /** Advances only when the owner replaces visible Notes, never for a local v-model echo. */
+  adoptionRevision: number;
   validationMessages: string[];
 }>();
+const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
-const emit = defineEmits<{
-  'update:modelValue': [value: string];
-}>();
-
+// Internal IDs remain unique even when two mounted forms use the same public editor key.
+const instanceId = `${props.editorId}-${useId()}`;
+const labelId = `${instanceId}-label`;
+const feedbackId = `${instanceId}-feedback`;
+const validationId = `${instanceId}-validation`;
+const descriptionId = computed(() => [props.validationMessages.length ? validationId : '', feedbackMessage.value ? feedbackId : ''].filter(Boolean).join(' '));
 const editorHost = ref<HTMLDivElement | null>(null);
+const dialog = ref<HTMLDialogElement | null>(null);
+const urlInput = ref<HTMLInputElement | null>(null);
+const dialogKind = ref<'link' | 'image'>('image');
+const url = ref('');
+const dialogError = ref('');
 const feedbackMessage = ref('');
-const isImageDialogOpen = ref(false);
-const imageUrl = ref('');
-const imageUrlError = ref('');
-const imageUrlInput = ref<HTMLInputElement | null>(null);
-const labelId = computed(() => `${props.editorId}-label`);
-const feedbackId = computed(() => `${props.editorId}-feedback`);
-let quill: Quill | null = null;
-let savedRange: Range | null = null;
-let isLoadingExternalValue = false;
-let feedbackTimer: number | null = null;
-const pendingInsertedImageSources = new Set<string>();
+const controls = ref({ bold: false, italic: false, underline: false, ordered: false, bullet: false, heading: '0', font: '', align: 'left' });
+let handle: NotesEditor | null = null;
 
-const toolbarOptions = [
-  [{ header: [1, 2, 3, 4, 5, 6, false] }],
-  ['bold', 'italic', 'underline'],
-  [{ list: 'ordered' }, { list: 'bullet' }],
-  [{ align: '' }, { align: 'center' }, { align: 'right' }],
-  ['link', 'image'],
-  [{ font: [] }],
-  ['clean']
-];
-
-/** Focuses the labelled contenteditable surface rather than Quill's structural host. */
-function focusEditor(): void {
-  quill?.focus();
-}
-
+/** Preserve the public focus contract used by Segment Reset and surface navigation. */
+function focusEditor(): void { handle?.focus(); }
 defineExpose({ focusEditor });
 
+/** Reflect native selection/marks without making the editor instance reactive. */
+function syncControls(): void {
+  if (!handle) return;
+  const editor = handle.editor;
+  controls.value = {
+    bold: editor.isActive('bold'), italic: editor.isActive('italic'), underline: editor.isActive('underline'),
+    ordered: editor.isActive('orderedList'), bullet: editor.isActive('bulletList'),
+    heading: String(editor.getAttributes('heading').level ?? 0),
+    font: editor.getAttributes('textStyle').fontFamily ?? '',
+    align: editor.getAttributes('paragraph').textAlign ?? editor.getAttributes('heading').textAlign ?? 'left'
+  };
+  handle.saveSelection();
+}
+
 onMounted(() => {
-  if (!editorHost.value) {
-    return;
-  }
-
-  quill = new Quill(editorHost.value, {
-    modules: {
-      clipboard: { matchVisual: false },
-      toolbar: {
-        container: toolbarOptions,
-        handlers: {
-          image: openImageDialog
-        }
-      }
-    },
-    placeholder: 'Add your notes...',
-    theme: 'snow'
+  handle = createNotesEditor(editorHost.value!, props.modelValue, labelId, message => { feedbackMessage.value = message; });
+  handle.onChange(() => {
+    const value = handle!.getValue();
+    emit('update:modelValue', value);
   });
-
-  quill.root.setAttribute('aria-labelledby', labelId.value);
-
-  quill.on('selection-change', handleSelectionChange);
-  quill.on('text-change', handleTextChange);
-  quill.root.addEventListener('paste', handlePaste);
-  quill.root.addEventListener('drop', handleDrop);
-  quill.root.addEventListener('input', handleInput);
-  quill.root.addEventListener('load', handleImageLoad, true);
-  quill.root.addEventListener('error', handleImageLoadFailure, true);
-  loadHtml(props.modelValue);
+  handle.editor.on('transaction', syncControls);
+  syncControls();
 });
 
-onUnmounted(() => {
-  if (feedbackTimer !== null) {
-    window.clearTimeout(feedbackTimer);
-  }
-
-  if (!quill) {
-    return;
-  }
-
-  quill.root.removeEventListener('paste', handlePaste);
-  quill.root.removeEventListener('drop', handleDrop);
-  quill.root.removeEventListener('input', handleInput);
-  quill.root.removeEventListener('load', handleImageLoad, true);
-  quill.root.removeEventListener('error', handleImageLoadFailure, true);
-  quill.off('selection-change', handleSelectionChange);
-  quill.off('text-change', handleTextChange);
-  pendingInsertedImageSources.clear();
-  quill = null;
+// The owner distinguishes an accepted visible replacement from any delayed/coalesced echo.
+watch(() => props.adoptionRevision, () => {
+  if (!handle) return;
+  dialog.value?.close();
+  handle.adopt(props.modelValue);
+  syncControls();
 });
 
-watch(
-  () => props.modelValue,
-  value => {
-    if (!quill || normalizeNotesHtml(value) === currentHtml()) {
-      return;
-    }
+onBeforeUnmount(() => {
+  const retiring = handle;
+  handle = null;
+  dialog.value?.close();
+  retiring?.dispose();
+});
 
-    loadHtml(value);
+/** Pointer controls retain the live range; keyboard controls restore the last native selection. */
+function keepSelection(event: PointerEvent): void {
+  if ((event.target as Element).closest('button')) event.preventDefault();
+}
+
+/** The Trip toolbar keeps its existing marks, lists, fonts and alignment capabilities. */
+function command(action: string): void {
+  if (!handle) return;
+  handle.restoreSelection();
+  const editor = handle.editor;
+  switch (action) {
+    case 'bold': editor.chain().focus().toggleBold().run(); break;
+    case 'italic': editor.chain().focus().toggleItalic().run(); break;
+    case 'underline': editor.chain().focus().toggleUnderline().run(); break;
+    case 'ordered': editor.chain().focus().toggleOrderedList().run(); break;
+    case 'bullet': editor.chain().focus().toggleBulletList().run(); break;
+    case 'remove': handle.removeFormatting(); break;
   }
-);
+}
 
-function loadHtml(value: string): void {
-  if (!quill) {
+/** Apply only the finite, server-supported block/font choices. */
+function choose(kind: 'heading' | 'font' | 'align', event: Event): void {
+  if (!handle) return;
+  const value = (event.target as HTMLSelectElement).value;
+  handle.restoreSelection();
+  const chain = handle.editor.chain().focus();
+  if (kind === 'heading') {
+    if (value === '0') chain.setParagraph().run();
+    else chain.setHeading({ level: Number(value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
+  } else if (kind === 'font') {
+    if (value) chain.setFontFamily(value).run();
+    else chain.unsetFontFamily().run();
+  } else chain.setTextAlign(value).run();
+}
+
+/** A component-owned native dialog isolates selection, Escape, focus and URL feedback. */
+function openDialog(kind: 'link' | 'image'): void {
+  if (!handle) return;
+  handle.saveSelection();
+  dialogKind.value = kind;
+  url.value = kind === 'link' ? handle.editor.getAttributes('link').href ?? '' : '';
+  dialogError.value = '';
+  dialog.value?.showModal();
+  urlInput.value?.focus();
+}
+
+/** Restore focus on Apply, Cancel and native Escape; never focus a retired editor. */
+function closeDialog(): void { handle?.restoreSelection(); }
+
+/** Validate before insertion; the shared engine owns canonical images and secure proxy display. */
+function applyUrl(): void {
+  if (!handle) return;
+  const value = url.value.trim();
+  if (!value || dialogKind.value === 'link' && !isSafeNotesLink(value)) {
+    dialogError.value = 'Enter a safe link or HTTP(S) image URL.';
     return;
   }
-
-  isLoadingExternalValue = true;
-  quill.setContents([], 'silent');
-  quill.clipboard.dangerouslyPasteHTML(normalizeNotesHtml(value), 'silent');
-  normalizeEditorImagesForDisplay();
-  ensureEditableContinuationLine();
-  isLoadingExternalValue = false;
+  handle.restoreSelection();
+  const success = dialogKind.value === 'image' ? handle.insertImage(value)
+    : handle.editor.chain().focus().extendMarkRange('link').setLink({ href: value }).run();
+  if (!success) { dialogError.value = 'Enter an absolute HTTP(S) image URL.'; return; }
+  handle.saveSelection();
+  dialog.value?.close();
 }
 
-function handleSelectionChange(range: Range | null): void {
-  if (range) {
-    savedRange = range;
-  }
+/** Unlink preserves selected text; explicit Follow never navigates the editing surface. */
+function unlink(): void {
+  if (!handle) return;
+  handle.restoreSelection();
+  handle.editor.chain().focus().extendMarkRange('link').unsetLink().run();
+  handle.saveSelection();
+  dialog.value?.close();
 }
-
-function handleTextChange(): void {
-  if (!quill || isLoadingExternalValue) {
-    return;
-  }
-
-  if (normalizeEditorImagesForDisplay()) {
-    showFeedback('Embedded data images are not allowed. Use an external image URL.');
-  }
-
-  ensureEditableContinuationLine();
-  emit('update:modelValue', currentHtml());
-}
-
-/// Adds an unformatted editor-local line only when a terminal image needs a caret target.
-function ensureEditableContinuationLine(): void {
-  if (!quill) {
-    return;
-  }
-
-  const lastBlock = quill.root.lastElementChild;
-  if (!(lastBlock instanceof HTMLElement)
-    || isEditorBlockBlank(lastBlock)
-    || !lastBlock.querySelector('img')) {
-    return;
-  }
-
-  const continuationIndex = Math.max(0, quill.getLength() - 1);
-  quill.insertText(continuationIndex, '\n', 'silent');
-  quill.removeFormat(continuationIndex, 1, 'silent');
-}
-
-function handlePaste(event: ClipboardEvent): void {
-  const clipboard = event.clipboardData;
-  if (!clipboard || !containsDataImage(clipboard)) {
-    return;
-  }
-
-  event.preventDefault();
-  showFeedback('Embedded data images are not allowed. Use an external image URL.');
-}
-
-function handleDrop(event: DragEvent): void {
-  const transfer = event.dataTransfer;
-  if (!transfer || !containsDataImage(transfer)) {
-    return;
-  }
-
-  event.preventDefault();
-  showFeedback('Embedded data images are not allowed. Use an external image URL.');
-}
-
-function handleInput(): void {
-  if (isLoadingExternalValue) {
-    return;
-  }
-
-  if (normalizeEditorImagesForDisplay()) {
-    emit('update:modelValue', currentHtml());
-    showFeedback('Embedded data images are not allowed. Use an external image URL.');
-  }
-}
-
-function isEditorBlockBlank(block: HTMLElement): boolean {
-  return !block.textContent?.trim() && !block.querySelector('img, video, iframe');
-}
-
-function containsDataImage(data: DataTransfer): boolean {
-  if (Array.from(data.files).some(file => file.type.startsWith('image/'))) {
-    return true;
-  }
-
-  return ['text/html', 'text/plain'].some(type => containsDataImageReference(data.getData(type) ?? ''));
-}
-
-function openImageDialog(): void {
-  if (!quill) {
-    return;
-  }
-
-  savedRange = quill.getSelection() ?? savedRange;
-  imageUrl.value = '';
-  imageUrlError.value = '';
-  isImageDialogOpen.value = true;
-  void nextTick(() => imageUrlInput.value?.focus());
-}
-
-function closeImageDialog(): void {
-  isImageDialogOpen.value = false;
-  imageUrl.value = '';
-  imageUrlError.value = '';
-}
-
-function insertImageUrl(): void {
-  if (!quill) {
-    return;
-  }
-
-  const url = imageUrl.value.trim();
-  if (isDataImageSource(url)) {
-    imageUrlError.value = 'Embedded data images are not allowed. Use an external image URL.';
-    showFeedback('Embedded data images are not allowed. Use an external image URL.');
-    return;
-  }
-
-  if (!isExternalImageUrl(url)) {
-    imageUrlError.value = 'Enter an http or https image URL.';
-    return;
-  }
-
-  const index = savedRange ? savedRange.index : Math.max(0, quill.getLength() - 1);
-  pendingInsertedImageSources.add(canonicalImageSource(url));
-  quill.setSelection(index, savedRange?.length ?? 0, 'silent');
-  quill.insertEmbed(index, 'image', url, 'user');
-  quill.setSelection(index + 1, 0, 'silent');
-  normalizeEditorImagesForDisplay();
-  emit('update:modelValue', currentHtml());
-  closeImageDialog();
-}
-
-function isExternalImageUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function currentHtml(): string {
-  if (!quill) {
-    return normalizeNotesHtml(props.modelValue);
-  }
-
-  return normalizeNotesHtml(quill.root.innerHTML);
-}
-
-/// Keeps editor display images proxied while preserving canonical external URLs in emitted HTML.
-function normalizeEditorImagesForDisplay(): boolean {
-  if (!quill) {
-    return false;
-  }
-
-  let removed = false;
-  quill.root.querySelectorAll<HTMLImageElement>('img').forEach(image => {
-    const source = canonicalImageSource(image.getAttribute('src') ?? '');
-    if (isUnsafeImageSource(source)) {
-      image.remove();
-      removed = true;
-      return;
-    }
-
-    image.setAttribute('src', displayImageSource(source));
-  });
-  return removed;
-}
-
-function handleImageLoad(event: Event): void {
-  if (event.target instanceof HTMLImageElement) {
-    pendingInsertedImageSources.delete(canonicalImageSource(event.target.getAttribute('src') ?? ''));
-  }
-}
-
-function handleImageLoadFailure(event: Event): void {
-  if (!quill || !(event.target instanceof HTMLImageElement)) {
-    return;
-  }
-
-  const source = canonicalImageSource(event.target.getAttribute('src') ?? '');
-  if (!pendingInsertedImageSources.delete(source)) {
-    return;
-  }
-
-  event.target.remove();
-  ensureEditableContinuationLine();
-  emit('update:modelValue', currentHtml());
-  showFeedback('Image URL could not be loaded. Check that it points to a reachable image file.');
-}
-
-function showFeedback(message: string): void {
-  feedbackMessage.value = message;
-  if (feedbackTimer !== null) {
-    window.clearTimeout(feedbackTimer);
-  }
-
-  feedbackTimer = window.setTimeout(() => {
-    feedbackMessage.value = '';
-    feedbackTimer = null;
-  }, 5000);
+function followLink(): void {
+  const value = url.value.trim();
+  if (value && isSafeNotesLink(value)) window.open(value, '_blank', 'noopener,noreferrer');
+  else dialogError.value = 'Enter a safe link before following it.';
 }
 </script>
 
 <template>
   <div class="trip-editor-field trip-editor-rich-notes" :data-rich-notes-editor="props.editorId">
     <span :id="labelId">{{ props.label }}</span>
-    <div
-      :id="props.editorId"
-      ref="editorHost"
-      class="trip-editor-rich-notes__editor"
-      role="group"
-      :aria-labelledby="labelId"
-      :aria-describedby="feedbackMessage ? feedbackId : undefined"
-    ></div>
+    <div class="rich-notes-toolbar" role="toolbar" :aria-label="`${props.label} formatting`" @pointerdown="keepSelection">
+      <select aria-label="Heading" :value="controls.heading" @change="choose('heading', $event)">
+        <option value="0">Paragraph</option><option v-for="level in 6" :key="level" :value="level">Heading {{ level }}</option>
+      </select>
+      <button type="button" :aria-pressed="controls.bold" @click="command('bold')">Bold</button>
+      <button type="button" :aria-pressed="controls.italic" @click="command('italic')">Italic</button>
+      <button type="button" :aria-pressed="controls.underline" @click="command('underline')">Underline</button>
+      <button type="button" :aria-pressed="controls.ordered" @click="command('ordered')">Ordered list</button>
+      <button type="button" :aria-pressed="controls.bullet" @click="command('bullet')">Bullet list</button>
+      <select aria-label="Alignment" :value="controls.align" @change="choose('align', $event)">
+        <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
+      </select>
+      <button type="button" @click="openDialog('link')">Link</button>
+      <button type="button" @click="openDialog('image')">Image</button>
+      <select aria-label="Font" :value="controls.font" @change="choose('font', $event)">
+        <option value="">Default font</option><option value="serif">Serif</option><option value="monospace">Monospace</option>
+      </select>
+      <button type="button" @click="command('remove')">Remove formatting</button>
+    </div>
+    <div :id="instanceId" ref="editorHost" class="trip-editor-rich-notes__editor" role="group" :aria-labelledby="labelId"
+      :aria-describedby="descriptionId || undefined" :aria-invalid="props.validationMessages.length ? true : undefined"></div>
+    <small class="trip-editor-rich-notes__help">Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
     <p v-if="feedbackMessage" :id="feedbackId" class="trip-editor-rich-notes__feedback" role="status">{{ feedbackMessage }}</p>
-    <small v-for="message in props.validationMessages" :key="message">{{ message }}</small>
-
+    <div v-if="props.validationMessages.length" :id="validationId">
+      <small v-for="message in props.validationMessages" :key="message">{{ message }}</small>
+    </div>
     <Teleport to="body">
-      <div v-if="isImageDialogOpen" class="trip-editor-rich-notes-dialog" role="dialog" aria-modal="true" aria-labelledby="trip-editor-rich-notes-image-title">
-        <div class="trip-editor-rich-notes-dialog__backdrop" aria-hidden="true"></div>
-        <form class="trip-editor-rich-notes-dialog__panel" novalidate @submit.prevent="insertImageUrl">
-          <h2 id="trip-editor-rich-notes-image-title">Insert image URL</h2>
+      <dialog ref="dialog" class="trip-editor-rich-notes-dialog" :aria-labelledby="`${instanceId}-dialog-title`" @close="closeDialog">
+        <form class="trip-editor-rich-notes-dialog__panel" novalidate @submit.prevent="applyUrl">
+          <h2 :id="`${instanceId}-dialog-title`">{{ dialogKind === 'image' ? 'Insert image URL' : 'Edit link' }}</h2>
           <label class="trip-editor-field">
-            <span>Image URL</span>
-            <input ref="imageUrlInput" v-model="imageUrl" type="url" autocomplete="off" />
-            <small v-if="imageUrlError">{{ imageUrlError }}</small>
+            <span>{{ dialogKind === 'image' ? 'Image URL' : 'Link URL' }}</span>
+            <input ref="urlInput" v-model="url" type="text" autocomplete="off" :aria-describedby="dialogError ? `${instanceId}-dialog-error` : undefined" />
           </label>
+          <p v-if="dialogError" :id="`${instanceId}-dialog-error`" role="alert">{{ dialogError }}</p>
           <div class="trip-editor-rich-notes-dialog__actions">
-            <button type="submit" class="btn btn-primary btn-sm">Insert Image</button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" @click="closeImageDialog">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ dialogKind === 'image' ? 'Insert Image' : 'Apply' }}</button>
+            <button v-if="dialogKind === 'link'" type="button" class="btn btn-outline-secondary btn-sm" @click="unlink">Unlink</button>
+            <button v-if="dialogKind === 'link'" type="button" class="btn btn-outline-secondary btn-sm" @click="followLink">Follow link</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @click="dialog?.close()">Cancel</button>
           </div>
         </form>
-      </div>
+      </dialog>
     </Teleport>
   </div>
 </template>

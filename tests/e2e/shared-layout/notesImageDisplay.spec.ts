@@ -62,14 +62,13 @@ test('notes images stay proxied before insertion while local maps and canonical 
     await page.context().unroute('**/Public/ProxyImage?**');
     await page.context().route('**/Public/ProxyImage?**', route => route.fulfill({ status: 501, headers: { 'cache-control': 'no-store' }, body: 'unavailable' }));
     await page.goto('/User/Location/Create');
-    await expect(page.locator('#notes .ql-editor')).toBeVisible();
+    await expect(page.locator('#notes .rich-notes-content')).toBeVisible();
     const failedPreview = page.waitForResponse(response => response.url().includes('/Public/ProxyImage?'));
-    await page.evaluate(value => {
-        const quill = (window as any).Quill.find(document.querySelector('#notes'));
-        quill.insertEmbed(0, 'image', value);
-    }, source);
+    await page.getByRole('button', { name: 'Image', exact: true }).click();
+    await page.getByRole('textbox', { name: 'URL', exact: true }).fill(source);
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
     expect((await failedPreview).status()).toBe(501);
-    const image = page.locator('#notes .ql-editor img');
+    const image = page.locator('#notes .rich-notes-content img');
     expect(new URL((await image.getAttribute('src'))!, page.url()).searchParams.get('url')).toBe(source);
     // Run the actual form handler without posting a Location outside the fixture's ownership.
     await page.evaluate(() => document.querySelector('#notes')!.closest('form')!.dispatchEvent(new Event('submit', { cancelable: true })));

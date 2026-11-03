@@ -1,9 +1,11 @@
 @using Microsoft.AspNetCore.Mvc.Rendering
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @model Wayfarer.Models.ViewModels.BulkEditNotesViewModel
 
 @{
     ViewData["BodyClass"] = "container-fluid";
-    ViewData["LoadQuill"] = true;
+    ViewData["LoadQuill"] = false;
+    var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-bulk.js");
     ViewData["Title"] = "Bulk Edit Location Notes";
 }
 
@@ -80,14 +82,17 @@
                     </div>
 
 
-                    <!-- ==== Quill Notes ==== -->
+                    <!-- Notes are independent of the separate ClearNotes operation. -->
                     <div class="form-group mb-4">
-                        <label for="notes" class="form-label">Notes (HTML)</label>
+                        <label id="notes-label" class="form-label">Notes (HTML)</label>
+                        <partial name="_NotesToolbar" model="@(false)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"></div>
                         <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"/>
                         <small class="text-muted d-block">
-                            Use the toolbar to add text, links or images (via URL).
+                            Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.
                         </small>
+                        <span asp-validation-for="Notes" class="text-danger"></span>
+                        <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <button type="submit" class="btn btn-primary" id="applyBtn">
@@ -99,27 +104,20 @@
     </div>
 </div>
 
-<!-- Copy‐paste your existing image‐URL modal exactly as in Edit.cshtml -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="imageModalLabel">Insert Image URL</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <label for="imageUrl" class="form-label">Image URL</label>
-                <input type="text" id="imageUrl" class="form-control" placeholder="Enter the image URL here">
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
-            </div>
-        </div>
-    </div>
-</div>
+<partial name="_NotesDialog" />
+
+@section Styles {
+    @foreach (var href in notesAssets.Css) { <link rel="stylesheet" href="@href" /> }
+}
 
 @section Scripts {
-    <!-- Reuse your existing script; it will find #notes, #hiddenNotes, #locationForm & #imageModal just as before -->
-    @Html.FrontendViewScripts()
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/rich-notes/location-bulk.js"></script>
+    }
+    else if (notesAssets.Script is not null)
+    {
+        <script type="module" src="@notesAssets.Script"></script>
+    }
 }
