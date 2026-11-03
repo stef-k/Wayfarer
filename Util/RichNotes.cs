@@ -16,10 +16,13 @@ public static class RichNotes
         @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Shield CSS strings/comments and join only a terminal priority token's CSS whitespace.
-    // AngleSharp.Css 1.0.1 otherwise drops valid declarations containing "! important".
-    private static readonly Regex CssPriorityWhitespaceRegex = new(
-        """(?<literal>"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|/\*[\s\S]*?(?:\*/|\z))|![\t\n\f\r ]+important(?=[\t\n\f\r ]*(?:;|\z))""",
+    // CSS trivia cannot cross a comment terminator or join a split identifier.
+    private const string CssPriorityTrivia = """(?:[\t\n\f\r ]|/\*(?:[^*]|\*(?!/))*\*/)*""";
+
+    // Shield strings/comments and canonicalize only terminal priority trivia, including comments to EOF.
+    // AngleSharp.Css 1.0.2 detects priority from a raw "!important" suffix, without parsing that trivia.
+    private static readonly Regex CssPriorityRegex = new(
+        $$"""(?<literal>"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|/\*[\s\S]*?(?:\*/|\z))|!{{CssPriorityTrivia}}important{{CssPriorityTrivia}}(?:/\*(?:[^*]|\*(?!/))*\z)?(?=;|\z)""",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly HashSet<string> AllowedTags = new(StringComparer.OrdinalIgnoreCase)
@@ -183,7 +186,7 @@ public static class RichNotes
             : element.LocalName is "p" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" ? "text-align" : null;
         if (property is null) return false;
         // Preserve priority for duplicate declarations; the parser still owns extraction and validation.
-        var style = CssPriorityWhitespaceRegex.Replace(element.GetAttribute("style") ?? string.Empty,
+        var style = CssPriorityRegex.Replace(element.GetAttribute("style") ?? string.Empty,
             match => match.Groups["literal"].Success ? match.Value : "!important");
         var declarations = new CssParser().ParseDeclaration(style);
         var value = (declarations?.GetPropertyValue(property) ?? string.Empty).Trim().ToLowerInvariant();
