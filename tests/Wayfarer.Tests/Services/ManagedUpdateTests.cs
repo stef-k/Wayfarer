@@ -1,4 +1,6 @@
 using WayfarerCtl;
+using WayfarerRecovery;
+using System.Text.Json;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -7,6 +9,35 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class ManagedUpdateTests
 {
+    /// <summary>A schema success or single current generation cannot authorize target activation.</summary>
+    [Theory]
+    [InlineData(true, true, true)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    public void HistoryAcceptanceRequiresBothTargetGenerations(bool time, bool text, bool ready)
+    {
+        var evidence = JsonSerializer.Serialize(new { Ready = true, Generations = new[] {
+            new { Kind = "time", Ready = time }, new { Kind = "text", Ready = text } } });
+        Assert.Equal(ready, UpdateHistoryPreparation.Ready(evidence));
+    }
+
+    /// <summary>Preparation resume and recovery both reject running, replaced or foreign target helpers.</summary>
+    [Theory]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public void PreparationHelperRequiresStoppedExactTarget(bool running, bool foreign, bool accepted)
+    {
+        var config = new Deployment { Schema = 2, Installation = Guid.NewGuid(), Bundle = "/bundle",
+            Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
+        var plan = new UpdatePlan(Guid.NewGuid(), "/etc/wayfarer", config, config, null!, null!, [], "", "", "", null!);
+        var receipt = new UpdateReceipt { Plan = plan, PlanHash = "test", Phase = UpdatePhase.MigrationStarted,
+            HistoryContainer = config.Project + "-update-history-" + plan.Operation.ToString("N") };
+        var helper = ManagedHistoryUpgradePostgresTests.Helper(receipt, true, running, foreign ? "foreign-image" : null);
+        if (accepted) UpdateRuntime.VerifyMaintenanceHelper(plan.Root, receipt, helper, history: true);
+        else Assert.Throws<IOException>(() => UpdateRuntime.VerifyMaintenanceHelper(plan.Root, receipt, helper, history: true));
+    }
+
     /// <summary>Update has no implicit acceptance, network selection or lock/recovery waiver.</summary>
     [Fact]
     public void GrammarRequiresExactLocalAuthorization()

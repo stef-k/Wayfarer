@@ -1,6 +1,8 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.CommandLine;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -22,13 +24,15 @@ public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fi
         await db.Locations.ExecuteDeleteAsync();
         await db.HistoryPreparationStates.ExecuteDeleteAsync();
         var preparation = new LocationHistoryPreparation(db);
-        await preparation.EnsureAsync(null, default);
+        using var services = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+        using var output = new StringWriter();
+        await LifecycleCli.DatabaseAsync("migrate", db, services, output, default);
         Assert.All(await preparation.InspectAsync(default), status => Assert.True(status.Ready));
         var owner = await fixture.CreateUserAsync(); var row = Row(owner.Id);
         db.Add(row); await db.SaveChangesAsync();
         await ClearDerivedAsync(db, [row.Id]);
         await db.HistoryPreparationStates.ExecuteDeleteAsync();
-        await preparation.EnsureAsync(null, default);
+        await LifecycleCli.DatabaseAsync("migrate", db, services, output, default);
         var before = await SnapshotAsync(db);
         var time = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
         await preparation.EnsureAsync(null, default);

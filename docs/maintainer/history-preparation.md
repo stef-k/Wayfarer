@@ -4,18 +4,26 @@ title: History derivation and upgrade preparation
 
 # History derivation and upgrade preparation
 
-Issue #918 package I918-A supplies internal data and upgrade readiness. It does
-not by itself deliver the history routes or complete #918.
-I918-B supplies [routed reads and dependent-operation gates](../development/api.md#personal-history-bearer-reads-918-i918-b).
-I918-C documents backend composition/fidelity and the measured performance limitation
-below; backend #918 acceptance is not yet supported. #604 owns actual M6/maintainer
-instance qualification. This procedure grants no production operation authority.
+Backend #918 is complete with the maintainer's explicit acceptance of measured
+multi-second latency limitations; the sub-second target was not met. See the
+[recorded disposition](https://github.com/stef-k/Wayfarer/issues/918#issuecomment-6388301307)
+and [routed-read contract](../development/api.md#personal-history-bearer-reads-918-i918-b).
+The measurements below retain their original historical limits. #604 still owns
+actual M6/maintainer instance qualification. This procedure grants no production
+operation authority. #966 adds automatic supported offline preparation separately
+from #964's reviewed Notes changes.
 
 ## Authorities and upgrade boundary
 
 Follow [Versioning](versioning.md), the [Release contract](release-contract.md)
 and the installation's supported [operator lifecycle](../self-hosting/wayfarerctl.md).
-Do not turn a schema migration or ordinary startup/read into a history backfill.
+The target application's `database migrate` applies EF/Quartz schema maintenance,
+then ensures current history time/text generations before reporting success. This
+runs after schema transactions, using the existing short preparation transactions.
+Managed setup/update and the documented native maintenance path use this same
+application-owned logic. Ordinary startup, restart, reads and recovery-set restore
+do not run automatic history preparation.
+
 The early `history-data` application CLI exits before web startup, migrations,
 seeding, logging sinks, Quartz, storage initialization or provider registration.
 It consumes the normal application configuration, including
@@ -80,6 +88,66 @@ global tuning is introduced. Verify valid/ready physical definition, no pending
 model/migration changes, and ordinary readiness before resuming traffic. See the
 [bounded delivery evidence](../development/history-final-qualification.md#status-coverage-delivery).
 #604 retains actual deployment, restored-population headroom and recovery qualification.
+
+## Automatic maintenance and forward resume
+
+Normal supported installation/update requires no extra history command. While all
+writers remain stopped, the target's `database migrate` prepares missing time/text
+state, automatically selects only changed semantic generations, resumes matching
+checkpoints and verifies all-owner rows, exact indexes and qualified runtime rules.
+Already-current generations are checked without derivation or state rewrites.
+Canonical Notes, capture inputs, identities and import/provider state are retained.
+Manual `history-data prepare|rebuild|status` remain available for deliberate repair.
+
+Managed update retains `MigrationStarted` until independent target schema **and**
+history inspection establish completion. Schema success or helper exit zero alone
+cannot advance to `MigrationConfirmed`. Source-release and recovery inspection
+contracts remain unchanged; target acceptance additionally invokes its own
+read-only `database history-status` (JSON `Ready` plus both generation statuses).
+This diagnostic exits zero when inspection succeeds even if `Ready` is false;
+operators must inspect that field. `history-data status` retains its readiness exit
+codes below. Neither diagnostic repairs anything.
+
+Existing operator ownership still applies: the first supported transition from
+genuine v1.9.22 uses the replacement-capable **target operator** under the existing
+[Caddy replacement contract](../self-hosting/wayfarerctl.md#explicit-managed-caddy-replacement).
+That retained target owns resume/recovery. Subsequent compatible updates use their
+installed history-aware owner. An immutable older operator cannot acquire these
+new resume rules; do not substitute executables or manufacture a different receipt
+owner. No history-specific flag or release-authority change is introduced.
+
+The schema helper is never relaunched after `MigrationStarted`, including lost
+create/start acknowledgements. An explicit `update --resume` first reconciles the
+exact helper as stopped or proves absence, checks target schema independently and
+retains the verified recovery set and exclusive writer boundary. If history is
+incomplete, it refreshes capacity checks and records a distinct preparation-only
+helper with the same target image/operation and protected inputs. Each invocation
+allows at most one start. Lost replies bind the exact stopped helper before any
+further action; running, replaced, missing bound or ambiguous helpers block resume
+and restore. Preparation-only retries resume committed checkpoints; they do not
+reset generations or replay schema. Held backup and original failure evidence remain.
+
+A native operator verifies schema completion and confirms the interrupted process
+has stopped before `dotnet Wayfarer.dll database prepare-history` under the same
+protected target configuration. It verifies EF/Quartz before ensuring history and
+never replays schema. If schema itself is incomplete or ambiguous, reconcile that
+first using the existing schema-maintenance procedure.
+
+Preparation extends the offline maintenance window. Counts show prepared/pending
+work and readiness, and failures point to indexes/extension privileges, runtime
+qualification, database and disk/WAL headroom. There is no total app-start or
+ten-minute Docker-client deadline on preparation; cancellation is supported.
+Per-batch limits below remain. Verification scans, rebuilding changed derived data
+and ANALYZE still consume time, disk/WAL and database resources; no duration or
+production capacity guarantee follows from the batch size. Preserve the normal
+backup, capacity reserve and old-writer exclusion throughout.
+
+Restoring a coherent recovery set preserves its history bytes and flags. Restore
+reconciles both retained helpers before ownership transfer but performs no history
+ensure. Stale/mixed rows defeat readiness despite restored Ready flags. A separate,
+authorized forward maintenance operation using the current target may repair them;
+an older coherent release follows its own authority and recovery rules. An old
+image alone is never rollback after migration.
 
 ## Commands and recovery
 
@@ -565,7 +633,8 @@ A data-ready receipt proves generation/index/pending prerequisites, not performa
 The reviewed finite year-0001 capture limitation remains honestly unresolved while
 UTC/viewer/detail facts are retained. Fresh exact-head independent review, applicable
 CI, maintainer acceptance and disposition of the measured target misses remain
-outstanding. #918 stays open. Reuse I918-A's preparation/write/storage receipts;
+were outstanding at that historical checkpoint; the final maintainer disposition
+linked at the top of this page supersedes that issue-status claim. Reuse I918-A's preparation/write/storage receipts;
 #604 still owns restored-population headroom, WAL/index-build/migration/recovery
 qualification. Mobile/deployed acceptance and #853 C4 remain separate.
 
@@ -628,10 +697,10 @@ Both guarded fixtures completed cleanup. The wider named workload, lower-seam
 semantics, preparation/write/storage and four-read evidence above are reused;
 there is no newly measured concurrency gain.
 
-This is a bounded broad-query resource improvement. **I918-C and #918 remain
-incomplete.** Independent exact-head review and an explicit measured maintainer
-readiness decision remain required; filtered workloads and universal sub-second
-performance are unresolved. No further optimization campaign is automatically
+At that historical checkpoint this was a bounded broad-query resource improvement,
+with I918-C/#918 awaiting independent review and the maintainer's readiness decision.
+The final disposition linked above accepts the measured latency deviations;
+universal sub-second performance was not achieved. No further optimization campaign is automatically
 authorized. Production/mobile/deployed acceptance remains separate.
 
 ## Final protective ceiling and operating range

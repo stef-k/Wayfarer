@@ -19,7 +19,9 @@ public sealed class ProcessRunner : IProcessRunner
     public async Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        if (!args.Contains("--follow")) timeout.CancelAfter(TimeSpan.FromMinutes(10));
+        // Offline preparation is checkpointed but its total maintenance window is not an app-start deadline.
+        var historyMaintenance = args.Length >= 2 && args[^2] == "database" && args[^1] is "migrate" or "prepare-history";
+        if (!args.Contains("--follow") && !historyMaintenance) timeout.CancelAfter(TimeSpan.FromMinutes(10));
         var start = new ProcessStartInfo("docker")
         {
             UseShellExecute = false, RedirectStandardInput = true,

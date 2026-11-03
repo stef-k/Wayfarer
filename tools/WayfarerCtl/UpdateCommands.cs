@@ -120,7 +120,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Delegate fresh capture only while host exclusion remains owned, then regain recovery exclusion before migration.</summary>
     private async Task<int> ExecuteAsync(string root, UpdateReceipt receipt, bool resumed, CancellationToken token)
     {
-        var runtime = new UpdateRuntime(runner);
+        var runtime = new UpdateRuntime(runner, terminal);
         if (receipt.Phase == UpdatePhase.Authorized)
         {
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
