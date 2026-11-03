@@ -55,6 +55,9 @@
   max-width: 100%;
 }
 
+/* Transition guidance is explanatory text, separate from field validation errors. */
+.trip-editor-rich-notes small.trip-editor-rich-notes__help { color: var(--trip-editor-muted); }
+
 .trip-editor-rich-notes__feedback {
   background: var(--trip-editor-warning-bg);
   border-radius: 6px;

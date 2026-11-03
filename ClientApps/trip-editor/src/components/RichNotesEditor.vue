@@ -189,7 +189,7 @@ function followLink(): void {
     </div>
     <div :id="instanceId" ref="editorHost" class="trip-editor-rich-notes__editor" role="group" :aria-labelledby="labelId"
       :aria-describedby="descriptionId || undefined" :aria-invalid="props.validationMessages.length ? true : undefined"></div>
-    <small>Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
+    <small class="trip-editor-rich-notes__help">Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
     <p v-if="feedbackMessage" :id="feedbackId" class="trip-editor-rich-notes__feedback" role="status">{{ feedbackMessage }}</p>
     <div v-if="props.validationMessages.length" :id="validationId">
       <small v-for="message in props.validationMessages" :key="message">{{ message }}</small>
