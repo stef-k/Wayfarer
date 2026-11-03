@@ -202,6 +202,7 @@ public sealed class UpdateRuntime(IProcessRunner runner, ITerminal? terminal = n
                 "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest, "Wayfarer.dll", "database", "migrate"], token)).Trim();
             receipt = receipt with { MigrationContainerId = id };
             receipt.Save(root);
+            terminal?.Write("Applying target schema and preparing current history; maintenance stays offline until independent completion checks pass.");
             await owner.Required(["start", id], token);
             await UpdateHistoryPreparation.FollowAsync(runner, terminal, id, token);
         }
@@ -212,6 +213,8 @@ public sealed class UpdateRuntime(IProcessRunner runner, ITerminal? terminal = n
         receipt = await new UpdateHistoryPreparation(runner, terminal).EnsureAsync(root, receipt,
             allowResume: !launched,
             token: token);
+        if (launched && receipt.MigrationExit != 0)
+            throw new IOException("Target maintenance failed; retain the recovery set and explicitly resume after reconciling its stopped helper.");
         // History inspection is independent of schema inspection and helper exit/acknowledgement.
         receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.MigrationConfirmed);
         receipt.Save(root);

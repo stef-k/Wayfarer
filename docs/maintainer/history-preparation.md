@@ -96,6 +96,9 @@ writers remain stopped, the target's `database migrate` prepares missing time/te
 state, automatically selects only changed semantic generations, resumes matching
 checkpoints and verifies all-owner rows, exact indexes and qualified runtime rules.
 Already-current generations are checked without derivation or state rewrites.
+Automatic maintenance keeps each affected generation unavailable until ANALYZE
+succeeds and a final stale-row/index check commits activation. A process dying
+during finalization therefore cannot leave a premature Ready flag accepted.
 Canonical Notes, capture inputs, identities and import/provider state are retained.
 Manual `history-data prepare|rebuild|status` remain available for deliberate repair.
 

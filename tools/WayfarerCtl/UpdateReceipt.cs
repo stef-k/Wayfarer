@@ -50,6 +50,7 @@ public sealed record UpdateReceipt
     public string? HistoryContainer { get; init; }
     public string? HistoryContainerId { get; init; }
     public int HistoryAttempts { get; init; }
+    public int? HistoryExit { get; init; }
     public string? HistoryReconciliation { get; init; }
     public string? Reconciliation { get; init; }
     public string? NewConfiguration { get; init; }
@@ -122,7 +123,7 @@ public sealed record UpdateReceipt
             throw new IOException("Update phase lacks held recovery evidence.");
         if (MigrationPossible && MigrationContainer != Plan.Current.Project + "-update-migrate-" + Plan.Operation.ToString("N"))
             throw new IOException("Update phase lacks exact migration helper intent.");
-        if (HistoryAttempts < 0 || HistoryContainer is null && (HistoryContainerId is not null || HistoryAttempts != 0) ||
+        if (HistoryAttempts < 0 || HistoryContainer is null && (HistoryContainerId is not null || HistoryAttempts != 0 || HistoryExit is not null) ||
             HistoryContainer is not null && (!MigrationPossible ||
                 HistoryContainer != Plan.Current.Project + "-update-history-" + Plan.Operation.ToString("N")))
             throw new IOException("Invalid preparation-only helper intent.");

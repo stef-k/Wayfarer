@@ -28,7 +28,8 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
         using var releases = new ReleaseBundleTests();
         var bundle = releases.RetainOperator(directory.Path, "1.9.21", runningOperator: false);
         var receipt = Receipt(directory.Path, destination.Path, bundle);
-        Directory.CreateDirectory(Path.Combine(directory.Path, "recovery-control"), ProtectedFiles.PrivateDirectory);
+        ProtectedFiles.Create(Path.Combine(directory.Path, "installation.json"), receipt.Plan.OldConfiguration);
+        BackupConfiguration.ProvisionControl(directory.Path, bootstrap: true);
         receipt.Save(directory.Path);
         var owner = await fixture.CreateUserAsync();
         await using (var seed = fixture.CreateContext())
@@ -67,9 +68,15 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
         Assert.DoesNotContain(runner.Creates, args => args[^1] == "migrate");
         Assert.Equal(checkpoint.Prepared, (await verify.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time")).Prepared);
         Assert.All(await verify.Locations.AsNoTracking().ToListAsync(), row => Assert.Equal("<p>canonical café</p>", row.Notes));
+        // A restored Ready flag with stale rows cannot authorize even the first activation pointer write.
+        await verify.Locations.ExecuteUpdateAsync(set => set.SetProperty(row => row.HistoryTextVersion, "restored-old"));
+        var restored = await verify.Database.SqlQueryRaw<string>("SELECT row_to_json(l)::text AS \"Value\" FROM \"Locations\" l").ToArrayAsync();
+        await Assert.ThrowsAsync<IOException>(() => new UpdateActivation(runner).ActivateAsync(directory.Path, completed, default));
+        Assert.Equal(receipt.Plan.OldConfiguration, File.ReadAllText(Path.Combine(directory.Path, "installation.json")));
         // Restore ownership uses the same read-only reconciliation and never starts preparation.
         await new UpdateHistoryPreparation(runner).ReconcileAsync(directory.Path, completed, default);
         Assert.Equal(2, runner.HistoryStarts);
+        Assert.Equal(restored, await verify.Database.SqlQueryRaw<string>("SELECT row_to_json(l)::text AS \"Value\" FROM \"Locations\" l").ToArrayAsync());
     }
 
     /// <summary>Use the existing retained-bundle/recovery authority fixtures; no live installation or Docker service is selected.</summary>
@@ -122,7 +129,7 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
             {
                 if (args.Contains("--format")) return new(0, "false");
                 var history = args[1] != receipt.MigrationContainer;
-                return new(0, JsonSerializer.Serialize(new[] { Helper(receipt, history) }));
+                return new(0, JsonSerializer.Serialize(new[] { Helper(receipt, history, exitCode: history && HistoryStarts > 1 ? 0 : 130) }));
             }
             if (args[0] == "network") return new(0, "[{\"Internal\":true,\"Containers\":{}}]");
             if (args[0] == "info") return new(0, "/tmp");
@@ -154,7 +161,7 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
     }
 
     /// <summary>Exact stopped target maintenance facts include immutable mounts and separate schema/preparation commands.</summary>
-    internal static JsonElement Helper(UpdateReceipt receipt, bool history, bool running = false, string? image = null)
+    internal static JsonElement Helper(UpdateReceipt receipt, bool history, bool running = false, string? image = null, int exitCode = 0)
     {
         var name = history ? receipt.Plan.Current.Project + "-update-history-" + receipt.Plan.Operation.ToString("N") : receipt.MigrationContainer!;
         return JsonSerializer.SerializeToElement(new { Id = name, Name = "/" + name,
@@ -167,7 +174,7 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
                     ["wayfarer.update-project"] = receipt.Plan.Current.Project,
                     ["wayfarer.history-update"] = receipt.Plan.Operation.ToString("D") } },
             HostConfig = new { ReadonlyRootfs = true, Privileged = false, RestartPolicy = new { Name = "no" },
-                NetworkMode = receipt.Plan.Current.Project + "_backend" }, State = new { Running = running, ExitCode = 1 },
+                NetworkMode = receipt.Plan.Current.Project + "_backend" }, State = new { Running = running, ExitCode = exitCode },
             Mounts = new[] {
                 new { Type = "volume", Name = ActiveStorage.Volume(receipt.Plan.Current, "app-data"), Destination = "/var/lib/wayfarer", Source = "", RW = false },
                 new { Type = "bind", Name = "", Destination = "/run/secrets/app-password", Source = Path.Combine(receipt.Plan.Root, "secrets/app-password"), RW = false } } });

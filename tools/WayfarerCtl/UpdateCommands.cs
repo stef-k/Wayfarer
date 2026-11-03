@@ -23,6 +23,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             terminal.Write(JsonSerializer.Serialize(plan));
             terminal.Write("Plan SHA-256: " + plan.Hash());
             terminal.Write("MigrationStarted ends safe old-runtime activation. Recovery requires the held archive and managed restore.");
+            terminal.Write("The offline window includes target history verification/preparation and ANALYZE; allow additional downtime and database/WAL capacity. Committed history batches are resumable.");
             return 0;
         }
         UpdateReceipt receipt;

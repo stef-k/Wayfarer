@@ -94,6 +94,43 @@ public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fi
         SELECT (to_jsonb(l) - 'HistorySearchText' - 'HistoryTextVersion')::text AS "Value" FROM "Locations" l ORDER BY "Id"
         """).ToArrayAsync();
 
+    /// <summary>Interrupted ANALYZE cannot advertise success after the final batch, including process death before failure recording.</summary>
+    [PostgresFact]
+    public async Task MaintenanceFailureAfterFinalBatchRevokesReadinessWithoutResettingProgress()
+    {
+        await using var db = fixture.CreateContext();
+        await db.HistoryPreparationStates.ExecuteDeleteAsync();
+        var service = new LocationHistoryPreparation(db);
+        var interruption = new InterruptAnalyze(fixture);
+        await using (var worker = fixture.CreateContext(interruption))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new LocationHistoryPreparation(worker).EnsureAsync(null, default));
+        Assert.False(interruption.ReadyAtAnalyze);
+        var checkpoint = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.False(checkpoint.Ready); Assert.NotNull(checkpoint.LastFailure);
+        Assert.False((await service.InspectAsync(default)).All(status => status.Ready));
+        await service.EnsureAsync(null, default);
+        var complete = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.Equal(checkpoint.Prepared, complete.Prepared); Assert.Equal(checkpoint.LastId, complete.LastId);
+        Assert.All(await service.InspectAsync(default), status => Assert.True(status.Ready));
+    }
+
+    /// <summary>Observe committed readiness from another connection immediately before the real final maintenance statement.</summary>
+    private sealed class InterruptAnalyze(PostgresMigrationTestFixture fixture) : DbCommandInterceptor
+    {
+        internal bool ReadyAtAnalyze { get; private set; } = true;
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText == "ANALYZE \"Locations\"")
+            {
+                await using var inspect = fixture.CreateContext();
+                ReadyAtAnalyze = (await inspect.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time", cancellationToken)).Ready;
+                throw new OperationCanceledException("Synthetic interruption before ANALYZE.");
+            }
+            return result;
+        }
+    }
+
     [PostgresFact]
     public async Task StalePartialEditsDeriveFromFinalMergedRowAndRollbackTogether()
     {

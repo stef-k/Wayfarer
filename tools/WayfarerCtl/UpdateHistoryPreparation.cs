@@ -12,7 +12,8 @@ internal sealed class UpdateHistoryPreparation(IProcessRunner runner, ITerminal?
         receipt = await ReconcileAsync(root, receipt, token);
         var preparation = new UpdatePreparation(runner);
         var evidence = await preparation.InspectHistoryAsync(root, receipt.Plan.Target, receipt.Plan.Operation, token);
-        if (Ready(evidence)) return receipt with { HistoryReconciliation = evidence };
+        if (Ready(evidence) && (receipt.HistoryContainer is null || receipt.HistoryExit == 0))
+            return receipt with { HistoryReconciliation = evidence };
         ShowReadiness(evidence);
         if (!allowResume)
             throw new IOException("Schema maintenance completed but history preparation is incomplete. Keep writers stopped, correct history indexes/qualification/capacity, then use update --resume; schema migration will not be relaunched.");
@@ -45,7 +46,7 @@ internal sealed class UpdateHistoryPreparation(IProcessRunner runner, ITerminal?
         await FollowAsync(runner, terminal, receipt.HistoryContainerId!, token);
         receipt = await ReconcileAsync(root, receipt, token);
         evidence = await preparation.InspectHistoryAsync(root, receipt.Plan.Target, receipt.Plan.Operation, token);
-        if (!Ready(evidence))
+        if (receipt.HistoryExit != 0 || !Ready(evidence))
         {
             ShowReadiness(evidence);
             throw new IOException("Target history preparation remains incomplete; retain the recovery set, correct prerequisites and explicitly resume again.");
@@ -70,7 +71,8 @@ internal sealed class UpdateHistoryPreparation(IProcessRunner runner, ITerminal?
         using var document = JsonDocument.Parse(inspection.Output);
         var helper = document.RootElement[0];
         UpdateRuntime.VerifyMaintenanceHelper(root, receipt, helper, history: true);
-        receipt = receipt with { HistoryContainerId = helper.GetProperty("Id").GetString() };
+        receipt = receipt with { HistoryContainerId = helper.GetProperty("Id").GetString(),
+            HistoryExit = helper.GetProperty("State").GetProperty("ExitCode").GetInt32() };
         receipt.Save(root);
         return receipt;
     }

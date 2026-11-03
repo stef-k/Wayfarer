@@ -86,11 +86,12 @@ internal static class LifecycleCli
         }
         if (operation == "migrate")
         {
+            await output.WriteLineAsync("Database maintenance: applying EF/Quartz schema before history preparation.");
             var known = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
             if ((await db.Database.GetAppliedMigrationsAsync()).Any(migration => !known.Contains(migration)))
                 throw new InvalidOperationException("Unknown migration history.");
             await db.Database.MigrateAsync(token);
-            await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(services);
+            await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(services, token);
         }
         else await ApplicationReadiness.ValidateSchemaAsync(db, token);
         if (operation is "migrate" or "prepare-history")

@@ -57,13 +57,26 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
             var status = await StatusAsync(kind, token);
             if (progress is not null) await progress(status);
             if (status.Ready) continue;
-            bool complete;
-            do
+            try
             {
-                complete = await PrepareBatchAsync(kind, token);
+                bool complete;
+                do
+                {
+                    complete = await PrepareBatchAsync(kind, token, activate: false);
+                    if (progress is not null) await progress(await StatusAsync(kind, token));
+                } while (!complete);
+                await db.Database.ExecuteSqlRawAsync("ANALYZE \"Locations\"", token);
+                // Keep Ready false across process death during ANALYZE, then recheck the stale sweep/indexes before activation.
+                if (!await PrepareBatchAsync(kind, token))
+                    throw new InvalidOperationException("History rows changed during exclusive finalization; resume maintenance.");
                 if (progress is not null) await progress(await StatusAsync(kind, token));
-            } while (!complete);
-            await db.Database.ExecuteSqlRawAsync("ANALYZE \"Locations\"", token);
+            }
+            catch (Exception exception)
+            {
+                // Final ANALYZE/cancellation failures cannot leave the completed-batch Ready flag accepted.
+                await RecordFailureAsync(kind, exception);
+                throw;
+            }
         }
         if (!(await InspectAsync(token)).All(status => status.Ready))
             throw new InvalidOperationException("History preparation remains incomplete.");
@@ -79,8 +92,8 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
         return statuses;
     }
 
-    /// <summary>Commits at most 500 locked final rows and their checkpoint together; cancellation rolls the batch back.</summary>
-    internal async Task<bool> PrepareBatchAsync(string kind, CancellationToken token, int batchSize = 500)
+    /// <summary>Commits at most 500 final rows/checkpoint; offline ensure defers activation until ANALYZE succeeds.</summary>
+    internal async Task<bool> PrepareBatchAsync(string kind, CancellationToken token, int batchSize = 500, bool activate = true)
     {
         ValidateKind(kind);
         db.HistoryEnvironment.Require(kind == "time", kind == "text");
@@ -103,6 +116,7 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                 state.ActiveVersion = null;
             }
             var version = Version(kind);
+            var complete = false;
             var rows = state.Scanning
                 ? await db.Locations.FromSqlInterpolated($$"""
                     SELECT * FROM "Locations" WHERE "Id" > {{state.LastId}} ORDER BY "Id" LIMIT {{batchSize}} FOR UPDATE
@@ -127,33 +141,37 @@ internal sealed class LocationHistoryPreparation(ApplicationDbContext db)
                 else
                 {
                     if (!await IndexesReadyAsync(token)) throw new InvalidOperationException("Required history indexes are unavailable.");
-                    state.Ready = true;
-                    state.ActiveVersion = version;
+                    state.Ready = activate;
+                    state.ActiveVersion = activate ? version : null;
+                    complete = true;
                 }
             }
             state.LastFailure = null;
             state.UpdatedAtUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
-            var complete = state.Ready;
             db.ChangeTracker.Clear();
             return complete;
         }
         catch (Exception exception)
         {
-            db.ChangeTracker.Clear();
-            // A failed/cancelled batch never advances a checkpoint or stamps rows unresolved.
-            // The independent failure write cannot hide the primary exception if the store is unavailable.
-            try
-            {
-                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                await db.HistoryPreparationStates.Where(row => row.Kind == kind).ExecuteUpdateAsync(setters => setters
-                    .SetProperty(row => row.LastFailure, exception is OperationCanceledException ? "cancelled: resume prepare" : "batch failed: verify database, indexes and rules; resume prepare")
-                    .SetProperty(row => row.Ready, false), deadline.Token);
-            }
-            catch (Exception) { /* Preserve the primary failure; previously committed progress remains authoritative. */ }
+            await RecordFailureAsync(kind, exception);
             throw;
         }
+    }
+
+    /// <summary>Retain committed checkpoints but revoke readiness on failure; an unavailable failure write cannot hide the primary error.</summary>
+    private async Task RecordFailureAsync(string kind, Exception exception)
+    {
+        db.ChangeTracker.Clear();
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await db.HistoryPreparationStates.Where(row => row.Kind == kind).ExecuteUpdateAsync(setters => setters
+                .SetProperty(row => row.LastFailure, exception is OperationCanceledException ? "cancelled: resume prepare" : "preparation failed: verify database, indexes and rules; resume prepare")
+                .SetProperty(row => row.Ready, false), deadline.Token);
+        }
+        catch (Exception) { /* Preserve the primary failure; previously committed progress remains authoritative. */ }
     }
 
     /// <summary>Fresh all-owner counts and physical prerequisites; callers use their response transaction snapshot.</summary>
