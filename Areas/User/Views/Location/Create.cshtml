@@ -81,12 +81,13 @@
                             <i class="bi bi-question-circle text-muted ms-1"
                                data-tippy-content="Enter the local time at this location. The time will be stored as UTC and displayed in your configured timezone."></i>
                         </label>
+                        <!-- ModelState retains attempted validation input; fresh pages initialize browser-local time. -->
                         <input type="datetime-local"
                                class="form-control"
                                id="LocalTimestamp"
                                asp-for="LocalTimestamp"
                                data-initialize-local-time="@(!ViewData.ModelState.ContainsKey("LocalTimestamp") ? "true" : "false")"
-                               value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm")" />
+                               asp-format="{0:yyyy-MM-ddTHH:mm}" />
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>
 

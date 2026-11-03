@@ -86,6 +86,112 @@ const owners = [
   ['segment', 'SegmentManager.vue', 'draft', 'openEdit', 'saveDraft', 'resetDraft', segment]
 ];
 
+// FIFO echoes can repeat HTML after a formatting reversal; each delivery gets its own Vue tick.
+test('repeated FIFO Vue echoes preserve newer typing, selection and undo', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  for (const echoBeforeTyping of [false, true]) {
+    await t.test(`first echo before final typing: ${echoBeforeTyping}`, async () => {
+      const page = await browser.newPage();
+      try {
+        await page.setContent('<div id="app"></div>');
+        await page.addScriptTag({ content: script });
+        const result = await page.evaluate(async echoBeforeTyping => {
+          window.captured = {};
+          window.capture = (name, bindings) => (captured[name] ??= []).push(bindings);
+          const values = Probe.reactive({ html: '' });
+          const emitted = [];
+          const app = Probe.createApp({ render: () => Probe.h(Probe.RichNotesEditor, {
+            editorId: 'fifo', label: 'Notes', modelValue: values.html, validationMessages: [],
+            'onUpdate:modelValue': value => emitted.push(value)
+          }) });
+          app.mount('#app');
+          const handle = captured['RichNotesEditor.vue'][0].handle;
+          const editor = handle.editor;
+          editor.commands.insertContent('A');
+          editor.commands.selectAll(); editor.commands.toggleBold(); editor.commands.toggleBold();
+          if (echoBeforeTyping) { values.html = emitted[0]; await Probe.nextTick(); }
+          editor.commands.focus('end'); editor.commands.insertContent('C');
+          const selection = editor.state.selection;
+          const deliveries = [];
+          for (const value of emitted.slice(echoBeforeTyping ? 1 : 0)) {
+            values.html = value;
+            await Probe.nextTick();
+            deliveries.push({ html: handle.getValue(), undo: editor.can().undo(), selection: editor.state.selection.eq(selection) });
+          }
+          const sequence = [...emitted];
+          editor.commands.undo(); const undone = handle.getValue();
+          editor.commands.redo(); const redone = handle.getValue();
+          app.unmount();
+          return { sequence, deliveries, undone, redone };
+        }, echoBeforeTyping);
+        assert.deepEqual(result.sequence, ['<p>A</p>', '<p><strong>A</strong></p>', '<p>A</p>', '<p>AC</p>']);
+        for (const delivery of result.deliveries) assert.deepEqual(delivery, { html: '<p>AC</p>', undo: true, selection: true });
+        assert.notEqual(result.undone, '<p>AC</p>'); assert.equal(result.redone, '<p>AC</p>');
+      } finally { await page.close(); }
+    });
+  }
+});
+
+// Exercise Reset through the actual creation form and owner, including an unchanged empty Notes value.
+test('Region, Place and Area creation Reset retire Notes redo and dialogs', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  for (const [kind, draft, open, reset] of [
+    ['region', 'draft', 'openCreate', 'resetDraft'],
+    ['place', 'placeDraft', 'openPlaceCreate', 'resetPlaceDraft'],
+    ['area', 'areaDraft', 'openAreaCreate', 'resetAreaDraft']
+  ]) {
+    await t.test(kind, async () => {
+      const page = await browser.newPage();
+      try {
+        await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
+        await page.goto('http://notes.test/');
+        await page.addScriptTag({ content: script });
+        await page.evaluate(state => Probe.mountApp(state), {
+          ...state, options: { ...state.options, areaDefaults: { name: 'Custom Area', fillHex: '#123456' } }
+        });
+        await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+        const results = await page.evaluate(async ({ kind, draft, open, reset, region }) => {
+          captured['App.vue'][0].editorSurface.clearActiveTarget();
+          const owner = captured['RegionManager.vue'][0];
+          await owner[open](region); await Probe.nextTick();
+          const current = () => captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed);
+          const defaults = { name: owner[draft].name, parent: owner[draft].regionId, fill: owner[draft].fillHex };
+          const results = [];
+          for (const withDialog of [false, true]) {
+            const notes = current(), handle = notes.handle;
+            handle.editor.commands.insertContent('discarded note');
+            handle.editor.commands.undo(); await Probe.nextTick();
+            const beforeReset = handle.getValue();
+            owner[draft].name = 'Changed Name'; await Probe.nextTick();
+            const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Reset');
+            const enabled = button && !button.disabled;
+            if (withDialog) { notes.openDialog('link'); await Probe.nextTick(); }
+            // Existing busy Place/Area resets must keep the live session and draft intact.
+            let busyPreserved = true;
+            if (kind !== 'region') {
+              owner.isSaving = true; owner[reset](); await Probe.nextTick();
+              busyPreserved = !handle.editor.isDestroyed && owner[draft].name === 'Changed Name';
+              owner.isSaving = false; await Probe.nextTick();
+            }
+            if (withDialog) owner[reset](); else button.click();
+            await Probe.nextTick();
+            current().handle.editor.commands.redo(); await Probe.nextTick();
+            results.push({ beforeReset, enabled, busyPreserved, retired: handle.editor.isDestroyed,
+              dialogs: document.querySelectorAll('dialog[open]').length, html: current().handle.getValue(), draft: owner[draft].notesHtml,
+              defaultsRetained: defaults.name === owner[draft].name && defaults.parent === owner[draft].regionId && defaults.fill === owner[draft].fillHex });
+          }
+          app.unmount();
+          return results;
+        }, { kind, draft, open, reset, region });
+        for (const result of results) assert.deepEqual(result, { beforeReset: '', enabled: true, busyPreserved: true,
+          retired: true, dialogs: 0, html: '', draft: '', defaultsRetained: true });
+      } finally { await page.close(); }
+    });
+  }
+});
+
 test('actual Vue Notes emissions retain all five Trip owner contracts', async t => {
   const browser = await chromium.launch();
   t.after(() => browser.close());

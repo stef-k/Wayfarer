@@ -11,13 +11,14 @@
 - Migrate the remaining Web Notes consumers to the shared Tiptap 3.32.2 engine
   (#939 W2): Location Create, Bulk Notes, Visit Edit and all five Trip owners.
   Preserve ordinary MVC validation, bulk execution/selection, feature-owned drafts,
-  immutable save attempts and uncertain-outcome recovery. Prop echoes retain live
-  selection/history; owner reset retires only its Notes session. Keep Visit strike
-  and H1–H3, Trip alignment/fonts, labelled URL dialogs and independent instances.
+  immutable save attempts and uncertain-outcome recovery. Repeated FIFO prop echoes
+  retain newer typing and live selection/history; creation/edit reset retires only
+  its Notes session. Create validation retains the attempted timestamp. Keep Visit
+  strike and H1–H3, Trip alignment/fonts, labelled URL dialogs and independent instances.
   Reject unsupported transfers before insertion with feedback; keep canonical image
-  URLs, secure proxy previews and failed-reference feedback. Read-only historical
-  styles remain passive. Final dependency/copied-distribution removal and published
-  output reconciliation remain W3; independent W2 acceptance is pending.
+  URLs, secure proxy previews and failed-reference feedback. Render standard HTML/styles;
+  historical formatting may need manual repair. Final dependency/copied-distribution
+  removal and published output reconciliation remain W3; independent W2 acceptance is pending.
 - Replace Quill in protected Location Edit with the shared native Tiptap editor
   (#939 W1). Keep untouched Notes and existing protected save/recovery ownership.
   Add finite standard font/alignment CSS to rich-note normalization; retain older

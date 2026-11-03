@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
 
-/** Actual display helpers and shipped CSS retain standard styles and passive history without live editors. */
+/** Actual display helpers and shipped CSS retain standard HTML/styles without live editors. */
 test('Notes display surfaces retain standard formatting and proxy privacy', async t => {
   const bundle = await build({ stdin: { contents: `export { notesHtmlForDisplay } from './wwwroot/js/util/notes-images.js';
     export { placeNotesPreviewHtml } from './ClientApps/trip-editor/src/displayHelpers';`, resolveDir: process.cwd(), loader: 'ts' },
@@ -24,8 +24,7 @@ test('Notes display surfaces retain standard formatting and proxy privacy', asyn
   const result = await page.evaluate(() => {
     const html = '<h3 style="text-align: right;"><span style="font-family: monospace;">Heading</span></h3>'
       + '<p><strong>B</strong><em>I</em><u>U</u><s>S</s><a href="/safe">link</a><img src="https://images.example.test/a"></p>'
-      + '<ol><li>ordered</li></ol><ul><li>bullet</li></ul><blockquote>quote</blockquote>'
-      + '<p class="ql-align-center"><span class="ql-font-serif">historical</span></p>';
+      + '<ol><li>ordered</li></ol><ul><li>bullet</li></ul><blockquote>quote</blockquote>';
     return ['trip-notes', 'place-notes', 'notes-content', 'trip-notes-readable', 'rich-notes-content'].map((surface, i) => {
       const container = document.createElement('section');
       container.className = surface;
@@ -33,8 +32,6 @@ test('Notes display surfaces retain standard formatting and proxy privacy', asyn
       document.querySelector('main').append(container);
       return { surface, heading: getComputedStyle(container.querySelector('h3')).textAlign,
         font: getComputedStyle(container.querySelector('h3 span')).fontFamily,
-        historicalAlign: getComputedStyle(container.querySelector('.ql-align-center')).textAlign,
-        historicalFont: getComputedStyle(container.querySelector('.ql-font-serif')).fontFamily,
         image: container.querySelector('img').getAttribute('src'),
         tags: ['strong', 'em', 'u', 's', 'a', 'ol', 'ul', 'blockquote'].every(tag => container.querySelector(tag)),
         minHeight: getComputedStyle(container).minHeight, editable: container.querySelectorAll('[contenteditable]').length };
@@ -42,7 +39,6 @@ test('Notes display surfaces retain standard formatting and proxy privacy', asyn
   });
   for (const value of result) {
     assert.equal(value.heading, 'right', value.surface); assert.equal(value.font, 'monospace');
-    assert.equal(value.historicalAlign, 'center'); assert.match(value.historicalFont, /Georgia/);
     assert.equal(value.image, '/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Fa');
     assert.equal(value.tags, true); assert.equal(value.editable, 0); assert.equal(value.minHeight, '0px');
   }

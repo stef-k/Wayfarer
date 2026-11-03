@@ -51,7 +51,10 @@ export function useAreaEditorActions(context: any) {
   const resetAreaDraft = (): void => {
     if (context.isSaving.value) return;
     if (!areaDraft.id) {
-      Object.assign(areaDraft, emptyAreaDraft(areaDraft.regionId, context.props.state.options.areaDefaults.fillHex));
+      // Retire discarded Notes history/dialogs while retaining this creation's parent and defaults.
+      const regionId = areaDraft.regionId;
+      context.areaDraftState.reset(null);
+      Object.assign(areaDraft, emptyAreaDraft(regionId, context.props.state.options.areaDefaults.fillHex));
       areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
     } else {
       context.areaDraftState.reset(context.activeArea.value);

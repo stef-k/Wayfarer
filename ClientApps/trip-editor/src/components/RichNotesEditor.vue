@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { createNotesEditor, isSafeNotesLink, type NotesEditor } from '../../../rich-notes/editor';
 import '../../../rich-notes/editor.css';
 
@@ -26,8 +26,9 @@ const dialogError = ref('');
 const feedbackMessage = ref('');
 const controls = ref({ bold: false, italic: false, underline: false, ordered: false, bullet: false, heading: '0', font: '', align: 'left' });
 let handle: NotesEditor | null = null;
-// Only values emitted since the last parent acknowledgement can be echoes. Retired values
-// never suppress a later owner reset; external adoption uses the engine's explicit history reset.
+// Acknowledge the earliest matching emission: formatting reversals can repeat HTML.
+// Keep unresolved echoes across ticks, even when the current prop already equals one of them.
+// Explicit owner resets retire this component; distinct external adoption resets native history.
 const pendingEchoes: string[] = [];
 
 /** Preserve the public focus contract used by Segment Reset and surface navigation. */
@@ -54,10 +55,6 @@ onMounted(() => {
     const value = handle!.getValue();
     pendingEchoes.push(value);
     emit('update:modelValue', value);
-    // Batched undo/reversal may leave the prop unchanged, so no watcher would retire its echoes.
-    void nextTick(() => {
-      if (props.modelValue === pendingEchoes.at(-1)) pendingEchoes.length = 0;
-    });
   });
   handle.editor.on('transaction', syncControls);
   syncControls();
@@ -65,7 +62,7 @@ onMounted(() => {
 
 watch(() => props.modelValue, value => {
   if (!handle) return;
-  const echo = pendingEchoes.lastIndexOf(value);
+  const echo = pendingEchoes.indexOf(value);
   if (echo >= 0) {
     pendingEchoes.splice(0, echo + 1);
     return;
