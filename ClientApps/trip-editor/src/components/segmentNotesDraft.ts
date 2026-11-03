@@ -280,5 +280,5 @@ export const createSegmentNotesDraft = (options: {
     }
   };
 
-  return { held, save, reset, acceptComplete, retainRoute: () => routeHeld.value };
+  return { session, held, save, reset, acceptComplete, retainRoute: () => routeHeld.value };
 };

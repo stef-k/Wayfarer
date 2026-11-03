@@ -22,7 +22,7 @@ Tests that opt into PostgreSQL may still skip when the guarded database is not a
 
 Mocked/InMemory/controller tests prove their own seam. They do not automatically prove PostgreSQL constraints, transactions, migrations or PostGIS behavior.
 
-## Native rich Notes editor (W1)
+## Native rich Notes editors (W1/W2)
 
 `npm run test:rich-notes` uses the installed, version-matched Playwright Chromium
 for native Tiptap commands in a real DOM without an application host. It checks
@@ -43,10 +43,58 @@ references and standard font CSS from actual server publication. This focused
 integration smoke needs outbound server HTTPS to that public image. It does not
 mock the proxy or turn an unavailable origin into a product failure.
 
-Vite owns Location Edit and Trip entries. Location Edit no longer has an auto-linked
-MvcFrontendKit script. `ViteAssets.Read` includes CSS from imported chunks for both
-entries. Other Razor editors still use their established bundles and Quill until
-W2/W3. Build with `npm run build`; development also needs `npm run dev` on 5173.
+Vite owns all four Razor entries under `ClientApps/rich-notes/` and the Trip entry.
+The Razor views use `ViteAssets.Read`, including transitive imported CSS, after the
+layout's global scripts. The replaced auto-linked MvcFrontendKit constructors are
+removed. Each page loads one entry. Build with `npm run build`; development also
+needs `npm run dev` on 5173. `npm run smoke:trip-editor:assets:built` checks all five
+entry graphs. Final dependency/copied-distribution and published-output removal
+remain W3 work; migrated pages have no Quill fallback.
+
+W2's focused native DOM selection uses actual compiled Vue components, forms,
+feature draft owners and Vue scheduling. Only HTTP, geography and unrelated
+confirmation UI are substituted. No alternative editor model or normalizer is used:
+
+~~~sh
+node --test tests/editor/consumerNotes.test.mjs tests/editor/razorNotes.test.mjs tests/editor/notesRendering.test.mjs
+npm run test:e2e:shared-layout -- --grep 'Trip Tiptap Vue interaction'
+~~~
+
+The component checks connect real emissions to Trip metadata, Region, Place, Area
+and Segment requests. They cover untouched input, delayed acknowledgement/newer
+input, refresh, edited empty, explicit reset (including unchanged-value reset with
+pending redo), prop echoes, two editor instances, dialogs and disposal/remount.
+Ordinary Razor entry tests own hidden-field submission/validation retention and
+bulk operation selection. Existing controller tests retain bulk filtering and
+Apply-time execution authority; the editor never freezes preview counts or adds
+retry/receipt semantics. `RichNotesImportExportTests` owns existing native transport
+normalization for all five Trip Notes fields. Display helpers and shipped passive
+CSS cover standard formatting, historical classes and proxied images without
+read-only editor instances.
+
+The hosted Vue smoke is one typing/toolbar/dialog/save/reload journey against a
+run-owned Trip. Native engine command/transfer/security cases remain in W1's
+`richNotes.test.mjs`; reuse accepted evidence after comparing its production source,
+rather than repeating its matrix for each consumer. Earlier hosted Quill parity
+and terminal-DOM matrices were replaced by the native component/owner checks and
+this smoke. Historical-list edited parity and Quill artificial continuation-line
+structure are superseded; native keyboard continuation remains supported. Other
+journeys use semantic controls and native HTML expectations; updating their
+selectors is not fresh evidence that those broader journeys ran.
+
+`RichNotesEditor.vue` keeps its public props, v-model event and `focusEditor` method.
+Each mount owns a native document/history and uniquely labelled URL dialog. Echoes
+acknowledge emitted values without replacing the live document. Distinct owner
+values explicitly adopt into the engine. Owner reset/session identities key only
+the Notes child, retiring its history even when the displayed Notes value is
+already equal after Undo. HTTP, nullable originals, immutable attempts, drafts,
+conflicts and unknown outcomes stay in the existing owners. Location Create and
+Visit Edit remain ordinary MVC forms; Bulk's editor Clear remains separate from
+ClearNotes. Images use the shared canonical URL/proxy policy; failed previews
+retain their URL and report feedback. Remove formatting keeps links/images/text.
+Older formatting may require manual adjustment after deliberate editing; mount,
+focus and unrelated field saves do not author Notes. Ordinary MVC normalization
+still applies at the server's published-input boundary.
 
 ## Coverage reports
 

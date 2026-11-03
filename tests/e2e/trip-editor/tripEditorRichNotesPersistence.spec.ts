@@ -26,40 +26,40 @@ test.describe.serial('Trip Editor rich notes real persistence contract', () => {
 
     try {
       const form = page.locator('#trip-editor-metadata-form');
-      const editor = richEditor(form).locator('.ql-editor');
+      const editor = richEditor(form).locator('.rich-notes-content');
       await editor.click();
       await page.keyboard.press('Control+A');
       await page.keyboard.press('Backspace');
       await page.keyboard.type(runText);
       await page.keyboard.press('Enter');
-      await richEditor(form).locator('button.ql-align[value="center"]').click();
+      await richEditor(form).getByRole('combobox', { name: 'Alignment' }).selectOption('center');
       await page.keyboard.type('Centered persisted note');
       await page.keyboard.press('Enter');
-      await richEditor(form).locator('button.ql-list[value="ordered"]').click();
+      await richEditor(form).getByRole('button', { name: 'Ordered list', exact: true }).click();
       await page.keyboard.type('Ordered persisted note');
       await page.keyboard.press('Enter');
       await page.keyboard.press('Backspace');
       await page.keyboard.press('Enter');
-      await richEditor(form).locator('button.ql-list[value="bullet"]').click();
+      await richEditor(form).getByRole('button', { name: 'Bullet list', exact: true }).click();
       await page.keyboard.type('Bullet persisted note');
       await page.keyboard.press('Enter');
       await page.keyboard.press('Backspace');
       await insertImageUrl(form, imageUrl);
       await expect(editor).toContainText(runText);
-      await expect(editor.locator('p.ql-align-center').filter({ hasText: 'Centered persisted note' })).toBeVisible();
+      await expect(editor.locator('p[style*="text-align: center"]').filter({ hasText: 'Centered persisted note' })).toBeVisible();
 
       const saveResponse = page.waitForResponse(response =>
         response.url().endsWith(`${editorApiPath}/metadata/conditional`) && response.request().method() === 'PATCH');
-      await page.getByRole('button', { name: 'Save & Continue' }).click();
+      await page.getByRole('button', { name: 'Save settings & Continue' }).click();
       expect((await saveResponse).ok()).toBeTruthy();
       await expectSaved(page);
 
       await expectState(page, state => {
         const notes = state.metadata.notesHtml as string;
         expect(notes).toContain(runText);
-        expect(notes).toContain('<p class="ql-align-center">Centered persisted note');
-        expect(notes).toMatch(/<li[^>]*data-list="ordered"[^>]*>Ordered persisted note<\/li>/);
-        expect(notes).toMatch(/<li[^>]*data-list="bullet"[^>]*>Bullet persisted note<\/li>/);
+        expect(notes).toContain('<p style="text-align: center;">Centered persisted note');
+        expect(notes).toMatch(/<ol>.*Ordered persisted note.*<\/ol>/);
+        expect(notes).toMatch(/<ul>.*Bullet persisted note.*<\/ul>/);
         expect(notes).toContain(`src="${imageUrl}"`);
         expect(notes).not.toContain('/Public/ProxyImage');
         expect(notes).not.toContain('<p><br></p>');
@@ -69,11 +69,11 @@ test.describe.serial('Trip Editor rich notes real persistence contract', () => {
       await page.reload();
       await expectMountedWorkspace(page);
       const reloadedForm = page.locator('#trip-editor-metadata-form');
-      const reloadedEditor = richEditor(reloadedForm).locator('.ql-editor');
+      const reloadedEditor = richEditor(reloadedForm).locator('.rich-notes-content');
       await expect(reloadedEditor).toContainText(runText);
-      await expect(reloadedEditor.locator('p.ql-align-center').filter({ hasText: 'Centered persisted note' })).toBeVisible();
-      await expect(reloadedEditor.locator('li[data-list="ordered"]')).toContainText('Ordered persisted note');
-      await expect(reloadedEditor.locator('li[data-list="bullet"]')).toContainText('Bullet persisted note');
+      await expect(reloadedEditor.locator('p[style*="text-align: center"]').filter({ hasText: 'Centered persisted note' })).toBeVisible();
+      await expect(reloadedEditor.locator('ol li')).toContainText('Ordered persisted note');
+      await expect(reloadedEditor.locator('ul li')).toContainText('Bullet persisted note');
       await expect(reloadedEditor.locator('img')).toHaveAttribute('src', /\/Public\/ProxyImage\?url=https%3A%2F%2Fimages\.example\.test%2Frich-notes-persistence\.png$/);
     } finally {
       if (!page.isClosed()) {
@@ -99,12 +99,12 @@ function richEditor(form: Locator): Locator {
 }
 
 async function insertImageUrl(form: Locator, url: string): Promise<void> {
-  await richEditor(form).locator('.ql-image').click();
+  await richEditor(form).getByRole('button', { name: 'Image', exact: true }).click();
   const dialog = form.page().getByRole('dialog', { name: 'Insert image URL' });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Image URL').fill(url);
   await dialog.getByRole('button', { name: 'Insert Image' }).click();
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog).not.toBeVisible();
 }
 
 async function expectSaved(page: Page): Promise<void> {

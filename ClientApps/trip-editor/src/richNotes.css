@@ -21,10 +21,6 @@
   color: var(--trip-editor-text);
   font: inherit;
   min-height: 9rem;
-}
-
-.trip-editor-rich-notes__editor .rich-notes-content {
-  min-height: 9rem;
   line-height: 1.5;
 }
 
@@ -67,7 +63,7 @@
   padding: 0.45rem 0.55rem;
 }
 
-/* Native modal owns focus containment and Escape; theme tokens live on the Trip root. */
+/* Native modal owns focus containment and Escape; theme tokens live on the document root. */
 .trip-editor-rich-notes-dialog {
   background: var(--trip-editor-surface, #fff);
   border: 1px solid var(--trip-editor-border, #aaa);

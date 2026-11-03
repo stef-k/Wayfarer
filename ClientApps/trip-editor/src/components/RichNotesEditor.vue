@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { createNotesEditor, isSafeNotesLink, type NotesEditor } from '../../../rich-notes/editor';
 import '../../../rich-notes/editor.css';
 
@@ -54,6 +54,10 @@ onMounted(() => {
     const value = handle!.getValue();
     pendingEchoes.push(value);
     emit('update:modelValue', value);
+    // Batched undo/reversal may leave the prop unchanged, so no watcher would retire its echoes.
+    void nextTick(() => {
+      if (props.modelValue === pendingEchoes.at(-1)) pendingEchoes.length = 0;
+    });
   });
   handle.editor.on('transaction', syncControls);
   syncControls();

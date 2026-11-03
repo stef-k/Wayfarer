@@ -66,8 +66,9 @@ const mountLocationCreate = () => {
     // Construct the formatted datetime-local string
     var localDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
 
-    // Set the value of the datetime-local input field
-    if (!document.getElementById('LocalTimestamp').value) document.getElementById('LocalTimestamp').value = localDateTime;
+    // Use browser-local now on a fresh form; validation redisplay retains the attempted timestamp.
+    const timestamp = document.getElementById('LocalTimestamp');
+    if (timestamp.dataset.initializeLocalTime === 'true') timestamp.value = localDateTime;
 
     // Ordinary MVC submission owns validation; Notes changes only after authoring or explicit Clear.
     const notes = mountRazorNotes(document.getElementById('notes'));

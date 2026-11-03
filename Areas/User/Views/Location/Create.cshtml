@@ -85,6 +85,7 @@
                                class="form-control"
                                id="LocalTimestamp"
                                asp-for="LocalTimestamp"
+                               data-initialize-local-time="@(!ViewData.ModelState.ContainsKey("LocalTimestamp") ? "true" : "false")"
                                value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm")" />
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>

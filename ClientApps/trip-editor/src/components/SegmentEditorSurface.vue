@@ -15,6 +15,8 @@ const props = defineProps<{
   draftContextKey: string;
   fieldErrors: (key: string) => string[];
   formId: string;
+  /** Only an owner reset/session change retires the Notes history. */
+  notesSession?: number;
   formSummaryErrors: string[];
   isDirty: boolean;
   isSaving: boolean;
@@ -71,6 +73,7 @@ defineEmits<{
         :draft="draft"
         :field-errors="fieldErrors"
         :form-id="formId"
+        :notes-session="notesSession"
         :form-summary-errors="formSummaryErrors"
         :is-dirty="isDirty"
         :is-saving="isSaving"

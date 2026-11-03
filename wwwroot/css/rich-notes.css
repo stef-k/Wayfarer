@@ -7,3 +7,11 @@
 .rich-notes-content :is(ol, ul) { padding-inline-start: 1.5rem; }
 .rich-notes-content li + li { margin-top: 0.25rem; }
 .rich-notes-content img { display: block; height: auto; margin: 0.75rem auto; max-width: 100%; }
+
+/* Passive historical formatting stays readable without mounting an editor or loading Snow. */
+.ql-align-center { text-align: center; }
+.ql-align-right { text-align: right; }
+.ql-align-justify { text-align: justify; }
+.ql-font-serif { font-family: Georgia, "Times New Roman", serif; }
+.ql-font-monospace { font-family: Monaco, "Courier New", monospace; }
+li[data-list="bullet"] { list-style-type: disc; }

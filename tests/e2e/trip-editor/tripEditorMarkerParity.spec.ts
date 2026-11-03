@@ -226,7 +226,7 @@ test.describe.serial('Trip Editor marker and notes parity', () => {
     await loadWorkspaceWithMarkerFixture(page, requests);
 
     await sidebarRow(page, firstPlaceId).getByRole('button', { name: 'Edit', exact: true }).click();
-    const editorImage = page.locator('#trip-editor-place-form .ql-editor img').first();
+    const editorImage = page.locator('#trip-editor-place-form .rich-notes-content img').first();
     await expect(editorImage).toHaveAttribute('src', /\/Public\/ProxyImage\?url=/);
     await expectLoadedImages(editorImage);
 

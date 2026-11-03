@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 // Exercise the production draft owner and sanitizer in a real DOM without an application host.
 let script: string;
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `export { default as Quill } from 'quill';
+  const bundle = await build({ stdin: { contents: `export { createNotesEditor } from './ClientApps/rich-notes/editor';
     export { createMetadataDraftState } from './ClientApps/trip-editor/src/components/metadataDraft';`,
     resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife',
     globalName: 'metadataNotesProbe', platform: 'browser' });
@@ -14,9 +14,9 @@ test.beforeAll(async () => {
 // These outputs represent RichNotes' link allow-list, tag unwrapping and cross-host proxy restoration.
 const image = 'https://images.example.test/photo.jpg';
 for (const example of [
-  { label: 'Quill SMS link', link: 'sms:+1234',
-    submitted: '<p><a href="sms:+1234">Contact</a></p>', stored: '<p><a>Contact</a></p>' },
-  { label: 'Quill HTTPS control', link: 'https://example.test',
+  { label: 'rejected SMS link', link: 'sms:+1234',
+    submitted: '<p>Contact</p>', stored: '<p>Contact</p>' },
+  { label: 'HTTPS control', link: 'https://example.test',
     submitted: '<p><a href="https://example.test">Contact</a></p>', stored: '<p><a href="https://example.test">Contact</a></p>' },
   { label: 'unsupported inline tag', link: null,
     submitted: '<p><mark>Contact</mark></p>', stored: '<p>Contact</p>' },
@@ -27,16 +27,18 @@ for (const example of [
   await page.setContent('<div id="notes"></div>');
   await page.addScriptTag({ content: script });
   const result = await page.evaluate(example => {
-    const { Quill, createMetadataDraftState } = (window as any).metadataNotesProbe;
+    const { createNotesEditor, createMetadataDraftState } = (window as any).metadataNotesProbe;
     const before = { id: 'trip', name: 'Trip', notesHtml: '', isPublic: true, shareProgressEnabled: false,
       coverImage: null, center: null, zoom: null,
       originalValues: { name: 'Trip', notesHtml: null, isPublic: true, coverImage: null, center: null, zoom: null } };
     const owner = createMetadataDraftState(before, [], {});
     if (example.link) {
-      const quill = new Quill('#notes');
-      quill.setText('Contact');
-      quill.formatText(0, 7, 'link', example.link);
-      owner.draft.notesHtml = quill.root.innerHTML;
+      const handle = createNotesEditor(document.getElementById('notes'), '', 'label', () => {});
+      handle.editor.commands.insertContent('Contact');
+      handle.editor.commands.selectAll();
+      handle.editor.commands.setLink({ href: example.link });
+      owner.draft.notesHtml = handle.getValue();
+      handle.dispose();
     } else owner.draft.notesHtml = example.submitted;
     const submitted = owner.beginMetadata();
     const saved = { ...before, notesHtml: example.stored,

@@ -533,7 +533,7 @@ async function openSegment(page: Page, id: string): Promise<void> {
 }
 
 function notesEditor(form: Locator): Locator {
-  return form.locator('.ql-editor[contenteditable="true"]');
+  return form.locator('.rich-notes-content[contenteditable="true"]');
 }
 
 async function captureNextPut(page: Page, id: string): Promise<Record<string, any>> {

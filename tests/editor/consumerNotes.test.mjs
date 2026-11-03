@@ -1,0 +1,241 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
+import { build } from 'esbuild';
+import { chromium } from '@playwright/test';
+
+// Use the established SFC compiler seam in a native DOM. All forms, Notes, draft owners,
+// normalization and parent scheduling are production code; only geography/confirmation/HTTP are substituted.
+const bundle = await build({ stdin: { contents: `
+  import App from './App.vue';
+  import RichNotesEditor from './components/RichNotesEditor.vue';
+  import { createApp, h, nextTick, proxyRefs, reactive } from 'vue';
+  export { createApp, h, nextTick, reactive, RichNotesEditor };
+  export function mountApp(state) {
+    window.captured = {};
+    window.capture = (name, bindings) => (captured[name] ??= []).push(proxyRefs(bindings));
+    window.fetch = async () => new Response(JSON.stringify(state));
+    window.app = createApp(App, { config: { editorEndpoint: '/api/trips/trip/editor', antiforgeryToken: 'anti', tripIndexUrl: '/User/Trip' } });
+    app.mount('#app');
+  }`, loader: 'ts', resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'iife', globalName: 'Probe',
+  plugins: [{ name: 'actual-notes-owners', setup(builder) {
+    builder.onLoad({ filter: /\.vue$/ }, async args => {
+      if (/ConfirmDialog\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
+      const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
+      const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
+      const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
+        compilerOptions: { bindingMetadata: script.bindings } });
+      return { loader: 'ts', contents: `${script.content}\n${template.code}\n__component.render = render;
+        const setup = __component.setup;
+        __component.setup = (props, context) => {
+          const bindings = setup(props, context);
+          window.capture?.(${JSON.stringify(args.path.split('/').at(-1))}, bindings);
+          return bindings;
+        }; export default __component;` };
+    });
+    builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
+    builder.onLoad({ filter: /leafletAdapter\.ts$/ }, () => ({ contents: `export const createTripEditorMap = () => ({
+      render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {},
+      setSegmentDraftPreview() {}, setPlaceDraftPreview() {}, setSegmentRouteWorkState() {},
+      getMapView: () => ({ center: { latitude: 10, longitude: 20 }, zoom: 5 }) });
+      export const hasAnyGeometry = () => true; export const hasSavedTripView = () => false;
+      export const canFocusActiveEntity = () => true;` }));
+    builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: `export const confirm = async () => true;
+      export const disposeConfirmDialogHost = () => {}; export const setConfirmDialogFocusFallback = () => {};` }));
+  } }] });
+const script = bundle.outputFiles.find(file => !file.path.endsWith('.css')).text;
+const original = '<p class="ql-align-center">Original</p>';
+const capabilities = { canEdit: true, canDelete: true, canAddChildren: true, canReorder: true, canMove: true, canRename: true };
+const region = { id: 'region', tripId: 'trip', name: 'Region', notesHtml: original, coverImage: null, center: null, displayOrder: 1,
+  isShadow: false, capabilities, originalValues: { name: 'Region', notesHtml: original, coverImage: null, center: null } };
+const place = { id: 'place', tripId: 'trip', regionId: 'region', name: 'Place', notesHtml: original, address: '',
+  location: { latitude: 10, longitude: 20 }, iconName: 'marker', markerColor: 'bg-blue', displayOrder: 1, capabilities,
+  visitSummary: { placeId: 'place', visitCount: 0, isVisited: false, firstVisitAt: null, lastVisitAt: null },
+  originalValues: { regionId: 'region', name: 'Place', notesHtml: original, address: '', iconName: 'marker', markerColor: 'bg-blue', displayOrder: 1 } };
+const area = { id: 'area', tripId: 'trip', regionId: 'region', name: 'Area', notesHtml: original, fillHex: '#ff6600', displayOrder: 1,
+  geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,0]]] }, capabilities,
+  originalValues: { regionId: 'region', name: 'Area', notesHtml: original, fillHex: '#ff6600', geometry: 'area-polygon-1:proof' } };
+const route = { type: 'LineString', coordinates: [[20,10],[21,11]] };
+const segment = { id: 'segment', tripId: 'trip', fromPlaceId: 'place', toPlaceId: 'place', waypointPlaceIds: [], waypointRouteVertexIndices: [],
+  mode: 'walk', transportProfileId: null, hasCustomRoute: true, estimatedDistanceKm: 1, estimatedDurationMinutes: 10,
+  estimatedDurationSource: 'Manual', notesHtml: original, route, effectiveRoute: route, originalRouteToken: 'route',
+  aggregateConcurrencyToken: 'aggregate', displayOrder: 1, capabilities, originalValues: { notesHtml: original } };
+const metadata = { id: 'trip', name: 'Trip', notesHtml: original, isPublic: false, shareProgressEnabled: false, coverImage: null,
+  center: null, zoom: null, updatedAt: '2026-11-03T00:00:00Z',
+  originalValues: { name: 'Trip', notesHtml: original, isPublic: false, coverImage: null, center: null, zoom: null } };
+const state = { tripId: 'trip', metadata, regionsById: { region }, regionOrder: ['region'], placesById: { place }, placeOrderByRegionId: { region: ['place'] },
+  areasById: { area }, areaOrderByRegionId: { region: ['area'] }, segmentsById: { segment }, segmentOrder: ['segment'], tagsBySlug: {}, tagOrder: [],
+  options: { transportModes: [{ value: 'walk', label: 'Walk' }], iconNames: ['marker'], markerColorClasses: ['bg-blue'],
+    areaDefaults: { name: 'Area', fillHex: '#ff6600' }, tag: { maxCount: 10, maxNameLength: 20, suggestions: [] } },
+  permissions: { canEditMetadata: true, canEditRegions: true, canEditPlaces: true, canEditAreas: true, canEditSegments: true },
+  visitProgress: { totalPlaces: 1, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: { place: place.visitSummary }, historyRows: [] } };
+
+/** Refresh only this consumer's affected slice, through the actual App mutation owner. */
+const envelope = (kind, data) => ({ success: true, data, affected: { metadata: kind === 'metadata' ? data : null,
+  regions: kind === 'region' ? [data] : [], places: kind === 'place' ? [data] : [], areas: kind === 'area' ? [data] : [],
+  segments: kind === 'segment' ? [data] : [], tags: [], placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, regionOrder: null,
+  segmentOrder: null, tagOrder: null, visitProgress: null, options: null },
+  deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
+
+const owners = [
+  ['metadata', 'MetadataEditor.vue', 'draft', 'openMetadata', 'save', 'resetDraft', metadata],
+  ['region', 'RegionManager.vue', 'draft', 'openEdit', 'saveDraft', 'resetDraft', region],
+  ['place', 'RegionManager.vue', 'placeDraft', 'openPlaceEdit', 'savePlaceDraft', 'resetPlaceDraft', place],
+  ['area', 'RegionManager.vue', 'areaDraft', 'openAreaEdit', 'saveAreaDraft', 'resetAreaDraft', area],
+  ['segment', 'SegmentManager.vue', 'draft', 'openEdit', 'saveDraft', 'resetDraft', segment]
+];
+
+test('actual Vue Notes emissions retain all five Trip owner contracts', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  for (const [kind, component, draft, open, save, reset, entity] of owners) {
+    await t.test(kind, async () => {
+      const page = await browser.newPage();
+      try {
+        await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
+        await page.goto('http://notes.test/');
+        await page.addScriptTag({ content: script });
+        await page.evaluate(state => Probe.mountApp(state), state);
+        await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+        const result = await page.evaluate(async ({ kind, component, draft, open, save, reset, entity, original, savedEnvelope, refreshedEnvelope }) => {
+          const parent = captured['App.vue'][0];
+          parent.editorSurface.clearActiveTarget();
+          const owner = captured[component][0];
+          await owner[open](entity);
+          await Probe.nextTick();
+          const notes = captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed);
+          let handle = notes.handle;
+          const current = () => captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
+          const before = owner[draft].notesHtml;
+          handle.focus();
+          await Probe.nextTick();
+          const untouched = owner[draft].notesHtml;
+          handle.editor.commands.selectAll();
+          handle.editor.commands.insertContent('First');
+          await Probe.nextTick();
+          const emitted = owner[draft].notesHtml;
+          const selection = handle.editor.state.selection;
+          // A prop echo must leave the native document, range and undo stack live.
+          const afterEcho = handle.editor.state.selection.eq(selection);
+          let settle;
+          const calls = [];
+          window.fetch = async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return new Promise(resolve => { settle = resolve; }); };
+          const saving = owner[save](false);
+          handle.editor.commands.insertContent(' newer');
+          await Probe.nextTick();
+          parent.applyMutation(refreshedEnvelope);
+          await Probe.nextTick();
+          const duringRefresh = owner[draft].notesHtml;
+          settle(new Response(JSON.stringify(savedEnvelope)));
+          await saving;
+          await Probe.nextTick();
+          const afterSave = owner[draft].notesHtml;
+          const displayed = handle.getValue();
+          // Explicit reset adopts authoritative saved Notes and discards only this live history.
+          owner[reset]();
+          await Probe.nextTick();
+          const resetRetired = handle.editor.isDestroyed;
+          handle = current();
+          const adopted = handle.getValue();
+          handle.editor.commands.undo();
+          const undoAfterReset = handle.getValue();
+          // Reset must retire discarded redo even when undo already returned Notes to the saved value.
+          handle.editor.commands.focus('end');
+          handle.editor.commands.insertContent(' discarded');
+          handle.editor.commands.undo();
+          await Probe.nextTick();
+          owner[reset]();
+          await Probe.nextTick();
+          handle = current();
+          handle.editor.commands.redo();
+          const redoAfterSameValueReset = handle.getValue();
+          handle.clear();
+          await Probe.nextTick();
+          window.fetch = async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ code: 'validation', errors: { notesHtml: ['Check Notes'] } }), { status: 400 }); };
+          await owner[save](false);
+          const empty = owner[draft].notesHtml;
+          const emptyCall = calls.at(-1);
+          // A remount is a fresh native history with the feature-owned draft, never another owner snapshot.
+          parent.editorSurface.clearActiveTarget();
+          await Probe.nextTick();
+          await owner[open](entity);
+          await Probe.nextTick();
+          const remount = captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
+          const remounted = remount.getValue();
+          app.unmount();
+          return { before, untouched, emitted, afterEcho, duringRefresh, afterSave, displayed, adopted, undoAfterReset, empty,
+            calls, emptyCall, resetRetired, redoAfterSameValueReset, retired: handle.editor.isDestroyed, remounted, remountRetired: remount.editor.isDestroyed };
+        }, { kind, component, draft, open, save, reset, entity, original,
+          savedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>First</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>First</p>' } }),
+          refreshedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>Other device</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>Other device</p>' } }) });
+        assert.equal(result.before, original); assert.equal(result.untouched, original);
+        assert.equal(result.emitted, '<p>First</p>'); assert.equal(result.afterEcho, true);
+        assert.equal(result.duringRefresh, '<p>First newer</p>'); assert.equal(result.afterSave, '<p>First newer</p>');
+        assert.equal(result.displayed, '<p>First newer</p>'); assert.equal(result.adopted, '<p>First</p>');
+        assert.equal(result.undoAfterReset, '<p>First</p>'); assert.equal(result.resetRetired, true);
+        assert.equal(result.redoAfterSameValueReset, '<p>First</p>'); assert.equal(result.empty, '');
+        assert.deepEqual(result.calls[0].body.expected, ['place', 'area'].includes(kind) ? { regionId: 'region', notesHtml: original } : { notesHtml: original });
+        assert.deepEqual(result.calls[0].body.changes, { notesHtml: '<p>First</p>' });
+        assert.deepEqual(result.emptyCall.body.changes, { notesHtml: '' });
+        assert.equal(result.retired, true); assert.equal(result.remountRetired, true);
+        assert.equal(result.remounted, kind === 'metadata' ? '' : original);
+      } finally { await page.close(); }
+    });
+  }
+});
+
+// This is the component synchronization seam, including batched/delayed parent echoes and two independent mounts.
+test('Vue echo, external adoption, dialogs and instance cleanup stay isolated', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent('<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>');
+  await page.addScriptTag({ content: script });
+  const result = await page.evaluate(async () => {
+    window.captured = {};
+    window.capture = (name, value) => (captured[name] ??= []).push(value);
+    const values = Probe.reactive({ left: '<p>Left</p>', right: '<p>Right</p>' });
+    const emitted = [];
+    const app = Probe.createApp({ render: () => Probe.h('div', ['left', 'right'].map(key => Probe.h(Probe.RichNotesEditor, {
+      editorId: 'same-key', label: key, modelValue: values[key], validationMessages: ['Check this field'],
+      'onUpdate:modelValue': value => emitted.push([key, value])
+    }))) });
+    app.mount('#app');
+    const [left, right] = captured['RichNotesEditor.vue'];
+    left.handle.editor.commands.focus('end'); left.handle.editor.commands.insertContent(' one');
+    const earlier = emitted.at(-1)[1];
+    left.handle.editor.commands.insertContent(' two');
+    values.left = earlier;
+    await Probe.nextTick();
+    const newer = left.handle.getValue();
+    values.left = emitted.at(-1)[1];
+    await Probe.nextTick();
+    left.handle.editor.commands.undo();
+    const undone = left.handle.getValue();
+    values.left = '<p>External</p>';
+    await Probe.nextTick();
+    left.handle.editor.commands.undo();
+    const adopted = left.handle.getValue();
+    const ids = [...document.querySelectorAll('[id]')].map(element => element.id);
+    const leftHandle = left.handle, rightHandle = right.handle;
+    left.openDialog('link');
+    await Probe.nextTick();
+    const leftOpen = document.querySelectorAll('dialog[open]').length;
+    left.dialog.value.close();
+    right.openDialog('image');
+    await Probe.nextTick();
+    right.url.value = 'data:image/png;base64,AA';
+    right.applyUrl();
+    await Probe.nextTick();
+    const rightError = document.querySelector('dialog[open]').textContent;
+    const rightValue = rightHandle.getValue();
+    app.unmount();
+    return { newer, undone, adopted, idsUnique: new Set(ids).size === ids.length, leftOpen, rightError, rightValue,
+      dialogsAfterUnmount: document.querySelectorAll('dialog').length, disposed: leftHandle.editor.isDestroyed && rightHandle.editor.isDestroyed };
+  });
+  assert.equal(result.newer, '<p>Left one two</p>'); assert.equal(result.undone, '<p>Left</p>');
+  assert.equal(result.adopted, '<p>External</p>'); assert.equal(result.idsUnique, true);
+  assert.equal(result.leftOpen, 1); assert.match(result.rightError, /absolute HTTP\(S\) image URL/);
+  assert.equal(result.rightValue, '<p>Right</p>'); assert.equal(result.dialogsAfterUnmount, 0); assert.equal(result.disposed, true);
+});

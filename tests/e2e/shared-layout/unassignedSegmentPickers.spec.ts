@@ -73,7 +73,7 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await page.screenshot({ path: testInfo.outputPath('unassigned-segment-pickers.png') });
 
   // An ordinary metadata save retains custom geometry, anchor indices and manual measurements.
-  await form.locator('.ql-editor').fill('Edited preserved route');
+  await form.locator('.rich-notes-content').fill('Edited preserved route');
   const savedExisting = page.waitForResponse(r => r.request().method() === 'PUT' && r.url().endsWith(`/segments/${existing.id}`));
   await page.getByRole('button', { name: 'Save Segment', exact: true }).click();
   expect((await savedExisting).ok()).toBeTruthy();
