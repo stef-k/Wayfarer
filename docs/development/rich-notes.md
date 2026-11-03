@@ -109,7 +109,12 @@ Every remaining source reference has one of these explicit dispositions:
 | `tests/editor/richNotes.test.mjs` | Accepted native irregular-list observation, untouched/undo proof and negative attribute interpretation regression |
 | `tests/e2e/shared-layout/locationTiptap.spec.ts`, `tripTiptap.spec.ts` | Negative assertions that retired script tags are absent; no retired runtime is loaded |
 
-No executable dependency, active loader, translation branch or production selector
+Fresh publish inspection also finds one unrelated uppercase `QUILL` word inside
+Playwright's unchanged package-owned Node binary, alongside Unicode-name data.
+It is not an editor module or executable distribution; retain the rendering driver.
+The binary SHA-256 matches the installed Microsoft.Playwright 1.64.1 payload.
+
+No executable editor dependency, active loader, translation branch or production selector
 is an allowed remaining reference. Search tracked text with word boundaries so
 PostgreSQL package names are not mistaken for editor selectors. Inspect filenames,
 copied maps and compressed publish variants as well as visible source text.
