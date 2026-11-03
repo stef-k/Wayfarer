@@ -295,7 +295,7 @@ public sealed class TripViewerItineraryRenderingTests
             using var scope = host.Services.CreateScope();
             var trip = WaypointTrip();
             trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
-            trip.Notes = "<script>bad()</script><p onclick='bad()'>Before</p><ol><li data-list=\"ordered\">Item</li><li data-list=\"ordered\"><br></li></ol>";
+            trip.Notes = "<script>bad()</script><p onclick='bad()'>Before</p><ol><li>Item</li><li><br></li></ol>";
 
             var viewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, trip));
             var normalNotes = Assert.Single(viewer.QuerySelectorAll("#sidebar-primary .trip-notes.rich-notes-content"));
@@ -316,7 +316,7 @@ public sealed class TripViewerItineraryRenderingTests
 
             var blankTrip = WaypointTrip();
             blankTrip.User = new ApplicationUser { DisplayName = "Fixture owner" };
-            blankTrip.Notes = "<ol><li data-list=\"ordered\"><br></li></ol>";
+            blankTrip.Notes = "<ol><li><br></li></ol>";
             foreach (var region in blankTrip.Regions) { region.Notes = blankTrip.Notes; foreach (var place in region.Places) place.Notes = blankTrip.Notes; }
             foreach (var segment in blankTrip.Segments) segment.Notes = blankTrip.Notes;
             var blankViewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, blankTrip));

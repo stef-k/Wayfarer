@@ -264,9 +264,12 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           let handle = notes.handle;
           const current = () => captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
           const before = owner[draft].notesHtml;
+          const untouchedCalls = [];
+          window.fetch = async (url, init) => { untouchedCalls.push({ url, body: init?.body }); return new Response('{}'); };
           handle.focus();
           await Probe.nextTick();
           const untouched = owner[draft].notesHtml;
+          await owner[save](false);
           handle.editor.commands.selectAll();
           handle.editor.commands.insertContent('First');
           await Probe.nextTick();
@@ -322,12 +325,13 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           const remount = captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
           const remounted = remount.getValue();
           app.unmount();
-          return { before, untouched, emitted, afterEcho, duringRefresh, afterSave, displayed, adopted, undoAfterReset, empty,
+          return { before, untouched, untouchedCalls, emitted, afterEcho, duringRefresh, afterSave, displayed, adopted, undoAfterReset, empty,
             calls, emptyCall, historyRetained, resetRetired, redoAfterSameValueReset, retired: handle.editor.isDestroyed, remounted, remountRetired: remount.editor.isDestroyed };
         }, { kind, component, draft, open, save, reset, entity, original,
           savedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>First</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>First</p>' } }),
           refreshedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>Other device</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>Other device</p>' } }) });
-        assert.equal(result.before, original); assert.equal(result.untouched, original);
+        assert.equal(result.before, '<p>Original</p>'); assert.equal(result.untouched, '<p>Original</p>');
+        assert.deepEqual(result.untouchedCalls, []);
         assert.equal(result.emitted, '<p>First</p>'); assert.equal(result.afterEcho, true);
         assert.equal(result.duringRefresh, '<p>First newer</p>'); assert.equal(result.afterSave, '<p>First newer</p>');
         assert.equal(result.historyRetained, true);
@@ -338,7 +342,7 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
         assert.deepEqual(result.calls[0].body.changes, { notesHtml: '<p>First</p>' });
         assert.deepEqual(result.emptyCall.body.changes, { notesHtml: '' });
         assert.equal(result.retired, true); assert.equal(result.remountRetired, true);
-        assert.equal(result.remounted, kind === 'metadata' ? '' : original);
+        assert.equal(result.remounted, kind === 'metadata' ? '' : '<p>Original</p>');
       } finally { await page.close(); }
     });
   }

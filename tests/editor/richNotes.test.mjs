@@ -36,6 +36,17 @@ test('shared native editor commands preserve text/references and finite styles',
         assert.doesNotMatch(result.native, /data-list/); assert.match(result.edited, /item!/);
         console.log('Native historical-list observation:', result.native);
     });
+    await t.test('retired classes and list metadata are discarded without translating or deleting text', async () => {
+        const input = '<p class="ql-align-right"><span class="ql-ui ql-font-serif">Visible</span></p><ol><li data-list="bullet">Item</li></ol>';
+        const result = await run(input, `const untouched = handle.getValue();
+            const normalized = Notes.normalizeNotesHtml(handle.getValue());
+            handle.editor.commands.focus('end'); handle.editor.commands.insertContent('!');
+            return { untouched, normalized, edited: handle.getValue() };`);
+        assert.equal(result.untouched, input);
+        assert.equal(result.normalized, '<p><span>Visible</span></p><ol><li>Item</li></ol>');
+        assert.match(result.edited, /Visible/); assert.match(result.edited, /Item!/);
+        assert.doesNotMatch(result.edited, /class=|data-list=|font-family|text-align/);
+    });
     await t.test('range Remove formatting preserves overlapping text, links and images', async () => {
         const result = await run('<h2 style="text-align: right"><a href="/safe"><strong><em><u><s><span style="font-family: serif">Καλημέρα 日本語</span></s></u></em></strong></a><img src="https://images.example.test/a"></h2>', `
             handle.editor.commands.selectAll(); handle.removeFormatting(); return handle.editor.getHTML();`);

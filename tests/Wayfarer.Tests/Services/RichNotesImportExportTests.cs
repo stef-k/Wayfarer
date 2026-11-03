@@ -19,7 +19,7 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves rich transport encoding, durable normalization and safe historical exports.</summary>
 public sealed class RichNotesImportExportTests : TestBase
 {
-    private const string Safe = "<p class=\"ql-align-justify\" style=\"text-align: justify;\"><span style=\"font-family: serif;\"><s>rich</s></span> &amp; text</p>";
+    private const string Safe = "<p style=\"text-align: justify;\"><span style=\"font-family: serif;\"><s>rich</s></span> &amp; text</p>";
     private const string Unsafe = Safe + "<script>bad()</script><img src='data:image/png,x'>";
 
     [Theory]
@@ -122,7 +122,7 @@ public sealed class RichNotesImportExportTests : TestBase
         var payload = await reader.ReadToEndAsync();
         Assert.DoesNotContain("bad()", payload);
         Assert.DoesNotContain("data:image", payload);
-        Assert.Contains("ql-align-justify", payload);
+        Assert.Contains("text-align: justify;", payload);
         ILocationDataParser parser = format switch
         {
             "csv" => new CsvLocationParser(NullLogger<CsvLocationParser>.Instance),

@@ -63,7 +63,6 @@ namespace Wayfarer.Areas.User.Controllers
 
             /* ---- layout flags ---- */
             ViewData["LoadLeaflet"] = true;      // needs map
-            ViewData["LoadQuill"]   = false;     // no editor
             ViewData["BodyClass"]   = "container-fluid";  // full-width
 
             ViewBag.IsOwner = true;
@@ -206,7 +205,6 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["Title"] = "Trip Editor";
             ViewData["BodyClass"] = "container-fluid";
             ViewData["LoadLeaflet"] = false;
-            ViewData["LoadQuill"] = false;
 
             return View("~/Areas/User/Views/Trip/Edit.cshtml", new TripEditorShellViewModel
             {

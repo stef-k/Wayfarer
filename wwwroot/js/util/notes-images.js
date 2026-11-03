@@ -41,18 +41,3 @@ const mapNoteImages = (html, transform) => {
 
 /** Prepares published canonical notes before insertion into the live document. */
 export const notesHtmlForDisplay = html => mapNoteImages(html, noteImageSourceForDisplay);
-
-/** Keeps form submissions canonical while leaving the displayed editor untouched. */
-export const notesHtmlForSave = html => mapNoteImages(html, canonicalNoteImageSource);
-
-/** Creates proxied Quill images before src assignment, including toolbar, clipboard and delta insertion. */
-export const registerNoteImageBlot = Quill => {
-    const Image = Quill.import('formats/image');
-    class NoteImage extends Image {
-        /** The native blot receives a display URL before it creates an image element. */
-        static create(value) { return super.create(noteImageSourceForDisplay(value)); }
-        /** Quill deltas retain the original URL independently of the displayed src. */
-        static value(node) { return canonicalNoteImageSource(super.value(node)); }
-    }
-    Quill.register(NoteImage, true);
-};

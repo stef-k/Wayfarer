@@ -1,8 +1,4 @@
 const forbiddenElements = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option';
-const allowedQuillAlignmentClasses = new Set(['ql-align-center', 'ql-align-right', 'ql-align-justify']);
-const allowedQuillFontClasses = new Set(['ql-font-serif', 'ql-font-monospace']);
-const allowedQuillListKinds = new Set(['bullet', 'ordered']);
-
 /// Normalizes Trip Editor notes to the canonical user HTML stored by save payloads.
 export function normalizeNotesHtml(value: string): string {
   const template = document.createElement('template');
@@ -14,9 +10,6 @@ export function normalizeNotesHtml(value: string): string {
   // Match the server allow-list by retaining fallback text while unwrapping unsupported media.
   template.content.querySelectorAll('audio, video').forEach(element => {
     element.replaceWith(...Array.from(element.childNodes));
-  });
-  template.content.querySelectorAll('span.ql-ui').forEach(element => {
-    element.remove();
   });
   template.content.querySelectorAll('*').forEach(element => {
     normalizeElementAttributes(element);
@@ -51,16 +44,6 @@ export function canonicalImageSource(value: string): string {
   }
 }
 
-/// Detects embedded images before Quill can move them into the editor DOM.
-export function containsDataImageReference(value: string): boolean {
-  return compactUrlText(value).includes('data:image');
-}
-
-/// Detects embedded image URLs entered through the image dialog.
-export function isDataImageSource(value: string): boolean {
-  return compactUrlScheme(value).startsWith('data:image');
-}
-
 /// Rejects every non-http(s) image source after canonical proxy URL restoration.
 export function isUnsafeImageSource(value: string): boolean {
   return !isAllowedImageSource(canonicalImageSource(value));
@@ -73,18 +56,13 @@ function normalizeElementAttributes(element: Element): void {
       normalizeStandardStyle(element);
       return;
     }
-    if (name === 'class') {
-      normalizeClassAttribute(element);
-      return;
-    }
-
     if (!isAllowedElementAttribute(element, name) || isUnsafeAttributeUrl(element, name, attribute.value)) {
       element.removeAttribute(attribute.name);
     }
   });
 }
 
-/** Matches the server's two finite native style allowances without changing historical classes. */
+/** Matches the server's two finite standard style allowances. */
 function normalizeStandardStyle(element: Element): void {
   const tag = element.tagName.toLowerCase();
   const property = tag === 'span' ? 'font-family'
@@ -95,37 +73,10 @@ function normalizeStandardStyle(element: Element): void {
   else element.removeAttribute('style');
 }
 
-function normalizeClassAttribute(element: Element): void {
-  const allowedClasses = Array.from(element.classList).filter(className => isAllowedClass(element, className));
-  if (allowedClasses.length > 0) {
-    element.setAttribute('class', allowedClasses.join(' '));
-    return;
-  }
-
-  element.removeAttribute('class');
-}
-
-function isAllowedClass(element: Element, className: string): boolean {
-  // Quill's font dropdown stores user-visible font choices as span classes.
-  const tagName = element.tagName.toLowerCase();
-  return (tagName === 'span' && allowedQuillFontClasses.has(className))
-    || (isQuillBlockElement(tagName) && allowedQuillAlignmentClasses.has(className));
-}
-
+/** Only semantic reference attributes survive, alongside the finite styles above. */
 function isAllowedElementAttribute(element: Element, name: string): boolean {
   const tagName = element.tagName.toLowerCase();
-  // Quill 2 stores the user-selected list kind on list items.
-  return (tagName === 'a' && name === 'href')
-    || (tagName === 'img' && name === 'src')
-    || (tagName === 'li' && name === 'data-list' && isAllowedQuillListKind(element));
-}
-
-function isAllowedQuillListKind(element: Element): boolean {
-  return allowedQuillListKinds.has(element.getAttribute('data-list') ?? '');
-}
-
-function isQuillBlockElement(tagName: string): boolean {
-  return ['blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'p'].includes(tagName);
+  return (tagName === 'a' && name === 'href') || (tagName === 'img' && name === 'src');
 }
 
 function isAllowedImageSource(value: string): boolean {

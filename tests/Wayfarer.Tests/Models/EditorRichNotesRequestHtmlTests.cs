@@ -14,12 +14,11 @@ public sealed class EditorRichNotesRequestHtmlTests
     {
         var input = string.Concat(
             "<p><strong>Bold</strong> <em>Italic</em> <u>Underline</u></p>",
-            "<ol><li data-list=\"bullet\"><span class=\"ql-ui\" contenteditable=\"false\"></span>Bullet</li>",
-            "<li data-list=\"ordered\">Ordered</li></ol>",
-            "<p class=\"ql-align-left\">Left</p>",
-            "<p class=\"ql-align-center\">Center</p>",
-            "<p class=\"ql-align-right\">Right</p>",
-            "<p><span class=\"ql-font-serif\">Serif</span></p>",
+            "<ul><li>Bullet</li></ul><ol><li>Ordered</li></ol>",
+            "<p style=\"text-align: left;\">Left</p>",
+            "<p style=\"text-align: center;\">Center</p>",
+            "<p style=\"text-align: right;\">Right</p>",
+            "<p><span style=\"font-family: serif;\">Serif</span></p>",
             "<p><a href=\"https://example.test/page\" onclick=\"alert(1)\">Link</a></p>",
             "<p><img src=\"https://cdn.example.test/image.jpg\" onerror=\"alert(1)\"></p>");
 
@@ -28,12 +27,12 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.Contains("<strong>Bold</strong>", result);
         Assert.Contains("<em>Italic</em>", result);
         Assert.Contains("<u>Underline</u>", result);
-        Assert.Contains("data-list=\"bullet\"", result);
-        Assert.Contains("data-list=\"ordered\"", result);
-        Assert.Contains("<p>Left</p>", result);
-        Assert.Contains("<p class=\"ql-align-center\">Center</p>", result);
-        Assert.Contains("<p class=\"ql-align-right\">Right</p>", result);
-        Assert.Contains("<span class=\"ql-font-serif\">Serif</span>", result);
+        Assert.Contains("<ul><li>Bullet</li></ul>", result);
+        Assert.Contains("<ol><li>Ordered</li></ol>", result);
+        Assert.Contains("<p style=\"text-align: left;\">Left</p>", result);
+        Assert.Contains("<p style=\"text-align: center;\">Center</p>", result);
+        Assert.Contains("<p style=\"text-align: right;\">Right</p>", result);
+        Assert.Contains("<span style=\"font-family: serif;\">Serif</span>", result);
         Assert.Contains("href=\"https://example.test/page\"", result);
         Assert.Contains("src=\"https://cdn.example.test/image.jpg\"", result);
         Assert.DoesNotContain("ql-align-left", result);
@@ -42,16 +41,15 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.DoesNotContain("onerror", result);
     }
 
+    /// <summary>Retired vendor attributes receive no special interpretation or content deletion.</summary>
     [Fact]
-    public void NormalizeForPersistence_StripsQuillClassesFromUnsupportedElements()
+    public void NormalizeForPersistence_StripsAllClassesAndListMetadataWithoutTranslation()
     {
         var result = EditorRichNotesRequestHtml.NormalizeForPersistence(
-            "<p><span class=\"ql-align-right\">Inline alignment</span></p><p class=\"ql-font-serif\">Block font</p>");
+            "<p class=\"ql-align-right\"><span class=\"ql-font-serif ql-ui\" contenteditable=\"false\">Visible</span></p>"
+            + "<ol><li data-list=\"bullet\">Item</li></ol>");
 
-        Assert.Contains("<span>Inline alignment</span>", result);
-        Assert.Contains("<p>Block font</p>", result);
-        Assert.DoesNotContain("ql-align-right", result);
-        Assert.DoesNotContain("ql-font-serif", result);
+        Assert.Equal("<p><span>Visible</span></p><ol><li>Item</li></ol>", result);
     }
 
     [Fact]
@@ -98,17 +96,17 @@ public sealed class EditorRichNotesRequestHtmlTests
     }
 
     [Theory]
-    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\"><strong> </strong><br></li></ol>", "<ol><li data-list=\"ordered\">One</li></ol>")]
-    [InlineData("<ul><li data-list=\"bullet\">One</li><li data-list=\"bullet\">&nbsp;</li></ul>", "<ul><li data-list=\"bullet\">One</li></ul>")]
-    [InlineData("<ol><li data-list=\"ordered\"><br></li></ol>", "")]
-    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>")]
-    [InlineData("<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li><li data-list=\"ordered\"><br></li></ol>", "<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li></ol>")]
-    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>", "<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>")]
-    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p>After</p>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p>After</p>")]
-    [InlineData("<ul><li data-list=\"bullet\"><a href=\"https://example.test\">Visible link</a></li><li data-list=\"bullet\"><br></li></ul>", "<ul><li data-list=\"bullet\"><a href=\"https://example.test\">Visible link</a></li></ul>")]
-    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><h2>After</h2>", "<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><h2>After</h2>")]
-    [InlineData("<ol><li data-list=\"ordered\"><video src=\"https://example.test/a.mp4\"></video></li></ol>", "")]
-    [InlineData("<ol><li data-list=\"ordered\"><video>Fallback text</video></li></ol>", "<ol><li data-list=\"ordered\">Fallback text</li></ol>")]
+    [InlineData("<ol><li>One</li><li><br></li><li><strong> </strong><br></li></ol>", "<ol><li>One</li></ol>")]
+    [InlineData("<ul><li>One</li><li>&nbsp;</li></ul>", "<ul><li>One</li></ul>")]
+    [InlineData("<ol><li><br></li></ol>", "")]
+    [InlineData("<ol><li>One</li><li><br></li><li>Three</li></ol>", "<ol><li>One</li><li><br></li><li>Three</li></ol>")]
+    [InlineData("<ol><li><img src=\"https://cdn.example.test/image.jpg\"></li><li><br></li></ol>", "<ol><li><img src=\"https://cdn.example.test/image.jpg\"></li></ol>")]
+    [InlineData("<p>Before</p><ol><li>Item</li></ol><p>After</p>", "<p>Before</p><ol><li>Item</li></ol><p>After</p>")]
+    [InlineData("<ol><li>One</li><li><br></li></ol><p>After</p>", "<ol><li>One</li><li><br></li></ol><p>After</p>")]
+    [InlineData("<ul><li><a href=\"https://example.test\">Visible link</a></li><li><br></li></ul>", "<ul><li><a href=\"https://example.test\">Visible link</a></li></ul>")]
+    [InlineData("<p>Before</p><ol><li>Item</li></ol><h2>After</h2>", "<p>Before</p><ol><li>Item</li></ol><h2>After</h2>")]
+    [InlineData("<ol><li><video src=\"https://example.test/a.mp4\"></video></li></ol>", "")]
+    [InlineData("<ol><li><video>Fallback text</video></li></ol>", "<ol><li>Fallback text</li></ol>")]
     public void NormalizeForPersistence_RemovesOnlySemanticallyBlankTerminalListItems(string input, string expected)
     {
         var result = EditorRichNotesRequestHtml.NormalizeForPersistence(input);
@@ -126,8 +124,8 @@ public sealed class EditorRichNotesRequestHtmlTests
     [Fact]
     public void SaveRequestParsersNormalizeRichNotesBeforeMutationServicesPersist()
     {
-        const string notesHtml = "<p class=\"ql-align-right\" onclick=\"alert(1)\">Right</p><p><img src=\"/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fimage.jpg\"></p><p><br></p>";
-        const string expectedNotesHtml = "<p class=\"ql-align-right\">Right</p><p><img src=\"https://cdn.example.test/image.jpg\"></p>";
+        const string notesHtml = "<p style=\"text-align: right;\" onclick=\"alert(1)\">Right</p><p><img src=\"/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fimage.jpg\"></p><p><br></p>";
+        const string expectedNotesHtml = "<p style=\"text-align: right;\">Right</p><p><img src=\"https://cdn.example.test/image.jpg\"></p>";
 
         Assert.True(EditorTripMetadataUpdateRequestParser.TryParse(Json($$"""
         {

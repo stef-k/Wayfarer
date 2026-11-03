@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canonicalNoteImageSource, noteImageSourceForDisplay, registerNoteImageBlot } from '../../wwwroot/js/util/notes-images.js';
+import { canonicalNoteImageSource, noteImageSourceForDisplay } from '../../wwwroot/js/util/notes-images.js';
 
 globalThis.window = { location: { origin: 'https://wayfarer.example.test' } };
 const source = 'https://images.example.test/photo?a=1&entity=&amp;&q=two+words%20here';
@@ -34,19 +34,4 @@ test('scheme-relative sources are neutralized directly and through nested same-o
             assert.equal(noteImageSourceForDisplay(value), '');
         }
     }
-});
-
-test('Quill image creation receives the display source before assigning src and emits canonical delta values', () => {
-    let registered;
-    const Quill = {
-        import: () => class {
-            static create(value) { return { src: value }; }
-            static value(node) { return node.src; }
-        },
-        register: blot => { registered = blot; }
-    };
-    registerNoteImageBlot(Quill);
-    const image = registered.create(source);
-    assert.equal(image.src, proxy);
-    assert.equal(registered.value(image), source);
 });

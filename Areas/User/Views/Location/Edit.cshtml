@@ -5,7 +5,6 @@
 @{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
-    ViewData["LoadQuill"] = false;
     var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-edit.js");
     ViewData["LoadTomSelect"] = true;
     var addressSummary = new[] { Model.FullAddress, Model.Address }
