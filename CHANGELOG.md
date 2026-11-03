@@ -12,8 +12,9 @@
   (#939 W2): Location Create, Bulk Notes, Visit Edit and all five Trip owners.
   Preserve ordinary MVC validation, bulk execution/selection, feature-owned drafts,
   immutable save attempts and uncertain-outcome recovery. Repeated FIFO prop echoes
-  retain newer typing and live selection/history; creation/edit reset retires only
-  its Notes session. Create validation retains the attempted timestamp. Keep Visit
+  retain newer typing and live selection/history. Explicit owner adoption also
+  replaces coalesced local reversals and retires obsolete history; creation/edit
+  reset retires only its Notes session. Create validation retains the attempted timestamp. Keep Visit
   strike and H1–H3, Trip alignment/fonts, labelled URL dialogs and independent instances.
   Reject unsupported transfers before insertion with feedback; keep canonical image
   URLs, secure proxy previews and failed-reference feedback. Render standard HTML/styles;

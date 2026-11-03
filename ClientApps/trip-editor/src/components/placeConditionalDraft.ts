@@ -22,6 +22,8 @@ const assign = (target: EditorPlaceDraft, source: EditorPlaceDraft, field: Field
 export const createPlaceDraftState = () => {
   const draft = reactive(emptyPlaceDraft());
   const baseline = reactive(emptyPlaceDraft());
+  // Owner-selected visible replacements have an identity independent of emitted HTML.
+  const notesAdoption = ref(0);
   const originals = reactive<Partial<EditorPlaceOriginalValues>>({});
   const pending = ref(false);
   const uncertain = ref(false);
@@ -72,6 +74,7 @@ export const createPlaceDraftState = () => {
   /** Clean fields follow refreshed props; dirty values and the original parent remain pinned. */
   const refresh = (next: EditorPlace | null): void => {
     if (!next || next.id !== draft.id || next.regionId !== baseline.regionId || pending.value || uncertain.value || structural()) return;
+    const previousNotes = draft.notesHtml;
     const current = buildPlaceRequest(draft);
     const before = buildPlaceRequest(baseline);
     const incoming = toPlaceDraft(next, null);
@@ -79,6 +82,7 @@ export const createPlaceDraftState = () => {
     if (same(current, before)) {
       try { material.value = placeMaterialOriginal(next); } catch { material.value = null; }
     }
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
   /** Structural intent retains one complete lifecycle PUT, with any simultaneously authored scalars. */
@@ -105,6 +109,7 @@ export const createPlaceDraftState = () => {
 
   /** Advances accepted bases before Vue applies parent props, retaining newer edits including old-baseline reversals. */
   const acknowledge = (next: EditorPlace, submitted: Partial<EditorPlaceSaveRequest>): void => {
+    const previousNotes = draft.notesHtml;
     const current = buildPlaceRequest(draft);
     const before = buildPlaceRequest(baseline);
     const retained = { ...draft };
@@ -118,9 +123,10 @@ export const createPlaceDraftState = () => {
     draft.id = baseline.id = next.id;
     originals.regionId = next.originalValues!.regionId;
     try { material.value = placeMaterialOriginal(next); } catch { material.value = null; }
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
-  return { draft, baseline, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge,
+  return { draft, baseline, notesAdoption, pending, uncertain, creationUncertain, creationOriginals, beginCreate, reset, refresh, structural, request, acknowledge,
     orderingPending, structuralHolds, held, beginStructure, structuralRequest, structuralOrders, session: () => session.value };
 };
 

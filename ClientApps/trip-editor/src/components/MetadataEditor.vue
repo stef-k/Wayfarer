@@ -449,7 +449,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           </template>
         </section>
 
-        <RichNotesEditor :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+        <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
           <span>Cover Image URL</span>

@@ -11,7 +11,9 @@ const props = defineProps<{
   draft: EditorSegmentDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
-  /** Only an owner reset/session change retires the Notes history. */
+  /** Owner-selected visible Notes replacement; local echoes do not advance it. */
+  notesAdoption: number;
+  /** An explicit reset/session change retires the mounted Notes instance. */
   notesSession?: number;
   formSummaryErrors: string[];
   isDirty: boolean;
@@ -122,7 +124,7 @@ function unavailableEndpoint(id: Guid | null): boolean {
     </div>
 
     <div data-segment-field="notesHtml" tabindex="-1">
-      <RichNotesEditor :key="notesSession" ref="notesEditor" :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+      <RichNotesEditor :adoption-revision="notesAdoption" :key="notesSession" ref="notesEditor" :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
     </div>
 
     <div class="trip-editor-field" data-segment-field="route" tabindex="-1">

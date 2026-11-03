@@ -7,6 +7,8 @@ const props = defineProps<{
   editorId: string;
   label: string;
   modelValue: string;
+  /** Advances only when the owner replaces visible Notes, never for a local v-model echo. */
+  adoptionRevision: number;
   validationMessages: string[];
 }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
@@ -26,10 +28,6 @@ const dialogError = ref('');
 const feedbackMessage = ref('');
 const controls = ref({ bold: false, italic: false, underline: false, ordered: false, bullet: false, heading: '0', font: '', align: 'left' });
 let handle: NotesEditor | null = null;
-// Acknowledge the earliest matching emission: formatting reversals can repeat HTML.
-// Keep unresolved echoes across ticks, even when the current prop already equals one of them.
-// Explicit owner resets retire this component; distinct external adoption resets native history.
-const pendingEchoes: string[] = [];
 
 /** Preserve the public focus contract used by Segment Reset and surface navigation. */
 function focusEditor(): void { handle?.focus(); }
@@ -53,24 +51,17 @@ onMounted(() => {
   handle = createNotesEditor(editorHost.value!, props.modelValue, labelId, message => { feedbackMessage.value = message; });
   handle.onChange(() => {
     const value = handle!.getValue();
-    pendingEchoes.push(value);
     emit('update:modelValue', value);
   });
   handle.editor.on('transaction', syncControls);
   syncControls();
 });
 
-watch(() => props.modelValue, value => {
+// The owner distinguishes an accepted visible replacement from any delayed/coalesced echo.
+watch(() => props.adoptionRevision, () => {
   if (!handle) return;
-  const echo = pendingEchoes.indexOf(value);
-  if (echo >= 0) {
-    pendingEchoes.splice(0, echo + 1);
-    return;
-  }
-  if (value === handle.getValue()) return;
-  pendingEchoes.length = 0;
   dialog.value?.close();
-  handle.adopt(value);
+  handle.adopt(props.modelValue);
   syncControls();
 });
 
@@ -79,7 +70,6 @@ onBeforeUnmount(() => {
   handle = null;
   dialog.value?.close();
   retiring?.dispose();
-  pendingEchoes.length = 0;
 });
 
 /** Pointer controls retain the live range; keyboard controls restore the last native selection. */

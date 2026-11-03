@@ -11,7 +11,9 @@ const props = defineProps<{
   draft: EditorPlaceDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
-  /** Only an owner reset/session change retires the Notes history. */
+  /** Owner-selected visible Notes replacement; local echoes do not advance it. */
+  notesAdoption: number;
+  /** An explicit reset/session change retires the mounted Notes instance. */
   notesSession?: number;
   formSummaryErrors: string[];
   isDirty: boolean;
@@ -42,6 +44,7 @@ defineEmits<{
         :field-errors="fieldErrors"
         :form-id="formId"
         :notes-session="notesSession"
+        :notes-adoption="notesAdoption"
         :form-summary-errors="formSummaryErrors"
         :is-saving="isSaving"
         :coordinate-read-only="isMapWorkActive"

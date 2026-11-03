@@ -86,48 +86,98 @@ const owners = [
   ['segment', 'SegmentManager.vue', 'draft', 'openEdit', 'saveDraft', 'resetDraft', segment]
 ];
 
-// FIFO echoes can repeat HTML after a formatting reversal; each delivery gets its own Vue tick.
-test('repeated FIFO Vue echoes preserve newer typing, selection and undo', async t => {
+// Replay local emissions through each actual parent draft on separate ticks, including repeated HTML.
+test('repeated FIFO Vue echoes preserve newer typing, selection and undo in every Trip owner', async t => {
   const browser = await chromium.launch();
   t.after(() => browser.close());
+  const emptyNotes = entity => ({ ...entity, notesHtml: '', originalValues: { ...entity.originalValues, notesHtml: '' } });
   for (const echoBeforeTyping of [false, true]) {
-    await t.test(`first echo before final typing: ${echoBeforeTyping}`, async () => {
+    for (const [kind, component, draft, open, , , entity] of owners) {
+      await t.test(`${kind}, first echo before final typing: ${echoBeforeTyping}`, async () => {
+        const page = await browser.newPage();
+        try {
+          await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
+          await page.goto('http://notes.test/');
+          await page.addScriptTag({ content: script });
+          await page.evaluate(state => Probe.mountApp(state), { ...state, metadata: emptyNotes(metadata), regionsById: { region: emptyNotes(region) },
+            placesById: { place: emptyNotes(place) }, areasById: { area: emptyNotes(area) }, segmentsById: { segment: emptyNotes(segment) } });
+          await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+          const result = await page.evaluate(async ({ echoBeforeTyping, component, draft, open, entity }) => {
+            captured['App.vue'][0].editorSurface.clearActiveTarget();
+            const owner = captured[component][0];
+            await owner[open](entity); await Probe.nextTick();
+            const handle = captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
+            const emitted = [];
+            handle.onChange(() => emitted.push(handle.getValue()));
+            const editor = handle.editor;
+            editor.commands.insertContent('A');
+            editor.commands.selectAll(); editor.commands.toggleBold(); editor.commands.toggleBold();
+            if (echoBeforeTyping) { owner[draft].notesHtml = emitted[0]; await Probe.nextTick(); }
+            editor.commands.focus('end'); editor.commands.insertContent('C');
+            const selection = editor.state.selection;
+            const deliveries = [];
+            for (const value of emitted.slice(echoBeforeTyping ? 1 : 0)) {
+              owner[draft].notesHtml = value;
+              await Probe.nextTick();
+              deliveries.push({ html: handle.getValue(), undo: editor.can().undo(), selection: editor.state.selection.eq(selection) });
+            }
+            const sequence = [...emitted], finalDraft = owner[draft].notesHtml;
+            editor.commands.undo(); const undone = handle.getValue();
+            editor.commands.redo(); const redone = handle.getValue();
+            app.unmount();
+            return { sequence, finalDraft, deliveries, undone, redone };
+          }, { echoBeforeTyping, component, draft, open, entity: emptyNotes(entity) });
+          assert.deepEqual(result.sequence, ['<p>A</p>', '<p><strong>A</strong></p>', '<p>A</p>', '<p>AC</p>']);
+          for (const delivery of result.deliveries) assert.deepEqual(delivery, { html: '<p>AC</p>', undo: true, selection: true });
+          assert.equal(result.finalDraft, '<p>AC</p>');
+          assert.notEqual(result.undone, '<p>AC</p>'); assert.equal(result.redone, '<p>AC</p>');
+        } finally { await page.close(); }
+      });
+    }
+  }
+});
+
+// Two native edits can coalesce to the old prop; a later owner refresh is still an adoption.
+test('coalesced reversal then authoritative refresh adopts Notes in every Trip owner', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const plain = entity => ({ ...entity, notesHtml: '<p>A</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>A</p>' } });
+  for (const [kind, component, draft, open, save, , entity] of owners) {
+    await t.test(kind, async () => {
       const page = await browser.newPage();
       try {
-        await page.setContent('<div id="app"></div>');
+        await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
+        await page.goto('http://notes.test/');
         await page.addScriptTag({ content: script });
-        const result = await page.evaluate(async echoBeforeTyping => {
-          window.captured = {};
-          window.capture = (name, bindings) => (captured[name] ??= []).push(bindings);
-          const values = Probe.reactive({ html: '' });
-          const emitted = [];
-          const app = Probe.createApp({ render: () => Probe.h(Probe.RichNotesEditor, {
-            editorId: 'fifo', label: 'Notes', modelValue: values.html, validationMessages: [],
-            'onUpdate:modelValue': value => emitted.push(value)
-          }) });
-          app.mount('#app');
-          const handle = captured['RichNotesEditor.vue'][0].handle;
-          const editor = handle.editor;
-          editor.commands.insertContent('A');
-          editor.commands.selectAll(); editor.commands.toggleBold(); editor.commands.toggleBold();
-          if (echoBeforeTyping) { values.html = emitted[0]; await Probe.nextTick(); }
-          editor.commands.focus('end'); editor.commands.insertContent('C');
-          const selection = editor.state.selection;
-          const deliveries = [];
-          for (const value of emitted.slice(echoBeforeTyping ? 1 : 0)) {
-            values.html = value;
-            await Probe.nextTick();
-            deliveries.push({ html: handle.getValue(), undo: editor.can().undo(), selection: editor.state.selection.eq(selection) });
-          }
-          const sequence = [...emitted];
-          editor.commands.undo(); const undone = handle.getValue();
-          editor.commands.redo(); const redone = handle.getValue();
+        await page.evaluate(state => Probe.mountApp(state), { ...state, metadata: plain(metadata), regionsById: { region: plain(region) },
+          placesById: { place: plain(place) }, areasById: { area: plain(area) }, segmentsById: { segment: plain(segment) } });
+        await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+        const result = await page.evaluate(async ({ component, draft, open, save, entity, refreshed }) => {
+          const parent = captured['App.vue'][0];
+          parent.editorSurface.clearActiveTarget();
+          const owner = captured[component][0];
+          await owner[open](entity); await Probe.nextTick();
+          const handle = captured['RichNotesEditor.vue'].findLast(value => value.handle && !value.handle.editor.isDestroyed).handle;
+          handle.editor.commands.selectAll(); handle.editor.commands.toggleBold(); handle.editor.commands.toggleBold();
+          await Probe.nextTick();
+          const reversal = { displayed: handle.getValue(), draft: owner[draft].notesHtml, undo: handle.editor.can().undo() };
+          parent.applyMutation(refreshed); await Probe.nextTick();
+          const adopted = { displayed: handle.getValue(), draft: owner[draft].notesHtml, undo: handle.editor.can().undo(), redo: handle.editor.can().redo() };
+          handle.editor.commands.focus('end'); handle.editor.commands.insertContent('C'); await Probe.nextTick();
+          const typed = { displayed: handle.getValue(), draft: owner[draft].notesHtml };
+          let call;
+          window.fetch = async (url, init) => { call = { method: init.method, body: JSON.parse(init.body) };
+            return new Response(JSON.stringify({ code: 'validation', errors: { notesHtml: ['Check Notes'] } }), { status: 400 }); };
+          await owner[save](false);
           app.unmount();
-          return { sequence, deliveries, undone, redone };
-        }, echoBeforeTyping);
-        assert.deepEqual(result.sequence, ['<p>A</p>', '<p><strong>A</strong></p>', '<p>A</p>', '<p>AC</p>']);
-        for (const delivery of result.deliveries) assert.deepEqual(delivery, { html: '<p>AC</p>', undo: true, selection: true });
-        assert.notEqual(result.undone, '<p>AC</p>'); assert.equal(result.redone, '<p>AC</p>');
+          return { reversal, adopted, typed, call };
+        }, { component, draft, open, save, entity: plain(entity), refreshed: envelope(kind, { ...entity,
+          notesHtml: '<p><strong>A</strong></p>', originalValues: { ...entity.originalValues, notesHtml: '<p><strong>A</strong></p>' } }) });
+        assert.deepEqual(result.reversal, { displayed: '<p>A</p>', draft: '<p>A</p>', undo: true });
+        assert.deepEqual(result.adopted, { displayed: '<p><strong>A</strong></p>', draft: '<p><strong>A</strong></p>', undo: false, redo: false });
+        assert.deepEqual(result.typed, { displayed: '<p><strong>AC</strong></p>', draft: '<p><strong>AC</strong></p>' });
+        assert.deepEqual(result.call, { method: 'PATCH', body: { expected: { ...(kind === 'place' || kind === 'area' ? { regionId: 'region' } : {}),
+          notesHtml: '<p><strong>A</strong></p>' }, changes: { notesHtml: '<p><strong>AC</strong></p>' } } });
       } finally { await page.close(); }
     });
   }
@@ -233,11 +283,13 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           parent.applyMutation(refreshedEnvelope);
           await Probe.nextTick();
           const duringRefresh = owner[draft].notesHtml;
+          const newerSelection = handle.editor.state.selection;
           settle(new Response(JSON.stringify(savedEnvelope)));
           await saving;
           await Probe.nextTick();
           const afterSave = owner[draft].notesHtml;
           const displayed = handle.getValue();
+          const historyRetained = handle.editor.can().undo() && handle.editor.state.selection.eq(newerSelection);
           // Explicit reset adopts authoritative saved Notes and discards only this live history.
           owner[reset]();
           await Probe.nextTick();
@@ -271,13 +323,14 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           const remounted = remount.getValue();
           app.unmount();
           return { before, untouched, emitted, afterEcho, duringRefresh, afterSave, displayed, adopted, undoAfterReset, empty,
-            calls, emptyCall, resetRetired, redoAfterSameValueReset, retired: handle.editor.isDestroyed, remounted, remountRetired: remount.editor.isDestroyed };
+            calls, emptyCall, historyRetained, resetRetired, redoAfterSameValueReset, retired: handle.editor.isDestroyed, remounted, remountRetired: remount.editor.isDestroyed };
         }, { kind, component, draft, open, save, reset, entity, original,
           savedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>First</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>First</p>' } }),
           refreshedEnvelope: envelope(kind, { ...entity, notesHtml: '<p>Other device</p>', originalValues: { ...entity.originalValues, notesHtml: '<p>Other device</p>' } }) });
         assert.equal(result.before, original); assert.equal(result.untouched, original);
         assert.equal(result.emitted, '<p>First</p>'); assert.equal(result.afterEcho, true);
         assert.equal(result.duringRefresh, '<p>First newer</p>'); assert.equal(result.afterSave, '<p>First newer</p>');
+        assert.equal(result.historyRetained, true);
         assert.equal(result.displayed, '<p>First newer</p>'); assert.equal(result.adopted, '<p>First</p>');
         assert.equal(result.undoAfterReset, '<p>First</p>'); assert.equal(result.resetRetired, true);
         assert.equal(result.redoAfterSameValueReset, '<p>First</p>'); assert.equal(result.empty, '');
@@ -302,9 +355,10 @@ test('Vue echo, external adoption, dialogs and instance cleanup stay isolated', 
     window.captured = {};
     window.capture = (name, value) => (captured[name] ??= []).push(value);
     const values = Probe.reactive({ left: '<p>Left</p>', right: '<p>Right</p>' });
+    const adoptions = Probe.reactive({ left: 0, right: 0 });
     const emitted = [];
     const app = Probe.createApp({ render: () => Probe.h('div', ['left', 'right'].map(key => Probe.h(Probe.RichNotesEditor, {
-      editorId: 'same-key', label: key, modelValue: values[key], validationMessages: ['Check this field'],
+      editorId: 'same-key', label: key, adoptionRevision: adoptions[key], modelValue: values[key], validationMessages: ['Check this field'],
       'onUpdate:modelValue': value => emitted.push([key, value])
     }))) });
     app.mount('#app');
@@ -319,7 +373,7 @@ test('Vue echo, external adoption, dialogs and instance cleanup stay isolated', 
     await Probe.nextTick();
     left.handle.editor.commands.undo();
     const undone = left.handle.getValue();
-    values.left = '<p>External</p>';
+    values.left = '<p>External</p>'; adoptions.left++;
     await Probe.nextTick();
     left.handle.editor.commands.undo();
     const adopted = left.handle.getValue();

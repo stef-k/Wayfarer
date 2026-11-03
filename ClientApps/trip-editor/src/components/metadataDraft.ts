@@ -107,6 +107,8 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   const tripId = metadata.id;
   const draft = reactive(toDraft(metadata, tagOrder, tagsBySlug));
   const baseline = reactive(toDraft(metadata, tagOrder, tagsBySlug));
+  // Owner-selected visible replacements have an identity independent of emitted HTML.
+  const notesAdoption = ref(0);
   const originals = reactive<Partial<EditorMetadataOriginalValues>>({ ...metadata.originalValues });
   // Request identity correlates its one reply; snapshots never follow parent props or later input.
   const metadataAttempt = shallowRef<{ request: EditorMetadataConditionalRequest; outcome: 'pending' | 'unknown' } | null>(null);
@@ -115,6 +117,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
 
   /** Adopts only clean fields; dirty fields retain both their desired value and their original compare. */
   const refresh = (next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
+    const previousNotes = draft.notesHtml;
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
     const incoming = toDraft(next, order, tags);
@@ -128,6 +131,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       draft.shareProgressEnabled = incoming.shareProgressEnabled;
       baseline.shareProgressEnabled = incoming.shareProgressEnabled;
     }
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
   /** Adopts one clean original without deriving missing evidence from a lossy display projection. */
@@ -185,6 +189,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     if (metadataAttempt.value?.request !== submitted || !validMetadataAcknowledgement(next, tripId) ||
         !matchesSubmittedMetadata(next.originalValues!, submitted))
       throw new Error('Trip settings acknowledgement is incomplete or belongs to another attempt.');
+    const previousNotes = draft.notesHtml;
     const current = buildMetadataRequest(draft);
     const before = buildMetadataRequest(baseline);
     const sharingWasClean = draft.shareProgressEnabled === baseline.shareProgressEnabled;
@@ -202,6 +207,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       baseline.shareProgressEnabled = next.shareProgressEnabled;
     }
     metadataAttempt.value = null;
+    if (draft.notesHtml !== previousNotes) notesAdoption.value++;
   };
 
   /** A correlated sharing reply advances the confirmed base without erasing the latest choice. */
@@ -228,7 +234,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     Object.assign(originals, next.originalValues ?? {});
   };
 
-  return { draft, baseline, metadataAttempt, sharingAttempt, refresh, request, beginMetadata, failMetadata, acknowledge, acknowledgeSharing, reset };
+  return { draft, baseline, notesAdoption, metadataAttempt, sharingAttempt, refresh, request, beginMetadata, failMetadata, acknowledge, acknowledgeSharing, reset };
 }
 
 /** A usable scoped reply supplies complete typed originals before any field or parent can advance. */
