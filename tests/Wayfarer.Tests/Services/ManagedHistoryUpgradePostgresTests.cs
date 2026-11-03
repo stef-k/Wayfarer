@@ -112,7 +112,7 @@ public sealed class ManagedHistoryUpgradePostgresTests(PostgresMigrationTestFixt
                 Creates.Add(args); var name = args[Array.IndexOf(args, "--name") + 1]; probes[name] = args;
                 return new(0, name);
             }
-            if (args[0] == "start" && args[1].Contains("-update-history-"))
+            if (args[0] == "start" && args[1] == receipt.Plan.Current.Project + "-update-history-" + receipt.Plan.Operation.ToString("N"))
             {
                 HistoryStarts++;
                 await using var db = fixture.CreateContext();

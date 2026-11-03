@@ -43,8 +43,8 @@ existing PostGIS/citext. Have the database owner provision the extension if the
 maintenance role cannot do so; never grant the application superuser rights.
 Missing privileges or failed index creation leave preparation unavailable.
 The migration uses ordinary transactional index builds while writers are quiesced;
-allow its table/index locks and disk headroom. No concurrent-build release protocol
-or release manifest/operator changes are introduced here.
+allow its table/index locks and disk headroom. The index migration introduces no
+concurrent-build release protocol or release-manifest change.
 
 ## UTC index status coverage correction
 
@@ -221,11 +221,13 @@ history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000
 W3 of #939 now selects **`history-text-2`**. Removing vendor-specific span deletion
 changes visible text extraction: `<span class="ql-ui">visible</span>` now contributes
 `VISIBLE` instead of disappearing. The previous R1 text generation therefore needs
-the existing explicit controlled text rebuild before text search becomes ready.
+the controlled text rebuild before text search becomes ready. Supported offline
+maintenance now selects that affected generation automatically; manual repair
+can still use the explicit command.
 Time generation, writer authority, environment qualification and canonical Notes
 remain unchanged. No startup/background preparation or Notes rewrite is introduced.
-The command sequence in this page remains operator-controlled; source cleanup does
-not execute it. Old text cursors and preparation state cannot authorize the new ID.
+Maintenance remains operator-controlled; source cleanup alone does not execute it.
+Old text cursors and preparation state cannot authorize the new ID.
 
 These are opaque historical names. Their embedded versions do not report the
 currently executing runtime. Future semantic changes use a new affected ID; do not rename a compatible
