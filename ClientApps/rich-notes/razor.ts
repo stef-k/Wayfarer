@@ -1,0 +1,94 @@
+import { createNotesEditor, isSafeNotesLink } from './editor';
+import './editor.css';
+
+/** Concrete Razor controls; save/recovery and explicit Clear semantics belong to the calling form. */
+export const mountRazorNotes = (host: HTMLElement) => {
+  const toolbar = document.getElementById('notes-toolbar')!;
+  const status = document.getElementById('notes-feedback')!;
+  const handle = createNotesEditor(host, host.dataset.notesContent ?? '', 'notes-label', message => { status.textContent = message; });
+  const { editor } = handle;
+  let clearIntent = false;
+  const changed = new Set<() => void>();
+  handle.onChange(() => { clearIntent = false; changed.forEach(listener => listener()); });
+
+  // Pointer actions keep the editor's selection; keyboard actions restore the last live selection as well.
+  toolbar.addEventListener('pointerdown', event => {
+    if ((event.target as Element).closest('button')) event.preventDefault();
+  });
+  editor.on('selectionUpdate', handle.saveSelection);
+  editor.on('transaction', () => {
+    handle.saveSelection();
+    toolbar.querySelectorAll<HTMLButtonElement>('[data-mark]').forEach(button => {
+      button.setAttribute('aria-pressed', String(editor.isActive(button.dataset.mark!)));
+    });
+  });
+
+  /** Native upstream commands retain their own history, list and selection behavior. */
+  toolbar.addEventListener('click', event => {
+    const action = (event.target as Element).closest<HTMLButtonElement>('button')?.dataset.action;
+    if (!action) return;
+    handle.restoreSelection();
+    switch (action) {
+      case 'bold': editor.chain().focus().toggleBold().run(); break;
+      case 'italic': editor.chain().focus().toggleItalic().run(); break;
+      case 'underline': editor.chain().focus().toggleUnderline().run(); break;
+      case 'ordered': editor.chain().focus().toggleOrderedList().run(); break;
+      case 'bullet': editor.chain().focus().toggleBulletList().run(); break;
+      case 'remove': handle.removeFormatting(); break;
+      case 'clear':
+        handle.clear(); clearIntent = true; changed.forEach(listener => listener()); break;
+      case 'link': openDialog('link'); break;
+      case 'image': openDialog('image'); break;
+    }
+  });
+  toolbar.querySelector<HTMLSelectElement>('[data-heading]')!.addEventListener('change', event => {
+    handle.restoreSelection();
+    const level = Number((event.target as HTMLSelectElement).value) as 1 | 2 | 3 | 4 | 5 | 6;
+    if (level) editor.chain().focus().setHeading({ level }).run();
+    else editor.chain().focus().setParagraph().run();
+  });
+  toolbar.querySelector<HTMLSelectElement>('[data-font]')!.addEventListener('change', event => {
+    handle.restoreSelection();
+    const font = (event.target as HTMLSelectElement).value;
+    if (font) editor.chain().focus().setFontFamily(font).run();
+    else editor.chain().focus().unsetFontFamily().run();
+  });
+
+  const dialog = document.getElementById('notes-dialog') as HTMLDialogElement;
+  const urlInput = document.getElementById('notes-url') as HTMLInputElement;
+  const title = document.getElementById('notes-dialog-title')!;
+  const error = document.getElementById('notes-dialog-error')!;
+  let kind: 'link' | 'image' = 'link';
+  /** One labelled native dialog provides Escape, focus containment and explicit safe-follow actions. */
+  function openDialog(next: 'link' | 'image') {
+    handle.saveSelection(); kind = next;
+    title.textContent = next === 'link' ? 'Edit link' : 'Insert image URL';
+    urlInput.value = next === 'link' ? editor.getAttributes('link').href ?? '' : '';
+    error.textContent = '';
+    dialog.querySelectorAll<HTMLElement>('[data-link-only]').forEach(control => { control.hidden = next !== 'link'; });
+    dialog.showModal(); urlInput.focus();
+  }
+  dialog.addEventListener('close', handle.restoreSelection);
+  document.getElementById('notes-dialog-cancel')!.addEventListener('click', () => dialog.close());
+  document.getElementById('notes-dialog-apply')!.addEventListener('click', () => {
+    const value = urlInput.value.trim();
+    if (!value || kind === 'link' && !isSafeNotesLink(value)) { error.textContent = 'Enter a safe link or HTTP(S) image URL.'; return; }
+    handle.restoreSelection();
+    const success = kind === 'image' ? handle.insertImage(value)
+      : editor.chain().focus().extendMarkRange('link').setLink({ href: value }).run();
+    if (success) { handle.saveSelection(); dialog.close(); }
+    else error.textContent = 'Image URL was rejected. Use an absolute HTTP(S) URL.';
+  });
+  document.getElementById('notes-dialog-unlink')!.addEventListener('click', () => {
+    handle.restoreSelection(); editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    handle.saveSelection(); dialog.close();
+  });
+  document.getElementById('notes-dialog-follow')!.addEventListener('click', () => {
+    const value = urlInput.value.trim();
+    if (value && isSafeNotesLink(value)) window.open(value, '_blank', 'noopener,noreferrer');
+    else error.textContent = 'Enter a safe link before following it.';
+  });
+  return { ...handle, isClear: () => clearIntent, onChange: (listener: () => void) => { changed.add(listener); },
+    adopt: (html: string) => { clearIntent = false; handle.adopt(html); },
+    dispose: () => { changed.clear(); handle.dispose(); } };
+};

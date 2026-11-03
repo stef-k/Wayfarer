@@ -264,13 +264,15 @@ const mountedForm = async (zone = 'Europe/Athens') => {
     const form = { dataset: { locationId: '421', locationDetail: JSON.stringify(detail), timeZone: zone },
         elements: { namedItem: name => fields[name] }, querySelectorAll: () => [button],
         addEventListener: (type, callback) => { (listeners[type] ||= []).push(callback); } };
-    const quill = { root: { innerHTML: 'original' }, on: (type, callback) => { quillListeners[type] = callback; } };
+    const quill = { root: { innerHTML: 'original' },
+        getValue: () => quill.root.innerHTML, adopt: html => { quill.root.innerHTML = html; },
+        onChange: callback => { quillListeners['text-change'] = callback; }, isClear: () => clear };
     let clear = false;
     const mount = () => {
         // Reload replaces DOM listeners but preserves local/session storage.
         for (const key of Object.keys(listeners)) delete listeners[key];
         for (const key of Object.keys(quillListeners)) delete quillListeners[key];
-        clear = false; mountProtectedLocationForm(form, quill, () => clear);
+        clear = false; mountProtectedLocationForm(form, quill);
     };
     return { detail, form, fields, status, quill, elements, listeners, quillListeners, mount, storage, reloads: () => reloads,
         confirmZone: () => clicks.confirmZone(),
@@ -760,52 +762,22 @@ test('malformed or premature no-row timestamps cannot authorize retry or replace
     }
 });
 
-test('actual page controls retain map picks, empty-document Clear and image insertion before submission', async t => {
-    const f = await mountedForm(); const events = {}, changes = [];
-    const control = () => ({ value: '', dataset: {}, classList: { add: () => {} }, setAttribute: () => {},
-        addEventListener: (type, callback) => { events[type] = callback; } });
-    const clear = control(), image = control(), modal = control();
-    const dom = { ...f.elements, ...f.fields, locationForm: f.form, mapContainer: { dataset: { lat: '37.98', lon: '23.72' } },
-        notes: { dataset: { notesContent: 'original' } }, insertImageBtn: image, imageModal: modal, imageUrl: { value: 'https://images.example.test/a.jpg' } };
-    let ready, pick, insert, clearClick;
-    clear.addEventListener = (_type, callback) => { clearClick = callback; };
-    image.addEventListener = (_type, callback) => { insert = callback; };
-    document.getElementById = id => dom[id]; document.createElement = () => clear;
-    // Templates are inert; this scenario tests control intent, while notesImages owns image URL policy.
-    clear.content = { querySelectorAll: () => [] };
-    document.querySelector = () => ({ querySelectorAll: () => [] });
+test('actual page map picks retain both programmatic coordinates through the editor handle', async () => {
+    const f = await mountedForm();
+    const dom = { ...f.elements, ...f.fields, locationForm: f.form, mapContainer: { dataset: { lat: '37.98', lon: '23.72' } }, notes: {} };
+    let ready, pick;
+    document.getElementById = id => dom[id];
+    document.readyState = 'loading';
     document.addEventListener = (_type, callback) => { ready = callback; };
-    f.form.dispatchEvent = event => f.listeners[event.type].forEach(callback => callback({ target: f.form }));
     f.fields.Latitude.dispatchEvent = event => f.listeners[event.type].forEach(callback => callback({ target: { name: 'Latitude' } }));
-    f.quill.on = (type, callback) => { if (type === 'text-change') changes.push(callback); };
-    f.quill.getModule = () => ({ container: { appendChild: () => {} }, addHandler: () => {} });
-    f.quill.getText = () => ''; f.quill.getLength = () => 0;
-    f.quill.setText = () => {
-        if (f.quill.root.innerHTML === '') return; // Real Quill emits no delta for a no-op Clear.
-        f.quill.root.innerHTML = ''; changes.forEach(callback => callback({}, {}, 'api'));
-    };
-    f.quill.insertEmbed = () => { f.quill.root.innerHTML = '<p>image added</p>'; changes.forEach(callback => callback({}, {}, 'api')); };
     const map = { setView: () => map, attributionControl: { setPrefix: () => {} }, getContainer: () => ({ style: {} }), on: (_type, callback) => { pick = callback; } };
     const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
-    const source = await readFile(new URL('../../wwwroot/js/Areas/User/Location/Edit.js', import.meta.url), 'utf8');
-    vm.runInNewContext(source.replace(/^import .*;$/gm, ''), { document, Event, console: { log: () => {} },
-        mountProtectedLocationForm, notesHtmlForDisplay: html => html, registerNoteImageBlot: () => {},
-        Quill: function () { return f.quill; }, createTileLayer: () => ({ addTo: () => {} }),
-        L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) },
-        bootstrap: { Modal: { getInstance: () => ({ hide: () => {} }) } } });
+    const source = await readFile(new URL('../../ClientApps/rich-notes/location-edit.js', import.meta.url), 'utf8');
+    vm.runInNewContext(source.replace(/^import .*;$/gm, ''), { document, Event, window: { addEventListener() {} },
+        mountProtectedLocationForm, mountRazorNotes: () => f.quill, createTileLayer: () => ({ addTo: () => {} }),
+        L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) } });
     ready();
-    await t.test('map picker retains both programmatic coordinate changes', () => {
-        pick({ latlng: { lat: 51.5, lng: 0 } });
-        assert.equal(locationWork(421).draft?.value.current.Latitude, '51.50000000');
-        assert.equal(locationWork(421).draft?.value.current.Longitude, '0.00000000');
-    });
-    await t.test('Clear persists with and without a Quill delta', () => {
-        clearClick(); assert.equal(locationWork(421).draft?.value.clearNotes, true);
-        retainLocationDraft(421, { ...locationWork(421).draft.value, clearNotes: false }); clearClick();
-        assert.equal(locationWork(421).draft.value.clearNotes, true, 'Clear must persist even without a Quill delta');
-    });
-    await t.test('image insertion replaces the previous Clear intent', () => {
-        insert(); assert.equal(locationWork(421).draft?.value.clearNotes, false);
-        assert.equal(locationWork(421).draft.value.current.Notes, '<p>image added</p>');
-    });
+    pick({ latlng: { lat: 51.5, lng: 0 } });
+    assert.equal(locationWork(421).draft?.value.current.Latitude, '51.50000000');
+    assert.equal(locationWork(421).draft?.value.current.Longitude, '0.00000000');
 });

@@ -1,9 +1,8 @@
-import { notesHtmlForDisplay, notesHtmlForSave } from './notes-images.js';
 import { locationWork, retainLocationDraft, saveLocationMutation, readLocationDetail, adoptLocationOriginals } from './location-mutation.js';
 import { locationEditCommand, locationWallTimeUtc } from './location-edit-state.js';
 
 /** Connects the actual Web form to dirty originals, durable drafts, immutable attempts and visible conflict recovery. */
-export const mountProtectedLocationForm = (form, quill, clearNotes) => {
+export const mountProtectedLocationForm = (form, notes) => {
     // Even unavailable/corrupt local proof must never fall through to a native unconditional form submission.
     form.addEventListener('submit', event => event.preventDefault());
     const id = Number(form.dataset.locationId);
@@ -11,7 +10,7 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     const status = document.getElementById('location-save-status');
     const names = ['Latitude', 'Longitude', 'Altitude', 'SelectedActivityId', 'LocalTimestamp', 'Address', 'FullAddress', 'AddressNumber', 'StreetName', 'PostCode', 'Place', 'Region', 'Country'];
     const input = name => form.elements.namedItem(name);
-    const values = () => ({ ...Object.fromEntries(names.map(name => [name, input(name).value])), Notes: notesHtmlForSave(quill.root.innerHTML) });
+    const values = () => ({ ...Object.fromEntries(names.map(name => [name, input(name).value])), Notes: notes.getValue() });
     let initial = values();
     let inputTimeZone = form.dataset.timeZone;
     const timeAmbiguity = document.getElementById('timeAmbiguity');
@@ -25,7 +24,7 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     if (stored?.initial && state.draft.generation !== state.settledGeneration) {
         initial = stored.initial; detail = stored.detail;
         for (const name of names) input(name).value = stored.current[name];
-        quill.root.innerHTML = notesHtmlForDisplay(stored.current.Notes);
+        notes.adopt(stored.current.Notes);
         for (const name of stored.explicitManual) manual.add(name);
         restoredClear = stored.clearNotes;
         // A refreshed row may have moved; retained wall strings keep their edit-start interpretation.
@@ -38,7 +37,7 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
     const timeRecovery = document.getElementById('location-time-recovery');
     const recoveryZone = document.getElementById('location-recovery-zone');
     if (timeRecovery) timeRecovery.hidden = !!inputTimeZone;
-    const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: clearNotes() || restoredClear,
+    const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: notes.isClear() || restoredClear,
         detail, inputTimeZone, timeAmbiguity: timeAmbiguity.value });
     const retain = () => {
         try { retainLocationDraft(id, draft()); }
@@ -67,8 +66,8 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         retain();
     });
     form.addEventListener('change', event => { if (event.target !== recoveryZone) retain(); });
-    quill.on('text-change', () => {
-        // Toolbar Clear and image insertion use Quill's API source, but are still new user intent.
+    notes.onChange(() => {
+        // Every emitted change is authored; mounting and external adoption emit nothing.
         restoredClear = false; retain();
     });
     form.addEventListener('submit', async event => {
@@ -79,7 +78,7 @@ export const mountProtectedLocationForm = (form, quill, clearNotes) => {
         try {
             if (input('LocalTimestamp').value !== initial.LocalTimestamp && !inputTimeZone)
                 throw new Error('The saved time’s zone is unavailable. Review the local time and DST occurrence, enter its time zone below, then choose Review time and zone.');
-            const selection = locationEditCommand(initial, values(), [...manual], clearNotes() || restoredClear, inputTimeZone, timeAmbiguity.value);
+            const selection = locationEditCommand(initial, values(), [...manual], notes.isClear() || restoredClear, inputTimeZone, timeAmbiguity.value);
             if (!Object.keys(selection.changes).length) { status.textContent = 'No changes selected.'; return; }
             const expected = Object.fromEntries(selection.groups.map(group => [group, detail.locationMutation.baseValues[group]]));
             buttons.forEach(button => { button.disabled = true; });

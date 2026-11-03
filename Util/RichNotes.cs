@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
+using AngleSharp.Css.Parser;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -147,6 +148,8 @@ public static class RichNotes
     private static bool IsAllowedAttribute(IElement element, IAttr attribute)
     {
         var name = attribute.Name.ToLowerInvariant();
+        if (name == "style") return NormalizeStyleAttribute(element);
+
         if (name == "class")
         {
             return NormalizeClassAttribute(element);
@@ -165,6 +168,21 @@ public static class RichNotes
         return name == "data-list"
             && string.Equals(element.TagName, "li", StringComparison.OrdinalIgnoreCase)
             && AllowedListKinds.Contains(attribute.Value);
+    }
+
+    /// <summary>Re-emits only finite native editor styles; CSS parsing never grants arbitrary declarations.</summary>
+    private static bool NormalizeStyleAttribute(IElement element)
+    {
+        var property = element.LocalName == "span" ? "font-family"
+            : element.LocalName is "p" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" ? "text-align" : null;
+        if (property is null) return false;
+        var declarations = new CssParser().ParseDeclaration(element.GetAttribute("style") ?? string.Empty);
+        var value = declarations.GetPropertyValue(property).Trim().ToLowerInvariant();
+        var allowed = property == "font-family" ? value is "serif" or "monospace"
+            : value is "left" or "center" or "right" or "justify";
+        if (!allowed) return false;
+        element.SetAttribute("style", $"{property}: {value};");
+        return true;
     }
 
     private static bool NormalizeClassAttribute(IElement element)

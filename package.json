@@ -22,6 +22,12 @@
     "test:cleanup:safety": "node --test tests/client/testCleanup.test.mjs"
   },
   "dependencies": {
+    "@tiptap/core": "3.32.2",
+    "@tiptap/extension-image": "3.32.2",
+    "@tiptap/extension-text-align": "3.32.2",
+    "@tiptap/extension-text-style": "3.32.2",
+    "@tiptap/pm": "3.32.2",
+    "@tiptap/starter-kit": "3.32.2",
     "@types/leaflet": "1.9.22",
     "@vitejs/plugin-vue": "6.0.10",
     "leaflet": "1.9.4",
