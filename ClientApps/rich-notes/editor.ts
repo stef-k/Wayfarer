@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import TextAlign from '@tiptap/extension-text-align';
 import { FontFamily, TextStyle } from '@tiptap/extension-text-style';
-import { normalizeNotesHtml } from '../trip-editor/src/notes/notesHtml';
+import { isUnsafeImageSource, normalizeNotesHtml } from '../trip-editor/src/notes/notesHtml';
 import { canonicalNoteImageSource, noteImageSourceForDisplay } from '../../wwwroot/js/util/notes-images.js';
 
 /** Matches the server's link policy, including relative paths and control-obfuscated schemes. */
@@ -62,11 +62,14 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
   let savedSelection = editor.state.selection;
   let savedMarks = editor.state.storedMarks;
 
-  /** Reject file/data images before native parsing or live insertion, with visible feedback. */
+  /** Inspect decoded image sources in inert HTML before any part of a transfer can be inserted. */
   function rejectEmbeddedImages(transfer: DataTransfer | null): boolean {
-    const html = transfer?.getData('text/html') ?? '';
-    if (!transfer?.files.length && !/data\s*:\s*image/i.test(html.replace(/[\u0000-\u0020]/g, ''))) return false;
-    feedback('Pasted or dropped files and embedded images are unsupported. Use an HTTP(S) image URL.');
+    const template = document.createElement('template');
+    template.innerHTML = transfer?.getData('text/html') ?? '';
+    const unsafeImage = [...template.content.querySelectorAll('img')].some(image =>
+      isUnsafeImageSource(canonicalNoteImageSource(image.getAttribute('src') ?? '')));
+    if (!transfer?.files.length && !unsafeImage) return false;
+    feedback('Pasted or dropped files and unsupported image sources cannot be inserted. Use an HTTP(S) image URL.');
     return true;
   }
 

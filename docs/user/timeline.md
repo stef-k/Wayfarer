@@ -81,7 +81,9 @@ Use **Link** to add/edit/unlink or explicitly **Follow link**. Links never navig
 when clicked in the editing surface. The URL dialog supports Escape and returns
 focus to Notes. Use **Image** with an absolute HTTP(S) URL. Images load through the
 server proxy; failed previews retain their URL and never retry directly against the
-origin. File/data images are rejected with feedback. Location Create, Bulk Notes,
+origin. Pasting or dropping files or unsupported image URLs rejects the whole
+transfer with feedback and leaves Notes unchanged. Ordinary text mentioning data
+images still pastes normally. Location Create, Bulk Notes,
 Visit and Trip editors retain their existing controls until the next migration.
 
 ![Location Edit Notes toolbar with a retained link and proxied image](../images/location-tiptap.png)

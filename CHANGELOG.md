@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Changed
+- Correct native Notes paste/drop validation to inspect decoded image URLs before
+  insertion: ordinary text mentioning data images pastes normally, while unsupported
+  images reject the whole transfer with feedback. Preserve finite font/alignment
+  styles using valid whitespace in CSS priority declarations (#962).
 - Replace Quill in protected Location Edit with the shared native Tiptap editor
   (#939 W1). Keep untouched Notes and existing protected save/recovery ownership.
   Add finite standard font/alignment CSS to rich-note normalization; retain older

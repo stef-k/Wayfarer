@@ -16,6 +16,12 @@ public static class RichNotes
         @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Shield CSS strings/comments and join only a terminal priority token's CSS whitespace.
+    // AngleSharp.Css 1.0.1 otherwise drops valid declarations containing "! important".
+    private static readonly Regex CssPriorityWhitespaceRegex = new(
+        """(?<literal>"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|/\*[\s\S]*?(?:\*/|\z))|![\t\n\f\r ]+important(?=[\t\n\f\r ]*(?:;|\z))""",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     private static readonly HashSet<string> AllowedTags = new(StringComparer.OrdinalIgnoreCase)
     {
         "a", "blockquote", "br", "em", "h1", "h2", "h3", "h4", "h5", "h6", "img", "li", "ol", "p", "span", "strong", "u", "ul", "s", "strike", "b", "i"
@@ -176,7 +182,10 @@ public static class RichNotes
         var property = element.LocalName == "span" ? "font-family"
             : element.LocalName is "p" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" ? "text-align" : null;
         if (property is null) return false;
-        var declarations = new CssParser().ParseDeclaration(element.GetAttribute("style") ?? string.Empty);
+        // Preserve priority for duplicate declarations; the parser still owns extraction and validation.
+        var style = CssPriorityWhitespaceRegex.Replace(element.GetAttribute("style") ?? string.Empty,
+            match => match.Groups["literal"].Success ? match.Value : "!important");
+        var declarations = new CssParser().ParseDeclaration(style);
         var value = (declarations?.GetPropertyValue(property) ?? string.Empty).Trim().ToLowerInvariant();
         var allowed = property == "font-family" ? value is "serif" or "monospace"
             : value is "left" or "center" or "right" or "justify";
