@@ -64,6 +64,65 @@ test('shared native editor commands preserve text/references and finite styles',
             handle.adopt('<p>adopted</p>'); handle.editor.commands.undo(); return { html, adopted: handle.getValue() };`);
         assert.match(result.html, /text<strong> bold<\/strong>/); assert.equal(result.adopted, '<p>adopted</p>');
     });
+    // Pair actual Chromium declaration parsing with RichNotesTests.StandardStylesAreFiniteAndCanonical.
+    await t.test('finite priority whitespace is canonical while malformed and quoted values stay forbidden', async () => {
+        const inputs = [
+            ['span', 'font-family:serif ! important', 'font-family: serif;'],
+            ['span', 'font-family:serif !\tIMPORTANT; font-family:monospace', 'font-family: serif;'],
+            ['p', 'text-align:right ! important; text-align:left', 'text-align: right;'],
+            ['span', 'font-family:serif ! important extra', null],
+            ['span', "font-family:'serif ! important'", null]
+        ];
+        for (const [tag, style, expected] of inputs) {
+            const html = `<${tag} style="${style}">a</${tag}>`;
+            const result = await page.evaluate(html => Notes.normalizeNotesHtml(html), html);
+            assert.equal(result, expected ? `<${tag} style="${expected}">a</${tag}>` : `<${tag}>a</${tag}>`, html);
+        }
+    });
+    await t.test('native HTML paste accepts image-free prose mentioning data:image', async () => {
+        const result = await run('', `const data = new DataTransfer();
+            data.setData('text/html', '<p>Use data:image/png in this explanation.</p>');
+            const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+            handle.editor.view.dom.dispatchEvent(event);
+            return { html: handle.getValue(), feedback };`);
+        assert.equal(result.html, '<p>Use data:image/png in this explanation.</p>');
+        assert.deepEqual(result.feedback, []);
+    });
+    // Native capture must reject the whole transfer before ProseMirror can insert its surviving text.
+    for (const [name, image] of [
+        ['entity-encoded data image', '<img src="data&#58;image/png;base64,AA">'],
+        ['file URL image', '<img src="file:///tmp/a.png">'],
+        ['mixed safe and unsafe images', '<img src="https://images.example.test/ok"><img src="data&#58;image/png;base64,AA">']
+    ]) {
+        for (const type of ['paste', 'drop']) {
+            await t.test(`native ${type} rejects ${name} without partial insertion`, async () => {
+                const html = `<p>before${image}after</p>`;
+                const result = await run('<p>unchanged</p>', `const before = handle.editor.getHTML();
+                    let changes = 0; handle.onChange(() => changes++);
+                    const data = new DataTransfer(); data.setData('text/html', ${JSON.stringify(html)});
+                    const event = ${type === 'paste'
+                        ? "new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })"
+                        : "new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true })"};
+                    handle.editor.view.dom.dispatchEvent(event);
+                    return { before, after: handle.editor.getHTML(), value: handle.getValue(), changes,
+                        rejected: event.defaultPrevented, feedback };`);
+                assert.equal(result.rejected, true);
+                assert.equal(result.after, result.before);
+                assert.equal(result.value, '<p>unchanged</p>');
+                assert.equal(result.changes, 0);
+                assert.ok(result.feedback.some(message => message.includes('HTTP(S) image URL')));
+            });
+        }
+    }
+    await t.test('native external-image paste retains canonical URLs and proxied previews', async () => {
+        const result = await run('', `const data = new DataTransfer();
+            data.setData('text/html', '<p>before<img src="/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Fpasted">after</p>');
+            const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+            handle.editor.view.dom.dispatchEvent(event);
+            return { html: handle.getValue(), sources: [...handle.editor.view.dom.querySelectorAll('img[src]')].map(image => image.getAttribute('src')) };`);
+        assert.equal(result.html, '<p>before<img src="https://images.example.test/pasted">after</p>');
+        assert.deepEqual(result.sources, ['/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Fpasted']);
+    });
     await t.test('native paste, split/sink/lift list commands and safe link schemes', async () => {
         const result = await run('<p>start</p>', `handle.editor.commands.focus('end');
             handle.editor.view.pasteHTML('<p><strong>rich</strong> <a href="javascript:bad()">unsafe</a></p>');
