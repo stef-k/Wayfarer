@@ -36,6 +36,9 @@ public class GroupMemberDto
     /// </summary>
     public string? ColorHex { get; set; }
 
+    /// <summary>Optional private context-scoped photo; backend color remains a separate authority.</summary>
+    public Wayfarer.Services.ProfilePhotoReference? ProfilePhoto { get; set; }
+
     /// <summary>
     ///     Indicates whether the member record represents the requesting user.
     /// </summary>

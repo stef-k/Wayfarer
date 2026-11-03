@@ -353,14 +353,30 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $nodeVersion = (Get-Content .nvmrc -Raw).Trim()
-          $node = Join-Path $env:RUNNER_TOOL_CACHE "node/$nodeVersion/x64"
-          if (!(Test-Path "$node/node.exe") -or !(Test-Path "$node/npm.cmd")) {
-            throw "Required provisioned Node $nodeVersion x64 cache is missing."
+          # The build pin is separate: offline tooling accepts stable Node 24 >= 24.22.1.
+          $minimumNode = [version]'24.22.1'
+          $nodeRoot = Join-Path $env:RUNNER_TOOL_CACHE 'node'
+          $candidates = Get-ChildItem $nodeRoot -Directory -ErrorAction SilentlyContinue | Where-Object {
+            $_.Name -match '^24\.\d+\.\d+$' -and [version]$_.Name -ge $minimumNode
+          } | Sort-Object { [version]$_.Name } -Descending
+          $node = $null
+          foreach ($candidate in $candidates) {
+            $nodePath = Join-Path $candidate.FullName 'x64'
+            if (!(Test-Path "$nodePath/node.exe" -PathType Leaf) -or
+                !(Test-Path "$nodePath/npm.cmd" -PathType Leaf)) { continue }
+            try {
+              $actualNode = & "$nodePath/node.exe" --version
+              if ($LASTEXITCODE -ne 0 -or $actualNode -cne "v$($candidate.Name)") { continue }
+              $nodeArch = & "$nodePath/node.exe" --print process.arch
+              if ($LASTEXITCODE -ne 0 -or $nodeArch -cne 'x64') { continue }
+              $node = $nodePath
+              break
+            } catch {
+              Write-Warning "Cannot execute provisioned Node at $nodePath : $_"
+            }
           }
-          $actualNode = & "$node/node.exe" --version
-          if ($LASTEXITCODE -ne 0 -or $actualNode -ne "v$nodeVersion") {
-            throw "Provisioned Node version is incompatible: $actualNode"
+          if (!$node) {
+            throw 'No eligible provisioned Node: require stable Node 24 >= 24.22.1, matching executable version, x64 and npm.cmd; no network fallback.'
           }
           $pythonRoot = Join-Path $env:RUNNER_TOOL_CACHE 'Python'
           $python = Get-ChildItem $pythonRoot -Directory | Where-Object {

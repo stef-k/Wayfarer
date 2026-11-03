@@ -37,6 +37,8 @@ public sealed class LocationImportStagedFilesTests
     [InlineData("imports/7F4F05BC5A6E47DE9E54D3A0194C12A1.csv")]
     [InlineData("imports/7f4f05bc5a6e47de9e54d3a0194c12a1.exe")]
     [InlineData("imports/private.csv")]
+    [InlineData("profile-photos/00112233445566778899aabbccddeeff.webp")]
+    [InlineData("profile-photos/00112233445566778899aabbccddeeff.tmp")]
     [InlineData("imports/7f4f05bc5a6e47de9e54d3a0194c12a1.csv\n")]
     [InlineData("C:\\private\\history.csv")]
     [InlineData("C:/private/history.csv")]

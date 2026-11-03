@@ -134,6 +134,13 @@
       "license": "MIT OR Apache-2.0"
     },
     {
+      "name": "glob",
+      "version": "0.3.4",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b",
+      "license": "MIT OR Apache-2.0"
+    },
+    {
       "name": "image",
       "version": "0.25.10",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
@@ -166,6 +173,13 @@
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "checksum": "a0d8a1c652b51dbb85c3c3164b1da63b88dafcc3fc12ecceb52f7577738c21f1",
       "license": "MIT OR Apache-2.0"
+    },
+    {
+      "name": "libwebp-sys",
+      "version": "0.14.4",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "6b3a87b44e34d17161e4f17d92a463d596cb13825dcd1758ed18fd3a721e189c",
+      "license": "MIT"
     },
     {
       "name": "litrs",
@@ -776,6 +790,31 @@
       "sha256": "74594d183c260e288e145bdd40c92d33081ca71ed27dc3d11dbd65f3668bb282",
       "source_sha256": "025c0dd1236493fcd5b6386b68453852e6528722bd5f8dce5949e94d225e7a60",
       "normalization": "Trailing whitespace removed from official HTML; all notice text retained."
+    },
+    {
+      "notice": "glob 0.3.4 / LICENSE-MIT",
+      "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+    },
+    {
+      "notice": "glob 0.3.4 / LICENSE-APACHE",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / Cargo.toml.orig",
+      "sha256": "53dc1c7f36fa009b29a75294709df3606aa712f6432990a06cae90496d4de063"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / vendor/COPYING",
+      "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / vendor/PATENTS",
+      "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+    },
+    {
+      "notice": "libwebp-sys 0.14.4 / MIT terms from package declaration",
+      "sha256": "508edcfe2faf70f4be0418c8947d4ead86a2a4d2a2eb310c2b5b07f5a56e196b",
+      "source": "MIT declaration and authors from Cargo.toml.orig; complete standard MIT grant"
     }
   ]
 }

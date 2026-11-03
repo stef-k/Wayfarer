@@ -47,10 +47,10 @@ internal static class IdentityRouteHost
         return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
     }
 
-    /// <summary>Starts production MVC/Identity parts with optional service and pre-routing middleware setup.</summary>
+    /// <summary>Starts production MVC/Identity parts; Kestrel supplies enforceable body limits for upload tests.</summary>
     public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
         Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null,
-        Action<WebApplication>? configureAuthorized = null)
+        Action<WebApplication>? configureAuthorized = null, bool useKestrel = false)
     {
         var assembly = typeof(ApplicationUser).Assembly;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -60,7 +60,8 @@ internal static class IdentityRouteHost
         });
         // The host intentionally omits startup-only job/database services.
         builder.Host.UseDefaultServiceProvider(options => options.ValidateOnBuild = false);
-        builder.WebHost.UseTestServer();
+        if (useKestrel) builder.WebHost.UseKestrel().UseUrls("http://127.0.0.1:0");
+        else builder.WebHost.UseTestServer();
         builder.Configuration.Sources.Clear();
         builder.Logging.ClearProviders();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>

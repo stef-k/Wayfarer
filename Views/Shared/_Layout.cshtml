@@ -59,7 +59,8 @@
             <link href="~/lib/tom-select/tom-select.bootstrap5.min.css" rel="stylesheet" />
         }
         @RenderSection("Styles", required: false)
-    </head>
+        <link rel="stylesheet" href="~/css/profile-photo.css" asp-append-version="true" />
+</head>
 
     <body data-bs-theme="light" class="site-shell @(embed ? "embed-mode" : "")">
         @* Stable authentic token for cookie AJAX mutations, including pages with no forms. *@
@@ -233,6 +234,7 @@
         </script>
 
         @Html.FrontendGlobalScripts()
+    <script type="module" src="~/js/profilePhotos.js" asp-append-version="true"></script>
         @if (!embed)
         {
             @await Html.PartialAsync("_ValidationScriptsPartial")

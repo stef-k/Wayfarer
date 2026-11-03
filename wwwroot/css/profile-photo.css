@@ -1,0 +1,28 @@
+/* Profile identity is a circular presentation of a square private derivative. */
+.profile-photo {
+    display: inline-flex;
+    position: relative;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 3px solid var(--photo-color, #808080);
+    background: var(--photo-color, #808080);
+    border-radius: 50%;
+    color: white;
+    overflow: hidden;
+    vertical-align: middle;
+    font-size: 15px;
+    margin-inline-end: 0.35rem;
+}
+.profile-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.profile-marker { width: 32px; height: 32px; }
+.profile-marker::before { display: none; }
+.profile-marker .profile-photo { margin: 0; }
+.profile-marker::after { pointer-events: none; width: 36px; height: 36px; border-width: 2px; }
+.profile-photo-current { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; }
+#photo-preview { display: block; border-radius: 50%; touch-action: none; max-width: 100%; }
+#photo-framing label { display: block; margin-top: 0.5rem; }
+#photo-framing input { width: min(100%, 300px); }
+@media print { .profile-photo, .profile-photo-current { display: none !important; } }

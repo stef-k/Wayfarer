@@ -23,6 +23,9 @@ libjpeg-turbo-rs = "=0.8.0"
 turbojpeg = "=1.5.1"
 turbojpeg-sys = "=1.2.0"
 
+# Static thumbnail-only WebP encoder; the qualified decoder above is unchanged.
+libwebp-sys = { version = "=0.14.4", default-features = false }
+
 [profile.release]
 # A codec panic invalidates the isolated operation.
 panic = "abort"

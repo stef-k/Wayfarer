@@ -21,6 +21,7 @@ public static class SharedLayoutFixture
         var manifest = JsonSerializer.Deserialize<LayoutManifest>(await File.ReadAllTextAsync(path), FixtureJson.Options)!;
         if (command == "cleanup-layout")
         {
+            await db.Groups.Where(group => group.OwnerUserId == manifest.UserId).ExecuteDeleteAsync();
             await db.Trips.Where(trip => trip.Id == manifest.TripId && trip.UserId == manifest.UserId).ExecuteDeleteAsync();
             await db.Users.Where(user => user.Id == manifest.UserId).ExecuteDeleteAsync();
         }

@@ -122,19 +122,19 @@
       @foreach (var u in members)
       {
           // Dim only sources hidden by effective policy; the caller always sees self.
-          var peerVisDisabled = u.Id != (string)ViewBag.CurrentUserId
+          var peerVisDisabled = u.UserId != (string)ViewBag.CurrentUserId
               && (string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase)
                   ? !group.OrgPeerVisibilityEnabled || u.OrgPeerVisibilityAccessDisabled
                   : string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase) && u.OrgPeerVisibilityAccessDisabled);
           var dimmedClass = peerVisDisabled ? "peer-visibility-disabled" : "";
           <div class="list-group-item d-flex justify-content-between align-items-center user-item @dimmedClass" data-filter="@u.UserName @u.DisplayName">
             <label class="mb-0 flex-grow-1">
-              <span class="user-color d-inline-block me-2" style="width:12px;height:12px;border-radius:50%;vertical-align:middle;"></span>
-              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.Id" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.Role" data-owner="@(u.Id == ownerId)" />
+              <partial name="_ProfilePhoto" model="@(new Wayfarer.Services.ProfilePhotoBadge((string)u.DisplayName, (string)u.UserName, (string)u.ColorHex, (Wayfarer.Services.ProfilePhotoReference?)u.ProfilePhoto))" />
+              <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.UserId" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.GroupRole" data-color="@u.ColorHex" data-photo-url="@(u.ProfilePhoto?.Url)" data-owner="@(u.UserId == ownerId)" />
               @u.UserName (@u.DisplayName)
             </label>
             <div class="btn-group btn-group-sm">
-              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.Id"
+              <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.UserId"
                       data-tippy-content="Show only this member, hide all others.">Only</button>
             </div>
           </div>

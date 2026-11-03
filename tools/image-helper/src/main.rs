@@ -12,7 +12,23 @@ fn main() {
 
 /// Validate the trusted recipe and containment before accepting any image bytes.
 fn run() -> Result<(), Failure> {
-    let (recipe, validate) = arguments()?;
+    let is_avatar = std::env::args().nth(1).as_deref() == Some("avatar");
+    let crop = if is_avatar { avatar_arguments()? } else { None };
+    let (recipe, validate) = if is_avatar {
+        (
+            Recipe {
+                width: 256,
+                height: 256,
+                quality: 85,
+                output: OutputFormat::Auto,
+                max_input: 15 * 1024 * 1024,
+                max_output: 256 * 1024,
+            },
+            false,
+        )
+    } else {
+        arguments()?
+    };
     controls()?;
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -30,7 +46,9 @@ fn run() -> Result<(), Failure> {
             .map_err(|_| Failure::Unavailable)?;
         bytes.extend_from_slice(&chunk[..length]);
     }
-    let output = if validate {
+    let output = if is_avatar {
+        wayfarer_image::avatar(&bytes, crop)?
+    } else if validate {
         wayfarer_image::validate(&bytes, recipe.max_input)?
             .as_bytes()
             .to_vec()
@@ -43,6 +61,23 @@ fn run() -> Result<(), Failure> {
         .map_err(|_| Failure::Unavailable)?;
     stdout.flush().map_err(|_| Failure::Unavailable)?;
     Ok(())
+}
+
+/// The fixed avatar recipe accepts only an optional complete oriented crop triple.
+fn avatar_arguments() -> Result<Option<wayfarer_image::AvatarCrop>, Failure> {
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    if args.is_empty() {
+        return Ok(None);
+    }
+    if args.len() != 6 || args[0] != "--crop-x" || args[2] != "--crop-y" || args[4] != "--crop-size"
+    {
+        return Err(Failure::Arguments);
+    }
+    Ok(Some(wayfarer_image::AvatarCrop {
+        x: number(&args[1])?,
+        y: number(&args[3])?,
+        size: number(&args[5])?,
+    }))
 }
 
 /// Six distinct explicit options avoid defaults and ambiguous duplicate arguments.

@@ -43,6 +43,12 @@ public sealed class ImageHelperSupervisor
         CancellationToken cancellationToken = default)
         => RunAsync(input, recipe, remainingOriginBudget, false, cancellationToken);
 
+    /// <summary>Fixed avatar command shares transform admission, containment and fail-closed reap ownership.</summary>
+    public Task<ImageTransformResult> AvatarAsync(ReadOnlyMemory<byte> input, ProfilePhotoCrop? crop,
+        TimeSpan remainingBudget, CancellationToken ct) => RunAsync(input,
+            new ImageTransform(256, 256, 85, "avatar", 15 * 1024 * 1024, 256 * 1024) { AvatarCrop = crop },
+            remainingBudget, false, ct);
+
     /// <summary>Fully decode cache/raw bytes outside origin admission; emit only their canonical MIME.</summary>
     public Task<ImageTransformResult> ValidateAsync(ReadOnlyMemory<byte> input,
         int maximumInputBytes = 50 * 1024 * 1024, CancellationToken cancellationToken = default) =>
@@ -174,7 +180,16 @@ public sealed class ImageHelperSupervisor
             CreateNoWindow = true
         };
         foreach (var argument in new[] { "--as=1073741824:1073741824", "--cpu=20:25",
-            "--nofile=128:128", "--core=0:0", "--", helperPath, validation ? "validate" : "transform",
+            "--nofile=128:128", "--core=0:0", "--", helperPath })
+            start.ArgumentList.Add(argument);
+        if (recipe.OutputFormat == "avatar")
+        {
+            start.ArgumentList.Add("avatar");
+            if (recipe.AvatarCrop is { } crop)
+                foreach (var argument in new[] { "--crop-x", Number(crop.X), "--crop-y", Number(crop.Y), "--crop-size", Number(crop.Size) })
+                    start.ArgumentList.Add(argument);
+        }
+        else foreach (var argument in new[] { validation ? "validate" : "transform",
             "--width", Number(recipe.Width), "--height", Number(recipe.Height),
             "--quality", Number(recipe.Quality), "--output-format", recipe.OutputFormat,
             "--max-input-bytes", Number(recipe.MaximumInputBytes),
@@ -209,11 +224,14 @@ public sealed class ImageHelperSupervisor
         if (exit != 0)
             return (result with { Status = exit switch {
                 3 => ImageTransformStatus.TooLarge, 4 => ImageTransformStatus.Failed,
+                5 => ImageTransformStatus.Unsupported,
                 _ => ImageTransformStatus.Unavailable } }, true);
         if (!stdin.Result)
             return (result, true);
         var bytes = stdout.Result;
-        var mime = validation ? ValidationMime(bytes) : CanonicalMime(bytes);
+        var mime = validation ? ValidationMime(bytes) : recipe.OutputFormat == "avatar"
+            ? (bytes.Length >= 12 && bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) && bytes.AsSpan(8, 4).SequenceEqual("WEBP"u8) ? "image/webp" : null)
+            : CanonicalMime(bytes);
         if (mime is null)
             return (result, true);
         return (result with { Status = ImageTransformStatus.Success, Bytes = validation ? null : bytes,
@@ -313,7 +331,7 @@ public sealed class ImageHelperSupervisor
     /// <summary>Validate trusted arguments before allocation and child admission.</summary>
     private static bool Valid(ImageTransform recipe) =>
         recipe.Width is > 0 and <= 8192 && recipe.Height is > 0 and <= 8192
-        && recipe.Quality is > 0 and <= 100 && recipe.OutputFormat is "auto" or "jpeg" or "png"
+        && recipe.Quality is > 0 and <= 100 && recipe.OutputFormat is "auto" or "jpeg" or "png" or "avatar"
         && recipe.MaximumInputBytes is > 0 and <= MaximumInputBytes
         && recipe.MaximumOutputBytes is > 0 and <= MaximumOutputBytes;
 

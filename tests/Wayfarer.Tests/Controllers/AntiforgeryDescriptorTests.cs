@@ -62,6 +62,10 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.PatchShareProgress Api.Users.DeleteAllUserLocations Api.Visit.BulkDelete
         """;
 
+    // Cookie mutations whose actions validate the header explicitly; upload must never invoke a form-reading filter.
+    // ProfilePhotoHttpTests and ProfilePhotoPostgresTests exercise refusal and valid-request controls.
+    private const string ActionHeaderCookieActions = "Api.ProfilePhoto.Upload Api.ProfilePhoto.Remove";
+
     // These routes have their own credential authority; cookie tokens must not become a mobile requirement.
     // KeyStatus is a read-only POST under the same active bearer authority as Location ingestion.
     private const string BearerActions = """
@@ -95,7 +99,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         var all = app.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().ToArray();
         var unsafeActions = all.Where(action => Methods(action).Any(method => method is "POST" or "PUT" or "PATCH" or "DELETE")).ToArray();
-        var classified = (CookieActions + " " + BearerActions + " " + QueryActions + " Api.Location.Update Api.LocationMutation.Execute")
+        var classified = (CookieActions + " " + ActionHeaderCookieActions + " " + BearerActions + " " + QueryActions + " Api.Location.Update Api.LocationMutation.Execute")
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         Assert.All(unsafeActions, action => Assert.Contains(Key(action), classified));
         foreach (var key in CookieActions.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
@@ -108,6 +112,12 @@ public sealed class AntiforgeryDescriptorTests : TestBase
                     or AutoValidateAntiforgeryTokenAttribute);
                 Assert.DoesNotContain(action.FilterDescriptors, filter => filter.Filter is IgnoreAntiforgeryTokenAttribute);
             });
+        }
+        foreach (var key in ActionHeaderCookieActions.Split(' '))
+        {
+            var action = Assert.Single(unsafeActions, action => Key(action) == key);
+            NoValidation(action); // Header validation belongs to the action, not an MVC antiforgery filter.
+            Assert.DoesNotContain(action.FilterDescriptors, filter => filter.Filter is IgnoreAntiforgeryTokenAttribute);
         }
         var admins = unsafeActions.Where(action => action.RouteValues["area"] == "Admin").ToArray();
         Assert.Equal(24, admins.Length);

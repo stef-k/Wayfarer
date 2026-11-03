@@ -16,6 +16,10 @@ public sealed class BrowserResponsePolicyTests
     [InlineData("/Trip/ExportPersonalWayfarerKml/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")]
     [InlineData("/User/Trip/Import/")]
     [InlineData("/User/Trip/ReviewImport")]
+    [InlineData("/User/Groups/Map/")]
+    [InlineData("/Manager/Groups/Members")]
+    [InlineData("/api/profile-photo/me")]
+    [InlineData("/api/groups/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/members")]
     public async Task PrivateFileErrorReexecutionCannotPublishValidators(string path)
     {
         using var host = await new HostBuilder().ConfigureWebHost(web => web.UseTestServer().Configure(app =>

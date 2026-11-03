@@ -8,6 +8,9 @@ Wayfarer's API is implemented by the controllers under `Areas/Api/Controllers/`.
 
 Development exposes Swagger UI at `/swagger`. Swagger is not enabled by the normal Production middleware path.
 
+Optional profile-photo owner/Group/public-Trip routes, mutation preconditions,
+cache policy and client recovery are specified in [Profile photos](profile-photos.md).
+
 ## Authentication modes
 
 Wayfarer has three API access patterns:

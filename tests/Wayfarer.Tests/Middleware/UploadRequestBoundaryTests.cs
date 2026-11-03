@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -82,14 +83,18 @@ public sealed class UploadRequestBoundaryTests : TestBase
             It.IsAny<CancellationToken>()), oversized ? Times.Never() : Times.Once());
     }
 
-    /// <summary>Web POSTs and managed raw PUT opt in; Trip alone adds the existing parser budget.</summary>
+    /// <summary>Web, managed and photo uploads opt in with their respective parser and passive request budgets.</summary>
     [Fact]
     public async Task Metadata_MarksWebAndManagedUploads()
     {
         using var host = await StartHost(CreateDbContext(), ImportStaging.Create(CreateTestDirectory()), Settings(1), Mock.Of<ITripImportService>());
         var actions = host.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().Where(a => a.EndpointMetadata.OfType<UserFileUploadAttribute>().Any()).ToArray();
-        Assert.Equal(4, actions.Length);
+        Assert.Equal(5, actions.Length);
+        var photo = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(Wayfarer.Areas.Api.Controllers.ProfilePhotoController));
+        Assert.Equal(16 * 1024 * 1024, Assert.Single(photo.EndpointMetadata.OfType<IRequestSizeLimitMetadata>()).MaxRequestBodySize);
+        Assert.Empty(photo.MethodInfo.GetCustomAttributes(typeof(RequestSizeLimitAttribute), false));
+        Assert.Empty(photo.Parameters);
         var trip = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController) && a.ActionName == "Import");
         var review = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(TripImportController) && a.ActionName == "ReviewImport");
         Assert.NotEmpty(review.MethodInfo.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), false));

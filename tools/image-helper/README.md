@@ -15,7 +15,7 @@ This accepts Git-source availability and maintenance risk to ship that security
 fix without changing the qualified decoder. Cargo.toml and Cargo.lock identify
 the same immutable official SHA; builds must use `--locked` and verify source
 and complete notices. Git provenance does not waive future security updates.
-No private patches, vendored fork, alternate decoder or native WebP linkage is used.
+No private patches, vendored fork, alternate WebP decoder or system WebP linkage is used. The avatar command separately links its bundled static encoder.
 
 ## Runtime boundary
 
@@ -182,3 +182,48 @@ Before merge: successful applicable exact-head `ci-gate`, fresh independent revi
 and maintainer acceptance, with the Windows startup qualification gap explicitly
 reported. The temporary official Git pin and Linux/WSL2 imaging policy are approved.
 The draft must remain unmerged, with #807/#858 open. No release/deploy is authorized.
+
+## Profile photo recipe (#881)
+
+The fixed `avatar` command accepts <=15 MiB JPEG, PNG or static WebP, <=16,384
+per axis and <=40,000,000 pixels. It rejects declared animation and requires
+strict completion, including a reduced-output completion pass through the
+already shipped native JPEG codec: the Rust decoder alone accepts the retained
+truncated-entropy-with-EOI counterexample. Native scratch is released before
+full Rust decode. Its 768-MiB memory allowance covers coefficient scratch;
+the <=2.5-MB thumbnail is caller-owned. The Rust JPEG API's 768-MiB estimate
+includes returned packed samples. Neither path increases child containment.
+
+PNG preflight's filtered-byte witness is dropped before expanded samples.
+The PNG decoder allowance excludes its <=320-MB caller raster; 16-bit words
+are decoded and endian-converted in that same allocation. WebP's best-effort
+allowance excludes caller RGBA8. Row CMS uses <=one row of RGB scratch and
+one RGBA8 destination, never a full-frame float/duplicate 16-bit buffer.
+The integer resizer premultiplies/divides alpha. Source orientation precedes
+oriented square crop validation; output side is min(256,cropSize), never enlarged.
+The pixel-only `libwebp-sys 0.14.4` encoder bundles libwebp 1.6.0 and emits quality
+85 static WebP <=256 KiB, with no inherited metadata. The completed derivative
+is fully decoded and its container checked before stdout. Default encoder
+features are disabled; no system library, bindgen or new runtime processor.
+Google BSD/PATENTS and binding package MIT declarations are shipped in notices.
+
+The application reserves one no-queue upload slot before body reads. Its fixed
+60-second lifetime includes upload, helper (at most min(30s,remaining)) and
+publication; cancellation/reap precedes admission release. Proxy/PDF recipes
+and the qualified WebP decoder remain unchanged.
+
+The two checked-in avatar capacity fixtures are generated nonpersonal 8000×5000
+images. `avatar-progressive-cmyk-40mp.jpg` is the retained design-review Pillow
+CMYK constant (71,47,10,8), quality85/progressive; SHA-256
+`a403825e9bcb4e39391817e7433f12b7d6fdec76dae5c73ee58534cf676c672b`.
+`avatar-rgba16-40mp.png` is a generated RGBA16 PNG with alternating
+(20000,25000,50000,32768)/(40000,25000,50000,65535) samples, zlib6,
+filter0 rows; SHA-256
+`1368a8f9951ac80ae47bf9f0b73c6e7a8a7be9cb97099dce52ec06febb6391a6`.
+`ProfilePhotoHelperTests` runs both through the actual contained supervisor and
+independently decodes completed output. These are focused capacity examples,
+not a claim that every possible 40-MP encoding has been exhaustively qualified.
+
+`avatar-gray-icc.jpg` is generated from the retained `gray-icc.png` with Pillow
+JPEG quality95 and the same gray ICC profile, covering gray-channel normalization.
+Its SHA-256 is `6a608884c60feb85e910ae89e7266e87656cc7d8672042d1b86381970ea23a54`.

@@ -231,13 +231,15 @@ and PyPI wheel metadata. Isolated pip disables indexes, dependency resolution,
 cache reuse and version checks during bootstrap. Installed vendored roots must
 exclude emSign ECC Root CA G3 and retain ISRG Root X1 as a positive control.
 
-The Dockerfile pins Node 24.22.1 at index
-`sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205`.
-The shared `.nvmrc` pins the same verified 24.22.1 for local `nvm` and both CI
+The Dockerfile pins stable [Node 24.22.2](https://nodejs.org/en/blog/release/v24.22.2) at index
+`sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c`.
+The shared `.nvmrc` pins the same verified 24.22.2 for local `nvm` and both CI
 setup-node inputs. Exact selection excludes cached 24.21.0 without latest
 resolution or cache eviction. The native installer retains the NodeSource 24
 channel and checks existing/new installations against the unchanged 24.22.1+
 within-24 minimum and effective-root guard before dependency/browser downloads.
+Compatibility checks reject prereleases and other majors; this minimum is separate
+from the exact reproducible build pin.
 Signed apt package verification installs Bookworm CA `20250419~deb12u2` before
 Cargo and Noble CA `20260816ubuntu0.24.04.1` before NuGet and in the final runtime.
 The pinned Rust compiler and .NET bases stay unchanged; CA package acquisition
@@ -317,9 +319,13 @@ existing guard. The retained publication receipt still supplies the bootstrap ha
 before extraction; ordinary public bundle/API digest, manifest and payload checks
 remain required. The bootstrap is never executed to establish its own trust.
 
-Windows cleanup uses only runner-provisioned tool-cache Node matching `.nvmrc`
-(24.22.1) and Python 3.12 x64. It validates both executable versions before running
-the existing offline cleanup tests. Missing/incompatible cache entries fail clearly;
+Windows cleanup uses only runner-provisioned tool-cache Node and Python 3.12 x64.
+It selects the highest stable Node 24 version at or above the qualified 24.22.1
+security minimum, comparing minor/patch numbers numerically. The exact `.nvmrc`
+build pin does not constrain this preinstalled tooling. Candidates require node.exe
+and npm.cmd files, a matching actual executable version and actual x64 architecture;
+incomplete or incompatible candidates cannot be selected. Python version validation
+and the existing offline cleanup tests remain. No eligible installation fails clearly;
 setup actions are Linux-only, with no Windows network-install fallback or new
 certificate installation authority.
 

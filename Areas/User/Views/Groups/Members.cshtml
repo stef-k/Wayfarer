@@ -33,7 +33,7 @@
       {
           <tr data-user-id="@x.u.Id">
             <td>@x.u.UserName</td>
-            <td>@x.u.DisplayName</td>
+            <td><span data-photo-user="@x.u.Id"><partial name="_ProfilePhoto" model="@(new Wayfarer.Services.ProfilePhotoBadge((string)x.u.DisplayName, (string)x.u.UserName, new Wayfarer.Services.UserColorService().GetColorHex((string)x.u.UserName), x.u.IsActive ? Wayfarer.Services.ProfilePhotoReference.Group((Guid?)x.u.ProfilePhotoVersion, group.Id, (string)x.u.Id) : null))" /></span>@x.u.DisplayName</td>
             <td>@x.m.Role</td>
             <td>@x.m.Status</td>
             <td>

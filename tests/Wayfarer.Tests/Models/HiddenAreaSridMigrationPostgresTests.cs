@@ -39,7 +39,10 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
             await migrator.MigrateAsync(PreviousMigration);
             user.IsTimelinePublic = true;
             user.PublicTimelineTimeThreshold = "now";
-            db.Users.Update(user);
+            // Update only historical columns; today's whole-user model includes later photo fields.
+            await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(setters => setters
+                .SetProperty(u => u.IsTimelinePublic, true)
+                .SetProperty(u => u.PublicTimelineTimeThreshold, "now"));
             var legacy = Area(user.Id, 0);
             var correct = Area(user.Id, 4326, 10);
             db.HiddenAreas.AddRange(legacy, correct);
@@ -54,15 +57,13 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
             // Query ST_SRID in PostgreSQL: NTS deserializes an unspecified EWKB SRID as -1.
             Assert.Equal(new[] { 0, 4326 }, await db.HiddenAreas.Where(a => a.UserId == user.Id)
                 .OrderBy(a => a.Id).Select(a => a.Area.SRID).ToArrayAsync());
-            var controller = Controller(db);
-
-            // Exercise the exact public spatial source while this historical schema lacks future EF Location columns.
+            // Exercise the production spatial source and stats consumer without materializing today's user/location model.
             var projection = new PublicTimelineLocationProjection(user, DateTime.UtcNow);
             var pointsError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.SqlQueryRaw<long>(
                 "SELECT COUNT(*) AS \"Value\" FROM " + PublicTimelineLocationProjection.SourceSql + " AS history",
                 projection.Bind()).SingleAsync());
             var statsError = await Assert.ThrowsAsync<PostgresException>(
-                () => controller.GetPublicStats(user.UserName!));
+                () => new LocationStatsService(db).GetPublicStatsAsync(projection));
             Assert.Contains("mixed SRID", pointsError.MessageText);
             Assert.Contains("mixed SRID", statsError.MessageText);
 
@@ -81,6 +82,8 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
             await migrator.MigrateAsync(PreviousMigration);
             Assert.All(await db.HiddenAreas.AsNoTracking().Where(a => a.UserId == user.Id).ToArrayAsync(),
                 a => Assert.Equal(4326, a.Area.SRID));
+            await migrator.MigrateAsync();
+            await AssertRepairedEndpointsAsync(db, user, visible);
         }
         catch (Exception failure) { primary = failure; }
         finally { await RestoreAsync(db, user.Id, primary); }

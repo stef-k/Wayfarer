@@ -25,6 +25,39 @@ namespace Wayfarer.Tests.Views;
 /// <summary>Verifies canonical itinerary collisions through the compiled normal and readable Razor markup.</summary>
 public sealed class TripViewerItineraryRenderingTests
 {
+    /// <summary>Opted-in owner identity stays on public Web names and out of print/owner-private state.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PublicOwnerPhotoRendersOnlyWithConsentAndNeverEntersPrint(bool consent)
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-photo-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            var version = Guid.NewGuid();
+            trip.IsPublic = true;
+            trip.User = new ApplicationUser { Id = "owner", DisplayName = "Photo owner", IsActive = true,
+                ShowProfilePhotoOnPublicTrips = consent, ProfilePhotoVersion = version, ConcurrencyStamp = "private-photo-state" };
+            var html = await RenderViewerAsync(scope.ServiceProvider, trip);
+            var viewer = new HtmlParser().ParseDocument(html);
+            var photos = viewer.QuerySelectorAll(".public-owner-photo img");
+            Assert.Equal(consent ? 2 : 0, photos.Length);
+            Assert.All(photos, photo => Assert.Equal($"/Public/Trips/{trip.Id}/owner-photo/{version:N}", photo.GetAttribute("src")));
+            Assert.DoesNotContain("private-photo-state", html);
+            Assert.Contains("modalContent.querySelectorAll('.profile-photo').forEach(photo => photo.remove())", html);
+            var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(),
+                Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
+            var print = new HtmlParser().ParseDocument(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
+            Assert.Empty(print.QuerySelectorAll(".profile-photo"));
+        }
+        finally { Directory.Delete(webRoot, recursive: true); }
+    }
+
     /// <summary>Every image-bearing note surface proxies once without rewriting the source model or local map.</summary>
     [Fact]
     public async Task ViewerProxiesNotesBeforeInsertionAndPreservesLocalMapsAndLinks()

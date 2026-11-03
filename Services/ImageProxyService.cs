@@ -262,6 +262,11 @@ public class ImageProxyService : IImageProxyService
                 return new ImageProxyResult(ImageProxyResultStatus.NotFound, cacheKey, null, null);
             }
 
+            // Final redirected origins retain their cache policy: never create public copies
+            // of private/no-store assets, including revocable public-Trip profile photos.
+            if (resp.Headers.CacheControl is { } policy && (policy.NoStore || policy.Private))
+                return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
+
             if (resp.Content.Headers.ContentLength > maxBytes)
             {
                 _logger.LogWarning("Image too large ({Size} bytes) from {CacheKey}.", resp.Content.Headers.ContentLength, cacheKey);

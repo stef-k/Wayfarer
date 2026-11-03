@@ -1,0 +1,16 @@
+@model Wayfarer.Services.ProfilePhotoBadge
+@using System.Text
+@{
+    // The backend color stays independent of the optional image. Razor encodes names/URLs.
+    var letter = (Model.DisplayName ?? "").EnumerateRunes().FirstOrDefault(Rune.IsLetter);
+    if (letter.Value == 0) letter = (Model.UserName ?? "").EnumerateRunes().FirstOrDefault(Rune.IsLetter);
+    var initial = letter.Value == 0 ? "" : letter.ToString();
+    var label = string.IsNullOrWhiteSpace(Model.DisplayName) ? Model.UserName : Model.DisplayName;
+}
+<span class="profile-photo" role="img" aria-label="@(label ?? "Group member")" style="--photo-color:@Model.ColorHex">
+    @initial.ToUpperInvariant()
+    @if (Model.Photo != null)
+    {
+        <img src="@Model.Photo.Url" alt="" />
+    }
+</span>
