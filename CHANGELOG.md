@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Changed
+- Correct native Notes paste/drop validation to inspect decoded image URLs before
+  insertion: ordinary text mentioning data images pastes normally, while unsupported
+  images reject the whole transfer with feedback. Preserve finite font/alignment
+  styles using valid whitespace/comments around CSS priority tokens and declaration
+  boundaries, including duplicate-declaration precedence (#962).
+- Replace Quill in protected Location Edit with the shared native Tiptap editor
+  (#939 W1). Keep untouched Notes and existing protected save/recovery ownership.
+  Add finite standard font/alignment CSS to rich-note normalization; retain older
+  Quill classes. Remove formatting preserves text, links and images; image previews
+  stay behind the secure proxy. Older formatting may need manual adjustment when
+  edited. Remaining Razor/Vue consumers and final Quill removal await W2/W3.
 - Pin reproducible frontend builds to Node 24.22.2. Offline Windows CI cleanup
   selects the highest verified preinstalled stable Node 24 at or above the existing
   24.22.1 security minimum, with executable/version, x64 and npm checks. Preserve

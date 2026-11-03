@@ -69,6 +69,10 @@ export function isUnsafeImageSource(value: string): boolean {
 function normalizeElementAttributes(element: Element): void {
   Array.from(element.attributes).forEach(attribute => {
     const name = attribute.name.toLowerCase();
+    if (name === 'style') {
+      normalizeStandardStyle(element);
+      return;
+    }
     if (name === 'class') {
       normalizeClassAttribute(element);
       return;
@@ -78,6 +82,17 @@ function normalizeElementAttributes(element: Element): void {
       element.removeAttribute(attribute.name);
     }
   });
+}
+
+/** Matches the server's two finite native style allowances without changing historical classes. */
+function normalizeStandardStyle(element: Element): void {
+  const tag = element.tagName.toLowerCase();
+  const property = tag === 'span' ? 'font-family'
+    : ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag) ? 'text-align' : null;
+  const value = property ? (element as HTMLElement).style.getPropertyValue(property).trim().toLowerCase() : '';
+  const allowed = property === 'font-family' ? ['serif', 'monospace'] : ['left', 'center', 'right', 'justify'];
+  if (property && allowed.includes(value)) element.setAttribute('style', `${property}: ${value};`);
+  else element.removeAttribute('style');
 }
 
 function normalizeClassAttribute(element: Element): void {

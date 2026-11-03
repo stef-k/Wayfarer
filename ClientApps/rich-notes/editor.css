@@ -1,0 +1,11 @@
+/* Shared editing presentation; historical read-only classes remain in the existing passive styles. */
+.rich-notes-toolbar { display: flex; flex-wrap: wrap; gap: .3rem; padding: .4rem; border: 1px solid var(--bs-border-color); }
+.rich-notes-toolbar button, .rich-notes-toolbar select { padding: .3rem .5rem; }
+.rich-notes-toolbar button[aria-pressed="true"] { background: var(--bs-primary); color: white; }
+.rich-notes-content { min-height: 12rem; padding: .6rem; border: 1px solid var(--bs-border-color); white-space: pre-wrap; overflow-wrap: anywhere; }
+.rich-notes-content img { max-width: 100%; height: auto; }
+.rich-notes-content p { margin: 0 0 .5rem; }
+.rich-notes-content blockquote { border-left: 3px solid var(--bs-secondary); padding-left: 1rem; }
+.rich-notes-content:focus-visible, .rich-notes-toolbar :focus-visible { outline: 2px solid var(--bs-primary); outline-offset: 2px; }
+#notes-dialog { max-width: min(32rem, 95vw); border: 1px solid var(--bs-border-color); border-radius: .4rem; }
+#notes-dialog::backdrop { background: #0008; }

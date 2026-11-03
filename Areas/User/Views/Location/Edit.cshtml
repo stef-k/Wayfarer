@@ -1,10 +1,12 @@
 @using Microsoft.AspNetCore.Mvc.ViewFeatures
 @model Wayfarer.Models.ViewModels.AddLocationViewModel
+@inject IWebHostEnvironment Environment
 
 @{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
-    ViewData["LoadQuill"] = true;
+    ViewData["LoadQuill"] = false;
+    var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-edit.js");
     ViewData["LoadTomSelect"] = true;
     var addressSummary = new[] { Model.FullAddress, Model.Address }
         .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
@@ -164,13 +166,30 @@
                         <button id="location-confirm-time-zone" type="button" class="btn btn-outline-primary mt-2">Review time and zone</button>
                     </div>
                     <div class="form-group">
-                        <label for="notes">Add Notes</label>
+                        <label id="notes-label">Add Notes</label>
+                        @* Named native controls share the concrete editor commands without owning save state. *@
+                        <div id="notes-toolbar" class="rich-notes-toolbar" role="toolbar" aria-label="Notes formatting">
+                            <select data-heading aria-label="Heading"><option value="0">Paragraph</option>
+                                @for (var level = 1; level <= 6; level++) { <option value="@level">Heading @level</option> }
+                            </select>
+                            <button type="button" data-action="bold" data-mark="bold" aria-pressed="false">Bold</button>
+                            <button type="button" data-action="italic" data-mark="italic" aria-pressed="false">Italic</button>
+                            <button type="button" data-action="underline" data-mark="underline" aria-pressed="false">Underline</button>
+                            <button type="button" data-action="ordered">Ordered list</button>
+                            <button type="button" data-action="bullet">Bullet list</button>
+                            <button type="button" data-action="link">Link</button>
+                            <button type="button" data-action="image">Image</button>
+                            <select data-font aria-label="Font"><option value="">Default font</option><option value="serif">Serif</option><option value="monospace">Monospace</option></select>
+                            <button type="button" data-action="remove">Remove formatting</button>
+                            <button type="button" data-action="clear">Clear</button>
+                        </div>
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>
                         <!-- Hidden input field for the notes content -->
                         <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))" />
                         <small class="text-muted">
-                            You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
+                            Older formatting may need adjustment when edited. Use the Image button to insert an HTTP(S) image URL.
                         </small>
+                        <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <div class="form-group">
@@ -275,27 +294,35 @@
         </div>
     </div>
 
-    <!-- Modal for image URL input -->
-    <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="imageModalLabel">Insert Image URL</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <label for="imageUrl" class="form-label">Image URL</label>
-                    <input type="text" id="imageUrl" class="form-control" placeholder="Enter the image URL here">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" id="insertImageBtn" class="btn btn-primary">Insert Image</button>
-                </div>
-            </div>
+    @* Native dialog provides focus containment, Escape and explicit follow without editor navigation. *@
+    <dialog id="notes-dialog" aria-labelledby="notes-dialog-title">
+        <h2 id="notes-dialog-title" class="fs-5">Edit link</h2>
+        <label for="notes-url" class="form-label">URL</label>
+        <input id="notes-url" type="text" class="form-control" autocomplete="off" />
+        <p id="notes-dialog-error" role="alert"></p>
+        <div class="d-flex gap-2 flex-wrap">
+            <button id="notes-dialog-apply" type="button" class="btn btn-primary">Apply</button>
+            <button id="notes-dialog-unlink" data-link-only type="button" class="btn btn-outline-secondary">Unlink</button>
+            <button id="notes-dialog-follow" data-link-only type="button" class="btn btn-outline-secondary">Follow link</button>
+            <button id="notes-dialog-cancel" type="button" class="btn btn-secondary">Cancel</button>
         </div>
-    </div>
+    </dialog>
 </div>
 
+@section Styles {
+    @foreach (var href in notesAssets.Css) { <link rel="stylesheet" href="@href" /> }
+}
+
 @section Scripts {
-    @Html.FrontendViewScripts()
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/rich-notes/location-edit.js"></script>
+    }
+    else if (notesAssets.Script is not null)
+    {
+        <script type="module" src="@notesAssets.Script"></script>
+    }
+    @* The protected form cannot fall back to an ordinary POST when assets are missing or fail to load. *@
+    <script>document.getElementById('locationForm').addEventListener('submit', event => event.preventDefault());</script>
 }

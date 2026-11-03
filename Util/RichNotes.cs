@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
+using AngleSharp.Css.Parser;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -14,6 +15,15 @@ public static class RichNotes
     private static readonly Regex DataImageSourceRegex = new(
         @"<img\b[^>]*?\bsrc\s*=\s*[""']?\s*data:image/",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // CSS trivia cannot cross a comment terminator or join a split identifier.
+    private const string CssPriorityTrivia = """(?:[\t\n\f\r ]|/\*(?:[^*]|\*(?!/))*\*/)*""";
+
+    // Shield strings/comments and canonicalize only terminal priority trivia, including comments to EOF.
+    // AngleSharp.Css 1.0.2 detects priority from a raw "!important" suffix, without parsing that trivia.
+    private static readonly Regex CssPriorityRegex = new(
+        $$"""(?<literal>"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|/\*[\s\S]*?(?:\*/|\z))|!{{CssPriorityTrivia}}important{{CssPriorityTrivia}}(?:/\*(?:[^*]|\*(?!/))*\z)?(?=;|\z)""",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly HashSet<string> AllowedTags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -147,6 +157,8 @@ public static class RichNotes
     private static bool IsAllowedAttribute(IElement element, IAttr attribute)
     {
         var name = attribute.Name.ToLowerInvariant();
+        if (name == "style") return NormalizeStyleAttribute(element);
+
         if (name == "class")
         {
             return NormalizeClassAttribute(element);
@@ -165,6 +177,24 @@ public static class RichNotes
         return name == "data-list"
             && string.Equals(element.TagName, "li", StringComparison.OrdinalIgnoreCase)
             && AllowedListKinds.Contains(attribute.Value);
+    }
+
+    /// <summary>Re-emits only finite native editor styles; CSS parsing never grants arbitrary declarations.</summary>
+    private static bool NormalizeStyleAttribute(IElement element)
+    {
+        var property = element.LocalName == "span" ? "font-family"
+            : element.LocalName is "p" or "h1" or "h2" or "h3" or "h4" or "h5" or "h6" ? "text-align" : null;
+        if (property is null) return false;
+        // Preserve priority for duplicate declarations; the parser still owns extraction and validation.
+        var style = CssPriorityRegex.Replace(element.GetAttribute("style") ?? string.Empty,
+            match => match.Groups["literal"].Success ? match.Value : "!important");
+        var declarations = new CssParser().ParseDeclaration(style);
+        var value = (declarations?.GetPropertyValue(property) ?? string.Empty).Trim().ToLowerInvariant();
+        var allowed = property == "font-family" ? value is "serif" or "monospace"
+            : value is "left" or "center" or "right" or "justify";
+        if (!allowed) return false;
+        element.SetAttribute("style", $"{property}: {value};");
+        return true;
     }
 
     private static bool NormalizeClassAttribute(IElement element)

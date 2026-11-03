@@ -61,6 +61,54 @@ public sealed class RichNotesTests
         Assert.Equal(output, RichNotes.Normalize(output));
     }
 
+    /// <summary>Only finite standard declarations on their intended elements survive publication and storage.</summary>
+    [Theory]
+    [InlineData("span", "FONT-FAMILY: serif; color: red; background: url(https://bad.test)", "font-family: serif;")]
+    [InlineData("span", "font-family: monospace !important; --x: url(x)", "font-family: monospace;")]
+    [InlineData("span", "font-family:serif ! important", "font-family: serif;")]
+    [InlineData("span", "font-family:serif !\tIMPORTANT; font-family:monospace", "font-family: serif;")]
+    [InlineData("p", "text-align:right ! important; text-align:left", "text-align: right;")]
+    [InlineData("span", "font-family:serif ! important/**/", "font-family: serif;")]
+    [InlineData("span", "font-family:serif ! important; font-family:monospace ! important/**/", "font-family: monospace;")]
+    [InlineData("p", "text-align:right ! important; text-align:left ! important/**/", "text-align: left;")]
+    [InlineData("span", "font-family:serif !/**/important", "font-family: serif;")]
+    [InlineData("span", "font-family:serif/**/!/**/ IMPORTANT /*one*/ /**/;", "font-family: serif;")]
+    [InlineData("span", "font-family:serif !\t\n\f\r IMPORTANT \t\n\f\r;", "font-family: serif;")]
+    [InlineData("span", "font-family:serif !important/**/; font-family:monospace", "font-family: serif;")]
+    [InlineData("span", "font-family:serif; font-family:monospace !/**/important/**/;", "font-family: monospace;")]
+    [InlineData("span", "font-family:serif !/**/important; font-family:monospace !important", "font-family: monospace;")]
+    [InlineData("span", "font-family:serif ! important/* ; font-family:monospace */;", "font-family: serif;")]
+    [InlineData("span", "font-family:serif ! important/* unfinished", "font-family: serif;")]
+    [InlineData("span", "font-family:serif ! important/**/ extra /*later*/", null)]
+    [InlineData("span", "font-family:serif ! im/**/portant", null)]
+    [InlineData("span", "font-family:serif !! important/**/", null)]
+    [InlineData("span", "font-family:serif !\u000bimportant/**/", null)]
+    [InlineData("span", "font-family:serif !\u00a0important/**/", null)]
+    [InlineData("span", "font-family:'serif; font-family:monospace ! important/**/'", null)]
+    [InlineData("span", "font-family:&quot;serif ! important/**/&quot;", null)]
+    [InlineData("span", "font-family:Arial ! important/**/; color:red ! important/**/", null)]
+    [InlineData("p", "font-family:serif ! important/**/", null)]
+    [InlineData("span", "font-family:serif ! important extra", null)]
+    [InlineData("span", "font-family:'serif ! important'", null)]
+    [InlineData("p", "text-align: CENTER; position: fixed", "text-align: center;")]
+    [InlineData("h6", "text-align: justify", "text-align: justify;")]
+    [InlineData("h1", "text-align: left", "text-align: left;")]
+    [InlineData("h2", "text-align: right", "text-align: right;")]
+    [InlineData("span", "font-family: Arial, serif", null)]
+    [InlineData("span", "font-family: var(--font)", null)]
+    [InlineData("span", "font-family: url(https://bad.test)", null)]
+    [InlineData("p", "font-family: serif; text-align: var(--align)", null)]
+    [InlineData("img", "text-align: center; font-family: serif", null)]
+    [InlineData("li", "text-align: center", null)]
+    public void StandardStylesAreFiniteAndCanonical(string tag, string style, string? expected)
+    {
+        var output = RichNotes.Normalize($"<{tag} style=\"{style}\" onclick=\"bad()\" src=\"https://example.test/a\">text</{tag}>")!;
+        var element = new HtmlParser().ParseDocument(output).QuerySelector(tag)!;
+        Assert.Equal(expected, element.GetAttribute("style"));
+        Assert.False(element.HasAttribute("onclick"));
+        Assert.Equal(output, RichNotes.Normalize(output));
+    }
+
     [Fact]
     public void NestedProxyAndLiteralEntitiesStabilizeInOnePass()
     {

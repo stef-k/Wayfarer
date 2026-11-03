@@ -15,7 +15,8 @@ export default defineConfig({
     emptyOutDir: true,
     manifest: 'manifest.json',
     rollupOptions: {
-      input: 'ClientApps/trip-editor/src/main.ts'
+      // Each page loads one entry; shared editor/style imports are emitted as Vite chunks.
+      input: ['ClientApps/trip-editor/src/main.ts', 'ClientApps/rich-notes/location-edit.js']
     }
   }
 });

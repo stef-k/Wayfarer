@@ -53,13 +53,13 @@ test('protected Location Web form preserves capture instant and retained conflic
             kind: 'update', expected: { uuid: base.baseValues.uuid, notesHtml: base.baseValues.notesHtml }, changes: { notes: { op: 'set', html: 'Newer server Notes' } } }
     });
     expect(external.status()).toBe(200);
-    await page.locator('.ql-editor').fill('My retained draft');
+    await page.locator('#notes [contenteditable=true]').fill('My retained draft');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('#location-save-status')).toContainText('locationBaseStale');
-    await expect(page.locator('.ql-editor')).toContainText('My retained draft');
+    await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     await page.reload();
     await expect(page.locator('#location-save-status')).toContainText('Restored your retained draft');
-    await expect(page.locator('.ql-editor')).toContainText('My retained draft');
+    await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     expect((await detail()).record.notesHtml).toBe('Newer server Notes');
     await page.screenshot({ path: testInfo.outputPath('protected-location-retained-draft.png'), fullPage: true });
 });

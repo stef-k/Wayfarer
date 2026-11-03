@@ -19,7 +19,7 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves rich transport encoding, durable normalization and safe historical exports.</summary>
 public sealed class RichNotesImportExportTests : TestBase
 {
-    private const string Safe = "<p class=\"ql-align-justify\"><s>rich</s> &amp; text</p>";
+    private const string Safe = "<p class=\"ql-align-justify\" style=\"text-align: justify;\"><span style=\"font-family: serif;\"><s>rich</s></span> &amp; text</p>";
     private const string Unsafe = Safe + "<script>bad()</script><img src='data:image/png,x'>";
 
     [Theory]

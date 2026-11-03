@@ -69,6 +69,25 @@ also keep an unsent full-form draft: reopening the form restores your Notes and
 other edits. If you select another Activity or Clear during a pending save, the
 older result leaves that newer choice open and retained for its own Save.
 
+The existing Location **Edit** page uses a rich Notes toolbar for headings, bold,
+italic, underline, native lists, links and Default/Serif/Monospace fonts. Keyboard
+undo/redo and list indentation work within the current editing session. **Remove
+formatting** keeps text, links and images. **Clear** is a separate request to clear
+Notes; deleting all text is an empty edit. Opening/focusing Notes or saving another
+field keeps the original Notes. Undoing back to the initial document also restores
+the unchanged value. Older formatting may need adjustment when deliberately edited.
+
+Use **Link** to add/edit/unlink or explicitly **Follow link**. Links never navigate
+when clicked in the editing surface. The URL dialog supports Escape and returns
+focus to Notes. Use **Image** with an absolute HTTP(S) URL. Images load through the
+server proxy; failed previews retain their URL and never retry directly against the
+origin. Pasting or dropping files or unsupported image URLs rejects the whole
+transfer with feedback and leaves Notes unchanged. Ordinary text mentioning data
+images still pastes normally. Location Create, Bulk Notes,
+Visit and Trip editors retain their existing controls until the next migration.
+
+![Location Edit Notes toolbar with a retained link and proxied image](../images/location-tiptap.png)
+
 Moving a point preserves the exact capture instant and updates the local display
 for the new zone. Explicit time editing uses the zone shown when the form opened;
 the draft keeps that zone and its chosen daylight-saving occurrence across reloads,
