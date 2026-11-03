@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Services;
 using Wayfarer.Util;
@@ -23,7 +24,7 @@ public sealed class ProfilePhotoController(ProfilePhotoService photos, ProfilePh
     });
 
     /// <summary>Stream after authorization, header antiforgery and no-queue operation admission.</summary>
-    [HttpPost, UserFileUpload, RequestSizeLimit(16 * 1024 * 1024)]
+    [HttpPost, UserFileUpload, PhotoRequestSizeLimit]
     // No action parameters: MVC must not create form value providers before our admission.
     public Task<IActionResult> Upload() => ExecuteAsync(async () =>
     {
@@ -40,6 +41,14 @@ public sealed class ProfilePhotoController(ProfilePhotoService photos, ProfilePh
     });
 
     private string Owner => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    /// <summary>Only upload middleware sets the host ceiling; MVC must never raise its computed minimum.</summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    private sealed class PhotoRequestSizeLimitAttribute : Attribute, IRequestSizeLimitMetadata
+    {
+        /// <summary>Whole-request endpoint cap, further restricted by administrator and active host policy.</summary>
+        public long? MaxRequestBodySize => 16 * 1024 * 1024;
+    }
 
     /// <summary>An absent header cannot fall through to antiforgery's multipart form-token reader.</summary>
     private async Task<bool> AntiforgeryAsync()

@@ -40,7 +40,10 @@ Owner mutations require the application cookie and `RequestVerificationToken`
 antiforgery header before body reads. POST carries real `UserFileUpload` metadata,
 so existing administrator disabled/stricter upload policy applies. Limit the file
 to 15 MiB and the request to 16 MiB, with bounded headers/fields and actual byte
-counting. Unsupported phone formats must prompt export/selection of JPEG, PNG or
+counting. Passive endpoint metadata lets upload middleware retain the minimum of
+the administrator, active host and endpoint request limits through MVC and body
+consumption, including chunked requests without Content-Length.
+Unsupported phone formats must prompt export/selection of JPEG, PNG or
 static WebP. The server owns format, geometry, orientation, color and crop authority.
 
 ## State and explicit recovery

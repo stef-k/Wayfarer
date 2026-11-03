@@ -16,7 +16,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Middleware;
 
-/// <summary>Actual Kestrel/MVC body consumption must retain the strictest administrator and host ceilings.</summary>
+/// <summary>Actual Kestrel/MVC body consumption retains the strictest administrator, active host and endpoint ceilings.</summary>
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ProfilePhotoRequestBoundaryTests(PostgresImportTestFixture fixture)
 {
@@ -27,6 +27,7 @@ public sealed class ProfilePhotoRequestBoundaryTests(PostgresImportTestFixture f
     [InlineData(1, null, true, false, 413)]
     [InlineData(2, null, true, true, 200)]
     [InlineData(2, 524288L, true, true, 413)]
+    [InlineData(100, 33554432L, true, true, 200)]
     public async Task UploadRetainsMinimumThroughMvc(int administratorMiB, long? hostLimit,
         bool boundaryImage, bool chunked, int expectedStatus)
     {
@@ -47,17 +48,15 @@ public sealed class ProfilePhotoRequestBoundaryTests(PostgresImportTestFixture f
             services.AddSingleton(settings.Object);
             services.AddSingleton(files.Store);
             services.AddSingleton(photos);
-        }, configureApp: host =>
+        }, configureApp: host => host.UseMiddleware<DynamicRequestSizeMiddleware>(), configureAuthorized: host =>
         {
+            // Supply the active host ceiling at upload-policy ingress, after the global compatibility ceiling.
             host.Use(async (context, next) =>
             {
                 if (hostLimit.HasValue)
                     context.Features.Get<IHttpMaxRequestBodySizeFeature>()!.MaxRequestBodySize = hostLimit;
                 await next(context);
             });
-            host.UseMiddleware<DynamicRequestSizeMiddleware>();
-        }, configureAuthorized: host =>
-        {
             host.UseMiddleware<UserFileUploadMiddleware>();
             host.Use(async (context, next) =>
             {
@@ -94,7 +93,8 @@ public sealed class ProfilePhotoRequestBoundaryTests(PostgresImportTestFixture f
         if (chunked)
         {
             Assert.Null(observedLength);
-            Assert.Equal(Math.Min(administratorMiB * 1024L * 1024, hostLimit ?? long.MaxValue), activeLimit);
+            Assert.Equal(Math.Min(16 * 1024L * 1024,
+                Math.Min(administratorMiB * 1024L * 1024, hostLimit ?? long.MaxValue)), activeLimit);
         }
         var saved = await photos.OwnerStateAsync(owner.Id, default);
         Assert.Equal(expectedStatus == 200, saved!.ProfilePhoto is not null);

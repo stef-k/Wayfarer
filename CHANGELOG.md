@@ -8,6 +8,8 @@
   Preserve backend colors/history dots and exclude photos from print/thumbnails/exports.
   Normalize bounded JPEG/PNG/static WebP through the contained helper, fence mutations
   with Identity concurrency state, and recover private durable orphans after erasure.
+  Retain the strictest administrator, host and endpoint request ceiling through MVC,
+  including chunked photo uploads without Content-Length.
   Reject private/no-store origins in the generic image proxy. Adds nullable photo
   identity/default-off consent migration; uses existing Uploads storage. Mobile UI
   implementation and native qualification remain separately owned.
