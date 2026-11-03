@@ -53,9 +53,7 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
     ],
     editorProps: {
       attributes: { role: 'textbox', 'aria-multiline': 'true', 'aria-labelledby': labelId, class: 'rich-notes-content' },
-      transformPastedHTML: html => normalizeNotesHtml(html),
-      handlePaste: (_view, event) => rejectEmbeddedImages(event.clipboardData),
-      handleDrop: (_view, event) => rejectEmbeddedImages(event.dataTransfer)
+      transformPastedHTML: html => normalizeNotesHtml(html)
     },
     onUpdate: () => listeners.forEach(listener => listener())
   });
@@ -71,6 +69,17 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
     feedback('Pasted or dropped files and embedded images are unsupported. Use an HTTP(S) image URL.');
     return true;
   }
+
+  /** File-only drops may have no ProseMirror slice, so reject at the native capture boundary. */
+  const rejectTransfer = (event: Event) => {
+    const transfer = event instanceof ClipboardEvent ? event.clipboardData
+      : event instanceof DragEvent ? event.dataTransfer : null;
+    if (!rejectEmbeddedImages(transfer)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  host.addEventListener('paste', rejectTransfer, true);
+  host.addEventListener('drop', rejectTransfer, true);
 
   /** Image errors leave the canonical reference intact, including already-stored failed references. */
   const imageError = (event: Event) => {
@@ -115,7 +124,13 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
       } catch { feedback('Enter an absolute HTTP(S) image URL.'); return false; }
       return editor.chain().focus().setImage({ src: source }).run();
     },
-    dispose: () => { host.removeEventListener('error', imageError, true); listeners.clear(); editor.destroy(); }
+    dispose: () => {
+      host.removeEventListener('paste', rejectTransfer, true);
+      host.removeEventListener('drop', rejectTransfer, true);
+      host.removeEventListener('error', imageError, true);
+      listeners.clear();
+      editor.destroy();
+    }
   };
 };
 

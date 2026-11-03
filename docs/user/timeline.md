@@ -84,6 +84,8 @@ server proxy; failed previews retain their URL and never retry directly against 
 origin. File/data images are rejected with feedback. Location Create, Bulk Notes,
 Visit and Trip editors retain their existing controls until the next migration.
 
+![Location Edit Notes toolbar with a retained link and proxied image](../images/location-tiptap.png)
+
 Moving a point preserves the exact capture instant and updates the local display
 for the new zone. Explicit time editing uses the zone shown when the form opened;
 the draft keeps that zone and its chosen daylight-saving occurrence across reloads,

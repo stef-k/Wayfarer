@@ -67,23 +67,31 @@ test('shared native editor commands preserve text/references and finite styles',
     await t.test('native paste, split/sink/lift list commands and safe link schemes', async () => {
         const result = await run('<p>start</p>', `handle.editor.commands.focus('end');
             handle.editor.view.pasteHTML('<p><strong>rich</strong> <a href="javascript:bad()">unsafe</a></p>');
+            handle.editor.view.pasteText(' plain');
             handle.editor.commands.toggleBulletList(); handle.editor.commands.splitListItem('listItem');
             handle.editor.commands.insertContent('nested'); handle.editor.commands.sinkListItem('listItem');
             const nested = handle.editor.getHTML(); handle.editor.commands.liftListItem('listItem');
             const data = new DataTransfer(); data.setData('text/html', '<img src="data:image/png;base64,AA">');
             const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
             handle.editor.view.dom.dispatchEvent(event);
-            return { nested, html: handle.editor.getHTML(), rejected: event.defaultPrevented,
+            const files = new DataTransfer(); files.items.add(new File(['bytes'], 'local.png', { type: 'image/png' }));
+            const drop = new DragEvent('drop', { dataTransfer: files, bubbles: true, cancelable: true });
+            handle.editor.view.dom.dispatchEvent(drop);
+            return { droppedFileRejected: drop.defaultPrevented, nested, html: handle.editor.getHTML(), rejected: event.defaultPrevented,
                 safe: ['/relative', 'https://example.test', 'mailto:a@b.test', 'tel:+1', 'custom:bad', 'java\\tscript:bad'].map(Notes.isSafeNotesLink) };`);
         assert.match(result.nested, /<ul>.*<ul>/); assert.match(result.html, /<strong>rich<\/strong>/);
-        assert.doesNotMatch(result.html, /javascript:|data:image/); assert.equal(result.rejected, true);
+        assert.doesNotMatch(result.html, /javascript:|data:image/); assert.equal(result.rejected, true); assert.equal(result.droppedFileRejected, true);
+        assert.match(result.html, / plain/);
         assert.deepEqual(result.safe, [true, true, true, true, false, false]);
     });
     await t.test('native keyboard list nesting and meaningful whitespace remain editable', async () => {
         await run('<blockquote><h6>  A&nbsp;  B<br>C </h6></blockquote>', String.raw`
             const text = handle.editor.getText({ blockSeparator: '\n' });
             if (!text.includes('  A\u00a0  B\nC ')) throw new Error('Whitespace or hard break was lost');
-            handle.adopt('<ul><li><p>first</p></li></ul>'); handle.editor.commands.focus('end');`);
+            handle.adopt('<ul><li><p>first</p></li></ul>');`);
+        // Keyboard events require a focused real surface, rather than the vendor's scheduled focus command.
+        await page.locator('#notes [contenteditable=true]').focus();
+        await page.keyboard.press('Control+End');
         await page.keyboard.press('Enter'); await page.keyboard.type('second'); await page.keyboard.press('Tab');
         assert.match(await page.evaluate(() => handle.editor.getHTML()), /<ul>.*<ul>/);
         await page.keyboard.press('Shift+Tab');
@@ -97,6 +105,7 @@ test('shared native editor commands preserve text/references and finite styles',
         assert.equal(result.rejected, false); assert.match(result.before, /https:\/\/images.example.test\/old/);
         assert.doesNotMatch(result.value, /ProxyImage/); assert.equal(result.sources.length, 2);
         assert.ok(result.sources.every(source => source.startsWith('/Public/ProxyImage?url=')));
+        await page.waitForFunction(() => feedback.some(message => message.includes('Image preview unavailable')));
         assert.equal(direct, 0);
     });
 });
