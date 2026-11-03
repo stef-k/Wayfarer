@@ -134,6 +134,19 @@ test('shared native editor commands preserve text/references and finite styles',
         assert.equal(result.html, '<p>before<img src="https://images.example.test/pasted">after</p>');
         assert.deepEqual(result.sources, ['/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Fpasted']);
     });
+    await t.test('native image insertion rejects recovered network paths and proxies canonical references before live DOM', async () => {
+        const result = await run('<p>Images</p>', `
+            const rejected = ['//images.example.test/negative', '/Public/ProxyImage?url=%2F%2Fimages.example.test%2Fnegative']
+                .map(source => handle.insertImage(source));
+            const source = 'https://images.example.test/photo?a=1&literal=&amp;';
+            const inserted = handle.insertImage('/Public/ProxyImage?url=' + encodeURIComponent(source));
+            return { rejected, inserted, html: handle.getValue(), sources: [...handle.editor.view.dom.querySelectorAll('img[src]')].map(image => image.getAttribute('src')) };`);
+        assert.deepEqual(result.rejected, [false, false]); assert.equal(result.inserted, true);
+        assert.match(result.html, /src="https:\/\/images.example.test\/photo\?a=1&amp;literal=&amp;amp;"/);
+        assert.doesNotMatch(result.html, /ProxyImage|negative/);
+        assert.deepEqual(result.sources, ['/Public/ProxyImage?url=' + encodeURIComponent('https://images.example.test/photo?a=1&literal=&amp;')]);
+        assert.equal(direct, 0);
+    });
     await t.test('native paste, split/sink/lift list commands and safe link schemes', async () => {
         const result = await run('<p>start</p>', `handle.editor.commands.focus('end');
             handle.editor.view.pasteHTML('<p><strong>rich</strong> <a href="javascript:bad()">unsafe</a></p>');
