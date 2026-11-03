@@ -15,6 +15,42 @@ namespace Wayfarer.Tests.Controllers;
 [Collection("API token singleton admission")]
 public sealed class ProfilePhotoHttpTests : TestBase
 {
+    /// <summary>Action-owned header validation refuses multipart requests before MVC or antiforgery reads their bodies.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    public async Task UploadRejectsMissingOrInvalidHeaderBeforeReadingBody(string? header)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        db.Users.Add(owner);
+        await db.SaveChangesAsync();
+        using var body = new BodyReadTrap();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), configureAuthorized: host =>
+            host.Use(async (context, next) =>
+            {
+                if (context.Request.Method == "POST") context.Request.Body = body;
+                await next(context);
+            }));
+        using var client = app.GetTestClient();
+        var cookie = IdentityRouteHost.Cookie(app.Services, owner.Id);
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
+        await IdentityRouteHost.AntiforgeryAsync(client);
+        var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", cookie + "; " + antiforgeryCookie);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/profile-photo/me")
+        {
+            Content = new StringContent("unread multipart")
+        };
+        request.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("multipart/form-data; boundary=photo");
+        if (header != null) request.Headers.Add("RequestVerificationToken", header);
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("invalid_photo_request", await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, body.Reads);
+    }
+
     /// <summary>Credentials never enter URLs; conditional requests still recheck persisted authority.</summary>
     [Fact]
     public async Task CookieBearerAndPublicReadsAuthorizeBeforeOpeningAndNeverCache()
@@ -88,6 +124,18 @@ public sealed class ProfilePhotoHttpTests : TestBase
         }
         await db.SaveChangesAsync();
         Assert.Null(await service.GroupVersionAsync(caller.Id, group.Id, owner.Id, version, default));
+    }
+
+    /// <summary>Fail any premature multipart read through the server's asynchronous request stream.</summary>
+    private sealed class BodyReadTrap : MemoryStream
+    {
+        public int Reads { get; private set; }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            throw new IOException("Unexpected photo request body read.");
+        }
     }
 
     private static void AssertPhoto(HttpResponseMessage response, HttpStatusCode status)

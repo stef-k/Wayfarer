@@ -22,6 +22,55 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ProfilePhotoPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Cookie removal requires the action's header validation, including when rotating an absent photo's token.</summary>
+    [PostgresTheory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    [InlineData("valid")]
+    public async Task RoutedRemovalRequiresValidAntiforgeryHeader(string? header)
+    {
+        var user = await fixture.CreateUserAsync();
+        using var storage = new PhotoTestStorage();
+        using var provider = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+        var photos = new ProfilePhotoService(provider.GetRequiredService<IServiceScopeFactory>(), storage.Store, NullLogger<ProfilePhotoService>.Instance);
+        var state = await photos.OwnerStateAsync(user.Id, default);
+        var root = Path.GetDirectoryName(Path.GetDirectoryName(storage.Store.Root))!;
+        await using var db = fixture.CreateContext();
+        await using var app = await IdentityRouteHost.StartAsync(db, root, services =>
+        {
+            services.AddSingleton(storage.Store);
+            services.AddSingleton(photos);
+        });
+        using var client = app.GetTestClient();
+        var cookie = IdentityRouteHost.Cookie(app.Services, user.Id);
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
+        var token = await IdentityRouteHost.AntiforgeryAsync(client);
+        var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", cookie + "; " + antiforgeryCookie);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "/api/profile-photo/me")
+        {
+            Content = JsonContent.Create(new { expectedStateToken = state!.StateToken })
+        };
+        if (header != null) request.Headers.Add("RequestVerificationToken", header == "valid" ? token : header);
+        using var response = await client.SendAsync(request);
+        var refreshed = await photos.OwnerStateAsync(user.Id, default);
+        if (header == "valid")
+        {
+            Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+            var removed = await response.Content.ReadFromJsonAsync<ProfilePhotoState>();
+            Assert.Null(removed!.ProfilePhoto);
+            Assert.NotEqual(state.StateToken, removed.StateToken);
+            Assert.Equal(removed.StateToken, refreshed!.StateToken);
+        }
+        else
+        {
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.Contains("invalid_photo_request", await response.Content.ReadAsStringAsync());
+            Assert.Equal(state.StateToken, refreshed!.StateToken);
+        }
+    }
+
     /// <summary>Both managed erasure adapters commit removal of the same photo reference, without photo hooks.</summary>
     [PostgresTheory]
     [InlineData("Admin")]
