@@ -21,7 +21,7 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
         const line = segmentId ? getSegmentPolyline(segmentId) : null;
         if (fit && line) {
             map.flyToBounds(line.getBounds(), {
-                animate: !options.isPrint,
+                animate: !options.isPrint && !options.reducedMotion?.(),
                 duration: options.isPrint ? 0 : 1.2,
                 // Asymmetric padding centers the route in the effective visible map.
                 paddingTopLeft: [options.paddingLeft?.() ?? options.paddingX(), 60],

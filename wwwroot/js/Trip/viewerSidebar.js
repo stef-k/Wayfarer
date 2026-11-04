@@ -74,12 +74,12 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         handle.setAttribute('aria-valuenow', String(Math.round(width())));
         handle.setAttribute('aria-valuetext', `${preference.mode}, ${Math.round(width())} pixels`);
         controls.forEach(select => { select.value = preference.mode; });
-        const nextOffset = visibleWidth();
+        const nextOffset = Math.round(visibleWidth() / 2);
         const delta = nextOffset - appliedOffset;
         appliedOffset = nextOffset;
-        map.stop();
-        map.invalidateSize({ animate: false, pan: false });
-        if (delta) map.panBy([-delta / 2, 0], { animate: false });
+        if (delta) map.stop();
+        map.invalidateSize({ animate: false });
+        if (delta) map.panBy([-delta, 0], { animate: false });
     };
     /** Hiding retains details content and selection; focus moves to the reachable Show action. */
     function hide() {
@@ -108,11 +108,14 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     observer.observe(root);
     desktop.addEventListener('change', resize);
     phone.addEventListener('change', resize);
+    // A permalink already describes the actual camera, including its sidebar offset.
+    const query = new URLSearchParams(location.search);
+    if (query.has('lat') && query.has('lon')) appliedOffset = Math.round(visibleWidth() / 2);
     render();
     return {
         visibleWidth,
         /** Offset the destination itself; navigation needs no delayed pan callback. */
-        centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([visibleWidth() / 2, 0]), zoom),
+        centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([Math.round(visibleWidth() / 2), 0]), zoom),
         openDetails: html => {
             resizer.cancel();
             content.innerHTML = html;

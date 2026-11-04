@@ -39,6 +39,26 @@ shown by the editor. Saving again still checks the original values; it does not
 force an overwrite. Older applications and already-open older editor tabs do not
 provide this protection.
 
+## Adjust the sidebar
+
+On desktops wider than 900 CSS pixels, the Trip Editor and map Viewer offer
+**Sidebar width**: **Standard** (500px), **Half** (half the Trip workspace), and
+**Full** (the whole workspace). Full stays inside Wayfarer. Choose another preset
+or **Hide** to return to the map; **Show sidebar** restores your last open width.
+The Viewer labels its floating Show action **MAP LEGEND**.
+
+Drag the narrow right edge for **Custom** width, down to 420px. With the edge
+focused, use Left/Right for 20px steps, Shift+Left/Right for 100px, Home for the
+minimum, and End for the whole workspace. Escape cancels a drag. Each app remembers
+its own width on this browser. A temporary smaller window does not overwrite your
+preferred Custom width. Blocked browser storage still allows changes for this visit.
+
+Layout changes keep your selected item, Notes and unsaved Editor forms. Save and
+Cancel keep their usual meaning. Expanded Editor and map-work controls take priority;
+returning to the docked editor restores your width. Compact stacks and phone drawers
+keep their existing layouts. Embedded Viewers still start collapsed, and print
+hides the panels and layout controls.
+
 ## Optional private dates and times
 
 After saving an object, open its existing Trip settings, Region, Place, Area or

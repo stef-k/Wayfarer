@@ -322,14 +322,14 @@ test('normal requested Segment uses the common controller selection and resolved
   helpers.addSegment(map, 'two', [[1, 0], [1, 10]], '', { anchors: [], orientation: 'forward' });
   const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?normal=${Date.now()}`);
   const root = { dataset: {} };
-  const controller = createViewerSegmentPresentationController(map, root, { isPrint: false, paddingX: () => 75 });
+  const controller = createViewerSegmentPresentationController(map, root, { isPrint: false, paddingX: () => 75, paddingLeft: () => 90 });
 
   controller.initialize('one');
 
   const snapshot = helpers.getSegmentPresentationSnapshot();
   assert.equal(snapshot.segments.find(item => item.id === 'one').active, true);
   assert.equal(snapshot.segments.find(item => item.id === 'two').active, false);
-  assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, padding: [75, 60] } });
+  assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, paddingTopLeft: [90, 60], paddingBottomRight: [60, 60] } });
   controller.initialize('missing');
   assert.equal(helpers.getSegmentPresentationSnapshot().segments.some(item => item.active), false);
 });

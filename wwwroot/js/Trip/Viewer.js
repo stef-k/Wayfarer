@@ -188,11 +188,12 @@ const init = () => {
 
     const map = initLeaflet([lat, lon], zoom, isEmbed ? fullscreenUrl : null);
     const sidebar = createViewerSidebar(root, map, { isEmbed, isPrint });
-    window.addEventListener('pagehide', () => sidebar.dispose(), { once: true });
+    window.addEventListener('pagehide', event => { if (!event.persisted) sidebar.dispose(); });
     const segmentPresentation = createViewerSegmentPresentationController(map, root, {
         isPrint,
         paddingX: () => sidebar.visibleWidth() / 2 + 60,
-        paddingLeft: () => sidebar.visibleWidth() + 60
+        paddingLeft: () => sidebar.visibleWidth() + 60,
+        reducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
     });
     // if user clicks anywhere on map except from markers remove current marker highlight
     map.on('click', e => {

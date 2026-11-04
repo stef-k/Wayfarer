@@ -10,6 +10,10 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'segment-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
+      // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+        return () => [slots.default?.(), slots.map?.()];
+      } };` };
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
         context.expose({ focusNotes() {}, focusRouteAction: () => false }); return () => null;
       } };` };

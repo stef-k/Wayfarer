@@ -10,6 +10,11 @@
   Ordinary startup and recovery-set restore perform no history backfill.
 
 ### Changed
+- Give Web Trip Viewer and Editor consistent desktop sidebar presets (Standard,
+  Half and Full), drag/keyboard Custom sizing and Hide/Show restoration (#961).
+  Remember intended widths separately in this browser, retain drafts and selected
+  details, and keep maps alive through Full/hidden transitions. Preserve compact,
+  phone, embedded and print behavior.
 - Complete Quill retirement (#939 W3): remove the npm dependency and exclusive
   transitives, copied distributions/maps/notices, layout switches, image-blot helper,
   vendor CSS and class/list interpretation. Keep semantic HTML, finite standard
