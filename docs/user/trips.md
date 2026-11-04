@@ -59,6 +59,10 @@ returning to the docked editor restores your width. Compact stacks and phone dra
 keep their existing layouts. Embedded Viewers still start collapsed, and print
 hides the panels and layout controls.
 
+![Desktop Trip Viewer sidebar controls](../images/trip-sidebar-viewer.png)
+
+![Desktop Trip Editor sidebar controls](../images/trip-sidebar-editor.png)
+
 ## Optional private dates and times
 
 After saving an object, open its existing Trip settings, Region, Place, Area or

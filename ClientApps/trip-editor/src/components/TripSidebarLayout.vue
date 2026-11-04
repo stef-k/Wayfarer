@@ -7,7 +7,6 @@ const props = defineProps<{ surfaceMode: EditorSurfaceMode }>();
 const preferenceKey = 'wayfarer.trip-editor.sidebar';
 const preference = ref<SidebarPreference>(readSidebarPreference(preferenceKey));
 const layout = ref<HTMLElement | null>(null);
-const dock = ref<HTMLElement | null>(null);
 const showButton = ref<HTMLButtonElement | null>(null);
 const selector = ref<HTMLSelectElement | null>(null);
 const handle = ref<HTMLElement | null>(null);
@@ -64,7 +63,7 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
 <template>
   <div ref="layout" class="trip-sidebar-layout" :class="{ 'is-hidden': hiddenDock, 'is-overlay': overlay, 'is-resizing': resizing }"
     :style="{ '--sidebar-width': `${width}px` }" :data-sidebar-mode="preference.mode">
-    <div ref="dock" class="trip-sidebar-dock" :inert="hiddenDock" :aria-hidden="hiddenDock || undefined">
+    <div class="trip-sidebar-dock" :inert="hiddenDock" :aria-hidden="hiddenDock || undefined">
       <div v-show="docked" class="trip-sidebar-controls">
         <label>Sidebar width
           <select ref="selector" :value="preference.mode" @change="choose">
@@ -92,7 +91,8 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
 @media (min-width: 901px) {
   .trip-sidebar-layout { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 0; min-width: 0; position: relative; }
   .trip-sidebar-dock { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; position: relative; background: var(--trip-editor-surface); }
-  .trip-sidebar-content { display: grid; min-height: 0; min-width: 0; }
+  /* Reserve the grab edge outside the sidebar scrollbar and interactive content. */
+  .trip-sidebar-content { display: grid; min-height: 0; min-width: 0; padding-right: 8px; }
   .trip-sidebar-content :deep(.trip-editor-sidebar) { min-width: 0; }
   .trip-sidebar-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; padding: .5rem 1rem; border-bottom: 1px solid var(--trip-editor-border); }
   .trip-sidebar-controls label { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; min-width: 0; }

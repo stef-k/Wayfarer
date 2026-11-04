@@ -105,11 +105,11 @@ test('Trip sidebar Viewer geometry and map continuity', async ({ page }, info) =
   await page.evaluate(() => {
     document.documentElement.setAttribute('data-bs-theme', 'dark');
     document.querySelector('#sidebar-primary h5')?.append(' — A long localized Trip title for a narrow desktop workspace');
-    document.body.style.zoom = '2';
   });
+  await page.setViewportSize({ width: 640, height: 450 });
   await noOverflow(page);
-  await capture(page, info, 'after-viewer-dark-content-zoom');
-  await page.evaluate(() => { document.body.style.zoom = ''; });
+  await capture(page, info, 'after-viewer-dark-compact');
+  await page.setViewportSize({ width: 1280, height: 900 });
   // Stored Full must not expand embeds, and both controls and panels remain absent in print.
   await selector.selectOption('full');
   await page.goto(`${tripPath('viewer')}?embed=true`);
@@ -182,9 +182,8 @@ test('Trip sidebar Editor retains Notes and selection through layout actions', a
   await page.getByRole('dialog').getByRole('button', { name: 'Dock to sidebar', exact: true }).click();
   await expectWidth(dock, 420);
   await selector.selectOption('standard');
-  const save = page.waitForResponse(response => response.url().endsWith(`/places/${placeId}`) && response.request().method() === 'PUT');
+  const save = page.waitForResponse(response => response.url().endsWith(`/places/${placeId}/conditional`) && response.request().method() === 'PATCH');
   await page.getByRole('button', { name: 'Save Place', exact: true }).click();
-  await page.getByRole('button', { name: 'Apply reviewed save', exact: true }).click();
   expect((await save).ok()).toBeTruthy();
   const state = await (await page.request.get(`/api/trips/${process.env.WAYFARER_E2E_TRIP_ID}/editor`)).json();
   expect(state.placesById[placeId!].notesHtml).toContain('Sidebar draft retains selected Notes');

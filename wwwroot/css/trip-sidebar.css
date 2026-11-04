@@ -9,6 +9,10 @@
 #trip-view [hidden] { display: none !important; }
 .sidebar-resizing { cursor: col-resize; user-select: none; }
 .sidebar-resizing #mapContainer { pointer-events: none; }
+@media (min-width: 901px) {
+    /* The grab edge occupies a border gutter, leaving the real scrollbars reachable. */
+    #sidebar-primary, #sidebar-secondary { border-right: 8px solid transparent; box-sizing: border-box; }
+}
 @media (max-width: 900px) {
     .viewer-sidebar-width, .viewer-sidebar-resizer { display: none; }
 }
