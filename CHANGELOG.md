@@ -14,7 +14,8 @@
   Half and Full), drag/keyboard Custom sizing and Hide/Show restoration (#961).
   Remember intended widths separately in this browser, retain drafts and selected
   details, and keep maps alive through Full/hidden transitions. Preserve compact,
-  phone, embedded and print behavior.
+  phone, embedded and print behavior. Mark both desktop resize edges with a small,
+  neutral centered grip, restrained hover emphasis and visible keyboard focus.
 - Keep Viewer route navigation fitted at near-Full Custom widths and on small or
   short map canvases (#961). Share bounded margins and overlay fallback across
   Segment selection, explicit centering, print and reversible layout offsets;

@@ -99,7 +99,10 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
   .trip-sidebar-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; padding: .5rem 1rem; border-bottom: 1px solid var(--trip-editor-border); }
   .trip-sidebar-controls label { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; min-width: 0; }
   .trip-sidebar-controls select { max-width: 100%; background: var(--trip-editor-surface); color: var(--trip-editor-text); border: 1px solid var(--trip-editor-border); border-radius: .25rem; padding: .25rem; }
-  .trip-sidebar-resizer { display: block; position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; z-index: 20; border-right: 3px solid var(--trip-editor-muted); }
+  .trip-sidebar-resizer { display: block; position: absolute; right: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; z-index: 20; }
+  /* A quiet centered grip marks the existing hit area without intercepting pointer input. */
+  .trip-sidebar-resizer::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 3px; height: 24px; border-radius: 2px; background: var(--trip-editor-muted); opacity: .55; pointer-events: none; }
+  .trip-sidebar-resizer:hover::after, .trip-sidebar-resizer:focus-visible::after { opacity: .85; }
   .trip-sidebar-resizer:focus-visible, .trip-sidebar-controls :focus-visible, .trip-sidebar-show:focus-visible { outline: 3px solid var(--trip-editor-accent); outline-offset: -3px; }
   .is-hidden, .is-overlay { grid-template-columns: minmax(0, 1fr); }
   .is-hidden .trip-sidebar-dock { display: none; }

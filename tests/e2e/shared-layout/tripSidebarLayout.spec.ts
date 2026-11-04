@@ -34,6 +34,67 @@ const observations = async (page: Page, info: TestInfo, runtime: string) => {
   await page.setViewportSize({ width: 1280, height: 900 });
 };
 
+/** Small visual observations at the existing host seam; draft/navigation journeys are reused. */
+for (const runtime of ['viewer', 'editor']) {
+  test(`Trip sidebar ${runtime} subtle grip appearance and pointer input`, async ({ page }, info) => {
+    await signIn(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(tripPath(runtime));
+    const panel = page.locator(runtime === 'viewer' ? '#sidebar-primary' : '.trip-sidebar-dock');
+    const selector = panel.getByRole('combobox', { name: 'Sidebar width' });
+    const handle = page.getByRole('separator', { name: 'Resize sidebar' });
+    await expectWidth(panel, 500);
+    const appearances = [];
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
+      await selector.selectOption('standard');
+      await page.mouse.move(1100, 100);
+      await capture(page, info, `grip-${runtime}-${theme}`);
+      const normal = await handle.evaluate(el => {
+        const grip = getComputedStyle(el, '::after');
+        return { color: grip.backgroundColor, opacity: grip.opacity, width: grip.width,
+          height: grip.height, pointerEvents: grip.pointerEvents };
+      });
+      expect(await width(handle)).toBe(8);
+      expect(normal.pointerEvents).toBe('none');
+      await handle.hover();
+      const hoverOpacity = await handle.evaluate(el => getComputedStyle(el, '::after').opacity);
+      expect(Number(hoverOpacity)).toBeGreaterThan(Number(normal.opacity));
+      await capture(page, info, `grip-${runtime}-${theme}-hover`);
+      await page.mouse.move(1100, 100);
+      await handle.focus();
+      await page.keyboard.press('ArrowRight');
+      await expectWidth(panel, 520);
+      await expect(handle).toBeFocused();
+      expect(await handle.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid');
+      await capture(page, info, `grip-${runtime}-${theme}-focus`);
+      appearances.push({ theme, normal, hoverOpacity });
+    }
+    // Drag directly from the decorative grip, then outside the hit area under pointer capture.
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expectWidth(panel, 600);
+    await expect(selector).toHaveValue('custom');
+    await panel.getByRole('button', { name: 'Hide sidebar' }).click();
+    await expect(handle).toBeHidden();
+    await page.getByRole('button', { name: 'Show sidebar' }).click();
+    await expect(handle).toBeVisible();
+    await page.setViewportSize({ width: 900, height: 900 });
+    await expect(handle).toBeHidden();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    if (runtime === 'viewer') {
+      await page.emulateMedia({ media: 'print' });
+      await expect(handle).toBeHidden();
+    }
+    const directory = process.env.WAYFARER_SIDEBAR_EVIDENCE ?? info.outputPath('captures');
+    await writeFile(`${directory}/grip-${runtime}-observations.json`, JSON.stringify(appearances, null, 2));
+  });
+}
+
 /** One rendered Viewer journey owns parity, real capture geometry, reversible map offsets and containment. */
 test('Trip sidebar Viewer geometry and map continuity', async ({ page }, info) => {
   await signIn(page);

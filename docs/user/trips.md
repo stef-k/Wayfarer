@@ -52,8 +52,9 @@ map. Route selection fits the retained map canvas; a nearly covering panel can
 still obscure the route. **Hide** reveals the fitted route. Smaller map canvases
 use smaller navigation margins so route fitting keeps usable width and height.
 
-Drag the narrow right edge for **Custom** width, down to 420px. With the edge
-focused, use Left/Right for 20px steps, Shift+Left/Right for 100px, Home for the
+Drag the narrow right edge, marked by a small centered grip, for **Custom** width,
+down to 420px. With the edge focused, use Left/Right for 20px steps,
+Shift+Left/Right for 100px, Home for the
 minimum, and End for the whole workspace. Escape cancels a drag. Each app remembers
 its own width on this browser. A temporary smaller window does not overwrite your
 preferred Custom width. Blocked browser storage still allows changes for this visit.
