@@ -1,0 +1,96 @@
+{
+  "head": "b90d6cfc17fcbee0f49b8a0ba10d9f6ac0b42427",
+  "unchanged_runtime": {
+    "ClientApps/trip-editor/src/App.vue": {
+      "sha256": "a55cdb9e6ba0106e527c72fa050ed4909d08cbbc4968ca36e61b9f8efa685f6d",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "ClientApps/trip-editor/src/styles.css": {
+      "sha256": "3bd48068a69c7318592a0553d86c62b7c56e579849d1e43f9998199ce57e540a",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "ClientApps/trip-editor/src/composables/useEditorSurface.ts": {
+      "sha256": "a5aea40f975eb0a8f2f93f49022c22cd704c613811c58d27b297b2b781b2ec35",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "wwwroot/js/Trip/sidebarWidth.js": {
+      "sha256": "a30e6418a40933a83926f2b1ba7e2270dd00c88c7999ed34ee797069ec3ac7c5",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "wwwroot/js/Trip/viewerSidebar.js": {
+      "sha256": "ad1bb2d653f28b76f27d5b46ab9dcc7a96e53f0624a365f2092d18af6f285ab4",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "wwwroot/js/Trip/Viewer.js": {
+      "sha256": "33132ad91e91f56ffff15c97329192df7f875f3a41a1c4c25810f4f4bee9f4b9",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "wwwroot/js/Trip/viewerSegmentPresentationController.js": {
+      "sha256": "52834bd6d871c42aa8d3573de020be3caa640dabdee5e290d5650753129528d2",
+      "matches_previous": true,
+      "matches_inventory": true
+    },
+    "Views/Trip/Viewer.cshtml": {
+      "sha256": "e545f4d0d6e5e2ea5cb98befb8ad9b46c50a2a539b1e24aa9d6657b5d7f45494",
+      "matches_previous": true,
+      "matches_inventory": true
+    }
+  },
+  "vue_script_template_unchanged": true,
+  "prior_journeys_and_helpers_byte_identical": true,
+  "managed_source": {
+    "ClientApps/trip-editor/src/components/TripSidebarLayout.vue": {
+      "review_sha256": "0963d9af26d7c633be52566d8f18ae0d7279e6ca50f05e115303650123202e02",
+      "inventory_sha256": "0963d9af26d7c633be52566d8f18ae0d7279e6ca50f05e115303650123202e02",
+      "matches_inventory": true,
+      "checkpoint_sha256": "0963d9af26d7c633be52566d8f18ae0d7279e6ca50f05e115303650123202e02",
+      "matches_managed_checkpoint": true
+    },
+    "wwwroot/css/trip-sidebar.css": {
+      "review_sha256": "9a9e60dffc291fb35296de5ebbb4027dcfcbdd813a13afa7bf7dd77e88dc7c48",
+      "inventory_sha256": "9a9e60dffc291fb35296de5ebbb4027dcfcbdd813a13afa7bf7dd77e88dc7c48",
+      "matches_inventory": true,
+      "checkpoint_sha256": "9a9e60dffc291fb35296de5ebbb4027dcfcbdd813a13afa7bf7dd77e88dc7c48",
+      "matches_managed_checkpoint": true
+    },
+    "tests/e2e/shared-layout/tripSidebarLayout.spec.ts": {
+      "review_sha256": "5f3029f11ea1459679b9cc8ba3f24a8ddead8262a06a98e371a281decde960fa",
+      "inventory_sha256": "5f3029f11ea1459679b9cc8ba3f24a8ddead8262a06a98e371a281decde960fa",
+      "matches_inventory": true,
+      "checkpoint_sha256": "5f3029f11ea1459679b9cc8ba3f24a8ddead8262a06a98e371a281decde960fa",
+      "matches_managed_checkpoint": true
+    }
+  },
+  "managed_source_root_exists": false,
+  "documentation_captures": {
+    "docs/images/trip-sidebar-viewer.png": {
+      "sha256": "545f7d7d85d274749e2e7b164968a1911b86a317bc1b4697036e8a064243813d",
+      "matches_final_capture": true,
+      "matches_inventory": true
+    },
+    "docs/images/trip-sidebar-editor.png": {
+      "sha256": "9c8c5f88e372b579baa4533516fbd9203082e952d90fba764dcab9a785f5d743",
+      "matches_final_capture": true,
+      "matches_inventory": true
+    }
+  },
+  "seven_file_delta": [
+    "CHANGELOG.md",
+    "ClientApps/trip-editor/src/components/TripSidebarLayout.vue",
+    "docs/images/trip-sidebar-editor.png",
+    "docs/images/trip-sidebar-viewer.png",
+    "docs/user/trips.md",
+    "tests/e2e/shared-layout/tripSidebarLayout.spec.ts",
+    "wwwroot/css/trip-sidebar.css"
+  ],
+  "post_managed_checkpoint_files": [
+    "docs/images/trip-sidebar-editor.png",
+    "docs/images/trip-sidebar-viewer.png"
+  ]
+}

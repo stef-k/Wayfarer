@@ -1,0 +1,250 @@
+{
+  "overall": "review",
+  "scope": {
+    "selected": 21,
+    "analyzed": 13,
+    "inapplicable": 8,
+    "excluded": 0
+  },
+  "requiredPolicies": [
+    "callableSize",
+    "loc",
+    "markdownDocumentSize",
+    "markdownSectionSize",
+    "nesting"
+  ],
+  "guards": {
+    "loc": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "ClientApps/trip-editor/src/App.vue",
+          "state": "review",
+          "nativeStatus": "warn",
+          "countedLoc": 551,
+          "warnAt": 400,
+          "failAt": 600,
+          "overrideIndex": null,
+          "reason": null,
+          "baselineLoc": 551,
+          "ratchetStatus": "within"
+        },
+        {
+          "path": "ClientApps/trip-editor/src/styles.css",
+          "state": "review",
+          "nativeStatus": "warn",
+          "countedLoc": 567,
+          "warnAt": 400,
+          "failAt": 600,
+          "overrideIndex": null,
+          "reason": null,
+          "baselineLoc": 567,
+          "ratchetStatus": "within"
+        },
+        {
+          "path": "Views/Trip/Viewer.cshtml",
+          "state": "review",
+          "nativeStatus": "grandfathered",
+          "countedLoc": 897,
+          "warnAt": 400,
+          "failAt": 600,
+          "overrideIndex": null,
+          "reason": null,
+          "baselineLoc": 934,
+          "ratchetStatus": "within"
+        },
+        {
+          "path": "wwwroot/js/Trip/Viewer.js",
+          "state": "review",
+          "nativeStatus": "warn",
+          "countedLoc": 598,
+          "warnAt": 400,
+          "failAt": 600,
+          "overrideIndex": null,
+          "reason": null,
+          "baselineLoc": 711,
+          "ratchetStatus": "within"
+        }
+      ]
+    },
+    "policyRelaxation": {
+      "state": "pass",
+      "findings": []
+    },
+    "callableSize": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "ClientApps/trip-editor/src/App.vue",
+          "callable": "App.applyMutation",
+          "range": {
+            "startLine": 387,
+            "endLine": 481
+          },
+          "measured": 95,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "typescript"
+        },
+        {
+          "path": "tests/e2e/shared-layout/tripSidebarLayout.spec.ts",
+          "callable": "tripSidebarLayout.spec.<callback@102:57>",
+          "range": {
+            "startLine": 102,
+            "endLine": 194
+          },
+          "measured": 93,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "typescript"
+        },
+        {
+          "path": "tests/e2e/shared-layout/tripSidebarLayout.spec.ts",
+          "callable": "tripSidebarLayout.spec.<callback@264:84>",
+          "range": {
+            "startLine": 264,
+            "endLine": 362
+          },
+          "measured": 99,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "typescript"
+        },
+        {
+          "path": "wwwroot/js/Trip/Viewer.js",
+          "callable": "Viewer.init",
+          "range": {
+            "startLine": 147,
+            "endLine": 672
+          },
+          "measured": 526,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "javascript"
+        },
+        {
+          "path": "wwwroot/js/Trip/Viewer.js",
+          "callable": "Viewer.init.<callback@524:64>",
+          "range": {
+            "startLine": 524,
+            "endLine": 613
+          },
+          "measured": 90,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "javascript"
+        },
+        {
+          "path": "wwwroot/js/Trip/Viewer.js",
+          "callable": "Viewer.init.<callback@528:39>",
+          "range": {
+            "startLine": 528,
+            "endLine": 612
+          },
+          "measured": 85,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "javascript"
+        },
+        {
+          "path": "wwwroot/js/Trip/viewerSidebar.js",
+          "callable": "viewerSidebar.createViewerSidebar",
+          "range": {
+            "startLine": 20,
+            "endLine": 155
+          },
+          "measured": 136,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "javascript"
+        }
+      ]
+    },
+    "nesting": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "wwwroot/js/Trip/Viewer.js",
+          "callable": "Viewer.init",
+          "range": {
+            "startLine": 147,
+            "endLine": 672
+          },
+          "measured": 5,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 4
+          },
+          "details": {
+            "deepestLine": 652
+          },
+          "embeddedLanguage": "javascript"
+        }
+      ]
+    },
+    "complexity": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownDocumentSize": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "CHANGELOG.md",
+          "measured": 1748,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 800
+          }
+        }
+      ]
+    },
+    "markdownSectionSize": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "CHANGELOG.md",
+          "heading": "Changed",
+          "level": 3,
+          "range": {
+            "startLine": 12,
+            "endLine": 317
+          },
+          "measured": 306,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 200
+          }
+        },
+        {
+          "path": "CHANGELOG.md",
+          "heading": "Fixed",
+          "level": 3,
+          "range": {
+            "startLine": 439,
+            "endLine": 708
+          },
+          "measured": 270,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 200
+          }
+        }
+      ]
+    }
+  }
+}

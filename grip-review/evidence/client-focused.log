@@ -1,0 +1,14 @@
+[Vue warn]: inject() can only be used inside setup() or functional components.
+✔ saved segment clears the page warning while independent region edits remain protected (16.200367ms)
+✔ presets follow the live workspace while Custom preserves intended width across reload and clamps (2.250887ms)
+✔ malformed or unavailable storage falls back safely and does not throw on writes (1.354786ms)
+✔ pointer completion persists once; cancellation, hide and lost capture restore the original intent (1.804113ms)
+✔ Viewer navigation retains usable fit space for presets, near Full and small canvases (0.517189ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 320.152022

@@ -1,0 +1,8 @@
+
+> wayfarer@0.0.0 smoke:trip-editor:assets:built
+> node tools/trip-editor-asset-smoke.mjs --mode=built
+
+[built] Validating wwwroot/vite/trip-editor.
+[built] PASS: Trip and all four Razor entries and their imported assets are non-empty.
+
+Trip Editor asset smoke complete.
