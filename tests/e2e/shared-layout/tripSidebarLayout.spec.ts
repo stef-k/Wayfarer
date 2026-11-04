@@ -49,6 +49,7 @@ for (const runtime of ['viewer', 'editor']) {
     for (const theme of ['light', 'dark']) {
       await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
       await selector.selectOption('standard');
+      await selector.focus(); // End the preceding keyboard-focus observation before the normal capture.
       await page.mouse.move(1100, 100);
       await capture(page, info, `grip-${runtime}-${theme}`);
       const normal = await handle.evaluate(el => {
