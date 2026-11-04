@@ -47,7 +47,8 @@ for (const runtime of ['viewer', 'editor']) {
     await expectWidth(panel, 500);
     const appearances = [];
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
+      if (await page.locator('body').getAttribute('data-bs-theme') !== theme) await page.locator('#themeToggle').click();
+      await expect(page.locator('body')).toHaveAttribute('data-bs-theme', theme);
       await selector.selectOption('standard');
       await selector.focus(); // End the preceding keyboard-focus observation before the normal capture.
       await page.mouse.move(1100, 100);
@@ -72,6 +73,7 @@ for (const runtime of ['viewer', 'editor']) {
       await capture(page, info, `grip-${runtime}-${theme}-focus`);
       appearances.push({ theme, normal, hoverOpacity });
     }
+    expect(appearances[0].normal.color).not.toBe(appearances[1].normal.color);
     // Drag directly from the decorative grip, then outside the hit area under pointer capture.
     const box = (await handle.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
