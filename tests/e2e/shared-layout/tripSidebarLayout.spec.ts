@@ -55,6 +55,7 @@ test('Trip sidebar Viewer geometry and map continuity', async ({ page }, info) =
   await page.setViewportSize({ width: 1920, height: 900 });
   await expectWidth(legend, await width(root) / 2);
   await page.setViewportSize({ width: 1280, height: 900 });
+  await expectWidth(legend, await width(root) / 2);
   const box = (await handle.boundingBox())!;
   await page.mouse.move(box.x + 4, box.y + 120);
   await page.mouse.down();

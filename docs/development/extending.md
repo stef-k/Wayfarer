@@ -89,7 +89,8 @@ uses the existing `map/mapViewport.ts` observer and navigation owner for size up
 `wwwroot/js/Trip/viewerSidebar.js` owns the live Razor panels and one integer pixel
 map offset. Width/visibility changes apply only the offset delta; explicit navigation
 uses an offset destination or asymmetric bounds padding without delayed callbacks.
-Full overlays a nonzero map in both runtimes.
+Full overlays a nonzero map in both runtimes. The Editor map search stacks below
+500px of map-column space through a container query, independently of viewport width.
 
 Both use `wwwroot/js/Trip/sidebarWidth.js` for finite presets, safe storage and
 pointer/keyboard completion/cancellation. Preferences are separately namespaced as
