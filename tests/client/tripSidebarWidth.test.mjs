@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bindSidebarResize, readSidebarPreference, sidebarWidth, sidebarKeyWidth, writeSidebarPreference } from '../../wwwroot/js/Trip/sidebarWidth.js';
+import { viewerNavigation } from '../../wwwroot/js/Trip/viewerSidebar.js';
 
 // Real shared production semantics cover both runtime namespaces and transient clamps.
 test('presets follow the live workspace while Custom preserves intended width across reload and clamps', () => {
@@ -70,4 +71,39 @@ test('pointer completion persists once; cancellation, hide and lost capture rest
     assert.equal(preference.width, 1280);
     assert.equal(sidebarKeyWidth({ key: 'Tab' }, 500, 1280), null);
   } finally { owner.dispose(); globalThis.window = previousWindow; }
+});
+
+/** Actual fitting space, rather than option shape alone, owns the navigation boundary. */
+test('Viewer navigation retains usable fit space for presets, near Full and small canvases', () => {
+  for (const [size, sidebar, offset] of [
+    [{ x: 1280, y: 800 }, 500, 250], // Standard
+    [{ x: 1280, y: 800 }, 640, 320], // Half
+    [{ x: 1280, y: 800 }, 1040, 520], // Last split with 120px of fit space
+    [{ x: 1280, y: 800 }, 1041, 0], // Overlay when the exposed strip cannot support margins
+    [{ x: 1280, y: 800 }, 1260, 0], // End, ArrowLeft
+    [{ x: 1280, y: 800 }, 1280, 0], // Full
+    [{ x: 640, y: 100 }, 500, 0], // Compact and short
+    [{ x: 100, y: 80 }, 0, 0], // Small embed/print canvas
+    [{ x: 901, y: 60 }, 500, 250]
+  ]) {
+    const navigation = viewerNavigation(size, sidebar);
+    const { paddingTopLeft: start, paddingBottomRight: end } = navigation.fitOptions;
+    assert.equal(navigation.offsetX, offset);
+    assert.equal((start[0] - end[0]) / 2, offset, 'centering and fitting share the layout offset');
+    assert.ok(size.x - start[0] - end[0] >= Math.min(120, size.x / 2), 'positive usable width');
+    assert.ok(size.y - start[1] - end[1] >= size.y / 2, 'at least half the height remains usable');
+  }
+});
+
+/** Preference changes and responsive fallback use one reversible integer offset. */
+test('Viewer navigation offsets reverse across split, overlay, hidden and breakpoint changes', () => {
+  let previous = 0;
+  let total = 0;
+  for (const [width, sidebar] of [[1280, 501], [1280, 1260], [1280, 0], [1280, 1260],
+    [1280, 501], [640, 500], [390, 0], [1280, 501], [1280, 0]]) {
+    const next = viewerNavigation({ x: width, y: 600 }, sidebar).offsetX;
+    total += next - previous;
+    previous = next;
+  }
+  assert.equal(total, 0);
 });

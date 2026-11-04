@@ -23,9 +23,8 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
             map.flyToBounds(line.getBounds(), {
                 animate: !options.isPrint && !options.reducedMotion?.(),
                 duration: options.isPrint ? 0 : 1.2,
-                // Asymmetric padding centers the route in the effective visible map.
-                paddingTopLeft: [options.paddingLeft?.() ?? options.paddingX(), 60],
-                paddingBottomRight: [60, 60]
+                // Layout, explicit centering and all route fits share the live canvas budget.
+                ...options.fitOptions()
             });
         }
     };
@@ -49,7 +48,7 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
         window.__segmentPresentationReady = false;
         if (registeredLine) {
             select(requestedSegmentId, false);
-            map.fitBounds(registeredLine.getBounds(), {padding: [60, 60], animate: false});
+            map.fitBounds(registeredLine.getBounds(), {...options.fitOptions(), animate: false});
         } else {
             select(null, false);
         }

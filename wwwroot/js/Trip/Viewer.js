@@ -14,7 +14,6 @@ import {
     setRegionVisible,
     setSegmentVisible,
     getPlaceMarker,
-    getSegmentPolyline,
     canvasRenderer
 } from './tripViewerHelpers.js';
 
@@ -191,8 +190,7 @@ const init = () => {
     window.addEventListener('pagehide', event => { if (!event.persisted) sidebar.dispose(); });
     const segmentPresentation = createViewerSegmentPresentationController(map, root, {
         isPrint,
-        paddingX: () => sidebar.visibleWidth() / 2 + 60,
-        paddingLeft: () => sidebar.visibleWidth() + 60,
+        fitOptions: sidebar.fitOptions,
         reducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
     });
     // if user clicks anywhere on map except from markers remove current marker highlight
@@ -397,22 +395,13 @@ const init = () => {
         });
     });
 
-    /* ADD – segment click centres map on the whole route */
+    /* Row, button and route-hit selection share the same bounded navigation owner. */
     $$('.segment-list-item[data-route-wkt]').forEach(li => {
         li.addEventListener('click', e => {
             // ignore clicks coming from the visibility checkbox
             if (e.target.closest('.segment-toggle, .segment-journey-place')) return;
 
-            const sid = li.dataset.segmentId;
-            segmentPresentation.select(sid, false);
-            const pl = getSegmentPolyline(sid);
-            if (!pl) return;
-
-            const b = pl.getBounds();                 // route bounds
-            map.flyToBounds(b, {
-                animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, duration: 1.2,
-                paddingTopLeft: [sidebar.visibleWidth() + 60, 60], paddingBottomRight: [60, 60]
-            });
+            segmentPresentation.select(li.dataset.segmentId);
         });
         li.querySelector('.segment-selection-button')?.addEventListener('click', e => {
             e.stopPropagation();

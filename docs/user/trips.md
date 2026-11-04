@@ -47,6 +47,11 @@ On desktops wider than 900 CSS pixels, the Trip Editor and map Viewer offer
 or **Hide** to return to the map; **Show sidebar** restores your last open width.
 The Viewer labels its floating Show action **MAP LEGEND**.
 
+In the Viewer, Full and widths leaving less than 240px of map space overlay the
+map. Route selection fits the retained map canvas; a nearly covering panel can
+still obscure the route. **Hide** reveals the fitted route. Smaller map canvases
+use smaller navigation margins so route fitting keeps usable width and height.
+
 Drag the narrow right edge for **Custom** width, down to 420px. With the edge
 focused, use Left/Right for 20px steps, Shift+Left/Right for 100px, Home for the
 minimum, and End for the whole workspace. Escape cancels a drag. Each app remembers

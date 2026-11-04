@@ -89,6 +89,16 @@ uses the existing `map/mapViewport.ts` observer and navigation owner for size up
 `wwwroot/js/Trip/viewerSidebar.js` owns the live Razor panels and one integer pixel
 map offset. Width/visibility changes apply only the offset delta; explicit navigation
 uses an offset destination or asymmetric bounds padding without delayed callbacks.
+Viewer navigation reads Leaflet's actual `getSize()`, after size invalidation on
+layout changes. Each axis has a margin of at most 60px and at most one quarter of
+that canvas dimension. A sidebar offsets navigation only when its exposed strip
+can retain both horizontal margins plus the same usable width (240px total on
+normal canvases). Otherwise it overlays the retained canvas, just like Full or
+phone panels. The width preference is unchanged. Integer offsets drive layout,
+`centerFor` and fit padding together. Segment rows, buttons, route hits and URL
+selection use the common presentation controller; print fit uses the same bounded
+margins with panels hidden. A nearly covering panel can obscure the fitted route
+until Hide reveals the canvas; layout changes preserve the camera rather than refit.
 Full overlays a nonzero map in both runtimes. The Editor map search stacks below
 500px of map-column space through a container query, independently of viewport width.
 
@@ -100,7 +110,8 @@ matching the existing Editor split. The shared 420px minimum retains the previou
 Editor form bound. Viewer phone overlays at 575.98px and Editor drawers at 640px
 remain independently owned; desktop preferences resume when returning to desktop.
 
-Run `node --test tests/client/tripSidebarWidth.test.mjs` for state/interaction rules
+Run `node --test tests/client/tripSidebarWidth.test.mjs` for state/interaction and
+navigation budget rules
 and `npm run test:e2e:shared-layout -- --grep 'Trip sidebar (Viewer|Editor)'` for the
 two managed geometry journeys. Set `WAYFARER_SIDEBAR_EVIDENCE` to retain screenshots
 outside the managed disposable root. Native client tests retain ownership of the

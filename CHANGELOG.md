@@ -15,6 +15,10 @@
   Remember intended widths separately in this browser, retain drafts and selected
   details, and keep maps alive through Full/hidden transitions. Preserve compact,
   phone, embedded and print behavior.
+- Keep Viewer route navigation fitted at near-Full Custom widths and on small or
+  short map canvases (#961). Share bounded margins and overlay fallback across
+  Segment selection, explicit centering, print and reversible layout offsets;
+  hiding a nearly covering panel reveals the fitted route.
 - Complete Quill retirement (#939 W3): remove the npm dependency and exclusive
   transitives, copied distributions/maps/notices, layout switches, image-blot helper,
   vendor CSS and class/list interpretation. Keep semantic HTML, finite standard

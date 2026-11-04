@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 /** Run-owned credentials and data use the established managed host and cleanup owner. */
@@ -194,4 +194,90 @@ test('Trip sidebar Editor retains Notes and selection through layout actions', a
   expect(state.placesById[placeId!].notesHtml).toContain('Sidebar draft retains selected Notes');
   expect(custom).toBeGreaterThan(700);
   await noOverflow(page);
+});
+
+/** Retains F1's real Leaflet route and keyboard trigger, through both production entry paths. */
+test('Trip sidebar Viewer near Full route navigation stays fitted and reversible', async ({ page }, info) => {
+  await signIn(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // Observe the retained production map exactly as the independent F1 probe did.
+  await page.addInitScript(() => {
+    let value: any;
+    Object.defineProperty(window, 'L', { configurable: true, get: () => value, set: next => {
+      value = next;
+      next.Map.addInitHook(function (this: any) { (window as any).sidebarNavigationMap = this; });
+    } });
+  });
+  // The managed sample Trip has one Place. Add only transient route markup before
+  // Viewer initialization so the real renderer and row listener own this route too.
+  await page.route(`**${tripPath('viewer')}*`, async route => {
+    const response = await route.fetch();
+    const html = await response.text();
+    await route.fulfill({ response, body: html.replace('</aside>', `<ul><li class="segment-list-item"
+      data-segment-id="review-route" data-route-wkt="LINESTRING (23.70 37.95, 23.76 38.01)"
+      data-route-orientation="forward"><span>Review route</span>
+      <button class="segment-selection-button" type="button">Select review route</button></li></ul></aside>`) });
+  });
+  await page.goto(tripPath('viewer'));
+  const legend = page.locator('#sidebar-primary');
+  const handle = page.getByRole('separator', { name: 'Resize sidebar' });
+  await expect(handle).toBeVisible();
+  await handle.focus();
+  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowLeft');
+  await expectWidth(legend, 1260);
+  const observe = () => page.evaluate(async () => {
+    const map = (window as any).sidebarNavigationMap;
+    const helpers = await import('/js/Trip/tripViewerHelpers.js');
+    const bounds = helpers.getSegmentPolyline('review-route').getBounds();
+    const size = map.getSize();
+    const northwest = map.latLngToContainerPoint(bounds.getNorthWest());
+    const southeast = map.latLngToContainerPoint(bounds.getSouthEast());
+    return { zoom: map.getZoom(), center: [map.getCenter().lat, map.getCenter().lng],
+      canvas: [size.x, size.y], containsRoute: map.getBounds().contains(bounds),
+      // Overlay fallback fits the retained canvas, with its normal 60px margins.
+      insideMargins: northwest.x >= 59 && northwest.y >= 59 && southeast.x <= size.x - 59 && southeast.y <= size.y - 59 };
+  });
+  const observations = [];
+  // Button and route hits use the same public selection owner as the retained probe.
+  await legend.getByRole('button', { name: 'Select review route' }).click();
+  const selection = await observe();
+  observations.push({ path: 'selection-button', ...selection });
+  expect(selection.containsRoute).toBeTruthy();
+  expect(selection.insideMargins).toBeTruthy();
+  expect(selection.zoom).toBeLessThan(19);
+  expect(selection.center.every(Number.isFinite)).toBeTruthy();
+  await legend.locator('.segment-list-item span').click();
+  const row = await observe();
+  observations.push({ path: 'row', ...row });
+  expect(row).toEqual(selection);
+  // A route hit invokes this same owner; hiding reveals the complete sensible fit.
+  await page.evaluate(() => (window as any).wayfarer.selectSegment('review-route'));
+  for (let cycle = 0; cycle < 3; cycle++) {
+    await legend.getByRole('button', { name: 'Hide sidebar' }).click();
+    expect(await observe()).toEqual(selection);
+    if (cycle === 0) await capture(page, info, 'correction-viewer-route-hidden');
+    await page.getByRole('button', { name: 'Show sidebar' }).click();
+    await expectWidth(legend, 1260);
+    expect(await observe()).toEqual(selection);
+  }
+  // Recenter and Place details must use the same overlay destination, without an offset.
+  await page.locator('#btn-trip-center').click();
+  const centered = await page.evaluate(() => {
+    const map = (window as any).sidebarNavigationMap;
+    const root = document.querySelector('#trip-view') as HTMLElement;
+    return map.getCenter().distanceTo((window as any).L.latLng(+root.dataset.tripLat!, +root.dataset.tripLon!));
+  });
+  expect(centered).toBeLessThan(5);
+  await legend.locator('.place-list-item').first().click();
+  const placeCentered = await page.evaluate(() => {
+    const map = (window as any).sidebarNavigationMap;
+    const place = document.querySelector('.place-list-item') as HTMLElement;
+    return map.getCenter().distanceTo((window as any).L.latLng(+place.dataset.placeLat!, +place.dataset.placeLon!));
+  });
+  expect(placeCentered).toBeLessThan(5);
+  const directory = process.env.WAYFARER_SIDEBAR_EVIDENCE ?? info.outputPath('captures');
+  await mkdir(directory, { recursive: true });
+  await writeFile(`${directory}/correction-route.json`, JSON.stringify(observations, null, 2));
 });

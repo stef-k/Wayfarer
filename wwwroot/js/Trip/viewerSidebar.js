@@ -1,5 +1,20 @@
 import { bindSidebarResize, readSidebarPreference, sidebarWidth, SIDEBAR_MIN, SIDEBAR_DESKTOP, writeSidebarPreference } from './sidebarWidth.js';
 
+/**
+ * Uses Leaflet's retained canvas for every fit and center calculation.
+ * A split needs room for two margins plus at least the same usable width;
+ * otherwise the panel overlays the canvas. Small canvases retain half each axis.
+ */
+export const viewerNavigation = (size, sidebar = 0) => {
+    const marginX = Math.min(60, size.x / 4);
+    const marginY = Math.min(60, size.y / 4);
+    const offsetX = size.x - sidebar >= marginX * 4 ? Math.round(sidebar / 2) : 0;
+    return { offsetX, fitOptions: {
+        paddingTopLeft: [offsetX * 2 + marginX, marginY],
+        paddingBottomRight: [marginX, marginY]
+    } };
+};
+
 /** Owns the live Razor panels without replacing their hierarchy, search or selection owners. */
 export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const legend = root.querySelector('#sidebar-primary');
@@ -53,8 +68,8 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     details.append(content);
     const width = () => desktop.matches ? sidebarWidth(preference, root.clientWidth) : Math.min(500, root.clientWidth);
     const visible = () => !isPrint && !hidden && (detailsActive || !collapsed);
-    // Full and phone panels overlay a live, nonzero map instead of offsetting an invisible viewport.
-    const visibleWidth = () => !visible() || phone.matches || width() >= root.clientWidth ? 0 : width();
+    // Phone and near-Full panels overlay the retained canvas without changing width intent.
+    const navigation = () => viewerNavigation(map.getSize(), visible() && !phone.matches ? width() : 0);
 
     /** Delta-only synchronous offsets cannot leave obsolete transition callbacks behind. */
     const render = () => {
@@ -74,11 +89,11 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         handle.setAttribute('aria-valuenow', String(Math.round(width())));
         handle.setAttribute('aria-valuetext', `${preference.mode}, ${Math.round(width())} pixels`);
         controls.forEach(select => { select.value = preference.mode; });
-        const nextOffset = Math.round(visibleWidth() / 2);
+        map.invalidateSize({ animate: false });
+        const nextOffset = navigation().offsetX;
         const delta = nextOffset - appliedOffset;
         appliedOffset = nextOffset;
         if (delta) map.stop();
-        map.invalidateSize({ animate: false });
         if (delta) map.panBy([-delta, 0], { animate: false });
     };
     /** Hiding retains details content and selection; focus moves to the reachable Show action. */
@@ -110,12 +125,12 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     phone.addEventListener('change', resize);
     // A permalink already describes the actual camera, including its sidebar offset.
     const query = new URLSearchParams(location.search);
-    if (query.has('lat') && query.has('lon')) appliedOffset = Math.round(visibleWidth() / 2);
+    if (query.has('lat') && query.has('lon')) appliedOffset = navigation().offsetX;
     render();
     return {
-        visibleWidth,
+        fitOptions: () => navigation().fitOptions,
         /** Offset the destination itself; navigation needs no delayed pan callback. */
-        centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([Math.round(visibleWidth() / 2), 0]), zoom),
+        centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([navigation().offsetX, 0]), zoom),
         openDetails: html => {
             resizer.cancel();
             content.innerHTML = html;
