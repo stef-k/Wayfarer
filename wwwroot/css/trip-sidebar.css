@@ -1,0 +1,27 @@
+/* Razor Viewer desktop width controls remain scoped to its own workspace, including embeds. */
+#trip-view { overflow: hidden; }
+.viewer-sidebar-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem .75rem; position: sticky; top: 0; z-index: 3; }
+.viewer-sidebar-width { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-width: 0; }
+.viewer-sidebar-width select { width: auto; max-width: 100%; }
+.viewer-sidebar-resizer { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; z-index: 1060; }
+/* Match the Editor's quiet centered grip while preserving the existing pointer target. */
+.viewer-sidebar-resizer::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 3px; height: 24px; border-radius: 2px; background: var(--bs-secondary-color); opacity: .55; pointer-events: none; }
+.viewer-sidebar-resizer:hover::after, .viewer-sidebar-resizer:focus-visible::after { opacity: .85; }
+.viewer-sidebar-resizer:focus-visible, .viewer-sidebar-controls :focus-visible, #btn-show-sidebar:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: -3px; }
+#trip-view #btn-show-sidebar { position: absolute; top: .75rem; left: .75rem; }
+#trip-view [hidden] { display: none !important; }
+.sidebar-resizing { cursor: col-resize; user-select: none; }
+.sidebar-resizing #mapContainer { pointer-events: none; }
+@media (min-width: 901px) {
+    /* The grab edge occupies a border gutter, leaving the real scrollbars reachable. */
+    #sidebar-primary, #sidebar-secondary { border-right: 8px solid transparent; box-sizing: border-box; }
+}
+@media (max-width: 900px) {
+    .viewer-sidebar-width, .viewer-sidebar-resizer { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #sidebar-primary, #sidebar-secondary { transition: none; }
+}
+@media print {
+    #trip-view .viewer-sidebar-controls, #trip-view .viewer-sidebar-resizer, #trip-view #btn-show-sidebar { display: none !important; }
+}

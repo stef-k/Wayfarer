@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { viewerNavigation } from '../../wwwroot/js/Trip/viewerSidebar.js';
 
 /** Supplies the minimal Leaflet surface required by the production helper module. */
 const prepareLeaflet = (layer = () => ({})) => {
@@ -322,14 +323,14 @@ test('normal requested Segment uses the common controller selection and resolved
   helpers.addSegment(map, 'two', [[1, 0], [1, 10]], '', { anchors: [], orientation: 'forward' });
   const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?normal=${Date.now()}`);
   const root = { dataset: {} };
-  const controller = createViewerSegmentPresentationController(map, root, { isPrint: false, paddingX: () => 75 });
+  const controller = createViewerSegmentPresentationController(map, root, { isPrint: false, fitOptions: () => viewerNavigation(map.getSize(), 30).fitOptions });
 
   controller.initialize('one');
 
   const snapshot = helpers.getSegmentPresentationSnapshot();
   assert.equal(snapshot.segments.find(item => item.id === 'one').active, true);
   assert.equal(snapshot.segments.find(item => item.id === 'two').active, false);
-  assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, padding: [75, 60] } });
+  assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, paddingTopLeft: [90, 60], paddingBottomRight: [60, 60] } });
   controller.initialize('missing');
   assert.equal(helpers.getSegmentPresentationSnapshot().segments.some(item => item.active), false);
 });
@@ -345,11 +346,11 @@ test('production presentation readiness waits for delayed badge decode', async (
   const helpers = await import('../../wwwroot/js/Trip/tripViewerHelpers.js');
   helpers.disposeSegmentPresentation();
   const map = {
-    _layers: [], removeLayer() {}, on() {}, fitBounds() {},
+    _layers: [], removeLayer() {}, on() {}, fitBounds(bounds, options) { this.fitOptions = options; },
     latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
     latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
     layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
-    getSize: () => ({ x: 800, y: 600 }),
+    getSize: () => ({ x: 800, y: 100 }),
     getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] })
   };
   const element = { complete: true, naturalWidth: 24, decode: () => decode };
@@ -366,8 +367,9 @@ test('production presentation readiness waits for delayed badge decode', async (
     { position: 1, placeId: 'b', name: 'B', role: 'End', longitude: 10, latitude: 0 }
   ], orientation: 'forward' });
   const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?decode=${Date.now()}`);
-  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 });
+  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, fitOptions: () => viewerNavigation(map.getSize()).fitOptions });
   const ready = controller.initialize('one');
+  assert.deepEqual(map.fitOptions, { paddingTopLeft: [60, 25], paddingBottomRight: [60, 25], animate: false });
   frames.splice(0).forEach(callback => callback());
   assert.equal(globalThis.window.__segmentPresentationReady, false);
   globalThis.requestAnimationFrame = callback => callback();
@@ -392,7 +394,7 @@ test('failed production badge decode leaves presentation readiness false', async
   helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: badgeAnchors('a', 'b'), orientation: 'forward' });
   const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?failed=${Date.now()}`);
 
-  const ready = await createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 }).initialize('one');
+  const ready = await createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, fitOptions: () => viewerNavigation(map.getSize()).fitOptions }).initialize('one');
 
   assert.equal(ready, false);
   assert.equal(globalThis.window.__segmentPresentationReady, false);
@@ -416,7 +418,7 @@ test('replacement render ignores stale production badge promises', async () => {
   globalThis.location.search = '';
   helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: badgeAnchors('a', 'b'), orientation: 'forward' });
   const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?stale=${Date.now()}`);
-  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 });
+  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, fitOptions: () => viewerNavigation(map.getSize()).fitOptions });
   globalThis.window.__segmentPresentationReady = false;
   const oldInitialization = controller.initialize('one');
   const replacementReady = await controller.initialize('one');

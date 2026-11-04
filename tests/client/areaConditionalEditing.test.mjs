@@ -280,6 +280,10 @@ const appBundle = await build({ stdin: { contents: 'export { default } from "./A
   resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'actual-area-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
+      // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+        return () => [slots.default?.(), slots.map?.()];
+      } };` };
       if (!/(?:App|TripSidebar|RegionManager)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
       const { descriptor: sfc } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const compiled = compileScript(sfc, { id: args.path, genDefaultAs: '__component' });

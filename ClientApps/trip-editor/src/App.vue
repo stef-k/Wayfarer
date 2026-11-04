@@ -6,6 +6,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
 import TripSidebar from './components/TripSidebar.vue';
+import TripSidebarLayout from './components/TripSidebarLayout.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
@@ -545,7 +546,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
       <span>{{ error }}</span>
     </div>
 
-    <template v-else-if="state">
+    <TripSidebarLayout v-else-if="state" :surface-mode="editorSurface.surfaceMode.value">
       <TripSidebar
         :state="state"
         :captured-map-view="capturedMapView"
@@ -577,6 +578,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @search-clear-preview="clearSearchPreview"
         @search-preview="previewSearchResult"
       />
+      <template #map>
       <main class="trip-editor-map-shell">
         <header class="trip-editor-toolbar">
           <div class="trip-editor-toolbar__context">
@@ -616,7 +618,8 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         ></div>
         <p id="trip-editor-map-description" class="visually-hidden">{{ mapAccessibleDescription }}</p>
       </main>
-    </template>
+      </template>
+    </TripSidebarLayout>
 
     <ConfirmDialog />
   </div>

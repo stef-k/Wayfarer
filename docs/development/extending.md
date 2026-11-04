@@ -80,6 +80,42 @@ Vue owns interactive editor state; ASP.NET owns authorization, persistence and d
 
 **Lowest useful test:** Vue/client test for client state or API module behavior and a focused controller/service test for the server mutation. Use browser evidence only for a real cross-boundary user journey.
 
+### Trip sidebar layout ownership
+
+`TripSidebarLayout.vue` owns desktop geometry around the persistent Editor sidebar.
+It changes CSS visibility and grid allocation without calling draft, selection,
+mutation or exit actions. Expanded/map-work surfaces retain priority. Leaflet still
+uses the existing `map/mapViewport.ts` observer and navigation owner for size updates.
+`wwwroot/js/Trip/viewerSidebar.js` owns the live Razor panels and one integer pixel
+map offset. Width/visibility changes apply only the offset delta; explicit navigation
+uses an offset destination or asymmetric bounds padding without delayed callbacks.
+Viewer navigation reads Leaflet's actual `getSize()`, after size invalidation on
+layout changes. Each axis has a margin of at most 60px and at most one quarter of
+that canvas dimension. A sidebar offsets navigation only when its exposed strip
+can retain both horizontal margins plus the same usable width (240px total on
+normal canvases). Otherwise it overlays the retained canvas, just like Full or
+phone panels. The width preference is unchanged. Integer offsets drive layout,
+`centerFor` and fit padding together. Segment rows, buttons, route hits and URL
+selection use the common presentation controller; print fit uses the same bounded
+margins with panels hidden. A nearly covering panel can obscure the fitted route
+until Hide reveals the canvas; layout changes preserve the camera rather than refit.
+Full overlays a nonzero map in both runtimes. The Editor map search stacks below
+500px of map-column space through a container query, independently of viewport width.
+
+Both use `wwwroot/js/Trip/sidebarWidth.js` for finite presets, safe storage and
+pointer/keyboard completion/cancellation. Preferences are separately namespaced as
+`wayfarer.trip-editor.sidebar` and `wayfarer.trip-viewer.sidebar`; only the intended
+open mode/Custom width is persisted. The desktop threshold is above 900 CSS pixels,
+matching the existing Editor split. The shared 420px minimum retains the previous
+Editor form bound. Viewer phone overlays at 575.98px and Editor drawers at 640px
+remain independently owned; desktop preferences resume when returning to desktop.
+
+Run `node --test tests/client/tripSidebarWidth.test.mjs` for state/interaction and
+navigation budget rules and `npm run test:e2e:shared-layout -- --grep 'Trip sidebar (Viewer|Editor)'` for the
+two managed geometry journeys. Set `WAYFARER_SIDEBAR_EVIDENCE` to retain screenshots
+outside the managed disposable root. Native client tests retain ownership of the
+broader draft/exit/map matrices; layout qualification does not need a database matrix.
+
 ## Documentation and validation
 
 When a change alters a developer-visible contract, update the owning page in `docs/development/` rather than appending implementation history to a legacy numbered guide. Run the relevant commands in [Testing](testing.md), including Code Guard before handing the branch to review.

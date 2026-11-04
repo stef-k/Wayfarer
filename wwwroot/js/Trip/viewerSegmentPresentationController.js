@@ -21,9 +21,10 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
         const line = segmentId ? getSegmentPolyline(segmentId) : null;
         if (fit && line) {
             map.flyToBounds(line.getBounds(), {
-                animate: !options.isPrint,
+                animate: !options.isPrint && !options.reducedMotion?.(),
                 duration: options.isPrint ? 0 : 1.2,
-                padding: [options.paddingX(), 60]
+                // Layout, explicit centering and all route fits share the live canvas budget.
+                ...options.fitOptions()
             });
         }
     };
@@ -47,7 +48,7 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
         window.__segmentPresentationReady = false;
         if (registeredLine) {
             select(requestedSegmentId, false);
-            map.fitBounds(registeredLine.getBounds(), {padding: [60, 60], animate: false});
+            map.fitBounds(registeredLine.getBounds(), {...options.fitOptions(), animate: false});
         } else {
             select(null, false);
         }
