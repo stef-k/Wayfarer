@@ -23,7 +23,9 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
             map.flyToBounds(line.getBounds(), {
                 animate: !options.isPrint,
                 duration: options.isPrint ? 0 : 1.2,
-                padding: [options.paddingX(), 60]
+                // Asymmetric padding centers the route in the effective visible map.
+                paddingTopLeft: [options.paddingLeft?.() ?? options.paddingX(), 60],
+                paddingBottomRight: [60, 60]
             });
         }
     };

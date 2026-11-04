@@ -35,6 +35,8 @@
     var itineraryRegions = ItineraryPresentation.OrderRegions(Model.Regions);
 }
 
+@* Layout controls stay contained to the live Viewer, including embedded workspaces. *@
+<link rel="stylesheet" href="~/css/trip-sidebar.css" asp-append-version="true" />
 <!-- wrapper that stretches between navbar & footer -->
 <div id="trip-view"
      data-embed="@( (ViewBag.IsEmbed as bool? ?? false).ToString().ToLower() )"
@@ -225,13 +227,6 @@
                             <i class="bi bi-arrows-fullscreen"></i>
                         </button>
 
-                        <!-- 1) Collapse legend -->
-                        <button id="btn-collapse-sidebar"
-                                type="button"
-                                class="btn btn-outline-secondary btn-sm"
-                                title="Hide legend">
-                            <i class="bi bi-layout-sidebar-inset-reverse"></i>
-                        </button>
                     </div>
                 </div>
             </div>

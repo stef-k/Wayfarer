@@ -18,6 +18,7 @@ import {
     canvasRenderer
 } from './tripViewerHelpers.js';
 
+import { createViewerSidebar } from './viewerSidebar.js';
 import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js'; import {encodeFeatureText, featurePrecisionNotice} from '../util/feature-metadata.js';
 import {
     generateWikipediaLinkHtml,
@@ -186,9 +187,12 @@ const init = () => {
     }
 
     const map = initLeaflet([lat, lon], zoom, isEmbed ? fullscreenUrl : null);
+    const sidebar = createViewerSidebar(root, map, { isEmbed, isPrint });
+    window.addEventListener('pagehide', () => sidebar.dispose(), { once: true });
     const segmentPresentation = createViewerSegmentPresentationController(map, root, {
         isPrint,
-        paddingX: () => collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60
+        paddingX: () => sidebar.visibleWidth() / 2 + 60,
+        paddingLeft: () => sidebar.visibleWidth() + 60
     });
     // if user clicks anywhere on map except from markers remove current marker highlight
     map.on('click', e => {
@@ -209,34 +213,10 @@ const init = () => {
     // recenter map
     recenterMap.addEventListener('click', e => {
         [lat, lon, zoom] = getDefaultView();
-        map.flyTo([lat, lon], zoom, {
-            animate: true, duration: 1
-        })
-        // offset based on sidebar
-        map.once('moveend', () => {
-            // `collapsed` is your existing flag from setCollapsed()
-            // dir = 1 if sidebar visible, -1 if hidden
-            applyCentreOffset(collapsed ? -1 : 1, true);
+        map.flyTo(sidebar.centerFor([lat, lon], zoom), zoom, {
+            animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, duration: 1
         });
     });
-
-    /* helper that returns the legend’s current width */
-    const legend = $('#sidebar-primary');
-    const legendW = () => legend.offsetWidth || 0;
-    // Phone panels overlay the map instead of reserving a visible map column.
-    const sidebarOverlaysMap = () => window.matchMedia('(max-width: 575.98px)').matches;
-
-    /**
-     * Shift the map horizontally by ±½ legend width.
-     * @param {+1|-1} dir      +1 → legend *visible*, -1 → legend *hidden*
-     * @param {boolean} [animate=false]
-     * @param {number|null} [baseW=null]   width to use instead of live offsetWidth
-     */
-    const applyCentreOffset = (dir, animate = false, baseW = null) => {
-        if (isPrint || sidebarOverlaysMap()) return;
-        const dx = ((baseW ?? legendW()) / 2) * dir;
-        if (dx) map.panBy([-dx, 0], { animate, duration: 0.4 });
-    };
 
     /* ────────── regions & places ────────── */
     $$('.accordion-item').forEach(ai => {
@@ -335,64 +315,9 @@ const init = () => {
         });
     });
 
-    /* ────────── legend collapse ────────── */
-    const hideBtn = $('#btn-collapse-sidebar');
-
-    const showBtn = Object.assign(document.createElement('button'), {
-        id: 'btn-show-sidebar',
-        className: 'btn btn-light border fw-semibold shadow-lg',
-        textContent: 'MAP LEGEND'
-    });
-    document.body.appendChild(showBtn);
-    showBtn.style.display = 'none';
+    /* Details content shares the layout owner's live width and accessible controls. */
     const pane = $('#sidebar-secondary');
-    
-    /**
-     * Show the MAP LEGEND button only when:
-     *   – primary legend is collapsed, and
-     *   – details pane (#sidebar-secondary) is NOT open.
-     */
-    const updateButtonsVisibility = () => {
-        const detailsOpen = pane?.classList.contains('open');
-        const visible     = collapsed && !detailsOpen;
-        showBtn.style.display = visible ? 'block' : 'none';
-    };
-    const DELAY = 600;
-    let timer = null;
-    let collapsed = false;
-
-    const setCollapsed =  (hide, skipPan = false) => {
-        if (collapsed === hide) return;      // no double-shifting
-        const prevW = legendW();       // cache width *before* we change CSS
-        
-        collapsed = hide;
-
-        if (timer) {
-            clearTimeout(timer);
-            timer = null;
-        }
-
-        legend.dataset.collapsed = hide ? 'true' : 'false';
-
-        /* shift map *after* Leaflet recalculates size */
-        setTimeout(() => {
-            if (!skipPan) {                         // ⬅️ only when we already had an offset
-                applyCentreOffset(hide ? -1 : +1, true, prevW);
-            }
-            map.invalidateSize();
-        }, DELAY + 20);
-
-        timer = setTimeout(updateButtonsVisibility, hide ? DELAY : 0);
-    };
-    if (isEmbed) setCollapsed(true, true);
-    if (!isPrint && !isEmbed) {
-        applyCentreOffset(+1, false);
-    }
-    hideBtn.addEventListener('click', () => setCollapsed(true));
-    showBtn.addEventListener('click', () => setCollapsed(false));
-
-    /* ────────── details pane ────────── */
-        const detailsHtml = li => {
+    const detailsHtml = li => {
         const d = li.dataset;
         const firstImg = (d.placeNotes || '').match(/<img[^>]+src="([^"]+)"/i)?.[1] || '';
         const iconUrl = `/icons/wayfarer-map-icons/dist/png/marker/${d.placeColor}/${d.placeIcon}.png`;
@@ -401,7 +326,7 @@ const init = () => {
 
         return `
   <div class="d-flex align-items-center gap-2 border-bottom px-2 py-2 bg-body-tertiary">
-    <button class="btn btn-outline-secondary btn-sm btn-back" title="Back">
+    <button class="btn btn-outline-secondary btn-sm btn-back" title="Back" aria-label="Back to legend">
       <i class="bi bi-arrow-left"></i></button>
           <img src="${iconUrl}" width="24" height="38" alt="">
       <div><strong>${d.placeName}</strong><br>
@@ -432,21 +357,15 @@ const init = () => {
         const li = $(`.place-list-item[data-place-id="${pid}"]`);
         if (!li) return;
         // The hidden Razor notes already contain display proxies before either DOM insertion.
-        pane.innerHTML = detailsHtml(li);
-        pane.classList.add('open');
-        updateButtonsVisibility();
+        sidebar.openDetails(detailsHtml(li));
         highlightMarker(pid);
         const m = getPlaceMarker(pid);
         if (m) {
             const tgt = m.getLatLng();
             // pick a zoom level that is at least 12 or keeps the current one if closer
             const z = Math.max(map.getZoom(), 12);
-            map.flyTo(tgt, z, {animate: true, duration: 1.2});
-
-            // once the movement ends, nudge the map horizontally so the marker
-            // stays centred when the legend is visible / hidden
-            map.once('moveend', () => {
-                applyCentreOffset(collapsed ? -1 : 1, true);
+            map.flyTo(sidebar.centerFor(tgt, z), z, {
+                animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, duration: 1.2
             });
         }
         initWikipediaPopovers(pane);
@@ -455,8 +374,7 @@ const init = () => {
     /* close details */
     document.addEventListener('click', e => {
         if (e.target.closest('.btn-back')) {
-            pane.classList.remove('open');
-            updateButtonsVisibility();
+            sidebar.closeDetails();
             removeHighlightMarker();      // un-highlight only on close
         }
     });
@@ -490,14 +408,9 @@ const init = () => {
             if (!pl) return;
 
             const b = pl.getBounds();                 // route bounds
-            const padX = collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60;
             map.flyToBounds(b, {
-                animate: true, duration: 1.2, padding: [padX, 60]                    // neat margin
-            });
-
-            // after movement, nudge map for sidebar width (as for places)
-            map.once('moveend', () => {
-                applyCentreOffset(collapsed ? -1 : 1, true);
+                animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches, duration: 1.2,
+                paddingTopLeft: [sidebar.visibleWidth() + 60, 60], paddingBottomRight: [60, 60]
             });
         });
         li.querySelector('.segment-selection-button')?.addEventListener('click', e => {

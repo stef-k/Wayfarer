@@ -16,7 +16,7 @@ body {
   background: var(--trip-editor-bg);
   color: var(--trip-editor-text);
   display: grid;
-  grid-template-columns: minmax(420px, 500px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   height: calc(100vh - 116px);
   min-height: 560px;
   overflow: hidden;
