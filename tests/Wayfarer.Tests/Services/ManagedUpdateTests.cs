@@ -38,6 +38,26 @@ public sealed class ManagedUpdateTests
         else Assert.Throws<IOException>(() => UpdateRuntime.VerifyMaintenanceHelper(plan.Root, receipt, helper, history: true));
     }
 
+    /// <summary>Both recovery helpers reject the altered credential environment formerly used to inject migration failure.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MaintenanceHelperRejectsAlteredCredentialAuthority(bool history)
+    {
+        var config = new Deployment { Schema = 2, Installation = Guid.NewGuid(), Bundle = "/bundle",
+            Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
+        var plan = new UpdatePlan(Guid.NewGuid(), "/etc/wayfarer", config, config, null!, null!, [], "", "", "", null!);
+        var receipt = new UpdateReceipt { Plan = plan, PlanHash = "test", Phase = UpdatePhase.MigrationStarted,
+            MigrationContainer = config.Project + "-update-migrate-" + plan.Operation.ToString("N"),
+            HistoryContainer = config.Project + "-update-history-" + plan.Operation.ToString("N") };
+        var helper = ManagedHistoryUpgradePostgresTests.Helper(receipt, history);
+        UpdateRuntime.VerifyMaintenanceHelper(plan.Root, receipt, helper, history);
+        var altered = JsonSerializer.Deserialize<JsonElement>(helper.GetRawText().Replace(
+            "Database__PasswordFile=/run/secrets/app-password", "Database__PasswordFile=/missing-credential", StringComparison.Ordinal));
+        var refused = Assert.Throws<IOException>(() => UpdateRuntime.VerifyMaintenanceHelper(plan.Root, receipt, altered, history));
+        Assert.Equal("Maintenance helper authority changed.", refused.Message);
+    }
+
     /// <summary>Update has no implicit acceptance, network selection or lock/recovery waiver.</summary>
     [Fact]
     public void GrammarRequiresExactLocalAuthorization()
