@@ -4,7 +4,7 @@ import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { build } from 'esbuild';
 import { createRenderer, nextTick, proxyRefs } from 'vue';
 
-// Mount the actual App -> TripSidebar -> RegionManager queue; substitute only map, DOM/Quill and unrelated leaves.
+// Mount the actual App -> TripSidebar -> RegionManager queue; substitute only map, editor DOM and unrelated leaves.
 const bundle = await build({ stdin: { contents: 'export { default } from "./App.vue";', loader: 'ts',
   resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'place-parent-tree', setup(builder) {

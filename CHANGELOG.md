@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Changed
+- Complete Quill retirement (#939 W3): remove the npm dependency and exclusive
+  transitives, copied distributions/maps/notices, layout switches, image-blot helper,
+  vendor CSS and class/list interpretation. Keep semantic HTML, finite standard
+  fonts/alignment, sanitization, canonical/proxied image policy and feature-owned
+  drafts/originals/attempts. Older formatting may need manual repair; opening Notes
+  or saving another field does not rewrite stored Notes. Text extraction changes
+  require the existing controlled history text preparation for `history-text-2`;
+  time derivation is unchanged. W1/W2 are accepted; final combined review remains pending.
 - Correct native Notes paste/drop validation to inspect decoded image URLs before
   insertion: ordinary text mentioning data images pastes normally, while unsupported
   images reject the whole transfer with feedback. Preserve finite font/alignment
@@ -18,14 +26,14 @@
   strike and H1–H3, Trip alignment/fonts, labelled URL dialogs and independent instances.
   Reject unsupported transfers before insertion with feedback; keep canonical image
   URLs, secure proxy previews and failed-reference feedback. Render standard HTML/styles;
-  historical formatting may need manual repair. Final dependency/copied-distribution
-  removal and published output reconciliation remain W3; independent W2 acceptance is pending.
+  historical formatting may need manual repair. W2 is accepted; W3 completes dependency
+  and published output reconciliation below the final combined review gate.
 - Replace Quill in protected Location Edit with the shared native Tiptap editor
   (#939 W1). Keep untouched Notes and existing protected save/recovery ownership.
-  Add finite standard font/alignment CSS to rich-note normalization; retain older
+  Add finite standard font/alignment CSS to rich-note normalization. W3 removes older
   Quill classes. Remove formatting preserves text, links and images; image previews
   stay behind the secure proxy. Older formatting may need manual adjustment when
-  edited. Remaining consumers are covered by W2 above; final Quill removal awaits W3.
+  edited. Remaining consumers and final Quill removal are covered by W2/W3 above.
 - Pin reproducible frontend builds to Node 24.22.2. Offline Windows CI cleanup
   selects the highest verified preinstalled stable Node 24 at or above the existing
   24.22.1 security minimum, with executable/version, x64 and npm checks. Preserve

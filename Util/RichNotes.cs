@@ -35,26 +35,6 @@ public static class RichNotes
         "base", "button", "embed", "form", "iframe", "input", "link", "meta", "object", "option", "script", "select", "style", "textarea"
     };
 
-    private static readonly HashSet<string> AllowedAlignmentClasses = new(StringComparer.Ordinal)
-    {
-        "ql-align-center", "ql-align-right", "ql-align-justify"
-    };
-
-    private static readonly HashSet<string> AllowedFontClasses = new(StringComparer.Ordinal)
-    {
-        "ql-font-monospace", "ql-font-serif"
-    };
-
-    private static readonly HashSet<string> QuillBlockTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "li", "p"
-    };
-
-    private static readonly HashSet<string> AllowedListKinds = new(StringComparer.Ordinal)
-    {
-        "bullet", "ordered"
-    };
-
     /// <summary>
     /// Returns true when request HTML contains a direct embedded data image source.
     /// </summary>
@@ -77,11 +57,6 @@ public static class RichNotes
         if (body == null)
         {
             return string.Empty;
-        }
-
-        foreach (var element in body.QuerySelectorAll("span.ql-ui").ToArray())
-        {
-            element.Remove();
         }
 
         foreach (var element in body.QuerySelectorAll("*").Reverse().ToArray())
@@ -159,11 +134,6 @@ public static class RichNotes
         var name = attribute.Name.ToLowerInvariant();
         if (name == "style") return NormalizeStyleAttribute(element);
 
-        if (name == "class")
-        {
-            return NormalizeClassAttribute(element);
-        }
-
         if (name == "href" && string.Equals(element.TagName, "a", StringComparison.OrdinalIgnoreCase))
         {
             return IsAllowedLink(attribute.Value);
@@ -174,9 +144,7 @@ public static class RichNotes
             return true;
         }
 
-        return name == "data-list"
-            && string.Equals(element.TagName, "li", StringComparison.OrdinalIgnoreCase)
-            && AllowedListKinds.Contains(attribute.Value);
+        return false;
     }
 
     /// <summary>Re-emits only finite native editor styles; CSS parsing never grants arbitrary declarations.</summary>
@@ -196,22 +164,6 @@ public static class RichNotes
         element.SetAttribute("style", $"{property}: {value};");
         return true;
     }
-
-    private static bool NormalizeClassAttribute(IElement element)
-    {
-        var allowed = element.ClassList.Where(className => IsAllowedClass(element, className)).ToArray();
-        if (allowed.Length == 0)
-        {
-            return false;
-        }
-
-        element.SetAttribute("class", string.Join(" ", allowed));
-        return true;
-    }
-
-    private static bool IsAllowedClass(IElement element, string className) =>
-        (string.Equals(element.TagName, "span", StringComparison.OrdinalIgnoreCase) && AllowedFontClasses.Contains(className))
-        || (QuillBlockTags.Contains(element.TagName) && AllowedAlignmentClasses.Contains(className));
 
     private static void NormalizeImage(IElement element)
     {

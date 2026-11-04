@@ -194,7 +194,6 @@ public class TripViewerController : BaseController
         // Set page metadata
         ViewData["Title"] = "Public Trips";
         ViewData["LoadLeaflet"] = false; // No map on index page
-        ViewData["LoadQuill"] = false;
 
         return View("~/Areas/Public/Views/TripViewer/Index.cshtml", viewModel);
     }
@@ -237,7 +236,6 @@ public class TripViewerController : BaseController
 
         /* ---- layout flags ---- */
         ViewData["LoadLeaflet"] = true;      // needs map
-        ViewData["LoadQuill"]   = false;     // no editor
         ViewData["BodyClass"]   = "container-fluid";  // full-width
 
         ViewBag.IsOwner = owner;

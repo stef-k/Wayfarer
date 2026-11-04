@@ -13,9 +13,9 @@ namespace Wayfarer.Tests.Util;
 public class HtmlHelpersTests
 {
     [Theory]
-    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p><br></p>", "<p>Before</p><ol><li data-list=\"ordered\">One</li></ol>")]
-    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>")]
-    [InlineData("<ul><li data-list=\"bullet\"><img src=\"https://example.test/a.jpg\"></li><li data-list=\"bullet\"> </li></ul>", "<ul><li data-list=\"bullet\"><img src=\"https://example.test/a.jpg\"></li></ul>")]
+    [InlineData("<p>Before</p><ol><li>One</li><li><br></li></ol><p><br></p>", "<p>Before</p><ol><li>One</li></ol>")]
+    [InlineData("<ol><li>One</li><li><br></li><li>Three</li></ol>", "<ol><li>One</li><li><br></li><li>Three</li></ol>")]
+    [InlineData("<ul><li><img src=\"https://example.test/a.jpg\"></li><li> </li></ul>", "<ul><li><img src=\"https://example.test/a.jpg\"></li></ul>")]
     public void NormalizeNotesForDisplay_RemovesOnlyTerminalBlankArtifacts(string input, string expected)
     {
         Assert.Equal(expected, HtmlHelpers.NormalizeNotesForDisplay(input));

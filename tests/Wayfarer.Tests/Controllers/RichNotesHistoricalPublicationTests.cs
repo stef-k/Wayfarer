@@ -33,7 +33,7 @@ public partial class ApiTripsControllerTests
         // Publication normalization is a mapper concern; routed snapshot/authority is proved on PostgreSQL.
         var read = trip.ToApiDto([new ApiTripSegmentDto { Id = segment.Id, Notes = RichNotes.Normalize(segment.Notes) }]);
         var json = JsonSerializer.SerializeToElement(read, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        Assert.Equal("<p class=\"ql-align-justify\"><s>safe</s></p>", json.GetProperty("notes").GetString());
+        Assert.Equal("<p><s>safe</s></p>", json.GetProperty("notes").GetString());
         Assert.DoesNotContain("bad()", json.ToString());
         var state = EditorTripStateMapper.ToEditorState(trip, new Dictionary<Guid, IReadOnlyList<PlaceVisitEvent>>(),
             new EditorOptionsDto([], [], [], [], new("Area", "#ffffff"), new(10, 10, ""), new(10, 2)), null, null);

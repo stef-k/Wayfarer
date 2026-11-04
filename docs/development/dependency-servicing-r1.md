@@ -4,6 +4,12 @@ title: Dependency servicing R1
 
 # Dependency servicing R1
 
+This is the historical R1 servicing record. Its retained editor pin/copied-package
+disposition was superseded by [#939 W1–W3](rich-notes.md): the retired editor and
+its exclusive dependencies, copied assets and notices are removed. The evidence
+and original advisory failures below remain historical; they are not installation
+or package-retention instructions for current source.
+
 Routine source maintenance against `7978d1e07cd45315a6c35ad06f6fa96e877ed3fc`,
 using the [complete assessment inventory](https://github.com/stef-k/Wayfarer/issues/915#issuecomment-6420364730)
 and its [assessment](https://github.com/stef-k/Wayfarer/issues/915).
@@ -50,7 +56,7 @@ DataProtection parent supplies XML and PKCS 10.0.14; operator/test resolution
 inherits that 10.x closure. Runtime servicing does not replace local package DLLs.
 No audit warning is suppressed. Other transitives remain parent-owned.
 
-Retain the exact **npm Quill 2.0.2** pin and its matching lock entry. The initial
+R1 retained the exact **npm Quill 2.0.2** pin and its matching lock entry. The initial
 2.0.3 update contradicted the documented pin rationale and failed the unchanged
 `npm audit` check in [run 40357847290](https://github.com/stef-k/Wayfarer/actions/runs/40357847290).
 The [Quill investigation](https://github.com/stef-k/Wayfarer/pull/937#issuecomment-6421684278)

@@ -85,7 +85,21 @@ public sealed class LocationHistoryDerivationTests
         Assert.Equal(0, row.CaptureOffsetSeconds); // Old-main TZDB returned +3600.
         Assert.Equal("VISIBLE", row.HistorySearchText); // Old-main parser exposed SECRET VISIBLE.
         Assert.Equal("history-time-1;GeoTimeZone-6.1.0;TZDB: 2026e (mapping: 49)", row.HistoryTimeVersion);
-        Assert.Equal("history-text-1;RichNotes-2;AngleSharp-1.7.2.0;runtime-10.0.14;unicode-31129-0000799900000000000000000000007f", row.HistoryTextVersion);
+        Assert.Equal("history-text-2", row.HistoryTextVersion);
+    }
+
+    /// <summary>Ordinary visible text no longer disappears through vendor class interpretation; originals are unchanged.</summary>
+    [Fact]
+    public void StandardHtmlTextUsesNewGenerationWithoutRewritingNotes()
+    {
+        var row = Row();
+        const string notes = "<p>Before <span class='ql-ui'>visible</span> after</p>";
+        row.Notes = notes;
+        LocationHistoryDerivation.Apply(row, false, true);
+        Assert.Equal("BEFORE VISIBLE AFTER", row.HistorySearchText);
+        Assert.Equal("history-text-2", row.HistoryTextVersion);
+        Assert.Null(row.HistoryTimeVersion);
+        Assert.Equal(notes, row.Notes);
     }
 
     /// <summary>Unknown time and text profiles reject before touching either selected generation, including invalid evidence.</summary>

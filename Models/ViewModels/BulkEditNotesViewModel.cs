@@ -37,7 +37,7 @@ namespace Wayfarer.Models.ViewModels
         [Display(Name = "Clear Existing Notes?")]
         public bool ClearNotes { get; set; }
 
-        // The new HTML content from Quill
+        // The standard HTML Notes content from the editor
         public string Notes { get; set; } = string.Empty;
 
         // Used to populate the dropdowns

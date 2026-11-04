@@ -128,7 +128,7 @@ namespace Wayfarer.Util
 
         /// <summary>
         /// Checks if HTML content has actual visible text content.
-        /// Returns false for null, empty, whitespace-only, or Quill's empty states like &lt;p&gt;&lt;/p&gt; or &lt;p&gt;&lt;br&gt;&lt;/p&gt;.
+        /// Returns false for null, empty, whitespace-only, or empty HTML blocks like &lt;p&gt;&lt;/p&gt; or &lt;p&gt;&lt;br&gt;&lt;/p&gt;.
         /// </summary>
         public static bool HasVisibleContent(string? htmlContent)
         {

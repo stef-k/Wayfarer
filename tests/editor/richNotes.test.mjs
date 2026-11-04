@@ -36,6 +36,17 @@ test('shared native editor commands preserve text/references and finite styles',
         assert.doesNotMatch(result.native, /data-list/); assert.match(result.edited, /item!/);
         console.log('Native historical-list observation:', result.native);
     });
+    await t.test('retired classes and list metadata are discarded without translating or deleting text', async () => {
+        const input = '<p class="ql-align-right"><span class="ql-ui ql-font-serif">Visible</span></p><ol><li data-list="bullet">Item</li></ol>';
+        const result = await run(input, `const untouched = handle.getValue();
+            const normalized = Notes.normalizeNotesHtml(handle.getValue());
+            handle.editor.commands.focus('end'); handle.editor.commands.insertContent('!');
+            return { untouched, normalized, edited: handle.getValue() };`);
+        assert.equal(result.untouched, input);
+        assert.equal(result.normalized, '<p><span>Visible</span></p><ol><li>Item</li></ol>');
+        assert.match(result.edited, /Visible/); assert.match(result.edited, /Item!/);
+        assert.doesNotMatch(result.edited, /class=|data-list=|font-family|text-align/);
+    });
     await t.test('range Remove formatting preserves overlapping text, links and images', async () => {
         const result = await run('<h2 style="text-align: right"><a href="/safe"><strong><em><u><s><span style="font-family: serif">Καλημέρα 日本語</span></s></u></em></strong></a><img src="https://images.example.test/a"></h2>', `
             handle.editor.commands.selectAll(); handle.removeFormatting(); return handle.editor.getHTML();`);
@@ -122,6 +133,19 @@ test('shared native editor commands preserve text/references and finite styles',
             return { html: handle.getValue(), sources: [...handle.editor.view.dom.querySelectorAll('img[src]')].map(image => image.getAttribute('src')) };`);
         assert.equal(result.html, '<p>before<img src="https://images.example.test/pasted">after</p>');
         assert.deepEqual(result.sources, ['/Public/ProxyImage?url=https%3A%2F%2Fimages.example.test%2Fpasted']);
+    });
+    await t.test('native image insertion rejects recovered network paths and proxies canonical references before live DOM', async () => {
+        const result = await run('<p>Images</p>', `
+            const rejected = ['//images.example.test/negative', '/Public/ProxyImage?url=%2F%2Fimages.example.test%2Fnegative']
+                .map(source => handle.insertImage(source));
+            const source = 'https://images.example.test/photo?a=1&literal=&amp;';
+            const inserted = handle.insertImage('/Public/ProxyImage?url=' + encodeURIComponent(source));
+            return { rejected, inserted, html: handle.getValue(), sources: [...handle.editor.view.dom.querySelectorAll('img[src]')].map(image => image.getAttribute('src')) };`);
+        assert.deepEqual(result.rejected, [false, false]); assert.equal(result.inserted, true);
+        assert.match(result.html, /src="https:\/\/images.example.test\/photo\?a=1&amp;literal=&amp;amp;"/);
+        assert.doesNotMatch(result.html, /ProxyImage|negative/);
+        assert.deepEqual(result.sources, ['/Public/ProxyImage?url=' + encodeURIComponent('https://images.example.test/photo?a=1&literal=&amp;')]);
+        assert.equal(direct, 0);
     });
     await t.test('native paste, split/sink/lift list commands and safe link schemes', async () => {
         const result = await run('<p>start</p>', `handle.editor.commands.focus('end');

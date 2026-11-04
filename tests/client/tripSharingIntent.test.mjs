@@ -691,7 +691,7 @@ for (const scenario of ['name', 'newerName', 'notesHtml', 'isPublic', 'coverImag
     assert.deepEqual(owner.navigations, []);
   }));
 
-// Mirror the genuine routed SMS normalization; the real sanitizer/Quill seam is covered in Playwright.
+// Mirror the genuine routed SMS normalization; the real sanitizer/native editor seam is covered in Playwright.
 test('F2: server-normalized Notes acknowledgement adopts before Saved and exit', () => withApp(async owner => {
   const { editor, parent } = owner;
   const saved = { ...metadata(), notesHtml: '<p><a>Contact</a></p>',

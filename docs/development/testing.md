@@ -22,7 +22,7 @@ Tests that opt into PostgreSQL may still skip when the guarded database is not a
 
 Mocked/InMemory/controller tests prove their own seam. They do not automatically prove PostgreSQL constraints, transactions, migrations or PostGIS behavior.
 
-## Native rich Notes editors (W1/W2)
+## Native rich Notes editors (W1–W3)
 
 `npm run test:rich-notes` uses the installed, version-matched Playwright Chromium
 for native Tiptap commands in a real DOM without an application host. It checks
@@ -48,8 +48,9 @@ The Razor views use `ViteAssets.Read`, including transitive imported CSS, after 
 layout's global scripts. The replaced auto-linked MvcFrontendKit constructors are
 removed. Each page loads one entry. Build with `npm run build`; development also
 needs `npm run dev` on 5173. `npm run smoke:trip-editor:assets:built` checks all five
-entry graphs. Final dependency/copied-distribution and published-output removal
-remain W3 work; migrated pages have no Quill fallback.
+entry graphs. W3 removes the retired dependency, copied distribution and layout
+loading switches. Inspect a fresh Release publish with the published asset smoke;
+see [Notes reconciliation](rich-notes.md) for inventory, ownership and transition rules.
 
 W2's focused native DOM selection uses actual compiled Vue components, forms,
 feature draft owners and Vue scheduling. Only HTTP, geography and unrelated
@@ -69,7 +70,7 @@ bulk operation selection. Existing controller tests retain bulk filtering and
 Apply-time execution authority; the editor never freezes preview counts or adds
 retry/receipt semantics. `RichNotesImportExportTests` owns existing native transport
 normalization for all five Trip Notes fields. Display helpers and shipped passive
-CSS cover standard formatting, historical classes and proxied images without
+CSS cover standard formatting and proxied images without
 read-only editor instances.
 
 The hosted Vue smoke is one typing/toolbar/dialog/save/reload journey against a

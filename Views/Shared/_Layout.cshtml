@@ -50,10 +50,6 @@
             <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.5.3/dist/MarkerCluster.Default.css" />
             <link rel="stylesheet" href="~/lib/leaflet/leaflet.draw.css" />
         }
-        @if (ViewData["LoadQuill"] == null || (ViewData["LoadQuill"] as bool?) != false)
-        {
-            <link href="~/lib/quill/quill.snow-2.0.3.css" rel="stylesheet" />
-        }
         @if (ViewData["LoadTomSelect"] as bool? == true)
         {
             <link href="~/lib/tom-select/tom-select.bootstrap5.min.css" rel="stylesheet" />
@@ -204,13 +200,6 @@
             <script src="~/lib/leaflet-editable/Leaflet.Editable.min.js"></script>
         }
 
-        @if (!embed)
-        {
-            if (ViewData["LoadQuill"] as bool? ?? true)
-            {
-                <script src="~/lib/quill/quill-2.0.3.js" defer></script>
-            }
-        }
         @if (ViewData["LoadTomSelect"] as bool? == true)
         {
             <script src="~/lib/tom-select/tom-select.complete.min.js"></script>

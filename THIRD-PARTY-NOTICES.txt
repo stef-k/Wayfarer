@@ -178,15 +178,6 @@ SOFTWARE.
 
 --------------------------------------------------------------------------------
 
-Quill 2.0.3
------------
-https://quilljs.com/
-Copyright (c) 2017-2024, Slab Inc.
-
-Licensed under the BSD 3-Clause License.
-
---------------------------------------------------------------------------------
-
 Bootstrap 5.3.8
 ---------------
 https://getbootstrap.com/
@@ -541,7 +532,6 @@ Copyright 2025 Stef Kariotidis / Wayfarer
 
 --------------------------------------------------------------------------------
 
-Quill complete bundled implementation notices: wwwroot/lib/quill/quill.js.LICENSE.txt.
 Routine servicing provenance and exact package/security dispositions:
 docs/development/dependency-servicing-r1.md. Registry distributions retain original
 license banners, source maps and matching fonts; the image helper ships complete notices.
