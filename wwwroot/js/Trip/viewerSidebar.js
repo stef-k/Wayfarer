@@ -8,7 +8,8 @@ import { bindSidebarResize, readSidebarPreference, sidebarWidth, SIDEBAR_MIN, SI
 export const viewerNavigation = (size, sidebar = 0) => {
     const marginX = Math.min(60, size.x / 4);
     const marginY = Math.min(60, size.y / 4);
-    const offsetX = size.x - sidebar >= marginX * 4 ? Math.round(sidebar / 2) : 0;
+    const sidebarOffset = Math.round(sidebar / 2);
+    const offsetX = size.x - sidebarOffset * 2 >= marginX * 4 ? sidebarOffset : 0;
     return { offsetX, fitOptions: {
         paddingTopLeft: [offsetX * 2 + marginX, marginY],
         paddingBottomRight: [marginX, marginY]

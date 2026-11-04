@@ -232,52 +232,67 @@ test('Trip sidebar Viewer near Full route navigation stays fitted and reversible
     const helpers = await import('/js/Trip/tripViewerHelpers.js');
     const bounds = helpers.getSegmentPolyline('review-route').getBounds();
     const size = map.getSize();
+    const centerPixel = map.project(map.getCenter(), map.getZoom());
     const northwest = map.latLngToContainerPoint(bounds.getNorthWest());
     const southeast = map.latLngToContainerPoint(bounds.getSouthEast());
     return { zoom: map.getZoom(), center: [map.getCenter().lat, map.getCenter().lng],
-      canvas: [size.x, size.y], containsRoute: map.getBounds().contains(bounds),
+      centerPixel: [centerPixel.x, centerPixel.y], canvas: [size.x, size.y], containsRoute: map.getBounds().contains(bounds),
       // Overlay fallback fits the retained canvas, with its normal 60px margins.
       insideMargins: northwest.x >= 59 && northwest.y >= 59 && southeast.x <= size.x - 59 && southeast.y <= size.y - 59 };
   });
-  const observations = [];
+  const observations: unknown[] = [];
+  const directory = process.env.WAYFARER_SIDEBAR_EVIDENCE ?? info.outputPath('captures');
+  await mkdir(directory, { recursive: true });
+  // Keep every observation even when a later assertion fails.
+  const record = async (path: string) => {
+    const observation = await observe();
+    observations.push({ path, ...observation });
+    await writeFile(`${directory}/correction-route.json`, JSON.stringify(observations, null, 2));
+    return observation;
+  };
   // Button and route hits use the same public selection owner as the retained probe.
   await legend.getByRole('button', { name: 'Select review route' }).click();
-  const selection = await observe();
-  observations.push({ path: 'selection-button', ...selection });
+  const selection = await record('selection-button');
   expect(selection.containsRoute).toBeTruthy();
   expect(selection.insideMargins).toBeTruthy();
   expect(selection.zoom).toBeLessThan(19);
   expect(selection.center.every(Number.isFinite)).toBeTruthy();
   await legend.locator('.segment-list-item span').click();
-  const row = await observe();
-  observations.push({ path: 'row', ...row });
+  const row = await record('row');
   expect(row).toEqual(selection);
   // A route hit invokes this same owner; hiding reveals the complete sensible fit.
   await page.evaluate(() => (window as any).wayfarer.selectSegment('review-route'));
+  let stable = selection;
   for (let cycle = 0; cycle < 3; cycle++) {
     await legend.getByRole('button', { name: 'Hide sidebar' }).click();
-    expect(await observe()).toEqual(selection);
+    const hidden = await record(`hidden-${cycle}`);
+    if (cycle === 0) {
+      // Leaflet invalidation clears its cached lat/lon and exposes the rounded pixel
+      // origin. Bound that first quantization, then require exact stability thereafter.
+      expect(Math.hypot(...hidden.centerPixel.map((value, axis) => value - selection.centerPixel[axis]))).toBeLessThan(1);
+      stable = hidden;
+    }
+    expect(hidden).toEqual(stable);
     if (cycle === 0) await capture(page, info, 'correction-viewer-route-hidden');
     await page.getByRole('button', { name: 'Show sidebar' }).click();
     await expectWidth(legend, 1260);
-    expect(await observe()).toEqual(selection);
+    expect(await record(`shown-${cycle}`)).toEqual(stable);
   }
-  // Recenter and Place details must use the same overlay destination, without an offset.
+  // Recenter and Place details share the overlay destination; Leaflet rounds to pixels.
   await page.locator('#btn-trip-center').click();
   const centered = await page.evaluate(() => {
     const map = (window as any).sidebarNavigationMap;
     const root = document.querySelector('#trip-view') as HTMLElement;
-    return map.getCenter().distanceTo((window as any).L.latLng(+root.dataset.tripLat!, +root.dataset.tripLon!));
+    const target = (window as any).L.latLng(+root.dataset.tripLat!, +root.dataset.tripLon!);
+    return map.project(map.getCenter(), map.getZoom()).distanceTo(map.project(target, map.getZoom()));
   });
-  expect(centered).toBeLessThan(5);
+  expect(centered).toBeLessThan(1);
   await legend.locator('.place-list-item').first().click();
   const placeCentered = await page.evaluate(() => {
     const map = (window as any).sidebarNavigationMap;
     const place = document.querySelector('.place-list-item') as HTMLElement;
-    return map.getCenter().distanceTo((window as any).L.latLng(+place.dataset.placeLat!, +place.dataset.placeLon!));
+    const target = (window as any).L.latLng(+place.dataset.placeLat!, +place.dataset.placeLon!);
+    return map.project(map.getCenter(), map.getZoom()).distanceTo(map.project(target, map.getZoom()));
   });
-  expect(placeCentered).toBeLessThan(5);
-  const directory = process.env.WAYFARER_SIDEBAR_EVIDENCE ?? info.outputPath('captures');
-  await mkdir(directory, { recursive: true });
-  await writeFile(`${directory}/correction-route.json`, JSON.stringify(observations, null, 2));
+  expect(placeCentered).toBeLessThan(1);
 });

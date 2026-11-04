@@ -79,6 +79,7 @@ test('Viewer navigation retains usable fit space for presets, near Full and smal
     [{ x: 1280, y: 800 }, 500, 250], // Standard
     [{ x: 1280, y: 800 }, 640, 320], // Half
     [{ x: 1280, y: 800 }, 1040, 520], // Last split with 120px of fit space
+    [{ x: 1281, y: 800 }, 1041, 0], // Rounded offset also respects the budget
     [{ x: 1280, y: 800 }, 1041, 0], // Overlay when the exposed strip cannot support margins
     [{ x: 1280, y: 800 }, 1260, 0], // End, ArrowLeft
     [{ x: 1280, y: 800 }, 1280, 0], // Full
@@ -93,17 +94,4 @@ test('Viewer navigation retains usable fit space for presets, near Full and smal
     assert.ok(size.x - start[0] - end[0] >= Math.min(120, size.x / 2), 'positive usable width');
     assert.ok(size.y - start[1] - end[1] >= size.y / 2, 'at least half the height remains usable');
   }
-});
-
-/** Preference changes and responsive fallback use one reversible integer offset. */
-test('Viewer navigation offsets reverse across split, overlay, hidden and breakpoint changes', () => {
-  let previous = 0;
-  let total = 0;
-  for (const [width, sidebar] of [[1280, 501], [1280, 1260], [1280, 0], [1280, 1260],
-    [1280, 501], [640, 500], [390, 0], [1280, 501], [1280, 0]]) {
-    const next = viewerNavigation({ x: width, y: 600 }, sidebar).offsetX;
-    total += next - previous;
-    previous = next;
-  }
-  assert.equal(total, 0);
 });

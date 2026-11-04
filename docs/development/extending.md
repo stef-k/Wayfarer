@@ -111,8 +111,7 @@ Editor form bound. Viewer phone overlays at 575.98px and Editor drawers at 640px
 remain independently owned; desktop preferences resume when returning to desktop.
 
 Run `node --test tests/client/tripSidebarWidth.test.mjs` for state/interaction and
-navigation budget rules
-and `npm run test:e2e:shared-layout -- --grep 'Trip sidebar (Viewer|Editor)'` for the
+navigation budget rules and `npm run test:e2e:shared-layout -- --grep 'Trip sidebar (Viewer|Editor)'` for the
 two managed geometry journeys. Set `WAYFARER_SIDEBAR_EVIDENCE` to retain screenshots
 outside the managed disposable root. Native client tests retain ownership of the
 broader draft/exit/map matrices; layout qualification does not need a database matrix.
