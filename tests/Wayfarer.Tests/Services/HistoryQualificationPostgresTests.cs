@@ -144,6 +144,7 @@ public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixtu
             await Assert.ThrowsAsync<HistoryQualificationException>(() => LocationHistoryStorage.UpdateAsync(unknown, final, false, true, default));
             await transaction.RollbackAsync();
         }
+        await Assert.ThrowsAsync<HistoryQualificationException>(() => new LocationHistoryPreparation(unknown).EnsureAsync(null, default));
         Assert.Equal(rows, await RowsAsync(seed)); Assert.Equal(states, await StatesAsync(seed));
     }
 

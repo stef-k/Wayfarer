@@ -23,6 +23,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             terminal.Write(JsonSerializer.Serialize(plan));
             terminal.Write("Plan SHA-256: " + plan.Hash());
             terminal.Write("MigrationStarted ends safe old-runtime activation. Recovery requires the held archive and managed restore.");
+            terminal.Write("The offline window includes target history verification/preparation and ANALYZE; allow additional downtime and database/WAL capacity. Committed history batches are resumable.");
             return 0;
         }
         UpdateReceipt receipt;
@@ -120,7 +121,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Delegate fresh capture only while host exclusion remains owned, then regain recovery exclusion before migration.</summary>
     private async Task<int> ExecuteAsync(string root, UpdateReceipt receipt, bool resumed, CancellationToken token)
     {
-        var runtime = new UpdateRuntime(runner);
+        var runtime = new UpdateRuntime(runner, terminal);
         if (receipt.Phase == UpdatePhase.Authorized)
         {
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));

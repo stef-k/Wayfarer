@@ -15,6 +15,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
         if (receipt.Phase == UpdatePhase.MigrationConfirmed)
         {
             var bundle = ReleaseStore.Select(root, target.Release!);
+            await new UpdatePreparation(runner).InspectAsync(root, target, bundle, receipt.Plan.Operation, token, requireHistory: true);
             using var facts = JsonDocument.Parse(receipt.Reconciliation!);
             var source = bundle.Target(target.Project, true) with
             { QuartzSnapshotFingerprint = facts.RootElement.GetProperty("QuartzSnapshotFingerprint").GetString()! };
@@ -44,7 +45,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
         {
             await owner.Required(target.Compose(root, "-f", privateOverlay, "up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180", "db"), token);
             var evidence = await new UpdatePreparation(runner).InspectAsync(root, target,
-                ReleaseStore.Select(root, target.Release!), receipt.Plan.Operation, token);
+                ReleaseStore.Select(root, target.Release!), receipt.Plan.Operation, token, requireHistory: true);
             receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.WritesPossible);
             receipt.Save(root);
         }
@@ -54,7 +55,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
             await owner.Required(target.Compose(root, "exec", "-T", "wayfarer", "dotnet", "Wayfarer.dll", "healthcheck"), token);
             await PrivateEndpointAsync(root, receipt, target, token);
             var evidence = await new UpdatePreparation(runner).InspectAsync(root, target,
-                ReleaseStore.Select(root, target.Release!), receipt.Plan.Operation, token);
+                ReleaseStore.Select(root, target.Release!), receipt.Plan.Operation, token, requireHistory: true);
             receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.PostflightConfirmed);
             receipt.Save(root);
         }

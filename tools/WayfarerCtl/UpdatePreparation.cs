@@ -112,7 +112,8 @@ public sealed class UpdatePreparation(IProcessRunner runner)
     }
 
     /// <summary>Application-owned exact EF/Quartz, DB-role, Identity, DP and Uploads validation has only internal DB access.</summary>
-    public async Task<string> InspectAsync(string root, Deployment config, ReleaseBundle bundle, Guid operation, CancellationToken token)
+    public async Task<string> InspectAsync(string root, Deployment config, ReleaseBundle bundle, Guid operation, CancellationToken token,
+        bool requireHistory = false)
     {
         var name = config.Project + "-restore-update-inspect-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N");
         var owner = new RestoreContainers(runner);
@@ -130,7 +131,18 @@ public sealed class UpdatePreparation(IProcessRunner runner)
             facts.GetProperty("Uploads").GetString() != app.Uploads || facts.GetProperty("Ring").GetString() != app.Ring ||
             facts.GetProperty("ProtectedCredentials").GetString() is not ("none present" or "readable"))
             throw new IOException("Exact update source/target inspection failed.");
+        if (requireHistory && !UpdateHistoryPreparation.Ready(await InspectHistoryAsync(root, config, operation, token)))
+            throw new IOException("Target history is incomplete; keep writers stopped and resume the receipted update.");
         return output;
+    }
+
+    /// <summary>Only the target application decides generation readiness; source and recovery inspections retain their existing contract.</summary>
+    internal async Task<string> InspectHistoryAsync(string root, Deployment config, Guid operation, CancellationToken token)
+    {
+        var name = config.Project + "-restore-update-history-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N");
+        return await new ReleaseImagesVerifier(runner).ProbeAsync(new RestoreContainers(runner), name,
+            [.. Maintenance(root, config), "--entrypoint=dotnet", "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
+                "Wayfarer.dll", "database", "history-status"], token);
     }
 
     /// <summary>Fixed maintenance authority excludes provider/edge networks, admin secrets, writable data and archive storage.</summary>

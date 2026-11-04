@@ -129,15 +129,17 @@ Clients should honor admission retry hints. See the
 
 Follow the [history preparation runbook](../maintainer/history-preparation.md)
 and the installation's [supported update/recovery workflow](operations.md).
-Existing histories require explicit resumable derivation preparation; ordinary
-startup and reads do not backfill them. Dependent capture/text operations remain
-gated until their required generation is ready.
+Supported offline `database migrate` automatically ensures current time/text
+derivations before activation, extending the maintenance window for existing
+histories. Ordinary startup, reads and recovery-set restore do not backfill them.
+Dependent capture/text operations remain gated until their required generation is
+ready; schema success alone cannot complete an upgrade.
 
 Compatible qualified dependency servicing preserves prepared data, active/target state,
 checkpoints and continuations. R1 (#937/#938) has measured historical time **and**
-visible-text changes, so upgrade from the old generations requires explicit
-`history-data rebuild both` while old processes are quiesced; resume with
-`history-data prepare both`. Already-compatible qualified R1 rows are not rebuilt
+visible-text changes, so offline target maintenance selects both affected old
+generations while old processes are quiesced. It resumes committed checkpoints;
+manual `history-data rebuild|prepare` remains available for repair. Already-compatible qualified R1 rows are not rebuilt
 merely to rename their IDs. First inspect `history-data status` for actual loaded
 runtime/globalization provenance and `Qualified`; missing qualification is separate
 from pending preparation and rebuilding cannot cure it. No automatic repair or

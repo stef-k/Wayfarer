@@ -413,6 +413,32 @@ Interpret results rather than suppressing them:
 
 Code Guard complements compilers, tests, linters, security analysis and review; it does not replace them.
 
+## Packaged update, restore and removal qualification
+
+The `application-image` job prepares a disposable target with
+`tools/compose/qualify_update.py`, then runs the existing
+`qualify_recovery.py --update-bundle` journey through setup, backup, failed
+migration, stopped-DB reconciliation, lost acknowledgement, private postflight
+failure, source restore, forward acceptance, target restore, uninstall,
+reactivation, purge and fresh setup. Completion requires the final lifecycle
+receipt and fixture cleanup; candidate preparation alone is not journey evidence.
+
+The failed-migration fixture creates an empty application-owned table that
+collides with the disposable target migration. It must observe the real PostgreSQL
+duplicate-table error and a recorded nonzero helper exit while source migration
+history remains unchanged. Keep the helper's image, command, environment, user,
+mounts and other authority exactly as authorized. Changing its password-file
+environment tests authority refusal and cannot represent recoverable migration
+failure. The source archive retains the collision, so remove it only after the
+actual source restore succeeds. The focused managed-update tests retain the
+altered-environment refusal control for both helper kinds.
+
+Retain historical failures and distinguish setup/infrastructure failures from
+product counterexamples. Passing an early assertion does not establish later
+phases; record the final joined result and any unobserved boundary. Reuse
+unrelated passing ordinary/native evidence only after proving the delta is
+outside its scope.
+
 ## Managed Caddy replacement qualification
 
 `tools/compose/qualify_caddy_replacement.py` uses genuine predecessor bundles and a

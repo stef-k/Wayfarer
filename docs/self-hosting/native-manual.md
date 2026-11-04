@@ -65,8 +65,9 @@ requires ISRG Root X1 as a positive control; custom trust policies require their
 own qualification. Existing Node/npm installations are checked too; repair an old
 installation rather than accepting it merely because it is on PATH.
 
-Before enabling history writers/reads after an upgrade, run `history-data status`
-with the **same executable, runtime and globalization configuration** as the service.
+Supported offline `database migrate` prepares and verifies current history before
+activation. Use the **same executable, runtime and globalization configuration** as
+the service. `history-data status` remains available for read-only diagnosis.
 R1 history qualification admits loaded .NET 10.0.13/10.0.14 with the reviewed
 artifacts and ICU profile, independent of host paths or machine identity. A package
 version or SDK label does not identify the runtime actually executing the service.
@@ -74,9 +75,10 @@ Other globalization/runtime profiles need qualification; failure stays local to
 affected history operations and cannot be repaired by rebuilding. This admission
 does not waive #915 security-release requirements. Stop old processes and follow
 [history maintenance](../maintainer/history-preparation.md#servicing-dependency-changes):
-R1's real timezone and parser changes require rebuilding both old generations,
-whereas qualified compatible servicing preserves rows/checkpoints. Inspect status
-before preparing; no startup/backfill scheduler performs this work.
+R1's real timezone and parser changes select both old generations for preparation,
+whereas qualified compatible servicing preserves rows/checkpoints. The target
+application makes these decisions during maintenance; ordinary startup does no
+automatic backfill.
 
 ## Create a service identity
 
@@ -270,7 +272,10 @@ Use protected stdin, not a password in argv or shell history.
 The Production password policy requires at least 15 characters with uppercase,
 lowercase, a digit and a non-alphanumeric character.
 
-Run the web service only after migrations/seeding/bootstrap complete successfully.
+`database migrate` completes EF/Quartz maintenance and automatically ensures both
+history generations before returning success. It shows bounded preparation counts;
+large histories extend the offline window. Keep writers stopped and allow disk/WAL
+headroom. Run the web service only after maintenance/seeding/bootstrap succeed.
 
 ## Provision Playwright Chromium
 
@@ -430,7 +435,9 @@ Before an update:
    understood.
 
 Build/publish the target release separately. Apply its pending migrations while the
-old web process is stopped, then start the target only after migration succeeds.
+old web process and all import/enrichment writers are stopped. The same target
+command then prepares current history automatically. Start the target only after
+all maintenance succeeds; schema success with incomplete history is a failed upgrade.
 
 A safe outline is:
 
@@ -454,6 +461,18 @@ sudo rsync -a --delete \
 sudo systemctl start wayfarer
 sudo systemctl status wayfarer
 ```
+
+Allow a longer offline window for history scanning/preparation and ANALYZE; retain
+backups, capacity reserve and writer exclusion. On interruption, confirm the target
+maintenance process has stopped and independently verify exact EF/Quartz schema.
+If schema is complete, run `database prepare-history` with the same staged target
+and protected configuration to resume committed batches without replaying schema.
+Do not start the service after a failed/incomplete command. Inspect failures for
+missing history indexes/extension privileges, qualified runtime and disk/WAL space.
+Manual `history-data` commands remain available for targeted repair; see the
+[runbook](../maintainer/history-preparation.md#automatic-maintenance-and-forward-resume).
+Restoring a recovery set does not run preparation; repair stale history only as a
+separate authorized forward maintenance action.
 
 Adjust ownership/read permissions so the service can execute/read the published
 tree but cannot rewrite deployment binaries.

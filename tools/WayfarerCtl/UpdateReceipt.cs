@@ -46,6 +46,12 @@ public sealed record UpdateReceipt
     public string? MigrationContainer { get; init; }
     public string? MigrationContainerId { get; init; }
     public int? MigrationExit { get; init; }
+    /// <summary>Preparation-only resume is separately receipted and can never grant schema-helper replay.</summary>
+    public string? HistoryContainer { get; init; }
+    public string? HistoryContainerId { get; init; }
+    public int HistoryAttempts { get; init; }
+    public int? HistoryExit { get; init; }
+    public string? HistoryReconciliation { get; init; }
     public string? Reconciliation { get; init; }
     public string? NewConfiguration { get; init; }
     public Guid? RestoreOperation { get; init; }
@@ -117,6 +123,10 @@ public sealed record UpdateReceipt
             throw new IOException("Update phase lacks held recovery evidence.");
         if (MigrationPossible && MigrationContainer != Plan.Current.Project + "-update-migrate-" + Plan.Operation.ToString("N"))
             throw new IOException("Update phase lacks exact migration helper intent.");
+        if (HistoryAttempts < 0 || HistoryContainer is null && (HistoryContainerId is not null || HistoryAttempts != 0 || HistoryExit is not null) ||
+            HistoryContainer is not null && (!MigrationPossible ||
+                HistoryContainer != Plan.Current.Project + "-update-history-" + Plan.Operation.ToString("N")))
+            throw new IOException("Invalid preparation-only helper intent.");
         if (Phase != UpdatePhase.Aborted && (Phase >= UpdatePhase.ActivationIntent) != (NewConfiguration is not null))
             throw new IOException("Update activation phase/configuration mismatch.");
         if (NewConfiguration is not null)

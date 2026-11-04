@@ -97,6 +97,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         update = UpdateReceipt.Load(root)!;
         if (update.MigrationContainer is not null)
             update = await new UpdateRuntime(runner).ReconcileMigrationAsync(root, update, token);
+        update = await new UpdateHistoryPreparation(runner).ReconcileAsync(root, update, token);
         await UpdateCommands.VerifyRecoveryAsync(update, token);
         RestoreReceipt receipt;
         using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))

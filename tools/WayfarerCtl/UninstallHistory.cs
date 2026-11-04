@@ -155,7 +155,8 @@ internal sealed record UninstallHistory(UpdateReceipt[] Updates, RestoreReceipt[
         var id = container.GetProperty("Id").GetString()!;
         var restore = Restores.FirstOrDefault(r => r.Containers.Contains(name) || r.Containers.Contains(id));
         if (restore is not null) return restore.Plan.Operation;
-        var update = Updates.FirstOrDefault(r => r.MigrationContainerId == id && r.MigrationContainer == name);
+        var update = Updates.FirstOrDefault(r => r.MigrationContainerId == id && r.MigrationContainer == name ||
+            r.HistoryContainerId == id && r.HistoryContainer == name);
         return update?.Plan.Operation ?? throw new UsageException("Helper has no terminal installation-owned receipt: " + name + ".");
     }
 

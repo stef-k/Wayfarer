@@ -96,7 +96,11 @@ exact supported stable release. `--bundle` uses a canonical trusted local bundle
 `--version` and `--bundle` are mutually exclusive.
 
 Stable setup derives image identities from validated release metadata; image digest
-override is not an ordinary operator option.
+override is not an ordinary operator option. Target database maintenance also
+prepares current history time/text data before setup can complete. Progress shows
+prepared/pending counts; a failure leaves setup incomplete and resumable. This may
+lengthen the maintenance window; allow database/WAL headroom. Compatible repeat
+maintenance verifies readiness without rewriting current derived data.
 
 ### Setup interruption
 
@@ -495,7 +499,12 @@ and unsupported source fingerprints are refused.
 
 Execution fences writers and requires a fresh verified quiesced recovery set before
 migration. The application/database/storage transition is recorded durably before
-irreversible boundaries.
+irreversible boundaries. After EF/Quartz, the target automatically prepares missing
+or changed history generations and resumes committed batches. Independent target
+history inspection must pass before target activation; schema success alone cannot
+complete the upgrade. Progress and prerequisite failures are shown during the longer
+offline window. Existing backups, capacity checks and writer exclusion remain
+required. No extra history command is needed for a normal supported update.
 
 Recovery:
 
@@ -507,6 +516,14 @@ wayfarerctl update --restore <operation-uuid>
 
 Abort is permitted only before migration may have started. Once migration may have
 started, an old image is not database rollback; use the managed restore path.
+`MigrationStarted` never permits blind schema-helper relaunch. Resume reconciles
+all exact helpers as stopped before independent target inspection. If schema is
+complete but history is incomplete, a separately receipted preparation-only helper
+may run once per explicit resume, using the same target and committed checkpoints.
+Running/foreign/ambiguous helpers block resume and restore. See the
+[history recovery contract](../maintainer/history-preparation.md#automatic-maintenance-and-forward-resume).
+Restoring a recovery set does not automatically prepare or rewrite its history;
+stale restored rows require a separate authorized forward maintenance operation.
 
 ### Explicit managed Caddy replacement
 

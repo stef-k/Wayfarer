@@ -4,7 +4,7 @@ using WayfarerRecovery;
 namespace WayfarerCtl;
 
 /// <summary>Update-owned runtime fencing and single-launch migration reconciliation.</summary>
-public sealed class UpdateRuntime(IProcessRunner runner)
+public sealed class UpdateRuntime(IProcessRunner runner, ITerminal? terminal = null)
 {
     /// <summary>Persist all observed restart policies before changing any; interrupted fencing never overwrites original evidence.</summary>
     public async Task<UpdateReceipt> FenceAsync(string root, UpdateReceipt receipt, CancellationToken token)
@@ -187,6 +187,7 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         var owner = new RestoreContainers(runner);
         var preparation = new UpdatePreparation(runner);
         var target = ReleaseStore.Select(root, receipt.Plan.Target.Release!);
+        var launched = receipt.Phase == UpdatePhase.RecoveryVerified;
         if (receipt.Phase == UpdatePhase.RecoveryVerified)
         {
             await RequireExclusiveAsync(receipt, token);
@@ -201,13 +202,20 @@ public sealed class UpdateRuntime(IProcessRunner runner)
                 "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest, "Wayfarer.dll", "database", "migrate"], token)).Trim();
             receipt = receipt with { MigrationContainerId = id };
             receipt.Save(root);
+            terminal?.Write("Applying target schema and preparing current history; maintenance stays offline until independent completion checks pass.");
             await owner.Required(["start", id], token);
-            await owner.Required(["wait", id], token);
+            await UpdateHistoryPreparation.FollowAsync(runner, terminal, id, token);
         }
         if (receipt.Phase != UpdatePhase.MigrationStarted) return receipt;
         receipt = await ReconcileMigrationAsync(root, receipt, token);
         // Independent target inspection, not exit code, proves complete EF/Quartz/secure readiness.
         var evidence = await preparation.InspectAsync(root, receipt.Plan.Target, target, receipt.Plan.Operation, token);
+        receipt = await new UpdateHistoryPreparation(runner, terminal).EnsureAsync(root, receipt,
+            allowResume: !launched,
+            token: token);
+        if (launched && receipt.MigrationExit != 0)
+            throw new IOException("Target maintenance failed; retain the recovery set and explicitly resume after reconciling its stopped helper.");
+        // History inspection is independent of schema inspection and helper exit/acknowledgement.
         receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.MigrationConfirmed);
         receipt.Save(root);
         return receipt;
@@ -227,23 +235,46 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         }
         using var document = JsonDocument.Parse(inspection.Output);
         var helper = document.RootElement[0];
-        var config = helper.GetProperty("Config");
-        var host = helper.GetProperty("HostConfig");
         var id = helper.GetProperty("Id").GetString();
-        if (receipt.MigrationContainerId is not null && id != receipt.MigrationContainerId ||
-            config.GetProperty("Labels").GetProperty("wayfarer.update").GetString() != receipt.Plan.Operation.ToString("D") ||
-            config.GetProperty("Image").GetString() != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest ||
-            config.GetProperty("User").GetString() != "1654:1654" || !host.GetProperty("ReadonlyRootfs").GetBoolean() ||
-            host.GetProperty("Privileged").GetBoolean() || host.GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no" ||
-            host.GetProperty("NetworkMode").GetString() != receipt.Plan.Current.Project + "_backend" ||
-            !config.GetProperty("Cmd").Deserialize<string[]>()!.SequenceEqual(new[] { "Wayfarer.dll", "database", "migrate" }) ||
-            helper.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("RW").GetBoolean() && mount.GetProperty("Type").GetString() != "tmpfs"))
-            throw new IOException("Migration helper authority changed.");
-        if (helper.GetProperty("State").GetProperty("Running").GetBoolean())
-            throw new IOException("Migration helper still running; reconcile termination before forward resume or restore.");
+        VerifyMaintenanceHelper(root, receipt, helper, history: false);
         receipt = receipt with { MigrationContainerId = id, MigrationExit = helper.GetProperty("State").GetProperty("ExitCode").GetInt32() };
         receipt.Save(root);
         return receipt;
+    }
+
+    /// <summary>Both maintenance helpers require exact target, command, stopped identity and read-only maintenance authority.</summary>
+    internal static void VerifyMaintenanceHelper(string root, UpdateReceipt receipt, JsonElement helper, bool history)
+    {
+        var config = helper.GetProperty("Config");
+        var host = helper.GetProperty("HostConfig");
+        var expectedId = history ? receipt.HistoryContainerId : receipt.MigrationContainerId;
+        var expectedName = history ? receipt.HistoryContainer : receipt.MigrationContainer;
+        if (expectedId is not null && helper.GetProperty("Id").GetString() != expectedId ||
+            helper.GetProperty("Name").GetString() != "/" + expectedName ||
+            config.GetProperty("Labels").GetProperty("wayfarer.update").GetString() != receipt.Plan.Operation.ToString("D") ||
+            config.GetProperty("Labels").GetProperty("wayfarer.update-project").GetString() != receipt.Plan.Current.Project ||
+            history && config.GetProperty("Labels").GetProperty("wayfarer.history-update").GetString() != receipt.Plan.Operation.ToString("D") ||
+            config.GetProperty("Image").GetString() != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest ||
+            !config.GetProperty("Entrypoint").Deserialize<string[]>()!.SequenceEqual(new[] { "dotnet" }) ||
+            config.GetProperty("Env").EnumerateArray().Count(value => value.GetString()!.StartsWith("ConnectionStrings__DefaultConnection=", StringComparison.OrdinalIgnoreCase)) != 1 ||
+            !config.GetProperty("Env").EnumerateArray().Any(value => value.GetString() == "ConnectionStrings__DefaultConnection=Host=db;Database=wayfarer;Username=wayfarer;Timeout=5") ||
+            config.GetProperty("Env").EnumerateArray().Count(value => value.GetString()!.StartsWith("Database__PasswordFile=", StringComparison.OrdinalIgnoreCase)) != 1 ||
+            !config.GetProperty("Env").EnumerateArray().Any(value => value.GetString() == "Database__PasswordFile=/run/secrets/app-password") ||
+            config.GetProperty("User").GetString() != "1654:1654" || !host.GetProperty("ReadonlyRootfs").GetBoolean() ||
+            host.GetProperty("Privileged").GetBoolean() || host.GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no" ||
+            host.GetProperty("NetworkMode").GetString() != receipt.Plan.Current.Project + "_backend" ||
+            !config.GetProperty("Cmd").Deserialize<string[]>()!.SequenceEqual(new[] { "Wayfarer.dll", "database", history ? "prepare-history" : "migrate" }) ||
+            helper.GetProperty("Mounts").EnumerateArray().Count(mount => mount.GetProperty("Type").GetString() != "tmpfs") != 2 ||
+            !helper.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("Type").GetString() == "volume" &&
+                mount.GetProperty("Name").GetString() == ActiveStorage.Volume(receipt.Plan.Current, "app-data") &&
+                mount.GetProperty("Destination").GetString() == "/var/lib/wayfarer") ||
+            !helper.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("Type").GetString() == "bind" &&
+                mount.GetProperty("Source").GetString() == Path.Combine(root, "secrets/app-password") &&
+                mount.GetProperty("Destination").GetString() == "/run/secrets/app-password") ||
+            helper.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("RW").GetBoolean() && mount.GetProperty("Type").GetString() != "tmpfs"))
+            throw new IOException("Maintenance helper authority changed.");
+        if (helper.GetProperty("State").GetProperty("Running").GetBoolean())
+            throw new IOException("Maintenance helper still running; reconcile termination before forward resume or restore.");
     }
 
 }

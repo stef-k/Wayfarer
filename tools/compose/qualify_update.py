@@ -19,14 +19,6 @@ def qualify_update(journey):
     # Child-process fault injection reuses the fixture's existing Docker boundary.
     wrapper = journey.host('cat', str(journey.directory / 'docker-test')).stdout
     injection = '''case "$point:$*" in
-  update-failure:*" database migrate")
-    remaining=$#
-    while test "$remaining" -gt 0; do
-      value=$1; shift
-      case "$value" in --env=Database__PasswordFile=*) value=--env=Database__PasswordFile=/missing-credential ;; esac
-      set -- "$@" "$value"
-      remaining=$((remaining-1))
-    done ;;
   update-ack:*" start "*)
     for helper; do :; done
     operation=$(/usr/bin/docker inspect --format '{{index .Config.Labels "wayfarer.update"}}' "$helper" 2>/dev/null)
@@ -82,6 +74,8 @@ esac
     journey.ctl('restore', '--accept-plan', digest, '--trust-controlled-backup')
     journey.probe_command('verify')
     assert configuration(journey)['Release'] == target['Release']
+    history = json.loads(journey.compose('exec', '-T', 'wayfarer', 'dotnet', 'Wayfarer.dll', 'database', 'history-status'))
+    assert history['Ready'] and all(generation['Ready'] for generation in history['Generations'])
     assert journey.compose('exec', '-T', 'wayfarer', 'cat',
         '/var/lib/wayfarer/uploads/imports/recovery-qualification').strip() == 'durable'
     print('PASS same-generation forward activation, secure data continuity, target backup binding and post-update managed restore', flush=True)
@@ -105,12 +99,18 @@ def plan_update(journey):
 
 def migration_failure(journey):
     """A real nonzero target helper leaves source history unchanged and cannot be retried or accepted."""
+    # Collide only with the disposable target DDL; keep the exact helper authority intact.
+    # The application role owns the empty table so the required recovery capture can read it.
+    journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-v', 'ON_ERROR_STOP=1', '-c',
+        'CREATE TABLE update_qualification (id integer PRIMARY KEY); ALTER TABLE update_qualification OWNER TO wayfarer;')
     plan, digest = plan_update(journey)
-    journey.host('tee', str(journey.directory / 'failure'), data='update-failure')
     failure = journey.ctl('update', '--accept-plan', digest, check=False)
     assert failure.returncode == 1, failure.stderr
     receipt = update_receipt(journey)
-    assert receipt['Phase'] == 3 and receipt['MigrationExit'] != 0, (receipt['Phase'], failure.stderr)
+    assert receipt['Phase'] == 3 and isinstance(receipt['MigrationExit'], int) and receipt['MigrationExit'] != 0, (receipt['Phase'], failure.stderr)
+    # Maintenance intentionally sanitizes exceptions; PostgreSQL owns the DDL failure diagnostic.
+    logs = journey.host('docker', 'logs', journey.project + '-db-1')
+    assert 'relation "update_qualification" already exists' in logs.stdout + logs.stderr
     history = journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-At', '-c',
         'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";').splitlines()
     assert history == plan['Current']['Backup']['Source']['ExpectedMigrations']
@@ -122,6 +122,10 @@ def migration_failure(journey):
     assert update_receipt(journey)['Phase'] == 3
     assert journey.host('docker', 'inspect', '--format', '{{.State.StartedAt}}', receipt['MigrationContainer']).stdout == started
     journey.ctl('update', '--restore', plan['Operation'])
+    assert update_receipt(journey)['RestoreAccepted']
+    # The held source archive contains the collision; remove that fixture after real restore.
+    journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-v', 'ON_ERROR_STOP=1', '-c',
+        'DROP TABLE update_qualification;')
     print('PASS real nonzero migration, unchanged source history, exact stopped-DB reconciliation and no blind retry', flush=True)
 
 

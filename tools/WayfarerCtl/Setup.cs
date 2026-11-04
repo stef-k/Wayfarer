@@ -254,7 +254,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         foreach (var (number, operation) in new[] { (1, "migrate"), (2, "seed") })
         {
             if (progress.Completed >= number) continue;
-            await Step(operation == "migrate" ? "Preparing database structure" : "Preparing initial application data",
+            await Step(operation == "migrate" ? "Preparing database structure and current history (maintenance may take longer)" : "Preparing initial application data",
                 config.Compose(root, "run", "--rm", "--no-deps", "-T", "wayfarer", "database", operation), null, token);
             progress.Completed = number;
             checkpoint?.Invoke();
@@ -293,7 +293,10 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     {
         Stage(name);
         remedy = "Check that Docker is running and enough disk space is available, and correct the reported prerequisite.";
-        if ((await runner.RunAsync(command, input, token)).Code != 0) throw new IOException("Setup step failed.");
+        var history = command.Length >= 2 && command[^2] == "database" && command[^1] == "migrate";
+        if (history) remedy = "Verify schema, history indexes/extension privileges, qualified target runtime and disk/WAL capacity; keep writers stopped and resume setup after correction.";
+        if ((await runner.RunAsync(command, input, token, history ? line => UpdateHistoryPreparation.WriteProgress(terminal, line) : null)).Code != 0)
+            throw new IOException("Setup step failed.");
     }
 
     /// <summary>Track a plain-language stage for unexpected setup failures without exposing exception text.</summary>

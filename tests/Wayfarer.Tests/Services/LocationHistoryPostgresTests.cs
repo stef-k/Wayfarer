@@ -1,6 +1,8 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.CommandLine;
 using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -14,6 +16,121 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationHistoryPostgresTests(PostgresMigrationTestFixture fixture) : IClassFixture<PostgresMigrationTestFixture>
 {
+    /// <summary>Offline ensure prepares empty/pre-history installs and compatible servicing performs no writes.</summary>
+    [PostgresFact]
+    public async Task MaintenanceEnsuresInstallAndOnlyChangedGeneration()
+    {
+        await using var db = fixture.CreateContext();
+        await db.Locations.ExecuteDeleteAsync();
+        await db.HistoryPreparationStates.ExecuteDeleteAsync();
+        var preparation = new LocationHistoryPreparation(db);
+        using var services = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+        using var output = new StringWriter();
+        await LifecycleCli.DatabaseAsync("migrate", db, services, output, default);
+        Assert.All(await preparation.InspectAsync(default), status => Assert.True(status.Ready));
+        var owner = await fixture.CreateUserAsync(); var row = Row(owner.Id);
+        db.Add(row); await db.SaveChangesAsync();
+        await ClearDerivedAsync(db, [row.Id]);
+        await db.HistoryPreparationStates.ExecuteDeleteAsync();
+        await LifecycleCli.DatabaseAsync("migrate", db, services, output, default);
+        var before = await SnapshotAsync(db);
+        var time = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        await preparation.EnsureAsync(null, default);
+        Assert.Equal(before, await SnapshotAsync(db));
+        // Model the prior semantic text generation; canonical/time/provenance columns stay byte-equivalent.
+        await db.HistoryPreparationStates.Where(state => state.Kind == "text").ExecuteUpdateAsync(set => set
+            .SetProperty(state => state.TargetVersion, "history-text-previous").SetProperty(state => state.ActiveVersion, "history-text-previous"));
+        await db.Locations.ExecuteUpdateAsync(set => set.SetProperty(item => item.HistoryTextVersion, "history-text-previous")
+            .SetProperty(item => item.HistorySearchText, "OLD EXTRACTION"));
+        var retained = await RetainedColumnsAsync(db);
+        await preparation.EnsureAsync(null, default);
+        Assert.Equal(retained, await RetainedColumnsAsync(db));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(time), System.Text.Json.JsonSerializer.Serialize(
+            await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time")));
+        Assert.All(await preparation.InspectAsync(default), status => Assert.True(status.Ready));
+    }
+
+    /// <summary>A natural progress callback interrupts after commit; ensure resumes its counters and repairs stale restored rows.</summary>
+    [PostgresFact]
+    public async Task MaintenanceResumesCommittedBatchAndRejectsStaleRestoreAndMissingIndex()
+    {
+        var owner = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        db.AddRange(Row(owner.Id), Row(owner.Id)); await db.SaveChangesAsync();
+        await db.HistoryPreparationStates.ExecuteDeleteAsync();
+        using var cancellation = new CancellationTokenSource();
+        var preparation = new LocationHistoryPreparation(db);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => preparation.EnsureAsync(status =>
+        {
+            if (status.Prepared > 0) cancellation.Cancel();
+            return Task.CompletedTask;
+        }, cancellation.Token));
+        var checkpoint = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.True(checkpoint.Prepared > 0); Assert.True(checkpoint.LastId > 0); Assert.False(checkpoint.Ready);
+        await using var resumed = fixture.CreateContext();
+        var service = new LocationHistoryPreparation(resumed);
+        await service.EnsureAsync(null, default);
+        var complete = await resumed.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.Equal(checkpoint.Prepared, complete.Prepared); Assert.Equal(checkpoint.LastId, complete.LastId);
+        var first = await resumed.Locations.MinAsync(row => row.Id);
+        await resumed.Locations.Where(row => row.Id == first).ExecuteUpdateAsync(set => set.SetProperty(row => row.HistoryTextVersion, "restored-old"));
+        Assert.False((await service.InspectAsync(default)).All(status => status.Ready));
+        await service.EnsureAsync(null, default);
+        Assert.All(await service.InspectAsync(default), status => Assert.True(status.Ready));
+        await using var missing = await resumed.Database.BeginTransactionAsync();
+        await resumed.Database.ExecuteSqlRawAsync("DROP INDEX \"IX_Location_HistoryText\"");
+        Assert.All(await service.InspectAsync(default), status => Assert.False(status.Ready));
+        await missing.RollbackAsync();
+    }
+
+    /// <summary>Include tuple versions to detect even equivalent-value derivation rewrites on compatible repeats.</summary>
+    private static Task<string[]> SnapshotAsync(ApplicationDbContext db) => db.Database.SqlQueryRaw<string>("""
+        SELECT row_to_json(l)::text || l.xmin::text AS "Value" FROM "Locations" l
+        UNION ALL SELECT row_to_json(s)::text || s.xmin::text FROM "HistoryPreparationStates" s
+        """).ToArrayAsync();
+
+    /// <summary>Retain every column except the two independently rebuilt text derivations.</summary>
+    private static Task<string[]> RetainedColumnsAsync(ApplicationDbContext db) => db.Database.SqlQueryRaw<string>("""
+        SELECT (to_jsonb(l) - 'HistorySearchText' - 'HistoryTextVersion')::text AS "Value" FROM "Locations" l ORDER BY "Id"
+        """).ToArrayAsync();
+
+    /// <summary>Interrupted ANALYZE cannot advertise success after the final batch, including process death before failure recording.</summary>
+    [PostgresFact]
+    public async Task MaintenanceFailureAfterFinalBatchRevokesReadinessWithoutResettingProgress()
+    {
+        await using var db = fixture.CreateContext();
+        await db.HistoryPreparationStates.ExecuteDeleteAsync();
+        var service = new LocationHistoryPreparation(db);
+        var interruption = new InterruptAnalyze(fixture);
+        await using (var worker = fixture.CreateContext(interruption))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new LocationHistoryPreparation(worker).EnsureAsync(null, default));
+        Assert.False(interruption.ReadyAtAnalyze);
+        var checkpoint = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.False(checkpoint.Ready); Assert.NotNull(checkpoint.LastFailure);
+        Assert.False((await service.InspectAsync(default)).All(status => status.Ready));
+        await service.EnsureAsync(null, default);
+        var complete = await db.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time");
+        Assert.Equal(checkpoint.Prepared, complete.Prepared); Assert.Equal(checkpoint.LastId, complete.LastId);
+        Assert.All(await service.InspectAsync(default), status => Assert.True(status.Ready));
+    }
+
+    /// <summary>Observe committed readiness from another connection immediately before the real final maintenance statement.</summary>
+    private sealed class InterruptAnalyze(PostgresMigrationTestFixture fixture) : DbCommandInterceptor
+    {
+        internal bool ReadyAtAnalyze { get; private set; } = true;
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText == "ANALYZE \"Locations\"")
+            {
+                await using var inspect = fixture.CreateContext();
+                ReadyAtAnalyze = (await inspect.HistoryPreparationStates.AsNoTracking().SingleAsync(state => state.Kind == "time", cancellationToken)).Ready;
+                throw new OperationCanceledException("Synthetic interruption before ANALYZE.");
+            }
+            return result;
+        }
+    }
+
     [PostgresFact]
     public async Task StalePartialEditsDeriveFromFinalMergedRowAndRollbackTogether()
     {

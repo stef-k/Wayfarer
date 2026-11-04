@@ -68,7 +68,10 @@ public static class AppVersionCli
 
         Commands:
           version                         Print the compiled Wayfarer version.
-          database migrate|seed           Explicit offline database maintenance.
+          database migrate|seed           Offline schema/history maintenance or reference seeding.
+          database prepare-history        Resume history only after exact schema verification.
+          database history-status         Read-only JSON readiness (inspect Ready).
+          history-data status|prepare|rebuild [time|text|both]  Manual history repair.
           admin bootstrap|reset <user> --stdin  Protected password input.
           user find <user>                Print only matching user ID/name.
           healthcheck                     Probe container readiness on loopback.

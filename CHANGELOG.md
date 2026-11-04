@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Automatically prepare current history time/text data during supported offline
+  installation and upgrades (#966). Preserve compatible data and committed progress,
+  rebuild only affected generations, and require independent target history readiness
+  before managed activation. Retain schema-helper replay protection, receipted
+  preparation-only resume, backups/capacity checks and longer-window progress.
+  Ordinary startup and recovery-set restore perform no history backfill.
+
 ### Changed
 - Complete Quill retirement (#939 W3): remove the npm dependency and exclusive
   transitives, copied distributions/maps/notices, layout switches, image-blot helper,

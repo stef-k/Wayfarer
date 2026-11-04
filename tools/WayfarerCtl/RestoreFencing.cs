@@ -81,13 +81,17 @@ public sealed class RestoreFencing(IProcessRunner runner)
         if (helperLabels.ValueKind == JsonValueKind.Object && helperLabels.TryGetProperty("wayfarer.update", out var updateLabel) &&
             Guid.TryParseExact(updateLabel.GetString(), "D", out var updateOperation) &&
             UpdateReceipt.Find(root, updateOperation) is { } update &&
-            container.GetProperty("Id").GetString() == update.MigrationContainerId &&
+            (container.GetProperty("Id").GetString() == update.MigrationContainerId ||
+                container.GetProperty("Id").GetString() == update.HistoryContainerId) &&
             update.Plan.Current.Project == config.Project &&
             container.GetProperty("Config").GetProperty("Image").GetString() == "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest &&
             container.GetProperty("Config").GetProperty("Labels").GetProperty("wayfarer.update").GetString() == update.Plan.Operation.ToString("D") &&
             container.GetProperty("Mounts").EnumerateArray().All(mount => !mount.GetProperty("RW").GetBoolean() || mount.GetProperty("Type").GetString() == "tmpfs"))
-            return !container.GetProperty("State").GetProperty("Running").GetBoolean() &&
-                container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no";
+        {
+            UpdateRuntime.VerifyMaintenanceHelper(root, update, container,
+                history: container.GetProperty("Id").GetString() == update.HistoryContainerId);
+            return true;
+        }
         return false;
     }
 
