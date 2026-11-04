@@ -1,0 +1,13 @@
+{
+  "projected_target": [
+    593406.6346666666,
+    404539.7321395614
+  ],
+  "quantized_center": [
+    593407,
+    404539.5
+  ],
+  "css_pixel_distance": 0.43284780285556973,
+  "predicted_meters": 13.02486210292246,
+  "observed_meters": 13.02486210292246
+}

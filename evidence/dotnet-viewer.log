@@ -1,0 +1,217 @@
+  Determining projects to restore...
+  Restored /home/stef/wayfarer-968-correction-review-20261104/source/tools/WayfarerCtl/WayfarerCtl.csproj (in 1.24 sec).
+  Restored /home/stef/wayfarer-968-correction-review-20261104/source/tools/Wayfarer.WaypointBrowserFixture/Wayfarer.WaypointBrowserFixture.csproj (in 1.26 sec).
+  Restored /home/stef/wayfarer-968-correction-review-20261104/source/tools/WayfarerRecovery/WayfarerRecovery.csproj (in 1.24 sec).
+  Restored /home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj (in 1.26 sec).
+  Restored /home/stef/wayfarer-968-correction-review-20261104/source/Wayfarer.csproj (in 1.31 sec).
+     Compiling proc-macro2 v1.0.107
+     Compiling quote v1.0.47
+     Compiling unicode-ident v1.0.27
+     Compiling find-msvc-tools v0.1.15
+     Compiling shlex v2.0.1
+     Compiling pkg-config v0.3.34
+     Compiling autocfg v1.5.1
+     Compiling simd-adler32 v0.3.10
+     Compiling anyhow v1.0.104
+     Compiling adler2 v2.0.1
+     Compiling cfg-if v1.0.5
+     Compiling crc32fast v1.5.3
+     Compiling libc v0.2.191
+     Compiling thiserror v2.0.21
+     Compiling glob v0.3.4
+     Compiling thiserror v1.0.69
+     Compiling zune-core v0.5.3
+     Compiling bitflags v2.13.2
+     Compiling miniz_oxide v0.9.1
+     Compiling cc v1.10.0
+     Compiling miniz_oxide v0.8.9
+     Compiling fdeflate v0.3.7
+     Compiling color_quant v1.1.0
+     Compiling weezl v0.1.12
+     Compiling byteorder-lite v0.1.0
+     Compiling litrs v1.0.1
+     Compiling pxfm v0.1.30
+     Compiling zune-jpeg v0.5.15
+     Compiling num-traits v0.2.19
+     Compiling gcd v2.3.0
+     Compiling quick-error v2.0.1
+     Compiling bytemuck v1.25.2
+     Compiling jpeg-decoder v0.3.2
+     Compiling gif v0.14.2
+     Compiling image-webp v0.2.4 (https://github.com/image-rs/image-webp?rev=f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f#f4d80bd9)
+     Compiling flate2 v1.1.10
+     Compiling document-features v0.2.12
+     Compiling syn v3.0.9
+     Compiling syn v2.0.119
+     Compiling cmake v0.1.58
+     Compiling png v0.18.1
+     Compiling libwebp-sys v0.14.4
+     Compiling turbojpeg-sys v1.2.0
+     Compiling moxcms v0.8.1
+     Compiling thiserror-impl v1.0.69
+     Compiling thiserror-impl v2.0.21
+     Compiling libjpeg-turbo-rs v0.8.0
+     Compiling fast_image_resize v6.1.0
+  WayfarerRecovery -> /home/stef/wayfarer-968-correction-review-20261104/source/tools/WayfarerRecovery/bin/Debug/net10.0/wayfarer-recovery.dll
+     Compiling image v0.25.10
+  WayfarerCtl -> /home/stef/wayfarer-968-correction-review-20261104/source/tools/WayfarerCtl/bin/Debug/net10.0/wayfarerctl.dll
+     Compiling turbojpeg v1.5.1
+     Compiling wayfarer-image v0.1.0 (/home/stef/wayfarer-968-correction-review-20261104/source/tools/image-helper)
+      Finished `release` profile [optimized] target(s) in 1m 33s
+  Wayfarer -> /home/stef/wayfarer-968-correction-review-20261104/source/bin/Debug/net10.0/Wayfarer.dll
+  Wayfarer.WaypointBrowserFixture -> /home/stef/wayfarer-968-correction-review-20261104/source/tools/Wayfarer.WaypointBrowserFixture/bin/Debug/net10.0/Wayfarer.WaypointBrowserFixture.dll
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Middleware/MiddlewareTests.cs(64,43): warning CS8602: Dereference of a possibly null reference. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Controllers/LocationCoordinatesPostgresTests.cs(211,39): warning CS8123: The tuple element name 'Lat' is ignored because a different name or no name is specified by the target type '(string, string)'. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Controllers/LocationCoordinatesPostgresTests.cs(211,59): warning CS8123: The tuple element name 'Lon' is ignored because a different name or no name is specified by the target type '(string, string)'. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Services/WayfarerCtlTests.cs(313,14): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Services/WayfarerCtlTests.cs(345,9): warning xUnit2031: Do not use a Where clause to filter before calling Assert.Single. Use the overload of Assert.Single that accepts a filtering function. (https://xunit.net/xunit.analyzers/rules/xUnit2031) [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Controllers/AdminAccountEditPostgresTests.cs(249,30): warning EF1002: Method 'ExecuteSqlRawAsync' inserts interpolated strings directly into the SQL, without any protection against SQL injection. Consider using 'ExecuteSqlAsync' instead, which protects against SQL injection, or make sure that the value is sanitized and suppress the warning. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Controllers/AdminAccountEditPostgresTests.cs(263,34): warning EF1002: Method 'ExecuteSqlRawAsync' inserts interpolated strings directly into the SQL, without any protection against SQL injection. Consider using 'ExecuteSqlAsync' instead, which protects against SQL injection, or make sure that the value is sanitized and suppress the warning. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Services/HistoryQueryPlanPostgresTests.cs(192,50): warning EF1002: Method 'SqlQueryRaw' inserts interpolated strings directly into the SQL, without any protection against SQL injection. Consider using 'SqlQuery' instead, which protects against SQL injection, or make sure that the value is sanitized and suppress the warning. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Services/HistoryQueryPlanPostgresTests.cs(215,38): warning EF1003: Method 'SqlQueryRaw' inserts concatenated strings directly into the SQL, without any protection against SQL injection. Consider using 'SqlQuery' instead, which protects against SQL injection, or make sure that the value is sanitized and suppress the warning. [/home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/Wayfarer.Tests.csproj]
+  Wayfarer.Tests -> /home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/bin/Debug/net10.0/Wayfarer.Tests.dll
+Test run for /home/stef/wayfarer-968-correction-review-20261104/source/tests/Wayfarer.Tests/bin/Debug/net10.0/Wayfarer.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.1+0f7d528729 (64-bit .NET 10.0.14)
+[xUnit.net 00:00:00.32]   Discovering: Wayfarer.Tests
+[xUnit.net 00:00:01.50]   Discovered:  Wayfarer.Tests
+[xUnit.net 00:00:01.59]   Starting:    Wayfarer.Tests
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_RejectsForeignTripAnchorsWithoutDisclosingThem(foreignAnchor: "to") [30 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_RejectsForeignTripAnchorsWithoutDisclosingThem(foreignAnchor: "from") [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_RejectsForeignTripAnchorsWithoutDisclosingThem(foreignAnchor: "waypoint") [2 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_PreservesClosedLoopPositionalRolesAndCanonicalIdentity [23 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_KeepsValidCustomGeometryAuthoritative [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_ProjectsZeroOneAndMultipleWaypointFallbacks(waypointCount: 3, trail: "A → B1 → B2 → B3 → C", routePointCount: 5) [2 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_ProjectsZeroOneAndMultipleWaypointFallbacks(waypointCount: 0, trail: "A → C", routePointCount: 2) [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_ProjectsZeroOneAndMultipleWaypointFallbacks(waypointCount: 1, trail: "A → B1 → C", routePointCount: 3) [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_RejectsMalformedPositionAndCustomIndexWithoutRepair [2 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_ClassifiesLegacyReversalWithoutMutatingPersistedGeometry [1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_UsesBoundedTextForMissingUnnamedAndLocationlessPlaces [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_DoesNotTreatUnloadedWaypointsAsEmpty [< 1 ms]
+  Passed Wayfarer.Tests.Models.ViewerSegmentJourneyResolverTests.Resolve_RejectsDuplicateSemanticIdentityExceptClosedLoopEndpoints [< 1 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.ViewerRendersOrderedWaypointJourneyAndFallbackRoute [969 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PdfRendersTheSameOrderedWaypointJourney(seconds: 93960, durationText: "26 h") [82 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PdfRendersTheSameOrderedWaypointJourney(seconds: 360.25, durationText: "6 min") [38 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PdfRendersTheSameOrderedWaypointJourney(seconds: null, durationText: "—") [34 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.ViewerProxiesNotesBeforeInsertionAndPreservesLocalMapsAndLinks [106 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PublicOwnerPhotoRendersOnlyWithConsentAndNeverEntersPrint(consent: False) [93 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PublicOwnerPhotoRendersOnlyWithConsentAndNeverEntersPrint(consent: True) [85 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.RichNotesUseSharedPresentationAndSuppressOnlyTerminalArtifacts [108 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PublicViewerFailsClosedForForeignWaypointAndUnavailableRouteInteraction [188 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.ViewerRendersEqualAndNullableOrdersIdenticallyAcrossNormalAndReadableMarkup [84 ms]
+  Passed Wayfarer.Tests.Views.TripViewerItineraryRenderingTests.PdfDoesNotExposeForeignWaypoint [40 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_ReturnsNullCoverImageUrl_WhenNoCoverImage [1 s]
+  Passed Wayfarer.Tests.Controllers.TripExportControllerTests.Kml_ReturnsFile_ForOwnerOrPublicViewer(google: True, isPublic: True) [1 s]
+  Passed Wayfarer.Tests.Models.PublicSegmentContractGapTests.CurrentPublicTripQuery_DoesNotAuthoritativelyLoadWaypointChildren [1 s]
+  Passed Wayfarer.Tests.Controllers.TripEditorTagsShareProgressControllerTests.PatchShareProgressEnablesForPublicTrip [1 s]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_Returns429_WhenRateLimitExceeded [63 ms]
+  Passed Wayfarer.Tests.Controllers.TripExportControllerTests.Kml_ReturnsFile_ForOwnerOrPublicViewer(google: False, isPublic: False) [47 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_ReturnsNotFound_ForPrivateTrip [3 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_ReturnsNotFound_ForNonexistentTrip [2 ms]
+  Passed Wayfarer.Tests.Controllers.TripExportControllerTests.Kml_ReturnsFile_ForOwnerOrPublicViewer(google: True, isPublic: False) [4 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_ReturnsJsonWithBothUrls_ForPublicTrip [5 ms]
+  Passed Wayfarer.Tests.Controllers.TripExportControllerTests.Kml_ReturnsFile_ForOwnerOrPublicViewer(google: False, isPublic: True) [4 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripImagesTests.GetPublicTripImages_ReturnsNullMapSnapshotUrl_WhenNoCoordinates [4 ms]
+  Passed Wayfarer.Tests.Controllers.TripExportControllerTests.ExportPdf_ReturnsFile_ForPublicTrip [9 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetPublicTrips_ReturnsOnlyPublic [2 s]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetPublicTrips_SupportsSorting(sort: "updated_desc") [22 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetPublicTrips_SupportsSorting(sort: "name_asc") [4 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetPublicTrips_SupportsSorting(sort: "name_desc") [5 ms]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetPublicTrips_AppliesTagFilter [66 ms]
+  Passed Wayfarer.Tests.Controllers.PublicViewerWaypointLoadingTests.View_ExplicitlyLoadsOrderedWaypointPlaces_ForPublicTrip [2 s]
+  Passed Wayfarer.Tests.Controllers.ApiTripsControllerTests.GetTripBoundary_ReturnsBoundingBox_ForPublicTrip [39 ms]
+  Passed Wayfarer.Tests.Controllers.TripEditorControllerTests.GetEditorStateUsesTheSameNullLastPlaceOrderAsViewerAndMutationReader [2 s]
+  Passed Wayfarer.Tests.Controllers.TripEditorControllerTests.GetEditorStateForPublicTripWithProgressDisabledReturnsOnlyPublicUrl [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripEditorControllerTests.GetEditorStateForPublicTripWithProgressEnabledReturnsBothPublicUrls [16 ms]
+  Passed Wayfarer.Tests.Controllers.TripEditorControllerTests.PublicTripViewRouteUsesCanonicalPublicTripsTemplate [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: "/thumbs/trips/00000000-0000-0000-0000-000000000000"···) [21 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: null) [9 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: "/thumbs/trips/not-a-thumbnail.jpg?v=1") [8 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: "/images/00000000-0000-0000-0000-000000000000-800x4"···) [8 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: "data:image/svg+xml,...") [10 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(url: "/thumbs/trips/../00000000-0000-0000-0000-000000000"···) [13 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_ReturnsFile_ForPublicTripWithCachedCoverImage [55 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_ReturnsBadRequest_ForDisallowedUrl [9 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_Returns304_WithETag [22 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_CacheControlUsesSettingsExpiryDays [13 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_ForTripWithoutCoordinates [7 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsNotFound_ForPrivateTrip [11 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_ReturnsNotFound_ForPublicTripWithoutCoverImage [9 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_ReturnsNotFound_ForPrivateTrip [8 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_ReturnsNotFound_ForNonexistentTrip [7 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.MapSnapshot_ReturnsFile_WhenThumbnailUrlHasQueryString [18 ms]
+  Passed Wayfarer.Tests.Controllers.PublicTripImagesTests.CoverImage_Returns429_WhenRateLimitExceeded [15 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_UnavailableMapsTo503_AndForwardsRequestCancellation(cacheBusy: False) [27 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_UnavailableMapsTo503_AndForwardsRequestCancellation(cacheBusy: True) [15 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.BrowserRoutesPreservePublicBoundaryAndRequestToken(isPublic: True) [108 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.BrowserRoutesPreservePublicBoundaryAndRequestToken(isPublic: False) [19 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://127.0.0.1/secret") [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[::ffff:10.0.0.1]/secret") [19 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[::ffff:192.168.1.1]/secret") [11 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[fd12:3456::1]/secret") [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "ftp://example.com/file") [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://172.16.0.1/secret") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "file:///etc/passwd") [6 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://localhost/secret") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[::1]/secret") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://192.168.1.1/secret") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://10.0.0.1/secret") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "") [10 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[fe80::1]/secret") [11 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_ForDisallowedUrls(url: "http://[fc00::1]/secret") [10 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "172.16.0.1", expected: True) [3 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "8.8.8.8", expected: False) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "169.254.1.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "::1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "127.0.0.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "10.0.0.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "2607:f8b0:4004:800::200e", expected: False) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "fe80::1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "fc00::1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "::ffff:10.0.0.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "fd12:3456::1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "::ffff:192.168.1.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsPrivateOrLoopback_ReturnsExpected(ipStr: "192.168.1.1", expected: True) [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_UnsafeLegacyCannotReturn304(stale: False) [19 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_UnsafeLegacyCannotReturn304(stale: True) [17 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.Preview_ReturnsNotFound_WhenMissing [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.GetThumbnail_ReturnsJson_WhenFound [11 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(url: "https://mymaps.usercontent.google.com/img.jpg") [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(url: "http://example.com/image.jpg") [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.IsUrlAllowed_ReturnsTrue_ForValidExternalUrls(url: "https://cdn.example.com/photo.png") [< 1 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.Preview_ReturnsPartial_ForPublicTrip [16 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_PlatformPolicyPrecedesCacheAndConditionalResponse(optimize: True) [10 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_PlatformPolicyPrecedesCacheAndConditionalResponse(optimize: False) [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ThumbnailRejectsUnsupportedSize(size: "999999x999999") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ThumbnailRejectsUnsupportedSize(size: "400x300") [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ThumbnailRejectsUnsupportedSize(size: "800x450x1") [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: True, isPublic: True, url: null, expectedStatus: 404) [10 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: False, isPublic: True, url: "https://example.com/cover", expectedStatus: 404) [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: True, isPublic: True, url: "file:///private", expectedStatus: 400) [10 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: True, isPublic: True, url: "https://example.com/cover", expectedStatus: 0) [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: True, isPublic: True, url: "http://127.0.0.1/private", expectedStatus: 400) [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.CoverImage_PlatformPolicyPreservesValidation(exists: True, isPublic: False, url: "https://example.com/cover", expectedStatus: 404) [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.GetThumbnail_ReturnsNotFound_WhenMissing [7 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ByTag_RedirectsToIndexRoute [8 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_AuthenticatedMissesBypassAnonymousLimiter [20 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.View_ReturnsView_ForPublicTrip [12 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_WhenStreamExceedsConfiguredLimit [20 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_CacheControlUsesSettingsExpiryDays [13 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.Index_ReturnsPublicTrips_WithPagingAndDefaults [98 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ServesCachedImage_OnCacheHit [14 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_Returns304_WhenIfNoneMatchMatchesETag [15 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_Returns429_WhenRateLimitExceeded [14 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_EtagVersionsActualSafeRepresentation [16 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsNotFound_WhenUpstreamFails [9 ms]
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.ProxyImage_ReturnsBadRequest_WhenContentLengthExceedsLimit [9 ms]
+[xUnit.net 00:00:06.26]   Finished:    Wayfarer.Tests
+  Passed Wayfarer.Tests.Controllers.TripViewerControllerTests.View_ReturnsNotFound_WhenPrivate [14 ms]
+  Passed Wayfarer.Tests.Views.TileAttributionLayoutRenderingTests.SnapshotBackedViewerAndPrintOutputRenderResolvedProviderAttribution [1 s]
+
+Test Run Successful.
+Total tests: 130
+     Passed: 130
+ Total time: 7.0229 Seconds

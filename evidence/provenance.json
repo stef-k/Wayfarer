@@ -1,0 +1,132 @@
+{
+  "original_custody": {
+    "/home/stef/wayfarer-961-independent-review-20261104/review-report.md": true,
+    "/home/stef/wayfarer-961-independent-review-20261104/review961.spec.ts": true,
+    "/home/stef/wayfarer-961-independent-review-20261104/browser/review-route.json": true,
+    "/home/stef/wayfarer-961-independent-review-20261104/browser-probe-playwright.log": true,
+    "/home/stef/wayfarer-961-independent-review-20261104/browser-first-playwright.log": true,
+    "/home/stef/wayfarer-961-independent-review-20261104/source-hashes.json": true
+  },
+  "source_reuse": {
+    "ClientApps/trip-editor/src/App.vue": {
+      "actual": "a55cdb9e6ba0106e527c72fa050ed4909d08cbbc4968ca36e61b9f8efa685f6d",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "ClientApps/trip-editor/src/components/TripSidebarLayout.vue": {
+      "actual": "5e791442e9039728d1de5b867c5f2cc00365312b31797820fd1951e63c1d9559",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "ClientApps/trip-editor/src/styles.css": {
+      "actual": "3bd48068a69c7318592a0553d86c62b7c56e579849d1e43f9998199ce57e540a",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "Views/Trip/Viewer.cshtml": {
+      "actual": "e545f4d0d6e5e2ea5cb98befb8ad9b46c50a2a539b1e24aa9d6657b5d7f45494",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "tests/e2e/shared-layout/tripSidebarLayout.spec.ts": {
+      "actual": "99d9a439a0160f0f6571f0ecc0fb7cb8f3b2a18c1aeaa587ea739c4caac6197a",
+      "matches_original_review": false,
+      "correction_claim_matches_original": true
+    },
+    "wwwroot/css/trip-sidebar.css": {
+      "actual": "5d9964db085699bb1a6077d2c8c59ebab66db7cf4e3801b5ba50a52179487985",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "wwwroot/js/Trip/Viewer.js": {
+      "actual": "33132ad91e91f56ffff15c97329192df7f875f3a41a1c4c25810f4f4bee9f4b9",
+      "matches_original_review": false,
+      "correction_claim_matches_original": true
+    },
+    "wwwroot/js/Trip/sidebarWidth.js": {
+      "actual": "a30e6418a40933a83926f2b1ba7e2270dd00c88c7999ed34ee797069ec3ac7c5",
+      "matches_original_review": true,
+      "correction_claim_matches_original": true
+    },
+    "wwwroot/js/Trip/viewerSegmentPresentationController.js": {
+      "actual": "52834bd6d871c42aa8d3573de020be3caa640dabdee5e290d5650753129528d2",
+      "matches_original_review": false,
+      "correction_claim_matches_original": true
+    },
+    "wwwroot/js/Trip/viewerSidebar.js": {
+      "actual": "ad1bb2d653f28b76f27d5b46ab9dcc7a96e53f0624a365f2092d18af6f285ab4",
+      "matches_original_review": false,
+      "correction_claim_matches_original": true
+    }
+  },
+  "managed_runtime": {
+    "browser-source-hashes.json": {
+      "wwwroot/js/Trip/Viewer.js": true,
+      "wwwroot/js/Trip/viewerSidebar.js": true,
+      "wwwroot/js/Trip/viewerSegmentPresentationController.js": true,
+      "tests/e2e/shared-layout/tripSidebarLayout.spec.ts": false
+    },
+    "focused-browser-source-hashes.json": {
+      "wwwroot/js/Trip/Viewer.js": true,
+      "wwwroot/js/Trip/viewerSidebar.js": true,
+      "wwwroot/js/Trip/viewerSegmentPresentationController.js": true,
+      "tests/e2e/shared-layout/tripSidebarLayout.spec.ts": false
+    }
+  },
+  "final_inventory": {
+    "wwwroot/js/Trip/Viewer.js": true,
+    "wwwroot/js/Trip/viewerSidebar.js": true,
+    "wwwroot/js/Trip/viewerSegmentPresentationController.js": true,
+    "tests/e2e/shared-layout/tripSidebarLayout.spec.ts": true
+  },
+  "preserved_packet_files": {
+    "/home/stef/wayfarer-968-correction-20261104/implementation-report.md": "6ca6b28743545530b4a9aac1dd62962b1c60938a844235130268f6c892d5a77a",
+    "/home/stef/wayfarer-968-correction-20261104/review-handoff.md": "fd7cc460f60c9263865dbb4145df37a7d87c4787a7b00916f244df83ea2461ff",
+    "/home/stef/wayfarer-968-correction-20261104/pr-body.md": "745ba12b0797adce5f69e5866ee6415d54a286c8d702899a0adfb96d83cccda0",
+    "/home/stef/wayfarer-968-correction-20261104/navigation-inventory.md": "19052c4f4c7497a4cca383f45451d39f4c4f53ec9a56fee13823035ca49fa549",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/source-reuse.json": "bedc858729ef0c625d6a6bfb42d02ac223c9ad3d7815e7338f84b801a3ba634a",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/correction-first-playwright.log": "95cbc95665ed0db6f80f90489d940e4897ab9be7b38cb02dc1c7f47a68be8769",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-final.json": "22120c5c3d300c824a673a493791072b921fa9d388e068b66d69ccc611117b8d",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/assets.log": "da68b7f24e5b9e6743b5c10f5ddfa7362f86b2b721ca066e15abda32f87e1b0f",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-branch.json": "132bf2e6dbe5780a2df9012187aeceda9b5f9f3a59f83b968fbca45e27f34902",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/navigation-tests.log": "3d46cfbdb5a7d9b686ead5ed670cd0cfd75b8c826e9cd2667d69cad493a1e5aa",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-artifacts-final.json": "9779a89a9fe7fce469c3378af5416894921cf04f2052e725c4e14165155052cf",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/browser-source-hashes.json": "b849e3c0657b5906759d6195c102b5fe48df5f67ae1cd41e4d3e977fca764a3e",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-working.json": "01cdb22e3349066aee7abd46c25463ab4eb29540cb0759ed6a9e84bbeaeb4d5b",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/baseline-playwright.log": "8156af0a5eebf6a7464531d14368b6f893ce9bee9d0a27cf04a8a3fad4f9d936",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/correction.diff": "b7df225fe12c2d1287379f49b357a2c03abbae34caa362e147c833d4f1967366",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/navigation-before-tests.log": "3be4e011e4167cd08be58911628a522ed63b5cb59098ec339727768a339c6114",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/baseline-browser.log": "ada2c6b7232ddc833b47d0a46905830040c630b2d5a499a16ef1f103903f1648",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/client-tests.log": "f5877ba0749d7561352476cf7b66fd26ae77c27f1b6bf7b76c114bfb5cc6b9ff",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/correction-focused-rerun.log": "8297c908a1c0a5246d1cd994977b85471823e197b017d012390d715ab8d8f90f",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/ci-startup.json": "78801747a110c27ded9c96147dc73477329a43fe3bee94f471412353fbe17343",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/npm-ci.log": "0ec205c3ae8b1505fecd1d9374019797fd868e831a52fcfc26d3da7f4cf7d7ae",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-artifacts.json": "9779a89a9fe7fce469c3378af5416894921cf04f2052e725c4e14165155052cf",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/final-source-hashes.json": "4cedf7d89fb545babd5931db5c75773117b4a93ba409853e1d0e57a6830d0c49",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/navigation-rounding-before.log": "0ac81cdec4afd69e25431270809a937bc7d815a5198ae54f5de1a6b51f9e3196",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/original-custody.json": "429ed683fbf84058f049b42de49b76c18d36ab3331f8ff82e4f101e7d2fd3ad2",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/typecheck.log": "5d3f4fdabdd8822a584db39331a0b114a929e877898ac2a34c601cccf9b133de",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/correction-browser.log": "1a652a6f623db0bb1cca5d0930922214855873b169511011fc542f30f2454421",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-rounding.json": "fb3878647f09011973153278ed1892b9f4a8288edda0738e08ec376c12f0764a",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/dotnet-viewer.log": "1ac6516614a772a95181ca67b947f639da2008e1f7c578e6050a7a8245df8a62",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/vite-build.log": "7f01659c44e8e1f0c5673a197c6e996c4f70816330ea529e47413c9ea190a08f",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/pr-before-push.json": "9659029edeff007315945798761337a66af50c0e55a264de5761ec6587219f23",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/focused-browser-source-hashes.json": "0e2594e4be106933c5c8686925ff6aeef8b3cd8563a88047528616fa9a0243e0",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/place-rounding-diagnosis.json": "d85df84e98d047949df7f73602216322d4b5c113a77c309178055f43dccb3dc5",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/issue-live.md": "35d8e0d4067f25259830f311b87eb07337924a8a102204f6e17f8fc3df42b498",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-browser-precision.json": "55fb765b3692234d9e10c2bf62dedd2e454254d167482da1c837b0ea0f4d5630",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/guard-working-final.json": "09c14e8364c4b50eca2a70475d864f71e55ad7b6d8ec7f08d1f2cef65dfe3b98",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/correction-focused-playwright.log": "4346fd5bf13a4a73575cfc45cd1ba6a1ebeb41f76e092a012f17848ca016a01c",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-dark-compact.png": "26c0848bcb4c2f7cc679d80aa88ec165c176dd7fde5f99c1842c4ded4167b6e2",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-1280.png": "108b566008431131e7d84bd502d4b5f9042f633b47c790f5456bf19ccc2d4b69",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-900.png": "52c2a877d4f3655cd7c1d5e4596117705ee1a32065f34bfed497eb1ca9555241",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-390.png": "343e26445e7663426a37da29250565ee4aaad759aa6d99e2b694853fb1e38b9e",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-print.png": "7f4ac35a7d28a8d32ea9f51e306f39c0752813c725af93e111338430eb027208",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-1920.png": "cf097961e61ce24066b0eb7891cdd8540fd4f013f45282547122929b6ec2dd6d",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after/after-viewer-901.png": "f1960e1e74e6329114e80efd45536db5154f26864c23c9215fb29d9f41ef23da",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/before/review-route.json": "2e0d4ec1dcab1cd65ff5a81de3b028a2ed3e9469d060a02f5245a68d6cc3018e",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after-focused/correction-route.json": "526399c21352fe49b9e4f42427c0dc771177b735531f62daf9e9dacc76c48cd9",
+    "/home/stef/wayfarer-968-correction-20261104/evidence/after-focused/correction-viewer-route-hidden.png": "a44e78629dc0388c67e282d35affed8afed73556d72a476bc00d50efb062f0e4"
+  },
+  "reviewed_head": "c79ebfde810e0d8da32019c63aa174da9824338a"
+}

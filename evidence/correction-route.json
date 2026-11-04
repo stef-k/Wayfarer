@@ -1,0 +1,146 @@
+[
+  {
+    "path": "selection-button",
+    "zoom": 13,
+    "center": [
+      37.980006131790105,
+      23.72999999999999
+    ],
+    "centerPixel": [
+      1186813.2693333332,
+      809079.4189618084
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "row",
+    "zoom": 13,
+    "center": [
+      37.980006131790105,
+      23.72999999999999
+    ],
+    "centerPixel": [
+      1186813.2693333332,
+      809079.4189618084
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "hidden-0",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "shown-0",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "hidden-1",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "shown-1",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "hidden-2",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  },
+  {
+    "path": "shown-2",
+    "zoom": 13,
+    "center": [
+      37.97999516668319,
+      23.72995376586914
+    ],
+    "centerPixel": [
+      1186813,
+      809079.4999999999
+    ],
+    "canvas": [
+      1280,
+      793
+    ],
+    "containsRoute": true,
+    "insideMargins": true
+  }
+]

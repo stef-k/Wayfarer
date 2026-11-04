@@ -1,0 +1,35 @@
+✔ presets follow the live workspace while Custom preserves intended width across reload and clamps (2.228727ms)
+✔ malformed or unavailable storage falls back safely and does not throw on writes (1.839141ms)
+✔ pointer completion persists once; cancellation, hide and lost capture restore the original intent (1.431408ms)
+✔ Viewer navigation retains usable fit space for presets, near Full and small canvases (0.598181ms)
+[print] production Segment badge decode failed Error: decode failed
+    at Object.decode (file:///home/stef/wayfarer-968-correction-review-20261104/source/tests/client/tripViewerWaypointGap.test.mjs:389:99)
+    at waitForDecodedImage (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentBadgeRenderer.js:90:58)
+    at renderMarker (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentBadgeRenderer.js:60:16)
+    at file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentBadgeRenderer.js:34:21
+    at Array.flatMap (<anonymous>)
+    at Object.render (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentBadgeRenderer.js:24:31)
+    at renderActiveBadges (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/tripViewerHelpers.js:380:21)
+    at setActiveSegment (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/tripViewerHelpers.js:339:17)
+    at select (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentPresentationController.js?failed=1793819498155:13:9)
+    at Object.initialize (file:///home/stef/wayfarer-968-correction-review-20261104/source/wwwroot/js/Trip/viewerSegmentPresentationController.js?failed=1793819498155:50:13)
+✔ Segment route coordinates require resolver-approved WKT (9.501118ms)
+✔ Segment and Place layers replace existing canonical registry entries (4.845397ms)
+✔ Viewer refresh and hide-show retain only the current owned chevron generation (2.553735ms)
+✔ multiple Segment presentations remain independent and transfer active badges (3.498837ms)
+✔ places viewer route badges with deterministic collision avoidance (1.167405ms)
+✔ combines all no-clear viewer badges into one meaningful fallback pill (2.775266ms)
+✔ binds escaped rich tooltips to pointer-only viewer badges in Segment order (1.930649ms)
+✔ preserves clear viewer badges and replaces only the blocked group (2.135095ms)
+✔ normal requested Segment uses the common controller selection and resolved bounds (5.035267ms)
+✔ production presentation readiness waits for delayed badge decode (3.297963ms)
+✔ failed production badge decode leaves presentation readiness false (3.436576ms)
+✔ replacement render ignores stale production badge promises (1.91559ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114.883703
