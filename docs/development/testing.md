@@ -434,9 +434,10 @@ actual source restore succeeds. The focused managed-update tests retain the
 altered-environment refusal control for both helper kinds.
 
 Retain historical failures and distinguish setup/infrastructure failures from
-product counterexamples. After correcting a fixture, complete the joined journey
-locally before pushing to an expensive hosted lane. Reuse unrelated passing
-ordinary/native evidence only after proving the delta is outside its scope.
+product counterexamples. Passing an early assertion does not establish later
+phases; record the final joined result and any unobserved boundary. Reuse
+unrelated passing ordinary/native evidence only after proving the delta is
+outside its scope.
 
 ## Managed Caddy replacement qualification
 

@@ -108,8 +108,9 @@ def migration_failure(journey):
     assert failure.returncode == 1, failure.stderr
     receipt = update_receipt(journey)
     assert receipt['Phase'] == 3 and isinstance(receipt['MigrationExit'], int) and receipt['MigrationExit'] != 0, (receipt['Phase'], failure.stderr)
-    logs = journey.host('docker', 'logs', receipt['MigrationContainer'])
-    assert '42P07' in logs.stdout + logs.stderr and 'update_qualification' in logs.stdout + logs.stderr
+    # Maintenance intentionally sanitizes exceptions; PostgreSQL owns the DDL failure diagnostic.
+    logs = journey.host('docker', 'logs', journey.project + '-db-1')
+    assert 'relation "update_qualification" already exists' in logs.stdout + logs.stderr
     history = journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-At', '-c',
         'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";').splitlines()
     assert history == plan['Current']['Backup']['Source']['ExpectedMigrations']
