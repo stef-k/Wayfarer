@@ -89,6 +89,8 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
 .trip-sidebar-layout, .trip-sidebar-dock, .trip-sidebar-content { display: contents; }
 .trip-sidebar-controls, .trip-sidebar-resizer { display: none; }
 @media (min-width: 901px) {
+  /* Search responds to the map column, which can be narrow even on a wide desktop. */
+  .trip-sidebar-layout :deep(.trip-editor-map-shell) { container: trip-map / inline-size; }
   .trip-sidebar-layout { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 0; min-width: 0; position: relative; }
   .trip-sidebar-dock { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; position: relative; background: var(--trip-editor-surface); }
   /* Reserve the grab edge outside the sidebar scrollbar and interactive content. */
@@ -105,5 +107,12 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
   .trip-sidebar-show { position: absolute; left: .75rem; bottom: 2rem; z-index: 1001; }
   .is-resizing { cursor: col-resize; user-select: none; }
   .is-resizing :deep(.trip-editor-map-shell) { pointer-events: none; }
+}
+@container trip-map (max-width: 500px) {
+  .trip-sidebar-layout :deep(.trip-editor-map-search__form),
+  .trip-sidebar-layout :deep(.trip-editor-map-search__add-panel) {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

@@ -25,6 +25,10 @@ const observations = async (page: Page, info: TestInfo, runtime: string) => {
   for (const size of [1280, 1920, 901, 900, 390]) {
     await page.setViewportSize({ width: size, height: 900 });
     await noOverflow(page);
+    if (runtime === 'editor' && size === 901) {
+      const search = page.locator('.trip-editor-map-shell .trip-editor-map-search__form');
+      expect(await width(search.getByRole('button', { name: 'Search', exact: true }))).toBeGreaterThan(200);
+    }
     await capture(page, info, `after-${runtime}-${size}`);
   }
   await page.setViewportSize({ width: 1280, height: 900 });
