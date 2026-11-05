@@ -37,6 +37,26 @@ internal static class HistoryDetail
     /// <summary>Sanitizes unrepresentable legacy values in SQL before decoding, without treating unavailable as known null.</summary>
     internal static async Task<object?> ReadAsync(ApplicationDbContext db, string owner, int id, DateTimeZone zone, CancellationToken token, IDataProtectionProvider? protection = null)
     {
+        var fields = Fields();
+        fields.Add("clock_timestamp() AS \"mutationNow\"");
+        fields.AddRange(LocationMutationEvidence.RawProjection());
+        fields.Add("l.\"OriginalCreateAddressToken\" IS NOT NULL AS \"createPending\"");
+        await using var command = ((NpgsqlConnection)db.Database.GetDbConnection()).CreateCommand();
+        command.Transaction = (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction();
+        command.CommandText = $"SELECT {string.Join(",", fields)} FROM \"Locations\" l LEFT JOIN \"ActivityTypes\" a ON a.\"Id\" = l.\"ActivityTypeId\" WHERE l.\"UserId\" = @owner AND l.\"Id\" = @id";
+        command.Parameters.AddWithValue("owner", owner); command.Parameters.AddWithValue("id", id);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        if (!await reader.ReadAsync(token)) return null;
+        var (record, unavailable) = Record(reader, zone, db.HistoryEnvironment, token);
+        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc((DateTime)reader["mutationNow"]),
+            derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment),
+            locationMutation = protection == null ? null : LocationMutationEvidence.Create(protection, owner, id, record, unavailable,
+                LocationMutationEvidence.DeleteFingerprint(reader), (bool)reader["createPending"], (DateTime)reader["mutationNow"]), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
+    }
+
+    /// <summary>Shared explicit rich-field allowlist for selected owner detail and private calendar markers.</summary>
+    internal static List<string> Fields()
+    {
         var fields = Stored.Select(field => $"l.\"{field.Source}\" AS \"{field.Wire}\"").ToList();
         fields.AddRange(Dates.Select(field => $"CASE WHEN {DateValid(field.Source)} THEN l.\"{field.Source}\" END AS \"{field.Wire}\""));
         fields.AddRange(Numbers.Select(field => $"CASE WHEN {NumberValid(field.Source)} THEN l.\"{field.Source}\" END AS \"{field.Wire}\""));
@@ -49,15 +69,13 @@ internal static class HistoryDetail
             "l.\"CaptureOffsetSeconds\" AS \"captureOffset\"", "l.\"HistoryTimeStatus\" AS \"timeStatus\"",
             "l.\"HistoryTimeVersion\" AS \"timeVersion\"", "l.\"HistoryTimeFailureCode\" AS \"timeFailure\""
         ]);
-        fields.Add("clock_timestamp() AS \"mutationNow\"");
-        fields.AddRange(LocationMutationEvidence.RawProjection());
-        fields.Add("l.\"OriginalCreateAddressToken\" IS NOT NULL AS \"createPending\"");
-        await using var command = ((NpgsqlConnection)db.Database.GetDbConnection()).CreateCommand();
-        command.Transaction = (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction();
-        command.CommandText = $"SELECT {string.Join(",", fields)} FROM \"Locations\" l LEFT JOIN \"ActivityTypes\" a ON a.\"Id\" = l.\"ActivityTypeId\" WHERE l.\"UserId\" = @owner AND l.\"Id\" = @id";
-        command.Parameters.AddWithValue("owner", owner); command.Parameters.AddWithValue("id", id);
-        await using var reader = await command.ExecuteReaderAsync(token);
-        if (!await reader.ReadAsync(token)) return null;
+        return fields;
+    }
+
+    /// <summary>Publish stored evidence and qualified times without coordinate conversion or display-string parsing.</summary>
+    internal static (Dictionary<string, object?> Record, Dictionary<string, string> Unavailable) Record(
+        NpgsqlDataReader reader, DateTimeZone zone, HistoryDerivationEnvironment environment, CancellationToken token)
+    {
         object? Value(string name) => reader[name] is DBNull ? null : reader[name];
         var unavailable = new Dictionary<string, string>();
         var record = new Dictionary<string, object?>();
@@ -74,12 +92,9 @@ internal static class HistoryDetail
         record["activityName"] = Value("activityName");
         record["position"] = HistoryPublication.Position((double?)Value("longitude"), (double?)Value("latitude"));
         record["captureTime"] = HistoryPublication.Capture((DateTime?)Value("captureLocal"), (string?)Value("captureZone"),
-            (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"), db.HistoryEnvironment);
-        record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone, db.HistoryEnvironment);
-        return new { subjectId = owner, profile = "owner-detail-1", observedAtUtc = HistoryQuery.Utc((DateTime)reader["mutationNow"]),
-            derivationVersions = HistoryPublication.VersionsFor(db.HistoryEnvironment),
-            locationMutation = protection == null ? null : LocationMutationEvidence.Create(protection, owner, id, record, unavailable,
-                LocationMutationEvidence.DeleteFingerprint(reader), (bool)reader["createPending"], (DateTime)reader["mutationNow"]), record, unavailableFields = unavailable, filterMembership = "not-evaluated" };
+            (int?)Value("captureOffset"), (string?)Value("timeStatus"), (string?)Value("timeVersion"), (string?)Value("timeFailure"), environment);
+        record["viewerTime"] = HistoryPublication.Viewer((DateTime?)Value("eventUtc"), zone, environment);
+        return (record, unavailable);
     }
 
     /// <summary>PostgreSQL infinity and dates outside the wire calendar are unavailable, not known null.</summary>

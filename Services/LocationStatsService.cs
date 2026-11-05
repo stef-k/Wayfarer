@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using System.Runtime.CompilerServices;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Models.Dtos;
@@ -49,16 +48,31 @@ public class LocationStatsService : ILocationStatsService
         string userId, DateTime startDate, DateTime endDate) =>
         ReadDetailsAsync(StatisticsScope(true), [userId, startDate, endDate]);
 
+    /// <summary>Private explicit membership reuses the geographic aggregate owner and preserves legacy defaults.</summary>
+    internal Task<UserLocationStatsDto> GetCalendarSummaryAsync(HistoryPredicate predicate, CancellationToken token) =>
+        ReadSummaryAsync(CalendarScope(predicate), predicate.CopyParameters(), token);
+
+    /// <summary>Detailed groups use the same selected source, cancellation and event-order clock.</summary>
+    internal Task<UserLocationStatsDetailedDto> GetCalendarDetailsAsync(HistoryPredicate predicate, CancellationToken token) =>
+        ReadDetailsAsync(CalendarScope(predicate), predicate.CopyParameters(), token);
+
+    /// <summary>Invalid map positions remain matching records while contributing no synthetic coordinate.</summary>
+    internal static string CalendarScope(HistoryPredicate predicate) => StatisticsScope(true, $"""
+        (SELECT l."Id", l."LocalTimestamp", l."Country", l."Region", l."Place",
+            CASE WHEN {HistoryPredicate.PositionValid} THEN l."Coordinates" END AS "Coordinates"
+         FROM "Locations" l WHERE {predicate.Where} AND {predicate.Matches}) AS eligible
+        """, true);
+
     /// <summary>
     /// Shared read-only projection for every statistics query. PostgreSQL C collation keeps
     /// component equality exact. btrim removes only the six authorized ASCII characters;
     /// empty strings represent missing components internally and in the legacy DTOs.
     /// Only trusted SQL fragments vary; user IDs and inclusive bounds remain parameters.
     /// </summary>
-    private static string StatisticsScope(bool dateRange, string? publicSource = null)
+    private static string StatisticsScope(bool dateRange, string? publicSource = null, bool selected = false)
     {
         var timestamp = dateRange ? "LocalTimestamp" : "Timestamp";
-        var bounds = dateRange ? "AND \"LocalTimestamp\" >= {1} AND \"LocalTimestamp\" <= {2}" : "";
+        var bounds = dateRange && !selected ? "AND \"LocalTimestamp\" >= {1} AND \"LocalTimestamp\" <= {2}" : "";
         var source = publicSource ?? "\"Locations\"";
         var owner = publicSource is null ? "WHERE \"UserId\" = {0}" : "";
         return $$"""
@@ -78,7 +92,7 @@ public class LocationStatsService : ILocationStatsService
     }
 
     /// <summary>Counts distinct component tuples in PostgreSQL without loading Location entities.</summary>
-    private async Task<UserLocationStatsDto> ReadSummaryAsync(string scope, object[] parameters)
+    private async Task<UserLocationStatsDto> ReadSummaryAsync(string scope, object[] parameters, CancellationToken token = default)
     {
         // Only trusted projection fragments compose SQL; all owner/cutoff values are parameters.
         var sql = scope + """
@@ -90,23 +104,23 @@ public class LocationStatsService : ILocationStatsService
                 MIN("VisitTime") AS "FromDate", MAX("VisitTime") AS "ToDate"
             FROM scoped
             """;
-        var rows = await _db.Database.SqlQueryRaw<UserLocationStatsDto>(sql, parameters).ToListAsync();
+        var rows = await _db.Database.SqlQueryRaw<UserLocationStatsDto>(sql, parameters).ToListAsync(token);
         return rows.Single();
     }
 
     /// <summary>Aggregates visits in PostgreSQL and maps only grouped results to unchanged DTOs.</summary>
-    private async Task<UserLocationStatsDetailedDto> ReadDetailsAsync(string scope, object[] parameters)
+    private async Task<UserLocationStatsDetailedDto> ReadDetailsAsync(string scope, object[] parameters, CancellationToken token = default)
     {
-        var summary = await ReadSummaryAsync(scope, parameters);
+        var summary = await ReadSummaryAsync(scope, parameters, token);
         var totalLocations = summary.TotalLocations;
-        var countryGroupsSql = await _db.Database.SqlQuery<CountryGroupResult>(FormattableStringFactory.Create(scope + """
+        var countryGroupsSql = await _db.Database.SqlQueryRaw<CountryGroupResult>(scope + """
 
             SELECT "Country", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
                 COUNT(*)::integer AS "VisitCount",
                 AVG(ST_X("Coordinates"::geometry) ORDER BY "Id") AS "AvgLongitude",
                 AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
             FROM scoped WHERE "Country" <> '' GROUP BY "Country"
-            """, parameters)).ToListAsync();
+            """, parameters).ToListAsync(token);
         // Detect home country: country with >40% of total visits or significantly more than average
         var averageVisitCount = countryGroupsSql.Any() ? countryGroupsSql.Average(c => c.VisitCount) : 0;
         var homeCountryThreshold = Math.Max(totalLocations * 0.4, averageVisitCount * 3);
@@ -119,21 +133,22 @@ public class LocationStatsService : ILocationStatsService
                 LastVisit = c.LastVisit,
                 VisitCount = c.VisitCount,
                 IsHomeCountry = c.VisitCount >= homeCountryThreshold,
-                Coordinates = new NetTopologySuite.Geometries.Point(c.AvgLongitude, c.AvgLatitude) { SRID = 4326 }
+                Coordinates = c.AvgLongitude is { } longitude && c.AvgLatitude is { } latitude
+                    ? new NetTopologySuite.Geometries.Point(longitude, latitude) { SRID = 4326 } : null
             })
             .OrderByDescending(c => c.IsHomeCountry)
             .ThenByDescending(c => c.VisitCount)
             .ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
 
-        var regionGroupsSql = await _db.Database.SqlQuery<RegionGroupResult>(FormattableStringFactory.Create(scope + """
+        var regionGroupsSql = await _db.Database.SqlQueryRaw<RegionGroupResult>(scope + """
 
             SELECT "Country", "Region", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
                 COUNT(*)::integer AS "VisitCount",
                 AVG(ST_X("Coordinates"::geometry) ORDER BY "Id") AS "AvgLongitude",
                 AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
             FROM scoped WHERE "Region" <> '' GROUP BY "Country", "Region"
-            """, parameters)).ToListAsync();
+            """, parameters).ToListAsync(token);
         var regions = regionGroupsSql
             .Select(r => new RegionVisitDetail
             {
@@ -142,14 +157,15 @@ public class LocationStatsService : ILocationStatsService
                 FirstVisit = r.FirstVisit,
                 LastVisit = r.LastVisit,
                 VisitCount = r.VisitCount,
-                Coordinates = new NetTopologySuite.Geometries.Point(r.AvgLongitude, r.AvgLatitude) { SRID = 4326 }
+                Coordinates = r.AvgLongitude is { } longitude && r.AvgLatitude is { } latitude
+                    ? new NetTopologySuite.Geometries.Point(longitude, latitude) { SRID = 4326 } : null
             })
             .OrderBy(r => r.CountryName, StringComparer.Ordinal)
             .ThenBy(r => r.Name, StringComparer.Ordinal)
             .ToList();
 
         // The full partition aggregates all visits; DISTINCT ON selects exactly one coordinate row.
-        var cityGroupsSql = await _db.Database.SqlQuery<CityGroupResult>(FormattableStringFactory.Create(scope + """
+        var cityGroupsSql = await _db.Database.SqlQueryRaw<CityGroupResult>(scope + """
 
             SELECT DISTINCT ON ("Country", "Region", "Place") "Country", "Region", "Place",
                 MIN("VisitTime") OVER membership AS "FirstVisit",
@@ -160,7 +176,7 @@ public class LocationStatsService : ILocationStatsService
             FROM scoped WHERE "Place" <> ''
             WINDOW membership AS (PARTITION BY "Country", "Region", "Place")
             ORDER BY "Country", "Region", "Place", "VisitTime" DESC, "Id" DESC
-            """, parameters)).ToListAsync();
+            """, parameters).ToListAsync(token);
         var cities = cityGroupsSql
             .Select(c => new CityVisitDetail
             {
@@ -170,7 +186,8 @@ public class LocationStatsService : ILocationStatsService
                 FirstVisit = c.FirstVisit,
                 LastVisit = c.LastVisit,
                 VisitCount = c.VisitCount,
-                Coordinates = new NetTopologySuite.Geometries.Point(c.RepLongitude, c.RepLatitude) { SRID = 4326 }
+                Coordinates = c.RepLongitude is { } longitude && c.RepLatitude is { } latitude
+                    ? new NetTopologySuite.Geometries.Point(longitude, latitude) { SRID = 4326 } : null
             })
             .OrderBy(c => c.CountryName, StringComparer.Ordinal)
             .ThenBy(c => c.RegionName, StringComparer.Ordinal)
@@ -197,8 +214,8 @@ public class LocationStatsService : ILocationStatsService
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
-        public double AvgLongitude { get; set; }
-        public double AvgLatitude { get; set; }
+        public double? AvgLongitude { get; set; }
+        public double? AvgLatitude { get; set; }
     }
 
     /// <summary>
@@ -211,8 +228,8 @@ public class LocationStatsService : ILocationStatsService
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
-        public double AvgLongitude { get; set; }
-        public double AvgLatitude { get; set; }
+        public double? AvgLongitude { get; set; }
+        public double? AvgLatitude { get; set; }
     }
 
     /// <summary>
@@ -226,8 +243,8 @@ public class LocationStatsService : ILocationStatsService
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
-        public double RepLongitude { get; set; }
-        public double RepLatitude { get; set; }
+        public double? RepLongitude { get; set; }
+        public double? RepLatitude { get; set; }
     }
 
 }

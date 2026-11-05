@@ -132,7 +132,7 @@ internal sealed class HistoryQuery
     }
 
     /// <summary>Canonical IANA identity comes from serving NodaTime data, never host or PostgreSQL TZDB.</summary>
-    private static DateTimeZone ParseZone(string? value)
+    internal static DateTimeZone ParseZone(string? value)
     {
         if (value == null || value.Length > 255 || !DateTimeZoneProviders.Tzdb.Ids.Contains(value)) throw Invalid();
         return DateTimeZoneProviders.Tzdb[TzdbDateTimeZoneSource.Default.CanonicalIdMap[value]];
@@ -196,7 +196,7 @@ internal sealed class HistoryQuery
     private static string Clock(TimeSpan value) => TimeOnly.FromTimeSpan(value).ToString("HH:mm:ss.ffffff", Invariant);
 
     /// <summary>Every route uses one case-sensitive allowlist and rejects PostgreSQL-untransportable input.</summary>
-    private static void ValidateKeys(IQueryCollection values, IEnumerable<string> allowed)
+    internal static void ValidateKeys(IQueryCollection values, IEnumerable<string> allowed)
     {
         var keys = allowed.ToHashSet(StringComparer.Ordinal);
         if (values.Sum(pair => Encoding.UTF8.GetByteCount(pair.Key) + pair.Value.Sum(v => Encoding.UTF8.GetByteCount(v ?? ""))) > 8192) throw Invalid();
