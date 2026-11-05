@@ -136,3 +136,41 @@ it removes that temporary browser dependency, rather than maintaining parallel U
 owners. Legacy bearer chronology, Group, public visibility/delay/Hidden Areas and
 all-time stored-`Timestamp` statistics keep their existing contracts. All-time UI
 adoption must retain the distinct caption **All history · stored timestamps**.
+
+
+## Focused local calibration, 5 November 2026
+
+At source/test head `f84a3bea208f74a7a1f75c9dfa32852db661708b`, the reusable
+PostgreSQL 18/PostGIS fixture contained 20,100 owner records across two days with
+100 repeating nearby coordinate positions. .NET 10.0.14, Debug, production
+Identity/MVC through TestServer, warm local Linux execution; one observation per
+combination, no production workload or cold-start inference.
+
+| Observation | Capture | Viewer |
+| --- | ---: | ---: |
+| Routed period, including count/markers/summary/endpoints/navigation | 377.35 ms | 358.10 ms |
+| Period response | 15,992 bytes | 15,988 bytes |
+| Routed summary-only analysis | 155.36 ms | 172.98 ms |
+| Routed analysis with overflowed geometry | 169.52 ms | 158.18 ms |
+| Faithful 20,000-vertex day response | 339,042 bytes | 339,040 bytes |
+| Readiness, service-level observation | 11.93 ms | 0.27 ms |
+| Service evaluation, including uncertainty/read/reduction | 102.50 ms | 118.29 ms |
+| Complete summary/overflow serialization | 2.73 ms | 0.06 ms |
+
+Natural source plans returned 20,100 rows via `IX_Location_HistoryUtc`, with 20,100
+heap fetches, no explicit source sort and zero temporary read/write blocks. The
+invalid-time probe assesses the all-valid owner fixture separately; its cost is
+included in service evaluation, without an isolated probe timing/plan claim.
+Process-wide allocations over each routed summary were 2.63/1.84 MB; geometry
+overflow observations allocated 4.16/3.96 MB. These include host/reader work, are
+not retained-geometry sizes or operation-specific peak memory. Sampled process
+working set was 453–465 MB; peak attribution remains unmeasured.
+
+While one analysis held its actual permit/snapshot, a competing routed period
+completed in 75.53 ms. Exhausting the shared owner admission returned 429;
+disconnect was observed in 9.26 ms. A separate real SQL delay exceeded the existing
+15-second budget and returned 503 without a successful prefix. These observations
+justify a modest faithful drawing buffer and explicit overflow behavior; they do
+not establish a universal sub-second target, production capacity or whole-page
+memory bound. Test logs/TRX and the initial failed fixture run are retained with
+the implementation handoff.
