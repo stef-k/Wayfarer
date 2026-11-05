@@ -74,6 +74,40 @@ public sealed class TimelineCalendarTests
         Assert.Null(result.Geometry);
     }
 
+    /// <summary>DST changes do not change event elapsed time, and edges need both endpoints inside the period.</summary>
+    [Fact]
+    public void CalendarBoundaryAndSpringGapUseExactMembership()
+    {
+        var now = Instant.FromUtc(2026, 11, 1, 0, 0);
+        var spring = Parse("?viewerZone=Europe%2FAthens&timeBasis=viewer&year=2026&month=3&day=29", now);
+        var zone = spring.Query.Zone;
+        Assert.Equal(2, Instant.FromUtc(2026,3,29,0,59).InZone(zone).Hour);
+        Assert.Equal(4, Instant.FromUtc(2026,3,29,1,0).InZone(zone).Hour);
+        var a = new DateTime(2026,10,10,20,59,0,DateTimeKind.Utc);
+        var b = a.AddMinutes(2);
+        foreach (var (type, day, edges) in new[] { ("day",10,0), ("day",11,0), ("month",10,1) })
+        {
+            var scope = Parse($"?viewerZone=Europe%2FAthens&timeBasis=viewer&dateType={type}&year=2026&month=10&day={day}",now);
+            bool Match(DateTime instant) => scope.Query.ContainsWall(Instant.FromDateTimeUtc(instant).InZone(zone).LocalDateTime.ToDateTimeUnspecified());
+            var reducer = new TimelineConnections(new(7200,null),false);
+            reducer.Add(new(1,a,Match(a),0,0)); reducer.Add(new(2,b,Match(b),1,0));
+            Assert.Equal(edges,reducer.Finish(false).EdgeCount);
+        }
+    }
+
+    /// <summary>Finite binary64 rules stay exact and reject nonpositive, overflow and underflow-to-zero controls.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("1e400")]
+    [InlineData("1e-400")]
+    public void InvalidRulesDoNotBecomeDefaults(string gap)
+    {
+        var context = new DefaultHttpContext(); context.Request.QueryString = new("?maximumGapSeconds="+gap);
+        Assert.Throws<HistoryRequestException>(() => TimelineConnectionRules.Parse(context.Request.Query));
+    }
+
     private static TimelineSourceRow Row(int seconds, bool? match, double longitude = 0) =>
         new(seconds, new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds), match, longitude, 0);
 

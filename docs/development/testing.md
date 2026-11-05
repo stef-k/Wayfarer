@@ -690,3 +690,16 @@ reuses that unchanged-code qualification. WayfarerApp #34 recovery/#16 owns mobi
 create-settlement, SQLDelight A/B/C preservation/release proof, native transport/
 file-provider/background and phone-original retention acceptance. Deployment/store
 qualification remains separate; backend tests provide no native or deployed evidence.
+
+
+### Private calendar backend (#953 W1)
+
+`TimelineCalendarTests` covers civil navigation, DST/boundaries and numerical/barrier
+reduction. `TimelineCalendarPostgresTests` uses the reusable guarded PostgreSQL
+fixture and real Identity/MVC cookie routes for private consumer agreement, source
+barriers/ties, owner/readiness boundaries, concurrent edits/deletes, cancellation,
+shared admission and the real deadline. Its 20,100-row fixture records natural
+source plans, routed/service/serialization costs and geometry overflow independently
+of marker sampling. Run these with affected history/statistics/Timeline and security
+inventories; no W1 browser UI was added. See [calendar contract](timeline-calendar.md)
+for the W2 adoption boundary and measured-evidence limitations.

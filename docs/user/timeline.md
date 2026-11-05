@@ -32,6 +32,10 @@ Pan and zoom to explore, then select a marker or table row for its details. Larg
 map views can show a sample of locations to remain readable; use the table and
 filters when you need to find a particular record.
 
+The capture/viewer calendar selector and recorded-location distance/path experience
+are being delivered separately under #953. W1 supplies backend reads; this browser
+continues using its existing chronology until W2 adopts the new controls and captions.
+
 ### Search and filter locations
 
 Open **Search** in the Locations table. Combine a date range with activity,

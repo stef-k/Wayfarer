@@ -18,12 +18,12 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
     {
         var predicate = new HistoryPredicate(owner, scope.Query, token);
         var counts = await CountsAsync(predicate, token);
-        var markers = await MarkersAsync(predicate, scope, counts.Mapped, token);
+        var markers = await MarkersAsync(predicate, scope, counts.Known, token);
         var summary = await new LocationStatsService(db).GetCalendarSummaryAsync(predicate, token);
         var endpoints = await TimelineStatistics.EndpointsAsync(db, predicate, scope, false, token);
         var result = Envelope(owner, scope, asOf);
         result["counts"] = Counts(counts); result["markers"] = markers;
-        result["markersSampled"] = scope.DateType != "day" && counts.Mapped > 3000;
+        result["markersSampled"] = scope.DateType != "day" && counts.Known > 3000;
         result["statistics"] = summary; result["endpoints"] = endpoints;
         result["existence"] = counts.Known > 0 ? "present" : counts.Candidates > 0 ? "unknown" : "absent";
         result["navigation"] = scope.Navigation(Instant.FromDateTimeUtc(asOf));
@@ -99,10 +99,10 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
             """, predicate.CopyParameters()).SingleAsync(token);
 
     /// <summary>Display sampling follows membership/position validity; rich day records remain intentionally unsampled.</summary>
-    private async Task<object[]> MarkersAsync(HistoryPredicate predicate, TimelineCalendarScope scope, long mapped, CancellationToken token)
+    private async Task<object[]> MarkersAsync(HistoryPredicate predicate, TimelineCalendarScope scope, long known, CancellationToken token)
     {
         var selected = $"SELECT l.\"Id\",l.\"LocalTimestamp\" FROM \"Locations\" l WHERE {predicate.Where} AND {predicate.Matches} AND ({HistoryPredicate.PositionValid})";
-        if (scope.DateType != "day" && mapped > 3000)
+        if (scope.DateType != "day" && known > 3000)
             selected = $"""
                 SELECT "Id","LocalTimestamp" FROM (
                     SELECT l."Id",l."LocalTimestamp",row_number() OVER (
