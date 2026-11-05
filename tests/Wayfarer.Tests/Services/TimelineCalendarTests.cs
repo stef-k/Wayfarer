@@ -72,6 +72,15 @@ public sealed class TimelineCalendarTests
         Assert.Equal("complete", result.Coverage);
         Assert.Equal("unavailable", result.GeometryState);
         Assert.Null(result.Geometry);
+        var islands = new TimelineConnections(new(7200, null), true);
+        for (var i = 0; i < 1030; i++)
+        {
+            islands.Add(Row(i*3,true)); islands.Add(Row(i*3+1,true)); islands.Add(Row(i*3+2,false));
+        }
+        var fragmented = islands.Finish(false);
+        Assert.Equal(1030, fragmented.EdgeCount);
+        Assert.Null(fragmented.Geometry);
+        Assert.Equal("unavailable", fragmented.GeometryState);
     }
 
     /// <summary>DST changes do not change event elapsed time, and edges need both endpoints inside the period.</summary>

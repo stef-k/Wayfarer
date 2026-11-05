@@ -134,13 +134,20 @@ public sealed class TimelineCalendarPostgresTests(PostgresMigrationTestFixture f
         var gate = new ReadGate(); await using var app = await HostAsync(gate); using var client = Client(app, owner.Id);
         var read = GetAsync(client, Route + "period" + Day + "capture");
         await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var sourceGate = new ReadGate(); await using var sourceApp = await HostAsync(sourceGate);
+        using var sourceClient = Client(sourceApp, owner.Id);
+        var sourceRead = GetAsync(sourceClient, Route + "analysis" + Day + "capture");
+        await sourceGate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await using (var edit = fixture.CreateContext())
         {
             await edit.Locations.Where(x => x.Id == a.Id).ExecuteDeleteAsync();
             var moved = await edit.Locations.SingleAsync(x => x.Id == b.Id);
             moved.LocalTimestamp = moved.LocalTimestamp.AddDays(-1); await edit.SaveChangesAsync();
         }
-        gate.Release.TrySetResult();
+        gate.Release.TrySetResult(); sourceGate.Release.TrySetResult();
+        var source = await sourceRead;
+        Assert.Equal("2", source.GetProperty("counts").GetProperty("knownMatches").GetString());
+        Assert.Equal("1", source.GetProperty("counts").GetProperty("eligibleEdges").GetString());
         var result = await read;
         Assert.Equal(2, result.GetProperty("markers").GetArrayLength());
         Assert.Equal(2, result.GetProperty("statistics").GetProperty("totalLocations").GetInt32());
@@ -157,6 +164,9 @@ public sealed class TimelineCalendarPostgresTests(PostgresMigrationTestFixture f
         using var cancel = new CancellationTokenSource();
         var pending = client.GetAsync(Route + "analysis" + Day + "viewer", cancel.Token);
         await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var competing = Stopwatch.StartNew();
+        await GetAsync(client, Route + "period" + Day + "viewer");
+        output.WriteLine($"Competing routed period completed in {competing.Elapsed.TotalMilliseconds:F2} ms while analysis held a permit/snapshot.");
         using (var second = LocationHistoryController.Collections.TryAcquire(owner.Id, out _))
         {
             Assert.NotNull(second);
@@ -190,7 +200,10 @@ public sealed class TimelineCalendarPostgresTests(PostgresMigrationTestFixture f
         foreach (var basis in new[] { "capture", "viewer" })
         {
             var query = Day.Replace("dateType=day", "dateType=month") + basis;
+            var periodClock = Stopwatch.StartNew();
             var period = await GetAsync(client, Route + "period" + query);
+            output.WriteLine(JsonSerializer.Serialize(new { basis, operation = "period", elapsedMs = periodClock.Elapsed.TotalMilliseconds,
+                responseBytes = System.Text.Encoding.UTF8.GetByteCount(period.GetRawText()) }));
             Assert.True(period.GetProperty("markersSampled").GetBoolean());
             Assert.True(period.GetProperty("markers").GetArrayLength() <= 3000);
             foreach (var geometry in new[] { false, true })
