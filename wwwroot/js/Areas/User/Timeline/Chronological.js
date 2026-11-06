@@ -1,875 +1,98 @@
-import { prepareLocationDeletion } from '../../../util/location-mutation.js';
-import { notesHtmlForDisplay } from '../../../util/notes-images.js';
-import { renderStatistics } from './statistics.js';
-﻿// Chronological Timeline - allows navigation by day, month, or year
-let locations = [];
-let mapContainer = null;
-let markerLayer, clusterLayer, highlightLayer;
-let markerTransitionTimer = null; // Timer for live-to-latest marker transition
-let stream = null; // SSE stream for live updates
-import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
-import {
-    formatViewerAndSourceTimes,
-    isLiveLocation,
-    scheduleLocationExpiry,
-    formatDate,
-    formatDecimal,
-    currentDateInputValue,
-    currentMonthInputValue,
-    currentYearInputValue,
-    getViewerTimeZone,
-} from '../../../util/datetime.js';
-import {
-    generateActivityEditorHtml,
-    initActivitySelect,
-    setupActivityEditorEvents,
-} from '../../../util/activity-editor.js';
-import {
-    generateWikipediaLinkHtml,
-    initWikipediaPopovers,
-} from '../../../util/wikipedia-utils.js';
+import { TimelinePage } from './calendar-page.js';
+import { CalendarIntent, emptyFilters } from './calendar-intent.js';
+import { CalendarPreferences } from './calendar-preferences.js';
+import { readSelection, selectionSearch, preset, moveSelection, todayInZone, validateSelection } from './calendar-scope.js';
+import { createCalendarMap } from './calendar-map.js';
+import { createCalendarDetail } from './calendar-detail.js';
+import { createCalendarPicker } from './calendar-picker.js';
+import { createCalendarFilters } from './calendar-filters.js';
+import { createCalendarConnections } from './calendar-connections.js';
+import { createCalendarDisplay } from './calendar-display.js';
 
-const viewerTimeZone = getViewerTimeZone();
-const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-});
-const buildEditUrl = id => {
-    const returnUrl = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-    return `/User/Location/Edit/${id}?returnUrl=${returnUrl}`;
-};
-// Current view state
-let currentDate = new Date();
-let currentViewType = 'day'; // 'day', 'month', or 'year'
-
-/**
- * Reads date state from URL query parameters.
- * Expected parameters: viewType (day|month|year), year, month (1-12), day (1-31)
- * @returns {boolean} True if valid date state was found in URL
- */
-const readDateFromUrl = () => {
-    const params = new URLSearchParams(window.location.search);
-    const viewType = params.get('viewType');
-    const year = parseInt(params.get('year'), 10);
-    const month = parseInt(params.get('month'), 10);
-    const day = parseInt(params.get('day'), 10);
-
-    // Validate viewType
-    if (!viewType || !['day', 'month', 'year'].includes(viewType)) {
-        return false;
-    }
-
-    // Year is always required
-    if (isNaN(year) || year < 1900 || year > 2100) {
-        return false;
-    }
-
-    // Build the date based on view type
-    let parsedDate;
-    switch (viewType) {
-        case 'year':
-            parsedDate = new Date(year, 0, 1);
-            break;
-        case 'month':
-            if (isNaN(month) || month < 1 || month > 12) return false;
-            parsedDate = new Date(year, month - 1, 1);
-            break;
-        case 'day':
-            if (isNaN(month) || month < 1 || month > 12) return false;
-            if (isNaN(day) || day < 1 || day > 31) return false;
-            parsedDate = new Date(year, month - 1, day);
-            // Validate the day is valid for the month
-            if (parsedDate.getMonth() !== month - 1) return false;
-            break;
-        default:
-            return false;
-    }
-
-    // Don't allow future dates
-    if (parsedDate > new Date()) {
-        return false;
-    }
-
-    currentDate = parsedDate;
-    currentViewType = viewType;
-    return true;
-};
-
-/**
- * Updates the URL query parameters to reflect current date state.
- * Uses replaceState to avoid polluting browser history on every navigation.
- */
-const updateUrlWithDate = () => {
-    const params = new URLSearchParams();
-    params.set('viewType', currentViewType);
-    params.set('year', currentDate.getFullYear().toString());
-
-    if (currentViewType === 'month' || currentViewType === 'day') {
-        params.set('month', (currentDate.getMonth() + 1).toString());
-    }
-
-    if (currentViewType === 'day') {
-        params.set('day', currentDate.getDate().toString());
-    }
-
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState(null, '', newUrl);
-};
-
+/** Authenticated private chronology bootstrap. Legacy/public/all-time and bearer collections keep their owners. */
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize the map
-    mapContainer = initializeMap();
-
-    // Restore date from URL or default to today
-    if (!readDateFromUrl()) {
-        setDateToToday();
-    } else {
-        // Update UI to match restored state
-        updateViewTypeUI();
-        updateDatePickerValues();
-    }
-
-    // Load initial data
-    loadChronologicalData();
-
-    // Wire up event listeners
-    setupEventListeners();
-
-    // Subscribe to SSE for live location updates
-    const username = document.getElementById('username')?.dataset?.username;
-    if (username) {
-        try {
-            stream = new EventSource(`/api/sse/stream/location-update/${username}`);
-            stream.onmessage = () => {
-                // Refresh data when a location update is received
-                loadChronologicalData();
-            };
-        } catch (e) {
-            console.error('Could not connect to SSE stream:', e);
-        }
-    }
-
-    // Wire up the Bootstrap "shown" event for Wikipedia hover cards and activity editor
-    const modalEl = document.getElementById('locationModal');
-    if (!modalEl) {
-        console.error('Modal element not found!');
-    } else {
-        modalEl.addEventListener('shown.bs.modal', () => {
-            initWikipediaPopovers(modalEl);
-            // Initialize TomSelect on activity dropdown if present
-            const activityEditor = modalEl.querySelector('.activity-editor');
-            if (activityEditor) {
-                const locationId = activityEditor.dataset.locationId;
-                initActivitySelect(locationId);
+    const root = document.getElementById('calendarTimeline');
+    if (!root) return;
+    const subject = () => document.getElementById('browser-antiforgery')?.dataset.subjectId;
+    const maximumOffset = Number(root.dataset.maximumOffset);
+    const notice = document.getElementById('timelineNotice');
+    const guarded = run => { try { const result = run(); result?.catch?.(() => { notice.textContent = 'Read unavailable. Retain this scope and retry.'; }); } catch (error) { notice.textContent = error.message; } };
+    // Access to the storage object itself can be denied; wrappers keep that failure inside the owning transaction.
+    const storage = name => ({ getItem: key => window[name].getItem(key), setItem: (key, value) => window[name].setItem(key, value), removeItem: key => window[name].removeItem(key) });
+    const preferences = new CalendarPreferences(storage('localStorage'), subject(), location.origin);
+    const intent = new CalendarIntent(storage('sessionStorage'), subject());
+    let parsed;
+    try { parsed = readSelection(location.search, preferences.value.timeBasis, Intl.DateTimeFormat().resolvedOptions().timeZone, maximumOffset); }
+    catch (error) { notice.textContent = error.message; root.querySelectorAll('button,select').forEach(element => { element.disabled = true; }); return; }
+    let recovery = false, restored = { filters: emptyFilters() };
+    try { restored = intent.restore(parsed.selection, parsed.context); }
+    catch { recovery = true; document.getElementById('contextRecovery').hidden = false; }
+    const fetchRead = async (operation, values, signal) => {
+        const response = await fetch(`/User/Timeline/calendar/${operation}`, { method: 'POST', credentials: 'same-origin', cache: 'no-store', signal,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', RequestVerificationToken: document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
+            body: new URLSearchParams(Object.entries(values).map(([key, value]) => [key, String(value)])) });
+        if (response.redirected || response.status === 401 || response.status === 403) throw Object.assign(new Error('Session ended.'), { status: 401 });
+        const body = await response.json();
+        if (!response.ok) throw Object.assign(new Error('Calendar read unavailable.'), { status: response.status, code: body.code,
+            retryAfter: Number(response.headers.get('Retry-After')) || null });
+        return body;
+    };
+    let owner, detail, picker, filters, connections, display;
+    const mapView = createCalendarMap(id => detail.open(id), camera => { if (owner) { owner.camera = camera; owner.retain(); } });
+    owner = new TimelinePage({ subject: subject(), currentSubject: subject, selection: parsed.selection, context: parsed.context,
+        ...restored, intent, preferences, maximumOffset, fetchRead,
+        replaceUrl: search => history.replaceState(null, '', location.pathname + search),
+        publish: () => {
+            display?.render(); picker?.render(); filters?.render(); connections?.render();
+            if (owner.state.errors.session) {
+                detail?.clear(); document.getElementById('statsModalContent').textContent = '';
+                document.querySelectorAll('#dateDialog, #filtersDialog, #basisDialog').forEach(element => bootstrap.Modal.getInstance(element)?.hide());
+                document.getElementById('filterSearch').value = ''; document.getElementById('filterActivities').textContent = '';
+                root.querySelectorAll('button,select').forEach(element => { element.disabled = true; });
             }
-        });
-    }
-
-    // Set up activity editor event handlers
-    setupActivityEditorEvents('#modalContent');
-
-    // Cleanup timers and streams on page unload
-    window.addEventListener('beforeunload', () => {
-        if (markerTransitionTimer) {
-            clearTimeout(markerTransitionTimer);
-        }
-        if (stream) {
-            stream.close();
-        }
+        } });
+    owner.blocked = recovery;
+    detail = createCalendarDetail(owner, mapView); picker = createCalendarPicker(owner);
+    filters = createCalendarFilters(owner, mapView, value => {
+        if (value !== undefined) { recovery = value; document.getElementById('contextRecovery').hidden = !value; }
+        return recovery;
     });
-
-    // Delete events from pop ups
-    document.addEventListener("click", async function (event) {
-        const deleteLink = event.target.closest(".delete-location-from-popup");
-        if (!deleteLink) return;
-
-        event.preventDefault();
-        const locationIdRaw = deleteLink.getAttribute("data-location-id");
-        const locationId = Number.parseInt(locationIdRaw, 10);
-        if (Number.isNaN(locationId)) {
-            // Defensive guard: ensure backend receives numeric IDs in expected shape.
-            return;
-        }
-
-        const modalElement = document.querySelector(".modal.show");
-        const modalInstance = bootstrap.Modal.getInstance(modalElement);
-
-        let deleteProtected;
-        try { deleteProtected = await prepareLocationDeletion(locationId); }
-        catch (error) { alert(error.message); return; }
-        wayfarer.showConfirmationModal({
-            title: "Confirm Deletion",
-            message: deleteProtected.message,
-            confirmText: "Delete",
-            onConfirm: () => {
-                deleteProtected()
-                    .then(data => {
-                        if (data.success) {
-                            if (modalInstance) {
-                                modalInstance.hide();
-                            }
-                            loadChronologicalData();
-                        } else {
-                            alert(data.message || "Deletion outcome unknown. Inspect current history before deciding again.");
-                        }
-                    })
-                    .catch(error => console.error("Error:", error));
-            }
-        });
+    connections = createCalendarConnections(owner); display = createCalendarDisplay(owner, mapView, detail);
+    mapView.restore(owner.camera);
+    history.replaceState(null, '', location.pathname + selectionSearch(owner.selection, owner.context));
+    const click = (id, action) => document.getElementById(id).addEventListener('click', () => guarded(action));
+    click('choosePeriod', () => picker.open(owner.selection.dateType === 'custom'));
+    click('chooseFilters', () => filters.open()); click('reenterFilters', () => filters.open(true));
+    click('continueUnfiltered', () => { owner.clearFilters(); recovery = false; document.getElementById('contextRecovery').hidden = true; });
+    click('connectionSettings', connections.open);
+    click('today', () => owner.commitSelection(preset(owner.selection, 'day', todayInZone(owner.selection.viewerZone))));
+    for (const [id, direction] of [['previousPeriod', -1], ['nextPeriod', 1]]) click(id, () => owner.commitSelection(moveSelection(owner.selection, owner.selection.dateType, direction, true)));
+    document.querySelectorAll('[data-jump]').forEach(button => button.addEventListener('click', () => guarded(() => owner.commitSelection(moveSelection(owner.selection, button.dataset.jump, Number(button.dataset.direction))))));
+    document.getElementById('periodMode').addEventListener('change', event => guarded(() => {
+        if (event.target.value === 'custom') { event.target.value = owner.selection.dateType; picker.open(true, event.target); }
+        else owner.commitSelection(preset(owner.selection, event.target.value));
+    }));
+    click('refreshTimeline', () => owner.retry()); click('fitPeriod', mapView.fit);
+    click('showRecords', () => owner.openRecords()); click('loadMore', () => owner.loadRecords());
+    click('showMap', () => { owner.panel = 'map'; owner.retain(); owner.emit(); mapView.map.invalidateSize(); });
+    click('geographicDetails', () => { bootstrap.Modal.getOrCreateInstance(document.getElementById('statsModal')).show(); owner.enqueue('statistics'); });
+    const basisModal = document.getElementById('basisDialog'); let basisTrigger;
+    click('chooseBasis', () => {
+        owner.openEditor('basis', { ...owner.selection }); basisTrigger = document.activeElement;
+        document.getElementById('basisSelect').value = owner.selection.timeBasis; document.getElementById('viewerZone').value = owner.selection.viewerZone;
+        bootstrap.Modal.getOrCreateInstance(basisModal).show();
     });
+    click('currentBrowserZone', () => { document.getElementById('viewerZone').value = Intl.DateTimeFormat().resolvedOptions().timeZone; });
+    click('applyBasis', () => {
+        try { owner.applyBasis(document.getElementById('basisSelect').value, document.getElementById('viewerZone').value); bootstrap.Modal.getInstance(basisModal)?.hide(); }
+        catch (error) { document.getElementById('basisError').textContent = error.message; }
+    });
+    basisModal.addEventListener('hidden.bs.modal', () => { if (owner.editor?.kind === 'basis') owner.cancelEditor(); basisTrigger?.focus(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !owner.blocked) owner.refresh(); });
+    window.addEventListener('pageshow', event => { if (event.persisted && !owner.blocked) owner.refresh(); });
+    window.addEventListener('pagehide', () => { owner.retain(); owner.active?.controller.abort(); });
+    if (parsed.adopted) notice.textContent = 'Legacy date link adopted the remembered calendar basis and validated viewer zone.';
+    if (parsed.adopted) owner.state.adoptionNotice = 'Legacy date link adopted the remembered calendar basis and validated viewer zone.';
+    owner.emit();
+    if (!recovery) owner.refresh().then(() => { if (owner.selectedId && !owner.blocked) detail.open(owner.selectedId); });
 });
-
-/**
- * Sets up all event listeners for navigation and date selection
- */
-const setupEventListeners = () => {
-    // Navigation buttons
-    document.getElementById('btnPrevYear').addEventListener('click', () => navigateDate(-1, 'year'));
-    document.getElementById('btnPrevMonth').addEventListener('click', () => navigateDate(-1, 'month'));
-    document.getElementById('btnPrevDay').addEventListener('click', () => navigateDate(-1, 'day'));
-    document.getElementById('btnNextDay').addEventListener('click', () => navigateDate(1, 'day'));
-    document.getElementById('btnNextMonth').addEventListener('click', () => navigateDate(1, 'month'));
-    document.getElementById('btnNextYear').addEventListener('click', () => navigateDate(1, 'year'));
-
-    // Quick navigation
-    document.getElementById('btnToday').addEventListener('click', () => {
-        setDateToToday();
-        loadChronologicalData();
-    });
-
-    // Date pickers
-    document.getElementById('datePicker').addEventListener('change', (e) => {
-        const selectedDate = new Date(e.target.value);
-        if (!isNaN(selectedDate.getTime())) {
-            currentDate = selectedDate;
-            currentViewType = 'day';
-            updateViewTypeUI();
-            updateUrlWithDate();
-            loadChronologicalData();
-        }
-    });
-
-    document.getElementById('monthPicker').addEventListener('change', (e) => {
-        const [year, month] = e.target.value.split('-').map(Number);
-        currentDate = new Date(year, month - 1, 1);
-        currentViewType = 'month';
-        updateViewTypeUI();
-        updateUrlWithDate();
-        loadChronologicalData();
-    });
-
-    document.getElementById('yearPicker').addEventListener('change', (e) => {
-        const year = parseInt(e.target.value);
-        if (!isNaN(year)) {
-            currentDate = new Date(year, 0, 1);
-            currentViewType = 'year';
-            updateViewTypeUI();
-            updateUrlWithDate();
-            loadChronologicalData();
-        }
-    });
-
-    // View type selector
-    document.querySelectorAll('input[name="viewType"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            currentViewType = e.target.value;
-            updateViewTypeUI();
-            updateUrlWithDate();
-            loadChronologicalData();
-        });
-    });
-};
-
-/**
- * Navigate date forward or backward by specified unit.
- * Navigation is contextual - maintains current view context:
- * - In month view: year navigation maintains the month (e.g., Oct 2025 → Oct 2024)
- * - In day view: month/year navigation maintains the day if possible
- * Always allows navigation even if target date has no data to prevent users from getting trapped.
- */
-const navigateDate = (direction, unit) => {
-    const newDate = new Date(currentDate);
-
-    switch (unit) {
-        case 'day':
-            newDate.setDate(newDate.getDate() + direction);
-            // Day navigation always switches to day view
-            currentViewType = 'day';
-            break;
-        case 'month':
-            // In day view, try to maintain the day of month when navigating months
-            if (currentViewType === 'day') {
-                const currentDay = newDate.getDate();
-                newDate.setMonth(newDate.getMonth() + direction);
-                // Adjust if the day doesn't exist in the new month (e.g., Jan 31 → Feb 28)
-                const daysInNewMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate();
-                if (currentDay > daysInNewMonth) {
-                    newDate.setDate(daysInNewMonth);
-                }
-            } else {
-                // In month/year view, just navigate months
-                newDate.setMonth(newDate.getMonth() + direction);
-                if (currentViewType === 'year') currentViewType = 'month';
-            }
-            break;
-        case 'year':
-            // Year navigation maintains month and day context
-            newDate.setFullYear(newDate.getFullYear() + direction);
-            // Keep the current view type unless we're in day view with an invalid date
-            if (currentViewType === 'day') {
-                // Check if the day exists in the new year (e.g., Feb 29 in non-leap year)
-                const maxDay = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate();
-                if (newDate.getDate() > maxDay) {
-                    newDate.setDate(maxDay);
-                }
-            }
-            break;
-    }
-
-    currentDate = newDate;
-    updateViewTypeUI();
-    updateDatePickerValues();
-    updateUrlWithDate();
-    loadChronologicalData();
-};
-
-/**
- * Set the current date to today
- */
-const setDateToToday = () => {
-    currentDate = new Date();
-    currentViewType = 'day';
-    updateViewTypeUI();
-    updateDatePickerValues();
-    updateUrlWithDate();
-};
-
-/**
- * Update the UI based on current view type
- */
-const updateViewTypeUI = () => {
-    // Update radio buttons
-    document.getElementById(`view${currentViewType.charAt(0).toUpperCase() + currentViewType.slice(1)}`).checked = true;
-
-    // Show/hide appropriate date pickers
-    document.getElementById('datePicker').style.display = currentViewType === 'day' ? 'block' : 'none';
-    document.getElementById('monthPicker').style.display = currentViewType === 'month' ? 'block' : 'none';
-    document.getElementById('yearPicker').style.display = currentViewType === 'year' ? 'block' : 'none';
-
-    // Show/hide navigation buttons based on view type
-    const showDayNav = currentViewType === 'day';
-    const showMonthNav = currentViewType === 'day' || currentViewType === 'month';
-
-    document.getElementById('btnPrevDay').style.display = showDayNav ? 'inline-block' : 'none';
-    document.getElementById('btnNextDay').style.display = showDayNav ? 'inline-block' : 'none';
-    document.getElementById('btnPrevMonth').style.display = showMonthNav ? 'inline-block' : 'none';
-    document.getElementById('btnNextMonth').style.display = showMonthNav ? 'inline-block' : 'none';
-};
-
-/**
- * Update date picker values based on current date
- */
-const updateDatePickerValues = () => {
-    document.getElementById('datePicker').value = currentDateInputValue(currentDate);
-    document.getElementById('monthPicker').value = currentMonthInputValue(currentDate);
-    document.getElementById('yearPicker').value = currentYearInputValue(currentDate);
-};
-
-/**
- * Load chronological data from the server
- */
-const loadChronologicalData = async () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    let url = `/User/Timeline/GetChronologicalData?dateType=${currentViewType}&year=${year}`;
-
-    if (currentViewType === 'month' || currentViewType === 'day') {
-        url += `&month=${month}`;
-    }
-
-    if (currentViewType === 'day') {
-        url += `&day=${day}`;
-    }
-
-    try {
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (result.success) {
-            locations = result.data;
-            displayLocationsOnMap(mapContainer, locations);
-
-            // Fetch and display enhanced stats
-            await updateEnhancedStats();
-
-            // Check navigation availability
-            await updateNavigationButtons();
-        } else {
-            console.error('Error loading data:', result.message);
-        }
-    } catch (error) {
-        console.error('Error fetching chronological data:', error);
-    }
-};
-
-/**
- * Update navigation buttons based on data availability and future date restrictions.
- * Handles contextual navigation where year buttons maintain month/day context.
- */
-const updateNavigationButtons = async () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    let url = `/User/Timeline/CheckNavigationAvailability?dateType=${currentViewType}&year=${year}`;
-
-    if (currentViewType === 'month' || currentViewType === 'day') {
-        url += `&month=${month}`;
-    }
-
-    if (currentViewType === 'day') {
-        url += `&day=${day}`;
-    }
-
-    try {
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (result.success) {
-            // Update day navigation buttons (only in day view)
-            document.getElementById('btnPrevDay').disabled = !result.canNavigatePrevDay;
-            document.getElementById('btnNextDay').disabled = !result.canNavigateNextDay;
-
-            // Update month navigation buttons (in day and month views)
-            document.getElementById('btnPrevMonth').disabled = !result.canNavigatePrevMonth;
-            document.getElementById('btnNextMonth').disabled = !result.canNavigateNextMonth;
-
-            // Update year navigation buttons (always visible)
-            document.getElementById('btnPrevYear').disabled = !result.canNavigatePrevYear;
-            document.getElementById('btnNextYear').disabled = !result.canNavigateNextYear;
-        }
-    } catch (error) {
-        console.error('Error checking navigation availability:', error);
-    }
-};
-
-/**
- * Fetch and display enhanced stats (locations, countries, regions, cities)
- */
-const updateEnhancedStats = async () => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    let url = `/User/Timeline/GetChronologicalStats?dateType=${currentViewType}&year=${year}`;
-
-    if (currentViewType === 'month' || currentViewType === 'day') {
-        url += `&month=${month}`;
-    }
-
-    if (currentViewType === 'day') {
-        url += `&day=${day}`;
-    }
-
-    try {
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (result.success && result.stats) {
-            const stats = result.stats;
-            const dateString = formatDateDisplay(currentDate, currentViewType);
-
-            const summaryParts = [];
-            summaryParts.push(`<strong>Period:</strong> ${dateString}`);
-
-            if (stats.totalLocations != null)
-                summaryParts.push(`<strong>Locations:</strong> ${stats.totalLocations}`);
-            if (stats.countriesVisited != null)
-                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="countries">Countries:</a></strong> ${stats.countriesVisited}`);
-            if (stats.regionsVisited != null)
-                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="regions">Regions:</a></strong> ${stats.regionsVisited}`);
-            if (stats.citiesVisited != null)
-                summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="cities">Cities:</a></strong> ${stats.citiesVisited}`);
-
-            const summary = summaryParts.join(" | ");
-            document.getElementById('timeline-summary').innerHTML = summary;
-
-            // Add click handlers for stat links
-            document.querySelectorAll('.stat-link').forEach(link => {
-                link.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    const statType = e.currentTarget.getAttribute('data-stat-type');
-                    await showDetailedStats(statType);
-                });
-            });
-        }
-    } catch (error) {
-        console.error('Error fetching stats:', error);
-    }
-};
-
-/**
- * Fetch and display detailed stats in a modal for chronological view
- * @param {string} statType - Type of stat to highlight (countries, regions, cities)
- */
-const showDetailedStats = async (statType) => {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    let url = `/User/Timeline/GetChronologicalStatsDetailed?dateType=${currentViewType}&year=${year}`;
-
-    if (currentViewType === 'month' || currentViewType === 'day') {
-        url += `&month=${month}`;
-    }
-
-    if (currentViewType === 'day') {
-        url += `&day=${day}`;
-    }
-
-    try {
-        const response = await fetch(url);
-        const result = await response.json();
-
-        if (!result.success) {
-            throw new Error('Detailed statistics request failed');
-        }
-
-        const detailedStats = result.stats;
-
-        // Generate modal content
-        const modalContent = generateStatsModalContent(detailedStats, statType);
-        document.getElementById('statsModalContent').innerHTML = modalContent;
-
-        // Show the modal
-        new bootstrap.Modal(document.getElementById('statsModal')).show();
-
-        // Add click handlers for country/region/city coordinates
-        document.querySelectorAll('.country-coords-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const lat = parseFloat(link.getAttribute('data-lat'));
-                const lng = parseFloat(link.getAttribute('data-lng'));
-
-                // Extract zoom from href URL
-                const href = link.getAttribute('href');
-                const urlParams = new URLSearchParams(href.substring(1)); // Remove leading '?'
-                const zoom = parseInt(urlParams.get('zoom')) || 8;
-
-                // Close modal and navigate to location on map
-                bootstrap.Modal.getInstance(document.getElementById('statsModal')).hide();
-                mapContainer.setView([lat, lng], zoom);
-            });
-        });
-
-    } catch {
-        wayfarer.showAlert('danger', 'Failed to load detailed statistics. Please try again.');
-    }
-};
-
-/**
- * Generate HTML content for the stats modal with hierarchical collapsible structure
- * @param {object} stats - Detailed stats object
- * @param {string} highlightType - Which section to highlight
- * @returns {string} HTML content
- */
-const generateStatsModalContent = (stats, highlightType) => {
-    return renderStatistics(stats, highlightType,
-        iso => formatDate({ iso, displayTimeZone: viewerTimeZone }), formatDateDisplay(currentDate, currentViewType));
-};
-
-/**
- * Format date for display based on view type
- */
-const formatDateDisplay = (date, viewType) => {
-    const year = date.getFullYear();
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'];
-    const month = monthNames[date.getMonth()];
-    const day = date.getDate();
-
-    switch (viewType) {
-        case 'day':
-            return `${month} ${day}, ${year}`;
-        case 'month':
-            return `${month} ${year}`;
-        case 'year':
-            return `${year}`;
-        default:
-            return '';
-    }
-};
-
-/**
- * Initialize map with tile layer from the cache proxy.
- */
-const initializeMap = () => {
-    if (mapContainer !== undefined && mapContainer !== null) {
-        mapContainer.off();
-        mapContainer.remove();
-    }
-
-    mapContainer = L.map('mapContainer', {
-        zoomAnimation: true
-    }).setView([20, 0], 3);
-
-    createTileLayer().addTo(mapContainer);
-
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
-    addZoomLevelControl(mapContainer);
-
-    // Create highlight layer for live/latest markers (always visible, not clustered)
-    if (!highlightLayer) {
-        highlightLayer = L.featureGroup();
-    } else {
-        highlightLayer.clearLayers();
-    }
-    highlightLayer.addTo(mapContainer);
-
-    return mapContainer;
-};
-
-/**
- * Build marker layers (flat and clustered)
- * Live and latest markers are added to highlightLayer (always visible, not clustered)
- */
-const buildLayers = (locations) => {
-    // Clear highlight layer for live/latest markers
-    if (highlightLayer) {
-        highlightLayer.clearLayers();
-    }
-
-    markerLayer = L.layerGroup();
-    clusterLayer = L.markerClusterGroup({
-        maxClusterRadius: 50,
-        chunkedLoading: true
-    });
-
-    // Find the backend-designated latest location and determine if it's currently live
-    const latestLocation = locations.find(loc => loc.isLatestLocation);
-    let highlightCandidate = null;
-    if (latestLocation) {
-        const isLive = isLiveLocation(latestLocation);
-        highlightCandidate = { location: latestLocation, type: isLive ? 'live' : 'latest' };
-    }
-    const highlightId = highlightCandidate?.location?.id ?? null;
-
-    locations.forEach(location => {
-        const coords = [location.coordinates.latitude, location.coordinates.longitude];
-        const isHighlight = highlightId !== null && location.id === highlightId;
-
-        // Click handler for modal
-        const bindInteractions = (markerInstance) => {
-            markerInstance.on('click', () => {
-                const isLiveM = isLiveLocation(location);
-                const isLatestM = location.isLatestLocation;
-
-                document.getElementById('modalContent').innerHTML =
-                    generateLocationModalContent(location, {isLive: isLiveM, isLatest: isLatestM});
-
-                new bootstrap.Modal(document.getElementById('locationModal')).show();
-            });
-        };
-
-        if (isHighlight && highlightLayer) {
-            // Add live/latest marker to separate highlight layer (not clustered)
-            const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
-            const highlightMarker = L.marker(coords, { icon });
-            if (highlightCandidate?.type === 'latest') {
-                highlightMarker.bindTooltip("User's latest location.", {
-                    direction: "top",
-                    offset: [0, -25]
-                });
-            }
-            bindInteractions(highlightMarker);
-            highlightMarker.addTo(highlightLayer);
-            highlightMarker.setZIndexOffset(1000); // Ensure it's always on top
-        } else {
-            // Regular markers go to both flat and cluster layers
-            const marker = L.marker(coords, {});
-            bindInteractions(marker);
-            markerLayer.addLayer(marker);
-            clusterLayer.addLayer(marker);
-        }
-    });
-
-    // Use clustering for better performance
-    mapContainer.addLayer(clusterLayer);
-
-    // Ensure highlight layer is on top
-    if (highlightLayer) {
-        highlightLayer.bringToFront();
-    }
-
-    // Schedule marker transition when live marker expires
-    scheduleMarkerTransition(locations, highlightCandidate?.type === 'live' ? latestLocation : null);
-};
-
-/**
- * Schedules a timer to re-render markers when the current live marker should transition to latest.
- * Uses the observation actually rendered, including expiry during the render itself.
- * @param {Array} locations - Retained map data for the transition render.
- * @param {object|null} renderedLiveLocation - Observation actually drawn with the LIVE icon.
- */
-const scheduleMarkerTransition = (locations, renderedLiveLocation) => {
-    clearTimeout(markerTransitionTimer);
-    // A point drawn live must transition even if it expires before this scheduler runs.
-    markerTransitionTimer = renderedLiveLocation ? scheduleLocationExpiry(renderedLiveLocation, () => {
-        displayLocationsOnMap(mapContainer, locations);
-    }, true) : null;
-};
-
-/**
- * Display locations on the map with markers
- */
-const displayLocationsOnMap = (map, locations) => {
-    if (!map) {
-        map = initializeMap();
-    }
-
-    // Remove old layers
-    if (markerLayer && map.hasLayer(markerLayer)) {
-        map.removeLayer(markerLayer);
-    }
-    if (clusterLayer && map.hasLayer(clusterLayer)) {
-        map.removeLayer(clusterLayer);
-    }
-
-    // Build and add new layers
-    if (locations && locations.length > 0) {
-        buildLayers(locations);
-
-        // Fit bounds to show all locations
-        const bounds = locations.map(l => [l.coordinates.latitude, l.coordinates.longitude]);
-        if (bounds.length > 0) {
-            map.fitBounds(bounds, {padding: [50, 50]});
-        }
-    } else {
-        // No locations, set to default view
-        map.setView([20, 0], 3);
-    }
-};
-
-/**
- * Generate the content for the modal when a marker is clicked
- */
-const generateLocationModalContent = (location, {isLive, isLatest}) => {
-    let badge = '';
-    if (isLive) {
-        badge = '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>';
-    } else if (isLatest) {
-        badge = '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>';
-    }
-
-    let dynamicMinHeight;
-    let style;
-    let charCount = location?.notes ? location.notes.length : 0;
-    if (charCount === 0) {
-        dynamicMinHeight = 0;
-        style = 'display: none;';
-    } else {
-        const lineHeightEm = 1.5;
-        const minLines = Math.ceil(charCount / 50);
-        dynamicMinHeight = 16 * (lineHeightEm * minLines);
-        style = `min-height: ${dynamicMinHeight}px; display: block;`;
-    }
-
-    const timestamps = getLocationTimestampInfo(location);
-    const sourceZone = getLocationSourceTimeZone(location);
-    const recordedTime = timestamps.source
-        ? `<div>${timestamps.source}</div>`
-        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
-
-    return `<div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-12">
-                ${badge}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6">
-                <strong>Datetime (your timezone):</strong>
-                <div>${timestamps.viewer}</div>
-            </div>
-            <div class="col-6">
-                <strong>Recorded local time:</strong>
-                ${recordedTime}
-                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12"><strong>Coordinates:</strong></div>
-            <div class="col-6">
-                <p class="mb-0">Latitude: <span class="fw-bold text-primary">${location.coordinates.latitude}</span></p>
-            </div>
-            <div class="col-6">
-                <p class="mb-0">Longitude: <span class="fw-bold text-primary">${location.coordinates.longitude}</span></p>
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6">${generateActivityEditorHtml(location)}</div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6"><strong>Accuracy:</strong> <span>${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
-            <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            ${renderLocationAddress(location)}<div class="col-12"><br/>
-            ${generateGoogleMapsLink(location)}
-            ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12" style="${style}"><strong>Notes:</strong>
-                <div class="border p-1" >
-                    ${notesHtmlForDisplay(location.notes) || 'No notes available'}
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-5">
-                <a href="${buildEditUrl(location.id)}" class="btn-link" title="Edit location">Edit</a>
-            </div>
-            <div class="col-5 offset-2">
-                <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="Delete location">Delete</a>
-            </div>
-        </div>
-    </div>
-`;
-};
-
-/**
- * Generates a link query for Google Maps and opens in new tab
- */
-/**
- * Generates a Google Maps link combining address and coordinates for precision.
- * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
- */
-const generateGoogleMapsLink = location => {
-    const addr = locationAddressText(location);
-    const lat  = location?.coordinates?.latitude;
-    const lon  = location?.coordinates?.longitude;
-    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
-    const query = addr && hasCoords
-        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
-        : hasCoords
-            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
-            : addr;
-    const q = encodeURIComponent(query || '');
-    return `
-    <a
-      href="https://www.google.com/maps/search/?api=1&query=${q}"
-      target="_blank"
-      class="ms-2 btn btn-outline-primary btn-sm"
-      title="View in Google Maps"
-    ><i class="bi bi-globe-europe-africa"></i> Maps</a>
-  `;
-};
-
-
