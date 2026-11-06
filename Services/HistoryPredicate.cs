@@ -15,10 +15,12 @@ internal sealed class HistoryPredicate
     internal string Where { get; }
     internal string Truth { get; }
     internal string Matches { get; }
+    /// <summary>Conservative contiguous event source; exact Truth still decides membership.</summary>
+    internal string EventEnvelope { get; private set; } = "TRUE";
     private string _timeMatch = "TRUE";
     private string _areaMatch = "TRUE";
     private static readonly int MinCaptureOffset = DateTimeZoneProviders.Tzdb.Ids.Min(id => DateTimeZoneProviders.Tzdb[id].MinOffset.Seconds);
-    private static readonly int MaxCaptureOffset = DateTimeZoneProviders.Tzdb.Ids.Max(id => DateTimeZoneProviders.Tzdb[id].MaxOffset.Seconds);
+    internal static readonly int MaxCaptureOffset = DateTimeZoneProviders.Tzdb.Ids.Max(id => DateTimeZoneProviders.Tzdb[id].MaxOffset.Seconds);
 
     /// <summary>All reliable dimensions precede page/aggregation; unknown event/area evidence cannot disappear.</summary>
     internal HistoryPredicate(string owner, HistoryQuery query, CancellationToken token)
@@ -71,6 +73,7 @@ internal sealed class HistoryPredicate
         if (query.Scope.TimeBasis == "utc")
         {
             var exact = $"l.\"LocalTimestamp\" >= {Add(query.Start)} AND l.\"LocalTimestamp\" < {Add(query.End)}";
+            EventEnvelope = exact;
             _timeMatch = $"({EventValid}) AND {exact}";
             return $"CASE WHEN {EventValid} THEN {exact} END";
         }
@@ -82,6 +85,7 @@ internal sealed class HistoryPredicate
         var upper = ClipUtc(end, -min);
         var upperClipped = end.Ticks - min * TimeSpan.TicksPerSecond > DateTime.MaxValue.Ticks - 9;
         var envelope = $"l.\"LocalTimestamp\" >= {Add(lower)} AND l.\"LocalTimestamp\" {(upperClipped ? "<=" : "<")} {Add(upper)}";
+        EventEnvelope = envelope;
         if (query.Scope.TimeBasis == "capture")
         {
             var wall = Wall("l.\"CaptureLocalTimestamp\"", query);

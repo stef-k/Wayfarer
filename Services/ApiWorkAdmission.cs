@@ -6,6 +6,9 @@ namespace Wayfarer.Services;
 /// </summary>
 public sealed class ApiWorkAdmission(int globalLimit, int identityLimit)
 {
+    /// <summary>One shared bearer/private-calendar collection pool; detail and ingestion remain independent.</summary>
+    internal static ApiWorkAdmission HistoryCollections { get; } = new(4, 2);
+
     /// <summary>Shared lookup ceiling, keyed only by effective client IP.</summary>
     public static ApiWorkAdmission TokenLookups { get; } = new(32, 16);
 

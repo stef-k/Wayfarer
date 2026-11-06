@@ -1807,3 +1807,34 @@ These preconditions are **not command receipts**: after an unknown Start/Resume,
 read status and require new explicit intent before another command. Never replay
 Start/Resume as probes. A lost response can already have committed; Pause/Cancel
 also preserve existing final-publication fences and do not refund admitted usage.
+
+
+## Private Web calendar reads (#953 W1)
+
+Active cookie owners with role `User` can GET `/User/Timeline/calendar/period`,
+`/statistics` or `/analysis`. These are separate from bearer-only history
+collections and accept no owner parameter. Supply `dateType=day|month|year`, civil
+`year/month/day`, `timeBasis=capture|viewer` (capture by default) and a mandatory
+explicit `viewerZone`. Missing date seeds viewer-zone Today; the serving TZDB
+validates/canonicalizes the frozen zone. The UI domain is 1900–2100 with the
+basis-specific current navigation horizon.
+
+Period bundles rich markers, exact known/mapped/unmapped/candidate counts, summary,
+actual first/last endpoint facts and civil navigation/existence under one collection
+permit. Statistics is deliberate geographic drill-down over the identical membership.
+Analysis streams unsampled source rows, preserving excluded/unknown intermediates
+and complete equal-time groups. It accepts positive finite `maximumGapSeconds`
+(default 7200), `speedEnabled` (true), `maximumSpeedMetresPerSecond` (350) and
+`includeGeometry` (false). Unknown/repeated/irrelevant parameters fail closed.
+
+Responses disclose normalized selection/scope, serving rules, subject, response-local
+observation ID and snapshot as-of. Coverage, freshness and geometry are independent;
+unknown/failed calculations are not zero and geometry overflow retains a completed
+summary. All three use no-store, the shared 4/2 collection pool, linked 15-second
+budget, cancellation and read-only repeatable-read snapshots. No provider lookup,
+text preparation, cookie access to bearer collections or migration is introduced.
+
+See [the complete contract and assembly boundary](timeline-calendar.md) for wire
+facts, geometry budgets, uncertainty, readiness and W2 obligations. The existing
+browser chronology keeps its current routes/clocks until W2 adopts explicit scope;
+W1 alone does not deliver the new selector, controls or path experience.

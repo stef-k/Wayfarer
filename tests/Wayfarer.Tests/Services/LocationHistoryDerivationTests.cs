@@ -107,7 +107,10 @@ public sealed class LocationHistoryDerivationTests
     public void QualificationIsIndependentAndNeverBecomesUnresolvedEvidence()
     {
         var current = HistoryDerivationEnvironment.Current;
-        Assert.True(current.TimeQualified); Assert.True(current.TextQualified);
+        // Report the actual loaded profile when a runner/runtime changes; never relax production qualification.
+        var diagnostics = JsonSerializer.Serialize(current.Diagnostics);
+        Assert.True(current.TimeQualified, diagnostics);
+        Assert.True(current.TextQualified, diagnostics);
         var row = Row(); row.Coordinates = new Point(double.NaN, 10) { SRID = 4326 };
         var unknownText = current with { Parser = "unreviewed-parser" };
         Assert.True(unknownText.TimeQualified); Assert.False(unknownText.TextQualified);

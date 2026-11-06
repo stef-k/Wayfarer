@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Add opt-in private calendar backend reads for capture/viewer day/month/year
+  markers, statistics, navigation and unsampled recorded-location distance (#953 W1).
+  Preserve barriers, snapshot/readiness/admission limits and independent optional
+  geometry; retain summary when drawing exceeds its budget. Existing Web chronology
+  remains unchanged until W2 supplies explicit scope and adopts these facts.
+
 - Automatically prepare current history time/text data during supported offline
   installation and upgrades (#966). Preserve compatible data and committed progress,
   rebuild only affected generations, and require independent target history readiness

@@ -44,7 +44,8 @@ jobs:
 
   test:
     needs: classify
-    runs-on: ubuntu-latest
+    # Host-executed history tests require the qualified Noble ICU profile; latest can advance distributions.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       MvcFrontendKitEnabled: 'false'
@@ -184,6 +185,11 @@ jobs:
       - name: Build tests
         if: needs.classify.outputs.run_dotnet == 'true'
         run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
+
+      # Exercise the existing production qualification contract before hundreds of dependent writes/tests.
+      - name: Verify host history qualification
+        if: needs.classify.outputs.run_dotnet == 'true'
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName=Wayfarer.Tests.Services.LocationHistoryDerivationTests.QualificationIsIndependentAndNeverBecomesUnresolvedEvidence" --logger "console;verbosity=normal"
 
       # Validate the actual service; fixtures still own migrations and disposable database cleanup.
       - name: Verify ordinary PostgreSQL prerequisite
@@ -410,7 +416,8 @@ jobs:
     if: needs.classify.outputs.run_app_image == 'true' || needs.classify.outputs.run_release_tooling == 'true'
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    # Operator/recovery probes can execute application history code on the host as well as inside images.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     # Check this Linux store before setup actions perform package/tool acquisition.
     env:
