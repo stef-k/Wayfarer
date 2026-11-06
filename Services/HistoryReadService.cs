@@ -14,7 +14,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
     /// <summary>All-owner readiness is checked in the response snapshot; no read repairs or weakens preparation.</summary>
     internal async Task PrepareQueryAsync(string owner, HistoryQuery query, CancellationToken token)
     {
-        db.HistoryEnvironment.Require(query.Scope.TimeBasis != "utc", query.Scope.Q.Length != 0);
+        db.HistoryEnvironment.Require(query.Scope.TimeBasis != "utc", query.RequiresTextPreparation);
         if (query.Scope.ActivityIds is { Length: > 0 } ids)
         {
             var canonical = await new ActivityCatalog(db).ResolveIdsAsync(ids, token) ?? throw new HistoryRequestException("activityInvalid");
@@ -22,7 +22,7 @@ internal sealed class HistoryReadService(ApplicationDbContext db, HistoryCursor 
         }
         cursors.Read(owner, query, HistoryCursor.ScopeKey(owner, query.Scope));
         var preparation = new LocationHistoryPreparation(db);
-        if (!await preparation.IsReadyAsync(query.Scope.TimeBasis == "capture", query.Scope.Q.Length != 0, token))
+        if (!await preparation.IsReadyAsync(query.Scope.TimeBasis == "capture", query.RequiresTextPreparation, token))
             throw new HistoryRequestException("historyPreparationRequired", 503);
     }
 

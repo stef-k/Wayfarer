@@ -2,11 +2,14 @@
 
 ## [Unreleased]
 
-- Add opt-in private calendar backend reads for capture/viewer day/month/year
-  markers, statistics, navigation and unsampled recorded-location distance (#953 W1).
-  Preserve barriers, snapshot/readiness/admission limits and independent optional
-  geometry; retain summary when drawing exceeds its budget. Existing Web chronology
-  remains unchanged until W2 supplies explicit scope and adopts these facts.
+- Add the private Web Timeline calendar (#953 W1/W2): Day/Week/Month/Year/Custom,
+  capture/viewer dates and both detail clocks, direct date activation, marked month
+  discovery and inclusive Custom ranges. Offer optional private Notes/address,
+  activity and saved-area filters, same-tab restoration, exact paged Records including
+  unmapped entries, and independent unsampled distance with optional recorded path.
+  Preserve excluded source barriers, protected edit drafts, camera intent, exact rule
+  precision and honest unknown/partial/live-pagination limits. Public/Group/embedded,
+  all-history and mobile consumers keep their separate contracts.
 
 - Automatically prepare current history time/text data during supported offline
   installation and upgrades (#966). Preserve compatible data and committed progress,

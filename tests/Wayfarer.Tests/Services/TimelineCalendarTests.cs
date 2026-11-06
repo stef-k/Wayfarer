@@ -117,6 +117,28 @@ public sealed class TimelineCalendarTests
         Assert.Throws<HistoryRequestException>(() => TimelineConnectionRules.Parse(context.Request.Query));
     }
 
+    /// <summary>Week/custom use exact civil endpoints and one start horizon, including future Through dates.</summary>
+    [Fact]
+    public void ExtendedCalendarUsesFrozenWeeksInclusiveCustomAndHardBounds()
+    {
+        var now = Instant.FromUtc(2026, 5, 17, 12, 0);
+        TimelineCalendarScope Post(string query)
+        {
+            var context = new DefaultHttpContext(); context.Request.QueryString = new(query);
+            return TimelineCalendarScope.ParsePost(context.Request.Query, "period", now);
+        }
+        var custom = Post("?dateType=custom&fromDate=2026-05-17&throughDate=2026-06-30&timeBasis=viewer&viewerZone=Europe%2FAthens");
+        Assert.Equal(new DateOnly(2026, 6, 30), custom.Through);
+        Assert.Equal(new DateTime(2026, 7, 1), custom.Query.End);
+        var week = Post("?dateType=week&year=2026&month=3&day=29&weekStartsOn=1&timeBasis=viewer&viewerZone=Europe%2FAthens");
+        Assert.Equal(new DateOnly(2026, 3, 23), week.Start); Assert.Equal(new DateOnly(2026, 3, 29), week.Through);
+        Assert.Equal(1, week.WeekStartsOn);
+        Assert.Throws<HistoryRequestException>(() => Post("?dateType=week&year=1900&month=1&day=1&weekStartsOn=7&timeBasis=viewer&viewerZone=UTC"));
+        Assert.Throws<HistoryRequestException>(() => Post("?dateType=week&year=2026&month=3&day=29&timeBasis=viewer&viewerZone=UTC"));
+        Assert.Throws<HistoryRequestException>(() => Post("?dateType=custom&fromDate=2026-05-18&throughDate=2026-06-30&timeBasis=viewer&viewerZone=UTC"));
+        Assert.Throws<HistoryRequestException>(() => Post("?dateType=custom&fromDate=2026-05-17&throughDate=2026-05-16&timeBasis=viewer&viewerZone=UTC"));
+    }
+
     private static TimelineSourceRow Row(int seconds, bool? match, double longitude = 0) =>
         new(seconds, new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds), match, longitude, 0);
 

@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
+import { renderPrivateStatistics } from '../../wwwroot/js/Areas/User/Timeline/calendar-display.js';
 import { renderStatistics } from '../../wwwroot/js/Areas/User/Timeline/statistics.js';
 
 const timelineScripts = [
   'wwwroot/js/Areas/User/Timeline/Index.js',
-  'wwwroot/js/Areas/User/Timeline/Chronological.js'
+  'wwwroot/js/Areas/User/Timeline/calendar-display.js'
 ];
 
 // Public statistics need the resolved username on initial load and live SSE refreshes.
@@ -22,8 +23,8 @@ for (const view of ['Timeline', 'Embed']) {
   });
 }
 
-test('both Timeline views use the Wayfarer alert for detailed-statistics failures', async () => {
-  for (const path of timelineScripts) {
+test('all-history Timeline uses the Wayfarer alert for detailed-statistics failures', async () => {
+  for (const path of timelineScripts.slice(0, 1)) {
     const source = await readFile(path, 'utf8');
     assert.match(source,
       /wayfarer\.showAlert\('danger', 'Failed to load detailed statistics\. Please try again\.'\)/);
@@ -35,6 +36,7 @@ test('both Timeline views use the Wayfarer alert for detailed-statistics failure
 
 // Execute the production renderer in isolation from map/network bootstrapping.
 const render = async (path, stats) => {
+  if (path.endsWith('calendar-display.js')) return renderPrivateStatistics({ statistics: stats, endpoints: [] }, 'period', 'capture');
   const source = await readFile(path, 'utf8');
   const start = source.indexOf('const generateStatsModalContent =');
   const end = source.indexOf('\n};', start) + 3;
@@ -84,4 +86,14 @@ test('both production renderers place missing parents once and encode geographic
     assert.ok(orphanOnly.includes('Countries (0)'), path);
   }
   assert.equal(JSON.stringify(stats), original);
+});
+
+// The private renderer resolves clocks by geographic endpoint identity, never an averaged representative coordinate.
+test('private geographic endpoints retain different capture clocks at the same event instant', () => {
+  const clock = local => ({ status: 'available', local, zoneId: 'qualified', offsetSeconds: 0 });
+  const stats = { totalLocations: 2, countries: ['A', 'B'].map(name => ({ name, visitCount: 1, firstVisit: 'same', lastVisit: 'same' })), regions: [], cities: [] };
+  const response = { statistics: stats, endpoints: ['A', 'B'].map((country, index) => ({ kind: 'country', country, region: '', place: '', first: true, last: true,
+    eventUtc: 'same', captureTime: clock(index ? '2026-05-18T01:00' : '2026-05-17T23:00'), viewerTime: clock('2026-05-18T00:00') })) };
+  const html = renderPrivateStatistics(response, 'selected period', 'capture');
+  assert.match(html, /2026-05-17 23:00/); assert.match(html, /2026-05-18 01:00/);
 });

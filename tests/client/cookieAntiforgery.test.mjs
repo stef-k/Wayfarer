@@ -89,7 +89,7 @@ test('JSON location and visit deletions send tokens on every modal and bulk path
 
 test('every per-row Location deletion uses the protected owner instead of a bare-ID bulk bypass', async () => {
     for (const path of ['Areas/User/Location/Index.js', 'Areas/User/Location/AllLocations.js',
-        'Areas/User/Timeline/Index.js', 'Areas/User/Timeline/Chronological.js']) {
+        'Areas/User/Timeline/Index.js', 'Areas/User/Timeline/calendar-detail.js']) {
         const text = await source(path);
         assert.match(text, /prepareLocationDeletion\(/, path);
         assert.match(text, /deleteProtected\(\)/, path);

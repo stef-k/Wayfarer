@@ -36,8 +36,28 @@ public sealed class TimelineCalendarController(ApplicationDbContext db, IDataPro
     [HttpGet("analysis")]
     public Task<IActionResult> Analysis(CancellationToken token) => ReadAsync("analysis", token);
 
+    /// <summary>Private body-based period reads never put filter values in request URLs.</summary>
+    [HttpPost("period"), ValidateAntiForgeryToken]
+    public Task<IActionResult> PeriodPost(CancellationToken token) => ReadAsync("period", token, true);
+
+    /// <summary>Filtered geographic drill-down uses the same antiforgery and owner boundary.</summary>
+    [HttpPost("statistics"), ValidateAntiForgeryToken]
+    public Task<IActionResult> StatisticsPost(CancellationToken token) => ReadAsync("statistics", token, true);
+
+    /// <summary>Full owner-source analysis retains excluded intermediates.</summary>
+    [HttpPost("analysis"), ValidateAntiForgeryToken]
+    public Task<IActionResult> AnalysisPost(CancellationToken token) => ReadAsync("analysis", token, true);
+
+    /// <summary>Compact known records reuse the existing protected continuation protocol.</summary>
+    [HttpPost("records"), ValidateAntiForgeryToken]
+    public Task<IActionResult> RecordsPost(CancellationToken token) => ReadAsync("records", token, true);
+
+    /// <summary>On-demand whole-month marks remain independent of selected-range membership.</summary>
+    [HttpPost("availability"), ValidateAntiForgeryToken]
+    public Task<IActionResult> AvailabilityPost(CancellationToken token) => ReadAsync("availability", token, true);
+
     /// <summary>Owns one nonwaiting shared permit through complete buffered serialization and bounded snapshot cleanup.</summary>
-    private async Task<IActionResult> ReadAsync(string operation, CancellationToken disconnect)
+    private async Task<IActionResult> ReadAsync(string operation, CancellationToken disconnect, bool form = false)
     {
         Response.OnStarting(() => { Response.Headers.CacheControl = "no-store"; return Task.CompletedTask; });
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(disconnect);
@@ -55,8 +75,18 @@ public sealed class TimelineCalendarController(ApplicationDbContext db, IDataPro
                 Response.Headers.RetryAfter = "5";
                 throw new HistoryRequestException(status == 429 ? "historyOwnerAdmissionExceeded" : "historyAdmissionUnavailable", status);
             }
-            var scope = TimelineCalendarScope.Parse(Request.Query, operation == "analysis", SystemClock.Instance.GetCurrentInstant(), db.HistoryEnvironment);
-            var (rules, geometry) = TimelineConnectionRules.Parse(Request.Query);
+            IQueryCollection values = Request.Query;
+            if (form)
+            {
+                if (Request.Query.Count != 0 || !Request.HasFormContentType
+                    || !Request.ContentType!.StartsWith("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
+                    throw new HistoryRequestException("parametersInvalid");
+                var body = await Request.ReadFormAsync(token);
+                values = new QueryCollection(body.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
+            }
+            var scope = form ? TimelineCalendarScope.ParsePost(values, operation, SystemClock.Instance.GetCurrentInstant(), db.HistoryEnvironment)
+                : TimelineCalendarScope.Parse(values, operation == "analysis", SystemClock.Instance.GetCurrentInstant(), db.HistoryEnvironment);
+            var (rules, geometry) = TimelineConnectionRules.Parse(values);
             var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
             var failed = false;
             try
@@ -71,6 +101,8 @@ public sealed class TimelineCalendarController(ApplicationDbContext db, IDataPro
                 {
                     "period" => await reads.PeriodAsync(owner, scope, asOf, token),
                     "statistics" => await reads.DetailsAsync(owner, scope, asOf, token),
+                    "records" => await reads.RecordsAsync(owner, scope, new HistoryCursor(protection), asOf, token),
+                    "availability" => await reads.AvailabilityAsync(owner, scope, asOf, token),
                     _ => await reads.AnalysisAsync(owner, scope, rules, geometry, asOf, token)
                 };
                 token.ThrowIfCancellationRequested();
@@ -96,6 +128,10 @@ public sealed class TimelineCalendarController(ApplicationDbContext db, IDataPro
     }
 
     /// <summary>Fixed diagnostics contain no private source, query, identifier, credentials or database text.</summary>
-    private ObjectResult Failure(int status, string code) => StatusCode(status, new { code,
-        message = status == 400 ? "Invalid calendar parameters." : "Calendar read unavailable; retain the selected scope and retry deliberately." });
+    private ObjectResult Failure(int status, string code)
+    {
+        if (status == 503) Response.Headers.RetryAfter = "5";
+        return StatusCode(status, new { code,
+            message = status == 400 ? "Invalid calendar parameters." : "Calendar read unavailable; retain the selected scope and retry deliberately." });
+    }
 }

@@ -42,13 +42,39 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
         return result;
     }
 
+    /// <summary>Reuse compact history publication and protected value anchors under explicit cookie authority.</summary>
+    internal async Task<object> RecordsAsync(string owner, TimelineCalendarScope scope, HistoryCursor cursors,
+        DateTime asOf, CancellationToken token)
+    {
+        var page = (Dictionary<string, object?>)await new HistoryReadService(db, cursors).PageAsync(owner, scope.Query, token);
+        var result = Envelope(owner, scope, asOf);
+        result["items"] = page["items"]; result["nextContinuation"] = page["nextContinuation"];
+        result["order"] = HistoryCursor.Order; result["consistency"] = "live-request";
+        return result;
+    }
+
+    /// <summary>Aggregate whole-month definite dates, including unmapped viewer matches; uncertainty is conservative.</summary>
+    internal async Task<object> AvailabilityAsync(string owner, TimelineCalendarScope scope, DateTime asOf, CancellationToken token)
+    {
+        var predicate = new HistoryPredicate(owner, scope.Query, token);
+        var counts = await CountsAsync(predicate, token);
+        var dates = await db.Database.SqlQueryRaw<string>($"""
+            SELECT DISTINCT ({predicate.MembershipDate})::text AS "Value" FROM "Locations" l
+            WHERE {predicate.Where} AND {predicate.Matches} ORDER BY "Value"
+            """, predicate.CopyParameters()).ToArrayAsync(token);
+        var result = Envelope(owner, scope, asOf);
+        result["displayedMonth"] = scope.Date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        result["presentDates"] = dates; result["hasUnresolvedCandidates"] = counts.Candidates > 0;
+        return result;
+    }
+
     /// <summary>Every finite event in the envelope is streamed directly through Npgsql, bypassing EF retry buffering.</summary>
     internal async Task<object> AnalysisAsync(string owner, TimelineCalendarScope scope, TimelineConnectionRules rules,
         bool geometry, DateTime asOf, CancellationToken token)
     {
         var predicate = new HistoryPredicate(owner, scope.Query, token);
         var invalid = await db.Database.SqlQueryRaw<bool>($"""
-            SELECT EXISTS (SELECT FROM "Locations" l WHERE {predicate.Where} AND NOT ({HistoryPredicate.EventValid})) AS "Value"
+            SELECT EXISTS (SELECT FROM "Locations" l WHERE {predicate.OwnerWhere} AND NOT ({HistoryPredicate.EventValid})) AS "Value"
             """, predicate.CopyParameters()).SingleAsync(token);
         var reducer = new TimelineConnections(rules, geometry && !invalid);
         await using (var command = Command(SourceSql(predicate), predicate))
@@ -64,6 +90,7 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
         var analysis = reducer.Finish(invalid);
         var result = Envelope(owner, scope, asOf);
         result["contract"] = "stored-history-connections/1";
+        if (scope.Extended) result["calendarContract"] = "private-calendar/2";
         result["source"] = "effective-stored-owner-history"; result["unplaceableEventExists"] = invalid;
         result["rules"] = new { maximumGapSeconds = rules.MaximumGapSeconds,
             speedEnabled = rules.MaximumSpeedMetresPerSecond != null, maximumSpeedMetresPerSecond = rules.MaximumSpeedMetresPerSecond,
@@ -82,10 +109,10 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
 
     /// <summary>No Matches filter, paging, tie cap or capture-local index narrowing may enter this continuity source.</summary>
     internal static string SourceSql(HistoryPredicate predicate) => $"""
-        SELECT l."Id",l."LocalTimestamp",{predicate.Truth},
+        SELECT l."Id",l."LocalTimestamp",{predicate.FullTruth},
             CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Longitude} END,
             CASE WHEN {HistoryPredicate.PositionValid} THEN {HistoryPredicate.Latitude} END
-        FROM "Locations" l WHERE {predicate.Where} AND ({HistoryPredicate.EventValid}) AND {predicate.EventEnvelope}
+        FROM "Locations" l WHERE {predicate.OwnerWhere} AND ({HistoryPredicate.EventValid}) AND {predicate.EventEnvelope}
         ORDER BY l."LocalTimestamp",l."Id"
         """;
 
@@ -138,13 +165,20 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
     }
 
     /// <summary>Each independent operation discloses one response snapshot and the same canonical scope/rules authority.</summary>
-    private Dictionary<string, object?> Envelope(string owner, TimelineCalendarScope scope, DateTime asOf) => new()
+    private Dictionary<string, object?> Envelope(string owner, TimelineCalendarScope scope, DateTime asOf)
     {
-        ["contract"] = "private-calendar/1", ["subjectId"] = owner, ["selection"] = scope.Selection, ["scope"] = scope.Query.Scope,
-        ["timeRules"] = new { version = LocationHistoryDerivation.TimeVersion, tzdb = db.HistoryEnvironment.Tzdb },
-        ["observationId"] = Guid.NewGuid().ToString("D"), ["asOfUtc"] = HistoryQuery.Utc(asOf),
-        ["consistency"] = "response-snapshot", ["freshness"] = "current-at-observation"
-    };
+        var result = new Dictionary<string, object?>
+        {
+            ["contract"] = scope.Extended ? "private-calendar/2" : "private-calendar/1", ["subjectId"] = owner,
+            ["selection"] = scope.Selection, ["scope"] = scope.Query.Scope,
+            ["timeRules"] = new { version = LocationHistoryDerivation.TimeVersion, tzdb = db.HistoryEnvironment.Tzdb },
+            ["observationId"] = Guid.NewGuid().ToString("D"), ["asOfUtc"] = HistoryQuery.Utc(asOf),
+            ["consistency"] = "response-snapshot", ["freshness"] = "current-at-observation"
+        };
+        if (scope.Extended) result["matchingRules"] = new { interpretation = HistoryCursor.Rules,
+            textVersion = scope.Query.Scope.Q.Length > 0 ? LocationHistoryDerivation.TextVersion : null };
+        return result;
+    }
 
     private static object Counts(TimelineCalendarCounts counts) => new { knownMatches = Count(counts.Known),
         mappedMatches = Count(counts.Mapped), unmappedMatches = Count(counts.Known - counts.Mapped), unresolvedCandidates = Count(counts.Candidates) };
