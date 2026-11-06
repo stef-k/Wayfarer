@@ -63,8 +63,9 @@
     </section>
 </div>
 
-@* Query dialogs own only their labelled drafts. Protected mutation and connection drafts have independent owners. *@
-<div class="modal fade" id="dateDialog" tabindex="-1" aria-labelledby="dateDialogTitle">
+@* Immediate Bootstrap transitions let quick activation close and return focus deterministically.
+   Query dialogs own only their labelled drafts. Protected mutation and connection drafts have independent owners. *@
+<div class="modal" id="dateDialog" tabindex="-1" aria-labelledby="dateDialogTitle">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><h2 class="modal-title fs-5" id="dateDialogTitle">Choose period</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel date selection"></button></div>
         <div class="modal-body">
@@ -95,7 +96,7 @@
         <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyRange" class="btn btn-primary" hidden>Apply range</button></div>
     </div></div>
 </div>
-<div class="modal fade" id="filtersDialog" tabindex="-1" aria-labelledby="filtersDialogTitle">
+<div class="modal" id="filtersDialog" tabindex="-1" aria-labelledby="filtersDialogTitle">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><h2 id="filtersDialogTitle" class="modal-title fs-5">Filters</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel filters"></button></div>
         <div class="modal-body">
@@ -114,7 +115,7 @@
         <div class="modal-footer"><button id="clearFilters" class="btn btn-outline-danger">Clear filters</button><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyFilters" class="btn btn-primary">Apply filters</button></div>
     </div></div>
 </div>
-<div class="modal fade" id="basisDialog" tabindex="-1" aria-labelledby="basisDialogTitle">
+<div class="modal" id="basisDialog" tabindex="-1" aria-labelledby="basisDialogTitle">
     <div class="modal-dialog"><div class="modal-content">
         <div class="modal-header"><h2 id="basisDialogTitle" class="modal-title fs-5">Calendar basis</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel calendar basis"></button></div>
         <div class="modal-body">
@@ -127,7 +128,7 @@
         <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyBasis" class="btn btn-primary">Apply basis</button></div>
     </div></div>
 </div>
-<div class="modal fade" id="rulesDialog" tabindex="-1" aria-labelledby="rulesDialogTitle" data-bs-backdrop="static">
+<div class="modal" id="rulesDialog" tabindex="-1" aria-labelledby="rulesDialogTitle" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><h2 id="rulesDialogTitle" class="modal-title fs-5">Connections &amp; distance</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close connection rules"></button></div>
         <div class="modal-body">
@@ -149,7 +150,7 @@
 {
     var title = kind == "location" ? "Location details" : "Geographic statistics";
     var contentId = kind == "location" ? "modalContent" : "statsModalContent";
-    <div class="modal fade" id="@(kind)Modal" tabindex="-1" aria-labelledby="@(kind)ModalLabel" data-bs-backdrop="static">
+    <div class="modal" id="@(kind)Modal" tabindex="-1" aria-labelledby="@(kind)ModalLabel" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered"><div class="modal-content">
             <div class="modal-header text-bg-primary"><h2 class="modal-title fs-5" id="@(kind)ModalLabel">@title</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body"><div id="@contentId"></div></div>

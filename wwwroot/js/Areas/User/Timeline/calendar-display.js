@@ -1,4 +1,4 @@
-import { isoDate, periodBounds, horizonDate } from './calendar-scope.js';
+import { isoDate, periodBounds, horizonDate, moveSelection, validateSelection } from './calendar-scope.js';
 import { encode, clockText } from './calendar-detail.js';
 import { renderStatistics } from './statistics.js';
 /** Actual endpoint IDs disambiguate equal event times across different recorded-location zones. */
@@ -22,6 +22,14 @@ export const createCalendarDisplay = (owner, mapView, detail) => {
         document.getElementById('calendarCaption').textContent = `${selection.dateType} · ${selection.timeBasis === 'capture' ? 'Recorded-location calendar' : 'My time zone'} · frozen viewer ${selection.viewerZone}${selection.weekStartsOn ? ' · frozen week start ' + selection.weekStartsOn : ''}${through > horizonDate(selection, owner.maximumOffset) ? ' · Includes dates after the browsing horizon; results use the full range.' : ''}`;
         document.getElementById('previousPeriod').textContent = selection.dateType === 'custom' ? 'Previous range' : `Previous ${selection.dateType}`;
         document.getElementById('nextPeriod').textContent = selection.dateType === 'custom' ? 'Next range' : `Next ${selection.dateType}`;
+        for (const button of document.querySelectorAll('#previousPeriod, #nextPeriod, [data-jump]')) {
+            const sameUnit = !button.dataset.jump;
+            const direction = button.dataset.direction ? Number(button.dataset.direction) : button.id === 'previousPeriod' ? -1 : 1;
+            try {
+                validateSelection(moveSelection(selection, sameUnit ? selection.dateType : button.dataset.jump, direction, sameUnit), owner.maximumOffset);
+                button.disabled = owner.authEnded === true; button.title = sameUnit ? 'Move the full selected period' : 'Shift the retained civil anchor';
+            } catch (failure) { button.disabled = true; button.title = failure.message; }
+        }
         const period = state.period;
         document.getElementById('timeline-summary').textContent = period
             ? `${period.counts.knownMatches} known · ${period.counts.mappedMatches} mapped · ${period.counts.unmappedMatches} without map position · ${period.counts.unresolvedCandidates} unresolved candidates · ${period.markers.length} map markers${period.markersSampled ? ' (sampled: newest five per geohash-5 cell, up to 3,000)' : ''} · Countries ${period.statistics.countriesVisited} · Regions ${period.statistics.regionsVisited} · Cities ${period.statistics.citiesVisited} · ${state.status.period} · as of ${period.asOfUtc}`

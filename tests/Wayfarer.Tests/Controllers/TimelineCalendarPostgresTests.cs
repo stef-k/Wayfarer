@@ -225,6 +225,7 @@ public sealed partial class TimelineCalendarPostgresTests(PostgresMigrationTestF
             await MeasurePhasesAsync(owner.Id, query);
             await PlanAsync(owner.Id, query);
         }
+        await ObserveW2CostAsync(owner.Id);
     }
 
     /// <summary>Separate admitted-service work from complete serialization using the same reusable relational fixture.</summary>

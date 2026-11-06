@@ -128,6 +128,10 @@ public sealed class TimelineCalendarController(ApplicationDbContext db, IDataPro
     }
 
     /// <summary>Fixed diagnostics contain no private source, query, identifier, credentials or database text.</summary>
-    private ObjectResult Failure(int status, string code) => StatusCode(status, new { code,
-        message = status == 400 ? "Invalid calendar parameters." : "Calendar read unavailable; retain the selected scope and retry deliberately." });
+    private ObjectResult Failure(int status, string code)
+    {
+        if (status == 503) Response.Headers.RetryAfter = "5";
+        return StatusCode(status, new { code,
+            message = status == 400 ? "Invalid calendar parameters." : "Calendar read unavailable; retain the selected scope and retry deliberately." });
+    }
 }

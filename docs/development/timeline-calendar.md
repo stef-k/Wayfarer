@@ -1,10 +1,76 @@
-# Private Timeline calendar backend (#953 W1)
+# Private Timeline calendar (#953 W1/W2)
 
-W1 adds explicit private calendar reads; it does not enable the new browser
-experience. W2 owns selector/URL/preferences, all publication fences, controls,
-independent summary/path refresh, protected edit return and browser acceptance.
-There is no feature flag, new migration, provider call, read repair or text-generation
-prerequisite. Release/deployment and mobile delivery remain separate.
+The private chronological page uses the accepted W2 calendar, filter/record reads,
+independent summary/path and tab restoration. W1 GET wire remains available and
+unchanged for its original day/month/year unfiltered consumers. No feature flag,
+migration, provider call, cache, worker or read repair is introduced. Nonempty search
+requires existing text qualification/preparation; ordinary reads do not. Release,
+deployment, mobile and independent final review remain separate authorities.
+
+## W2 private transport and page ownership
+
+All five operations have explicit antiforgery-protected cookie POST actions:
+`period`, `statistics`, `analysis`, `records`, `availability` below
+`/User/Timeline/calendar`. The browser sends form-urlencoded bodies, same-origin
+credentials and `RequestVerificationToken`, never filters in URLs. Scalar allowlists,
+duplicates, transport, 8,192-byte aggregate and HistoryQuery normalization are shared.
+POSTs reject URL queries. Only records accepts pageSize/continuation; only analysis
+accepts connection controls. Availability accepts year/month/basis/zone/non-date
+filters, and evaluates the whole month even beyond the navigation horizon.
+
+Presets require dateType/year/month/day; Week additionally requires frozen
+weekStartsOn (1=Monday…7=Sunday). Custom requires fromDate/throughDate and rejects
+preset components. Both inclusive endpoints must be in 1900–2100, From≤Through,
+and From≤basis horizon. Full Through is retained, including future dates. Availability
+uses hard bounds without the browsing horizon. Existing HistoryQuery days, serving
+offsets and capture facts own membership; no database timezone substitute is used.
+
+POST envelopes use private-calendar/2, subjectId, canonical selection/HistoryScope,
+timeRules, matchingRules (HistoryCursor.Rules and conditional textVersion), observationId,
+asOfUtc and response-snapshot. Analysis retains stored-history-connections/1 with
+calendarContract=private-calendar/2. Records reuse HistoryReadService.PageAsync and
+HistoryCursor, order eventUtc-desc,id-desc, default 100/max 500, items and
+nextContinuation. Each page discloses live-request consistency; exhaustion/dedup do
+not establish a multi-request snapshot. Availability returns whole-month selection,
+displayedMonth, sorted presentDates and conservative hasUnresolvedCandidates.
+Unmapped known viewer matches can establish presence; unknown marks never mean empty.
+
+HistoryPredicate now exposes owner-only source restriction and full three-valued
+membership. Reliable text/activity exclusion is coalesced false; analytical SQL
+restricts by owner/event/envelope only. Excluded intermediates and mixed ties remain
+barriers. Owner invalid event-time EXISTS also ignores filters: an excluded unplaceable
+row still prevents establishing adjacency. Selective filters do not reduce that source
+scan. Collections keep their existing reliable-filter restriction and membership.
+
+The concrete TimelinePage serializes period then analysis even after period failure,
+with optional records/availability/geography queued afterwards. Epoch, analysis/month
+and detail generations fence results; aborted fetches do not certify lease release.
+429/503 Retry-After is displayed for deliberate retry. The first successful response
+binds effective normalized filters and serving identities; conflicts invalidate the
+group for explicit revalidation. Matching readiness failures retain filters.
+
+The URL adapter uses viewType, public date components, basis/zone, frozen week start
+and optionally an independently random filterContext. One subject-bound versioned
+sessionStorage slot holds applied raw filters and small exact return intent only.
+Persistence/read-back precedes filter commitments. A date-only URL never adopts old
+filters; lost/foreign/malformed context blocks dependent reads pending explicit
+recovery. Record pages/results/Notes/availability are never retained there. Observed
+account/session loss clears this intent and publications, without touching protected
+Location originals/drafts/attempts. Undetected logout and browser recovery cannot
+provide immediate erasure. Rules/basis use one versioned whole localStorage preference
+per origin/subject; rule draft precision is independent of display units and queries.
+
+Calendar dialogs use immediate Bootstrap transitions so activation during opening
+can close deterministically and return focus. Keyboard movement browses only; Day/Week
+activation commits directly. Custom and filters each own Apply/Cancel. Query editors
+exclude one another. Shared protected Location activity/form/delete owners remain the
+only write authority; marker/page arrays never authorize mutations. Geographic first/
+last clocks resolve actual normalized hierarchy endpoint identities, including ties.
+
+Production request timing logs method/path only. Controller errors log fixed type,
+never body/scope/SQL parameters. EF sensitive-data logging is not enabled. The
+routed privacy assertion and managed-host log check qualify the exercised paths,
+not arbitrary external proxy/analytics infrastructure.
 
 ## Routes and scope
 
@@ -29,7 +95,7 @@ history membership. `timeRules` identifies serving time semantics/TZDB.
 `subjectId`, response-local `observationId`, `asOfUtc` and `consistency=response-snapshot`
 attribute one read-only repeatable-read observation. `freshness=current-at-observation`
 is an as-of statement, not a sync token, global revision or continuing-currentness
-promise. Separate responses do not share a snapshot. W2 must fence the entire
+promise. Separate responses do not share a snapshot. The page fences the entire
 publication group and revalidate conflicting serving rules.
 
 Navigation returns viewer-zone Today, the basis-specific horizon and previous/next
@@ -47,7 +113,7 @@ Decimal-string counts distinguish definite known/mapped/unmapped matches from
 unresolved candidates. Existence is `present`, `absent` or `unknown`; candidates
 cannot prove absence. Statistics count matching unmapped records too.
 
-Day markers are unsampled. Month/year with more than 3,000 definite matches select
+Day markers are unsampled. Week/Custom/Month/Year with more than 3,000 definite matches select
 newest five per geohash-5 cell, capped at 3,000 with deterministic event/ID ties.
 Only valid positions enter markers. The shared `HistoryDetail` allowlist preserves
 rich stored fields, normalized Notes, unavailable-field reasons, canonical event
@@ -63,7 +129,7 @@ An average geographic point never supplies endpoint capture time.
 (default 7200), `speedEnabled` (default true), `maximumSpeedMetresPerSecond`
 (default 350) and `includeGeometry` (default false). Invalid/repeated/unknown
 parameters return 400 without supplied content. No additional numeric product cap
-or unit rounding applies. W2 converts explicit hours/minutes/km/h edits once and
+or unit rounding applies. The page converts explicit hours/minutes/km/h edits once and
 preserves untouched canonical precision.
 
 The contract is `stored-history-connections/1`, source
@@ -104,11 +170,11 @@ overflow; no simplification platform or production-capacity guarantee follows.
 
 ## Resource ownership and W2 assembly
 
-All three routes share the existing nonwaiting per-process **4 global / 2 owner**
+All five POST and three legacy GET reads share the existing nonwaiting per-process **4 global / 2 owner**
 history collection pool. Selected detail retains its independent **16/4** pool;
 ingestion remains independent. Period bundling allows one ordinary period request
-plus one automatic analysis without starving that page's summary. W2 must coalesce
-and sequence refresh/detail work; deliberate excess requests receive 429/503 with
+plus one automatic analysis without starving that page's summary. The page coalesces
+and sequences refresh/detail work; deliberate excess requests receive 429/503 with
 Retry-After 5 rather than queueing.
 
 The 15-second linked evaluation budget includes route authorization, readiness,
@@ -128,14 +194,12 @@ service evaluation including read/reduction, serialization and disconnect/admiss
 Synthetic warm local Debug/TestServer results are not browser, native, deployment,
 production or universal sub-second evidence.
 
-Until W2 adopts these routes, `GetChronologicalData`, `GetChronologicalStats`,
-`GetChronologicalStatsDetailed`, `HasDataForDate` and `CheckNavigationAvailability` retain
-their existing request/response clocks and parsing. W2 replaces their browser call
-sites with explicit calendar routes and adopts qualified detail facts/captions;
-it removes that temporary browser dependency, rather than maintaining parallel UI
-owners. Legacy bearer chronology, Group, public visibility/delay/Hidden Areas and
-all-time stored-`Timestamp` statistics keep their existing contracts. All-time UI
-adoption must retain the distinct caption **All history · stored timestamps**.
+The former GetChronologicalData/GetChronologicalStats/GetChronologicalStatsDetailed/
+HasDataForDate/CheckNavigationAvailability actions retain their legacy contracts;
+the private chronological page no longer calls them. Bearer chronology, Group,
+public visibility/delay/Hidden Areas and all-time stored-Timestamp statistics keep
+their existing contracts. W2 does not reuse private results or change the all-history
+page's stored-time meaning.
 
 
 ## Focused local calibration, 5 November 2026
@@ -174,3 +238,28 @@ justify a modest faithful drawing buffer and explicit overflow behavior; they do
 not establish a universal sub-second target, production capacity or whole-page
 memory bound. Test logs/TRX and the initial failed fixture run are retained with
 the implementation handoff.
+
+## W2 implementation observations, 6 November 2026
+
+The existing 20,100-row fixture now also observes a selective literal phrase across
+analysis, compact records and whole-month availability. One warm Debug/Identity
+TestServer run measured 158.87 ms / 1,559 bytes for analysis, 117.34 ms / 14,060 bytes
+for records and 74.34 ms / 976 bytes for availability. Process allocation deltas were
+3,554,992 / 1,782,048 / 752,784 bytes respectively; these are process observations,
+not per-request memory guarantees. Actual SQL, typed synthetic parameters and natural
+EXPLAIN ANALYZE/BUFFERS plans are retained in the implementation evidence. Analysis
+still examined all 20,100 owner source rows. Selective matching is not a cheap-source
+claim. Existing shared routed tests retain cancellation/admission/deadline evidence.
+
+The first managed browser journey found fast activation could leave a transitioning
+Bootstrap picker open; immediate dialog transitions correct it. The second journey
+passed date discovery, keyboard activation/focus return and Custom commitment, then
+held visibly at filtered text readiness. The reusable guarded database had old
+history-text-1 and older TZDB activation; offline rebuild of its empty time/text
+fixture generations now independently reports both ready. No canonical user history
+was changed. The repository retry limit prevents a third environment rebuild in this
+implementation turn. Remaining Records/detail/edit-return, pan/refresh, narrow/200%
+zoom and final screenshot observations are unexecuted browser acceptance debt.
+Lower-seam tests are not relabelled as that missing journey. The draft delivery is
+not final acceptance; independent exact-head review and remaining browser evidence
+must reconcile the entire accepted contract before maintainer acceptance.

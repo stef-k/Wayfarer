@@ -7,7 +7,12 @@ const displayNumber = value => value === 0 || value >= 0.01 && value < 1e8 ? val
 /** Extreme finite canonical values must not display Infinity after unit conversion. */
 export const ruleDisplay = (value, factor) => {
     const converted = value / factor;
-    return Number.isFinite(converted) && converted > 0 ? displayNumber(converted) : `${value.toExponential(16)} / ${factor}`;
+    if (Number.isFinite(converted) && converted > 0) return displayNumber(converted);
+    // Scale only the scientific coefficient when the displayed unit exceeds binary64's range.
+    const [coefficient, exponent] = value.toExponential(16).split('e').map(Number);
+    const scaled = coefficient / factor;
+    const shift = Math.floor(Math.log10(scaled));
+    return `${(scaled / 10 ** shift).toFixed(10)}e${exponent + shift >= 0 ? '+' : ''}${exponent + shift}`;
 };
 export class CalendarPreferences {
     constructor(storage, subject, origin) {

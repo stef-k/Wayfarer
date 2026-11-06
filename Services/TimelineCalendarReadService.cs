@@ -165,14 +165,20 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
     }
 
     /// <summary>Each independent operation discloses one response snapshot and the same canonical scope/rules authority.</summary>
-    private Dictionary<string, object?> Envelope(string owner, TimelineCalendarScope scope, DateTime asOf) => new()
+    private Dictionary<string, object?> Envelope(string owner, TimelineCalendarScope scope, DateTime asOf)
     {
-        ["contract"] = scope.Extended ? "private-calendar/2" : "private-calendar/1", ["subjectId"] = owner, ["selection"] = scope.Selection, ["scope"] = scope.Query.Scope,
-        ["timeRules"] = new { version = LocationHistoryDerivation.TimeVersion, tzdb = db.HistoryEnvironment.Tzdb },
-        ["matchingRules"] = new { interpretation = HistoryCursor.Rules, textVersion = scope.Query.Scope.Q.Length > 0 ? LocationHistoryDerivation.TextVersion : null },
-        ["observationId"] = Guid.NewGuid().ToString("D"), ["asOfUtc"] = HistoryQuery.Utc(asOf),
-        ["consistency"] = "response-snapshot", ["freshness"] = "current-at-observation"
-    };
+        var result = new Dictionary<string, object?>
+        {
+            ["contract"] = scope.Extended ? "private-calendar/2" : "private-calendar/1", ["subjectId"] = owner,
+            ["selection"] = scope.Selection, ["scope"] = scope.Query.Scope,
+            ["timeRules"] = new { version = LocationHistoryDerivation.TimeVersion, tzdb = db.HistoryEnvironment.Tzdb },
+            ["observationId"] = Guid.NewGuid().ToString("D"), ["asOfUtc"] = HistoryQuery.Utc(asOf),
+            ["consistency"] = "response-snapshot", ["freshness"] = "current-at-observation"
+        };
+        if (scope.Extended) result["matchingRules"] = new { interpretation = HistoryCursor.Rules,
+            textVersion = scope.Query.Scope.Q.Length > 0 ? LocationHistoryDerivation.TextVersion : null };
+        return result;
+    }
 
     private static object Counts(TimelineCalendarCounts counts) => new { knownMatches = Count(counts.Known),
         mappedMatches = Count(counts.Mapped), unmappedMatches = Count(counts.Known - counts.Mapped), unresolvedCandidates = Count(counts.Candidates) };

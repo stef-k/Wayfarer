@@ -707,7 +707,7 @@ file-provider/background and phone-original retention acceptance. Deployment/sto
 qualification remains separate; backend tests provide no native or deployed evidence.
 
 
-### Private calendar backend (#953 W1)
+### Private calendar (#953 W1/W2)
 
 `TimelineCalendarTests` covers civil navigation, DST/boundaries and numerical/barrier
 reduction. `TimelineCalendarPostgresTests` uses the reusable guarded PostgreSQL
@@ -716,5 +716,10 @@ barriers/ties, owner/readiness boundaries, concurrent edits/deletes, cancellatio
 shared admission and the real deadline. Its 20,100-row fixture records natural
 source plans, routed/service/serialization costs and geometry overflow independently
 of marker sampling. Run these with affected history/statistics/Timeline and security
-inventories; no W1 browser UI was added. See [calendar contract](timeline-calendar.md)
-for the W2 adoption boundary and measured-evidence limitations.
+inventories. W2 extends that fixture for filtered barriers/ties, activity redirects,
+unknown area, known/unmapped paging, whole-month presence and actual selective-query
+plans. tests/client/timelineCalendar.test.mjs exercises the production page/preference/
+restoration owners; timelineDetailedStatistics covers actual endpoint clocks.
+The managed shared-layout selection private Timeline W2 owns one browser core journey
+with keyboard focus, Custom/filter/area, protected edit return and camera/reflow.
+See [calendar contract](timeline-calendar.md) for observation and acceptance limits.

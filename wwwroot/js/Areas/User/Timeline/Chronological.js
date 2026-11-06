@@ -32,7 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', RequestVerificationToken: document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
             body: new URLSearchParams(Object.entries(values).map(([key, value]) => [key, String(value)])) });
         if (response.redirected || response.status === 401 || response.status === 403) throw Object.assign(new Error('Session ended.'), { status: 401 });
-        const body = await response.json();
+        let body;
+        try { body = await response.json(); }
+        catch { throw new Error('Calendar response unavailable. Retain this scope and retry.'); }
         if (!response.ok) throw Object.assign(new Error('Calendar read unavailable.'), { status: response.status, code: body.code,
             retryAfter: Number(response.headers.get('Retry-After')) || null });
         return body;

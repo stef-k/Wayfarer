@@ -43,14 +43,14 @@ export const createCalendarDetail = (owner, mapView) => {
             mapView.select(record);
             const measured = key => Number.isFinite(record[key]) ? encode(record[key]) : 'Unavailable';
             const url = `/User/Location/Edit/${id}?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-            content.innerHTML = `<p class="small">Record ${id}. Detail retains this identity. Absence from the map or loaded pages can mean outside this scope, sampling or incomplete traversal; it does not establish deletion.</p>
+            content.innerHTML = `<p class="small">Record ${id} · detail as of ${encode(detail.observedAtUtc)}. Detail retains this identity. Absence from the map or loaded pages can mean outside this scope, sampling or incomplete traversal; it does not establish deletion.</p>
                 <p><strong>Datetime (your timezone):</strong><br>${encode(clockText(record.viewerTime))}</p>
                 <p><strong>Recorded local time:</strong><br>${encode(clockText(record.captureTime))}</p>
                 <p><strong>Event UTC:</strong> ${encode(record.eventUtc || 'Unavailable')}</p>
                 <p><strong>Stored timezone evidence:</strong> ${encode(record.storedTimeZoneId || 'Unavailable')}</p>
                 <p>${location.coordinates ? `Latitude: ${record.position.latitude} · Longitude: ${record.position.longitude} <button id="locateRecord" class="btn btn-sm btn-link">Locate</button>` : 'No map position'}</p>
                 ${generateActivityEditorHtml(location)}
-                <p>Altitude: ${measured('altitude')} m · Accuracy: ${measured('accuracy')} m · Speed: ${measured('speed')}</p>
+                <p>Altitude: ${measured('altitude')} m · Accuracy: ${measured('accuracy')} m · Speed: ${measured('speed')} km/h</p>
                 <div class="row">${renderLocationAddress(location)}</div>
                 ${location.coordinates ? generateWikipediaLinkHtml(location, { query: record.place || record.fullAddress }) : ''}
                 <strong>Notes:</strong><div class="border p-2 text-break">${notesHtmlForDisplay(record.notesHtml) || 'No notes available'}</div>
