@@ -22,6 +22,21 @@ Tests that opt into PostgreSQL may still skip when the guarded database is not a
 
 Mocked/InMemory/controller tests prove their own seam. They do not automatically prove PostgreSQL constraints, transactions, migrations or PostGIS behavior.
 
+## Qualified host for ordinary CI
+
+The ordinary test job and AMD64 application-image/operator host use `ubuntu-24.04`,
+matching the maintained Noble history globalization profile. Keep host execution
+explicit: `ubuntu-latest` can change its distribution and ICU independently of the
+selected .NET SDK. Container image pins do not control host-executed tests or probes.
+Other jobs that do not execute history code need no new platform pin.
+
+After building, CI runs the existing history-qualification regression before the
+ordinary suite. A failure reports the actual runtime, package identities and ICU
+sort/normalization facts, preventing a long cascade of failed writes. This checks
+the existing production contract; it adds no runtime gate or relaxed profile.
+New host profiles require the established compatibility qualification described in
+[History preparation](../maintainer/history-preparation.md), not an allowlist bypass.
+
 ## Native rich Notes editors (W1–W3)
 
 `npm run test:rich-notes` uses the installed, version-matched Playwright Chromium
