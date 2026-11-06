@@ -32,6 +32,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Manager.Groups.Create Manager.Groups.Edit Manager.Users.Create Manager.Users.DeleteConfirmed
         Manager.Users.Edit Manager.Users.ChangePassword
         User.ApiToken.Create User.ApiToken.Replace
+        User.TimelineCalendar.PeriodPost User.TimelineCalendar.StatisticsPost User.TimelineCalendar.AnalysisPost
+        User.TimelineCalendar.RecordsPost User.TimelineCalendar.AvailabilityPost
         User.Timeline.UpdateSettings User.Groups.Create User.Groups.InviteAjax User.Groups.RemoveMemberAjax
         User.Groups.RevokeInviteAjax User.HiddenAreas.Create User.HiddenAreas.Edit User.HiddenAreas.DeleteConfirmed
         User.Location.Create User.Location.Edit User.Location.BulkEditNotes

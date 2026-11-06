@@ -8,6 +8,11 @@ namespace Wayfarer.Services;
 /// <summary>One immutable private civil selection backed by the existing qualified history predicate.</summary>
 internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, HistoryQuery Query)
 {
+    /// <summary>Extended POST selections retain anchors separately from inclusive custom bounds.</summary>
+    internal bool Extended { get; init; }
+    internal int? WeekStartsOn { get; init; }
+    internal DateOnly? CustomThrough { get; init; }
+    internal static readonly string[] FilterKeys = ["q", "activityIds", "includeUnassigned", "west", "south", "east", "north"];
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     private static readonly string[] CalendarKeys = ["dateType", "year", "month", "day", "timeBasis", "viewerZone"];
     internal static readonly string[] AnalysisKeys = ["maximumGapSeconds", "speedEnabled", "maximumSpeedMetresPerSecond", "includeGeometry"];
@@ -34,6 +39,46 @@ internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, His
         return scope;
     }
 
+    /// <summary>Validate private form transport, then project into the single qualified history grammar.</summary>
+    internal static TimelineCalendarScope ParsePost(IQueryCollection values, string operation, Instant now,
+        HistoryDerivationEnvironment? environment = null)
+    {
+        var selectionKeys = operation == "availability" ? new[] { "year", "month", "timeBasis", "viewerZone" }
+            : CalendarKeys.Concat(["weekStartsOn", "fromDate", "throughDate"]).ToArray();
+        var controls = operation == "analysis" ? AnalysisKeys : operation == "records" ? ["pageSize", "continuation"] : Array.Empty<string>();
+        HistoryQuery.ValidateKeys(values, selectionKeys.Concat(FilterKeys).Concat(controls));
+        var zone = HistoryQuery.ParseZone(values["viewerZone"].FirstOrDefault());
+        var basis = values["timeBasis"].FirstOrDefault();
+        var type = operation == "availability" ? "month" : values["dateType"].FirstOrDefault();
+        if (basis is not ("capture" or "viewer") || type is not ("day" or "week" or "month" or "year" or "custom")) throw Invalid();
+        int Part(string key) => int.TryParse(values[key], NumberStyles.None, Invariant, out var n) ? n : throw Invalid();
+        DateOnly Iso(string key) => DateOnly.TryParseExact(values[key], "yyyy-MM-dd", Invariant, DateTimeStyles.None, out var d) ? d : throw Invalid();
+        var custom = type == "custom";
+        if (custom && new[] { "year", "month", "day", "weekStartsOn" }.Any(values.ContainsKey)
+            || !custom && new[] { "fromDate", "throughDate" }.Any(values.ContainsKey)
+            || type != "week" && values.ContainsKey("weekStartsOn")) throw Invalid();
+        DateOnly anchor;
+        try { anchor = custom ? Iso("fromDate") : new(Part("year"), Part("month"), operation == "availability" ? 1 : Part("day")); }
+        catch (ArgumentOutOfRangeException) { throw Invalid(); }
+        int? week = type == "week" ? Part("weekStartsOn") : null;
+        if (week is < 1 or > 7) throw Invalid();
+        var start = type == "week" ? anchor.AddDays(-(((int)anchor.DayOfWeek + 6) % 7 + 1 - week!.Value + 7) % 7) : PeriodStart(type, anchor);
+        var through = custom ? Iso("throughDate") : type == "week" ? start.AddDays(6)
+            : type == "month" ? start.AddMonths(1).AddDays(-1) : type == "year" ? start.AddYears(1).AddDays(-1) : start;
+        if (start > through || start.Year < 1900 || through.Year > 2100) throw Invalid();
+        var projected = new Dictionary<string, StringValues>(StringComparer.Ordinal)
+        {
+            ["timeBasis"] = basis, ["timeMode"] = "days", ["viewerZone"] = zone.Id,
+            ["fromDate"] = start.ToString("yyyy-MM-dd", Invariant), ["throughDate"] = through.ToString("yyyy-MM-dd", Invariant)
+        };
+        foreach (var key in FilterKeys.Concat(operation == "records" ? controls : []))
+            if (values.ContainsKey(key)) projected[key] = values[key];
+        var scope = new TimelineCalendarScope(type, anchor, HistoryQuery.Parse(new QueryCollection(projected), false, environment))
+            { Extended = true, WeekStartsOn = week, CustomThrough = custom ? through : null };
+        if (operation != "availability" && scope.Start > scope.Horizon(now)) throw Invalid();
+        return scope;
+    }
+
     /// <summary>Calendar successors are wall boundaries, never fixed elapsed days or host-local dates.</summary>
     private static TimelineCalendarScope Create(string type, DateOnly date, string basis, string zone,
         HistoryDerivationEnvironment? environment = null)
@@ -49,7 +94,8 @@ internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, His
         return new(type, date, HistoryQuery.Parse(values, false, environment));
     }
 
-    internal DateOnly Start => PeriodStart(DateType, Date);
+    internal DateOnly Start => DateOnly.FromDateTime(Query.Start);
+    internal DateOnly Through => DateOnly.FromDateTime(Query.ThroughDate);
 
     /// <summary>Viewer Today and capture's conservative latest possible date share the serving offset authority.</summary>
     internal DateOnly Horizon(Instant now) => DateOnly.FromDateTime(Query.Scope.TimeBasis == "viewer"
@@ -62,7 +108,8 @@ internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, His
         DateOnly target;
         try
         {
-            if (unit == "day") target = Date.AddDays(direction);
+            if (unit == "day" || unit == "week") target = Date.AddDays(direction * (unit == "week" ? 7 : 1));
+            else if (unit == "custom") target = Date.AddDays(direction * (Through.DayNumber - Start.DayNumber + 1));
             else
             {
                 var first = new DateOnly(Date.Year, Date.Month, 1);
@@ -71,7 +118,24 @@ internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, His
             }
         }
         catch (ArgumentOutOfRangeException) { return null; }
-        return target.Year is < 1900 or > 2100 ? null : Create(DateType, target, Query.Scope.TimeBasis, Query.Zone.Id);
+        if (target.Year is < 1900 or > 2100) return null;
+        if (!Extended) return Create(DateType, target, Query.Scope.TimeBasis, Query.Zone.Id);
+        var values = new Dictionary<string, StringValues>
+        {
+            ["dateType"] = DateType, ["year"] = target.Year.ToString(Invariant),
+            ["month"] = target.Month.ToString(Invariant), ["day"] = target.Day.ToString(Invariant),
+            ["timeBasis"] = Query.Scope.TimeBasis, ["viewerZone"] = Query.Zone.Id
+        };
+        if (WeekStartsOn != null) values["weekStartsOn"] = WeekStartsOn.Value.ToString(Invariant);
+        if (DateType == "custom")
+        {
+            values.Remove("year"); values.Remove("month"); values.Remove("day");
+            values["fromDate"] = target.ToString("yyyy-MM-dd", Invariant);
+            try { values["throughDate"] = target.AddDays(Through.DayNumber - Start.DayNumber).ToString("yyyy-MM-dd", Invariant); }
+            catch (ArgumentOutOfRangeException) { return null; }
+        }
+        try { return ParsePost(new QueryCollection(values), "period", Instant.FromUtc(2100, 12, 31, 0, 0)); }
+        catch (HistoryRequestException) { return null; }
     }
 
     /// <summary>UI navigation policy does not assert absence of future stored records.</summary>
@@ -80,12 +144,22 @@ internal sealed record TimelineCalendarScope(string DateType, DateOnly Date, His
         var horizon = Horizon(now);
         var next = Move(DateType, 1);
         return new { today = DateOnly.FromDateTime(now.InZone(Query.Zone).ToDateTimeUnspecified()), horizon,
-            previous = Move(DateType, -1)?.Selection, next = next != null && next.Start <= PeriodStart(DateType, horizon) ? next.Selection : null };
+            previous = Move(DateType, -1)?.Selection, next = next != null && next.Start <= (Extended ? horizon : PeriodStart(DateType, horizon)) ? next.Selection : null };
     }
 
     /// <summary>Echo the selected civil components and canonical frozen zone separately from predicate boundaries.</summary>
-    internal object Selection => new { dateType = DateType, year = Date.Year, month = Date.Month, day = Date.Day,
-        timeBasis = Query.Scope.TimeBasis, viewerZone = Query.Zone.Id };
+    internal object Selection
+    {
+        get
+        {
+            var value = new Dictionary<string, object?> { ["dateType"] = DateType,
+                ["timeBasis"] = Query.Scope.TimeBasis, ["viewerZone"] = Query.Zone.Id };
+            if (DateType == "custom") { value["fromDate"] = Date.ToString("yyyy-MM-dd", Invariant); value["throughDate"] = CustomThrough?.ToString("yyyy-MM-dd", Invariant); }
+            else { value["year"] = Date.Year; value["month"] = Date.Month; value["day"] = Date.Day; }
+            if (WeekStartsOn != null) value["weekStartsOn"] = WeekStartsOn;
+            return value;
+        }
+    }
 
     private static DateOnly PeriodStart(string type, DateOnly date) => type == "year" ? new(date.Year, 1, 1)
         : type == "month" ? new(date.Year, date.Month, 1) : date;

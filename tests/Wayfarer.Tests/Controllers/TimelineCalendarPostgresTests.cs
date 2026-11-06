@@ -24,7 +24,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Real cookie-authorized PostgreSQL calendar reads, continuity, readiness, isolation and resource observations.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class TimelineCalendarPostgresTests(PostgresMigrationTestFixture fixture, ITestOutputHelper output)
+public sealed partial class TimelineCalendarPostgresTests(PostgresMigrationTestFixture fixture, ITestOutputHelper output)
     : TestBase, IClassFixture<PostgresMigrationTestFixture>
 {
     private const string Route = "/User/Timeline/calendar/";
