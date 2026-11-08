@@ -176,14 +176,61 @@ over roughly eight minutes or threatens its existing 30-minute job timeout.
 
 Never point guarded fixtures at the normal `wayfarer` development database or at production. The fixtures validate the database name and use separate disposable schemas/databases where a test requires destructive migration ownership.
 
-On Linux/WSL, attach a privately stored connection to the test process without committing or echoing it:
+On Linux/WSL, reuse a privately stored connection rather than creating a database
+for each agent, checkout or browser run. The conventional workstation location is
+`~/.config/wayfarer/test-postgres.env`, owned by the developer with mode `0600`
+inside a private directory. Its contents export the existing guarded variable:
 
 ~~~sh
-export WAYFARER_TEST_POSTGRES_CONNECTION='Host=localhost;Port=5432;Database=wayfarer_import_tests;Username=...;Password=...'
+export WAYFARER_TEST_POSTGRES_CONNECTION='Host=127.0.0.1;Port=5432;Database=wayfarer_import_tests;Username=wayfarer_tests;Password=...'
+~~~
+
+Keep the actual secret outside Git, logs and handoffs. Before provisioning, inspect
+the current environment and this private file without printing their values. Load
+the same connection in every checkout and installer/test process that needs it:
+
+~~~sh
+source ~/.config/wayfarer/test-postgres.env
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'Category!=RequiresSpatialite&Category!=RequiresPlaywright'
 ~~~
 
 On Windows, the same variable can be stored at user scope and copied into the current process before the test run.
+
+For a new Linux workstation, inspect the existing PostgreSQL 18 service and whether
+`wayfarer_import_tests` already exists before creating anything. Reuse an existing
+authorized test authority; do not reset shared passwords, alter authentication,
+create another cluster or point fixtures at a migrated application database merely
+because this connection is missing. If it is absent, the local database
+administrator can create the dedicated role/database and install the extensions:
+
+~~~sql
+CREATE ROLE wayfarer_tests LOGIN NOSUPERUSER NOCREATEROLE CREATEDB NOREPLICATION
+    PASSWORD 'replace-with-a-private-generated-secret';
+CREATE DATABASE wayfarer_import_tests OWNER wayfarer_tests;
+\connect wayfarer_import_tests
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+~~~
+
+Use local administrator authentication (for example, `sudo -u postgres psql -X`)
+for that one-time provisioning, then save the resulting connection in the private
+file above. Never change an existing role's password to make this example work.
+The test role owns only its test database and is not the application identity.
+`CREATEDB` supports fixture-owned disposable databases; it does not permit installing
+untrusted PostGIS into them. Migration-history fixtures that create fresh databases
+and install PostGIS still require a separately authorized isolated administrative
+test service. Do not claim those fixtures are qualified by this owner-only setup.
+
+Build the intended source under its admitted runtime, then use its existing offline
+`database migrate` and `database seed` commands with
+`ConnectionStrings__DefaultConnection` set to the guarded connection. These maintain
+EF/Quartz, history generations and reference ActivityTypes without starting a host
+or creating the legacy administrator. Confirm `history-data status both` reports
+both generations Qualified and Ready before managed browser execution. The existing
+supervisor owns per-run accounts, private keys/storage, host and cleanup; do not
+replace it with a second fixture or manual login. Keep this persistent database,
+private connection and reusable Playwright cache when removing disposable runs.
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
