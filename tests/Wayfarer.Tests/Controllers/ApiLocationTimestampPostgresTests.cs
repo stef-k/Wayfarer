@@ -28,9 +28,9 @@ public sealed class ApiLocationTimestampPostgresTests(PostgresImportTestFixture 
     {
         foreach (var sample in new[]
         {
-            (Text: "2026-08-22T10:00:00+02:00", Kind: DateTimeKind.Local, Hour: 8),
+            (Text: "2026-08-22T10:00:00+02:00", Kind: DateTimeKind.Utc, Hour: 8),
             (Text: "2026-08-22T08:00:00Z", Kind: DateTimeKind.Utc, Hour: 8),
-            (Text: "2026-08-22T03:00:00-05:00", Kind: DateTimeKind.Local, Hour: 8),
+            (Text: "2026-08-22T03:00:00-05:00", Kind: DateTimeKind.Utc, Hour: 8),
             (Text: "2026-08-22T10:00:00", Kind: DateTimeKind.Unspecified, Hour: 7),
             (Text: "2026-03-29T03:30:00", Kind: DateTimeKind.Unspecified, Hour: -1),
             (Text: "2026-10-25T03:30:00", Kind: DateTimeKind.Unspecified, Hour: -1)

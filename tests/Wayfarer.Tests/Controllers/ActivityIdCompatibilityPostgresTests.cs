@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -8,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Tests.Mocks;
@@ -44,6 +46,9 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
                 services.RemoveAll<ApplicationDbContext>();
                 services.AddScoped(_ => fixture.CreateContext());
                 services.AddControllers().AddControllersAsServices();
+                var settings = new Mock<IApplicationSettingsService>();
+                settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
+                services.AddSingleton(settings.Object);
                 services.AddTransient(provider => ApiLocationAdmissionTests.Controller(provider.GetRequiredService<ApplicationDbContext>(), new ApiWorkAdmission(64, 8)));
                 services.AddTransient(provider => new OwnerLocationController(NullLogger<BaseController>.Instance, provider.GetRequiredService<ApplicationDbContext>(),
                     new ReverseGeocodingService(new HttpClient(), NullLogger<Wayfarer.Areas.Api.Controllers.BaseApiController>.Instance),
@@ -126,13 +131,17 @@ public sealed class ActivityIdCompatibilityPostgresTests(PostgresMigrationTestFi
             var noToken = await ProtectedLocationRequest.CreateAsync(client, checkId, new { activity = new { op = "clear" } });
             using var noCsrf = await noToken.SendAsync(client);
             Assert.Equal(HttpStatusCode.Forbidden, noCsrf.StatusCode);
+            var createPage = await client.GetStringAsync("/User/Location/Create");
+            string Hidden(string name) => WebUtility.HtmlDecode(Regex.Match(Regex.Match(createPage,
+                "<input[^>]*name=\"" + name + "\"[^>]*>").Value, "value=\"([^\"]*)\"").Groups[1].Value);
             var fields = new Dictionary<string, string>
             {
+                ["CreateKey"] = Hidden("CreateKey"), ["CreateIntent"] = Hidden("CreateIntent"),
                 ["__RequestVerificationToken"] = antiforgery, ["Latitude"] = "10", ["Longitude"] = "20",
                 ["SelectedActivityId"] = "102", ["LocalTimestamp"] = "2026-10-13T12:00:00", ["Notes"] = "Stale form"
             };
             using var form = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(fields));
-            Assert.Equal(HttpStatusCode.Redirect, form.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, form.StatusCode);
             var webId = await db.Locations.Where(l => l.Notes == "Stale form").Select(l => l.Id).SingleAsync();
             Assert.Equal(101, await StoredActivityAsync(webId));
             fields["Id"] = webId.ToString();

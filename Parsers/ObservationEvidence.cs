@@ -22,6 +22,10 @@ internal static class ObservationEvidence
         if (!DateTimeOffset.TryParseExact(bounded, ["yyyy-MM-dd'T'HH:mm:ssK", "yyyy-MM-dd'T'HH:mm:ss.ffffffK"],
             CultureInfo.InvariantCulture, DateTimeStyles.None, out var value)) return null;
         var utc = value.ToUniversalTime();
+        // PostgreSQL's DateTime maximum sentinel (and finer values beyond it) cannot become finite by truncation.
+        var fraction = dot < 0 ? "" : text[(dot + 1)..end];
+        if (utc.Ticks / TimeSpan.TicksPerSecond == DateTimeOffset.MaxValue.Ticks / TimeSpan.TicksPerSecond
+            && string.CompareOrdinal(fraction.PadRight(9, '0'), "999999900") >= 0) return null;
         return utc == DateTimeOffset.MinValue || utc == DateTimeOffset.MaxValue ? null : utc;
     }
 

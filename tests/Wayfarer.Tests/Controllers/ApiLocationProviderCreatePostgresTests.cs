@@ -316,6 +316,10 @@ public sealed partial class ApiLocationProviderCreatePostgresTests(PostgresImpor
                 services.RemoveAll<ApplicationDbContext>();
                 services.AddScoped(_ => fixture.CreateContext(interceptors));
                 services.AddSingleton(CredentialTestFactory.Create(protection));
+                var settings = new Mock<IApplicationSettingsService>();
+                settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
+                services.AddSingleton(settings.Object);
+                if (sse != null) services.AddSingleton(sse);
                 services.AddScoped(sp =>
                 {
                     var db = sp.GetRequiredService<ApplicationDbContext>();

@@ -39,7 +39,28 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                 const warning = document.createElement('p');
                 warning.className = 'alert alert-warning';
                 warning.setAttribute('role', 'alert');
-                warning.textContent = 'Your session changed. This attempt remains bound to its original account. Sign in to that account before recovering it; keep this page open.';
+                warning.textContent = 'Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.';
+                const recheck = document.createElement('button');
+                recheck.type = 'button';
+                recheck.className = 'btn btn-outline-primary ms-2';
+                recheck.textContent = 'Recheck original account';
+                recheck.addEventListener('click', async () => {
+                    try {
+                        // Existing owner page refreshes session/antiforgery proof without allocating a create identity.
+                        const proof = await fetch('/User/Location', { credentials: 'same-origin', cache: 'no-store' });
+                        const ownerPage = new DOMParser().parseFromString(await proof.text(), 'text/html');
+                        if (!proof.ok || proof.redirected || ownerPage.getElementById('browser-antiforgery')?.dataset.subjectId !== subject) return;
+                        const csrf = ownerPage.querySelector('#browser-antiforgery input[name=__RequestVerificationToken]')?.value;
+                        if (!csrf) return;
+                        form.elements.__RequestVerificationToken.value = csrf;
+                        accountChanged = false;
+                        form.hidden = false;
+                        warning.remove();
+                        status.hidden = false;
+                        status.textContent = 'The earlier save is unconfirmed. Retry uses its original UUID and attempted values; current form changes remain unsaved.';
+                    } catch { /* Keep the private form hidden and its original attempt intact until owner proof succeeds. */ }
+                });
+                warning.append(recheck);
                 form.before(warning);
                 return;
             }

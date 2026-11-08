@@ -28,6 +28,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
         if (raw == null) return null;
         try
         {
+            Require(csv || geometry is JObject);
             var descriptor = csv ? JObject.Parse(raw.Value<string>()!, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error }) : raw as JObject;
             Require(descriptor != null);
             Require(descriptor!.Properties().All(p => p.Name is "version" or "kind" or "nullFields" or "unavailableFields" or "sourceRecord"));
@@ -59,10 +60,10 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
                 .Where(name => geometry == null || name is not ("Latitude" or "Longitude"));
             Require(required.All(values.ContainsKey));
             Require(unavailable.Count == 0); // Typed storage cannot truthfully regenerate unavailable shared input.
-            Require(!profile.NullFields.Overlaps(["TimestampUtc", "LocalTimestamp", "TimeZoneId"]));
+            Require(!profile.NullFields.Overlaps(["TimestampUtc", "LocalTimestamp", "TimeZoneId", "Latitude", "Longitude"]));
             if (kind == "effective") Require(values.ContainsKey("ActivityTypeId"));
             if (values["Activity"]?.Type == JTokenType.Null || profile.NullFields.Contains("Activity"))
-                Require(IsBlank(values["ActivityTypeId"] ?? JValue.CreateNull(), csv));
+                Require(!values.ContainsKey("ActivityTypeId") || IsBlank(values["ActivityTypeId"]!, csv));
             if (kind == "original")
             {
                 Require(values["TimeZoneId"]?.Value<string>() == "UTC");
@@ -126,7 +127,8 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
             {
                 var field = i == 0 ? "Longitude" : "Latitude";
                 ValidateValue(field, coords[i], false, [], false);
-                if (values.ContainsKey(field)) Require(values[field]!.Value<double>() == coords[i].Value<double>());
+                if (values.ContainsKey(field))
+                    Require(values[field]!.Type is JTokenType.Integer or JTokenType.Float && values[field]!.Value<double>() == coords[i].Value<double>());
             }
         }
         if (coords.Count == 3)

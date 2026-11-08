@@ -1,6 +1,6 @@
 namespace Wayfarer.Parsers;
 
-/// <summary>Carries only fixed, privacy-safe identity diagnostics from native parsers to the fenced worker.</summary>
+/// <summary>Carries only fixed, privacy-safe identity and native recovery diagnostics from native parsers to the fenced worker.</summary>
 internal sealed class LocationImportValidationException : FormatException
 {
     /// <summary>Identifies the input failure without retaining any supplied value or file information.</summary>

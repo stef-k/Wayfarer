@@ -9,6 +9,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.User.Controllers;
@@ -155,11 +156,23 @@ public partial class LocationController
         {
             try
             {
-                var current = await WebCreateLocationAsync(model.UserId!, model.CreateKey!.Value, WebLocationCreateValues.From(model));
+                var authored = WebLocationCreateValues.From(model);
+                var current = await WebCreateLocationAsync(model.UserId!, model.CreateKey!.Value, authored);
+                // Blank input can ignore provider-derived content only when the original attempt also had no manual intent.
+                var attemptedManualAddress = true;
+                try
+                {
+                    var original = JsonSerializer.Deserialize<WebLocationCreateValues>(model.AttemptedValues ?? "null", WebLocationCreateValues.Json);
+                    attemptedManualAddress = original == null || HasManualAddress(original);
+                }
+                catch (JsonException) { /* Missing comparison evidence cannot certify that current input was applied. */ }
+                var providerAddress = ResolvedFeatureMetadata.NormalizePersisted(null, null,
+                    winner.ReverseGeocodingProvider, winner.ReverseGeocodingStorageMode, winner.ReverseGeocodedAt).Provider != null;
+                var compareAddress = HasManualAddress(authored) || attemptedManualAddress || !providerAddress;
                 matches = current.Coordinates.EqualsExact(winner.Coordinates) && ObservationEvidence.Truncate(current.LocalTimestamp) == winner.LocalTimestamp
                 && current.ActivityTypeId == winner.ActivityTypeId && current.Notes == RichNotes.Normalize(winner.Notes)
                 && current.Altitude == winner.Altitude && current.Accuracy == winner.Accuracy && current.Speed == winner.Speed
-                && (!HasManualAddress(WebLocationCreateValues.From(model)) || current.Address == winner.Address && current.FullAddress == winner.FullAddress
+                && (!compareAddress || current.Address == winner.Address && current.FullAddress == winner.FullAddress
                     && current.AddressNumber == winner.AddressNumber && current.StreetName == winner.StreetName && current.PostCode == winner.PostCode
                     && current.Place == winner.Place && current.Region == winner.Region && current.Country == winner.Country);
             }

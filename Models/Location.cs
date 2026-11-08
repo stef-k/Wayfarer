@@ -14,7 +14,7 @@ namespace Wayfarer.Models
         // Server-side timestamp (UTC) when the location was logged
         public DateTime Timestamp { get; set; }
 
-        // Local timestamp transmitted from the gps app when the location was logged
+        // Effective event instant in UTC; independent of the exact original phone wall-clock text below.
         public DateTime LocalTimestamp { get; set; }
 
         /// <summary>

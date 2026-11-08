@@ -27,8 +27,8 @@ public sealed class CaptureTimestampJsonConverter : JsonConverter<DateTime>
         var text = reader.GetString()!;
         if (ObservationEvidence.ReadInstant(text) is { } instant)
         {
-            // Keep the existing DateTime Kind contract for numeric-offset clients.
-            return text.EndsWith('Z') ? instant.UtcDateTime : instant.UtcDateTime.ToLocalTime();
+            // Binding explicit instants as UTC avoids host-zone clamping at finite calendar boundaries.
+            return instant.UtcDateTime;
         }
         if (text.EndsWith('Z') || text.Length > 19 && (text[^6] is '+' or '-'))
             throw new JsonException("Invalid capture instant.");
@@ -40,5 +40,7 @@ public sealed class CaptureTimestampJsonConverter : JsonConverter<DateTime>
 
     /// <summary>Uses the shared instant representation on output.</summary>
     public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) =>
-        writer.WriteStringValue(ObservationEvidence.Format(new DateTimeOffset(value.ToUniversalTime())));
+        writer.WriteStringValue(value.Kind == DateTimeKind.Unspecified
+            ? value.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff", System.Globalization.CultureInfo.InvariantCulture)
+            : ObservationEvidence.Format(new DateTimeOffset(value.ToUniversalTime())));
 }

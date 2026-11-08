@@ -65,6 +65,11 @@ public sealed partial class LocationCoordinatesPostgresTests
             Assert.Equal(0, value.Altitude); Assert.Equal(0, value.Speed); Assert.Equal(0, value.Bearing); Assert.False(value.IsUserInvoked);
             Assert.Equal("<p>Web correction</p>", value.Notes);
         }
+        // New original facts participate in raw deletion consent even though effective editors cannot alter them.
+        var oldDelete = await ProtectedLocationRequest.CreateAsync(client, row.Id, null);
+        await db.Locations.Where(value => value.Id == row.Id).ExecuteUpdateAsync(setters => setters.SetProperty(value => value.SubmittedAtUtc, row.SubmittedAtUtc!.Value.AddSeconds(1)));
+        using (var staleDelete = await oldDelete.SendAsync(client)) Assert.Equal(HttpStatusCode.Conflict, staleDelete.StatusCode);
+        Assert.True(await db.Locations.AnyAsync(value => value.Id == row.Id));
         // Malformed original-zone evidence is rejected at real JSON validation, never silently nulled.
         client.DefaultRequestHeaders.Authorization = new("Bearer", owner);
         client.DefaultRequestHeaders.Remove("Idempotency-Key"); client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
@@ -101,6 +106,11 @@ public sealed partial class LocationCoordinatesPostgresTests
             Assert.Contains("current form changes were not applied", html); Assert.Contains("Actual saved location", html);
             Assert.Contains("&lt;p&gt;newer", html); Assert.Contains("<p>first</p>", html); Assert.Contains("Open saved Location / Edit", html);
         }
+        // Clearing an originally manual address is an authored difference, even when every current address field is blank.
+        values["Notes"] = "<p>first</p>"; values["Address"] = "";
+        using (var cleared = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values)))
+            Assert.Contains("current form changes were not applied", await cleared.Content.ReadAsStringAsync());
+        values["Notes"] = "<p>newer Αλλαγή</p>"; values["Address"] = " Manual ";
         Assert.Equal(1, await db.Locations.CountAsync(row => row.UserId == owner));
         Assert.Equal("Manual", row.Address); Assert.Equal("web-create", row.Source); Assert.True(row.IsUserInvoked);
         Assert.Equal("manual-map", row.CoordinateOrigin); Assert.Null(row.PresenceObservedAtUtc); Assert.Null(row.ObservedAtUtc);

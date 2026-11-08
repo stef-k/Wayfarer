@@ -9,8 +9,9 @@ public class GpsLoggerLocationDto : System.ComponentModel.DataAnnotations.IValid
     public double? Latitude { get; set; }
     /// <summary>Longitude supplied by the client; explicit zero is valid, absence is not zero.</summary>
     public double? Longitude { get; set; }
+    /// <summary>Effective event instant; legacy offsetless values retain coordinate-local interpretation.</summary>
     [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.CaptureTimestampJsonConverter))]
-    public DateTime Timestamp { get; set; } // Local device time
+    public DateTime Timestamp { get; set; }
 
     /// <summary>Exact original phone local clock; independent of the effective event.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(29)]

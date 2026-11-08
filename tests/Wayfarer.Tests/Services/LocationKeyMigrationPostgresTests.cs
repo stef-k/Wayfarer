@@ -1,90 +1,108 @@
-using System.Text.Json;
+using System.Data.Common;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
-using Npgsql;
-using Wayfarer.Migrations;
+using Microsoft.Extensions.Logging.Abstractions;
+using Wayfarer.Areas.Api.Controllers;
+using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
+using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
-/// <summary>The shipped upgrade SQL runs against a session-local copy, never changing another fixture's history.</summary>
+/// <summary>Uses the normal transactional migrator in the established fixture-owned disposable database.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationKeyMigrationPostgresTests(PostgresImportTestFixture fixture)
+public sealed class LocationKeyMigrationPostgresTests(PostgresMigrationTestFixture fixture) : IClassFixture<PostgresMigrationTestFixture>
 {
-    /// <summary>Null-only random assignment is atomic, repeatable and non-destructive, including valid zero keys.</summary>
+    /// <summary>Null-only upgrade is atomic, stable on repeat/rollback, and usable by export/replay/deletion owners.</summary>
     [PostgresFact]
     public async Task NullOnlyUpgradePreservesEveryOtherValueAndRetriesAfterRollback()
     {
-        var owner = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
+        // Fixture initialization has already exercised an empty installation through the complete migration chain.
+        Assert.Empty(await db.Database.GetPendingMigrationsAsync()); Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Empty(await db.Locations.ToListAsync());
+        await db.GetService<IMigrator>().MigrateAsync("20261108172801_SharedLocationOriginalClocks");
+        var owner = await fixture.CreateUserAsync();
         var rows = new[] { Row(owner.Id, null), Row(owner.Id, null), Row(owner.Id, Guid.Empty), Row(owner.Id, Guid.NewGuid()) };
         db.Locations.AddRange(rows); await db.SaveChangesAsync();
-        var migration = new AssignStoredLocationKeys();
-        var operation = Assert.IsType<SqlOperation>(Assert.Single(migration.UpOperations));
-        Assert.False(operation.SuppressTransaction); Assert.Empty(migration.DownOperations);
-        var commands = db.GetService<IMigrationsSqlGenerator>().Generate(migration.UpOperations, db.Model);
-        await using var connection = fixture.CreateConnection(); await connection.OpenAsync();
-        await Execute("CREATE TEMP TABLE \"Locations\" (LIKE public.\"Locations\" INCLUDING ALL)");
-        try
-        {
-            // Empty installations and completed repeats do no work.
-            foreach (var command in commands) await Execute(command.CommandText);
-            await using (var copy = new NpgsqlCommand("INSERT INTO pg_temp.\"Locations\" SELECT * FROM public.\"Locations\" WHERE \"UserId\" = @owner", connection))
-            { copy.Parameters.AddWithValue("owner", owner.Id); await copy.ExecuteNonQueryAsync(); }
-            var before = await Snapshot();
-            // Inject a failure after PostgreSQL has evaluated assignment; the transaction must roll back all rows.
-            await Execute($$"""
-                CREATE FUNCTION pg_temp.reject_location_key() RETURNS trigger LANGUAGE plpgsql AS $body$
-                BEGIN IF NEW."Id" = {{rows[1].Id}} THEN RAISE EXCEPTION 'synthetic upgrade failure'; END IF; RETURN NEW; END $body$;
-                CREATE TRIGGER reject_key BEFORE UPDATE ON pg_temp."Locations" FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_location_key();
-                """);
-            await using (var failed = await connection.BeginTransactionAsync())
-            {
-                await Assert.ThrowsAsync<PostgresException>(async () =>
-                {
-                    foreach (var command in commands) await Execute(command.CommandText, failed);
-                });
-                await failed.RollbackAsync();
-            }
-            Assert.Equal(before, await Snapshot());
-            await Execute("DROP TRIGGER reject_key ON pg_temp.\"Locations\"");
-            await using (var retry = await connection.BeginTransactionAsync())
-            {
-                foreach (var command in commands) await Execute(command.CommandText, retry);
-                await retry.CommitAsync();
-            }
-            var after = await Snapshot();
-            using var a = JsonDocument.Parse(before); using var b = JsonDocument.Parse(after);
-            var prior = a.RootElement.EnumerateArray().ToArray(); var current = b.RootElement.EnumerateArray().ToArray();
-            Assert.Equal(4, current.Length);
-            for (var index = 0; index < current.Length; index++)
-                foreach (var field in prior[index].EnumerateObject().Where(p => p.Name != "IdempotencyKey"))
-                    Assert.Equal(field.Value.GetRawText(), current[index].GetProperty(field.Name).GetRawText());
-            var keys = current.Select(row => row.GetProperty("IdempotencyKey").GetGuid()).ToArray();
-            Assert.Equal(4, keys.Distinct().Count()); Assert.Equal(Guid.Empty, keys[2]); Assert.Equal(rows[3].IdempotencyKey, keys[3]);
-            foreach (var command in commands) await Execute(command.CommandText);
-            Assert.Equal(after, await Snapshot());
-            Assert.Null((await db.Locations.AsNoTracking().SingleAsync(row => row.Id == rows[0].Id)).IdempotencyKey);
-        }
-        finally { await Execute("DROP TABLE IF EXISTS pg_temp.\"Locations\"; DROP FUNCTION IF EXISTS pg_temp.reject_location_key()"); }
+        var before = await ContentAsync(db);
+        await using (var failing = fixture.CreateContext(new FailAfterAssignment()))
+            await Assert.ThrowsAsync<InvalidOperationException>(() => failing.Database.MigrateAsync());
+        Assert.Equal(before, await ContentAsync(db));
+        Assert.Equal(2, await db.Locations.CountAsync(row => row.IdempotencyKey == null));
+        Assert.Contains("20261108172840_AssignStoredLocationKeys", await db.Database.GetPendingMigrationsAsync());
+        await db.Database.MigrateAsync();
+        db.ChangeTracker.Clear();
+        var assigned = await db.Locations.AsNoTracking().OrderBy(row => row.Id).ToArrayAsync();
+        var keys = assigned.Select(row => row.IdempotencyKey).ToArray();
+        Assert.All(keys, key => Assert.NotNull(key)); Assert.Equal(4, keys.Distinct().Count());
+        Assert.Equal(Guid.Empty, keys[2]); Assert.Equal(rows[3].IdempotencyKey, keys[3]);
+        Assert.Equal(before, await ContentAsync(db));
+        await db.Database.MigrateAsync();
+        Assert.Equal(keys, await KeysAsync(db));
+        // Down removes only migration history; it must never erase identities already published to clients.
+        await db.GetService<IMigrator>().MigrateAsync("20261108172801_SharedLocationOriginalClocks");
+        Assert.Equal(keys, await KeysAsync(db));
+        await db.Database.MigrateAsync(); Assert.Equal(keys, await KeysAsync(db));
 
-        async Task Execute(string sql, NpgsqlTransaction? transaction = null)
-        { await using var command = new NpgsqlCommand(sql, connection, transaction); await command.ExecuteNonQueryAsync(); }
-        async Task<string> Snapshot()
+        var controller = new LocationExportController(db) { ControllerContext = new() { HttpContext = new DefaultHttpContext {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, owner.Id)], "test")) } } };
+        foreach (var csv in new[] { false, true })
         {
-            await using var command = new NpgsqlCommand("SELECT jsonb_agg(to_jsonb(l) ORDER BY \"Id\")::text FROM pg_temp.\"Locations\" l", connection);
-            return (string)(await command.ExecuteScalarAsync())!;
+            var file = Assert.IsType<FileStreamResult>(csv ? await controller.Csv() : await controller.GeoJson());
+            await using var stream = file.FileStream;
+            ILocationDataParser parser = csv ? new CsvLocationParser(NullLogger<CsvLocationParser>.Instance) : new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+            var published = new List<Guid?>(); await foreach (var row in parser.ParseAsync(stream, owner.Id)) published.Add(row.IdempotencyKey);
+            Assert.Equal(keys.Order(), published.Order());
         }
+        await using var current = fixture.CreateContext();
+        using var http = new HttpClient(new NoNetwork());
+        var reverse = new ReverseGeocodingService(http, NullLogger<BaseApiController>.Instance);
+        var replay = Row(owner.Id, keys[0]); replay.Notes = "must not overwrite";
+        var winner = await ApiLocationCreation.PersistAsync(current, reverse, replay, CancellationToken.None);
+        Assert.False(winner.Created); Assert.Equal(rows[0].Id, winner.Location.Id); Assert.Equal(rows[0].Notes, winner.Location.Notes);
+        await LocationDeletionFence.DeleteAsync(current, owner.Id, [rows[0].Id], null, CancellationToken.None);
+        await Assert.ThrowsAsync<LocationDeletedException>(() => ApiLocationCreation.PersistAsync(current, reverse, replay, CancellationToken.None));
+        var laterAnonymous = Row(owner.Id, null); current.Locations.Add(laterAnonymous); await current.SaveChangesAsync();
+        await current.Database.MigrateAsync();
+        Assert.Null((await current.Locations.AsNoTracking().SingleAsync(row => row.Id == laterAnonymous.Id)).IdempotencyKey);
     }
 
-    /// <summary>Two indistinguishably nearby rows remain distinct, with nontrivial independent original and derived values.</summary>
+    /// <summary>Compares every stored field, including derived and authority fields, without a hand-maintained preservation subset.</summary>
+    private static async Task<string> ContentAsync(ApplicationDbContext db) => await db.Database.SqlQuery<string>($"""
+        SELECT jsonb_agg(to_jsonb(l) - 'IdempotencyKey' ORDER BY "Id")::text AS "Value" FROM "Locations" l
+        """).SingleAsync();
+    private static Task<Guid?[]> KeysAsync(ApplicationDbContext db) => db.Locations.AsNoTracking().OrderBy(row => row.Id).Select(row => row.IdempotencyKey).ToArrayAsync();
+
+    /// <summary>Nearby distinct history, existing zero identity and independent original facts exercise real stored values.</summary>
     private static Location Row(string owner, Guid? key) => new() { UserId = owner, IdempotencyKey = key,
         Coordinates = new(23.73, 37.98) { SRID = 4326 }, TimeZoneId = "Europe/Athens", Timestamp = DateTime.UnixEpoch,
         LocalTimestamp = DateTime.UnixEpoch, Notes = "<p>History / Αθήνα</p>", Address = "", FullAddress = "independent",
         OriginalLocalTimestamp = "2026-11-08T15:00:00.123456789", OriginalTimeZoneId = "GMT+03:00", OriginalUtcOffsetSeconds = 10800,
         SubmittedAtUtc = DateTimeOffset.UnixEpoch, BatteryLevel = 0, IsCharging = false, DeviceModel = "retained" };
+
+    /// <summary>Fails after assignment executed but before migration commit/history; the ordinary migrator must roll back both.</summary>
+    private sealed class FailAfterAssignment : DbCommandInterceptor
+    {
+        public override ValueTask<int> NonQueryExecutedAsync(DbCommand command, CommandExecutedEventData data, int result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("SET \"IdempotencyKey\" = gen_random_uuid()", StringComparison.Ordinal))
+                throw new InvalidOperationException("Synthetic upgrade interruption.");
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class NoNetwork : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Replay must not contact a provider.");
+    }
 }

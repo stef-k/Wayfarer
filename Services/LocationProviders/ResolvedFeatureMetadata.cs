@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
-
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Normalizes optional provider-returned named-feature metadata at persistence boundaries.</summary>

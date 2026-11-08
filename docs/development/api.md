@@ -256,8 +256,8 @@ For both check-in and log-location, `2026-08-22T10:00:00+02:00` and
 `2026-08-22T08:00:00Z` store capture `LocalTimestamp` as `08:00Z`. An offset-free
 `2026-08-22T10:00:00` at Athens coordinates retains coordinate-local interpretation
 and stores `07:00Z`; invalid or ambiguous coordinate-local times retain their
-existing conversion error. MVC binds numeric offsets to a host-local `DateTime`
-representing the same instant; the literal offset text is not retained.
+existing conversion error. MVC normalizes numeric offsets to UTC before `DateTime` binding,
+independently of the host timezone; the literal offset text is not retained.
 `TimeZoneId` still comes from coordinates, independently of the supplied offset.
 `Timestamp` remains server receipt UTC time, separate from capture `LocalTimestamp`.
 

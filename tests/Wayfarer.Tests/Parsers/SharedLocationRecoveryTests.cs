@@ -60,6 +60,9 @@ public sealed class SharedLocationRecoveryTests : TestBase
         Assert.InRange(original.Timestamp, before, DateTime.UtcNow);
         Assert.Equal(row.LocalTimestamp, original.LocalTimestamp); Assert.Equal("GMT+03:00", original.OriginalTimeZoneId);
         Assert.Null(original.Address); Assert.Null(original.Source);
+        // The qualified original descriptor can explicitly assert an unassigned name without a source catalog ID.
+        values.Remove("ActivityTypeId"); Describe(values, "original");
+        Assert.Null(Assert.Single(await ParseAsync(values, csv)).ImportedActivityName);
     }
 
     /// <summary>Unsupported native rows never fall back to permissive imports or claim unavailable Activity meaning.</summary>
@@ -78,6 +81,7 @@ public sealed class SharedLocationRecoveryTests : TestBase
             v => v["OriginalLocalTimestamp"] = "2026-02-30T12:00:00",
             v => v["OriginalUtcOffsetSeconds"] = 64801,
             v => v["Accuracy"] = "not-a-number",
+            v => { v["Latitude"] = null; ((JArray)v["WayfarerRecovery"]!["nullFields"]!).Add("Latitude"); },
             v => v["ActivityTypeId"] = 7,
             v => ((JArray)v["WayfarerRecovery"]!["nullFields"]!).Add("Provider"),
             v => v["WayfarerRecovery"]!["unavailableFields"]!["Activity"] = "unrepresentableStoredValue"
@@ -105,6 +109,9 @@ public sealed class SharedLocationRecoveryTests : TestBase
             var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
             await Assert.ThrowsAsync<LocationImportValidationException>(async () => { await foreach (var row in parser.ParseAsync(stream, "destination")) { } });
         }
+        using var missing = new MemoryStream(Encoding.UTF8.GetBytes("{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":" + properties + "}]}"));
+        var native = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+        await Assert.ThrowsAsync<LocationImportValidationException>(async () => { await foreach (var row in native.ParseAsync(missing, "destination")) { } });
     }
 
     /// <summary>Only agreeing nonnull flat altitude permits a 3D native geometry.</summary>
