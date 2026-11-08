@@ -21,6 +21,7 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         var connectionPage = context.Request.Path.StartsWithSegments("/User/ApiToken", StringComparison.OrdinalIgnoreCase);
         // Fence the original private route before authentication, errors or status-code re-execution.
         var path = context.Request.Path.Value ?? "";
+        var privateCalendar = context.Request.Path.StartsWithSegments("/User/Timeline/calendar", StringComparison.OrdinalIgnoreCase);
         var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
             && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase)
                 || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase))
@@ -45,7 +46,7 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
                 response.Headers.CacheControl = "no-store";
                 response.Headers.Pragma = "no-cache";
             }
-            if (privatePlanning || privatePhoto || privateGroupPhotoPage || context.Items.ContainsKey(PrivateKey))
+            if (privateCalendar || privatePlanning || privatePhoto || privateGroupPhotoPage || context.Items.ContainsKey(PrivateKey))
             {
                 response.Headers.CacheControl = "private, no-store";
                 response.Headers.Pragma = "no-cache";

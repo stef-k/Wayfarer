@@ -24,7 +24,7 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
     IOptions<JsonOptions> jsonOptions) : ControllerBase
 {
     // Separate process pools: selected detail never waits for a list or overview permit.
-    internal static ApiWorkAdmission Collections { get; } = new(4, 2);
+    internal static ApiWorkAdmission Collections => ApiWorkAdmission.HistoryCollections;
     internal static ApiWorkAdmission Details { get; } = new(16, 4);
 
     /// <summary>Returns an unsampled bounded page, or an independently paged conservative candidate inspection.</summary>
@@ -128,19 +128,7 @@ public sealed class LocationHistoryController(ApplicationDbContext db, IDataProt
             return File(bytes, "application/json; charset=utf-8");
         }
         catch { failed = true; throw; }
-        finally { await EndSnapshotAsync(transaction, failed); }
-    }
-
-    /// <summary>A disconnect must not strand a snapshot or replace the primary query/projection failure.</summary>
-    private static async Task EndSnapshotAsync(IDbContextTransaction transaction, bool failed)
-    {
-        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        Exception? error = null;
-        try { await transaction.RollbackAsync(cleanup.Token).WaitAsync(cleanup.Token); }
-        catch (Exception exception) { error = exception; }
-        try { await transaction.DisposeAsync().AsTask().WaitAsync(cleanup.Token); }
-        catch (Exception exception) { error ??= exception; }
-        if (error != null && !failed) throw new InvalidOperationException("History read cleanup failed.");
+        finally { await HistoryReadSnapshot.EndAsync(transaction, failed); }
     }
 
     /// <summary>Leave protected empty errors to the existing API middleware instead of MVC ProblemDetails.</summary>

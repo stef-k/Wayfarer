@@ -22,6 +22,21 @@ Tests that opt into PostgreSQL may still skip when the guarded database is not a
 
 Mocked/InMemory/controller tests prove their own seam. They do not automatically prove PostgreSQL constraints, transactions, migrations or PostGIS behavior.
 
+## Qualified host for ordinary CI
+
+The ordinary test job and AMD64 application-image/operator host use `ubuntu-24.04`,
+matching the maintained Noble history globalization profile. Keep host execution
+explicit: `ubuntu-latest` can change its distribution and ICU independently of the
+selected .NET SDK. Container image pins do not control host-executed tests or probes.
+Other jobs that do not execute history code need no new platform pin.
+
+After building, CI runs the existing history-qualification regression before the
+ordinary suite. A failure reports the actual runtime, package identities and ICU
+sort/normalization facts, preventing a long cascade of failed writes. This checks
+the existing production contract; it adds no runtime gate or relaxed profile.
+New host profiles require the established compatibility qualification described in
+[History preparation](../maintainer/history-preparation.md), not an allowlist bypass.
+
 ## Native rich Notes editors (W1–W3)
 
 `npm run test:rich-notes` uses the installed, version-matched Playwright Chromium
@@ -690,3 +705,16 @@ reuses that unchanged-code qualification. WayfarerApp #34 recovery/#16 owns mobi
 create-settlement, SQLDelight A/B/C preservation/release proof, native transport/
 file-provider/background and phone-original retention acceptance. Deployment/store
 qualification remains separate; backend tests provide no native or deployed evidence.
+
+
+### Private calendar backend (#953 W1)
+
+`TimelineCalendarTests` covers civil navigation, DST/boundaries and numerical/barrier
+reduction. `TimelineCalendarPostgresTests` uses the reusable guarded PostgreSQL
+fixture and real Identity/MVC cookie routes for private consumer agreement, source
+barriers/ties, owner/readiness boundaries, concurrent edits/deletes, cancellation,
+shared admission and the real deadline. Its 20,100-row fixture records natural
+source plans, routed/service/serialization costs and geometry overflow independently
+of marker sampling. Run these with affected history/statistics/Timeline and security
+inventories; no W1 browser UI was added. See [calendar contract](timeline-calendar.md)
+for the W2 adoption boundary and measured-evidence limitations.

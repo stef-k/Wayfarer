@@ -80,8 +80,12 @@ public sealed class BrowserFixtureTests : TestBase
         var originalRun = Environment.GetEnvironmentVariable("WAYFARER_E2E_RUN_ID");
         var originalPassword = Environment.GetEnvironmentVariable("WAYFARER_E2E_PASSWORD");
         var path = Path.Combine(CreateTestDirectory(), "preparation.json");
+        // A fresh CI database has no catalog data; this test owns the prerequisite it consumes.
+        var activity = new ActivityType { Name = $"Browser prerequisite {Guid.NewGuid():N}" };
         try
         {
+            db.ActivityTypes.Add(activity);
+            await db.SaveChangesAsync();
             Environment.SetEnvironmentVariable("WAYFARER_E2E_RUN_ID", Guid.NewGuid().ToString());
             Environment.SetEnvironmentVariable("WAYFARER_E2E_PASSWORD", "Browser1!Run-owned-prerequisite");
             Assert.True(await BrowserFixtureEnvironment.TryRunAsync("prepare", path, db));
@@ -91,12 +95,20 @@ public sealed class BrowserFixtureTests : TestBase
                 Assert.True(manifest.RootElement.GetProperty("SettingsVersion").GetInt64() > 0);
             Assert.True(await BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db));
             Assert.True(await BrowserFixtureEnvironment.TryRunAsync("verify-environment", path, db));
+            Assert.True(await db.ActivityTypes.AnyAsync(row => row.Id == activity.Id));
         }
         finally
         {
-            if (File.Exists(path)) await BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db);
-            Environment.SetEnvironmentVariable("WAYFARER_E2E_RUN_ID", originalRun);
-            Environment.SetEnvironmentVariable("WAYFARER_E2E_PASSWORD", originalPassword);
+            try
+            {
+                if (File.Exists(path)) await BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("WAYFARER_E2E_RUN_ID", originalRun);
+                Environment.SetEnvironmentVariable("WAYFARER_E2E_PASSWORD", originalPassword);
+                await db.ActivityTypes.Where(row => row.Id == activity.Id).ExecuteDeleteAsync();
+            }
         }
     }
 
