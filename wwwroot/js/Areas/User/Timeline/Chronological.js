@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let owner, detail, picker, filters, connections, display;
     const mapView = createCalendarMap(id => detail.open(id), camera => { if (owner) { owner.camera = camera; owner.retain(); } });
     owner = new TimelinePage({ subject: subject(), currentSubject: subject, selection: parsed.selection, context: parsed.context,
-        ...restored, intent, preferences, maximumOffset, fetchRead,
+        ...restored, restorationPending: recovery, intent, preferences, maximumOffset, fetchRead,
         replaceUrl: search => history.replaceState(null, '', location.pathname + search),
         publish: () => {
             display?.render(); picker?.render(); filters?.render(); connections?.render();
@@ -53,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 root.querySelectorAll('button,select').forEach(element => { element.disabled = true; });
             }
         } });
-    owner.blocked = recovery;
     detail = createCalendarDetail(owner, mapView); picker = createCalendarPicker(owner);
     filters = createCalendarFilters(owner, mapView, value => {
         if (value !== undefined) { recovery = value; document.getElementById('contextRecovery').hidden = !value; }

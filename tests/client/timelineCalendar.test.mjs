@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createCalendarPicker } from '../../wwwroot/js/Areas/User/Timeline/calendar-picker.js';
 import { TimelinePage } from '../../wwwroot/js/Areas/User/Timeline/calendar-page.js';
 import { CalendarIntent, emptyFilters, filterBody, viewportArea } from '../../wwwroot/js/Areas/User/Timeline/calendar-intent.js';
 import { CalendarPreferences, defaultRules, ruleDisplay } from '../../wwwroot/js/Areas/User/Timeline/calendar-preferences.js';
@@ -18,7 +19,7 @@ const observation = (operation, body) => {
             includeUnassigned: body.includeUnassigned === 'true', area: body.west !== undefined ? { west: body.west, south: body.south, east: body.east, north: body.north } : null },
         timeRules: { version: 'time-1', tzdb: '2026' }, matchingRules: { interpretation: 'query-1', textVersion: body.q ? 'text-1' : null },
         observationId: crypto.randomUUID(), asOfUtc: '2026-05-17T12:00:00Z', items: [], nextContinuation: null,
-        geometry: { state: body.includeGeometry ? 'available' : 'off', islands: [] }, presentDates: [], hasUnresolvedCandidates: false };
+        navigation: { today: '2026-05-17' }, geometry: { state: body.includeGeometry ? 'available' : 'off', islands: [] }, presentDates: [], hasUnresolvedCandidates: false };
 };
 const setup = (fetchRead = async (operation, body) => observation(operation, body), session = memory()) => {
     const preferences = new CalendarPreferences(memory(), 'owner', 'https://test');
@@ -99,7 +100,7 @@ test('Clear fences a late filtered period, records and month publication even wh
     owner.filters.q = 'secret'; owner.refresh(); owner.openRecords(); owner.openMonth(2026, 5); await reached.promise;
     const cleared = owner.clearFilters(); first.resolve(); await cleared; await owner.tail;
     assert.equal(owner.state.period.scope.q, ''); assert.equal(owner.state.analysis.scope.q, '');
-    assert.equal(owner.state.availability, null); assert.equal(owner.state.records.length, 0);
+    assert.equal(owner.state.availability.scope.q, ''); assert.equal(owner.state.records.length, 0);
 });
 
 test('month closure and replacement fence marks, while rule changes preserve record traversal', async () => {
@@ -171,4 +172,119 @@ test('viewport normalization captures one finite rectangle, including wrapped an
     assert.throws(() => viewportArea({ west: NaN, east: 10, south: 0, north: 10 }));
     assert.throws(() => filterBody({ ...emptyFilters(), q: '😀'.repeat(257) }));
     assert.deepEqual(filterBody({ ...emptyFilters(), includeUnassigned: true }), { includeUnassigned: 'true' });
+});
+
+
+// Retention is shared by pagehide, camera, panel, scroll, detail and path/rule callers.
+for (const loss of ['missing', 'mismatched', 'account-ended']) test(`${loss} context survives repeated retention/reload until explicit recovery`, async () => {
+    const { owner, intent, session } = setup(); const context = crypto.randomUUID();
+    if (loss !== 'missing') intent.save(selection(), crypto.randomUUID(), { ...emptyFilters(), q: 'private' }, {});
+    owner.context = context; owner.restorationPending = true; owner.blocked = true;
+    if (loss === 'account-ended') owner.sessionEnded();
+    for (let reload = 0; reload < 2; reload++) {
+        owner.retain(); owner.camera = { latitude: 1, longitude: 2, zoom: 5 };
+        await owner.openRecords(); await owner.setPath(true); owner.retain();
+        assert.throws(() => intent.restore(selection(), context), /unavailable/);
+        assert.throws(() => owner.retry(), /restor|Sign in/);
+    }
+    if (loss === 'account-ended') {
+        assert.throws(() => owner.clearFilters(), /Sign in/); return;
+    }
+    let reads = 0; owner.fetchRead = async (operation, body) => { reads++; return observation(operation, body); };
+    await owner.refresh(); await owner.tail; assert.equal(reads, 0);
+    await owner.clearFilters(); assert.ok(reads > 0); assert.equal(owner.context, null);
+    const restored = new CalendarIntent(session, 'owner').restore(selection(), null);
+    assert.deepEqual(restored.filters, emptyFilters());
+    await owner.commitFilters({ ...emptyFilters(), q: 'reentered' }); owner.retain();
+    assert.equal(intent.restore(selection(), owner.context).filters.q, 'reentered');
+});
+
+test('failed filter write/read-back retains old applied intent and new draft without broadening reads', async () => {
+    const { owner, session, intent } = setup();
+    await owner.commitFilters({ ...emptyFilters(), q: 'old' }); const context = owner.context;
+    owner.openEditor('filters', { ...emptyFilters(), q: 'new' });
+    session.setItem = () => {}; // Simulate denied durability without overwriting the old slot.
+    assert.throws(() => owner.commitFilters(owner.editor.draft), /retained/);
+    await owner.refresh(); owner.retain();
+    assert.equal(owner.filters.q, 'old'); assert.equal(owner.editor.draft.q, 'new');
+    assert.equal(owner.state.period.scope.q, 'old'); assert.equal(intent.restore(selection(), context).filters.q, 'old');
+});
+
+// Exercise real replacement acquisition, continuation and stale success/failure on the serial owner.
+for (const change of ['refresh', 'date', 'filters']) test(`pending Records ${change} restarts first page and fences stale traversal`, async () => {
+    const entered = deferred(), release = deferred(), calls = []; let hold = true;
+    const { owner } = setup(async (operation, body) => {
+        calls.push({ operation, ...body });
+        if (operation === 'records' && hold && (change !== 'refresh' || body.continuation)) {
+            hold = false; entered.resolve(); await release.promise;
+            if (change === 'refresh') throw new Error('obsolete Load more failed');
+            return { ...observation(operation, body), items: [{ locationId: 999 }], nextContinuation: 'obsolete' };
+        }
+        return { ...observation(operation, body), items: [{ locationId: body.day }], nextContinuation: 'next' };
+    });
+    owner.panel = 'records'; owner.selectedId = 42;
+    const initial = owner.refresh();
+    if (change === 'refresh') { await initial; owner.loadRecords(); }
+    await entered.promise;
+    const replaced = change === 'date' ? owner.commitSelection({ ...selection(), day: 18 })
+        : change === 'filters' ? owner.commitFilters({ ...emptyFilters(), q: 'new' }) : owner.refresh();
+    release.resolve(); await replaced; await owner.tail;
+    const recordCalls = calls.filter(call => call.operation === 'records');
+    assert.equal(recordCalls.at(-1).continuation, undefined);
+    assert.equal(owner.state.status.records, 'current'); assert.equal(owner.state.errors.records, undefined);
+    assert.deepEqual(owner.state.records, [{ locationId: change === 'date' ? 18 : 17 }]);
+    assert.equal(owner.selectedId, 42); assert.equal(owner.state.nextContinuation, 'next');
+    await owner.loadRecords(); assert.equal(calls.at(-1).continuation, 'next');
+    assert.equal(owner.state.records.length, 1, 'continuation deduplicates exact IDs');
+});
+
+// Bind the actual picker to the same small DOM boundary used by plain client renderer tests.
+test('open picker renders invalidation, replacement failure and late old-month fences while retaining focus/endpoints', async t => {
+    const previous = { document: globalThis.document, bootstrap: globalThis.bootstrap };
+    const elements = new Map();
+    const node = () => ({ children: [], dataset: {}, style: {}, attributes: {}, listeners: {}, value: '',
+        addEventListener(type, callback) { this.listeners[type] = callback; },
+        setAttribute(key, value) { this.attributes[key] = value; },
+        append(child) { this.children.push(child); }, replaceChildren() { this.children = []; },
+        contains(target) { return this.children.some(child => child === target || child.contains(target)); },
+        querySelectorAll() { return this.children.flatMap(child => [child, ...child.querySelectorAll()]).filter(child => child.dataset.date); },
+        querySelector(selector) { return this.querySelectorAll().find(child => selector === '[tabindex="0"]' ? child.tabIndex === 0 : selector.includes(child.dataset.date)); },
+        focus() { document.activeElement = this; this.listeners.focus?.(); } });
+    globalThis.document = { activeElement: null, createElement: node,
+        getElementById: id => { if (!elements.has(id)) elements.set(id, node()); return elements.get(id); } };
+    globalThis.bootstrap = { Modal: { getOrCreateInstance: () => ({ show() {} }), getInstance: () => ({ hide() {} }) } };
+    t.after(() => Object.assign(globalThis, previous));
+    let pending = null, fail = false; const calls = [];
+    const { owner } = setup(async (operation, body) => {
+        calls.push(operation);
+        if (operation === 'availability' && pending) { const wait = pending; pending = null; wait.entered.resolve(); await wait.release.promise; }
+        if (operation === 'availability' && fail) throw new Error('month unavailable');
+        return { ...observation(operation, body), displayedMonth: `2026-0${body.month}`, presentDates: [`2026-0${body.month}-17`] };
+    });
+    const picker = createCalendarPicker(owner); owner.publish = () => picker.render();
+    picker.open(true); await owner.tail;
+    const grid = elements.get('calendarGrid'), caption = elements.get('monthStatus');
+    const day = () => grid.querySelector('[data-date="2026-05-17"]');
+    assert.match(day().textContent, /●/); assert.match(caption.textContent, /observed/);
+    const editor = owner.editor; elements.get('rangeThrough').value = '2026-05-25';
+    elements.get('rangeThrough').listeners.input(); day().focus();
+    const entered = deferred(), release = deferred(); pending = { entered, release };
+    const refreshed = owner.refresh();
+    assert.match(caption.textContent, /Loading/); assert.match(day().textContent, /\?/);
+    assert.equal(document.activeElement.dataset.date, '2026-05-17');
+    await entered.promise; fail = true; release.resolve(); await refreshed;
+    assert.match(caption.textContent, /unavailable/); assert.doesNotMatch(day().textContent, /●|○/);
+    assert.equal(day().attributes['aria-disabled'], undefined); assert.equal(owner.editor, editor);
+    assert.equal(elements.get('rangeThrough').value, '2026-05-25');
+    assert.equal(owner.editor.draft.throughDate, '2026-05-25');
+    fail = false; await owner.refresh(); assert.match(day().textContent, /●/);
+    const oldEntered = deferred(), oldRelease = deferred(); pending = { entered: oldEntered, release: oldRelease };
+    const old = owner.refresh(); await oldEntered.promise;
+    elements.get('nextPickerMonth').listeners.click(); oldRelease.resolve(); await old; await owner.tail;
+    assert.match(caption.textContent, /2026-06/); assert.match(grid.querySelector('[data-date="2026-06-17"]').textContent, /●/);
+    const closedEntered = deferred(), closedRelease = deferred(); pending = { entered: closedEntered, release: closedRelease };
+    const closing = owner.refresh(); await closedEntered.promise;
+    elements.get('dateDialog').listeners['hidden.bs.modal'](); closedRelease.resolve(); await closing;
+    assert.equal(owner.month, null); assert.equal(owner.state.availability, null); assert.equal(owner.editor, null);
+    assert.deepEqual(calls.slice(1, 4), ['period', 'analysis', 'availability']);
 });

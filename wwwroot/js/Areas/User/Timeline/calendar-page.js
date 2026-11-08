@@ -9,7 +9,7 @@ const matchingIdentity = response => stable({ timeRules: response.timeRules, mat
 /** Concrete page owner serializes collection work; abort never implies immediate server lease release. */
 export class TimelinePage {
     constructor({ subject, selection, context, filters, returnState = {}, intent, preferences, maximumOffset,
-        fetchRead, replaceUrl, publish = () => {}, currentSubject = () => subject }) {
+        fetchRead, replaceUrl, publish = () => {}, currentSubject = () => subject, restorationPending = false }) {
         Object.assign(this, { subject, intent, preferences, maximumOffset, fetchRead, replaceUrl, publish, currentSubject });
         this.selection = selection; this.context = context; this.filters = filters;
         this.rules = preferences.value.rules; this.path = returnState.path === true;
@@ -18,13 +18,14 @@ export class TimelinePage {
         this.scroll = returnState.scroll || 0; this.ruleDraft = returnState.ruleDraft || null;
         this.epoch = 0; this.analysisVersion = 0; this.monthVersion = 0; this.detailVersion = 0;
         this.tail = Promise.resolve(); this.state = { records: [], status: {}, errors: {} };
-        this.editor = null; this.blocked = false;
+        this.editor = null; this.restorationPending = restorationPending; this.blocked = restorationPending;
     }
     emit() { this.publish(this); }
     returnState() { return { path: this.path, selectedId: this.selectedId, camera: this.camera, panel: this.panel,
         scroll: this.scroll, ruleDraft: this.preferences.draft || this.ruleDraft }; }
-    /** Small return intent is independent of result arrays and protected mutation storage. */
+    /** Ordinary retention cannot resolve missing private intent or recreate an ended session slot. */
     retain(strict = false) {
+        if (this.blocked || this.restorationPending || this.authEnded) return;
         try { this.intent.save(this.selection, this.context, this.filters, this.returnState()); }
         catch (error) { if (strict) throw error; this.state.storageError = error.message; }
     }
@@ -39,7 +40,7 @@ export class TimelinePage {
         filterBody(filters);
         const context = filtersActive(filters) ? crypto.randomUUID() : null;
         this.intent.save(this.selection, context, filters, this.returnState());
-        this.filters = structuredClone(filters); this.context = context; this.blocked = false;
+        this.filters = structuredClone(filters); this.context = context; this.restorationPending = false; this.blocked = false;
         if (this.editor?.kind === 'filters') this.editor = null;
         this.replaceUrl(selectionSearch(this.selection, context));
         return this.refresh(true);
@@ -73,19 +74,22 @@ export class TimelinePage {
         this.retain(); this.emit();
         if (enabled || interrupted || !this.state.analysis) return this.enqueue('analysis');
     }
-    /** Refresh restarts live traversal, while camera, selection and all independent drafts survive. */
+    /** Refresh replaces traversal ownership and month observations, retaining the open editor and month intent. */
     refresh(newScope = false) {
-        if (this.blocked) return Promise.resolve();
-        this.epoch++; this.analysisVersion++; this.detailVersion++; this.closeMonth();
+        if (this.blocked || this.restorationPending || this.authEnded) return Promise.resolve();
+        this.epoch++; this.analysisVersion++; this.detailVersion++; this.monthVersion++;
+        this.state.availability = null; this.state.status.availability = this.month ? 'loading' : 'idle';
         this.active?.controller.abort(); this.effective = null; this.identity = null;
         this.state.records = []; this.state.nextContinuation = null; this.state.recordsStarted = false;
+        this.state.status.records = 'idle';
         this.state.statistics = null;
         if (newScope) { this.state.period = null; this.state.analysis = null; }
         this.state.status.period = 'refreshing'; this.state.status.analysis = 'refreshing'; this.state.errors = {};
         this.emit();
         const period = this.enqueue('period'); const analysis = this.enqueue('analysis');
         const records = this.panel === 'records' ? this.loadRecords() : Promise.resolve();
-        return Promise.all([period, analysis, records]);
+        const availability = this.month ? this.enqueue('availability', this.month) : Promise.resolve();
+        return Promise.all([period, analysis, records, availability]);
     }
     cancelCalculation() {
         this.analysisVersion++;
@@ -99,6 +103,7 @@ export class TimelinePage {
         return this.enqueue('records', this.state.nextContinuation ? { continuation: this.state.nextContinuation } : {});
     }
     openMonth(year, month) {
+        if (this.active?.operation === 'availability') this.active.controller.abort();
         this.monthVersion++; this.month = { year, month }; this.state.availability = null;
         this.state.status.availability = 'loading'; this.emit(); return this.enqueue('availability', { year, month });
     }
@@ -108,14 +113,14 @@ export class TimelinePage {
     }
     /** Account/session loss clears this page only; mutation drafts retain their original subject authority. */
     sessionEnded() {
-        this.authEnded = true; this.epoch++; this.detailVersion++; this.blocked = true; this.active?.controller.abort(); this.intent.clear();
+        this.authEnded = true; this.epoch++; this.detailVersion++; this.blocked = true; this.active?.controller.abort(); this.closeMonth(); this.intent.clear();
         this.filters = emptyFilters(); this.editor = null; this.state = { records: [], status: {}, errors: { session: 'Session ended or account changed. Sign in again before reading Timeline.' } };
         this.emit();
     }
     /** One serial chain prioritizes already-enqueued core work over optional consumers. */
     enqueue(operation, extra = {}) {
         const epoch = this.epoch, analysis = this.analysisVersion, month = this.monthVersion;
-        const current = () => epoch === this.epoch && !this.blocked
+        const current = () => epoch === this.epoch && !this.blocked && !this.restorationPending && !this.authEnded
             && (operation !== 'analysis' || analysis === this.analysisVersion)
             && (operation !== 'availability' || month === this.monthVersion && this.month !== null);
         const run = async () => {
@@ -185,6 +190,7 @@ export class TimelinePage {
     /** Retry is deliberate and honors shared-admission backoff; it never removes filters to obtain success. */
     retry() {
         if (this.authEnded) throw new Error('Sign in again before restoring Timeline.');
+        if (this.restorationPending) throw new Error('Re-enter the unavailable filters or explicitly Continue without filters before restoring Timeline.');
         if (this.state.retryAt > Date.now()) throw new Error('Read admission is cooling down. Retry after the displayed time.');
         this.blocked = false; return this.refresh();
     }
