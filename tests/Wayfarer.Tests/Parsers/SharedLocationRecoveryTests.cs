@@ -90,6 +90,23 @@ public sealed class SharedLocationRecoveryTests : TestBase
         }
     }
 
+    /// <summary>Strict native admission rejects duplicates and Unicode replacement without changing legacy parsing.</summary>
+    [Fact]
+    public async Task NativeJsonCannotHideDuplicateOrMalformedText()
+    {
+        var values = await EffectiveAsync();
+        var properties = values.ToString(Newtonsoft.Json.Formatting.None, []);
+        foreach (var malformed in new[] {
+            properties.Replace("\"AppBuild\":\"\"", "\"AppBuild\":\"\\ud800\""),
+            properties.Replace("\"AppBuild\":\"\"", "\"AppBuild\":\"first\",\"AppBuild\":\"\"") })
+        {
+            var json = "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[0,0]},\"properties\":" + malformed + "}]}";
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+            await Assert.ThrowsAsync<LocationImportValidationException>(async () => { await foreach (var row in parser.ParseAsync(stream, "destination")) { } });
+        }
+    }
+
     /// <summary>Only agreeing nonnull flat altitude permits a 3D native geometry.</summary>
     [Theory]
     [InlineData(0, true)]

@@ -80,6 +80,12 @@ namespace Wayfarer.Parsers
                     var rawProperties = featureJson["properties"] as JObject;
                     if (json.SawRecoveryProfile && (json.DuplicateFeatureMembers || json.InvalidFeatureUnicode))
                         throw LocationImportValidationException.Recovery();
+                    // New original clocks share API scalar validation even when the surrounding file is legacy.
+                    foreach (var name in new[] { "OriginalLocalTimestamp", "OriginalTimeZoneId", "SubmittedAtUtc" })
+                        if (rawProperties?[name] is { Type: not (JTokenType.String or JTokenType.Null) })
+                            throw LocationImportValidationException.Recovery();
+                    if (rawProperties?["OriginalUtcOffsetSeconds"] is { Type: not (JTokenType.Integer or JTokenType.Null) })
+                        throw LocationImportValidationException.Recovery();
                     var profile = rawProperties == null ? null : LocationRecoveryProfile.Read(rawProperties, false, featureJson["geometry"]);
                     var idempotencyKey = ParseOptionalGuid(rawProperties?.GetValue("IdempotencyKey", StringComparison.Ordinal));
                     if (idempotencyKey == Guid.Empty)
@@ -217,7 +223,7 @@ namespace Wayfarer.Parsers
                         OriginalLocalTimestamp = CsvLocationParser.ReadOriginalLocal(getTupleString("OriginalLocalTimestamp")),
                         OriginalTimeZoneId = CsvLocationParser.ReadOriginalZone(getTupleString("OriginalTimeZoneId")),
                         OriginalUtcOffsetSeconds = CsvLocationParser.ReadOriginalOffset(getString("OriginalUtcOffsetSeconds")),
-                        SubmittedAtUtc = ObservationEvidence.ReadInstant(getString("SubmittedAtUtc")),
+                        SubmittedAtUtc = CsvLocationParser.ReadSubmission(getString("SubmittedAtUtc")),
                         CoordinateOrigin = ObservationEvidence.ReadOrigin(getTupleString("CoordinateOrigin")),
                         ObservedAtUtc = ObservationEvidence.ReadInstant(getString("ObservedAtUtc")),
                         ObservedAgeAtEventMs = ObservationEvidence.ReadAge(getString("ObservedAgeAtEventMs")),

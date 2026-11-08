@@ -57,11 +57,14 @@ public sealed class CsvLocationParser : ILocationDataParser
             cancellationToken.ThrowIfCancellationRequested();
             // Native descriptors are admitted before permissive filtering, defaults or fallback.
             var raw = new JObject();
+            var duplicateHeaders = false;
             foreach (var header in csv.HeaderRecord!)
             {
-                if (raw.ContainsKey(header)) throw LocationImportValidationException.Recovery();
-                raw.Add(header, GetField(csv, header));
+                var name = header.Trim();
+                if (raw.ContainsKey(name)) { duplicateHeaders = true; continue; }
+                raw.Add(name, GetField(csv, name));
             }
+            if (raw.ContainsKey("WayfarerRecovery") && duplicateHeaders) throw LocationImportValidationException.Recovery();
             var profile = LocationRecoveryProfile.Read(raw, true);
             string? field(string name) => profile == null ? GetField(csv, name) : profile.Text(name, GetField(csv, name));
             // Validate every input identity before coordinate/timestamp filtering, independently on each pass.
@@ -129,8 +132,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 Address = address,
                 FullAddress = fullAddress,
                 AddressNumber = field("AddressNumber"),
-                StreetName = field("StreetName"),
-                PostCode = field("PostCode"),
+                StreetName = raw.ContainsKey("StreetName") ? field("StreetName") : field("Street"),
+                PostCode = raw.ContainsKey("PostCode") ? field("PostCode") : field("Postcode"),
                 Place = field("Place"),
                 Region = field("Region"),
                 Country = field("Country"),
@@ -152,7 +155,7 @@ public sealed class CsvLocationParser : ILocationDataParser
                 OriginalLocalTimestamp = ReadOriginalLocal(field("OriginalLocalTimestamp")),
                 OriginalTimeZoneId = ReadOriginalZone(field("OriginalTimeZoneId")),
                 OriginalUtcOffsetSeconds = ReadOriginalOffset(field("OriginalUtcOffsetSeconds")),
-                SubmittedAtUtc = ObservationEvidence.ReadInstant(field("SubmittedAtUtc")),
+                SubmittedAtUtc = ReadSubmission(field("SubmittedAtUtc")),
                 CoordinateOrigin = ObservationEvidence.ReadOrigin(field("CoordinateOrigin")),
                 ObservedAtUtc = ObservationEvidence.ReadInstant(field("ObservedAtUtc")),
                 ObservedAgeAtEventMs = ObservationEvidence.ReadAge(field("ObservedAgeAtEventMs")),
@@ -178,6 +181,8 @@ public sealed class CsvLocationParser : ILocationDataParser
         ? value : throw LocationImportValidationException.Recovery();
     internal static string? ReadOriginalZone(string? value) => ObservationEvidence.ValidOriginalZone(value)
         ? value : throw LocationImportValidationException.Recovery();
+    internal static DateTimeOffset? ReadSubmission(string? value) => value == null ? null
+        : ObservationEvidence.ReadInstant(value) ?? throw LocationImportValidationException.Recovery();
     internal static int? ReadOriginalOffset(string? value) => string.IsNullOrEmpty(value) ? null
         : int.TryParse(value, out var offset) && offset is >= -64800 and <= 64800 ? offset : throw LocationImportValidationException.Recovery();
 

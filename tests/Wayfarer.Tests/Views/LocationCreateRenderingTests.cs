@@ -58,6 +58,7 @@ public sealed class LocationCreateRenderingTests : TestBase
         ViewResult response;
         if (invalidPost)
         {
+            var intent = Assert.IsType<AddLocationViewModel>(Assert.IsType<ViewResult>(await controller.Create()).Model);
             // These are the attempted values MVC retains after latitude binding fails.
             controller.ModelState.SetModelValue("LocalTimestamp", timestamp, timestamp);
             controller.ModelState.SetModelValue("Latitude", "invalid", "invalid");
@@ -65,6 +66,7 @@ public sealed class LocationCreateRenderingTests : TestBase
             controller.ModelState.AddModelError("Latitude", "Invalid coordinate");
             response = Assert.IsType<ViewResult>(await controller.Create(new AddLocationViewModel
             {
+                CreateKey = intent.CreateKey, CreateIntent = intent.CreateIntent,
                 LocalTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture),
                 Longitude = 23.7275, Notes = notes
             }));

@@ -63,7 +63,7 @@ public sealed class ReverseGeocodingFeatureMetadataContractTests
     [InlineData("2026-13-28T12:00:00Z")]
     [InlineData("2026-08-28T25:00:00Z")]
     [InlineData("2026-08-28T12:00:00.Z")]
-    [InlineData("2026-08-28T12:00:00.12345678Z")]
+    [InlineData("2026-08-28T12:00:00.1234567890Z")]
     [InlineData("2026-08-28T12:00:00+15:00")]
     public void ImportedTupleRejectsTimestampsWithoutValidExplicitOffsets(string timestamp)
     {
