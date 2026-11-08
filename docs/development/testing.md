@@ -182,7 +182,7 @@ for each agent, checkout or browser run. The conventional workstation location i
 inside a private directory. Its contents export the existing guarded variable:
 
 ~~~sh
-export WAYFARER_TEST_POSTGRES_CONNECTION='Host=127.0.0.1;Port=5432;Database=wayfarer_import_tests;Username=wayfarer_tests;Password=...'
+export WAYFARER_TEST_POSTGRES_CONNECTION='Host=127.0.0.1;Port=55432;Database=wayfarer_import_tests;Username=wayfarer_tests;Password=...'
 ~~~
 
 Keep the actual secret outside Git, logs and handoffs. Before provisioning, inspect
@@ -194,33 +194,45 @@ source ~/.config/wayfarer/test-postgres.env
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'Category!=RequiresSpatialite&Category!=RequiresPlaywright'
 ~~~
 
-On Windows, the same variable can be stored at user scope and copied into the current process before the test run.
+The configured Linux workstation has one reusable **isolated test service**, using
+the installed PostgreSQL 18 binaries with PostGIS, citext and pg_trgm. Its private
+cluster is `~/.local/share/wayfarer/test-postgres/data`; the user unit is
+`~/.config/systemd/user/wayfarer-test-postgres.service`. It listens only on
+`127.0.0.1:55432`, uses SCRAM password authentication, and starts with the developer's
+systemd user session. If needed, start it without sudo before sourcing the file:
 
-For a new Linux workstation, inspect the existing PostgreSQL 18 service and whether
-`wayfarer_import_tests` already exists before creating anything. Reuse an existing
-authorized test authority; do not reset shared passwords, alter authentication,
-create another cluster or point fixtures at a migrated application database merely
-because this connection is missing. If it is absent, the local database
-administrator can create the dedicated role/database and install the extensions:
-
-~~~sql
-CREATE ROLE wayfarer_tests LOGIN NOSUPERUSER NOCREATEROLE CREATEDB NOREPLICATION
-    PASSWORD 'replace-with-a-private-generated-secret';
-CREATE DATABASE wayfarer_import_tests OWNER wayfarer_tests;
-\connect wayfarer_import_tests
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS citext;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+~~~sh
+systemctl --user start wayfarer-test-postgres.service
+systemctl --user is-active wayfarer-test-postgres.service
 ~~~
 
-Use local administrator authentication (for example, `sudo -u postgres psql -X`)
-for that one-time provisioning, then save the resulting connection in the private
-file above. Never change an existing role's password to make this example work.
-The test role owns only its test database and is not the application identity.
-`CREATEDB` supports fixture-owned disposable databases; it does not permit installing
-untrusted PostGIS into them. Migration-history fixtures that create fresh databases
-and install PostGIS still require a separately authorized isolated administrative
-test service. Do not claim those fixtures are qualified by this owner-only setup.
+The role is administrative **inside that test-only cluster**, so the existing
+fixtures can create disposable databases and install untrusted PostGIS there.
+`CREATEDB` alone is insufficient. Do not grant these permissions to an application
+identity or a role on a shared/production cluster. The conventional private file
+selects this complete prerequisite for ordinary, migration and protected-mutation
+tests; reload it in processes that previously sourced another connection.
+
+The earlier restricted port-5432 connection is preserved privately in
+`~/.config/wayfarer/test-postgres-restricted.env`; its existing database, password
+and system service are unchanged. It still supports ordinary row-based tests but
+cannot initialize fresh PostGIS migration fixtures. Do not mistake an existing
+extension in that database for permission to install it in a new database.
+
+Ordinary tests reuse `wayfarer_import_tests` and remove their own rows. Destructive
+migration fixtures create `wayfarer_migration_tests_*` databases on the same test
+service, share them at their existing class/collection scope and drop only their
+owned database. Preserve the reusable service, private connection and persistent
+database when cleaning an agent's disposable resources. Do not stop the service
+while another agent is using it.
+
+For a new workstation, inspect existing services and private configuration first.
+A missing environment variable alone does not authorize a new cluster or password
+reset. If fresh-PostGIS permissions are genuinely missing, explicitly provision an
+isolated test authority using installed PostgreSQL 18 binaries/extensions, then
+store its connection privately. Do not weaken fixture guards or skip the affected
+checks to conceal an incomplete prerequisite. On Windows, the same guarded variable
+can be stored at user scope and copied into the current test process.
 
 Build the intended source under its admitted runtime, then use its existing offline
 `database migrate` and `database seed` commands with
