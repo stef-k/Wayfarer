@@ -15,7 +15,8 @@ internal static class HistoryDetail
     // Fixed source/wire allowlists: no navigation, credentials, derived search text or future entity fields leak.
     private static readonly (string Source, string Wire)[] Stored =
     [
-        ("Id", "locationId"), ("IdempotencyKey", "uuid"), ("TimeZoneId", "storedTimeZoneId"),
+        ("OriginalLocalTimestamp", "originalLocalTimestamp"), ("OriginalTimeZoneId", "originalTimeZoneId"),
+        ("OriginalUtcOffsetSeconds", "originalUtcOffsetSeconds"), ("Id", "locationId"), ("IdempotencyKey", "uuid"), ("TimeZoneId", "storedTimeZoneId"),
         ("CoordinateOrigin", "coordinateOrigin"), ("ObservedAgeAtEventMs", "observedAgeAtEventMs"),
         ("LocationType", "locationType"), ("ActivityTypeId", "activityTypeId"),
         ("Address", "address"), ("FullAddress", "fullAddress"), ("ProviderAddressLine1", "providerAddressLine1"),
@@ -28,7 +29,7 @@ internal static class HistoryDetail
     ];
     private static readonly (string Source, string Wire)[] Dates =
     [
-        ("LocalTimestamp", "eventUtc"), ("Timestamp", "storedTimestampUtc"), ("ObservedAtUtc", "observedAtUtc"),
+        ("SubmittedAtUtc", "submittedAtUtc"), ("LocalTimestamp", "eventUtc"), ("Timestamp", "storedTimestampUtc"), ("ObservedAtUtc", "observedAtUtc"),
         ("PresenceObservedAtUtc", "presenceObservedAtUtc"), ("ReverseGeocodedAt", "reverseGeocodedAt")
     ];
     private static readonly (string Source, string Wire)[] Numbers =

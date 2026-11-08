@@ -3,13 +3,36 @@ namespace Wayfarer.Models.Dtos;
 /// <summary>
 /// DTO for receiving location data from mobile clients via log-location and check-in endpoints.
 /// </summary>
-public class GpsLoggerLocationDto
+public class GpsLoggerLocationDto : System.ComponentModel.DataAnnotations.IValidatableObject
 {
     /// <summary>Latitude supplied by the client; null cannot authorize a new observation.</summary>
     public double? Latitude { get; set; }
     /// <summary>Longitude supplied by the client; explicit zero is valid, absence is not zero.</summary>
     public double? Longitude { get; set; }
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.CaptureTimestampJsonConverter))]
     public DateTime Timestamp { get; set; } // Local device time
+
+    /// <summary>Exact original phone local clock; independent of the effective event.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(29)]
+    public string? OriginalLocalTimestamp { get; set; }
+    /// <summary>Bounded original platform zone, including aliases and fixed-offset identifiers.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(128)]
+    public string? OriginalTimeZoneId { get; set; }
+    /// <summary>Independent original device offset in seconds.</summary>
+    [System.ComponentModel.DataAnnotations.Range(-64800, 64800)]
+    public int? OriginalUtcOffsetSeconds { get; set; }
+    /// <summary>Original submission instant, never the retry or server receipt clock.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.ObservationInstantJsonConverter))]
+    public DateTimeOffset? SubmittedAtUtc { get; set; }
+
+    /// <summary>Rejects malformed original evidence instead of silently erasing it.</summary>
+    public IEnumerable<System.ComponentModel.DataAnnotations.ValidationResult> Validate(System.ComponentModel.DataAnnotations.ValidationContext context)
+    {
+        if (!Wayfarer.Parsers.ObservationEvidence.ValidOriginalLocal(OriginalLocalTimestamp))
+            yield return new("Invalid original local clock.", [nameof(OriginalLocalTimestamp)]);
+        if (!Wayfarer.Parsers.ObservationEvidence.ValidOriginalZone(OriginalTimeZoneId))
+            yield return new("Invalid original timezone identifier.", [nameof(OriginalTimeZoneId)]);
+    }
 
     /// <summary>Optional coordinate origin: sensor, manual-map, or unknown; only sensor can establish presence.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(24)]

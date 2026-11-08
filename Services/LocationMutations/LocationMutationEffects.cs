@@ -54,7 +54,7 @@ internal sealed partial class LocationMutationService
         var timeChanged = false;
         if (changes.TryGetProperty("eventUtc", out var time))
         {
-            var instant = LocationMutationCommand.Instant(time.GetProperty("value").GetString()!, false);
+            var instant = LocationMutationCommand.Instant(time.GetProperty("value").GetString()!, false, command.Normalization);
             timeChanged = current.LocalTimestamp != instant;
             current.LocalTimestamp = instant;
         }

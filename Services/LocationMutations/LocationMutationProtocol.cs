@@ -112,7 +112,7 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
                     else NullableText(item.Value);
                 break;
             case "content":
-                Members(value, "format", "fingerprint"); Require(Text(value.GetProperty("format")) == "location-delete-storage-1");
+                Members(value, "format", "fingerprint"); Require(Text(value.GetProperty("format")) is "location-delete-storage-1" or "location-delete-storage-2");
                 Require(Regex.IsMatch(Text(value.GetProperty("fingerprint")), "^sha256:[0-9a-f]{64}$")); break;
             default: throw new MutationProtocolException("mutationInvalid");
         }
@@ -154,9 +154,16 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
     private static void Position(JsonElement value) => Require(ReverseGeocodingService.HasValidCoordinates(Number(value.GetProperty("latitude")), Number(value.GetProperty("longitude"))));
 
     /// <summary>Matches Npgsql's toward-zero microsecond conversion, including instants before the PostgreSQL epoch.</summary>
-    internal static DateTime Instant(string text, bool original)
+    internal static DateTime Instant(string text, bool original, string normalization = "location-values-1")
     {
         Require(Regex.IsMatch(text, original ? @"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,9})?Z$" : @"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d{1,6})?Z$"));
+        if (normalization == "location-values-2")
+        {
+            var shared = ObservationEvidence.ReadInstant(text);
+            if (shared == null) throw new MutationProtocolException(original ? "baseUnavailable" : "mutationInvalid");
+            return shared.Value.UtcDateTime;
+        }
+        // Already frozen version-1 requests retain their original storage comparison and byte authority.
         var dot = text.IndexOf('.');
         var parsed = dot < 0 ? text : text[..dot] + "." + text[(dot + 1)..^1].PadRight(7, '0')[..7] + "Z";
         Require(DateTime.TryParseExact(parsed, ["yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'"], CultureInfo.InvariantCulture,
@@ -191,17 +198,17 @@ internal sealed record LocationMutationCommand(JsonElement Body, string Adapter,
     }
 
     /// <summary>Compares typed values, with only the approved Notes/time normalizations and signed-zero equality.</summary>
-    internal static bool Equal(string group, JsonElement expected, JsonElement current)
+    internal static bool Equal(string group, JsonElement expected, JsonElement current, string normalization = "location-values-1")
     {
         if (group == "notesHtml") return RichNotes.Normalize(expected.ValueKind == JsonValueKind.Null ? null : expected.GetString())
             == RichNotes.Normalize(current.ValueKind == JsonValueKind.Null ? null : current.GetString());
         if (group is "eventUtc" or "reverseGeocodedAt")
             return expected.ValueKind == JsonValueKind.Null || current.ValueKind == JsonValueKind.Null
-                ? expected.ValueKind == current.ValueKind : Instant(expected.GetString()!, true) == Instant(current.GetString()!, true);
+                ? expected.ValueKind == current.ValueKind : Instant(expected.GetString()!, true, normalization) == Instant(current.GetString()!, true, normalization);
         if (expected.ValueKind != current.ValueKind) return false;
         return expected.ValueKind switch
         {
-            JsonValueKind.Object => expected.EnumerateObject().All(field => current.TryGetProperty(field.Name, out var other) && Equal(field.Name, field.Value, other)),
+            JsonValueKind.Object => expected.EnumerateObject().All(field => current.TryGetProperty(field.Name, out var other) && Equal(field.Name, field.Value, other, normalization)),
             JsonValueKind.Number => expected.GetDouble() == current.GetDouble(),
             JsonValueKind.String => expected.GetString() == current.GetString(),
             JsonValueKind.Null => true,

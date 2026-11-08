@@ -977,6 +977,17 @@ namespace Wayfarer.Migrations
                     b.Property<Guid?>("OriginalCreateAddressToken")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("OriginalLocalTimestamp")
+                        .HasMaxLength(29)
+                        .HasColumnType("character varying(29)");
+
+                    b.Property<string>("OriginalTimeZoneId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("OriginalUtcOffsetSeconds")
+                        .HasColumnType("integer");
+
                     b.Property<string>("OsVersion")
                         .HasColumnType("text");
 
@@ -1026,6 +1037,9 @@ namespace Wayfarer.Migrations
 
                     b.Property<string>("StreetName")
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TimeZoneId")
                         .IsRequired()

@@ -13,6 +13,13 @@ internal static class ApiLocationCreation
     internal static async Task<(Location Location, bool Created)> PersistAsync(ApplicationDbContext db, ReverseGeocodingService reverse,
         Location location, CancellationToken cancellationToken)
     {
+        // One canonical creation boundary for shared content and generated/shared clock precision.
+        location.Notes = Wayfarer.Util.RichNotes.Normalize(location.Notes);
+        location.LocationType = string.IsNullOrEmpty(location.LocationType) ? null : location.LocationType;
+        location.Timestamp = ObservationEvidence.Truncate(location.Timestamp);
+        location.LocalTimestamp = ObservationEvidence.Truncate(location.LocalTimestamp);
+        if (location.ObservedAtUtc is { } observed) location.ObservedAtUtc = new(ObservationEvidence.Truncate(observed.UtcDateTime));
+        if (location.SubmittedAtUtc is { } submitted) location.SubmittedAtUtc = new(ObservationEvidence.Truncate(submitted.UtcDateTime));
         if (!location.IdempotencyKey.HasValue)
         {
             var legacyResult = await reverse.EnrichAsync(location.UserId, location.Coordinates.Y, location.Coordinates.X,

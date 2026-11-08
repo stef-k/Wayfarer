@@ -75,6 +75,7 @@ namespace Wayfarer.Parsers
                     var featureJson = await JObject.LoadAsync(json, cancellationToken);
                     // Raw identity types and zero occurrences are checked before geometry/timestamp filters or NTS coercion.
                     var rawProperties = featureJson["properties"] as JObject;
+                    var profile = rawProperties == null ? null : LocationRecoveryProfile.Read(rawProperties, false, featureJson["geometry"]);
                     var idempotencyKey = ParseOptionalGuid(rawProperties?.GetValue("IdempotencyKey", StringComparison.Ordinal));
                     if (idempotencyKey == Guid.Empty)
                     {
@@ -152,10 +153,10 @@ namespace Wayfarer.Parsers
                     var invalidActivity = json.InvalidActivityValue ||
                         (activityValue is not null && activityValue.Type is not JTokenType.String and not JTokenType.Null);
                     var address = getString("Address");
-                    var fullAddress = getString("FullAddress") ?? address;
+                    var fullAddress = rawProperties?.ContainsKey("FullAddress") == true ? getString("FullAddress") : address;
                     var addressNumber = getString("AddressNumber");
-                    var streetName = getString("StreetName") ?? getString("Street");
-                    var postCode = getString("PostCode") ?? getString("Postcode");
+                    var streetName = rawProperties?.ContainsKey("StreetName") == true ? getString("StreetName") : getString("Street");
+                    var postCode = rawProperties?.ContainsKey("PostCode") == true ? getString("PostCode") : getString("Postcode");
                     var place = getString("Place");
                     var region = getString("Region");
                     var country = getString("Country");
@@ -181,7 +182,7 @@ namespace Wayfarer.Parsers
                     var loc = new Location
                     {
                         UserId = userId,
-                        Timestamp = tsUtc,
+                        Timestamp = profile?.Kind == "original" ? ObservationEvidence.Truncate(DateTime.UtcNow) : tsUtc,
                         LocalTimestamp = localTs,
                         TimeZoneId = tzId,
                         Coordinates = new Point(pt.X, pt.Y) { SRID = 4326 },
@@ -207,6 +208,11 @@ namespace Wayfarer.Parsers
                         ReverseGeocodedAt = feature.EnrichedAt,
 
                         // Metadata fields
+                        ImportedRecoveryProfile = profile != null,
+                        OriginalLocalTimestamp = CsvLocationParser.ReadOriginalLocal(getTupleString("OriginalLocalTimestamp")),
+                        OriginalTimeZoneId = CsvLocationParser.ReadOriginalZone(getTupleString("OriginalTimeZoneId")),
+                        OriginalUtcOffsetSeconds = CsvLocationParser.ReadOriginalOffset(getString("OriginalUtcOffsetSeconds")),
+                        SubmittedAtUtc = ObservationEvidence.ReadInstant(getString("SubmittedAtUtc")),
                         CoordinateOrigin = ObservationEvidence.ReadOrigin(getTupleString("CoordinateOrigin")),
                         ObservedAtUtc = ObservationEvidence.ReadInstant(getString("ObservedAtUtc")),
                         ObservedAgeAtEventMs = ObservationEvidence.ReadAge(getString("ObservedAgeAtEventMs")),
@@ -251,6 +257,7 @@ namespace Wayfarer.Parsers
         /// <param name="rawTimestamp">ISO-8601 timestamp, ideally with an explicit offset.</param>
         private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
         {
+            if (ObservationEvidence.ReadInstant(rawTimestamp) is { } shared) { timestampUtc = shared.UtcDateTime; return true; }
             if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
                 DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
             {
@@ -278,6 +285,7 @@ namespace Wayfarer.Parsers
         /// <returns>The event time with UTC kind, or the existing receipt timestamp fallback.</returns>
         private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)
         {
+            if (ObservationEvidence.ReadInstant(rawTimestamp) is { } shared) return shared.UtcDateTime;
             if (string.IsNullOrWhiteSpace(rawTimestamp))
             {
                 return fallbackUtc;

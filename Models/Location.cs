@@ -22,6 +22,15 @@ namespace Wayfarer.Models
         /// </summary>
         public Guid? IdempotencyKey { get; set; }
 
+        /// <summary>Exact original phone wall-clock text, including up to nine fractional digits; unknown stays null.</summary>
+        [MaxLength(29)] public string? OriginalLocalTimestamp { get; set; }
+        /// <summary>Original platform zone token, preserved independently of effective coordinates and offset.</summary>
+        [MaxLength(128)] public string? OriginalTimeZoneId { get; set; }
+        /// <summary>Independent original device UTC offset, in seconds; never reconstructed.</summary>
+        [Range(-64800, 64800)] public int? OriginalUtcOffsetSeconds { get; set; }
+        /// <summary>Original action submission instant; not receipt, queue drain or retry time.</summary>
+        public DateTimeOffset? SubmittedAtUtc { get; set; }
+
         /// <summary>Coordinate provenance asserted by the client: sensor, manual-map, or unknown.</summary>
         [MaxLength(24)] public string? CoordinateOrigin { get; set; }
 

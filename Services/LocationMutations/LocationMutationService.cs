@@ -42,7 +42,7 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
                 ReceiptRetainUntilUtc = proof.ExpiresAtUtc.AddDays(30), State = "pending", ExecutorNonce = Guid.NewGuid()
             };
             db.LocationMutationOperations.Add(operation);
-            var rejection = command.Normalization != "location-values-1" || proof.Normalization != command.Normalization
+            var rejection = command.Normalization is not ("location-values-1" or "location-values-2") || proof.Normalization != command.Normalization
                 ? Terminal(operation, now, "baseNormalizationUnsupported", 422) : await CompareAsync(operation, command, token);
             if (rejection != null) return await CommitAsync(transaction, rejection, token);
             if (!Movement(command, await ValuesAsync(owner, id, token)))
@@ -128,7 +128,7 @@ internal sealed partial class LocationMutationService(ApplicationDbContext db, I
                 return Terminal(operation, now, "baseUnavailable", 422);
             try
             {
-                if (!LocationMutationCommand.Equal(group.Name, group.Value.GetProperty("value"), current.GetProperty("value"))) stale.Add(group.Name);
+                if (!LocationMutationCommand.Equal(group.Name, group.Value.GetProperty("value"), current.GetProperty("value"), command.Normalization)) stale.Add(group.Name);
             }
             catch (MutationProtocolException error) when (error.Code == "baseUnavailable")
             { return Terminal(operation, now, "baseUnavailable", 422); }
