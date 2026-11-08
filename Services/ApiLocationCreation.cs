@@ -6,12 +6,12 @@ using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services;
 
-/// <summary>Persists API create winners before optional keyed enrichment, retaining legacy keyless ordering.</summary>
+/// <summary>Persists source-adapted create winners before optional keyed enrichment, retaining legacy keyless ordering.</summary>
 internal static class ApiLocationCreation
 {
     /// <summary>Only a newly committed keyed row may contact; returns durable state for response/cache/publication.</summary>
     internal static async Task<(Location Location, bool Created)> PersistAsync(ApplicationDbContext db, ReverseGeocodingService reverse,
-        Location location, CancellationToken cancellationToken)
+        Location location, CancellationToken cancellationToken, bool enrich = true)
     {
         // One canonical creation boundary for shared content and generated/shared clock precision.
         location.Notes = Wayfarer.Util.RichNotes.Normalize(location.Notes);
@@ -37,11 +37,12 @@ internal static class ApiLocationCreation
             var winner = await db.Locations.AsNoTracking().FirstOrDefaultAsync(
                 row => row.UserId == location.UserId && row.IdempotencyKey == location.IdempotencyKey, cancellationToken);
             if (winner != null) return (winner, false);
-            location.OriginalCreateAddressToken = Guid.NewGuid();
+            location.OriginalCreateAddressToken = enrich ? Guid.NewGuid() : null;
             db.Locations.Add(location);
             await db.SaveChangesAsync(cancellationToken);
             if (creation != null) await creation.CommitAsync(cancellationToken);
         }
+        if (!enrich) return (location, true);
         var result = await reverse.EnrichRetainedAsync(db, location, cancellationToken);
         return (await ApplyToWinnerAsync(db, location, result, cancellationToken), true);
     }

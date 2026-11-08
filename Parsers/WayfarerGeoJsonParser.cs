@@ -72,9 +72,14 @@ namespace Wayfarer.Parsers
                 while (await json.ReadAsync(cancellationToken) && json.TokenType != JsonToken.EndArray)
                 {
                     json.InvalidActivityValue = false;
+                    json.DuplicateFeatureMembers = false;
+                    json.SawRecoveryProfile = false;
+                    json.InvalidFeatureUnicode = false;
                     var featureJson = await JObject.LoadAsync(json, cancellationToken);
                     // Raw identity types and zero occurrences are checked before geometry/timestamp filters or NTS coercion.
                     var rawProperties = featureJson["properties"] as JObject;
+                    if (json.SawRecoveryProfile && (json.DuplicateFeatureMembers || json.InvalidFeatureUnicode))
+                        throw LocationImportValidationException.Recovery();
                     var profile = rawProperties == null ? null : LocationRecoveryProfile.Read(rawProperties, false, featureJson["geometry"]);
                     var idempotencyKey = ParseOptionalGuid(rawProperties?.GetValue("IdempotencyKey", StringComparison.Ordinal));
                     if (idempotencyKey == Guid.Empty)

@@ -28,7 +28,9 @@ test('private Timeline W2 calendar trip filters records and edit return', async 
     await page.locator('#Latitude').fill('37.98'); await page.locator('#Longitude').fill('23.72');
     await page.locator('#LocalTimestamp').fill('2026-10-29T10:15');
     await page.locator('.rich-notes-content').fill('W2 blue door');
-    await Promise.all([page.waitForURL(/\/User\/Location\/Edit\//), page.getByRole('button', { name: 'Add Location', exact: true }).click()]);
+    await page.getByRole('button', { name: 'Add Location', exact: true }).click();
+    await page.getByRole('link', { name: 'Open saved Location / Edit' }).click();
+    await page.waitForURL(/\/User\/Location\/Edit\//);
     const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
     await page.goto('/User/Timeline/Chronological?viewType=day&year=2026&month=10&day=29&timeBasis=viewer&viewerZone=Europe%2FAthens');
     await expect(page.locator('#timeline-summary')).toContainText('1 known');

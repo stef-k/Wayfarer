@@ -238,6 +238,18 @@ or permanent non-resurrection. Keyed recovery uses affirmative deleted-key evide
 
 ## Stored deletion proof and publication effects
 
+New owner bases use `location-values-2`: shared instants truncate within the UTC
+second, including before epochs, without rewriting frozen request bytes.
+Already frozen version-1 requests retain their original comparison and receipt
+binding. New delete bases use `location-delete-storage-2`, extending the ordered
+version-1 inventory below with OriginalLocalTimestamp (text), OriginalTimeZoneId
+(text), OriginalUtcOffsetSeconds (int4) and SubmittedAtUtc (timestamptz).
+A version-1 delete original cannot match version-2 current content; recover its
+outcome, then read a fresh owner base for a deliberate new delete. An existing
+terminal receipt remains authoritative for its exact request. Original clocks are
+not writable by either mutation adapter and survive unrelated effective changes.
+
+
 `location-delete-storage-1` starts with a framed domain, then each ordered field
 as `frame(fieldName) || nullTag || frame(valueBytes)`. SQL NULL uses tag 0 and an
 empty value frame; present uses tag 1. SHA-256 output uses the same digest syntax.

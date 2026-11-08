@@ -100,6 +100,7 @@ public class GpsLoggerLocationDto : System.ComponentModel.DataAnnotations.IValid
     /// <summary>
     /// Battery level (0-100) when captured.
     /// </summary>
+    [System.ComponentModel.DataAnnotations.Range(0, 100)]
     public int? BatteryLevel { get; set; }
 
     /// <summary>

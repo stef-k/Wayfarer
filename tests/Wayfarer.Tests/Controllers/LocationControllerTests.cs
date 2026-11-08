@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection;
 using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
@@ -122,11 +124,16 @@ namespace Wayfarer.Tests.Controllers;
             }
         };
 
+        controller.HttpContext.RequestServices = new ServiceCollection()
+            .AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider()).BuildServiceProvider();
+        controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
+        var issued = Assert.IsType<AddLocationViewModel>(Assert.IsType<ViewResult>(await controller.Create()).Model);
         var httpContext = controller.ControllerContext.HttpContext;
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
 
         var model = new AddLocationViewModel
         {
+            CreateKey = issued.CreateKey, CreateIntent = issued.CreateIntent,
             Latitude = 10,
             Longitude = 20,
             LocalTimestamp = new DateTime(2024, 6, 1, 8, 0, 0, DateTimeKind.Unspecified),
@@ -137,8 +144,7 @@ namespace Wayfarer.Tests.Controllers;
         var result = await controller.Create(model);
 
         // Assert
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Edit", redirect.ActionName);
+        Assert.IsType<ViewResult>(result);
 
         var saved = await db.Locations.SingleAsync(l => l.UserId == currentUser.Id);
         Assert.Equal(model.Latitude, saved.Coordinates.Y);
@@ -507,6 +513,8 @@ namespace Wayfarer.Tests.Controllers;
         url.Setup(u => u.IsLocalUrl(It.IsAny<string>())).Returns(true);
         url.Setup(u => u.Action(It.IsAny<UrlActionContext>())).Returns("/User/Location");
         controller.Url = url.Object;
+        controller.HttpContext.RequestServices = new ServiceCollection()
+            .AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider()).BuildServiceProvider();
         return controller;
     }
 

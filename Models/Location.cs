@@ -101,7 +101,7 @@ namespace Wayfarer.Models
         #region Metadata Fields
 
         /// <summary>
-        /// How this record was created: "api-log", "api-checkin", "import", "queue-import".
+        /// How this record was created: "api-log", "api-checkin", "import", "queue-import", "web-create".
         /// </summary>
         public string? Source { get; set; }
 

@@ -31,7 +31,7 @@ public partial class LocationExportController
                 ["properties"] = properties
             });
         }
-        return File(Encoding.UTF8.GetBytes(new JObject { ["type"] = "FeatureCollection", ["features"] = features }.ToString(Formatting.None)),
+        return File(new MemoryStream(Encoding.UTF8.GetBytes(new JObject { ["type"] = "FeatureCollection", ["features"] = features }.ToString(Formatting.None, []))),
             "application/geo+json", $"{GenerateTitle()}.geojson");
     }
 
@@ -54,7 +54,7 @@ public partial class LocationExportController
                 {
                     var token = row[column]!;
                     csv.WriteField(token.Type == JTokenType.Null ? null : token is JValue scalar
-                        ? Convert.ToString(scalar.Value, CultureInfo.InvariantCulture) : token.ToString(Formatting.None));
+                        ? Convert.ToString(scalar.Value, CultureInfo.InvariantCulture) : token.ToString(Formatting.None, []));
                 }
                 await csv.NextRecordAsync();
             }
@@ -75,7 +75,7 @@ public partial class LocationExportController
             ["OriginalLocalTimestamp"] = l.OriginalLocalTimestamp, ["OriginalTimeZoneId"] = l.OriginalTimeZoneId,
             ["OriginalUtcOffsetSeconds"] = l.OriginalUtcOffsetSeconds, ["SubmittedAtUtc"] = Instant(l.SubmittedAtUtc),
             ["Accuracy"] = l.Accuracy, ["Altitude"] = l.Altitude, ["Speed"] = l.Speed, ["Bearing"] = l.Bearing,
-            ["ActivityTypeId"] = l.ActivityTypeId, ["Activity"] = l.ActivityType?.Name, ["LocationType"] = l.LocationType,
+            ["ActivityTypeId"] = l.ActivityTypeId, ["Activity"] = l.ActivityType?.Name, ["LocationType"] = string.IsNullOrEmpty(l.LocationType) ? null : l.LocationType,
             ["Notes"] = RichNotes.Normalize(l.Notes), ["Address"] = l.Address, ["FullAddress"] = l.FullAddress,
             ["AddressNumber"] = l.AddressNumber, ["StreetName"] = l.StreetName, ["PostCode"] = l.PostCode, ["Place"] = l.Place,
             ["Region"] = l.Region, ["Country"] = l.Country, ["ProviderAddressLine1"] = l.ProviderAddressLine1,
@@ -90,6 +90,7 @@ public partial class LocationExportController
         var unavailable = new JObject();
         foreach (var field in LocationRecoveryProfile.NumberFields)
             if (values[field] is double number && !double.IsFinite(number)) Mark(field);
+        if (string.IsNullOrWhiteSpace(l.TimeZoneId)) Mark("TimeZoneId");
         if (l.ActivityTypeId != null && string.IsNullOrWhiteSpace(l.ActivityType?.Name)) Mark("Activity");
         if (!ObservationEvidence.ValidOriginalLocal(l.OriginalLocalTimestamp)) Mark("OriginalLocalTimestamp");
         if (!ObservationEvidence.ValidOriginalZone(l.OriginalTimeZoneId)) Mark("OriginalTimeZoneId");

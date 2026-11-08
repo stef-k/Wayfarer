@@ -28,7 +28,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
         if (raw == null) return null;
         try
         {
-            var descriptor = csv ? JObject.Parse(raw.Value<string>()!) : raw as JObject;
+            var descriptor = csv ? JObject.Parse(raw.Value<string>()!, new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error }) : raw as JObject;
             Require(descriptor != null);
             Require(descriptor!.Properties().All(p => p.Name is "version" or "kind" or "nullFields" or "unavailableFields" or "sourceRecord"));
             Require(descriptor["version"]?.Type == JTokenType.Integer && descriptor["version"]!.Value<int>() == 1);
@@ -54,7 +54,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
                 ValidateValue(field.Name, field.Value, csv, profile.NullFields, unavailable.ContainsKey(field.Name));
             }
             // Coordinates may live in GeoJSON geometry; every other applicable field must be explicitly described.
-            var required = Known.Except(["Id", "ServerId", "ActivityTypeId"])
+            var required = Known.Except(["Id", "ServerId", "ActivityTypeId", "IdempotencyKey"])
                 .Where(name => kind == "effective" || !EffectiveOnly.Contains(name))
                 .Where(name => geometry == null || name is not ("Latitude" or "Longitude"));
             Require(required.All(values.ContainsKey));
@@ -72,7 +72,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
             if (geometry != null) ValidateGeometry(values, geometry, csv, profile);
             return profile;
         }
-        catch (Exception error) when (error is Newtonsoft.Json.JsonException or InvalidCastException or FormatException or OverflowException or ArgumentException)
+        catch (Exception error) when (error is not LocationImportValidationException && error is Newtonsoft.Json.JsonException or InvalidCastException or FormatException or OverflowException or ArgumentException)
         { throw LocationImportValidationException.Recovery(); }
     }
 
@@ -91,7 +91,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
             if (name == "OriginalLocalTimestamp") Require(ObservationEvidence.ValidOriginalLocal(text));
             if (name == "OriginalTimeZoneId") Require(ObservationEvidence.ValidOriginalZone(text));
             if (name == "CoordinateOrigin") Require(text is { Length: <= 24 });
-            if (name == "IdempotencyKey") Require(Guid.TryParseExact(text, "D", out var id) && id.ToString("D") == text);
+            if (name == "IdempotencyKey" && !string.IsNullOrEmpty(text)) Require(Guid.TryParseExact(text, "D", out var id) && id.ToString("D") == text);
             if (name == "TimeZoneId") Require(!string.IsNullOrWhiteSpace(text));
             if (name == "Activity") Require(!string.IsNullOrWhiteSpace(text) && ActivityCatalog.CanTransport(text));
             return;
@@ -137,7 +137,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
     /// <summary>Validates finite descriptive App lineage without granting backend root identity or deletion authority.</summary>
     private static void ValidateSourceRecord(JToken source, JObject values, bool csv)
     {
-        Require(IsBlank(values["IdempotencyKey"]!, csv));
+        Require(IsBlank(values["IdempotencyKey"] ?? (csv ? new JValue("") : JValue.CreateNull()), csv));
         Require(source is JObject obj && obj.Properties().Select(p => p.Name).Order().SequenceEqual(new[] { "namespace", "root" }));
         Require(source["namespace"]?.Value<string>() == "wayfarerapp-local-history-1" && source["root"] is JObject);
         var root = (JObject)source["root"]!;

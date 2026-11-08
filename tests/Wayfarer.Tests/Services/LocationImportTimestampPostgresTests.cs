@@ -15,7 +15,7 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Qualifies native event timestamps through real parsers, import checkpoints and PostgreSQL.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationImportTimestampPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
+public sealed partial class LocationImportTimestampPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
     /// <summary>Equivalent explicit offsets persist one instant while UUID replay preserves existing owner history.</summary>
     [PostgresFact]

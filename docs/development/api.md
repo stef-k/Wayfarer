@@ -246,6 +246,7 @@ configuration; these endpoints accept JSON POST, not GET/query-token logging.
 | --- | --- |
 | `latitude`, `longitude` | Both required for a new observation: finite decimal degrees in [-90,90]/[-180,180]. Explicit `(0,0)` and zero on either axis are valid. |
 | `timestamp` | Capture DateTime; ISO UTC `Z` and numeric offsets preserve the capture instant. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
+| `originalLocalTimestamp`, `originalTimeZoneId`, `originalUtcOffsetSeconds`, `submittedAtUtc` | Nullable original phone facts, independent of effective event/receipt/fix. Exact local ISO calendar text (0–9 fraction digits, max 29); exact ASCII zone token `[A-Za-z0-9_+./:~-]{1,128}` including fixed offsets; integer offset ±64800 seconds; explicit-offset submission instant. Unknowns stay null. |
 | `accuracy`, `altitude`, `speed` | Optional metres, metres, metres/second respectively. |
 | `locationType`, `notes`, `activityTypeId` | Optional capture description, notes and existing activity ID. |
 | `source`, `isUserInvoked`, `provider`, `bearing` | Optional origin, invocation flag, sensor/provider and bearing in degrees. |
@@ -259,6 +260,18 @@ existing conversion error. MVC binds numeric offsets to a host-local `DateTime`
 representing the same instant; the literal offset text is not retained.
 `TimeZoneId` still comes from coordinates, independently of the supplied offset.
 `Timestamp` remains server receipt UTC time, separate from capture `LocalTimestamp`.
+
+Shared explicit instants validate 0–9 fractional digits and offsets up to ±14:00,
+convert to UTC and truncate the fraction to six digits **before** .NET date binding.
+There is no rounding/carry: `2026-11-08T12:59:59.999999950+03:00` becomes
+`2026-11-08T09:59:59.999999Z`. Event, fix, submission, archived receipt and
+provenance use this boundary; original local text keeps all supplied digits.
+For example, original tuples `Europe/Athens` / `2026-11-08T14:00:00` / `7200`
+and `GMT+03:00` / `2026-11-08T15:00:00` / `10800` are independent descriptive
+facts. Identifiers retain case/spelling and need not resolve in backend TZDB.
+Owner detail publishes `originalLocalTimestamp`, `originalTimeZoneId`,
+`originalUtcOffsetSeconds`, `submittedAtUtc`. Effective edits preserve these and
+unrelated device facts; position/event edits retain existing fix/live invalidation.
 
 Omit unavailable measurements. Metadata does not change endpoint filtering:
 `isUserInvoked` on log-location is not a check-in bypass. Automatic capture applies
@@ -341,6 +354,46 @@ persistence and immediate post-write work. Admission can return 429/503: honor
 the actual `Retry-After` header. Invalid credentials need correction, and malformed
 JSON/coordinates need a corrected request. Basic GPSLogger setup does not require
 an idempotency key or claim its queue implements Wayfarer's retry strategy.
+
+### Web creation and native files (#971)
+
+Web Create uses the shared first-winner creation owner with one owner-bound UUID
+per logical form intent. Definite initial validation permits correction under the
+same key. An uncertain attempt retains its first attempted values; newer input
+remains visibly unsaved. Replay displays the actual current winner and offers
+protected Edit with a fresh owner base. Deleted keys cannot be restored, and only
+an explicit separate new form allocates another key. Manual Web history records
+`Source=web-create`, `IsUserInvoked=true`, `CoordinateOrigin=manual-map`; it supplies
+no phone clocks, fix, device context, presence or visits. Manual address fields
+trim/blank-to-null and suppress optional creation enrichment. Confirmation survives
+optional notification failure. Form values do not enter logged notifications.
+
+Canonical CSV and Wayfarer GeoJSON carry `WayfarerRecovery` version 1 with
+`kind`, `nullFields`, `unavailableFields` and optional finite keyless App
+`sourceRecord`. The durable field/role contract remains [#971](https://github.com/stef-k/Wayfarer/issues/971).
+Export describes effective history from typed values; no arbitrary metadata bag
+is stored. Every applicable field is present. CSV blank with null membership is
+known null; other text blanks are empty. JSON known null must agree with the
+null list. Unavailable values use blank/null placeholders plus a bounded reason,
+never null membership. Unsupported, missing or contradictory native evidence is
+held before insertion; a completed job or UUID match alone is not content proof.
+
+Address and FullAddress are independent. Only absent legacy FullAddress falls back
+to Address; present null/empty/CSV blank does not. Activity transfers catalog meaning,
+never foreign catalog authority. Assigned IDs without portable names are unavailable,
+not unassigned. GeoJSON emits 2D Point plus flat Altitude; native 3D input needs
+finite Z agreeing with present nonnull flat Altitude. Zero/false, independent
+address components and nullable Source/invocation survive native imports; capture
+endpoint defaults and legacy import defaults retain their separate meanings.
+Original files make no receipt claim: compatibility TimestampUtc repeats event
+and TimeZoneId is UTC; import assigns a fresh receipt and preserves original zone
+separately. Imported history grants no live or mutation authority.
+
+Anonymous legacy files retain disclosed proximity/identity limits. Validated App
+sourceRecord is descriptive and is not persisted as backend root identity. Backend
+re-export cannot certify preservation of App local lineage, immutable originals,
+unknown precision or native deletion eligibility. Mobile codecs, charging producers,
+cached-UUID refresh and native acceptance are separately owned.
 
 ## Deleted location identities and key status
 

@@ -36,7 +36,7 @@ public class LocationExportControllerTests : TestBase
         for (var i = 0; i < values.Length; i++)
             db.Locations.Add(new Location
             {
-                UserId = "u1", TimeZoneId = string.Empty, LocationType = values[i],
+                UserId = "u1", TimeZoneId = format is LocationImportFileType.Csv or LocationImportFileType.WayfarerGeoJson ? "UTC" : string.Empty, LocationType = values[i],
                 Timestamp = DateTime.UnixEpoch.AddHours(i), LocalTimestamp = DateTime.UnixEpoch.AddHours(i),
                 Coordinates = new Point(22, 40) { SRID = 4326 }
             });
