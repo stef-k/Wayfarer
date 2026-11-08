@@ -54,6 +54,52 @@ test('horizon is start-based for all periods; future Through is admitted without
     assert.throws(() => readSelection('?viewType=day&year=2026&month=5&day=17&q=secret', 'viewer', 'UTC', 57600, now));
 });
 
+// Round-trip the concrete preset and Custom picker shapes through the public URL boundary.
+for (const mode of ['day', 'week', 'month', 'year', 'custom']) test(`${mode} edit return restores exact intent after URL parsing`, () => {
+    const selected = mode === 'custom'
+        ? { dateType: 'custom', fromDate: '2026-05-04', throughDate: '2026-05-17', timeBasis: selection().timeBasis, viewerZone: selection().viewerZone }
+        : preset(selection(), mode, civil(2026, 5, 17), 1);
+    const { intent, session } = setup(); const context = crypto.randomUUID();
+    const filters = { q: 'blue door', activityIds: [7], includeUnassigned: true, area: { west: 20, south: 30, east: 25, north: 40 } };
+    const returnState = { panel: 'records', selectedId: 42, camera: { latitude: 37.98, longitude: 23.72, zoom: 12 },
+        scroll: 230, path: true, ruleDraft: { maximumGapSeconds: '3600', speedEnabled: false, maximumSpeedMetresPerSecond: '123.5' } };
+    intent.save(selected, context, filters, returnState);
+    const search = selectionSearch(selected, context);
+    // Parameter order, like object property order, carries no selection meaning.
+    const reordered = new URLSearchParams([...new URLSearchParams(search)].reverse()).toString();
+    const parsed = readSelection(reordered, 'capture', 'UTC', 57600, new Date('2026-06-01T12:00Z'));
+    assert.equal(parsed.context, context); assert.deepEqual(parsed.selection, selected);
+    assert.deepEqual(intent.restore(parsed.selection, parsed.context), { filters, returnState });
+    const { owner } = setup(undefined, session, { selection: parsed.selection, context: parsed.context,
+        ...intent.restore(parsed.selection, parsed.context) });
+    assert.deepEqual(owner.returnState(), returnState);
+    assert.equal(selectionSearch(parsed.selection), selectionSearch(selected));
+    assert.equal(new URLSearchParams(search).has('q'), false);
+});
+
+test('return identity preserves semantic selection differences and rejects malformed links', () => {
+    const { intent, session } = setup(); const context = crypto.randomUUID();
+    const week = preset(selection(), 'week', civil(2026, 5, 17), 1);
+    const filters = { ...emptyFilters(), q: 'blue door' };
+    intent.save(week, context, filters, { panel: 'records', selectedId: 42 });
+    // Different anchors may share the same interval; identity still includes the exact anchor.
+    for (const changed of [{ dateType: 'day' }, { day: 16 }, { weekStartsOn: 7 }, { timeBasis: 'capture' }, { viewerZone: 'UTC' }]) {
+        assert.equal(intent.restore({ ...week, ...changed }, context).returnState, undefined);
+    }
+    const custom = { dateType: 'custom', fromDate: '2026-05-04', throughDate: '2026-05-17', timeBasis: 'viewer', viewerZone: 'Europe/Athens' };
+    intent.save(custom, context, filters, { panel: 'records', selectedId: 42 });
+    for (const changed of [{ fromDate: '2026-05-05' }, { throughDate: '2026-05-18' }]) {
+        assert.equal(intent.restore({ ...custom, ...changed }, context).returnState, undefined);
+    }
+    const search = selectionSearch(custom, context);
+    for (const extra of ['&fromDate=2026-05-04', '&q=private', '&year=2026']) {
+        assert.throws(() => readSelection(search + extra, 'viewer', 'UTC', 57600), /Invalid|Conflicting/);
+    }
+    assert.equal(intent.restore(custom, null).returnState, undefined);
+    assert.throws(() => intent.restore(custom, crypto.randomUUID()), /unavailable/);
+    assert.throws(() => new CalendarIntent(session, 'other').restore(custom, context), /unavailable/);
+});
+
 test('one subject-bound restoration slot restores matching contexts and never adopts filters from date-only links', () => {
     const { intent, session } = setup(); const context = crypto.randomUUID();
     const filters = { ...emptyFilters(), q: 'blue door' };

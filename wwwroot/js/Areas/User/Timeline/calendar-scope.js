@@ -83,10 +83,10 @@ export const moveSelection = (selection, unit, direction, sameUnit = false) => {
     const type = !sameUnit && (unit === 'day' || selection.dateType === 'custom') ? 'day' : selection.dateType;
     return preset(selection, type, next);
 };
-/** Only public selection and one random local context may appear in a page URL. */
+/** Public selection identity is independent of construction order; only its fields and an opaque context enter the URL. */
 export const selectionSearch = (selection, context = null) => {
     const params = new URLSearchParams({ viewType: selection.dateType });
-    for (const [key, value] of Object.entries(selection)) if (key !== 'dateType') params.set(key, String(value));
+    for (const key of Object.keys(selection).sort()) if (key !== 'dateType') params.set(key, String(selection[key]));
     if (context) params.set('filterContext', context);
     return `?${params}`;
 };

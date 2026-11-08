@@ -60,6 +60,7 @@ test('private Timeline W2 calendar trip filters records and edit return', async 
     await expect(page.locator('#modalContent')).toContainText('Recorded local time:');
     await expect(page.locator('#modalContent')).toContainText('Datetime (your timezone):');
     await expect(page.locator('#modalContent')).toContainText('W2 blue door');
+    await screenshot('timeline-w2-before-edit.png');
     await page.locator('#editTimelineRecord').click();
     await page.locator('#notes [contenteditable=true]').fill('W2 blue door after edit');
     const refreshedPeriod = page.waitForResponse(response => response.url().endsWith('/Timeline/calendar/period') && response.request().method() === 'POST');
