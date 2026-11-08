@@ -156,7 +156,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 OriginalTimeZoneId = ReadOriginalZone(field("OriginalTimeZoneId")),
                 OriginalUtcOffsetSeconds = ReadOriginalOffset(field("OriginalUtcOffsetSeconds")),
                 SubmittedAtUtc = ReadSubmission(field("SubmittedAtUtc")),
-                CoordinateOrigin = ObservationEvidence.ReadOrigin(field("CoordinateOrigin")),
+                // The admitted descriptor distinguishes empty text from null; legacy normalization stays separate.
+                CoordinateOrigin = profile != null ? field("CoordinateOrigin") : ObservationEvidence.ReadOrigin(field("CoordinateOrigin")),
                 ObservedAtUtc = ObservationEvidence.ReadInstant(field("ObservedAtUtc")),
                 ObservedAgeAtEventMs = ObservationEvidence.ReadAge(field("ObservedAgeAtEventMs")),
                 Source = source,

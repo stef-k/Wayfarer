@@ -224,7 +224,8 @@ namespace Wayfarer.Parsers
                         OriginalTimeZoneId = CsvLocationParser.ReadOriginalZone(getTupleString("OriginalTimeZoneId")),
                         OriginalUtcOffsetSeconds = CsvLocationParser.ReadOriginalOffset(getString("OriginalUtcOffsetSeconds")),
                         SubmittedAtUtc = CsvLocationParser.ReadSubmission(getString("SubmittedAtUtc")),
-                        CoordinateOrigin = ObservationEvidence.ReadOrigin(getTupleString("CoordinateOrigin")),
+                        // Strict native admission already validates bounded text, including known-empty origin.
+                        CoordinateOrigin = profile != null ? getTupleString("CoordinateOrigin") : ObservationEvidence.ReadOrigin(getTupleString("CoordinateOrigin")),
                         ObservedAtUtc = ObservationEvidence.ReadInstant(getString("ObservedAtUtc")),
                         ObservedAgeAtEventMs = ObservationEvidence.ReadAge(getString("ObservedAgeAtEventMs")),
                         Source = source,

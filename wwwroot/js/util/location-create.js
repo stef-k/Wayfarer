@@ -10,10 +10,10 @@ export const createValues = data => Object.fromEntries([...numeric, ...text].map
 /** Uses the existing POST and returned MVC page; no persistent queue or alternate creation endpoint. */
 export const attachLocationCreate = (form, notesValue, redisplay) => {
     let sending = false;
-    let accountChanged = false;
+    let requiresOwnerCheck = false;
     form.addEventListener('submit', async event => {
         event.preventDefault();
-        if (sending || accountChanged || !form.reportValidity()) return;
+        if (sending || requiresOwnerCheck || !form.reportValidity()) return;
         sending = true;
         const read = () => {
             form.elements.Notes.value = notesValue();
@@ -33,13 +33,19 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
             const html = await response.text();
             const page = new DOMParser().parseFromString(html, 'text/html');
             const subject = document.getElementById('browser-antiforgery')?.dataset.subjectId;
-            if (response.redirected || subject !== page.getElementById('browser-antiforgery')?.dataset.subjectId) {
-                accountChanged = true;
+            const responseSubject = page.getElementById('browser-antiforgery')?.dataset.subjectId;
+            if (response.redirected || !subject || !responseSubject || subject !== responseSubject) {
+                // Missing proof is uncertainty, not affirmative evidence of an account switch. Both need owner recheck.
+                const foreignOwner = subject && responseSubject && subject !== responseSubject;
+                requiresOwnerCheck = true;
                 form.hidden = true;
                 const warning = document.createElement('p');
                 warning.className = 'alert alert-warning';
                 warning.setAttribute('role', 'alert');
-                warning.textContent = 'Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.';
+                warning.textContent = foreignOwner
+                    ? 'Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.'
+                    : 'The save could not be confirmed, and your account could not be verified. Keep this page open and recheck the original account before retrying. If needed, sign back in to that account in another tab.';
+                status.textContent = warning.textContent;
                 const recheck = document.createElement('button');
                 recheck.type = 'button';
                 recheck.className = 'btn btn-outline-primary ms-2';
@@ -49,11 +55,11 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                         // Existing owner page refreshes session/antiforgery proof without allocating a create identity.
                         const proof = await fetch('/User/Location', { credentials: 'same-origin', cache: 'no-store' });
                         const ownerPage = new DOMParser().parseFromString(await proof.text(), 'text/html');
-                        if (!proof.ok || proof.redirected || ownerPage.getElementById('browser-antiforgery')?.dataset.subjectId !== subject) return;
+                        if (!subject || !proof.ok || proof.redirected || ownerPage.getElementById('browser-antiforgery')?.dataset.subjectId !== subject) return;
                         const csrf = ownerPage.querySelector('#browser-antiforgery input[name=__RequestVerificationToken]')?.value;
                         if (!csrf) return;
                         form.elements.__RequestVerificationToken.value = csrf;
-                        accountChanged = false;
+                        requiresOwnerCheck = false;
                         form.hidden = false;
                         warning.remove();
                         status.hidden = false;

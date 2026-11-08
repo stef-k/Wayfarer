@@ -38,6 +38,35 @@ public sealed class SharedLocationRecoveryTests : TestBase
         Assert.Null(row.PresenceObservedAtUtc); Assert.Null(row.OriginalCreateAddressToken);
     }
 
+    /// <summary>Native origin preserves admitted text states; absent/overlength evidence is Held while legacy remains normalized.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OriginAdmissionDistinguishesNativeStatesAndLegacyLimits(bool csv)
+    {
+        var values = await EffectiveAsync();
+        foreach (var origin in new[] { null, "", "  ", new string('x', 24) })
+        {
+            values["CoordinateOrigin"] = origin;
+            Describe(values);
+            Assert.Equal(origin, Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
+        }
+        values["CoordinateOrigin"] = new string('x', 25);
+        Describe(values);
+        await Assert.ThrowsAsync<LocationImportValidationException>(() => ParseAsync(values, csv));
+        values.Remove("CoordinateOrigin");
+        await Assert.ThrowsAsync<LocationImportValidationException>(() => ParseAsync(values, csv));
+        values.Remove("WayfarerRecovery");
+        Assert.Null(Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
+        foreach (var origin in new[] { null, "", new string('x', 25) })
+        {
+            values["CoordinateOrigin"] = origin;
+            Assert.Null(Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
+        }
+        values["CoordinateOrigin"] = "  ";
+        Assert.Equal("  ", Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
+    }
+
     /// <summary>Raw nanosecond instants truncate before framework parsing in each native format.</summary>
     [Theory]
     [InlineData(false)]

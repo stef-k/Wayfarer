@@ -332,6 +332,9 @@
   Web Create now shares UUID first-winner persistence, retains uncertain attempts
   and visibly unsaved differences, and offers explicit protected Edit. Manual
   history preserves supplied addresses without fabricating phone/live facts.
+  Native recovery retains known-empty coordinate origin. Blank Notes receive
+  truthful save/replay confirmation; unverifiable error responses retain the
+  original attempt and offer account recheck without asserting an account change.
 
 
 - Raise #918 history/page and overview evaluation ceilings to fifteen seconds at

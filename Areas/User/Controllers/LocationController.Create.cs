@@ -45,6 +45,10 @@ public partial class LocationController
         catch (CryptographicException) { return Forbid(); }
         model.UserId = owner;
         ModelState.Remove(nameof(model.ActivityTypes));
+        // MVC normally maps blank strings to null. Create's JSON attempt preserves authored Notes text,
+        // so read the same current form text for comparison without borrowing the older frozen payload.
+        if (Request.HasFormContentType && Request.Form.TryGetValue(nameof(model.Notes), out var notes))
+            model.Notes = notes[0];
         // An observed winner/deletion takes priority over validation of newer unsaved form input.
         // Absence is never used to settle an earlier possibly effective attempt.
         if (await LocationDeletionFence.IsDeletedAsync(_dbContext, owner, model.CreateKey, HttpContext.RequestAborted))

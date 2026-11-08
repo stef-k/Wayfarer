@@ -5,8 +5,12 @@ using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Models.Enums;
+using Microsoft.Extensions.Logging.Abstractions;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.LocationImports;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -129,6 +133,105 @@ public sealed partial class LocationCoordinatesPostgresTests
         using var foreign = await otherClient.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values));
         Assert.Equal(HttpStatusCode.Redirect, foreign.StatusCode);
         Assert.Contains("AccessDenied", foreign.Headers.Location!.ToString());
+    }
+
+    /// <summary>Blank authored Notes must confirm the real save and replay without hiding genuine newer differences.</summary>
+    [PostgresFact]
+    public async Task WebBlankNotesConfirmsSaveAndReplayWithManualAddress()
+    {
+        var owner = await OwnerAsync();
+        await using var db = fixture.CreateContext();
+        await using var app = await HostAsync(db, new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict));
+        using var client = Client(app, owner);
+        await WebCookieAsync(client, app.Services, owner);
+        var initial = await client.GetStringAsync("/User/Location/Create");
+        var values = new Dictionary<string, string> { ["CreateKey"] = Input(initial, "CreateKey"), ["CreateIntent"] = Input(initial, "CreateIntent"),
+            ["__RequestVerificationToken"] = Input(initial, "__RequestVerificationToken"), ["Latitude"] = "0", ["Longitude"] = "0",
+            ["LocalTimestamp"] = "2026-11-08T12:00:00", ["Notes"] = "", ["Address"] = "Manual",
+            ["AttemptedValues"] = JsonSerializer.Serialize(new { latitude = 0, longitude = 0, localTimestamp = "2026-11-08T12:00:00", notes = "", address = "Manual" }) };
+        using (var created = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values)))
+        {
+            Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+            Assert.Contains("The location was saved.", await created.Content.ReadAsStringAsync());
+        }
+        values["CreateMayHaveEffect"] = "true";
+        using (var replay = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values)))
+            Assert.Contains("The original creation was found.", await replay.Content.ReadAsStringAsync());
+        values["Notes"] = "<p>newer</p>";
+        using (var changed = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values)))
+        {
+            var html = await changed.Content.ReadAsStringAsync();
+            Assert.Contains("current form changes were not applied", html);
+            Assert.Contains("&lt;p&gt;newer", html);
+        }
+        var row = await db.Locations.AsNoTracking().SingleAsync(row => row.UserId == owner);
+        Assert.Equal("", row.Notes);
+        Assert.Equal("Manual", row.Address);
+        Assert.Equal(Guid.Parse(values["CreateKey"]), row.IdempotencyKey);
+        // Explicit protected clear is null, and must still differ from the browser's empty authored text.
+        var clear = await ProtectedLocationRequest.CreateAsync(client, row.Id, new { notes = new { op = "clear" } });
+        using (var cleared = await clear.SendAsync(client)) Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        values["Notes"] = "";
+        using (var clearedWinner = await client.PostAsync("/User/Location/Create", new FormUrlEncodedContent(values)))
+            Assert.Contains("current form changes were not applied", await clearedWinner.Content.ReadAsStringAsync());
+        Assert.Null((await db.Locations.AsNoTracking().SingleAsync(row => row.UserId == owner)).Notes);
+    }
+
+    /// <summary>API, typed storage/detail, canonical files and production import retain known-empty versus known-null origin.</summary>
+    [PostgresTheory]
+    [InlineData("Csv", "")]
+    [InlineData("GeoJson", "")]
+    [InlineData("Csv", null)]
+    [InlineData("GeoJson", null)]
+    public async Task NativeOriginStateSurvivesApiExportAndImport(string format, string? origin)
+    {
+        var owner = await OwnerAsync();
+        var destination = await OwnerAsync();
+        await using var db = fixture.CreateContext();
+        await using var app = await HostAsync(db, new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict));
+        using var client = Client(app, owner);
+        client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        using var created = await PostAsync(client, "check-in", JsonSerializer.Serialize(new { latitude = 0, longitude = 0,
+            timestamp = "1960-01-01T00:00:00.000000999Z", coordinateOrigin = origin, originalTimeZoneId = "UTC-02:30" }));
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+        var row = await db.Locations.AsNoTracking().SingleAsync(row => row.UserId == owner);
+        Assert.Equal(origin, row.CoordinateOrigin);
+        var detail = await ProtectedLocationRequest.DetailAsync(client, row.Id);
+        Assert.Equal(origin, detail.GetProperty("record").GetProperty("coordinateOrigin").GetString());
+        await WebCookieAsync(client, app.Services, owner);
+        using var exported = await client.GetAsync("/LocationExport/" + format);
+        exported.EnsureSuccessStatusCode();
+        var payload = await exported.Content.ReadAsByteArrayAsync();
+        using var stream = new MemoryStream(payload);
+        var fileType = format == "Csv" ? LocationImportFileType.Csv : LocationImportFileType.WayfarerGeoJson;
+        var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(fileType);
+        var rows = new List<Location>();
+        await foreach (var value in parser.ParseAsync(stream, destination)) rows.Add(value);
+        var parsed = Assert.Single(rows);
+        Assert.Equal(row.IdempotencyKey, parsed.IdempotencyKey);
+        Assert.Equal(origin, parsed.CoordinateOrigin);
+        var path = ImportStaging.TempFile();
+        try
+        {
+            await File.WriteAllBytesAsync(path, payload);
+            var import = new LocationImport { UserId = destination, FilePath = path, FileType = fileType,
+                Status = ImportStatus.InProgress, ExecutionEpoch = 7, TotalRecords = 0, LastProcessedIndex = 0 };
+            db.LocationImports.Add(import);
+            await db.SaveChangesAsync();
+            using var http = new HttpClient(new NoNetwork());
+            var worker = new LocationImportService(ImportStaging.Files, db,
+                new ReverseGeocodingService(http, NullLogger<BaseApiController>.Instance), NullLogger<LocationImportService>.Instance,
+                new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
+            Assert.Equal(LocationImportExecutionOutcome.Completed,
+                await worker.ProcessImportExecution(import.Id, import.ExecutionEpoch, CancellationToken.None));
+            var imported = await db.Locations.AsNoTracking().SingleAsync(value => value.UserId == destination);
+            Assert.Equal(origin, imported.CoordinateOrigin);
+            Assert.Equal(row.IdempotencyKey, imported.IdempotencyKey);
+            Assert.NotEqual(row.Id, imported.Id);
+            Assert.Equal(row.LocalTimestamp, imported.LocalTimestamp);
+            Assert.Equal(row.OriginalTimeZoneId, imported.OriginalTimeZoneId);
+        }
+        finally { File.Delete(path); }
     }
 
     /// <summary>Reads the existing MVC escaped hidden inputs rather than inventing form credentials.</summary>
