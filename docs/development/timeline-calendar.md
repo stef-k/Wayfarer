@@ -57,6 +57,9 @@ unknown marks and manual dates available; closing the picker fences optional wor
 The URL adapter uses viewType, public date components, basis/zone, frozen week start
 and optionally an independently random filterContext. One subject-bound versioned
 sessionStorage slot holds applied raw filters and small exact return intent only.
+Public selection serialization has deterministic property order across picker, preset
+and parsed URL shapes. Exact mode, anchor/endpoints, basis/zone and frozen week start
+remain part of return identity; overlapping periods do not share return state.
 Persistence/read-back precedes filter commitments. A date-only URL never adopts old
 filters; lost/foreign/malformed context blocks dependent reads pending explicit
 recovery. Ordinary pagehide/camera/panel retention and Retry cannot resolve that
