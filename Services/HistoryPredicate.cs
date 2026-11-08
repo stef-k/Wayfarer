@@ -12,7 +12,13 @@ internal sealed class HistoryPredicate
     internal const string Longitude = "CASE WHEN ST_X(l.\"Coordinates\"::geometry) = 180 THEN -180.0 ELSE ST_X(l.\"Coordinates\"::geometry) END";
     internal const string Latitude = "ST_Y(l.\"Coordinates\"::geometry)";
     internal readonly List<NpgsqlParameter> Parameters = [];
+    /// <summary>Owner-only source restriction retains reliably excluded continuity barriers.</summary>
+    internal string OwnerWhere { get; }
     internal string Where { get; }
+    /// <summary>Complete membership for the unsampled owner stream, including reliable filters.</summary>
+    internal string FullTruth { get; }
+    /// <summary>Qualified civil date projection shares the exact serving transition segments.</summary>
+    internal string MembershipDate { get; private set; } = "NULL::date";
     internal string Truth { get; }
     internal string Matches { get; }
     /// <summary>Conservative contiguous event source; exact Truth still decides membership.</summary>
@@ -26,7 +32,8 @@ internal sealed class HistoryPredicate
     internal HistoryPredicate(string owner, HistoryQuery query, CancellationToken token)
     {
         var scope = query.Scope;
-        var filters = new List<string> { $"l.\"UserId\" = {Add(owner)}" };
+        OwnerWhere = $"l.\"UserId\" = {Add(owner)}";
+        var filters = new List<string>();
         if (scope.ActivityIds != null)
         {
             var ids = Add(scope.ActivityIds);
@@ -42,8 +49,10 @@ internal sealed class HistoryPredicate
         }
         var time = TimeTruth(query, token);
         var area = scope.Area == null ? "TRUE" : AreaTruth(scope.Area);
-        Where = string.Join(" AND ", filters.Select(value => "(" + value + ")"));
+        var reliable = filters.Count == 0 ? "TRUE" : "COALESCE((" + string.Join(" AND ", filters.Select(value => "(" + value + ")")) + "), FALSE)";
+        Where = $"({OwnerWhere}) AND ({reliable})";
         Truth = $"(({time}) AND ({area}))";
+        FullTruth = $"({reliable}) AND ({Truth})";
         Matches = $"({_timeMatch}) AND ({_areaMatch})";
     }
 
@@ -88,6 +97,7 @@ internal sealed class HistoryPredicate
         EventEnvelope = envelope;
         if (query.Scope.TimeBasis == "capture")
         {
+            MembershipDate = "l.\"CaptureLocalTimestamp\"::date";
             var wall = Wall("l.\"CaptureLocalTimestamp\"", query);
             _timeMatch = $"({EventValid}) AND {envelope} AND l.\"HistoryTimeStatus\" = 'resolved' AND {wall}";
             return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE WHEN l.\"HistoryTimeStatus\" = 'resolved' THEN {wall} END";
@@ -106,6 +116,7 @@ internal sealed class HistoryPredicate
         var local = "((l.\"LocalTimestamp\" AT TIME ZONE 'UTC') + s.off * interval '1 second')";
         var predicate = Wall(local, query);
         var clippedEnd = upperClipped ? $" OR (s.hi = {Add(upper)} AND l.\"LocalTimestamp\" = s.hi)" : "";
+        MembershipDate = $"(SELECT {local}::date FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND (l.\"LocalTimestamp\" < s.hi{clippedEnd}) LIMIT 1)";
         var exactViewer = $"EXISTS (SELECT FROM unnest({lo}::timestamptz[], {hi}::timestamptz[], {off}::integer[]) s(lo,hi,off) WHERE l.\"LocalTimestamp\" >= s.lo AND (l.\"LocalTimestamp\" < s.hi{clippedEnd}) AND {predicate})";
         _timeMatch = $"({EventValid}) AND {envelope} AND {exactViewer}";
         return $"CASE WHEN NOT ({EventValid}) THEN NULL WHEN NOT ({envelope}) THEN FALSE ELSE {exactViewer} END";

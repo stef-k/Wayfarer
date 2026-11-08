@@ -2,7 +2,7 @@
  * Render the shared Timeline statistics hierarchy with presentation-only missing parents.
  * Coordinate URLs, link hooks, accordion IDs and recorded counts retain their existing behavior.
  */
-export const renderStatistics = (stats, highlightType, displayDate, period = null) => {
+export const renderStatistics = (stats, highlightType, displayDate, period = null, endpointTime = null) => {
     // Labels are encoded only at the HTML boundary; raw component names remain matching keys.
     const encode = (value) => String(value).replace(/[&<>"']/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -12,6 +12,9 @@ export const renderStatistics = (stats, highlightType, displayDate, period = nul
     if (stats.regions.some(r => r.countryName === '') || stats.cities.some(c => c.countryName === '')) {
         countries.push({ name: '', missing: true });
     }
+    // Private calendar callers supply actual endpoint identities; legacy callers retain their existing clocks.
+    const endpoint = (kind, country, region, place, first, fallback) => endpointTime
+        ? endpointTime({ kind, country, region, place, first }) : displayDate(fallback);
     let html = '<div class="container-fluid">';
 
     // Summary section
@@ -21,7 +24,7 @@ export const renderStatistics = (stats, highlightType, displayDate, period = nul
     html += `<p><strong>Total Locations:</strong> ${stats.totalLocations}</p>`;
     if (period !== null) html += `<p><strong>Period:</strong> ${encode(period)}</p>`;
     if (stats.fromDate && stats.toDate) {
-        html += `<p><strong>Date Range:</strong> ${displayDate(stats.fromDate)} to ${displayDate(stats.toDate)}</p>`;
+        html += `<p><strong>Date Range:</strong> ${endpoint('period', '', '', '', true, stats.fromDate)} to ${endpoint('period', '', '', '', false, stats.toDate)}</p>`;
     }
     html += '</div>';
     html += '</div>';
@@ -37,8 +40,8 @@ export const renderStatistics = (stats, highlightType, displayDate, period = nul
 
         countries.forEach((country, countryIdx) => {
             const homeLabel = country.isHomeCountry ? ' <span class="badge bg-info">Home</span>' : '';
-            const firstVisit = country.missing ? '' : displayDate(country.firstVisit);
-            const lastVisit = country.missing ? '' : displayDate(country.lastVisit);
+            const firstVisit = country.missing ? '' : endpoint('country', country.name, '', '', true, country.firstVisit);
+            const lastVisit = country.missing ? '' : endpoint('country', country.name, '', '', false, country.lastVisit);
 
             // Extract coordinates from PostGIS Point
             const lat = country.coordinates?.latitude || 0;
@@ -70,8 +73,8 @@ export const renderStatistics = (stats, highlightType, displayDate, period = nul
                 html += `<div class="accordion" id="regionsAccordion-${countryIdx}">`;
 
                 countryRegions.forEach((region, regionIdx) => {
-                    const regFirstVisit = region.missing ? '' : displayDate(region.firstVisit);
-                    const regLastVisit = region.missing ? '' : displayDate(region.lastVisit);
+                    const regFirstVisit = region.missing ? '' : endpoint('region', country.name, region.name, '', true, region.firstVisit);
+                    const regLastVisit = region.missing ? '' : endpoint('region', country.name, region.name, '', false, region.lastVisit);
                     const regLat = region.coordinates?.latitude || 0;
                     const regLng = region.coordinates?.longitude || 0;
                     const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
@@ -97,8 +100,8 @@ export const renderStatistics = (stats, highlightType, displayDate, period = nul
                         html += '<div class="list-group">';
 
                         regionCities.forEach(city => {
-                            const cityFirstVisit = displayDate(city.firstVisit);
-                            const cityLastVisit = displayDate(city.lastVisit);
+                            const cityFirstVisit = endpoint('city', city.countryName, city.regionName, city.name, true, city.firstVisit);
+                            const cityLastVisit = endpoint('city', city.countryName, city.regionName, city.name, false, city.lastVisit);
                             const cityLat = city.coordinates?.latitude || 0;
                             const cityLng = city.coordinates?.longitude || 0;
                             const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;

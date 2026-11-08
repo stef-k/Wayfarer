@@ -1,0 +1,124 @@
+import { expect, test } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { loadSharedLayoutConfig } from './sharedLayoutConfig';
+
+/** One managed core journey: real records, calendar keyboard, Custom/filter/area and protected edit return. */
+test('private Timeline W2 calendar trip filters records and edit return', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    const config = loadSharedLayoutConfig();
+    // The supervisor removes its private output root, so retain only deliberate safe UI evidence.
+    const evidence = process.env.WAYFARER_BROWSER_EVIDENCE_DIRECTORY || testInfo.outputDir;
+    await mkdir(evidence, { recursive: true });
+    const screenshot = (name: string) => page.screenshot({ path: join(evidence, name), fullPage: true });
+    const readIntent = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('wayfarer-private-timeline/2')!));
+    await page.route('**/*', async route => {
+        const url = new URL(route.request().url());
+        if (!['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname.toLowerCase().startsWith('/api/tiles')) return route.abort();
+        return route.continue();
+    });
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const privateUrls: string[] = [];
+    page.on('request', request => { if (request.url().includes('/Timeline/calendar/')) { expect(request.method()).toBe('POST'); privateUrls.push(request.url()); } });
+    await page.goto('/Identity/Account/Login');
+    await page.getByLabel('Username').fill(config.username); await page.getByLabel('Password').fill(config.password);
+    await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
+    await page.goto('/User/Location/Create');
+    await page.locator('#Latitude').fill('37.98'); await page.locator('#Longitude').fill('23.72');
+    await page.locator('#LocalTimestamp').fill('2026-10-29T10:15');
+    await page.locator('.rich-notes-content').fill('W2 blue door');
+    await Promise.all([page.waitForURL(/\/User\/Location\/Edit\//), page.getByRole('button', { name: 'Add Location', exact: true }).click()]);
+    const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
+    await page.goto('/User/Timeline/Chronological?viewType=day&year=2026&month=10&day=29&timeBasis=viewer&viewerZone=Europe%2FAthens');
+    await expect(page.locator('#timeline-summary')).toContainText('1 known');
+    await expect(page.locator('#distanceSummary')).toContainText('Distance between recorded locations');
+    await expect(page.locator('#recordedPath')).not.toBeChecked();
+    await page.locator('#choosePeriod').click();
+    const date = page.getByRole('button', { name: /^2026-10-29, matching records/ });
+    await expect(date).toBeVisible(); await date.focus(); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter');
+    await expect(page.locator('#choosePeriod')).toHaveText('2026-10-30');
+    await expect(page.locator('#choosePeriod')).toBeFocused();
+    await page.locator('#periodMode').selectOption('custom');
+    await page.locator('#rangeFrom').fill('2026-10-28'); await page.locator('#rangeThrough').fill('2026-10-31');
+    await page.locator('#applyRange').click();
+    await expect(page.locator('#calendarCaption')).toContainText('custom');
+    await expect(page.locator('#timeline-summary')).toContainText('1 known');
+    await page.locator('#chooseFilters').click(); await page.locator('#filterSearch').fill('W2 blue door');
+    await page.locator('#filterUnassigned').check(); await page.locator('#captureArea').click(); await page.locator('#applyFilters').click();
+    await expect(page.locator('#activeFilters')).toContainText('W2 blue door');
+    await expect(page.locator('#timeline-summary')).toContainText('1 known');
+    const context = new URL(page.url()).searchParams.get('filterContext'); expect(context).toBeTruthy();
+    const applied = await readIntent();
+    expect(page.url()).not.toContain('blue'); expect(privateUrls.every(url => !new URL(url).search)).toBe(true);
+    await page.locator('#showRecords').click();
+    const row = page.locator(`#recordRows [data-location-id="${id}"]`); await expect(row).toBeVisible(); await row.click();
+    await expect(row).toContainText(`Your timezone:`); await expect(row).toContainText('Recorded local:');
+    await expect(page.locator('#recordsStatus')).toContainText('1 loaded');
+    await expect(page.locator('#recordsStatus')).toContainText('end at last live observation');
+    await expect(page.locator('#modalContent')).toContainText(`Record ${id} · detail`);
+    await expect(page.locator('#modalContent')).toContainText('Recorded local time:');
+    await expect(page.locator('#modalContent')).toContainText('Datetime (your timezone):');
+    await expect(page.locator('#modalContent')).toContainText('W2 blue door');
+    await screenshot('timeline-w2-before-edit.png');
+    await page.locator('#editTimelineRecord').click();
+    await page.locator('#notes [contenteditable=true]').fill('W2 blue door after edit');
+    const refreshedPeriod = page.waitForResponse(response => response.url().endsWith('/Timeline/calendar/period') && response.request().method() === 'POST');
+    const refreshedRecords = page.waitForResponse(response => response.url().endsWith('/Timeline/calendar/records') && response.request().method() === 'POST');
+    await Promise.all([page.waitForURL(/\/User\/Timeline\/Chronological/), page.getByRole('button', { name: 'Save & Return', exact: true }).click()]);
+    expect((await refreshedPeriod).ok()).toBe(true); expect((await refreshedRecords).ok()).toBe(true);
+    await expect(page.locator('#activeFilters')).toContainText('W2 blue door');
+    expect(new URL(page.url()).searchParams.get('filterContext')).toBe(context);
+    expect((await readIntent()).filters).toEqual(applied.filters);
+    expect((await readIntent()).publicSelection).toBe(applied.publicSelection);
+    await expect(page.locator('#choosePeriod')).toHaveText('2026-10-28 – 2026-10-31');
+    await expect(page.locator('#calendarCaption')).toContainText('custom');
+    await expect(page.locator('#timeline-summary')).toContainText('1 known');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('Your timezone:'); await expect(row).toContainText('Recorded local:');
+    await expect(page.locator('#recordsStatus')).toContainText('1 loaded');
+    await expect(page.locator('#modalContent')).toContainText(`Record ${id} · detail`);
+    await expect(page.locator('#modalContent')).toContainText('W2 blue door after edit');
+    await expect(page.locator('#modalContent')).toContainText('Recorded local time:');
+    await expect(page.locator('#modalContent')).toContainText('Datetime (your timezone):');
+    await screenshot('timeline-w2-edit-return.png');
+    await page.locator('#locationModal .btn-close').click();
+    await page.locator('#showMap').click();
+    const initialCamera = (await readIntent()).returnState.camera;
+    await page.locator('#mapContainer .leaflet-control-zoom-out').click();
+    await expect.poll(async () => (await readIntent()).returnState.camera.zoom).toBe(initialCamera.zoom - 1);
+    const canvas = page.locator('#mapContainer'); const box = (await canvas.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2 + 25, { steps: 5 }); await page.mouse.up();
+    // Wait beyond Leaflet's bounded pan inertia, then compare actual marker pixels relative to its map.
+    await page.waitForTimeout(600);
+    const camera = (await readIntent()).returnState.camera;
+    expect(camera.latitude).not.toBe(initialCamera.latitude);
+    const renderedMarker = async () => {
+        const map = (await canvas.boundingBox())!;
+        const marker = (await page.locator(`#mapContainer .leaflet-marker-icon[title="Record ${id}"]`).boundingBox())!;
+        return { x: Math.round(marker.x - map.x), y: Math.round(marker.y - map.y), width: marker.width, height: marker.height };
+    };
+    const beforeRefresh = await renderedMarker();
+    await screenshot('timeline-w2-map-before-refresh.png');
+    const freshPeriod = page.waitForResponse(response => response.url().endsWith('/Timeline/calendar/period'));
+    await page.locator('#refreshTimeline').click(); expect((await freshPeriod).ok()).toBe(true);
+    await expect(page.locator('#distanceSummary')).toContainText('current');
+    await expect.poll(renderedMarker).toEqual(beforeRefresh);
+    expect((await readIntent()).returnState.camera).toEqual(camera);
+    expect((await readIntent()).filters).toEqual(applied.filters);
+    await screenshot('timeline-w2-desktop.png');
+    await writeFile(join(evidence, 'timeline-w2-observations.json'), JSON.stringify({
+        recordId: id, editedNotes: 'W2 blue door after edit', customRange: ['2026-10-28', '2026-10-31'],
+        initialCamera, camera, beforeRefresh, afterRefresh: await renderedMarker(),
+        nativeBrowser200Percent: 'unexecuted: supported headless profile has no native zoom control'
+    }, null, 2));
+    await page.setViewportSize({ width: 640, height: 900 });
+    await expect(page.locator('#chooseFilters')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    await page.locator('#choosePeriod').click();
+    await expect(page.locator('#rangeFrom')).toBeVisible(); await page.keyboard.press('Escape');
+    await expect(page.locator('#choosePeriod')).toBeFocused();
+    await screenshot('timeline-w2-narrow.png');
+    expect(errors).toEqual([]);
+});

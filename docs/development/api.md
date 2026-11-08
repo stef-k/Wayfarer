@@ -1809,7 +1809,7 @@ Start/Resume as probes. A lost response can already have committed; Pause/Cancel
 also preserve existing final-publication fences and do not refund admitted usage.
 
 
-## Private Web calendar reads (#953 W1)
+## Private Web calendar reads (#953 W1/W2)
 
 Active cookie owners with role `User` can GET `/User/Timeline/calendar/period`,
 `/statistics` or `/analysis`. These are separate from bearer-only history
@@ -1835,6 +1835,37 @@ budget, cancellation and read-only repeatable-read snapshots. No provider lookup
 text preparation, cookie access to bearer collections or migration is introduced.
 
 See [the complete contract and assembly boundary](timeline-calendar.md) for wire
-facts, geometry budgets, uncertainty, readiness and W2 obligations. The existing
-browser chronology keeps its current routes/clocks until W2 adopts explicit scope;
-W1 alone does not deliver the new selector, controls or path experience.
+facts, geometry budgets, uncertainty, readiness and W2 obligations. The chronological browser now uses the private POST contract below; GET routes
+retain their W1 day/month/year unfiltered contract.
+
+The five antiforgery-protected POST routes at the same prefix are period,
+statistics, analysis, records and availability. Bodies are form-urlencoded with
+RequestVerificationToken header and same-origin cookies; URL query values are
+rejected. No owner/filterContext input is accepted. Shared scalar transport and
+8,192-byte validation apply. Use dateType (page URLs use viewType): presets require
+year/month/day, Week additionally weekStartsOn=1..7, and Custom requires inclusive
+fromDate/throughDate without preset components. All selections require explicit
+capture/viewer timeBasis and viewerZone. Both endpoints stay in 1900–2100 and From
+must not exceed the basis horizon; future Through remains full, never clipped.
+
+Optional q/activityIds/includeUnassigned/west/south/east/north reuse HistoryQuery
+normalization/catalog/spatial truth exactly. Nonempty search requires qualified,
+prepared text; failures retain filtered intent. Only records accepts pageSize
+(default 100, maximum 500) and continuation. Only analysis accepts existing connection
+controls. Availability accepts year/month/basis/zone/filters only and observes the
+whole displayed month independently of selected dates and navigation horizon.
+
+POST period/statistics/records/availability publish private-calendar/2 plus subjectId,
+canonical selection/HistoryScope, timeRules, matchingRules (interpretation and
+conditional textVersion), observationId and asOfUtc. Analysis retains its existing
+stored-history-connections/1 contract and adds calendarContract=private-calendar/2.
+Counts stay decimal strings. Records publishes existing compact items,
+nextContinuation, order=eventUtc-desc,id-desc and consistency=live-request; protected
+anchors remain owner/scope/profile/order/page-size bound and confer no authority.
+Invalid cursors return continuationInvalid, without silently restarting. Separate
+pages are live observations; dedup/exhaustion cannot certify one immutable remote set.
+Availability publishes displayedMonth=YYYY-MM, whole-month selection with day anchor 1,
+sorted presentDates and hasUnresolvedCandidates. Positive wins; otherwise an uncertain
+month means unmarked dates are unknown. Other operations disclose response-snapshot.
+Private body/scope/parameter content must not be logged. All results/errors remain
+no-store with existing active-owner admission/deadline/cancellation protections.

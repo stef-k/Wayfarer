@@ -29,6 +29,9 @@ internal sealed class HistoryQuery
     internal DateTime ThroughDate { get; init; }
     internal TimeSpan FromTime { get; init; }
     internal TimeSpan UntilTime { get; init; }
+    /// <summary>Raw nonempty search retains its readiness obligation even when whitespace normalizes empty.</summary>
+    internal bool RawTextSupplied { get; init; }
+    internal bool RequiresTextPreparation => RawTextSupplied || Scope.Q.Length != 0;
     internal int PageSize { get; init; } = 100;
     internal int Grid { get; init; } = 16;
     internal string ResultSet { get; init; } = "matches";
@@ -100,7 +103,7 @@ internal sealed class HistoryQuery
                 mode != "interval" ? through.ToString("yyyy-MM-dd", Invariant) : null,
                 mode == "daily" ? Clock(from) : null, mode == "daily" ? Clock(until) : null,
                 text, ids, unassigned, area),
-            Zone = zone, Start = start, End = end, ThroughDate = through, FromTime = from, UntilTime = until,
+            Zone = zone, Start = start, End = end, ThroughDate = through, FromTime = from, UntilTime = until, RawTextSupplied = rawText.Length != 0,
             PageSize = Get("pageSize") is { } size ? PositiveInt(size, 500) : 100,
             Grid = Get("grid") is { } grid ? PositiveInt(grid, 16) : 16,
             ResultSet = Get("resultSet") is { } set ? set is "matches" or "unresolvedCandidates" ? set : throw Invalid() : "matches",

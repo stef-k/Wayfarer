@@ -17,24 +17,77 @@ them, use the [Trips guide](trips.md).
 
 Open your name menu and choose the view that fits your task:
 
-- **Timeline**: explore a day, month or year of recorded history.
+- **Timeline**: explore Day, Week, Month, Year or a Custom range of recorded history.
 - **My Private Timeline**: explore your own history on the map.
 - **Locations**: work with a map and table together.
 - **All Locations**: search the table, edit records and export history.
 
-In **Timeline**, choose day, month or year to change the scale. Use the previous
-and next controls to move through days, months and years, or select a date, month
-or year directly to revisit a journey. Choose **Today** to return to the current
-date. These are calendar-period views; use Locations search below for an arbitrary
-start and end date.
+In **Timeline**, ordinary entry opens today's Day map. Choose a date to commit Day
+immediately, or choose Week and activate a date to open its containing week. The
+marked calendar loads only when opened. ● means matching records; ? means presence
+is unknown, including while marks load or fail. Empty and unknown dates remain
+selectable. The week order follows the effective browser formatting locale, with a
+labelled Monday fallback. A committed Week retains its original week start.
 
-Pan and zoom to explore, then select a marker or table row for its details. Large
-map views can show a sample of locations to remain readable; use the table and
-filters when you need to find a particular record.
+Browse calendar months/years without changing the map. **Show this month/year**
+commits that period. **Custom** opens separate inclusive From/Through inputs with
+**Apply range / Cancel**. Its calendar edits only the labelled endpoint. Previous
+range / Next range shift by the complete inclusive length. Day/month/year shortcuts
+retain the civil anchor and clamp before constructing a shorter month. From Custom,
+those shortcuts explicitly enter Day using From. Today enters Day and keeps filters.
 
-The capture/viewer calendar selector and recorded-location distance/path experience
-are being delivered separately under #953. W1 supplies backend reads; this browser
-continues using its existing chronology until W2 adopts the new controls and captions.
+**Calendar basis** chooses Recorded-location calendar (first-use default) or My
+time zone. The explicit viewer zone stays frozen until you apply a change; capture
+membership uses each record's qualified location zone. Both clocks remain visible
+in detail. Navigation admits periods starting on/before the browsing horizon within
+1900–2100. Full weeks/months/years and Custom Through can extend past that horizon;
+results use the full range. Invalid ranges are rejected, never shortened.
+
+**Filters…** optionally combines Search Notes and address, Activities/No activity
+and a saved map rectangle. Search is a normalized literal phrase across existing
+Notes/address fields, not fuzzy or Notes-only search. Activity alternatives are OR;
+the dimensions and dates combine AND. **Use this map area** captures the current
+viewport once. Pan/zoom never changes it; explicitly replace or clear it. Apply
+commits, Cancel discards the filter draft, and visible chips clear individual
+dimensions. Clear filters keeps the date period, camera and connection rules.
+
+Private filters stay out of URLs. An opaque local context restores them after a
+same-tab reload or **Save & Return** from Edit. The tab stores one current intent,
+not records or prior queries. A copied context link without that matching local
+state stops reads and offers **Re-enter filters** or **Continue without filters**.
+A clean date-only link deliberately opens unfiltered. If storage fails, Apply keeps
+the prior filters and your new draft. Tab closure/cross-device restoration and
+secure erasure are not promised; browser session recovery or duplicate tabs may
+retain independent copies. Observed account/session loss clears this Timeline intent,
+while protected mutation drafts keep their original account authority.
+
+The map remains the default. Day shows every mapped matching record; larger
+periods can sample over 3,000 known matches (newest five per geohash-5 cell, up to
+3,000). **Records** offers unsampled known matches in every period, including those
+without a map position, through explicit **Load more**. Loaded rows, the separately
+observed known count and unresolved candidates are distinct. Pages observe live
+history separately: inserts/moves can evade traversal, even after the last page.
+Refresh or a successful mutation restarts the traversal. Row/marker detail uses the
+same exact identity; selection never refits the camera. **Locate** and **Fit period**
+are explicit actions. Missing rows do not establish deletion.
+
+**Distance between recorded locations** loads with Recorded path Off. Known gaps
+in evidence show **Distance in available segments — Partial**; unknown source order
+shows **Distance unavailable**, never a fabricated zero. Coverage, refresh/failure
+and geometry availability are separate. **Connections & distance** explains as-of,
+source/counts and exact applied rules. Maximum gap starts at 2 hours; the optional
+speed heuristic starts at 1,260 km/h. Hours/Minutes and km/h edits convert once;
+untouched rounded text preserves exact saved rules. Apply saves the whole browser
+preference before recalculating; Cancel discards that rule draft; Reset changes only
+the draft until Apply. Closing the dialog retains unfinished rules for this tab.
+Rules and remembered basis are local to this browser/account, without cloud sync.
+
+Recorded paths approximate stored-location connections, with excluded/uncertain
+intermediates breaking continuity. Sampling and drawing never change analytical
+distance. Large geometry can be unavailable while distance remains useful. Active
+time is not calculated. **Refresh / Retry** and **Cancel calculation** retain scope,
+camera, selected identity and independent drafts. Refresh never recaptures the area.
+Public, Group, embedded and all-history views keep their existing meanings.
 
 ### Search and filter locations
 
@@ -145,8 +198,8 @@ contacts Wikipedia. Optional address lookup and repair are explained in
 ## Understand your statistics
 
 Timeline summaries show the number of locations, the first and last dates and
-recorded countries, regions and settlements. Select **Countries**, **Regions** or
-**Cities** in the summary to open geographic details. Expand **Country → Region
+recorded countries, regions and settlements. Choose **Geographic statistics** in the calendar Timeline, or the country/region/city
+links in all-history summaries, to open geographic details. Expand **Country → Region
 → city/settlement** to see record counts and first/last recorded dates. A **Map**
 action returns you to that geography on the map. Counts measure recorded positions,
 not confirmed visits to venues; use [Trip visits](trips.md#record-and-review-visits)

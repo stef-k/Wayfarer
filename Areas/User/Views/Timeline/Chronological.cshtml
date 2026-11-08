@@ -1,109 +1,162 @@
+@using Wayfarer.Services
 @{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadTomSelect"] = true;
-    var username = ViewData["Username"];
 }
-
-<div id="username" data-username="@username" hidden></div>
-
-<!-- Timeline Controls Bar -->
-<div class="row mb-2">
-    <div class="col-12">
-        <div class="bg-light border rounded p-2">
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <!-- Navigation buttons -->
-                <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
-                    <i class="bi bi-chevron-double-left"></i> Year
-                </button>
-                <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
-                    <i class="bi bi-chevron-left"></i> Month
-                </button>
-                <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
-                    <i class="bi bi-arrow-left"></i> Day
-                </button>
-
-                <!-- Date display and picker -->
-                <div class="d-flex align-items-center gap-2 mx-3">
-                    <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
-                    <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;" title="Select Date">
-                    <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;" title="Select Month">
-                    <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100" title="Select Year">
-                </div>
-
-                <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
-                    Day <i class="bi bi-arrow-right"></i>
-                </button>
-                <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
-                    Month <i class="bi bi-chevron-right"></i>
-                </button>
-                <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
-                    Year <i class="bi bi-chevron-double-right"></i>
-                </button>
-
-                <!-- View type selector -->
-                <div class="ms-auto d-flex gap-2">
-                    <label class="form-label mb-0 align-self-center">
-                        View:
-                        <i class="bi bi-question-circle text-muted ms-1"
-                           data-tippy-content="Day: shows all location points. Month/Year: sampled for performance (~100/365 points max)."></i>
-                    </label>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
-                        <label class="btn btn-outline-primary" for="viewDay">Day</label>
-
-                        <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
-                        <label class="btn btn-outline-primary" for="viewMonth">Month</label>
-
-                        <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
-                        <label class="btn btn-outline-primary" for="viewYear">Year</label>
-                    </div>
-                </div>
+@* Only public serving offset policy is bootstrapped; authentication comes from the shared subject/token owner. *@
+<div id="calendarTimeline" data-maximum-offset="@HistoryPredicate.MaxCaptureOffset">
+    <div class="border rounded bg-light p-2 mb-2">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <button id="previousPeriod" class="btn btn-sm btn-outline-secondary">Previous</button>
+            <button id="choosePeriod" class="btn btn-sm btn-outline-primary" aria-haspopup="dialog">Choose date</button>
+            <button id="nextPeriod" class="btn btn-sm btn-outline-secondary">Next</button>
+            <button id="today" class="btn btn-sm btn-success">Today</button>
+            <label>Period <select id="periodMode" class="form-select form-select-sm d-inline-block w-auto">
+                <option value="day">Day</option><option value="week">Week</option><option value="month">Month</option>
+                <option value="year">Year</option><option value="custom">Custom…</option>
+            </select></label>
+            <button id="chooseBasis" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">Calendar basis</button>
+            <button id="chooseFilters" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">Filters…</button>
+            <button id="refreshTimeline" class="btn btn-sm btn-primary">Refresh / Retry</button>
+            <button id="fitPeriod" class="btn btn-sm btn-outline-secondary">Fit period</button>
+        </div>
+        <details class="mt-2"><summary>Jump by day, month or year</summary>
+            <div class="d-flex flex-wrap gap-1 mt-1">
+                @foreach (var unit in new[] { "day", "month", "year" })
+                {
+                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="-1">Previous @unit</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="1">Next @unit</button>
+                }
             </div>
-            <!-- Help text on separate line -->
-            <small class="text-muted fst-italic d-block">
-                <i class="bi bi-info-circle"></i> Day view shows all locations. Month/Year may be sampled for large datasets.
-            </small>
+            <small>Day shortcuts enter Day. From Custom, month/year shortcuts also enter Day using From as the anchor.</small>
+        </details>
+        <p id="calendarCaption" class="small my-1"></p>
+        <div id="activeFilters" class="d-flex flex-wrap gap-1"></div>
+        <p id="timelineNotice" class="small text-danger my-1" role="status"></p>
+        <div id="contextRecovery" hidden>
+            <p>Private filters are unavailable in this tab.</p>
+            <button id="reenterFilters" class="btn btn-sm btn-outline-primary">Re-enter filters</button>
+            <button id="continueUnfiltered" class="btn btn-sm btn-outline-secondary">Continue without filters</button>
         </div>
     </div>
-</div>
-
-<!-- Stats Bar -->
-<span id="timeline-summary" class="small font-monospace text-muted mb-2 d-block"></span>
-
-<!-- Map container -->
-<div id="mapContainer" style="height: calc(100vh - 220px);"></div>
-
-<!-- Location Details Modal -->
-<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header text-bg-primary">
-                <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="modalContent"></div>
-            </div>
-        </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+        <span id="timeline-summary" class="small" role="status"></span>
+        <button id="geographicDetails" class="btn btn-sm btn-link">Geographic statistics</button>
     </div>
-</div>
-
-<!-- Stats Details Modal -->
-<div class="modal fade" id="statsModal" tabindex="-1" aria-labelledby="statsModalLabel" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header text-bg-primary">
-                <h5 class="modal-title" id="statsModalLabel">Location Statistics</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="statsModalContent"></div>
-            </div>
-        </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+        <span id="distanceSummary" role="status">Distance loading…</span>
+        <label class="small"><input id="recordedPath" type="checkbox"> Recorded path</label>
+        <button id="cancelCalculation" class="btn btn-sm btn-outline-secondary">Cancel calculation</button>
+        <button id="connectionSettings" class="btn btn-sm btn-link" aria-haspopup="dialog">Connections &amp; distance</button>
     </div>
+    <div class="d-flex gap-1 mb-1" role="group" aria-label="Timeline panels">
+        <button id="showMap" class="btn btn-sm btn-outline-primary">Map</button>
+        <button id="showRecords" class="btn btn-sm btn-outline-primary">Records</button>
+    </div>
+    <div id="mapPanel"><div id="mapContainer" style="height: max(320px, calc(100dvh - 380px));"></div></div>
+    <section id="recordsPanel" aria-label="Known matching records" hidden>
+        <p id="recordsStatus" class="small" role="status"></p>
+        <p class="small text-muted">Live pages observe history separately. Inserts or moved records can be missed between pages; reaching the end is not a snapshot of the whole period. Unresolved candidates are counted separately.</p>
+        <div id="recordRows" class="list-group" style="max-height:55dvh;overflow:auto;"></div>
+        <button id="loadMore" class="btn btn-sm btn-primary mt-2">Load more</button>
+    </section>
 </div>
 
+@* Immediate Bootstrap transitions let quick activation close and return focus deterministically.
+   Query dialogs own only their labelled drafts. Protected mutation and connection drafts have independent owners. *@
+<div class="modal" id="dateDialog" tabindex="-1" aria-labelledby="dateDialogTitle">
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 class="modal-title fs-5" id="dateDialogTitle">Choose period</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel date selection"></button></div>
+        <div class="modal-body">
+            <p id="dateError" class="text-danger small" role="status"></p>
+            <form id="typedDateForm" class="d-flex flex-wrap gap-2 mb-2">
+                <label>Date <input id="typedDate" type="date" class="form-control form-control-sm" min="1900-01-01" max="2100-12-31" required></label>
+                <button class="btn btn-sm btn-outline-primary align-self-end">Go to date</button>
+            </form>
+            <div id="customEndpoints" hidden>
+                <p class="small">Inclusive endpoints. Focus From or Through to choose which endpoint the calendar edits.</p>
+                <label class="d-block">From <input id="rangeFrom" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
+                <label class="d-block">Through <input id="rangeThrough" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
+                <p id="endpointCaption" class="small"></p>
+            </div>
+            <div class="d-flex flex-wrap gap-1 my-2 align-items-end">
+                <button id="previousPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="Browse previous year">− Year</button>
+                <button id="previousPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="Browse previous month">‹</button>
+                <label>Browse month <input id="pickerMonth" type="month" min="1900-01" max="2100-12" class="form-control form-control-sm"></label>
+                <button id="nextPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="Browse next month">›</button>
+                <button id="nextPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="Browse next year">+ Year</button>
+            </div>
+            <div class="d-flex gap-1 mb-2"><button id="showPickerMonth" class="btn btn-sm btn-outline-primary">Show this month</button><button id="showPickerYear" class="btn btn-sm btn-outline-primary">Show this year</button></div>
+            <p id="monthStatus" class="small" role="status" aria-live="polite"></p>
+            <div id="calendarGrid" role="grid" aria-label="Calendar dates"></div>
+            <p id="calendarLegend" class="small mt-2">● Matching records · ? Unknown · ○ No matches at observation. Selection uses a border; Today is labelled.</p>
+            <p id="weekOrder" class="small text-muted"></p>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyRange" class="btn btn-primary" hidden>Apply range</button></div>
+    </div></div>
+</div>
+<div class="modal" id="filtersDialog" tabindex="-1" aria-labelledby="filtersDialogTitle">
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 id="filtersDialogTitle" class="modal-title fs-5">Filters</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel filters"></button></div>
+        <div class="modal-body">
+            <p id="filterError" class="small text-danger" role="status"></p>
+            <label class="d-block">Search Notes and address <input id="filterSearch" type="text" class="form-control"></label>
+            <p class="small text-muted">Literal phrase across the existing Notes and address fields. Activities are alternatives; search, activities, saved area and dates combine.</p>
+            <fieldset><legend class="fs-6">Activities</legend><div id="filterActivities"></div>
+                <label><input id="filterUnassigned" type="checkbox"> No activity</label>
+            </fieldset>
+            <button id="reloadActivities" class="btn btn-sm btn-link">Refresh activities</button>
+            <p id="areaCaption" class="small"></p>
+            <button id="captureArea" class="btn btn-sm btn-outline-primary">Use this map area</button>
+            <button id="clearArea" class="btn btn-sm btn-outline-secondary">Clear area</button>
+            <p class="small text-muted">Panning and zooming never change the saved rectangle. Replace it explicitly here.</p>
+        </div>
+        <div class="modal-footer"><button id="clearFilters" class="btn btn-outline-danger">Clear filters</button><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyFilters" class="btn btn-primary">Apply filters</button></div>
+    </div></div>
+</div>
+<div class="modal" id="basisDialog" tabindex="-1" aria-labelledby="basisDialogTitle">
+    <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h2 id="basisDialogTitle" class="modal-title fs-5">Calendar basis</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel calendar basis"></button></div>
+        <div class="modal-body">
+            <p id="basisError" class="small text-danger" role="status"></p>
+            <label class="d-block">Dates <select id="basisSelect" class="form-select"><option value="capture">Recorded-location calendar</option><option value="viewer">My time zone</option></select></label>
+            <label class="d-block mt-2">Frozen viewer zone <input id="viewerZone" class="form-control" type="text"></label>
+            <button id="currentBrowserZone" class="btn btn-sm btn-link">Use current browser zone</button>
+            <p class="small">The civil selection stays fixed. Today is seeded in this viewer zone. Capture dates use each record's qualified location zone.</p>
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyBasis" class="btn btn-primary">Apply basis</button></div>
+    </div></div>
+</div>
+<div class="modal" id="rulesDialog" tabindex="-1" aria-labelledby="rulesDialogTitle" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 id="rulesDialogTitle" class="modal-title fs-5">Connections &amp; distance</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close connection rules"></button></div>
+        <div class="modal-body">
+            <p id="rulesError" class="small text-danger" role="status"></p>
+            <p>Approximate great-circle connections between stored locations. Both endpoints must match. Excluded, uncertain, unmapped and conflicting equal-time intermediates break connections. Lines sit behind markers; display sampling never changes analytical distance.</p>
+            <label>Maximum gap <input id="maximumGap" type="text" inputmode="decimal" class="form-control"></label>
+            <label>Gap unit <select id="gapUnit" class="form-select"><option value="hours">Hours</option><option value="minutes">Minutes</option></select></label>
+            <label class="d-block mt-2"><input id="speedEnabled" type="checkbox"> Skip very fast connections</label>
+            <label>Maximum speed (km/h) <input id="maximumSpeed" type="text" inputmode="decimal" class="form-control"></label>
+            <p class="small">Positive finite decimal numbers; scientific notation is accepted. Untouched text retains exact saved seconds and m/s. Threshold equality is included.</p>
+            <pre id="analysisFacts" class="small text-wrap"></pre>
+            <p class="small">Active time is not calculated. Gaps and sparse history cannot establish time spent travelling.</p>
+        </div>
+        <div class="modal-footer"><button id="resetRules" class="btn btn-outline-secondary">Reset to defaults</button><button id="cancelRules" class="btn btn-secondary">Cancel</button><button id="applyRules" class="btn btn-primary">Apply rules</button></div>
+    </div></div>
+</div>
+@* Existing detail and geographic drill-down surfaces keep their individual protected edit owners. *@
+@foreach (var kind in new[] { "location", "stats" })
+{
+    var title = kind == "location" ? "Location details" : "Geographic statistics";
+    var contentId = kind == "location" ? "modalContent" : "statsModalContent";
+    <div class="modal" id="@(kind)Modal" tabindex="-1" aria-labelledby="@(kind)ModalLabel" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header text-bg-primary"><h2 class="modal-title fs-5" id="@(kind)ModalLabel">@title</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body"><div id="@contentId"></div></div>
+        </div></div>
+    </div>
+}
 @section Scripts {
     @Html.FrontendViewScripts()
 }
