@@ -47,7 +47,7 @@ public sealed class SharedLocationRecoveryTests : TestBase
         var values = await EffectiveAsync();
         foreach (var origin in new[] { null, "", "  ", new string('x', 24) })
         {
-            values["CoordinateOrigin"] = origin;
+            values["CoordinateOrigin"] = origin == null ? JValue.CreateNull() : new JValue(origin);
             Describe(values);
             Assert.Equal(origin, Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
         }
@@ -60,7 +60,7 @@ public sealed class SharedLocationRecoveryTests : TestBase
         Assert.Null(Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
         foreach (var origin in new[] { null, "", new string('x', 25) })
         {
-            values["CoordinateOrigin"] = origin;
+            values["CoordinateOrigin"] = origin == null ? JValue.CreateNull() : new JValue(origin);
             Assert.Null(Assert.Single(await ParseAsync(values, csv)).CoordinateOrigin);
         }
         values["CoordinateOrigin"] = "  ";

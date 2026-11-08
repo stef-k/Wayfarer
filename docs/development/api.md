@@ -367,6 +367,10 @@ an explicit separate new form allocates another key. Manual Web history records
 no phone clocks, fix, device context, presence or visits. Manual address fields
 trim/blank-to-null and suppress optional creation enrichment. Confirmation survives
 optional notification failure. Form values do not enter logged notifications.
+Create preserves posted Notes text for both creation and winner comparison: empty
+is distinct from null. A response without owner proof leaves the save unconfirmed;
+the existing account recheck restores Retry only with original-owner and antiforgery
+proof. Affirmative foreign-owner evidence instead reports the session change.
 
 Canonical CSV and Wayfarer GeoJSON carry `WayfarerRecovery` version 1 with
 `kind`, `nullFields`, `unavailableFields` and optional finite keyless App
@@ -377,6 +381,8 @@ known null; other text blanks are empty. JSON known null must agree with the
 null list. Unavailable values use blank/null placeholders plus a bounded reason,
 never null membership. Unsupported, missing or contradictory native evidence is
 held before insertion; a completed job or UUID match alone is not content proof.
+Descriptor-qualified CoordinateOrigin retains null, empty and bounded text;
+no-descriptor legacy empty/missing or overlength origin still normalizes to null.
 
 Address and FullAddress are independent. Only absent legacy FullAddress falls back
 to Address; present null/empty/CSV blank does not. Activity transfers catalog meaning,
