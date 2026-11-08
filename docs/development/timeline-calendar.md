@@ -48,13 +48,21 @@ and detail generations fence results; aborted fetches do not certify lease relea
 429/503 Retry-After is displayed for deliberate retry. The first successful response
 binds effective normalized filters and serving identities; conflicts invalidate the
 group for explicit revalidation. Matching readiness failures retain filters.
+Refresh resets traversal status with its generation so pending first-page or Load more
+work cannot block a replacement first page. If the date picker is open, its displayed
+month and Custom endpoints survive: old marks are removed immediately, loading is
+shown, and one replacement month read follows core work. Failed replacement leaves
+unknown marks and manual dates available; closing the picker fences optional work.
 
 The URL adapter uses viewType, public date components, basis/zone, frozen week start
 and optionally an independently random filterContext. One subject-bound versioned
 sessionStorage slot holds applied raw filters and small exact return intent only.
 Persistence/read-back precedes filter commitments. A date-only URL never adopts old
 filters; lost/foreign/malformed context blocks dependent reads pending explicit
-recovery. Record pages/results/Notes/availability are never retained there. Observed
+recovery. Ordinary pagehide/camera/panel retention and Retry cannot resolve that
+hold or recreate a slot cleared by session loss. Only a successfully persisted
+explicit filter re-entry or Continue without filters commits recovery.
+Record pages/results/Notes/availability are never retained there. Observed
 account/session loss clears this intent and publications, without touching protected
 Location originals/drafts/attempts. Undetected logout and browser recovery cannot
 provide immediate erasure. Rules/basis use one versioned whole localStorage preference

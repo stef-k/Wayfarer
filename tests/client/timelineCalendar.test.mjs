@@ -21,11 +21,11 @@ const observation = (operation, body) => {
         observationId: crypto.randomUUID(), asOfUtc: '2026-05-17T12:00:00Z', items: [], nextContinuation: null,
         navigation: { today: '2026-05-17' }, geometry: { state: body.includeGeometry ? 'available' : 'off', islands: [] }, presentDates: [], hasUnresolvedCandidates: false };
 };
-const setup = (fetchRead = async (operation, body) => observation(operation, body), session = memory()) => {
+const setup = (fetchRead = async (operation, body) => observation(operation, body), session = memory(), pageOptions = {}) => {
     const preferences = new CalendarPreferences(memory(), 'owner', 'https://test');
     const intent = new CalendarIntent(session, 'owner'); const urls = [];
     const owner = new TimelinePage({ subject: 'owner', selection: selection(), context: null, filters: emptyFilters(), intent,
-        preferences, maximumOffset: 57600, fetchRead, replaceUrl: url => urls.push(url) });
+        preferences, maximumOffset: 57600, fetchRead, replaceUrl: url => urls.push(url), ...pageOptions });
     return { owner, preferences, intent, session, urls };
 };
 
@@ -177,26 +177,36 @@ test('viewport normalization captures one finite rectangle, including wrapped an
 
 // Retention is shared by pagehide, camera, panel, scroll, detail and path/rule callers.
 for (const loss of ['missing', 'mismatched', 'account-ended']) test(`${loss} context survives repeated retention/reload until explicit recovery`, async () => {
-    const { owner, intent, session } = setup(); const context = crypto.randomUUID();
-    if (loss !== 'missing') intent.save(selection(), crypto.randomUUID(), { ...emptyFilters(), q: 'private' }, {});
-    owner.context = context; owner.restorationPending = true; owner.blocked = true;
+    const context = crypto.randomUUID(), session = memory(); let reads = 0;
+    const fetchRead = async (operation, body) => { reads++; return observation(operation, body); };
+    const options = { context, restorationPending: loss !== 'account-ended' };
+    let { owner, intent } = setup(fetchRead, session, options);
+    if (loss !== 'missing') intent.save(selection(), loss === 'account-ended' ? context : crypto.randomUUID(), { ...emptyFilters(), q: 'private' }, {});
     if (loss === 'account-ended') owner.sessionEnded();
     for (let reload = 0; reload < 2; reload++) {
         owner.retain(); owner.camera = { latitude: 1, longitude: 2, zoom: 5 };
         await owner.openRecords(); await owner.setPath(true); owner.retain();
         assert.throws(() => intent.restore(selection(), context), /unavailable/);
         assert.throws(() => owner.retry(), /restor|Sign in/);
+        assert.equal(reads, 0);
+        if (loss !== 'account-ended') ({ owner, intent } = setup(fetchRead, session, options));
     }
     if (loss === 'account-ended') {
         assert.throws(() => owner.clearFilters(), /Sign in/); return;
     }
-    let reads = 0; owner.fetchRead = async (operation, body) => { reads++; return observation(operation, body); };
     await owner.refresh(); await owner.tail; assert.equal(reads, 0);
-    await owner.clearFilters(); assert.ok(reads > 0); assert.equal(owner.context, null);
-    const restored = new CalendarIntent(session, 'owner').restore(selection(), null);
-    assert.deepEqual(restored.filters, emptyFilters());
-    await owner.commitFilters({ ...emptyFilters(), q: 'reentered' }); owner.retain();
-    assert.equal(intent.restore(selection(), owner.context).filters.q, 'reentered');
+    owner.openEditor('filters', { ...emptyFilters(), q: 'reentered' });
+    const save = session.setItem; session.setItem = () => { throw new Error('storage denied'); };
+    assert.throws(() => owner.commitFilters(owner.editor.draft), /retained/);
+    assert.equal(owner.editor.draft.q, 'reentered'); assert.equal(owner.restorationPending, true);
+    owner.retain(); assert.equal(reads, 0); assert.throws(() => intent.restore(selection(), context), /unavailable/);
+    session.setItem = save;
+    if (loss === 'missing') await owner.clearFilters(); else await owner.commitFilters(owner.editor.draft);
+    assert.ok(reads > 0); assert.equal(owner.restorationPending, false);
+    owner.selectedId = 42; owner.camera = { latitude: 1, longitude: 2, zoom: 5 }; owner.retain();
+    const restored = new CalendarIntent(session, 'owner').restore(selection(), owner.context);
+    assert.equal(restored.filters.q, loss === 'missing' ? '' : 'reentered');
+    assert.equal(restored.returnState.selectedId, 42); assert.deepEqual(restored.returnState.camera, owner.camera);
 });
 
 test('failed filter write/read-back retains old applied intent and new draft without broadening reads', async () => {
