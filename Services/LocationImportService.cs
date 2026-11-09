@@ -142,7 +142,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             {
                 if (ordinal++ < processed) continue;
                 location.PresenceObservedAtUtc = null; // Portable evidence is history, never server admission.
-                location.Source ??= "queue-import";
+                if (!location.ImportedRecoveryProfile) location.Source ??= "queue-import";
                 batch.Add(location);
                 if (batch.Count < BatchSize) continue;
                 var outcome = await PersistBatchAsync(snapshot, epoch, batch, processed, cancellationToken);

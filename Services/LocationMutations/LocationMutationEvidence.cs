@@ -32,7 +32,7 @@ internal sealed record LocationMutationBase(string Contract, string Normalizatio
 /// <summary>Same-snapshot publication of ordinary originals and raw damaged-record delete proof.</summary>
 internal static class LocationMutationEvidence
 {
-    // This ordered inventory is the immutable location-delete-storage-1 storage encoding.
+    // Version 2 extends the immutable version-1 inventory with original clocks; old delete consent cannot cover them.
     private static readonly (string Name, string Type)[] RawColumns =
     [
         ("UserId", "text"), ("Id", "int4"), ("IdempotencyKey", "uuid"), ("Coordinates", "geometry"),
@@ -42,7 +42,9 @@ internal static class LocationMutationEvidence
         ("ResolvedFeatureType", "text"), ("ReverseGeocodingProvider", "text"), ("ReverseGeocodingStorageMode", "text"), ("ReverseGeocodedAt", "timestamptz"),
         ("Accuracy", "float8"), ("Altitude", "float8"), ("Speed", "float8"), ("Bearing", "float8"), ("LocationType", "text"),
         ("Source", "text"), ("Provider", "text"), ("AppVersion", "text"), ("AppBuild", "text"), ("DeviceModel", "text"),
-        ("OsVersion", "text"), ("IsUserInvoked", "bool"), ("IsCharging", "bool"), ("BatteryLevel", "int4")
+        ("OsVersion", "text"), ("IsUserInvoked", "bool"), ("IsCharging", "bool"), ("BatteryLevel", "int4"),
+        ("OriginalLocalTimestamp", "text"), ("OriginalTimeZoneId", "text"),
+        ("OriginalUtcOffsetSeconds", "int4"), ("SubmittedAtUtc", "timestamptz")
     ];
 
     /// <summary>Raw SQL projections avoid NTS/DateTime decoding, normalization or repair of deletion consent.</summary>
@@ -63,7 +65,7 @@ internal static class LocationMutationEvidence
     internal static string DeleteFingerprint(NpgsqlDataReader reader)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        LocationMutationCommand.Frame(hash, Encoding.UTF8.GetBytes("location-delete-storage-1"));
+        LocationMutationCommand.Frame(hash, Encoding.UTF8.GetBytes("location-delete-storage-2"));
         for (var index = 0; index < RawColumns.Length; index++)
         {
             LocationMutationCommand.Frame(hash, Encoding.UTF8.GetBytes(RawColumns[index].Name));
@@ -80,7 +82,7 @@ internal static class LocationMutationEvidence
     {
         now = new DateTime(now.Ticks / 10 * 10, DateTimeKind.Utc);
         var uuid = record["uuid"] is string key ? Guid.Parse(key) : (Guid?)null;
-        var authority = new LocationMutationBase("location-mutation-1", "location-values-1", owner, id, uuid, Guid.NewGuid(), now, now.AddMinutes(15));
+        var authority = new LocationMutationBase("location-mutation-1", "location-values-2", owner, id, uuid, Guid.NewGuid(), now, now.AddMinutes(15));
         object Slot(string name) => unavailable.ContainsKey(name) || name == "eventUtc" && Endpoint(record.GetValueOrDefault(name))
             ? new { state = "unavailable", reason = "unrepresentableStoredValue" } : Known(record.GetValueOrDefault(name));
         var addressUnavailable = LocationMutationCommand.AddressMembers.Any(unavailable.ContainsKey) || Endpoint(record.GetValueOrDefault("reverseGeocodedAt"));
@@ -94,7 +96,7 @@ internal static class LocationMutationEvidence
                 : Known(new { latitude = latitude.GetDouble(), longitude = position.GetProperty("longitude").GetDouble() }),
             ["address"] = addressUnavailable ? new { state = "unavailable", reason = "unrepresentableStoredValue" }
                 : Known(LocationMutationCommand.AddressMembers.ToDictionary(name => name, name => record.GetValueOrDefault(name))),
-            ["deleteContent"] = Known(new { format = "location-delete-storage-1", fingerprint })
+            ["deleteContent"] = Known(new { format = "location-delete-storage-2", fingerprint })
         };
         return new { contract = authority.Contract, normalization = authority.Normalization, baseId = authority.BaseId,
             baseHandle = authority.Protect(protection), issuedAtUtc = authority.IssuedAtUtc, expiresAtUtc = authority.ExpiresAtUtc,

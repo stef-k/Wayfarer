@@ -14,13 +14,22 @@ namespace Wayfarer.Models
         // Server-side timestamp (UTC) when the location was logged
         public DateTime Timestamp { get; set; }
 
-        // Local timestamp transmitted from the gps app when the location was logged
+        // Effective event instant in UTC; independent of the exact original phone wall-clock text below.
         public DateTime LocalTimestamp { get; set; }
 
         /// <summary>
         /// Client-supplied idempotency key used to deduplicate location retries.
         /// </summary>
         public Guid? IdempotencyKey { get; set; }
+
+        /// <summary>Exact original phone wall-clock text, including up to nine fractional digits; unknown stays null.</summary>
+        [MaxLength(29)] public string? OriginalLocalTimestamp { get; set; }
+        /// <summary>Original platform zone token, preserved independently of effective coordinates and offset.</summary>
+        [MaxLength(128)] public string? OriginalTimeZoneId { get; set; }
+        /// <summary>Independent original device UTC offset, in seconds; never reconstructed.</summary>
+        [Range(-64800, 64800)] public int? OriginalUtcOffsetSeconds { get; set; }
+        /// <summary>Original action submission instant; not receipt, queue drain or retry time.</summary>
+        public DateTimeOffset? SubmittedAtUtc { get; set; }
 
         /// <summary>Coordinate provenance asserted by the client: sensor, manual-map, or unknown.</summary>
         [MaxLength(24)] public string? CoordinateOrigin { get; set; }
@@ -92,7 +101,7 @@ namespace Wayfarer.Models
         #region Metadata Fields
 
         /// <summary>
-        /// How this record was created: "api-log", "api-checkin", "import", "queue-import".
+        /// How this record was created: "api-log", "api-checkin", "import", "queue-import", "web-create".
         /// </summary>
         public string? Source { get; set; }
 

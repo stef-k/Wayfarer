@@ -21,7 +21,12 @@ test('ordinary Razor entries retain Notes, validation inputs and bulk operation 
       page.setDefaultTimeout(5000);
       page.on('pageerror', error => console.log(entry, error.message));
       try {
-        await page.setContent(`<form id="${form}">
+        await page.setContent(`<div id="browser-antiforgery" data-subject-id="original"></div>
+          <div id="location-create-private"><form id="${form}">
+          ${entry === 'location-create' ? `<input name="CreateKey" value="same-key" type="hidden">
+          <input name="CreateIntent" value="owner-intent" type="hidden"><input name="AttemptedValues" type="hidden">
+          <input name="CreateMayHaveEffect" value="false" type="hidden"><input name="__RequestVerificationToken" value="csrf" type="hidden">
+          <div id="create-status" hidden></div><button type="submit">Save</button>` : ''}
           <label id="notes-label">Notes</label><div id="notes-toolbar"><select data-heading><option value="0">Paragraph</option><option value="3">Heading 3</option></select>
           ${entry === 'visit-edit' ? '<button type="button" data-action="strike">Strike</button>' : '<select data-font><option value="serif">Serif</option></select><button type="button" data-action="clear">Clear</button>'}</div>
           <div id="notes"></div><input id="${field}" name="${name}" type="hidden">
@@ -32,21 +37,29 @@ test('ordinary Razor entries retain Notes, validation inputs and bulk operation 
           <input type="checkbox" id="Append" name="Append" value="true" checked><input type="checkbox" id="ClearNotes" name="ClearNotes" value="true">
           <button type="button" id="applyBtn">Apply</button></form>
           <dialog id="notes-dialog"><h2 id="notes-dialog-title"></h2><input id="notes-url"><p id="notes-dialog-error"></p>
-          <button id="notes-dialog-cancel"></button><button id="notes-dialog-apply"></button><button id="notes-dialog-unlink"></button><button id="notes-dialog-follow"></button></dialog>`);
+          <button id="notes-dialog-cancel"></button><button id="notes-dialog-apply"></button><button id="notes-dialog-unlink"></button><button id="notes-dialog-follow"></button></dialog></div>`);
         const original = '<p class="ql-align-center">Validation-retained Notes</p>';
-        await page.evaluate(({ original, field }) => {
+        await page.evaluate(({ original, field, entry }) => {
           document.getElementById('notes').dataset.notesContent = original;
           document.getElementById(field).value = original;
-          window.fetch = async () => new Response('23', { headers: { 'content-type': 'application/json' } });
-        }, { original, field });
+          // Create's real async owner retains input on an unconfirmed same-owner reply; other forms use their ordinary endpoint.
+          window.fetch = async () => entry === 'location-create'
+            ? new Response('<div id="browser-antiforgery" data-subject-id="original"></div>', { status: 500 })
+            : new Response('23', { headers: { 'content-type': 'application/json' } });
+        }, { original, field, entry });
         await page.addScriptTag({ content: bundle.outputFiles[0].text });
         const editor = page.locator('#notes [contenteditable]');
         await editor.focus();
-        const submit = () => page.evaluate(form => {
-          const element = document.getElementById(form);
-          element.dispatchEvent(new Event('submit', { cancelable: true }));
-          return Object.fromEntries(new FormData(element));
-        }, form);
+        const submit = async () => {
+          const values = await page.evaluate(form => {
+            const element = document.getElementById(form);
+            element.dispatchEvent(new Event('submit', { cancelable: true }));
+            return Object.fromEntries(new FormData(element));
+          }, form);
+          if (entry === 'location-create')
+            await page.waitForFunction(() => document.getElementById('create-status').textContent.startsWith('The save could not be confirmed.'));
+          return values;
+        };
         assert.equal((await submit())[name], original);
         assert.equal(await page.locator('#Latitude').inputValue(), 'invalid latitude');
         assert.equal(await page.locator('#LocalTimestamp').inputValue(), '2026-11-01T12:00');

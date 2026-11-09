@@ -58,6 +58,7 @@ public sealed class LocationCreateRenderingTests : TestBase
         ViewResult response;
         if (invalidPost)
         {
+            var intent = Assert.IsType<AddLocationViewModel>(Assert.IsType<ViewResult>(await controller.Create()).Model);
             // These are the attempted values MVC retains after latitude binding fails.
             controller.ModelState.SetModelValue("LocalTimestamp", timestamp, timestamp);
             controller.ModelState.SetModelValue("Latitude", "invalid", "invalid");
@@ -65,6 +66,7 @@ public sealed class LocationCreateRenderingTests : TestBase
             controller.ModelState.AddModelError("Latitude", "Invalid coordinate");
             response = Assert.IsType<ViewResult>(await controller.Create(new AddLocationViewModel
             {
+                CreateKey = intent.CreateKey, CreateIntent = intent.CreateIntent,
                 LocalTimestamp = DateTime.ParseExact(timestamp, "yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture),
                 Longitude = 23.7275, Notes = notes
             }));
@@ -78,7 +80,10 @@ public sealed class LocationCreateRenderingTests : TestBase
         var view = Assert.IsAssignableFrom<IView>(viewResult.View);
         await using var writer = new StringWriter();
         await view.RenderAsync(new ViewContext(action, view, response.ViewData, controller.TempData, writer, new HtmlHelperOptions()));
+        // The private surface includes every draft-bearing sibling, including the native Notes dialog.
         var document = await new HtmlParser().ParseDocumentAsync(writer.ToString());
+        foreach (var selector in new[] { "form", "#mapContainer", "#clearButton", "#notes-toolbar", "#notes-dialog" })
+            Assert.NotNull(document.QuerySelector(selector)!.Closest("#location-create-private"));
         var input = document.QuerySelector("#LocalTimestamp")!;
         Assert.Equal(invalidPost ? "false" : "true", input.GetAttribute("data-initialize-local-time"));
         Assert.Equal(invalidPost ? timestamp : model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm"), input.GetAttribute("value"));

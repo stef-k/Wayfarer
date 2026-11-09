@@ -22,7 +22,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Coordinate presence and geography through production MVC binding and real owner persistence.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
+public sealed partial class LocationCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
     private const string Event = "2026-08-22T08:00:00Z";
 
@@ -111,6 +111,28 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         }
     }
 
+    /// <summary>Routed binary64 overflow cannot persist or escape as an accuracy skip through either endpoint.</summary>
+    [PostgresTheory]
+    [InlineData("check-in")]
+    [InlineData("log-location")]
+    public async Task OverflowMeasurementsRejectBeforeEffectsOrAccuracySkip(string route)
+    {
+        var owner = await OwnerAsync();
+        await using var db = fixture.CreateContext();
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        await using var app = await HostAsync(db, visits);
+        using var client = Client(app, owner);
+        foreach (var measurements in new[] { "\"accuracy\":1e400", "\"altitude\":1e400,\"bearing\":-1e400",
+                     "\"accuracy\":10000,\"speed\":1e400" })
+        {
+            using var response = await PostAsync(client, route,
+                $$"""{"latitude":0,"longitude":0,"timestamp":"{{Event}}",{{measurements}}}""");
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.False(await db.Locations.AnyAsync(row => row.UserId == owner));
+            visits.VerifyNoOtherCalls();
+        }
+    }
+
     /// <summary>Successfully bound incomplete retries retain winner/tombstone priority and account isolation.</summary>
     [PostgresTheory]
     [InlineData("check-in")]
@@ -130,7 +152,7 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         using var created = await PostAsync(client, route, Payload("\"latitude\":0,\"longitude\":0"));
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         var row = await db.Locations.SingleAsync(row => row.UserId == owner);
-        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"latitude\":0" })
+        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"latitude\":0", "\"accuracy\":1e400,\"altitude\":-1e400,\"speed\":1e400,\"bearing\":1e400" })
         {
             using var replay = await PostAsync(client, route, Payload(incomplete));
             Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
@@ -145,7 +167,7 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         var deleteCommand = await ProtectedLocationRequest.CreateAsync(client, row.Id, null);
         using var deleted = await deleteCommand.SendAsync(client);
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
-        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null" })
+        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"accuracy\":1e400,\"altitude\":-1e400,\"speed\":1e400,\"bearing\":1e400" })
         {
             using var retry = await PostAsync(client, route, Payload(incomplete));
             Assert.Equal(HttpStatusCode.Gone, retry.StatusCode);
@@ -198,9 +220,11 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
         var csrfCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", csrfCookie + "; " + IdentityRouteHost.Cookie(app.Services, owner));
+        var initial = await client.GetStringAsync("/User/Location/Create");
+        var createKey = Input(initial, "CreateKey");
+        var createIntent = Input(initial, "CreateIntent");
         if (action == "Create")
         {
-            var initial = await client.GetStringAsync("/User/Location/Create");
             foreach (var axis in new[] { "Latitude", "Longitude" })
             {
                 var input = Regex.Match(initial, $"<input[^>]*id=\"{axis}\"[^>]*>").Value;
@@ -212,7 +236,7 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
                      ("", "0"), ("0", ""), ("NaN", "0"), ("0", "NaN"), ("Infinity", "0"),
                      ("91", "0"), ("0", "-181"), ("bad", "0") })
         {
-            using var response = await client.PostAsync($"/User/Location/{action}", Form(pair.Item1, pair.Item2, token, row.Id));
+            using var response = await client.PostAsync($"/User/Location/{action}", Form(pair.Item1, pair.Item2, token, row.Id, createKey, createIntent));
             var html = await response.Content.ReadAsStringAsync();
             Assert.True(response.StatusCode == HttpStatusCode.OK, $"{pair}: {response.StatusCode}: {html.Split("HEADERS")[0]}");
             Assert.Contains("field-validation-error", html);
@@ -220,8 +244,8 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
             await AssertStoredAsync(row.Id, 10, 20, "kept");
             Assert.Equal(1, await db.Locations.CountAsync(item => item.UserId == owner));
         }
-        using var valid = await client.PostAsync($"/User/Location/{action}", Form("0", "0", token, row.Id));
-        Assert.Equal(HttpStatusCode.Redirect, valid.StatusCode);
+        using var valid = await client.PostAsync($"/User/Location/{action}", Form("0", "0", token, row.Id, createKey, createIntent));
+        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
         await using var verify = fixture.CreateContext();
         var saved = action == "Edit" ? await verify.Locations.SingleAsync(item => item.Id == row.Id)
             : await verify.Locations.SingleAsync(item => item.UserId == owner && item.Id != row.Id);
@@ -285,10 +309,12 @@ public sealed class LocationCoordinatesPostgresTests(PostgresImportTestFixture f
     }
 
     /// <summary>Builds real full-form bodies, preserving the distinction between absent and blank fields.</summary>
-    private static FormUrlEncodedContent Form(string? latitude, string? longitude, string token, int id)
+    private static FormUrlEncodedContent Form(string? latitude, string? longitude, string token, int id, string? createKey = null, string? createIntent = null)
     {
         var values = new Dictionary<string, string> { ["Id"] = id.ToString(), ["__RequestVerificationToken"] = token,
             ["LocalTimestamp"] = "2026-08-22T08:00:00", ["Notes"] = "changed" };
+        if (createKey != null) values["CreateKey"] = createKey;
+        if (createIntent != null) values["CreateIntent"] = createIntent;
         if (latitude != null) values["Latitude"] = latitude;
         if (longitude != null) values["Longitude"] = longitude;
         return new(values);

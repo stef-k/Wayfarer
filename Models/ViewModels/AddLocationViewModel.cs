@@ -6,6 +6,19 @@ namespace Wayfarer.Models.ViewModels
 {
     public class AddLocationViewModel
     {
+        /// <summary>One logical create identity, authenticated by the owner-bound intent handle.</summary>
+        public Guid? CreateKey { get; set; }
+        /// <summary>Protected owner/key binding; never authorizes an edit.</summary>
+        public string? CreateIntent { get; set; }
+        /// <summary>First attempted authored values, distinct from newer visible input.</summary>
+        public string? AttemptedValues { get; set; }
+        /// <summary>Once uncertain, validation of a later form cannot establish that the earlier request had no effect.</summary>
+        public bool CreateMayHaveEffect { get; set; }
+        /// <summary>Persistent form feedback, including unsaved input and terminal deletion.</summary>
+        [BindNever] public string? CreateStatus { get; set; }
+        [BindNever] public int? SavedLocationId { get; set; }
+        [BindNever] public bool CreateTerminal { get; set; }
+
         public int? Id { get; set; } // For editing  
 
         /// <summary>

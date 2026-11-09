@@ -82,7 +82,9 @@ public class ApiLocationAdmissionTests : TestBase
         var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
         var sse = new Mock<SseService>(MockBehavior.Strict);
         var controller = Controller(db, gate, visits.Object, sse.Object);
-        var invoke = () => checkIn ? controller.CheckIn(Dto()) : controller.LogLocation(Dto());
+        var invalid = Dto();
+        invalid.Accuracy = double.PositiveInfinity;
+        var invoke = () => checkIn ? controller.CheckIn(invalid) : controller.LogLocation(invalid);
         controller.Request.Headers["Idempotency-Key"] = key.ToString();
         Assert.IsType<OkObjectResult>(await invoke());
         controller.Request.Headers["Idempotency-Key"] = "malformed";
@@ -180,10 +182,42 @@ public class ApiLocationAdmissionTests : TestBase
             Assert.Equal(429, Assert.IsType<ObjectResult>(denied).StatusCode);
             Assert.Equal(0, handler.Calls);
         }
+        // Successfully bound invalid measurements are rejected before provider, persistence, skips and live effects.
+        foreach (var field in new[] { nameof(GpsLoggerLocationDto.Accuracy), nameof(GpsLoggerLocationDto.Altitude),
+                     nameof(GpsLoggerLocationDto.Speed), nameof(GpsLoggerLocationDto.Bearing) })
+        foreach (var value in new[] { double.NaN, double.PositiveInfinity, double.NegativeInfinity })
+        {
+            var invalid = Dto();
+            typeof(GpsLoggerLocationDto).GetProperty(field)!.SetValue(invalid, value);
+            Assert.IsType<BadRequestObjectResult>(checkIn ? await controller.CheckIn(invalid) : await controller.LogLocation(invalid));
+            Assert.Empty(db.Locations);
+            Assert.Equal(0, handler.Calls);
+            Assert.Equal(0, gate.IdentityCount);
+        }
         // Existing enrichment failures fall back to an unenriched persisted location.
         Assert.IsType<OkObjectResult>(checkIn ? await controller.CheckIn(Dto()) : await controller.LogLocation(Dto()));
         Assert.Equal(1, handler.Calls);
         Assert.Equal(0, gate.IdentityCount);
+    }
+
+    /// <summary>Null, zero and unrestricted finite measurements retain their supplied scalars at both adapters.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FiniteMeasurementsRemainUnchanged(bool checkIn)
+    {
+        foreach (double? value in new double?[] { null, 0, -123.456 })
+        {
+            var db = CreateDbContext();
+            Seed(db);
+            var dto = Dto();
+            dto.Accuracy = value; dto.Altitude = value; dto.Speed = value; dto.Bearing = value;
+            var controller = Controller(db, new ApiWorkAdmission(64, 8));
+            Assert.IsType<OkObjectResult>(checkIn ? await controller.CheckIn(dto) : await controller.LogLocation(dto));
+            var row = Assert.Single(db.Locations);
+            Assert.Equal(value, row.Accuracy); Assert.Equal(value, row.Altitude);
+            Assert.Equal(value, row.Speed); Assert.Equal(value, row.Bearing);
+        }
     }
 
     /// <summary>Location mutation bearer branches gain the same inactive-user 401 before ownership lookup.</summary>

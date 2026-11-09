@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Fence the complete private Web Create draft during account recovery (#971),
+  including map selections and Notes dialogs; serialize owner rechecks while
+  retaining the original draft and frozen attempt. Reject nonfinite measurements
+  in both ingestion APIs before filtering/effects, preserving UUID retry precedence.
+
 - Add the private Web Timeline calendar (#953 W1/W2): Day/Week/Month/Year/Custom,
   capture/viewer dates and both detail clocks, direct date activation, marked month
   discovery and inclusive Custom ranges. Offer optional private Notes/address,
@@ -325,6 +330,17 @@
   and [bounded qualification](docs/development/history-final-qualification.md#status-coverage-delivery).
 
 ### Added
+- Preserve the shared Location recovery profile across CSV/GeoJSON, including
+  independent addresses, nullable/unknown metadata, original phone clocks and
+  exact microsecond instant normalization (#971). Add a transactional one-time
+  null-only UUID upgrade; existing keys and all other history remain unchanged.
+  Web Create now shares UUID first-winner persistence, retains uncertain attempts
+  and visibly unsaved differences, and offers explicit protected Edit. Manual
+  history preserves supplied addresses without fabricating phone/live facts.
+  Native recovery retains known-empty coordinate origin. Blank Notes receive
+  truthful save/replay confirmation; unverifiable error responses retain the
+  original attempt and offer account recheck without asserting an account change.
+
 
 - Raise #918 history/page and overview evaluation ceilings to fifteen seconds at
   maintainer direction, preserving the separate thirty-second detail budget,

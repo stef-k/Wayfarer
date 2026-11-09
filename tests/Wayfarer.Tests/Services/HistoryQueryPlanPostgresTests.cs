@@ -27,7 +27,7 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
         var corrected = original.Replace("\"ActivityTypeId\")", "\"ActivityTypeId\", \"HistoryTimeStatus\")");
         var owner = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
-        db.Add(new Location { UserId = owner.Id, TimeZoneId = "UTC", Coordinates = new Point(23.7, 38) { SRID = 4326 },
+        db.Add(new Location { UserId = owner.Id, IdempotencyKey = Guid.NewGuid(), TimeZoneId = "UTC", Coordinates = new Point(23.7, 38) { SRID = 4326 },
             LocalTimestamp = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
         await db.SaveChangesAsync();
         var before = await db.Database.SqlQuery<string>($"""

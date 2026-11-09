@@ -723,3 +723,27 @@ for the 25-year synthetic owner, field-distribution comparisons and mixed-use
 results. Sub-second target misses require an explicit measured maintainer
 disposition. No automatic acceptance, production sizing, issue closure or further
 optimization authorization follows from raising the protective ceiling.
+
+
+## Location identity and original-clock upgrade (#971)
+
+Normal transactional schema installation/upgrade applies
+`20261108172801_SharedLocationOriginalClocks` (four nullable typed columns; no
+reconstruction of historical phone facts), followed by
+`20261108172840_AssignStoredLocationKeys`. The latter executes only
+`UPDATE "Locations" SET "IdempotencyKey" = gen_random_uuid() WHERE "IdempotencyKey" IS NULL`.
+It preserves existing UUIDs including zero and every other stored value; nearby
+rows receive distinct persisted random keys. Empty installs and completed repeats
+are no-ops. Reads, exports, startup and background work never repair keys.
+Later anonymous imports or accepted keyless API input can still create null keys;
+this is not a universal NOT NULL policy or retroactive identity for old files.
+
+An interrupted/failed migration transaction rolls back assignment and its migration
+history entry together. Retry through the normal installer/upgrade migrator; keys
+committed by a completed upgrade are never reassigned. Retain the normal database
+backup and migration evidence. The UUID migration Down deliberately does not clear
+keys: published identity and deletion evidence cannot safely be undone. A code
+rollback should retain the additive schema and keys. Reversing the clock-column
+migration drops newly retained original facts; preserve/export them first and do
+not describe a schema downgrade as non-destructive recovery. No production migration
+or deployment is part of #971 implementation qualification.

@@ -1,6 +1,7 @@
 /** Protected Location client: durable originals/drafts, exact attempts, verified receipts and read-only recovery. */
 const contract = 'location-mutation-1';
-const normalization = 'location-values-1';
+// Fresh bases select their normalization; retained attempts keep the exact serialized version.
+const supportedNormalization = value => ['location-values-1', 'location-values-2'].includes(value);
 const encoder = new TextEncoder();
 const subject = () => document.getElementById('browser-antiforgery')?.dataset.subjectId;
 const partition = id => `${contract}:${location.origin}:${subject()}:${id}`;
@@ -123,7 +124,7 @@ export const readLocationDetail = async id => {
     const detail = await readResponseJson(response);
     const evidence = detail.locationMutation;
     if (detail.subjectId !== subject() || detail.record?.locationId !== id || evidence?.contract !== contract
-        || evidence.normalization !== normalization || !['pending', 'closed'].includes(evidence.originalCreateAddressPublication))
+        || !supportedNormalization(evidence.normalization) || !['pending', 'closed'].includes(evidence.originalCreateAddressPublication))
         throw new Error('Location evidence could not be verified. Your draft is retained.');
     return detail;
 };
@@ -131,7 +132,7 @@ export const readLocationDetail = async id => {
 /** Strict known-row acknowledgement validation against locally persisted pre-send evidence. */
 export const validateLocationReceipt = (receipt, attempt) => {
     const common = ['contract', 'normalization', 'adapter', 'subjectId', 'locationId', 'uuid', 'baseId', 'actionId', 'kind', 'fingerprint', 'receiptRetainUntilUtc', 'state', 'futureEffects'];
-    const equal = receipt?.contract === contract && receipt.normalization === normalization && receipt.adapter === attempt.adapter
+    const equal = receipt?.contract === contract && receipt.normalization === JSON.parse(attempt.body).normalization && receipt.adapter === attempt.adapter
         && receipt.subjectId === attempt.subjectId && receipt.locationId === attempt.id && receipt.uuid === attempt.uuid
         && receipt.baseId === attempt.baseId && receipt.actionId === attempt.actionId && receipt.kind === attempt.kind
         && receipt.fingerprint === attempt.fingerprint && !!utcInstantKey(receipt.receiptRetainUntilUtc);
@@ -209,7 +210,7 @@ export const saveLocationMutation = async (id, detail, kind, changes, expected, 
         // Renew only never-attempted authority; expected originals are deliberately retained unchanged.
         let authority = (renewedDetail || detail).locationMutation;
         if (Date.parse(authority.expiresAtUtc) <= Date.now()) authority = (await readLocationDetail(id)).locationMutation;
-        const body = JSON.stringify({ contract, normalization, adapter: 'web-edit', baseHandle: authority.baseHandle, kind, expected, ...(kind === 'update' ? { changes } : {}) });
+        const body = JSON.stringify({ contract, normalization: authority.normalization, adapter: 'web-edit', baseHandle: authority.baseHandle, kind, expected, ...(kind === 'update' ? { changes } : {}) });
         const actionId = crypto.randomUUID();
         attempt = { id, subjectId: subject(), uuid: detail.locationMutation.baseValues.uuid.value, baseId: authority.baseId, actionId,
             adapter: 'web-edit', kind, body, baseHandle: authority.baseHandle, expiresAtUtc: authority.expiresAtUtc, generation, draftKey: state.editorKey, mayHaveAttempted: false,
@@ -343,7 +344,7 @@ const validateLocationWork = async (id, state) => {
             || typeof attempt.body !== 'string' || typeof attempt.mayHaveAttempted !== 'boolean') fail();
         let body;
         try { body = JSON.parse(attempt.body); } catch { fail(); }
-        if (body.contract !== contract || body.normalization !== normalization || body.adapter !== attempt.adapter
+        if (body.contract !== contract || !supportedNormalization(body.normalization) || body.adapter !== attempt.adapter
             || body.baseHandle !== attempt.baseHandle || body.kind !== attempt.kind
             || body.expected?.uuid?.state !== 'known' || body.expected.uuid.value !== attempt.uuid
             || await locationRequestFingerprint(attempt.subjectId, id, attempt.baseId, attempt.actionId, attempt.adapter, attempt.body) !== attempt.fingerprint) fail();

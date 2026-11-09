@@ -1,15 +1,8 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
-
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Normalizes optional provider-returned named-feature metadata at persistence boundaries.</summary>
 public static class ResolvedFeatureMetadata
 {
-    private static readonly Regex ImportedTimestampGrammar = new(
-        @"\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,7})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z",
-        RegexOptions.CultureInvariant);
-
     private static readonly HashSet<string> GeoapifyTypes = new(StringComparer.Ordinal)
     {
         "amenity", "building", "street", "suburb", "district", "postcode", "city", "county", "state", "country"
@@ -29,12 +22,8 @@ public static class ResolvedFeatureMetadata
     public static ResolvedFeatureTuple NormalizeImported(
         string? name, string? type, string? provider, string? storageMode, string? timestamp)
     {
-        var parsedAt = default(DateTimeOffset);
-        var hasTimestamp = timestamp != null && ImportedTimestampGrammar.IsMatch(timestamp)
-            && DateTimeOffset.TryParseExact(timestamp, "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK",
-                CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedAt);
         return NormalizePersisted(name, type, provider, storageMode,
-            hasTimestamp ? parsedAt.ToUniversalTime() : null);
+            Wayfarer.Parsers.ObservationEvidence.ReadInstant(timestamp));
     }
 
     /// <summary>Authenticates and normalizes one persisted enrichment tuple.</summary>
@@ -50,7 +39,7 @@ public static class ResolvedFeatureMetadata
         var normalizedName = normalizedProvider == "geoapify" ? NormalizeName(name) : null;
         var normalizedType = normalizedProvider == "geoapify" ? NormalizeGeoapifyType(type) : null;
         return new(normalizedName, normalizedType, normalizedProvider, normalizedMode,
-            enrichedAt.GetValueOrDefault().ToUniversalTime());
+            new DateTimeOffset(Wayfarer.Parsers.ObservationEvidence.Truncate(enrichedAt.GetValueOrDefault().UtcDateTime)));
     }
 
     private static string? Normalize(string? value, int maximumLength)

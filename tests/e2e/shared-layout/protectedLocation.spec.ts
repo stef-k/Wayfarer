@@ -19,7 +19,9 @@ test('protected Location Web form preserves capture instant and retained conflic
     await page.locator('#Latitude').fill('37.98'); await page.locator('#Longitude').fill('23.72');
     await page.locator('#LocalTimestamp').fill('2026-10-29T10:15');
     await page.locator('.rich-notes-content').fill('Original notes');
-    await Promise.all([page.waitForURL(/\/User\/Location\/Edit\//), page.getByRole('button', { name: 'Add Location', exact: true }).click()]);
+    await page.getByRole('button', { name: 'Add Location', exact: true }).click();
+    await page.getByRole('link', { name: 'Open saved Location / Edit' }).click();
+    await page.waitForURL(/\/User\/Location\/Edit\//);
     const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
     const detail = async () => {
         const response = await page.request.get(`/api/location/history/${id}?viewerZone=UTC`);
@@ -49,7 +51,7 @@ test('protected Location Web form preserves capture instant and retained conflic
     const csrf = await page.locator('input[name=__RequestVerificationToken]').first().inputValue();
     const external = await page.request.post(`/api/location/${id}/mutations/${base.baseId}/${crypto.randomUUID()}`, {
         headers: { RequestVerificationToken: csrf },
-        data: { contract: 'location-mutation-1', normalization: 'location-values-1', adapter: 'web-edit', baseHandle: base.baseHandle,
+        data: { contract: 'location-mutation-1', normalization: base.normalization, adapter: 'web-edit', baseHandle: base.baseHandle,
             kind: 'update', expected: { uuid: base.baseValues.uuid, notesHtml: base.baseValues.notesHtml }, changes: { notes: { op: 'set', html: 'Newer server Notes' } } }
     });
     expect(external.status()).toBe(200);
@@ -62,4 +64,53 @@ test('protected Location Web form preserves capture instant and retained conflic
     await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     expect((await detail()).record.notesHtml).toBe('Newer server Notes');
     await page.screenshot({ path: testInfo.outputPath('protected-location-retained-draft.png'), fullPage: true });
+});
+
+/** W971-1 requires a mounted ordinary form to prove real transport loss and retained newer input. */
+test('Web creation retry retains unsaved differences before explicit protected Edit', async ({ page }, testInfo) => {
+    const config = loadSharedLayoutConfig();
+    await page.route('**/*', route => {
+        const url = new URL(route.request().url());
+        return !['localhost', '127.0.0.1'].includes(url.hostname) || url.pathname.toLowerCase().startsWith('/api/tiles')
+            ? route.abort() : route.continue();
+    });
+    await page.goto('/Identity/Account/Login');
+    await page.getByLabel('Username').fill(config.username);
+    await page.getByLabel('Password').fill(config.password);
+    await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
+    await page.goto('/User/Location/Create');
+    const key = await page.locator('#CreateKey').inputValue();
+    await page.locator('#Latitude').fill('0'); await page.locator('#Longitude').fill('0');
+    await page.locator('#LocalTimestamp').fill('2026-11-08T12:00');
+    await page.locator('#Address').fill('Manual address');
+    await page.locator('.rich-notes-content').fill('First attempted Notes');
+    let lost = false;
+    await page.route('**/User/Location/Create', async route => {
+        if (route.request().method() === 'POST' && !lost) {
+            const result = await route.fetch(); expect(result.status()).toBe(200);
+            lost = true; return route.abort('failed');
+        }
+        return route.continue();
+    });
+    await page.getByRole('button', { name: 'Add Location', exact: true }).click();
+    await expect(page.locator('#create-status')).toContainText('could not be confirmed');
+    await page.locator('.rich-notes-content').fill('Newer unsaved Notes / Αλλαγή');
+    await page.getByRole('button', { name: 'Retry original save', exact: true }).click();
+    await expect(page.locator('#create-status')).toContainText('current form changes were not applied');
+    await expect(page.locator('.rich-notes-content')).toContainText('Newer unsaved Notes');
+    await expect(page.getByLabel('Actual saved location')).toContainText('First attempted Notes');
+    await expect(page.locator('#CreateKey')).toHaveValue(key);
+    await page.screenshot({ path: process.env.WAYFARER_W971_SCREENSHOT || testInfo.outputPath('971-unsaved-differences.png'), fullPage: true });
+    await page.getByRole('link', { name: 'Open saved Location / Edit' }).click();
+    await page.waitForURL(/\/User\/Location\/Edit\//);
+    await page.locator('.rich-notes-content').fill('Newer unsaved Notes / Αλλαγή');
+    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
+    const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
+    const response = await page.request.get(`/api/location/history/${id}?viewerZone=UTC`);
+    const detail = await response.json();
+    expect(detail.record.uuid).toBe(key);
+    expect(detail.record.notesHtml).toContain('Newer unsaved Notes');
+    expect(detail.record.source).toBe('web-create');
+    expect(detail.record.originalTimeZoneId).toBeNull();
+    expect(detail.record.submittedAtUtc).toBeNull();
 });

@@ -1,4 +1,5 @@
 import { mountRazorNotes } from './razor';
+import { attachLocationCreate } from '../../wwwroot/js/util/location-create.js';
 import { createTileLayer } from '../../wwwroot/js/retryTileLayer.js';
 
 const mountLocationCreate = () => {
@@ -72,8 +73,12 @@ const mountLocationCreate = () => {
 
     // Ordinary MVC submission owns validation; Notes changes only after authoring or explicit Clear.
     const notes = mountRazorNotes(document.getElementById('notes'));
-    document.getElementById('notes').closest('form').addEventListener('submit', () => {
-        document.getElementById('Notes').value = notes.isClear() ? '' : notes.getValue();
+    attachLocationCreate(document.getElementById('notes').closest('form'), () => notes.isClear() ? '' : notes.getValue(), content => {
+        notes.dispose();
+        mapContainer?.remove();
+        document.getElementById('activitySelect')?.tomselect?.destroy();
+        document.querySelector('.site-content').replaceWith(content);
+        mountLocationCreate();
     });
     window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
 

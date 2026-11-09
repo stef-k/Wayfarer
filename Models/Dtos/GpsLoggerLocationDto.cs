@@ -3,13 +3,37 @@ namespace Wayfarer.Models.Dtos;
 /// <summary>
 /// DTO for receiving location data from mobile clients via log-location and check-in endpoints.
 /// </summary>
-public class GpsLoggerLocationDto
+public class GpsLoggerLocationDto : System.ComponentModel.DataAnnotations.IValidatableObject
 {
     /// <summary>Latitude supplied by the client; null cannot authorize a new observation.</summary>
     public double? Latitude { get; set; }
     /// <summary>Longitude supplied by the client; explicit zero is valid, absence is not zero.</summary>
     public double? Longitude { get; set; }
-    public DateTime Timestamp { get; set; } // Local device time
+    /// <summary>Effective event instant; legacy offsetless values retain coordinate-local interpretation.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.CaptureTimestampJsonConverter))]
+    public DateTime Timestamp { get; set; }
+
+    /// <summary>Exact original phone local clock; independent of the effective event.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(29)]
+    public string? OriginalLocalTimestamp { get; set; }
+    /// <summary>Bounded original platform zone, including aliases and fixed-offset identifiers.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(128)]
+    public string? OriginalTimeZoneId { get; set; }
+    /// <summary>Independent original device offset in seconds.</summary>
+    [System.ComponentModel.DataAnnotations.Range(-64800, 64800)]
+    public int? OriginalUtcOffsetSeconds { get; set; }
+    /// <summary>Original submission instant, never the retry or server receipt clock.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.ObservationInstantJsonConverter))]
+    public DateTimeOffset? SubmittedAtUtc { get; set; }
+
+    /// <summary>Rejects malformed original evidence instead of silently erasing it.</summary>
+    public IEnumerable<System.ComponentModel.DataAnnotations.ValidationResult> Validate(System.ComponentModel.DataAnnotations.ValidationContext context)
+    {
+        if (!Wayfarer.Parsers.ObservationEvidence.ValidOriginalLocal(OriginalLocalTimestamp))
+            yield return new("Invalid original local clock.", [nameof(OriginalLocalTimestamp)]);
+        if (!Wayfarer.Parsers.ObservationEvidence.ValidOriginalZone(OriginalTimeZoneId))
+            yield return new("Invalid original timezone identifier.", [nameof(OriginalTimeZoneId)]);
+    }
 
     /// <summary>Optional coordinate origin: sensor, manual-map, or unknown; only sensor can establish presence.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(24)]
@@ -22,6 +46,17 @@ public class GpsLoggerLocationDto
     /// <summary>Known monotonic fix age at final submit; omit when reboot/clock change makes it uncertain.</summary>
     public long? ObservedAgeAtEventMs { get; set; }
 
+    /// <summary>
+    /// Checks new ingestion measurements after owner-key replay and admission, before filtering or effects.
+    /// Kept out of automatic model validation so successfully bound retries retain winner/deletion priority.
+    /// </summary>
+    public bool HasFiniteMeasurements() =>
+        (Accuracy is not { } accuracy || double.IsFinite(accuracy)) &&
+        (Altitude is not { } altitude || double.IsFinite(altitude)) &&
+        (Speed is not { } speed || double.IsFinite(speed)) &&
+        (Bearing is not { } bearing || double.IsFinite(bearing));
+
+    /// <summary>Optional finite accuracy scalar; null remains unknown and zero remains supplied.</summary>
     public double? Accuracy { get; set; }
     public double? Altitude { get; set; }
     public double? Speed { get; set; }
@@ -77,6 +112,7 @@ public class GpsLoggerLocationDto
     /// <summary>
     /// Battery level (0-100) when captured.
     /// </summary>
+    [System.ComponentModel.DataAnnotations.Range(0, 100)]
     public int? BatteryLevel { get; set; }
 
     /// <summary>

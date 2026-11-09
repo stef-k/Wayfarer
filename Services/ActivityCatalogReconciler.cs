@@ -32,6 +32,8 @@ public sealed class ActivityCatalogReconciler(ApplicationDbContext db)
             ) AS normalized
             ORDER BY "NormalizedName" COLLATE "C", "Ordinal"
             """).ToListAsync(token);
+        if (normalized.Any(n => string.IsNullOrEmpty(n.NormalizedName) && supplied[n.Ordinal - 1].ImportedRecoveryProfile))
+            throw Wayfarer.Parsers.LocationImportValidationException.Recovery();
         invalid += normalized.Count(n => n.DisplayName is null);
         var valid = normalized.Where(n => !string.IsNullOrEmpty(n.NormalizedName)).ToArray();
         foreach (var group in valid.GroupBy(n => n.NormalizedName!, StringComparer.Ordinal))

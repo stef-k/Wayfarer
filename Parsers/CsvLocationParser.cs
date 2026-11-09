@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using CsvHelper;
+using Newtonsoft.Json.Linq;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
@@ -54,8 +55,20 @@ public sealed class CsvLocationParser : ILocationDataParser
         while (await csv.ReadAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Native descriptors are admitted before permissive filtering, defaults or fallback.
+            var raw = new JObject();
+            var duplicateHeaders = false;
+            foreach (var header in csv.HeaderRecord!)
+            {
+                var name = header.Trim();
+                if (raw.ContainsKey(name)) { duplicateHeaders = true; continue; }
+                raw.Add(name, GetField(csv, name));
+            }
+            if (raw.ContainsKey("WayfarerRecovery") && duplicateHeaders) throw LocationImportValidationException.Recovery();
+            var profile = LocationRecoveryProfile.Read(raw, true);
+            string? field(string name) => profile == null ? GetField(csv, name) : profile.Text(name, GetField(csv, name));
             // Validate every input identity before coordinate/timestamp filtering, independently on each pass.
-            var idempotencyKey = ParseOptionalGuid(GetField(csv, "IdempotencyKey"));
+            var idempotencyKey = ParseOptionalGuid(field("IdempotencyKey"));
             if (idempotencyKey == Guid.Empty)
             {
                 if (seenZeroKey) throw LocationImportValidationException.MultipleZeroKeys();
@@ -72,44 +85,44 @@ public sealed class CsvLocationParser : ILocationDataParser
                 continue;
             }
 
-            if (!TryParseTimestampUtc(GetField(csv, "TimestampUtc"), out var timestampUtc))
+            if (!TryParseTimestampUtc(field("TimestampUtc"), out var timestampUtc))
             {
                 _logger.LogWarning("Skipping CSV record due to invalid timestamp at row {Row}.",
                     csv.Context?.Parser?.Row ?? 0);
                 continue;
             }
-            var localTimestamp = ParseLocalTimestamp(GetField(csv, "LocalTimestamp"), timestampUtc);
-            var timeZoneId = GetField(csv, "TimeZoneId");
+            var localTimestamp = ParseLocalTimestamp(field("LocalTimestamp"), timestampUtc);
+            var timeZoneId = field("TimeZoneId");
 
-            var activityName = GetField(csv, "Activity");
-            var locationType = GetField(csv, "LocationType");
+            var activityName = field("Activity");
+            var locationType = field("LocationType");
             var accuracy = GetNullableDouble(csv, "Accuracy");
             var altitude = GetNullableDouble(csv, "Altitude");
             var speed = GetNullableDouble(csv, "Speed");
-            var address = GetField(csv, "Address");
-            var fullAddress = GetField(csv, "FullAddress") ?? address;
-            var notes = GetField(csv, "Notes");
+            var address = field("Address");
+            var fullAddress = raw.ContainsKey("FullAddress") ? field("FullAddress") : address;
+            var notes = field("Notes");
 
             // Extract metadata fields
-            var source = GetField(csv, "Source");
+            var source = field("Source");
             var isUserInvoked = GetNullableBool(csv, "IsUserInvoked");
-            var provider = GetField(csv, "Provider");
+            var provider = field("Provider");
             var bearing = GetNullableDouble(csv, "Bearing");
-            var appVersion = GetField(csv, "AppVersion");
-            var appBuild = GetField(csv, "AppBuild");
-            var deviceModel = GetField(csv, "DeviceModel");
-            var osVersion = GetField(csv, "OsVersion");
+            var appVersion = field("AppVersion");
+            var appBuild = field("AppBuild");
+            var deviceModel = field("DeviceModel");
+            var osVersion = field("OsVersion");
             var batteryLevel = GetNullableInt(csv, "BatteryLevel");
             var isCharging = GetNullableBool(csv, "IsCharging");
             var feature = ResolvedFeatureMetadata.NormalizeImported(
-                GetField(csv, "ResolvedFeatureName"), GetField(csv, "ResolvedFeatureType"),
-                GetField(csv, "ReverseGeocodingProvider"), GetField(csv, "ReverseGeocodingStorageMode"),
-                GetField(csv, "ReverseGeocodedAt"));
+                field("ResolvedFeatureName"), field("ResolvedFeatureType"),
+                field("ReverseGeocodingProvider"), field("ReverseGeocodingStorageMode"),
+                field("ReverseGeocodedAt"));
 
             var location = new Location
             {
                 UserId = userId,
-                Timestamp = timestampUtc,
+                Timestamp = profile?.Kind == "original" ? ObservationEvidence.Truncate(DateTime.UtcNow) : timestampUtc,
                 LocalTimestamp = localTimestamp,
                 TimeZoneId = string.IsNullOrWhiteSpace(timeZoneId) ? "UTC" : timeZoneId!,
                 Coordinates = new GeoPoint(longitude, latitude) { SRID = 4326 },
@@ -118,13 +131,13 @@ public sealed class CsvLocationParser : ILocationDataParser
                 Speed = speed,
                 Address = address,
                 FullAddress = fullAddress,
-                AddressNumber = GetField(csv, "AddressNumber"),
-                StreetName = GetField(csv, "StreetName"),
-                PostCode = GetField(csv, "PostCode"),
-                Place = GetField(csv, "Place"),
-                Region = GetField(csv, "Region"),
-                Country = GetField(csv, "Country"),
-                ProviderAddressLine1 = RetainedAddressText.Normalize(GetField(csv, "ProviderAddressLine1")),
+                AddressNumber = field("AddressNumber"),
+                StreetName = raw.ContainsKey("StreetName") ? field("StreetName") : field("Street"),
+                PostCode = raw.ContainsKey("PostCode") ? field("PostCode") : field("Postcode"),
+                Place = field("Place"),
+                Region = field("Region"),
+                Country = field("Country"),
+                ProviderAddressLine1 = RetainedAddressText.Normalize(field("ProviderAddressLine1")),
                 ResolvedFeatureName = feature.Name,
                 ResolvedFeatureType = feature.Type,
                 ReverseGeocodingProvider = feature.Provider,
@@ -138,9 +151,15 @@ public sealed class CsvLocationParser : ILocationDataParser
                 LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
 
                 // Metadata fields
-                CoordinateOrigin = ObservationEvidence.ReadOrigin(GetField(csv, "CoordinateOrigin")),
-                ObservedAtUtc = ObservationEvidence.ReadInstant(GetField(csv, "ObservedAtUtc")),
-                ObservedAgeAtEventMs = ObservationEvidence.ReadAge(GetField(csv, "ObservedAgeAtEventMs")),
+                ImportedRecoveryProfile = profile != null,
+                OriginalLocalTimestamp = ReadOriginalLocal(field("OriginalLocalTimestamp")),
+                OriginalTimeZoneId = ReadOriginalZone(field("OriginalTimeZoneId")),
+                OriginalUtcOffsetSeconds = ReadOriginalOffset(field("OriginalUtcOffsetSeconds")),
+                SubmittedAtUtc = ReadSubmission(field("SubmittedAtUtc")),
+                // The admitted descriptor distinguishes empty text from null; legacy normalization stays separate.
+                CoordinateOrigin = profile != null ? field("CoordinateOrigin") : ObservationEvidence.ReadOrigin(field("CoordinateOrigin")),
+                ObservedAtUtc = ObservationEvidence.ReadInstant(field("ObservedAtUtc")),
+                ObservedAgeAtEventMs = ObservationEvidence.ReadAge(field("ObservedAgeAtEventMs")),
                 Source = source,
                 IsUserInvoked = isUserInvoked,
                 Provider = provider,
@@ -157,6 +176,16 @@ public sealed class CsvLocationParser : ILocationDataParser
             yield return location;
         }
     }
+
+    /// <summary>New original facts reject malformed supplied values even in legacy files.</summary>
+    internal static string? ReadOriginalLocal(string? value) => ObservationEvidence.ValidOriginalLocal(value)
+        ? value : throw LocationImportValidationException.Recovery();
+    internal static string? ReadOriginalZone(string? value) => ObservationEvidence.ValidOriginalZone(value)
+        ? value : throw LocationImportValidationException.Recovery();
+    internal static DateTimeOffset? ReadSubmission(string? value) => value == null ? null
+        : ObservationEvidence.ReadInstant(value) ?? throw LocationImportValidationException.Recovery();
+    internal static int? ReadOriginalOffset(string? value) => string.IsNullOrEmpty(value) ? null
+        : int.TryParse(value, out var offset) && offset is >= -64800 and <= 64800 ? offset : throw LocationImportValidationException.Recovery();
 
     private static string? GetField(CsvReader csv, string field)
     {
@@ -233,6 +262,7 @@ public sealed class CsvLocationParser : ILocationDataParser
 
     private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
+        if (ObservationEvidence.ReadInstant(rawTimestamp) is { } shared) { timestampUtc = shared.UtcDateTime; return true; }
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
@@ -254,6 +284,7 @@ public sealed class CsvLocationParser : ILocationDataParser
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)
     {
+        if (ObservationEvidence.ReadInstant(rawTimestamp) is { } shared) return shared.UtcDateTime;
         if (string.IsNullOrWhiteSpace(rawTimestamp))
         {
             return fallbackUtc;

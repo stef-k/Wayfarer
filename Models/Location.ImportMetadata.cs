@@ -13,6 +13,12 @@ public partial class Location
     [NotMapped]
     public string? ImportedActivityName { get; set; }
 
+    /// <summary>Prevents legacy import defaults from manufacturing known source facts for native files.</summary>
+    [NotMapped]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public bool ImportedRecoveryProfile { get; set; }
+
     /// <summary>Marks an invalid supplied Activity value without persisting its private source text.</summary>
     [NotMapped]
     [System.Text.Json.Serialization.JsonIgnore]

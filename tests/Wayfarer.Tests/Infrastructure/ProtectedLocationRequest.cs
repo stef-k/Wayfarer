@@ -24,7 +24,7 @@ internal sealed record ProtectedLocationRequest(int Id, Guid BaseId, Guid Action
             if (field.Name is "position" or "manualAddress") groups.UnionWith(["position", "address"]);
             else groups.Add(field.Name switch { "notes" => "notesHtml", "activity" => "activityTypeId", _ => field.Name });
         }
-        var body = new Dictionary<string, object?> { ["contract"] = "location-mutation-1", ["normalization"] = "location-values-1",
+        var body = new Dictionary<string, object?> { ["contract"] = "location-mutation-1", ["normalization"] = evidence.GetProperty("normalization").GetString(),
             ["adapter"] = adapter, ["baseHandle"] = evidence.GetProperty("baseHandle").GetString(), ["kind"] = changes == null ? "delete" : "update",
             ["expected"] = groups.ToDictionary(group => group, group => originals.GetProperty(group == "content" ? "deleteContent" : group)) };
         if (changes != null) body["changes"] = selected;

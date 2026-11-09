@@ -418,7 +418,8 @@ jobs:
       contents: read
     # Operator/recovery probes can execute application history code on the host as well as inside images.
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Allow headroom for serial image, recovery and update/reinstall qualification on hosted runners.
+    timeout-minutes: 60
     # Check this Linux store before setup actions perform package/tool acquisition.
     env:
       NODE_OPTIONS: --use-openssl-ca

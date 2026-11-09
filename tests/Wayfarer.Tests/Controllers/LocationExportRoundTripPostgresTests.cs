@@ -128,7 +128,10 @@ public sealed partial class LocationExportRoundTripPostgresTests(PostgresImportT
         Assert.Equal(types, parsed.Select(row => row.LocationType));
         Assert.DoesNotContain(privateLocation.Notes, Encoding.UTF8.GetString(exported));
         Assert.DoesNotContain(owner.Id, Encoding.UTF8.GetString(exported));
-        Assert.DoesNotContain("ActivityTypeId", Encoding.UTF8.GetString(exported));
+        // Native files carry source catalog IDs descriptively; destination binding still uses normalized meaning.
+        if (format is LocationImportFileType.Csv or LocationImportFileType.WayfarerGeoJson)
+            Assert.Contains("ActivityTypeId", Encoding.UTF8.GetString(exported));
+        else Assert.DoesNotContain("ActivityTypeId", Encoding.UTF8.GetString(exported));
         Assert.DoesNotContain("NormalizedName", Encoding.UTF8.GetString(exported));
 
         // The fixture shares one catalog: retire source names to model a destination with different IDs.

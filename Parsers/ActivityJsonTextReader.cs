@@ -9,6 +9,13 @@ internal sealed class ActivityJsonTextReader : JsonTextReader
 {
     private readonly RawStrings source;
     private bool activityValue;
+    private readonly Stack<HashSet<string>> objectMembers = new();
+    /// <summary>Native profiles reject duplicate members while legacy last-property-wins behavior remains intact.</summary>
+    internal bool DuplicateFeatureMembers { get; set; }
+    /// <summary>Detects a supplied descriptor even if a duplicate properties object later hides it.</summary>
+    internal bool SawRecoveryProfile { get; set; }
+    /// <summary>Native text cannot silently lose invalid Unicode through decoder replacement.</summary>
+    internal bool InvalidFeatureUnicode { get; set; }
 
     internal ActivityJsonTextReader(TextReader reader) : this(new RawStrings(reader)) { }
     private ActivityJsonTextReader(RawStrings reader) : base(reader) => source = reader;
@@ -23,6 +30,14 @@ internal sealed class ActivityJsonTextReader : JsonTextReader
         string? raw = null;
         if (TokenType == JsonToken.String || (TokenType == JsonToken.PropertyName && QuoteChar != '\0'))
             raw = source.Strings.Dequeue();
+        if (TokenType == JsonToken.StartObject) objectMembers.Push(new(StringComparer.Ordinal));
+        if (TokenType == JsonToken.EndObject) objectMembers.Pop();
+        if (TokenType == JsonToken.PropertyName)
+        {
+            if (!objectMembers.Peek().Add((string)Value!)) DuplicateFeatureMembers = true;
+            if ((string?)Value == "WayfarerRecovery") SawRecoveryProfile = true;
+        }
+        if (raw != null && HasInvalidSurrogate(raw)) InvalidFeatureUnicode = true;
         // Preserve Json.NET comment handling and last-property-wins behavior without a rewritten identity.
         if (activityValue && TokenType != JsonToken.Comment)
             InvalidActivityValue = TokenType == JsonToken.String && HasInvalidSurrogate(raw!);
