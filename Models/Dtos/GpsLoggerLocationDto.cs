@@ -46,6 +46,17 @@ public class GpsLoggerLocationDto : System.ComponentModel.DataAnnotations.IValid
     /// <summary>Known monotonic fix age at final submit; omit when reboot/clock change makes it uncertain.</summary>
     public long? ObservedAgeAtEventMs { get; set; }
 
+    /// <summary>
+    /// Checks new ingestion measurements after owner-key replay and admission, before filtering or effects.
+    /// Kept out of automatic model validation so successfully bound retries retain winner/deletion priority.
+    /// </summary>
+    public bool HasFiniteMeasurements() =>
+        (Accuracy is not { } accuracy || double.IsFinite(accuracy)) &&
+        (Altitude is not { } altitude || double.IsFinite(altitude)) &&
+        (Speed is not { } speed || double.IsFinite(speed)) &&
+        (Bearing is not { } bearing || double.IsFinite(bearing));
+
+    /// <summary>Optional finite accuracy scalar; null remains unknown and zero remains supplied.</summary>
     public double? Accuracy { get; set; }
     public double? Altitude { get; set; }
     public double? Speed { get; set; }

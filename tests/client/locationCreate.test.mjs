@@ -23,15 +23,18 @@ const fixture = t => {
         Notes: 'first', CreateKey: 'original-key', CreateIntent: 'owner-bound', AttemptedValues: '', CreateMayHaveEffect: 'false',
         __RequestVerificationToken: 'old-csrf' }).map(([name, value]) => [name, { value }]));
     const status = {}, button = {}, nodes = [], requests = [];
+    const dialog = { open: true, close() { this.open = false; } };
+    const surface = { hidden: false, inert: false, isConnected: true,
+        querySelectorAll: () => [dialog], before: node => { warning = node; } };
     let submit, warning, redisplayed;
     const form = { elements: fields, action: '/User/Location/Create', hidden: false, reportValidity: () => true,
-        addEventListener: (_, callback) => { submit = callback; },
+        closest: () => surface, addEventListener: (_, callback) => { submit = callback; },
         querySelector: selector => selector === 'button[type=submit]' ? button : status, before: node => { warning = node; } };
     globalThis.FormData = class extends originals.FormData {
         constructor() { super(); for (const [name, field] of Object.entries(fields)) this.set(name, field.value); }
     };
     globalThis.document = { getElementById: () => ({ dataset: { subjectId: 'original' } }), createElement: () => {
-        const node = { setAttribute() {}, append() {}, remove() { this.removed = true; },
+        const node = { setAttribute() {}, append() {}, focus() {}, remove() { this.removed = true; },
             addEventListener: (_, callback) => { node.click = callback; } };
         nodes.push(node); return node;
     } };
@@ -51,7 +54,7 @@ const fixture = t => {
         return { ok: returned.ok, redirected: returned.redirected, text: async () => '' };
     };
     attachLocationCreate(form, () => fields.Notes.value, value => { redisplayed = value; });
-    return { fields, form, status, button, nodes, requests, returned, nextFields, nextStatus, notes, content,
+    return { fields, form, surface, dialog, status, button, nodes, requests, returned, nextFields, nextStatus, notes, content,
         submit: () => submit({ preventDefault() {} }), get warning() { return warning; }, get redisplayed() { return redisplayed; } };
 };
 
@@ -66,7 +69,9 @@ for (const [label, owner, ok, changed] of [
     Object.assign(f.returned, { owner, ok });
     await f.submit();
     const frozen = f.fields.AttemptedValues.value;
-    assert.equal(f.form.hidden, true);
+    assert.equal(f.surface.hidden, true);
+    assert.equal(f.surface.inert, true);
+    assert.equal(f.dialog.open, false);
     assert.equal(f.redisplayed, undefined);
     if (changed) assert.match(f.warning.textContent, /Your session changed/);
     else {
@@ -83,12 +88,13 @@ for (const [label, owner, ok, changed] of [
         { owner: null }, { owner: 'other' }, { owner: 'original', csrf: '' }]) {
         Object.assign(f.returned, { owner: 'original', ok: true, redirected: false, csrf: 'fresh-csrf' }, proof);
         await recheck.click();
-        assert.equal(f.form.hidden, true);
+        assert.equal(f.surface.hidden, true);
         assert.equal(f.fields.__RequestVerificationToken.value, 'old-csrf');
     }
     Object.assign(f.returned, { owner: 'original', ok: true, redirected: false, csrf: 'fresh-csrf' });
     await recheck.click();
-    assert.equal(f.form.hidden, false);
+    assert.equal(f.surface.hidden, false);
+    assert.equal(f.surface.inert, false);
     assert.equal(f.warning.removed, true);
     assert.equal(f.fields.CreateKey.value, 'original-key');
     assert.equal(f.fields.CreateIntent.value, 'owner-bound');
@@ -110,7 +116,7 @@ test('same-owner server failure retains actionable retry without adopting the er
     const f = fixture(t);
     f.returned.ok = false;
     await f.submit();
-    assert.equal(f.form.hidden, false);
+    assert.equal(f.surface.hidden, false);
     assert.equal(f.redisplayed, undefined);
     assert.match(f.status.textContent, /save could not be confirmed/);
     assert.equal(f.button.textContent, 'Retry original save');
@@ -143,4 +149,53 @@ for (const typing of [false, true]) test(`same-owner success retains original re
         assert.equal(f.notes.dataset.notesContent, 'latest during response');
         assert.match(f.nextStatus.textContent, /remain unsaved/);
     } else assert.equal(f.nextFields.Notes.value, 'first');
+});
+
+// Serial owner proofs prevent an earlier request from racing a later privacy observation.
+test('owner recheck cannot start a second request while pending and failed proof stays recoverable', async t => {
+    const f = fixture(t);
+    f.returned.owner = 'other';
+    await f.submit();
+    const recheck = f.nodes[1];
+    const frozen = f.fields.AttemptedValues.value;
+    let release, calls = 0;
+    globalThis.fetch = async () => {
+        calls++;
+        await new Promise(resolve => { release = resolve; });
+        return { ok: true, redirected: false, text: async () => '' };
+    };
+    const pending = recheck.click();
+    await Promise.resolve();
+    assert.equal(recheck.disabled, true);
+    await recheck.click();
+    assert.equal(calls, 1, 'a concurrent recheck must not issue another proof request');
+    release();
+    await pending;
+    assert.equal(f.surface.hidden, true, 'foreign proof keeps all retained input fenced');
+    assert.equal(recheck.disabled, false);
+    Object.assign(f.returned, { owner: 'original' });
+    globalThis.fetch = async () => ({ ok: true, redirected: false, text: async () => '' });
+    await recheck.click();
+    assert.equal(f.surface.hidden, false);
+    assert.equal(f.fields.AttemptedValues.value, frozen);
+});
+
+// A proof belongs only to the still-mounted recovery surface which requested it.
+test('a detached recovery cannot apply its pending original-owner proof', async t => {
+    const f = fixture(t);
+    f.returned.owner = 'other';
+    await f.submit();
+    let release;
+    globalThis.fetch = async () => {
+        await new Promise(resolve => { release = resolve; });
+        return { ok: true, redirected: false, text: async () => '' };
+    };
+    const pending = f.nodes[1].click();
+    await Promise.resolve();
+    f.surface.isConnected = false;
+    f.returned.owner = 'original';
+    release();
+    await pending;
+    assert.equal(f.surface.hidden, true);
+    assert.equal(f.fields.__RequestVerificationToken.value, 'old-csrf');
 });

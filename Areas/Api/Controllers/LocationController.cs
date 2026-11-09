@@ -120,6 +120,10 @@ public partial class LocationController : BaseApiController
                 return BadRequest("Both latitude and longitude are required.");
             }
 
+            // Shared new-work validation follows authentication, UUID classification and admission, before any skip/effect.
+            if (!dto.HasFiniteMeasurements())
+                return BadRequest("Accuracy, altitude, speed and bearing must be finite when supplied.");
+
             if (!double.IsFinite(latitude) || !double.IsFinite(longitude) ||
                 latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
             {
@@ -379,6 +383,10 @@ public partial class LocationController : BaseApiController
                 _logger.LogWarning("Invalid location data received.");
                 return BadRequest("Both latitude and longitude are required.");
             }
+
+            // Shared new-work validation follows authentication, UUID classification and admission, before any skip/effect.
+            if (!dto.HasFiniteMeasurements())
+                return BadRequest("Accuracy, altitude, speed and bearing must be finite when supplied.");
 
             if (!double.IsFinite(latitude) || !double.IsFinite(longitude) ||
                 latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)

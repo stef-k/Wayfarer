@@ -111,6 +111,28 @@ public sealed partial class LocationCoordinatesPostgresTests(PostgresImportTestF
         }
     }
 
+    /// <summary>Routed binary64 overflow cannot persist or escape as an accuracy skip through either endpoint.</summary>
+    [PostgresTheory]
+    [InlineData("check-in")]
+    [InlineData("log-location")]
+    public async Task OverflowMeasurementsRejectBeforeEffectsOrAccuracySkip(string route)
+    {
+        var owner = await OwnerAsync();
+        await using var db = fixture.CreateContext();
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        await using var app = await HostAsync(db, visits);
+        using var client = Client(app, owner);
+        foreach (var measurements in new[] { "\"accuracy\":1e400", "\"altitude\":1e400,\"bearing\":-1e400",
+                     "\"accuracy\":10000,\"speed\":1e400" })
+        {
+            using var response = await PostAsync(client, route,
+                $$"""{"latitude":0,"longitude":0,"timestamp":"{{Event}}",{{measurements}}}""");
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            Assert.False(await db.Locations.AnyAsync(row => row.UserId == owner));
+            visits.VerifyNoOtherCalls();
+        }
+    }
+
     /// <summary>Successfully bound incomplete retries retain winner/tombstone priority and account isolation.</summary>
     [PostgresTheory]
     [InlineData("check-in")]
@@ -130,7 +152,7 @@ public sealed partial class LocationCoordinatesPostgresTests(PostgresImportTestF
         using var created = await PostAsync(client, route, Payload("\"latitude\":0,\"longitude\":0"));
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         var row = await db.Locations.SingleAsync(row => row.UserId == owner);
-        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"latitude\":0" })
+        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"latitude\":0", "\"accuracy\":1e400,\"altitude\":-1e400,\"speed\":1e400,\"bearing\":1e400" })
         {
             using var replay = await PostAsync(client, route, Payload(incomplete));
             Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
@@ -145,7 +167,7 @@ public sealed partial class LocationCoordinatesPostgresTests(PostgresImportTestF
         var deleteCommand = await ProtectedLocationRequest.CreateAsync(client, row.Id, null);
         using var deleted = await deleteCommand.SendAsync(client);
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
-        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null" })
+        foreach (var incomplete in new[] { "", "\"latitude\":null,\"longitude\":null", "\"accuracy\":1e400,\"altitude\":-1e400,\"speed\":1e400,\"bearing\":1e400" })
         {
             using var retry = await PostAsync(client, route, Payload(incomplete));
             Assert.Equal(HttpStatusCode.Gone, retry.StatusCode);

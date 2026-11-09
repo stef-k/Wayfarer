@@ -80,7 +80,10 @@ public sealed class LocationCreateRenderingTests : TestBase
         var view = Assert.IsAssignableFrom<IView>(viewResult.View);
         await using var writer = new StringWriter();
         await view.RenderAsync(new ViewContext(action, view, response.ViewData, controller.TempData, writer, new HtmlHelperOptions()));
+        // The private surface includes every draft-bearing sibling, including the native Notes dialog.
         var document = await new HtmlParser().ParseDocumentAsync(writer.ToString());
+        foreach (var selector in new[] { "form", "#mapContainer", "#clearButton", "#notes-toolbar", "#notes-dialog" })
+            Assert.NotNull(document.QuerySelector(selector)!.Closest("#location-create-private"));
         var input = document.QuerySelector("#LocalTimestamp")!;
         Assert.Equal(invalidPost ? "false" : "true", input.GetAttribute("data-initialize-local-time"));
         Assert.Equal(invalidPost ? timestamp : model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm"), input.GetAttribute("value"));

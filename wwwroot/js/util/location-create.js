@@ -11,6 +11,9 @@ export const createValues = data => Object.fromEntries([...numeric, ...text].map
 export const attachLocationCreate = (form, notesValue, redisplay) => {
     let sending = false;
     let requiresOwnerCheck = false;
+    let rechecking = false;
+    const privateContent = form.closest('#location-create-private');
+    const subject = document.getElementById('browser-antiforgery')?.dataset.subjectId;
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (sending || requiresOwnerCheck || !form.reportValidity()) return;
@@ -32,13 +35,16 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
             const response = await fetch(form.action, { method: 'POST', body: current, credentials: 'same-origin', cache: 'no-store' });
             const html = await response.text();
             const page = new DOMParser().parseFromString(html, 'text/html');
-            const subject = document.getElementById('browser-antiforgery')?.dataset.subjectId;
+            if (!privateContent.isConnected) return;
             const responseSubject = page.getElementById('browser-antiforgery')?.dataset.subjectId;
             if (response.redirected || !subject || !responseSubject || subject !== responseSubject) {
                 // Missing proof is uncertainty, not affirmative evidence of an account switch. Both need owner recheck.
                 const foreignOwner = subject && responseSubject && subject !== responseSubject;
                 requiresOwnerCheck = true;
-                form.hidden = true;
+                // Retain live map/editor state, but remove the entire private surface from display and interaction.
+                privateContent.inert = true;
+                privateContent.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+                privateContent.hidden = true;
                 const warning = document.createElement('p');
                 warning.className = 'alert alert-warning';
                 warning.setAttribute('role', 'alert');
@@ -51,23 +57,29 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                 recheck.className = 'btn btn-outline-primary ms-2';
                 recheck.textContent = 'Recheck original account';
                 recheck.addEventListener('click', async () => {
+                    if (rechecking || !requiresOwnerCheck || !privateContent.isConnected) return;
+                    rechecking = true;
+                    recheck.disabled = true;
                     try {
                         // Existing owner page refreshes session/antiforgery proof without allocating a create identity.
                         const proof = await fetch('/User/Location', { credentials: 'same-origin', cache: 'no-store' });
                         const ownerPage = new DOMParser().parseFromString(await proof.text(), 'text/html');
-                        if (!subject || !proof.ok || proof.redirected || ownerPage.getElementById('browser-antiforgery')?.dataset.subjectId !== subject) return;
+                        if (!requiresOwnerCheck || !privateContent.isConnected || !subject || !proof.ok || proof.redirected || ownerPage.getElementById('browser-antiforgery')?.dataset.subjectId !== subject) return;
                         const csrf = ownerPage.querySelector('#browser-antiforgery input[name=__RequestVerificationToken]')?.value;
                         if (!csrf) return;
                         form.elements.__RequestVerificationToken.value = csrf;
                         requiresOwnerCheck = false;
-                        form.hidden = false;
+                        privateContent.inert = false;
+                        privateContent.hidden = false;
                         warning.remove();
                         status.hidden = false;
                         status.textContent = 'The earlier save is unconfirmed. Retry uses its original UUID and attempted values; current form changes remain unsaved.';
-                    } catch { /* Keep the private form hidden and its original attempt intact until owner proof succeeds. */ }
+                    } catch { /* Keep the private surface fenced and the original attempt intact until owner proof succeeds. */ }
+                    finally { rechecking = false; recheck.disabled = false; }
                 });
                 warning.append(recheck);
-                form.before(warning);
+                privateContent.before(warning);
+                recheck.focus();
                 return;
             }
             const next = page.querySelector('form[action$="Create"]');
