@@ -273,7 +273,16 @@ Owner detail publishes `originalLocalTimestamp`, `originalTimeZoneId`,
 `originalUtcOffsetSeconds`, `submittedAtUtc`. Effective edits preserve these and
 unrelated device facts; position/event edits retain existing fix/live invalidation.
 
-Omit unavailable measurements. Metadata does not change endpoint filtering:
+Omit unavailable measurements. Both APIs require finite `accuracy`, `altitude`,
+`speed` and `bearing` for new work; null, zero and other permitted finite scalars
+retain their values. Nonfinite values (including JSON numeric overflow) receive
+400 before accuracy/time/distance filtering, provider contact, persistence or live
+effects. This shared DTO check runs inside new-work admission after owner/UUID
+winner/deleted-key lookup, so successfully bound retries preserve their prior
+200/410 outcome. Transport/model-binding failures retain their existing precedence.
+No historical measurement is rewritten.
+
+Metadata does not change endpoint filtering:
 `isUserInvoked` on log-location is not a check-in bypass. Automatic capture applies
 accuracy, time and distance thresholds and duplicate-timestamp rules. A 200 can
 be `{ "success": true, "skipped": true, "locationId": null }`, with no new row.
@@ -370,7 +379,13 @@ optional notification failure. Form values do not enter logged notifications.
 Create preserves posted Notes text for both creation and winner comparison: empty
 is distinct from null. A response without owner proof leaves the save unconfirmed;
 the existing account recheck restores Retry only with original-owner and antiforgery
-proof. Affirmative foreign-owner evidence instead reports the session change.
+proof from a successful, nonredirected recheck. Foreign or unverifiable responses
+fence the entire private draft, including the selected map, Clear and Notes controls;
+open Notes dialogs close. A static accessible warning and recheck remain available.
+Rechecks are serialized and a detached recovery cannot apply a late proof. Failed
+proof keeps the draft fenced and recoverable; permitted verification restores the
+same Notes, coordinates, map, UUID and frozen attempt. Affirmative foreign-owner
+evidence reports the session change.
 
 Canonical CSV and Wayfarer GeoJSON carry `WayfarerRecovery` version 1 with
 `kind`, `nullFields`, `unavailableFields` and optional finite keyless App

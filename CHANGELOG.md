@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Fence the complete private Web Create draft during account recovery (#971),
+  including map selections and Notes dialogs; serialize owner rechecks while
+  retaining the original draft and frozen attempt. Reject nonfinite measurements
+  in both ingestion APIs before filtering/effects, preserving UUID retry precedence.
+
 - Add the private Web Timeline calendar (#953 W1/W2): Day/Week/Month/Year/Custom,
   capture/viewer dates and both detail clocks, direct date activation, marked month
   discovery and inclusive Custom ranges. Offer optional private Notes/address,
