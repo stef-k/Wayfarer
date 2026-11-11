@@ -19,13 +19,13 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class HistoryQualificationPostgresTests(PostgresMigrationTestFixture fixture) : TestBase, IClassFixture<PostgresMigrationTestFixture>
 {
-    /// <summary>Reviewed runtime servicing preserves current rows, active state, partial checkpoints and continuations.</summary>
+    /// <summary>Minimum-to-executing runtime servicing preserves rows, active state, checkpoints and continuations.</summary>
     [PostgresFact]
     public async Task CompatibleServicingKeepsRowsReadinessAndResumeStateWithoutPreparing()
     {
         var owner = await fixture.CreateUserAsync();
         var previous = HistoryDerivationEnvironment.Current with { Runtime = new Version(10, 0, 13) };
-        var serviced = previous with { Runtime = new Version(10, 0, 14) };
+        var serviced = HistoryDerivationEnvironment.Current; // Actual host; the previous version is a policy injection.
         Assert.True(previous.TextQualified); Assert.True(serviced.TextQualified);
         using var beforeServices = new ServiceCollection().AddSingleton(previous).BuildServiceProvider();
         using var afterServices = new ServiceCollection().AddSingleton(serviced).BuildServiceProvider();

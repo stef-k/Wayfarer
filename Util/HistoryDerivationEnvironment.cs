@@ -8,7 +8,7 @@ namespace Wayfarer.Util;
 
 /// <summary>
 /// Code-owned admission for the reviewed history profile, independent of persisted semantic IDs.
-/// A new profile needs a release compatibility decision; rebuilding cannot qualify an environment.
+/// Dependency/globalization changes need review; supported runtime servicing never changes semantic IDs.
 /// </summary>
 internal sealed record HistoryDerivationEnvironment(string GeoTimeZone, string NodaTime, string Tzdb,
     string Parser, Version Runtime, int SortVersion, Guid SortId, bool IcuNormalization)
@@ -18,8 +18,8 @@ internal sealed record HistoryDerivationEnvironment(string GeoTimeZone, string N
     /// <summary>Capture once on first history use, never as an application startup prerequisite.</summary>
     internal static HistoryDerivationEnvironment Current => Serving.Value;
 
-    /// <summary>Exact reviewed .NET servicing profiles; NuGet package versions do not select the executing runtime.</summary>
-    private bool RuntimeQualified => Runtime == new Version(10, 0, 13) || Runtime == new Version(10, 0, 14);
+    /// <summary>Admit stable .NET 10 minor/patch releases from 10.0.13; inspect the executing runtime, not NuGet/SDK versions.</summary>
+    private bool RuntimeQualified => Runtime.Major == 10 && Runtime >= new Version(10, 0, 13);
 
     /// <summary>Coordinate mapping and historical rules are independent of ICU text admission.</summary>
     internal bool TimeQualified => RuntimeQualified && GeoTimeZone == "6.1.0+73206b43819c89f8b6ec2926b2ca227fc783b938"

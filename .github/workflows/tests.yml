@@ -146,7 +146,8 @@ jobs:
         if: needs.classify.outputs.run_dotnet == 'true'
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.x'
+          dotnet-quality: 'ga'
 
       - name: Restore dependencies
         if: needs.classify.outputs.run_dotnet == 'true'
@@ -446,7 +447,8 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         if: needs.classify.outputs.run_operator == 'true'
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.x'
+          dotnet-quality: 'ga'
       # Recovery-source probes reference Wayfarer and therefore build its native helper on this host too.
       - name: Prepare native helper for qualification probes
         if: needs.classify.outputs.run_operator == 'true'
@@ -589,7 +591,8 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         if: needs.classify.outputs.run_arm64 == 'true'
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.x'
+          dotnet-quality: 'ga'
       # Native execution, including C# supervision, is required in addition to the OCI build.
       - name: Prepare and execute native ARM64 image processing
         run: |
@@ -699,7 +702,8 @@ jobs:
           daemon-config: '{"features":{"containerd-snapshotter":true}}'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.x'
+          dotnet-quality: 'ga'
       - name: Prepare the established native helper toolchain
         run: |
           sudo apt-get -o APT::Update::Error-Mode=any update
