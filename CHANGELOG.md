@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Admit stable .NET major 10 minor/patch releases at or above 10.0.13 for history
+  qualification, replacing the patch allowlist that rejected runtime 10.0.15 before
+  PR #974 ordinary tests. Select stable major 10 in hosted .NET setup; preserve
+  independent dependency/ICU checks, semantic generations and prepared state.
+
+- Accept optional `OriginalServer` and `OriginalAccountId` descriptions in native
+  recovery CSV and Wayfarer GeoJSON, for original and effective records (#973).
+  Both, either or neither are valid; authenticated destination ownership and strict
+  value admission remain unchanged.
+
 - Fence the complete private Web Create draft during account recovery (#971),
   including map selections and Notes dialogs; serialize owner rechecks while
   retaining the original draft and frozen attempt. Reject nonfinite measurements

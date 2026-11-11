@@ -368,7 +368,10 @@ public sealed partial class LocationExportRoundTripPostgresTests(PostgresImportT
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
             await worker.ProcessImport(import.Id, import.ExecutionEpoch, CancellationToken.None);
             await db.Entry(import).ReloadAsync();
-            Assert.Equal(ImportStatus.Completed, import.Status);
+            Assert.True(import.Status == ImportStatus.Completed,
+                $"Status={import.Status}; FailureCode={import.FailureCode}; Error={import.ErrorMessage}; "
+                + $"Total={import.TotalRecords}; Processed={import.LastProcessedIndex}; Enrichment={import.EnrichmentRequested}; "
+                + $"DestinationRows={await db.Locations.CountAsync(row => row.UserId == userId)}");
             Assert.Equal(import.TotalRecords, import.LastProcessedIndex);
             return import;
         }

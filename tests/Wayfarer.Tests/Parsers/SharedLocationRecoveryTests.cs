@@ -38,6 +38,92 @@ public sealed class SharedLocationRecoveryTests : TestBase
         Assert.Null(row.PresenceObservedAtUtc); Assert.Null(row.OriginalCreateAddressToken);
     }
 
+    /// <summary>Source descriptions are optional in each native format/role and never bind destination identity.</summary>
+    [Theory]
+    [InlineData(false, "original")]
+    [InlineData(true, "original")]
+    [InlineData(false, "effective")]
+    [InlineData(true, "effective")]
+    public async Task NativeDescriptionsAreIndependentlyOptional(bool csv, string kind)
+    {
+        var source = await AppPropertiesAsync(kind);
+        foreach (var server in new[] { false, true })
+        foreach (var account in new[] { false, true })
+        {
+            var values = (JObject)source.DeepClone();
+            if (!server) values.Remove("OriginalServer");
+            if (!account) values.Remove("OriginalAccountId");
+            var row = Assert.Single(await ParseAsync(values, csv, new JObject {
+                ["type"] = "Point", ["coordinates"] = new JArray(23.7, 37.9) }));
+            Assert.Equal("destination", row.UserId);
+            Assert.Equal(0, row.Id);
+            Assert.True(row.ImportedRecoveryProfile);
+            Assert.Equal(source["IdempotencyKey"]!.Value<string>(), row.IdempotencyKey!.Value.ToString("D"));
+        }
+    }
+
+    /// <summary>Optional descriptions follow existing text/null rules, including CSV empty versus declared null.</summary>
+    [Theory]
+    [InlineData(false, "original")]
+    [InlineData(true, "original")]
+    [InlineData(false, "effective")]
+    [InlineData(true, "effective")]
+    public async Task NativeDescriptionTextStatesRemainValid(bool csv, string kind)
+    {
+        var values = await AppPropertiesAsync(kind);
+        foreach (var text in new[] { null, "", "  ", "https://example.test/Αθήνα\nsource" })
+        {
+            values["OriginalServer"] = text == null ? JValue.CreateNull() : new JValue(text);
+            values["OriginalAccountId"] = text == null ? JValue.CreateNull() : new JValue(text);
+            Describe(values, kind);
+            Assert.Single(await ParseAsync(values, csv, new JObject {
+                ["type"] = "Point", ["coordinates"] = new JArray(23.7, 37.9) }));
+        }
+    }
+
+    /// <summary>Admitting descriptions cannot hide invalid types, unknown fields, missing null values or wrong-role fields.</summary>
+    [Theory]
+    [InlineData(false, "original")]
+    [InlineData(true, "original")]
+    [InlineData(false, "effective")]
+    [InlineData(true, "effective")]
+    public async Task NativeDescriptionAdmissionRemainsStrict(bool csv, string kind)
+    {
+        var source = await AppPropertiesAsync(kind);
+        var geometry = new JObject { ["type"] = "Point", ["coordinates"] = new JArray(23.7, 37.9) };
+        foreach (var field in new[] { "OriginalServer", "OriginalAccountId" })
+        foreach (var invalid in new JToken[] { new JValue(7), new JValue(false), new JObject(), new JArray(), JValue.CreateNull() })
+        {
+            // CSV scalar types are text by definition; null without membership is an ordinary empty string.
+            if (csv) continue;
+            var values = (JObject)source.DeepClone(); values[field] = invalid;
+            await Assert.ThrowsAsync<LocationImportValidationException>(() => ParseAsync(values, csv, geometry));
+        }
+        foreach (var corrupt in new Action<JObject>[] {
+            v => v["UnrecognizedDescription"] = "source",
+            v => ((JArray)v["WayfarerRecovery"]!["nullFields"]!).Add("OriginalServer"),
+            v => { v.Remove("OriginalServer"); ((JArray)v["WayfarerRecovery"]!["nullFields"]!).Add("OriginalServer"); },
+            v => { v["OriginalServer"] = csv ? "" : null; v["WayfarerRecovery"]!["unavailableFields"]!["OriginalServer"] = "unrepresentableStoredValue"; }
+        })
+        {
+            var values = (JObject)source.DeepClone(); corrupt(values);
+            await Assert.ThrowsAsync<LocationImportValidationException>(() => ParseAsync(values, csv, geometry));
+        }
+        if (kind == "original")
+        {
+            source["Address"] = "Not original evidence";
+            await Assert.ThrowsAsync<LocationImportValidationException>(() => ParseAsync(source, csv, geometry));
+        }
+    }
+
+    /// <summary>Loads exact App GeoJSON properties without implicit timestamp coercion; the shared encoder supplies CSV.</summary>
+    private static async Task<JObject> AppPropertiesAsync(string kind)
+    {
+        var text = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Recovery", $"app-{kind}.geojson"));
+        using var json = new Newtonsoft.Json.JsonTextReader(new StringReader(text)) { DateParseHandling = Newtonsoft.Json.DateParseHandling.None };
+        return (JObject)JObject.Load(json)["features"]![0]!["properties"]!;
+    }
+
     /// <summary>Native origin preserves admitted text states; absent/overlength evidence is Held while legacy remains normalized.</summary>
     [Theory]
     [InlineData(false)]

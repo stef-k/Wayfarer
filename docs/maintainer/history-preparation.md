@@ -244,16 +244,25 @@ or unqualified selected generation. Exit 0 still requires all-owner readiness.
 
 The code-owned R1 admission checks exact GeoTimeZone 6.1.0, NodaTime 3.3.6 and
 AngleSharp 1.7.2 upstream build identities, TZDB `2026e (mapping: 49)`, and actual
-.NET 10.0.13 or 10.0.14. Text additionally requires effective ICU normalization,
+.NET major 10 at or above 10.0.13, including newer stable minor/patch releases.
+Text additionally requires effective ICU normalization,
 verified by a normalization control, and invariant sort version 31129 / identity
 `00007999-0000-0000-0000-00000000007f`. Time does not depend on this text profile.
 The maintained Noble image uses ICU 74.2 and runtime 10.0.14; native Ubuntu also
 qualifies on runtime 10.0.13. NuGet 10.0.14 packages do **not** imply that a probe
 executes on 10.0.14. No OS name, machine identity, path or architecture is an
 admission condition. Framework-dependent and self-contained processes are checked
-by what they actually load. Invariant mode, NLS, unknown artifacts, future runtimes
-and other globalization fingerprints need a reviewed compatibility decision first.
-This is history admission, not security-release or native-platform acceptance.
+by what they actually load. Versions below 10.0.13 and other .NET majors remain
+unsupported. Invariant mode, NLS, unknown artifacts and other globalization
+fingerprints need a reviewed compatibility decision first.
+This maintainer-approved runtime policy replaces the patch allowlist that rejected
+actual runtime 10.0.15 in PR #974 CI run 43080915966 before ordinary tests ran.
+Runtime admission does not replace historical/time/text behavior tests; injected
+future version values prove policy only, not compatibility on those runtimes.
+CI setup selects stable major 10 (`10.x`, quality `ga`); SDK and NuGet versions
+alone do not establish the executing runtime. Compatible runtime-only changes
+retain semantic IDs, prepared facts, readiness, checkpoints and cursors without a
+rebuild. This is history admission, not security-release or native-platform acceptance.
 
 Qualification is lazy and local to history; it does not stop global web startup.
 Unknown qualification cannot stamp a selected generation or activate data. New

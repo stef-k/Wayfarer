@@ -1,2 +1,5 @@
 # Preserve the captured Netpbm image, including encoder-owned whitespace and line endings.
 tests/Wayfarer.Tests/Fixtures/Imaging/raster.pbm binary
+
+# Keep the exact App recovery specimens from #973 byte-for-byte, including CSV CRLF.
+tests/Wayfarer.Tests/Fixtures/Recovery/app-* binary

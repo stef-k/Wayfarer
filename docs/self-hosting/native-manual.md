@@ -68,10 +68,12 @@ installation rather than accepting it merely because it is on PATH.
 Supported offline `database migrate` prepares and verifies current history before
 activation. Use the **same executable, runtime and globalization configuration** as
 the service. `history-data status` remains available for read-only diagnosis.
-R1 history qualification admits loaded .NET 10.0.13/10.0.14 with the reviewed
-artifacts and ICU profile, independent of host paths or machine identity. A package
+History qualification admits loaded stable .NET major 10 releases at or above
+10.0.13, including later minor/patch releases, with the reviewed artifacts and ICU
+profile, independent of host paths or machine identity. Older versions and other
+majors remain unsupported. A package
 version or SDK label does not identify the runtime actually executing the service.
-Other globalization/runtime profiles need qualification; failure stays local to
+Other globalization profiles need qualification; failure stays local to
 affected history operations and cannot be repaired by rebuilding. This admission
 does not waive #915 security-release requirements. Stop old processes and follow
 [history maintenance](../maintainer/history-preparation.md#servicing-dependency-changes):

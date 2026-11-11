@@ -183,6 +183,18 @@ class RunnerTrustTests(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, payload == b'intended', result.stderr)
                 self.assertEqual('EXTRACTION_REACHED' in result.stdout, payload == b'intended')
 
+    def test_dotnet_consumers_select_stable_major_ten(self):
+        """Host setup accepts stable servicing/minors without selecting another major or previews."""
+        for filename in ['tests.yml', 'application-release.yml', 'public-lifecycle-acceptance.yml']:
+            workflow = (WORKFLOW.parent / filename).read_text()
+            setups = re.findall(r'uses: actions/setup-dotnet@[^\n]+\n(.*?)(?=\n      -|\Z)',
+                                workflow, re.DOTALL)
+            self.assertTrue(setups, filename)
+            for setup in setups:
+                with self.subTest(workflow=filename, setup=setup):
+                    self.assertIn("dotnet-version: '10.x'", setup)
+                    self.assertIn("dotnet-quality: 'ga'", setup)
+
     def test_node_selection_pins_verified_patch_before_node_guard(self):
         """A major-only selector must not accept the runner's cached Node 24.21.0."""
         version = (ROOT / '.nvmrc').read_text().strip()

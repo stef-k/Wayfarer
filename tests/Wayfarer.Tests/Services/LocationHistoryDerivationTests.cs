@@ -3,11 +3,12 @@ using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Util;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Owns deterministic capture evidence and visible literal text semantics.</summary>
-public sealed class LocationHistoryDerivationTests
+public sealed class LocationHistoryDerivationTests(ITestOutputHelper output)
 {
     [Theory]
     [InlineData("  CAFÉ\t au\n lait ", "CAFE AU LAIT")]
@@ -107,8 +108,9 @@ public sealed class LocationHistoryDerivationTests
     public void QualificationIsIndependentAndNeverBecomesUnresolvedEvidence()
     {
         var current = HistoryDerivationEnvironment.Current;
-        // Report the actual loaded profile when a runner/runtime changes; never relax production qualification.
+        // Retain actual loaded provenance on success and failure, independently of injected policy cases.
         var diagnostics = JsonSerializer.Serialize(current.Diagnostics);
+        output.WriteLine(diagnostics);
         Assert.True(current.TimeQualified, diagnostics);
         Assert.True(current.TextQualified, diagnostics);
         var row = Row(); row.Coordinates = new Point(double.NaN, 10) { SRID = 4326 };
@@ -120,11 +122,32 @@ public sealed class LocationHistoryDerivationTests
         Assert.False(unknownTime.TimeQualified); Assert.True(unknownTime.TextQualified);
         Assert.Throws<HistoryQualificationException>(() => LocationHistoryDerivation.Apply(row, true, false, unknownTime));
         Assert.Null(row.HistoryTimeStatus);
-        foreach (var unknown in new[] { current with { Runtime = new Version(10, 0, 15) },
+        foreach (var unknown in new[] { current with { Runtime = new Version(10, 0, 12) },
                      current with { SortVersion = 0 }, current with { IcuNormalization = false } })
             Assert.Throws<HistoryQualificationException>(() => LocationHistoryDerivation.NormalizeText("café", unknown));
         LocationHistoryDerivation.Apply(row, false, true, unknownTime);
         Assert.Equal(LocationHistoryDerivation.TextVersion, row.HistoryTextVersion);
+    }
+
+    /// <summary>Injected versions prove admission policy only; executing-host fixtures own semantic evidence.</summary>
+    [Theory]
+    [InlineData("10.0.13", true)]
+    [InlineData("10.0.14", true)]
+    [InlineData("10.0.15", true)]
+    [InlineData("10.0.99", true)]
+    [InlineData("10.1.0", true)]
+    [InlineData("10.2.3", true)]
+    [InlineData("10.0.12", false)]
+    [InlineData("10.0.0", false)]
+    [InlineData("9.9.99", false)]
+    [InlineData("11.0.0", false)]
+    public void RuntimeAdmissionUsesMajorAndMinimum(string version, bool admitted)
+    {
+        var environment = HistoryDerivationEnvironment.Current with { Runtime = Version.Parse(version) };
+        Assert.Equal(admitted, environment.TimeQualified);
+        Assert.Equal(admitted, environment.TextQualified);
+        if (admitted) environment.Require(true, true);
+        else Assert.Throws<HistoryQualificationException>(() => environment.Require(true, true));
     }
 
     /// <summary>Canonical fixtures intentionally retain a conflicting imported zone.</summary>
