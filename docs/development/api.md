@@ -391,7 +391,11 @@ Canonical CSV and Wayfarer GeoJSON carry `WayfarerRecovery` version 1 with
 `kind`, `nullFields`, `unavailableFields` and optional finite keyless App
 `sourceRecord`. The durable field/role contract remains [#971](https://github.com/stef-k/Wayfarer/issues/971).
 Export describes effective history from typed values; no arbitrary metadata bag
-is stored. Every applicable field is present. CSV blank with null membership is
+is stored. Every required applicable field is present. `OriginalServer` and
+`OriginalAccountId` are independently optional descriptive text in both original
+and effective files. They follow the same text/null rules and never select a
+destination server, owner or row, grant authority or cause network requests.
+CSV blank with null membership is
 known null; other text blanks are empty. JSON known null must agree with the
 null list. Unavailable values use blank/null placeholders plus a bounded reason,
 never null membership. Unsupported, missing or contradictory native evidence is

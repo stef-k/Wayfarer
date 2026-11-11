@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Accept optional `OriginalServer` and `OriginalAccountId` descriptions in native
+  recovery CSV and Wayfarer GeoJSON, for original and effective records (#973).
+  Both, either or neither are valid; authenticated destination ownership and strict
+  value admission remain unchanged.
+
 - Fence the complete private Web Create draft during account recovery (#971),
   including map selections and Notes dialogs; serialize owner rechecks while
   retaining the original draft and frozen attempt. Reject nonfinite measurements

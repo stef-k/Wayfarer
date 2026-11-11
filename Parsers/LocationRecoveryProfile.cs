@@ -11,7 +11,7 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
     internal static readonly string[] TextFields = ["IdempotencyKey", "TimeZoneId", "Activity", "LocationType", "Notes",
         "CoordinateOrigin", "OriginalLocalTimestamp", "OriginalTimeZoneId", "Source", "Provider", "AppVersion", "AppBuild", "DeviceModel", "OsVersion",
         "Address", "FullAddress", "AddressNumber", "StreetName", "PostCode", "Place", "Region", "Country", "ProviderAddressLine1",
-        "ResolvedFeatureName", "ResolvedFeatureType", "ReverseGeocodingProvider", "ReverseGeocodingStorageMode"];
+        "ResolvedFeatureName", "ResolvedFeatureType", "ReverseGeocodingProvider", "ReverseGeocodingStorageMode", "OriginalServer", "OriginalAccountId"];
     internal static readonly string[] InstantFields = ["TimestampUtc", "LocalTimestamp", "ObservedAtUtc", "SubmittedAtUtc", "ReverseGeocodedAt"];
     internal static readonly string[] NumberFields = ["Latitude", "Longitude", "Accuracy", "Altitude", "Speed", "Bearing"];
     internal static readonly string[] IntegerFields = ["ActivityTypeId", "ObservedAgeAtEventMs", "OriginalUtcOffsetSeconds", "BatteryLevel", "Id", "ServerId"];
@@ -54,8 +54,9 @@ internal sealed record LocationRecoveryProfile(string Kind, HashSet<string> Null
                 Require(kind == "effective" || !EffectiveOnly.Contains(field.Name));
                 ValidateValue(field.Name, field.Value, csv, profile.NullFields, unavailable.ContainsKey(field.Name));
             }
-            // Coordinates may live in GeoJSON geometry; every other applicable field must be explicitly described.
-            var required = Known.Except(["Id", "ServerId", "ActivityTypeId", "IdempotencyKey"])
+            // Source descriptions are optional in both roles and grant no destination authority.
+            // Coordinates may live in GeoJSON geometry; all remaining applicable fields are required.
+            var required = Known.Except(["Id", "ServerId", "ActivityTypeId", "IdempotencyKey", "OriginalServer", "OriginalAccountId"])
                 .Where(name => kind == "effective" || !EffectiveOnly.Contains(name))
                 .Where(name => geometry == null || name is not ("Latitude" or "Longitude"));
             Require(required.All(values.ContainsKey));

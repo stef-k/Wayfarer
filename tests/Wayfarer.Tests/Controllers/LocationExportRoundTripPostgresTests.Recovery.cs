@@ -45,6 +45,7 @@ public sealed partial class LocationExportRoundTripPostgresTests
             Assert.Equal(destination.Id, saved.UserId);
             Assert.NotEqual(foreign.Id, saved.Id);
             Assert.Equal(key, saved.IdempotencyKey);
+            Assert.Equal("Manual", saved.LocationType);
             Assert.Equal(activity.Id, saved.ActivityTypeId);
             // Each original parse assigns its own receipt; the stored receipt is checked independently below.
             if (kind == "original") parsed.Timestamp = saved.Timestamp;
