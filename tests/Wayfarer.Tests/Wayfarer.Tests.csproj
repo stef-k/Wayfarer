@@ -48,5 +48,7 @@
   <ItemGroup>
     <!-- Frozen original encoder inputs and provenance; no image encoder runs during tests. -->
     <Content Include="Fixtures/Imaging/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Exact synthetic App recovery exports from #973; preserve original bytes. -->
+    <Content Include="Fixtures/Recovery/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
