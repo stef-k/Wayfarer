@@ -11,6 +11,8 @@ existing-Trip copy and mobile implementation remain separately owned later work.
 All responses are owner-private/no-store. Cookie routes require the User role;
 POSTs require antiforgery. Bearer routes ignore cookie identity and resolve the
 incoming API token, then revalidate it inside the service transaction after waits.
+The exhaustive production mutation inventory classifies all three cookie and all
+three bearer commands; list/read GETs remain outside the unsafe-action inventory.
 
 | Operation | Cookie route | Bearer route |
 | --- | --- | --- |
@@ -68,6 +70,10 @@ builder never snaps or regenerates a route. New parents/Places are flushed befor
 the shared route staging core queries them. Trusted saved measurements/provenance
 are installed only after complete compatibility validation. Intermediate saves
 remain inside the one outer transaction, including workspace/origins and credits.
+After validated route staging, copy persistence restores already-normalized Segment
+Notes alongside planning/provenance, preserving null separately from empty and
+nonempty HTML for both owned construction and existing foreign Clone. Ordinary
+new-route Notes defaults remain unchanged; source records are never rewritten.
 
 Each new destination list receives distinct nonnegative order values in source
 editor sequence: Regions/Segments by order then ID, Places with null order last
@@ -124,6 +130,9 @@ Finish/deletion/account cascades and bounded acquisition/lifecycle interleavings
 Affected existing Clone, canonical Region, portable-field and lifecycle tests cover
 shared callers. The delivery receipt records exact selections, failures, corrections,
 Code Guard disposition and hosted CI startup separately.
+The focused shared-copy relational regression reloads raw values through fresh EF
+contexts for null, empty and sanitized nonempty Notes in both callers, retaining
+source immutability, identity/Via remapping, geometry, measurements and provenance.
 
 No browser campaign is needed for these backend routes; no Layout B journey is
 claimed. Mobile must adopt the documented bearer requests and complete graph,
