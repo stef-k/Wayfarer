@@ -14,6 +14,66 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Both shared copy callers preserve raw nullable Notes after normalization and validated route staging.</summary>
+    [PostgresTheory]
+    [InlineData(false, null, null)]
+    [InlineData(true, null, null)]
+    [InlineData(false, "", "")]
+    [InlineData(true, "", "")]
+    [InlineData(false, " <p onclick=\"bad()\">Saved <strong>note</strong></p> ", "<p>Saved <strong>note</strong></p>")]
+    [InlineData(true, " <p onclick=\"bad()\">Saved <strong>note</strong></p> ", "<p>Saved <strong>note</strong></p>")]
+    public async Task SharedCopyPreservesPersistedSegmentNotes(bool foreignClone, string? notes, string? expected)
+    {
+        var a = await Seed();
+        await using (var seed = fixture.CreateContext())
+        {
+            var segment = await seed.Segments.SingleAsync(s => s.TripId == a.Id);
+            segment.Notes = notes;
+            segment.RouteProvider = "geoapify"; segment.RouteStorageMode = "persistent";
+            segment.RouteGeneratedAt = DateTimeOffset.Parse("2026-01-01T12:00:00Z");
+            segment.RouteAttribution = "Saved attribution"; segment.RouteInstructionsJson = "[]";
+            await seed.SaveChangesAsync();
+        }
+        await using var before = fixture.CreateContext();
+        var source = (await Load(before, a.Id)).Segments.Single();
+        Assert.Equal(notes, source.Notes);
+        Guid copiedId;
+        await using (var construction = fixture.CreateContext())
+        {
+            if (foreignClone)
+            {
+                var caller = await fixture.CreateUserAsync();
+                var result = await new TripCloneCoordinator(construction).CloneAsync(a.Id, caller.Id);
+                Assert.Equal(TripCloneStatus.Succeeded, result.Status);
+                copiedId = result.ClonedTripId!.Value;
+            }
+            else copiedId = (await new TripCompositionService(construction).CreateAsync(a.UserId, a.Id, a.Id, null, null)).TripId;
+            fixture.RegisterTrip(copiedId);
+        }
+        // Reload raw persisted values in a fresh context; response/display fallbacks cannot prove fidelity.
+        await using var verify = fixture.CreateContext();
+        var c = await Load(verify, copiedId);
+        var copied = c.Segments.Single();
+        Assert.NotEqual(source.Id, copied.Id);
+        var places = c.Regions.Single().Places.ToDictionary(p => p.Name);
+        Assert.NotEqual(source.FromPlaceId, copied.FromPlaceId);
+        Assert.Equal(places["Start"].Id, copied.FromPlaceId); Assert.Equal(places["End"].Id, copied.ToPlaceId);
+        var via = Assert.Single(copied.Waypoints);
+        Assert.Equal(places["Via"].Id, via.PlaceId); Assert.Equal(0, via.Position); Assert.Equal(1, via.RouteVertexIndex);
+        Assert.True(source.RouteGeometry!.EqualsExact(copied.RouteGeometry));
+        Assert.Equal(source.EstimatedDistanceKm, copied.EstimatedDistanceKm);
+        Assert.Equal(source.EstimatedDuration, copied.EstimatedDuration);
+        Assert.Equal(source.EstimatedDurationSource, copied.EstimatedDurationSource);
+        Assert.Equal(SegmentRouteProvenance.Capture(source), SegmentRouteProvenance.Capture(copied));
+        var unchanged = (await Load(verify, a.Id)).Segments.Single();
+        Assert.Equal(notes, unchanged.Notes);
+        Assert.True(source.RouteGeometry.EqualsExact(unchanged.RouteGeometry));
+        Assert.Equal(source.EstimatedDuration, unchanged.EstimatedDuration);
+        Assert.Equal(source.EstimatedDistanceKm, unchanged.EstimatedDistanceKm);
+        Assert.Equal(SegmentRouteProvenance.Capture(source), SegmentRouteProvenance.Capture(unchanged));
+        Assert.Equal(expected, copied.Notes);
+    }
+
     [PostgresTheory]
     [InlineData(true)]
     [InlineData(false)]
