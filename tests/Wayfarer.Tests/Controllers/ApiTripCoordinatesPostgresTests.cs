@@ -370,7 +370,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         return place;
     }
 
-    /// <summary>Freezes the checked bearer creation envelope and ten Place keys without imposing JSON property order.</summary>
+    /// <summary>Freezes the checked bearer creation envelope and the complete Place keys without imposing JSON property order.</summary>
     private static JsonElement AssertCreatedPlaceShape(JsonElement root)
     {
         Assert.Equal(new[] { "applied", "contract", "createdFallback", "place", "placeOrder", "success", "tripId" },
@@ -382,7 +382,8 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(new[]
         {
             "id", "name", "notes", "displayOrder", "iconName", "markerColor", "address",
-            "resolvedFeatureName", "resolvedFeatureType", "location"
+            "resolvedFeatureName", "resolvedFeatureType", "location",
+            "addressEnrichmentProvider", "addressEnrichmentStorageMode", "addressEnrichedAt"
         }.Order(), place.EnumerateObject().Select(item => item.Name).Order());
         return place;
     }

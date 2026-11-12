@@ -237,14 +237,15 @@
                 </div>
             </div>
             <div class="row small px-2 pt-1 mb-2 gx-2">
-                @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
-                {
-                    <div class="col-6">
+                <div class="col-6">
+                    @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
+                    {
                         <span class="text-muted">Trip by:</span> <partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName
-                        <partial name="~/Views/Trip/Partials/_TripCredits.cshtml" model="Model" />
-                    </div>
-                }
-                <div class="@(!string.IsNullOrWhiteSpace(Model.User?.DisplayName) ? "col-6" : "col-12")">
+                    }
+                    @* Portable terms remain readable without a current account byline. *@
+                    <partial name="~/Views/Trip/Partials/_TripCredits.cshtml" model="Model" />
+                </div>
+                <div class="col-6">
                     <span class="text-muted">Updated:</span> @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
                 </div>
             </div>
@@ -397,13 +398,13 @@
 
                 <!-- Trip metadata -->
                 <div class="row small mb-3">
-                    @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
-                    {
-                        <div class="col-md-6">
+                    <div class="col-md-6">
+                        @if (!string.IsNullOrWhiteSpace(Model.User?.DisplayName))
+                        {
                             <strong class="text-muted">Trip by:</strong> <partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@Model.User.DisplayName
+                        }
                         <partial name="~/Views/Trip/Partials/_TripCredits.cshtml" model="Model" />
-                        </div>
-                    }
+                    </div>
                     <div class="col-md-6">
                         <strong class="text-muted">Updated:</strong> @Model.UpdatedAt.ToString("yyyy-MMM-dd HH:mm")
                     </div>

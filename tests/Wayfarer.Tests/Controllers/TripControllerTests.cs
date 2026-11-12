@@ -118,6 +118,7 @@ public class TripControllerTests : TestBase
         db.Users.AddRange(owner, cloner);
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip");
         sourceTrip.IsPublic = true;
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         sourceTrip.Notes = "Original notes";
         sourceTrip.CenterLat = 40.7128;
         sourceTrip.CenterLon = -74.0060;
@@ -143,7 +144,7 @@ public class TripControllerTests : TestBase
         Assert.Equal(sourceTrip.CenterLat, clonedTrip.CenterLat);
         Assert.Equal(sourceTrip.CenterLon, clonedTrip.CenterLon);
         Assert.Equal(sourceTrip.Zoom, clonedTrip.Zoom);
-        Assert.Equal(sourceTrip.CoverImageUrl, clonedTrip.CoverImageUrl);
+        Assert.Null(clonedTrip.CoverImageUrl);
     }
 
     [Fact]
@@ -156,6 +157,7 @@ public class TripControllerTests : TestBase
 
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip");
         sourceTrip.IsPublic = true;
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         var region = new Region
         {
             Id = Guid.NewGuid(),
@@ -224,6 +226,7 @@ public class TripControllerTests : TestBase
 
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip");
         sourceTrip.IsPublic = true;
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         var region = new Region
         {
             Id = Guid.NewGuid(),
@@ -284,6 +287,7 @@ public class TripControllerTests : TestBase
 
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip");
         sourceTrip.IsPublic = true;
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         var region = new Region
         {
             Id = Guid.NewGuid(),
@@ -371,6 +375,7 @@ public class TripControllerTests : TestBase
         var cloner = TestDataFixtures.CreateUser(id: "cloner");
         db.Users.AddRange(owner, cloner);
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Waypoint source", isPublic: true);
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         var region = new Region
         {
             Id = Guid.NewGuid(), TripId = sourceTrip.Id, UserId = owner.Id, Name = "Route"
@@ -427,6 +432,7 @@ public class TripControllerTests : TestBase
 
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip");
         sourceTrip.IsPublic = true;
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         sourceTrip.Tags = new List<Tag> { tag1, tag2 };
         db.Trips.Add(sourceTrip);
         await db.SaveChangesAsync();
@@ -560,7 +566,7 @@ public class TripControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Clone_SchedulesImmediateWarmup_WhenSourceTripHasImages()
+    public async Task Clone_OmitsForeignImagesWithoutSchedulingFetchOrRehosting()
     {
         // Arrange: a public trip with images owned by another user
         var db = CreateDbContext();
@@ -569,6 +575,7 @@ public class TripControllerTests : TestBase
         db.Users.AddRange(owner, cloner);
 
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Source Trip", isPublic: true);
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         sourceTrip.CoverImageUrl = "https://example.com/cover.jpg";
         sourceTrip.Notes = "<p>Trip notes with <img src=\"https://example.com/photo.jpg\"></p>";
         // Add required shadow region for the source trip
@@ -590,19 +597,23 @@ public class TripControllerTests : TestBase
         // Act: clone the trip
         await controller.Clone(sourceTrip.Id);
 
-        // Assert: immediate warmup scheduled for the cloned trip (not the source)
-        warmupMock.Verify(w => w.ScheduleWarmupAsync(
-            It.Is<Guid>(id => id != sourceTrip.Id), true), Times.Once);
+        // A grant over contributions does not establish transferable media permission.
+        var clone = await db.Trips.SingleAsync(t => t.UserId == cloner.Id);
+        Assert.Null(clone.CoverImageUrl);
+        Assert.DoesNotContain("<img", clone.Notes);
+        Assert.Contains("omitted", controller.TempData["AlertMessage"]?.ToString());
+        warmupMock.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Fact]
-    public async Task Clone_WarmupFailureDoesNotReportCommittedCloneAsFailed()
+    public async Task Clone_OmittedForeignCoverNeverEntersUnavailableWarmup()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
         var cloner = TestDataFixtures.CreateUser(id: "cloner");
         db.Users.AddRange(owner, cloner);
         var sourceTrip = TestDataFixtures.CreateTrip(owner, "Warmup source", isPublic: true);
+        sourceTrip.ContributionPolicy = "CC-BY-4.0";
         sourceTrip.CoverImageUrl = "https://example.com/cover.jpg";
         db.Trips.Add(sourceTrip);
         await db.SaveChangesAsync();
@@ -617,6 +628,8 @@ public class TripControllerTests : TestBase
         var clone = await db.Trips.SingleAsync(t => t.UserId == cloner.Id);
         Assert.Equal("Edit", redirect.ActionName);
         Assert.Equal(clone.Id, redirect.RouteValues!["id"]);
+        Assert.Null(clone.CoverImageUrl);
+        warmup.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
         Assert.Contains("success", controller.TempData["AlertType"]?.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 }

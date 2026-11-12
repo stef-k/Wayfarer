@@ -68,6 +68,50 @@ public sealed class PortableFieldsPolicyPostgresTests(PostgresImportTestFixture 
         await TripReusePolicy.RequireAsync(db, source.Id, source.UserId);
     }
 
+    /// <summary>JSONB title-only records survive actual Clone and native CreateNew without acquiring current-owner attribution.</summary>
+    [PostgresTheory]
+    [InlineData("null", "CC-BY-4.0", false)]
+    [InlineData(null, "different terms", false)]
+    [InlineData("\"\"", "CC-BY-4.0", false)]
+    [InlineData("null", "CC-BY-4.0", true)]
+    [InlineData(null, "different terms", true)]
+    [InlineData("\"\"", "CC-BY-4.0", true)]
+    public async Task PersistedTitleOnlyCreditsRemainIndependent(string? contributorJson, string licence, bool native)
+    {
+        var source = await Seed("CC-BY-4.0");
+        var destination = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var owner = await db.Users.SingleAsync(u => u.Id == source.UserId);
+        owner.DisplayName = "New owner";
+        source.Name = "Same title";
+        var contributor = contributorJson == null ? "" : $"\"contributor\":{contributorJson},";
+        source.Credits = TripCreditCodec.Read($"[{{{contributor}\"sourceTitle\":\"Same title\",\"licence\":\"{licence}\",\"notices\":\"Earlier source notice\"}}]");
+        db.Trips.Update(source);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var persisted = await db.Trips.AsNoTracking().Include(t => t.User).SingleAsync(t => t.Id == source.Id);
+        Assert.Equal(source.Credits, persisted.Credits);
+        Guid copyId;
+        if (native)
+        {
+            var xml = TripWayfarerKmlExporter.BuildKml(persisted);
+            var imported = await new TripImportService(db, NullLogger<TripImportService>.Instance)
+                .ImportWayfarerKmlAsync(Text(xml), destination.Id, TripImportMode.CreateNew);
+            copyId = imported.TripId;
+        }
+        else
+        {
+            var clone = await new TripCloneCoordinator(db).CloneAsync(source.Id, destination.Id);
+            Assert.Equal(TripCloneStatus.Succeeded, clone.Status);
+            copyId = clone.ClonedTripId!.Value;
+        }
+        fixture.RegisterTrip(copyId);
+        var copy = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == copyId);
+        Assert.Equal(persisted.Credits.Single(), copy.Credits.Single(c => c.Notices == "Earlier source notice"));
+        Assert.Equal(2, copy.Credits.Count);
+        if (!native) Assert.Equal("New owner", copy.Credits.Single(c => c.Notices == null).Contributor);
+    }
+
     /// <summary>Selected fields compare their own exact originals and commit atomically, without overwriting disjoint Notes.</summary>
     [PostgresFact]
     public async Task ProtectedTitleAndCreditsPreserveDisjointFieldsAndRejectStaleGroups()

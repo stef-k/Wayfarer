@@ -14,7 +14,7 @@ defineProps<{ draft: MetadataDraft }>();
             <option value="CC0-1.0">CC0 1.0</option>
             <option value="view-only">Public view-only</option>
           </select>
-          <small>Inherited terms stay separate. View-only does not prevent manual copying or revoke inherited rights.</small>
+          <small class="trip-credit-help">Inherited terms stay separate. View-only does not prevent manual copying or revoke inherited rights.</small>
         </label>
 
 <details class="trip-editor-field">
@@ -43,3 +43,8 @@ defineProps<{ draft: MetadataDraft }>();
               <button type="button" :disabled="draft.credits.length >= 32" @click="draft.credits.push({ contributor: '', sourceTitle: '', licence: '', licenceUrl: null, notices: null, modifications: null, sourceUrl: null })">Add credit</button>
             </details>
 </template>
+
+<style scoped>
+/* Help text follows the editor theme instead of inheriting field-error colouring. */
+.trip-editor-field .trip-credit-help { color: var(--trip-editor-muted); }
+</style>

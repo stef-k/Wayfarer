@@ -174,7 +174,7 @@ class Stack:
             self.compose('run', '--rm', '-T', 'wayfarer', *command)
         self.compose('run', '--rm', '-T', 'wayfarer', 'admin', 'bootstrap', 'compose-admin', '--stdin',
                      data=self.password + '\n')
-        self.sql(f'''INSERT INTO "Trips" ("Id","UserId","Name","IsPublic","ShareProgressEnabled","UpdatedAt","CenterLat","CenterLon","Zoom")
+        self.sql(f'''INSERT INTO "Trips" ("Id","UserId","Name","IsPublic","ShareProgressEnabled","UpdatedAt","CenterLat","CenterLon","Zoom","ContributionPolicy")
             SELECT '{TRIP}',"Id",'Compose qualification',true,false,now(),37.9,23.7,3 FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
         # Private capture uses the existing User-area page; the synthetic owner needs that product role too.
         self.sql('''INSERT INTO "AspNetUserRoles" ("UserId","RoleId")
@@ -373,6 +373,14 @@ class Stack:
         assert f'https://wayfarer.example.org:{self.port}/Public/Trips/{TRIP}' in page
         assert self.curl('/css/site.css').stdout
         assert '<kml' in self.curl(f'/Trip/ExportWayfarerKml/{TRIP}').stdout
+        # The positive grant is explicit; public viewing alone must never authorize downloads.
+        self.sql(f'UPDATE "Trips" SET "ContributionPolicy"=\'view-only\' WHERE "Id"=\'{TRIP}\';')
+        try:
+            for route in ['ExportWayfarerKml', 'ExportGoogleMyMapsKml', 'ExportPdf', 'ExportProgress']:
+                denied = self.curl(f'/Trip/{route}/{TRIP}', '-o', '/dev/null', '-w', '%{http_code}', check=False)
+                assert denied.stdout in {'302', '403', '404'}, denied.stdout
+        finally:
+            self.sql(f'UPDATE "Trips" SET "ContributionPolicy"=\'CC-BY-4.0\' WHERE "Id"=\'{TRIP}\';')
         stream = self.curl(f'/Trip/ExportProgress/{TRIP}?sessionId=compose', timeout=23, check=False)
         assert stream.returncode == 28 and ':\n\n' in stream.stdout, stream.stdout
         self.rendering()

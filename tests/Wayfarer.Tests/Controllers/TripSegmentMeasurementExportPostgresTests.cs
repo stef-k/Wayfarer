@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -102,7 +104,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.True(projection.Succeeded);
         Assert.Equal(stored.EstimatedDistanceKm, projection.Segment!.EstimatedDistanceKm);
         Assert.Equal(stored.EstimatedDuration.Value.TotalMinutes, projection.Segment.EstimatedDurationMinutes);
-        var exporter = Exporter(read);
+        var exporter = Exporter(read, seed.UserId);
         output.WriteLine($"Former rejection: {expectedFailure}");
         var exported = exporter.GenerateWayfarerKml(seed.TripId);
         await AssertRoundTripAsync(exported, stored);
@@ -113,7 +115,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Authenticate(client, app.Services, seed.UserId);
         await AssertNativeAndGoogleSuccessAsync(client, seed.TripId);
         await read.Trips.Where(item => item.Id == seed.TripId)
-            .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsPublic, true));
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsPublic, true).SetProperty(item => item.ContributionPolicy, "CC-BY-4.0"));
         client.DefaultRequestHeaders.Remove("Cookie");
         await AssertNativeAndGoogleSuccessAsync(client, seed.TripId);
     }
@@ -146,7 +148,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
                 : TimeSpan.FromSeconds(91), stored.EstimatedDuration);
             Assert.Equal(SegmentMeasurementCalculator.CalculateDistance(stored.RouteGeometry!.Coordinates).RoundedKilometres,
                 stored.EstimatedDistanceKm);
-            original = Exporter(read).GenerateWayfarerKml(seed.TripId);
+            original = Exporter(read, seed.UserId).GenerateWayfarerKml(seed.TripId);
         }
         // Simulate another installation's profile settings without changing the exported active result.
         await using (var destinationSettings = fixture.CreateContext())
@@ -162,7 +164,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
             fixture.RegisterTrip(imported);
         }
         await using var verify = fixture.CreateContext();
-        var reexported = Exporter(verify).GenerateWayfarerKml(imported);
+        var reexported = Exporter(verify, destination.Id).GenerateWayfarerKml(imported);
         Assert.Equal(MeasurementData(original), MeasurementData(reexported));
     }
 
@@ -175,8 +177,13 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
         var seed = await support.SeedAsync();
         await using var read = fixture.CreateContext();
-        var original = Exporter(read).GenerateWayfarerKml(seed.TripId);
+        var original = Exporter(read, seed.UserId).GenerateWayfarerKml(seed.TripId);
         var xml = XDocument.Parse(original);
+        // Historical v3 has no v4 planning or v5 portable claims; never just downgrade a v5 marker.
+        foreach (var field in xml.Descendants().Where(e => e.Name.LocalName == "Data"
+            && e.Attribute("name")?.Value is "Title" or "Credits" or "ContentReuse" or "Planning").ToArray()) field.Remove();
+        xml.Descendants().Single(e => e.Name.LocalName == "Data" && e.Attribute("name")?.Value == "WayfarerSchemaVersion")
+            .Elements().Single().Value = "3";
         var data = xml.Descendants().Single(item => item.Name.LocalName == "Data"
             && item.Attribute("name")?.Value == (invalidProvenance ? "RouteProvenance" : "DistanceKm"));
         data.Elements().Single().Value = invalidProvenance
@@ -190,7 +197,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
             Assert.Empty(write.ChangeTracker.Entries());
         }
         await using var verify = fixture.CreateContext();
-        Assert.Equal(original, Exporter(verify).GenerateWayfarerKml(seed.TripId));
+        Assert.Equal(original, Exporter(verify, seed.UserId).GenerateWayfarerKml(seed.TripId));
     }
 
     /// <summary>Valid historical values export and round-trip without invented provider provenance or read-side repair.</summary>
@@ -220,7 +227,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(duration.Ticks, stored.EstimatedDuration!.Value.Ticks);
         Assert.Null(stored.RouteProvider);
         Assert.Equal(EstimatedDurationSource.Manual, stored.EstimatedDurationSource);
-        var exported = Exporter(read).GenerateWayfarerKml(seed.TripId);
+        var exported = Exporter(read, seed.UserId).GenerateWayfarerKml(seed.TripId);
         await AssertRoundTripAsync(exported, stored);
         output.WriteLine($"historical storedKm={distance:R}; storedTicks={duration.Ticks}; former rejection={expectedFailure}");
     }
@@ -229,7 +236,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
     private Task<Microsoft.AspNetCore.Builder.WebApplication> StartHostAsync(ApplicationDbContext db) =>
         IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
-            services.AddScoped<ITripExportService>(_ => Exporter(db));
+            services.AddScoped<ITripExportService>(provider => Exporter(db, context: provider.GetRequiredService<IHttpContextAccessor>()));
             var settings = new Mock<IApplicationSettingsService>();
             settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings());
             services.AddSingleton(settings.Object);
@@ -240,7 +247,9 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         });
 
     /// <summary>Creates only the KML service dependencies used by the production export routes.</summary>
-    private static TripExportService Exporter(ApplicationDbContext db) => new(db, null!, null!, null!, null!,
+    private static TripExportService Exporter(ApplicationDbContext db, string? owner = null, IHttpContextAccessor? context = null) => new(db, null!,
+        context ?? new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(
+            new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, owner!)], "test")) } }, null!, null!,
         NullLogger<TripExportService>.Instance, new ConfigurationBuilder().Build(), null!, null!);
 
     /// <summary>Protects an owner cookie with the test host's actual Identity scheme.</summary>
@@ -288,7 +297,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(original.RouteAttribution, saved.RouteAttribution);
         Assert.Equal(original.RouteGeneratedAt, saved.RouteGeneratedAt);
         Assert.Equal(original.RouteInstructionsJson, saved.RouteInstructionsJson);
-        Assert.Equal(MeasurementData(exported), MeasurementData(Exporter(verify).GenerateWayfarerKml(imported)));
+        Assert.Equal(MeasurementData(exported), MeasurementData(Exporter(verify, destination.Id).GenerateWayfarerKml(imported)));
     }
 
     /// <summary>Submits the protected proposal through the ordinary complete editor JSON request.</summary>

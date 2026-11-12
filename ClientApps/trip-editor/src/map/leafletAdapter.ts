@@ -340,6 +340,8 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
 };
 
 const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {
+  // Authored titles distinguish alternatives with identical endpoints.
+  if (segment.title?.trim()) return segment.title.trim();
   const fromName = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
   const toName = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.name : null;
   return [fromName, toName].filter(Boolean).join(' to ') || segment.mode || 'Segment';

@@ -150,7 +150,7 @@ public sealed class ActiveAccountCookieTests : TestBase
         Assert.Contains("bearer", await tokenOnly.Content.ReadAsStringAsync());
     }
 
-    /// <summary>A custom route without Authorize loses private-owner access while public export remains available.</summary>
+    /// <summary>Inactive owners lose private and public export access; active eligible owners retain both.</summary>
     [Fact]
     public async Task ManualPrivateExportAndAnonymousPublicExport_PreserveVisibility()
     {
@@ -169,11 +169,16 @@ public sealed class ActiveAccountCookieTests : TestBase
         using var inactive = await client.GetAsync(path);
         AssertRejected(inactive, false);
         trip.IsPublic = true;
+        trip.ContributionPolicy = "CC-BY-4.0";
         trip.ShareProgressEnabled = true;
         await db.SaveChangesAsync();
         client.DefaultRequestHeaders.Remove("Cookie");
         using var anonymous = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+        db.Users.Find("owner")!.IsActive = true;
+        await db.SaveChangesAsync();
+        using var eligible = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, eligible.StatusCode);
         Assert.True(trip.ShareProgressEnabled);
     }
 

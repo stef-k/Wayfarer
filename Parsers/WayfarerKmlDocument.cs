@@ -30,7 +30,7 @@ public sealed record WayfarerKmlPlace(
 /// <summary>Detached Area transport data.</summary>
 public sealed record WayfarerKmlArea(
     Guid Id, string Name, int DisplayOrder, string? Notes, string? FillHex, Polygon? Geometry,
-    PlanningAggregate? Planning = null, string? ContributionPolicy = null, IReadOnlyList<TripCredit>? Credits = null);
+    PlanningAggregate? Planning = null);
 
 /// <summary>Detached Segment transport data with explicit route and measurement provenance.</summary>
 public sealed record WayfarerKmlSegment(

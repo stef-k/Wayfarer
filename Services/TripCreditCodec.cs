@@ -78,16 +78,17 @@ public static class TripCreditCodec
 
     /// <summary>Independent copies inherit source grants descriptively, never as the new owner's publication choice.</summary>
     public static IReadOnlyList<TripCredit> Inherited(Trip source) => Inherited(
-        new Attribution(1, source.Name, source.ContributionPolicy, source.Credits))
-        .Select(c => c.SourceTitle == source.Name && c.Contributor.Length == 0 && c.Licence == source.ContributionPolicy
-            ? c with { Contributor = source.User?.DisplayName ?? "" } : c).ToArray();
+        new Attribution(1, source.Name, source.ContributionPolicy, source.Credits), source.User?.DisplayName ?? "");
 
     /// <summary>Preserves inherited terms and a source contribution grant without account IDs or private origins.</summary>
-    public static IReadOnlyList<TripCredit> Inherited(Attribution source)
+    public static IReadOnlyList<TripCredit> Inherited(Attribution source) => Inherited(source, "");
+
+    // Only the newly appended source contribution receives the current owner's display name.
+    private static IReadOnlyList<TripCredit> Inherited(Attribution source, string contributor)
     {
         var result = source.Credits.ToList();
         if (source.ContributionPolicy is "CC-BY-4.0" or "CC0-1.0")
-            result.Add(new("", source.SourceTitle, source.ContributionPolicy));
+            result.Add(new(contributor, source.SourceTitle, source.ContributionPolicy));
         Validate(result);
         return result.Distinct().ToArray();
     }

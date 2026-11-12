@@ -52,7 +52,7 @@ if (roots.includes('86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36b
 console.log('PASS Node prerequisites:', process.version, roots.length);
 JS
 fi
-# The assessed rustup 1.29.1/1.29.2 downloaders use platform roots plus GlobalSign
+# The assessed rustup 1.29.1/1.29.2/1.29.3 downloaders use platform roots plus GlobalSign
 # R3/R46 respectively and Amazon Root CA 1. Reject alternate trust/transport owners.
 if [[ "${1:-}" == --rustup ]]; then
   rustup_version="$(rustup --version)"
@@ -60,7 +60,7 @@ if [[ "${1:-}" == --rustup ]]; then
   # Retain failing input names, never potentially credential-bearing override URLs.
   rejected_inputs=()
   case "$rustup_version" in
-    'rustup 1.29.1 ('*|'rustup 1.29.2 ('*) ;;
+    'rustup 1.29.1 ('*|'rustup 1.29.2 ('*|'rustup 1.29.3 ('*) ;;
     *) rejected_inputs+=(manager-version) ;;
   esac
   [[ "${RUSTUP_USE_CURL-0}" == 0 ]] || rejected_inputs+=(RUSTUP_USE_CURL)

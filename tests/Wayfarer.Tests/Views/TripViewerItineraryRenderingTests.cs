@@ -59,8 +59,10 @@ public sealed class TripViewerItineraryRenderingTests
     }
 
     /// <summary>Actual compiled public/print templates retain safe readable credits and the authored title.</summary>
-    [Fact]
-    public async Task PortableFieldsRenderSafelyInPublicAndPdfTemplates()
+    [Theory]
+    [InlineData("Author")]
+    [InlineData("")]
+    public async Task PortableFieldsRenderSafelyInPublicAndPdfTemplates(string displayName)
     {
         var root = Path.Combine(Path.GetTempPath(), $"wayfarer-portable-render-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
@@ -71,7 +73,7 @@ public sealed class TripViewerItineraryRenderingTests
             using var scope = host.Services.CreateScope();
             var trip = WaypointTrip();
             trip.IsPublic = true; trip.ContributionPolicy = "CC0-1.0";
-            trip.User = new ApplicationUser { Id = "owner", DisplayName = "Author", IsActive = true };
+            trip.User = new ApplicationUser { Id = "owner", DisplayName = displayName, IsActive = true };
             trip.Segments.Single().Title = "Morning walk";
             trip.Credits = [new("Bob <script>unsafe()</script>", "Offline source", "CC-BY-4.0",
                 "https://creativecommons.org/licenses/by/4.0/", "Keep this notice", "Adapted")];
@@ -79,6 +81,7 @@ public sealed class TripViewerItineraryRenderingTests
             var viewer = new HtmlParser().ParseDocument(html);
             Assert.Contains("Morning walk", viewer.QuerySelector(".segment-list-item")!.TextContent);
             Assert.Contains("Owner's contributions: CC0-1.0", viewer.Body!.TextContent);
+            Assert.Equal(2, viewer.QuerySelectorAll("details").Count(e => e.TextContent.Contains("Keep this notice")));
             Assert.Contains("Keep this notice", viewer.Body.TextContent);
             Assert.Contains("Bob <script>unsafe()</script>", viewer.Body.TextContent);
             Assert.DoesNotContain(viewer.QuerySelectorAll("script"), e => e.TextContent == "unsafe()");
