@@ -2464,6 +2464,82 @@ namespace Wayfarer.Migrations
                     b.ToTable("Trips");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.TripComposition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Mappings")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SnapshotA")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SnapshotB")
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("SourceAId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceBId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TripId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("SourceAId", "SourceBId")
+                        .HasFilter("\"FinishedAt\" IS NULL");
+
+                    b.ToTable("TripCompositions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TripComposition_Lifecycle", "(\"FinishedAt\" IS NULL AND \"SnapshotA\" IS NOT NULL AND \"SnapshotB\" IS NOT NULL AND \"Mappings\" IS NOT NULL) OR (\"FinishedAt\" IS NOT NULL AND \"SnapshotA\" IS NULL AND \"SnapshotB\" IS NULL AND \"Mappings\" IS NULL AND \"SourceAId\" IS NULL AND \"SourceBId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.TripOrigin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChangeNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SourceTripId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TripId");
+
+                    b.ToTable("TripOrigins", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -2898,6 +2974,30 @@ namespace Wayfarer.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.TripComposition", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Trip", null)
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wayfarer.Models.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.TripOrigin", b =>
+                {
+                    b.HasOne("Wayfarer.Models.Trip", null)
+                        .WithMany()
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApplicationUser", b =>

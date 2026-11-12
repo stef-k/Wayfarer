@@ -12,7 +12,7 @@ internal static class TripCompositionLifecycle
         if (!db.Database.IsNpgsql()) return;
         await db.Set<TripComposition>().FromSqlInterpolated($"""
             SELECT * FROM public."TripCompositions" WHERE "UserId" = {owner}
-            AND (({tripId} IS NOT NULL AND "TripId" = {tripId}) OR ({compositionId} IS NOT NULL AND "Id" = {compositionId}))
+            AND ("TripId" = {tripId} OR "Id" = {compositionId})
             ORDER BY "Id" FOR UPDATE
             """).AsNoTracking().ToListAsync(token);
     }

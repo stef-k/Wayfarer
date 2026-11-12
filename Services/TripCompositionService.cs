@@ -40,7 +40,12 @@ public sealed class TripCompositionService(ApplicationDbContext db)
             // Ownership discovered before the transaction is only lock ordering input, never authority.
             if (!owners.Contains(a.UserId) || b != null && !owners.Contains(b.UserId)) throw Unavailable();
             var mappings = new Dictionary<Guid, Guid>();
-            var c = await construction.ConstructCloneAsync(a, owner, token, keepPlanning, mappings);
+            Trip c;
+            try { c = await construction.ConstructCloneAsync(a, owner, token, keepPlanning, mappings); }
+            catch (Exception invalid) when (invalid is InvalidOperationException or FormatException)
+            {
+                throw new TripMetadataMutationRejected(400, "construction-source-invalid", "The source graph cannot be copied unchanged. Review its saved references, route compatibility and portable fields before trying again.");
+            }
             c.Name = name?.Trim() ?? a.Name;
             TripRichNotes.NormalizeDestination(c);
             var compositionId = sourceB.HasValue ? Guid.NewGuid() : (Guid?)null;
@@ -62,25 +67,30 @@ public sealed class TripCompositionService(ApplicationDbContext db)
                 Id = Guid.NewGuid(), TripId = c.Id, SourceTripId = a.Id, CreatedAt = DateTime.UtcNow, ChangeNote = changeNote
             });
             await construction.PersistConstructedAsync(c, token);
+            var saved = await construction.LoadSourceAsync(c.Id, token) ?? throw Unavailable();
+            var current = TripCompositionSnapshot.Project(saved, true);
             committing = true;
             await transaction.CommitAsync(token);
-            return new(c.Id, compositionId, compositionId.HasValue ? "inProgress" : "created", mediaOmitted);
+            return new(c.Id, compositionId, compositionId.HasValue ? "inProgress" : "created", mediaOmitted, current);
         }
         catch (Exception primary)
         {
             db.ChangeTracker.Clear();
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception cleanup) { throw new AggregateException("Construction failed and rollback could not be confirmed.", primary, cleanup); }
-            if (!committing && primary is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+            if (!committing && primary.GetBaseException() is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
                 throw new TripMetadataMutationRejected(409, "construction-contention", "Source authority or content changed. Refresh before starting a new attempt.");
             throw;
         }
     }
 
     /// <summary>Lists only unfinished destinations owned by the active caller, optionally for the exact ordered source pair.</summary>
-    public async Task<object> ListAsync(string owner, Guid? sourceA, Guid? sourceB, CancellationToken token = default)
+    public async Task<object> ListAsync(string owner, Guid? sourceA, Guid? sourceB, CancellationToken token = default,
+        Func<CancellationToken, Task<bool>>? credential = null)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
         await RequireActiveAsync(owner, token);
+        if (credential != null && !await credential(token)) throw Unavailable();
         return await (from workspace in db.Set<TripComposition>().AsNoTracking()
             join trip in db.Trips.AsNoTracking() on workspace.TripId equals trip.Id
             where trip.UserId == owner && workspace.FinishedAt == null
@@ -90,12 +100,14 @@ public sealed class TripCompositionService(ApplicationDbContext db)
     }
 
     /// <summary>Reads immutable inputs and current C coherently. Missing mapped identities are removed, never reconstructed.</summary>
-    public async Task<object> ReadAsync(string owner, Guid id, CancellationToken token = default)
+    public async Task<object> ReadAsync(string owner, Guid id, CancellationToken token = default,
+        Func<CancellationToken, Task<bool>>? credential = null)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
         await RequireActiveAsync(owner, token);
         var workspace = await OwnedAsync(owner, id, token);
         if (workspace.FinishedAt != null) throw Closed();
+        if (credential != null && !await credential(token)) throw Unavailable();
         var current = await new TripCloneCoordinator(db).LoadSourceAsync(workspace.TripId, token) ?? throw Unavailable();
         var present = current.Regions.Select(r => r.Id).Concat(current.Regions.SelectMany(r => r.Places).Select(p => p.Id))
             .Concat(current.Regions.SelectMany(r => r.Areas).Select(a => a.Id)).Concat(current.Segments.Select(s => s.Id)).Append(current.Id).ToHashSet();
@@ -146,4 +158,4 @@ public sealed class TripCompositionService(ApplicationDbContext db)
 }
 
 /// <summary>Confirmed ordinary creation/lifecycle response; no request receipt or retry promise.</summary>
-public sealed record TripConstructionResult(Guid TripId, Guid? CompositionId, string Status, bool MediaOmitted);
+public sealed record TripConstructionResult(Guid TripId, Guid? CompositionId, string Status, bool MediaOmitted, object? Current = null);

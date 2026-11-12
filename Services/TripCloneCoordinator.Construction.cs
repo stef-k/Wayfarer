@@ -29,13 +29,13 @@ public sealed partial class TripCloneCoordinator
         };
         identities?.Add(source.Id, clone.Id);
         var placeMap = new Dictionary<Guid, Guid>();
-        foreach (var sourceRegion in source.Regions.OrderBy(r => r.Name == "Unassigned Places" ? 1 : 0).ThenBy(r => r.DisplayOrder).ThenBy(r => r.Id))
+        foreach (var sourceRegion in source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id))
         {
             var region = new Region
             {
                 Id = Guid.NewGuid(), UserId = destinationUserId, TripId = clone.Id,
                 Name = sourceRegion.Name, Notes = sourceRegion.Notes,
-                DisplayOrder = sourceRegion.Name == "Unassigned Places" ? int.MaxValue : clone.Regions.Count,
+                DisplayOrder = clone.Regions.Count,
                 Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourceRegion.Planning, true) : null, CoverImageUrl = sourceRegion.CoverImageUrl,
                 Center = CopyPoint(sourceRegion.Center)
             };

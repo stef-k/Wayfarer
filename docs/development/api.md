@@ -1953,3 +1953,17 @@ sorted presentDates and hasUnresolvedCandidates. Positive wins; otherwise an unc
 month means unmarked dates are unknown. Other operations disclose response-snapshot.
 Private body/scope/parameter content must not be logged. All results/errors remain
 no-store with existing active-owner admission/deadline/cancellation protections.
+
+
+## Trip versions and composition lifecycle (#911 Batch 2)
+
+Bearer clients can create owned private versions, start an owned A plus eligible B
+comparison, list/resume the same saved C, and Finish through the routes documented
+in [the Batch-2 contract](911-batch2.md#routes-and-authority). Cookie equivalents
+require User authorization and antiforgery for POSTs. All workspace responses are
+private/no-store; ordinary public Trip reads do not expose comparison state.
+
+Start is an explicit new creation, not a retry-safe operation. Resume is a GET of
+an existing composition. Finish keeps C and removes comparison payloads. Normal C
+deletion removes its workspace. These backend foundations do not deliver Layout B
+or mobile composition UI; those remain later batches.

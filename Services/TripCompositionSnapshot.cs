@@ -17,6 +17,14 @@ internal static class TripCompositionSnapshot
     /// <summary>Captures complete stored routes, without a public fallback resolver replacing custom geometry or measurements.</summary>
     internal static object Project(Trip source, bool own)
     {
+        var places = source.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToHashSet();
+        foreach (var segment in source.Segments)
+        {
+            SegmentMeasurementState.Validate(segment);
+            if (segment.Waypoints.Select(w => (Guid?)w.PlaceId).Append(segment.FromPlaceId).Append(segment.ToPlaceId)
+                .Any(id => id.HasValue && !places.Contains(id.Value)))
+                throw new InvalidOperationException("A captured route references a Place outside the authorized source.");
+        }
         var writer = new GeoJsonWriter();
         var graph = source.ToApiDto(source.Segments.Select(s => new ApiTripSegmentDto
         {
@@ -33,7 +41,7 @@ internal static class TripCompositionSnapshot
                 { PlaceId = w.PlaceId, Position = w.Position, RouteVertexIndex = w.RouteVertexIndex }).ToArray()
         }).ToArray());
         // Record the visible editor sequence explicitly; raw nullable values remain in the graph.
-        var order = source.Regions.OrderBy(r => r.Name == "Unassigned Places" ? 1 : 0).ThenBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToArray();
+        var order = source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToArray();
         return new
         {
             format = 1, graph,

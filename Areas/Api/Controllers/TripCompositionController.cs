@@ -44,6 +44,10 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
         if (owner == null) return Unauthorized();
         try { return Ok(await action(owner)); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
+        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException)
+        {
+            return StatusCode(503, new { code = "composition-save-unconfirmed", detail = "The request could not be confirmed. Inspect or refresh your Trips before trying again." });
+        }
     }
 }
 
@@ -63,11 +67,11 @@ public partial class TripsController
 
     [HttpGet("compositions")]
     public Task<IActionResult> ListCompositions(Guid? sourceA, Guid? sourceB, CancellationToken token) => CompositionRequest(
-        (owner, _) => new TripCompositionService(_dbContext).ListAsync(owner, sourceA, sourceB, token), token);
+        (owner, check) => new TripCompositionService(_dbContext).ListAsync(owner, sourceA, sourceB, token, check), token);
 
     [HttpGet("compositions/{id:guid}")]
     public Task<IActionResult> ReadComposition(Guid id, CancellationToken token) => CompositionRequest(
-        (owner, _) => new TripCompositionService(_dbContext).ReadAsync(owner, id, token), token);
+        (owner, check) => new TripCompositionService(_dbContext).ReadAsync(owner, id, token, check), token);
 
     [HttpPost("compositions/{id:guid}/finish")]
     public Task<IActionResult> FinishComposition(Guid id, CancellationToken token) => CompositionRequest(async (owner, check) =>
@@ -82,5 +86,9 @@ public partial class TripsController
         if (user == null) return Unauthorized();
         try { return Ok(await action(user.Id, ct => authority.RevalidateMutationAsync(HttpContext, user.Id, ct))); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
+        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException)
+        {
+            return StatusCode(503, new { code = "composition-save-unconfirmed", detail = "The request could not be confirmed. Inspect or refresh your Trips before trying again." });
+        }
     }
 }

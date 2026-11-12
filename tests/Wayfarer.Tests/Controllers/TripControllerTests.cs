@@ -203,7 +203,7 @@ public class TripControllerTests : TestBase
         Assert.Equal(cloner.Id, clonedRegion.UserId);
         Assert.Equal(region.Name, clonedRegion.Name);
         Assert.Equal(region.Notes, clonedRegion.Notes);
-        Assert.Equal(region.DisplayOrder, clonedRegion.DisplayOrder);
+        Assert.Equal(0, clonedRegion.DisplayOrder); // Copy normalizes the destination sibling list.
 
         Assert.Single(clonedRegion.Places);
         var clonedPlace = clonedRegion.Places.First();
