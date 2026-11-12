@@ -236,6 +236,52 @@ runtime source. Local source qualification used stable .NET 10 and Node 24.22.2.
   this focused brief carries the new detail. Reviewed size/complexity/nesting
   findings do not justify mechanical splitting or policy relaxation.
 
-Independent complete-PR review, current-head hosted CI, maintainer acceptance and
-mobile/native application qualification remain unperformed here. Batch 1 does not
+At the implementation checkpoint, independent complete-PR review, current-head hosted CI,
+maintainer acceptance and mobile/native application qualification were unperformed.
+The correction receipt below supersedes that checkpoint status. Batch 1 does not
 complete #911. No later-batch implementation, merge, closure or deployment occurred.
+
+
+## Consolidated correction receipt
+
+Batch 1 remains implemented but unaccepted. The [independent review](https://github.com/stef-k/Wayfarer/pull/975#pullrequestreview-5878017067)
+reviewed `ed97812afee769c72d1b488146f00394ef0ed260`; corrections retain the pinned
+base and accepted issue-body hash above. No contract edit or later batch is included.
+
+| Finding | Correction and decisive evidence |
+| --- | --- |
+| Accepted null/omitted Contributor crashes Clone/CreateNew | Preserve the JSONB-loaded inherited records; construct the appended contribution separately. Six persisted copy/import cases include explicit null, omitted contributor and empty-string title/licence coincidence with `Earlier source notice`. |
+| Inherited credit reassigned to current owner | Only the newly appended contribution gets `New owner`; the earlier record retains exact field values. No owner-name projection over inherited credits. |
+| Blank display name hides public terms | Both compiled Viewer presentations render credits outside optional bylines; blank and named controls require two notice presentations. |
+| Faint inherited-terms help | Theme-muted help colour replaces inherited error colour; existing author/public smoke owns the visual observation. |
+| Segment hover ignores authored title | Live saved/draft/work presentation carries title and escapes it in the hit tooltip; derived role/direction fallback remains. Removed the obsolete unused adapter renderer rather than mistaking it for the live path. Existing Leaflet component test exercises the real resolver/layer. |
+| Unintended tag/Area policy fields | Removed from ApiTagDto and WayfarerKmlArea; Trip fields remain, with exact tag and Place inventories. |
+| Canonical Region: 7 failures | Grant only the successful/structural Clone fixtures so canonical identity and duplicate rejection execute. |
+| API Clone: 2 failures | Explicit BY on the two intended foreign-copy fixtures. |
+| Web Clone: 8 failures | Lawful success fixtures; foreign covers/images omitted and warmup never called. Removed the obsolete foreign-media warmup-failure test: its required fetch is forbidden, and omission/no-fetch is now the reachable contract. |
+| Rich Notes: 2 failures | Owner exports private imports; object descriptions remain sanitized rich text, while Document attribution is asserted separately. |
+| Measurement export: 9 failures | Explicit owner context for private export/re-export, real routed context and licensed anonymous positive case. Historical v3 removes later protected claims and is classified as v3 before injecting invalid measurements/provenance. |
+| Measurement authority: 2 failures | Explicit grant reaches the accepted-provider Clone checks. |
+| Coordinates: 1 failure | Exact Place inventory includes the three enrichment fields. |
+| Active account: 1 failure | Inactive owner denied even when public/licensed; reactivated eligible source succeeds anonymously. |
+| PDF orchestration: 4 failures | Licensed fixtures reach the mocked browser factory, retaining cancellation/budget/content assertions. |
+| Application image qualification | Explicit BY seed, view-only native/Google/PDF/SSE refusal, then restored grant for positive SSE/PDF. Docker execution remains distinct from tooling checks. |
+| ARM64 rustup prerequisite | Exactly 1.29.3 added; 1.29.4/1.30.0 still refused. Compiler 1.90.0, rustls/no-curl, distribution authority, override rejection and host trust controls unchanged. Primary-source assessment is in security.md. |
+
+The original review logs remain under
+`~/.local/share/wayfarer-evidence/911-batch1-ed97812a/independent-review/`.
+Fresh correction logs, TRX, source-assessment material and the independent-review
+handoff are retained under `~/.local/share/wayfarer-evidence/911-batch1-corrections/`.
+The draft PR report binds the exact final SHA and final counts, including fresh
+versus reused evidence and environment limitations. An earlier failing receipt is
+never overwritten by a passing rerun.
+
+The review's complete Batch-1 matrix remains applicable: protected title/Notes/route
+and metadata intent; private/public coherent reads and freshness; current authority
+through acquisition/waits/delivery; safe media omission; independent graph/identity,
+ordering, geometry, measurement/provenance and planning fidelity; complete native v5,
+older omission/replacement and reserved-claim refusal; generic Google attribution;
+PDF rendering; migration/rollback; backend transport documentation and separately
+owned mobile compatibility. Corrections do not substitute a narrow credit-only
+review for that matrix. No independent reviewer was launched, no acceptance or
+hosted ARM64/image/lifecycle success is inferred from local source tests.

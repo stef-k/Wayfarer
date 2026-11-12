@@ -377,7 +377,7 @@ class Stack:
         self.sql(f'UPDATE "Trips" SET "ContributionPolicy"=\'view-only\' WHERE "Id"=\'{TRIP}\';')
         try:
             for route in ['ExportWayfarerKml', 'ExportGoogleMyMapsKml', 'ExportPdf', 'ExportProgress']:
-                denied = self.curl(f'/Trip/{route}/{TRIP}', '-o', '/dev/null', '-w', '%{http_code}', check=False)
+                denied = self.curl(f'/Trip/{route}/{TRIP}?sessionId=view-only', '-o', '/dev/null', '-w', '%{http_code}', check=False)
                 assert denied.stdout in {'302', '403', '404'}, denied.stdout
         finally:
             self.sql(f'UPDATE "Trips" SET "ContributionPolicy"=\'CC-BY-4.0\' WHERE "Id"=\'{TRIP}\';')
