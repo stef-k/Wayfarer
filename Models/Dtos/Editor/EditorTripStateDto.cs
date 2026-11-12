@@ -79,13 +79,18 @@ public sealed record EditorTripMetadataDto(
     /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
     public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
+    /// <summary>Owner contribution scope and publishable inherited terms.</summary>
+    public string? ContributionPolicy { get; init; }
+    /// <summary>Complete editable credits, never a source-account lookup.</summary>
+    public IReadOnlyList<Wayfarer.Models.TripCredit> Credits { get; init; } = [];
+
     /// <summary>Compatible additive originals for conditional saves; display Notes alone cannot prove null versus empty.</summary>
     public EditorTripMetadataOriginalDto? OriginalValues { get; init; }
 }
 
 /// <summary>Exact published original metadata; no preview defaults or timestamp-based mutation condition.</summary>
 public sealed record EditorTripMetadataOriginalDto(string Name, string? NotesHtml, bool IsPublic,
-    EditorImageUpdateRequest? CoverImage, EditorMetadataOriginalCenterDto Center, int? Zoom);
+    EditorImageUpdateRequest? CoverImage, EditorMetadataOriginalCenterDto Center, int? Zoom, string? ContributionPolicy = null, IReadOnlyList<Wayfarer.Models.TripCredit>? Credits = null);
 
 /// <summary>Retains partial legacy centers so replacing or clearing a view compares the actual stored pair.</summary>
 public sealed record EditorMetadataOriginalCenterDto(double? Latitude, double? Longitude);
@@ -200,6 +205,9 @@ public sealed record EditorSegmentDto(
     /// <summary>Current zone-rule limitations; stored civil values remain untouched.</summary>
     public IReadOnlyList<Wayfarer.Models.Planning.PlanningDiagnostic> PlanningDiagnostics { get; init; } = [];
 
+    /// <summary>Optional authored title; display clients fall back to the historical derived journey.</summary>
+    public string? Title { get; init; }
+
     /// <summary>Exact nullable published Notes, independent of display defaults and opaque route-aggregate evidence.</summary>
     public EditorSegmentNotesOriginalDto? OriginalValues { get; init; }
 
@@ -208,7 +216,7 @@ public sealed record EditorSegmentDto(
 }
 
 /// <summary>Preserves null versus empty for conditional Segment Notes.</summary>
-public sealed record EditorSegmentNotesOriginalDto(string? NotesHtml);
+public sealed record EditorSegmentNotesOriginalDto(string? NotesHtml, string? Title = null);
 
 /// <summary>Safe per-Segment external-routing capability without endpoint or configuration details.</summary>
 public sealed record EditorExternalRoutingCapabilityDto(

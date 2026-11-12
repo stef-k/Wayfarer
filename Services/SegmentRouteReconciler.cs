@@ -28,7 +28,7 @@ public sealed record SegmentRouteProposal(
     LineString? RouteGeometry,
     SegmentMeasurementProposal? Measurement = null,
     bool ApplyNotes = false,
-    string? NotesHtml = null)
+    string? NotesHtml = null, bool ApplyTitle = false, string? Title = null)
 {
     /// <summary>Save-owned, validated measurements; never deserialized from client provenance.</summary>
     internal PreservedRouteMeasurements? PreservedMeasurements { get; init; }

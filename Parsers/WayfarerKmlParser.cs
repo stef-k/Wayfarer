@@ -49,6 +49,7 @@ public static partial class WayfarerKmlParser
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
         if (source.Root!.Elements(Kml + "Document").Count() != 1) throw new FormatException("Ambiguous KML Document.");
         var versionValues = Values(document, "WayfarerSchemaVersion");
+        ValidatePortablePlacement(source, document, versionValues);
         ValidatePlanningPlacement(source, document, versionValues);
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
         var hasV2Fields = document.Descendants(Kml + "Placemark").Any(owner => owner.Elements(Kml + "ExtendedData")
@@ -65,11 +66,12 @@ public static partial class WayfarerKmlParser
                 "2" => WayfarerKmlKind.NativeV2,
                 "3" => WayfarerKmlKind.NativeV3,
                 "4" => WayfarerKmlKind.NativeV4,
+                "5" => WayfarerKmlKind.NativeV5,
                 _ => throw new FormatException("Unsupported Wayfarer schema version.")
             };
             if (kind == WayfarerKmlKind.NativeV1 && hasV2Fields)
                 throw new FormatException("Version 1 KML cannot contain version 2 Segment metadata.");
-            if (kind is not (WayfarerKmlKind.NativeV3 or WayfarerKmlKind.NativeV4) && hasV3Fields)
+            if (kind is not (WayfarerKmlKind.NativeV3 or WayfarerKmlKind.NativeV4 or WayfarerKmlKind.NativeV5) && hasV3Fields)
                 throw new FormatException("Version 3 Segment metadata requires schema version 3.");
         }
         else
@@ -82,7 +84,7 @@ public static partial class WayfarerKmlParser
             if (tripIds.Count > 1) throw new FormatException("Duplicate Trip identity metadata.");
         }
         return new(kind, kind == WayfarerKmlKind.Generic ? null : ParseDocument(
-            document, kind switch { WayfarerKmlKind.NativeV4 => 4, WayfarerKmlKind.NativeV3 => 3, WayfarerKmlKind.NativeV2 => 2, _ => 1 }), source);
+            document, kind switch { WayfarerKmlKind.NativeV5 => 5, WayfarerKmlKind.NativeV4 => 4, WayfarerKmlKind.NativeV3 => 3, WayfarerKmlKind.NativeV2 => 2, _ => 1 }), source);
     }
 
     /// <summary>Compatibility wrapper for existing v1 parser callers.</summary>
@@ -116,7 +118,9 @@ public static partial class WayfarerKmlParser
         EnsureUnique(segments.Select(segment => segment.Id), "Segment");
         return new(version, tripId, owner.Element(Kml + "name")?.Value ?? "Imported trip",
             Scalar(owner, "CoverImageUrl"), Scalar(owner, "NotesHtml"), OptionalDouble(owner, "CenterLat"),
-            OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments, ParsePlanning(owner, "trip"));
+            OptionalDouble(owner, "CenterLon"), OptionalInt(owner, "Zoom"), Tokens(Scalar(owner, "Tags")), regions, segments, ParsePlanning(owner, "trip"),
+            version == 5 ? TripCreditCodec.Policy(RequiredScalar(owner, "ContentReuse") is { Length: > 0 } policy ? policy : null) : null,
+            version == 5 ? TripCreditCodec.Read(RequiredScalar(owner, "Credits")) : null);
     }
 
     /// <summary>Region identity takes precedence over any authored label, including malformed identity claims.</summary>
@@ -140,7 +144,7 @@ public static partial class WayfarerKmlParser
         if (lat.HasValue != lon.HasValue) throw new FormatException("Region center coordinates must be complete.");
         return new(id, owner.Element(Kml + "name")?.Value ?? "Region", OptionalInt(owner, "DisplayOrder") ?? 0,
             Scalar(owner, "NotesHtml"), lat.HasValue ? Point(lon!.Value, lat.Value) : null, places, areas, ParsePlanning(owner, "region"),
-            version == 4 ? DirectData(owner).GetValueOrDefault("CoverImageUrl") : null);
+            version >= 4 ? DirectData(owner).GetValueOrDefault("CoverImageUrl") : null);
     }
 
     private static WayfarerKmlPlace ParsePlace(XElement owner, int version)
@@ -151,7 +155,7 @@ public static partial class WayfarerKmlParser
             Scalar(owner, "AddressEnrichmentProvider"), Scalar(owner, "AddressEnrichmentStorageMode"),
             Scalar(owner, "AddressEnrichedAt"));
         return new(RequiredGuid(owner, "PlaceId"), owner.Element(Kml + "name")?.Value ?? "Place",
-            version is 3 or 4 ? OptionalInt(owner, "DisplayOrder") : OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "IconName"),
+            version is 3 or 4 or 5 ? OptionalInt(owner, "DisplayOrder") : OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "IconName"),
             Scalar(owner, "MarkerColor"), Scalar(owner, "Address"), string.IsNullOrWhiteSpace(coordinate) ? null : ParsePoint(coordinate),
             feature.Name, feature.Type, feature.Provider, feature.StorageMode, feature.EnrichedAt, ParsePlanning(owner, "place"));
     }
@@ -189,13 +193,13 @@ public static partial class WayfarerKmlParser
             RequiredScalar(owner, "Mode"), RequiredScalar(owner, "TransportProfileKey"), OptionalDouble(owner, "DistanceKm"),
             ParseDuration(owner, version), source, RequiredInt(owner, "DisplayOrder"), Scalar(owner, "NotesHtml"),
             RequiredBool(owner, "HasCustomRoute"), waypointIds, indices, geometry,
-            version is 3 or 4 ? ParseRouteProvenance(owner) : null, ParsePlanning(owner, "segment"));
+            version is 3 or 4 or 5 ? ParseRouteProvenance(owner) : null, ParsePlanning(owner, "segment"), version == 5 ? TripCreditCodec.Title(RequiredScalar(owner, "Title")) : null);
     }
 
     /// <summary>Keeps v2 integer seconds distinct from v3 exact ticks at PostgreSQL interval precision.</summary>
     private static TimeSpan? ParseDuration(XElement owner, int version)
     {
-        if (version is 3 or 4)
+        if (version is 3 or 4 or 5)
         {
             if (Scalar(owner, "DurationSeconds") != null)
                 throw new FormatException("Version 3 uses DurationTicks, not DurationSeconds.");
@@ -255,7 +259,7 @@ public static partial class WayfarerKmlParser
         foreach (var (region, place) in places.Values) place.Region = region;
         trip.Segments = source.Segments.Select(segment => new Segment { Id = segment.Id, TripId = source.TripId,
             FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Mode = segment.Mode,
-            EstimatedDistanceKm = source.Version is 3 or 4 ? segment.DistanceKm : null,
+            EstimatedDistanceKm = source.Version is 3 or 4 or 5 ? segment.DistanceKm : null,
             EstimatedDuration = segment.Duration,
             EstimatedDurationSource = segment.DurationSource, DisplayOrder = segment.DisplayOrder, Notes = segment.Notes,
             Planning = segment.Planning, RouteGeometry = segment.HasCustomRoute ? segment.Geometry : null }).ToList();

@@ -11,7 +11,7 @@ public sealed record WayfarerKmlDocument(
     int Version, Guid TripId, string Name, string? CoverImageUrl, string? Notes,
     double? CenterLat, double? CenterLon, int? Zoom, IReadOnlyList<string> Tags,
     IReadOnlyList<WayfarerKmlRegion> Regions, IReadOnlyList<WayfarerKmlSegment> Segments,
-    PlanningAggregate? Planning = null);
+    PlanningAggregate? Planning = null, string? ContributionPolicy = null, IReadOnlyList<TripCredit>? Credits = null);
 
 /// <summary>Detached Region transport data.</summary>
 public sealed record WayfarerKmlRegion(
@@ -30,7 +30,7 @@ public sealed record WayfarerKmlPlace(
 /// <summary>Detached Area transport data.</summary>
 public sealed record WayfarerKmlArea(
     Guid Id, string Name, int DisplayOrder, string? Notes, string? FillHex, Polygon? Geometry,
-    PlanningAggregate? Planning = null);
+    PlanningAggregate? Planning = null, string? ContributionPolicy = null, IReadOnlyList<TripCredit>? Credits = null);
 
 /// <summary>Detached Segment transport data with explicit route and measurement provenance.</summary>
 public sealed record WayfarerKmlSegment(
@@ -38,10 +38,10 @@ public sealed record WayfarerKmlSegment(
     double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource DurationSource,
     int DisplayOrder, string? Notes, bool HasCustomRoute, IReadOnlyList<Guid> WaypointPlaceIds,
     IReadOnlyList<int?> WaypointRouteVertexIndices, LineString? Geometry,
-    SegmentRouteProvenance? RouteProvenance = null, PlanningAggregate? Planning = null);
+    SegmentRouteProvenance? RouteProvenance = null, PlanningAggregate? Planning = null, string? Title = null);
 
 /// <summary>Structural classification for one parsed KML document.</summary>
-public enum WayfarerKmlKind { Generic, NativeV1, NativeV2, NativeV3, NativeV4 }
+public enum WayfarerKmlKind { Generic, NativeV1, NativeV2, NativeV3, NativeV4, NativeV5 }
 
 /// <summary>Retains one hardened detached XML document with its structural native classification.</summary>
 public sealed record WayfarerKmlClassification(

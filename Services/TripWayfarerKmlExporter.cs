@@ -23,7 +23,7 @@ public static class TripWayfarerKmlExporter
 
         var document = new XElement(Kml + "Document", new XElement(Kml + "name", trip.Name));
         AddData(document,
-            ("WayfarerSchemaVersion", includePrivatePlanning ? "4" : "3"),
+            ("WayfarerSchemaVersion", "5"),
             ("TripId", GuidText(trip.Id)),
             ("UpdatedAt", trip.UpdatedAt.ToString("O", Invariant)),
             ("CoverImageUrl", trip.CoverImageUrl ?? ""),
@@ -32,6 +32,8 @@ public static class TripWayfarerKmlExporter
             ("CenterLon", Number(trip.CenterLon)),
             ("Zoom", Number(trip.Zoom)),
             ("Tags", string.Join(',', trip.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Slug))));
+        AddData(document, ("ContentReuse", TripCreditCodec.Policy(trip.ContributionPolicy) ?? ""),
+            ("Credits", TripCreditCodec.Write(trip.Credits)));
         AddPlanning(document, trip, "trip", includePrivatePlanning);
         document.Add(trip.Regions.SelectMany(region => region.Places)
             .Select(place => (place.IconName, place.MarkerColor)).Distinct()
@@ -65,7 +67,7 @@ public static class TripWayfarerKmlExporter
             ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
             ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes) ?? ""),
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
-        if (includePrivatePlanning && region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
+        if (region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
         foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
             folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));
@@ -113,7 +115,7 @@ public static class TripWayfarerKmlExporter
         var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
         var hasCustomRoute = segment.RouteGeometry is not null;
         var line = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
-        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", segment.Mode));
+        var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", segment.Title ?? segment.Mode));
         AddData(placemark,
             ("SegmentId", GuidText(segment.Id)), ("FromPlaceId", GuidText(segment.FromPlaceId)),
             ("ToPlaceId", GuidText(segment.ToPlaceId)), ("Mode", segment.Mode),
@@ -125,7 +127,7 @@ public static class TripWayfarerKmlExporter
             ("HasCustomRoute", hasCustomRoute ? "true" : "false"),
             ("WaypointPlaceIds", string.Join(',', waypoints.Select(waypoint => GuidText(waypoint.PlaceId)))),
             ("WaypointRouteVertexIndices", string.Join(',', waypoints.Select(waypoint => waypoint.RouteVertexIndex?.ToString(Invariant) ?? "null"))));
-        AddData(placemark, ("TripId", GuidText(tripId)));
+        AddData(placemark, ("TripId", GuidText(tripId)), ("Title", TripCreditCodec.Title(segment.Title) ?? ""));
         AddData(placemark, ("RouteProvenance", SegmentRouteProvenance.Capture(segment) is { } provenance
             ? JsonSerializer.Serialize(provenance) : ""));
         AddPlanning(placemark, segment, "segment", includePrivatePlanning);

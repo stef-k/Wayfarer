@@ -12,7 +12,7 @@ public sealed record TripCloneResult(
     TripCloneStatus Status,
     Guid? ClonedTripId = null,
     string? SourceTripName = null,
-    bool RequiresImageWarmup = false);
+    bool RequiresImageWarmup = false, bool MediaOmitted = false);
 
 /// <summary>Identifies path-neutral Trip clone outcomes translated by each controller.</summary>
 public enum TripCloneStatus
@@ -41,15 +41,23 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             : null;
         try
         {
+            if (transaction != null)
+                await dbContext.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {sourceTripId} FOR SHARE")
+                    .AsNoTracking().ToListAsync(cancellationToken);
             var source = await LoadSourceAsync(sourceTripId, cancellationToken);
             if (source == null) return new(TripCloneStatus.NotFound);
             if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
             if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
+            if (!TripReusePolicy.GrantsReuse(source)
+                || !await dbContext.Users.AnyAsync(u => u.Id == source.UserId && u.IsActive, cancellationToken)
+                || !await dbContext.Users.AnyAsync(u => u.Id == destinationUserId && u.IsActive, cancellationToken))
+                return new(TripCloneStatus.NotPublic);
 
             if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
                 throw new InvalidOperationException("Duplicate Unassigned Places Regions require reconciliation.");
 
             var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
+            var mediaOmitted = TripCopyMedia.OmitUnqualified(clone);
             TripRichNotes.NormalizeDestination(clone);
             dbContext.Trips.Add(clone);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -60,7 +68,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
 
             var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
                 || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
-            return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
+            return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup, mediaOmitted);
         }
         catch (Exception cloneFailure)
         {
@@ -97,7 +105,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         var clone = new Trip
         {
             Id = Guid.NewGuid(), UserId = destinationUserId, Name = $"{source.Name} (Copy)",
-            Notes = source.Notes, IsPublic = false, ShareProgressEnabled = false,
+            Notes = source.Notes, Credits = TripCreditCodec.Inherited(source), IsPublic = false, ShareProgressEnabled = false,
             CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom,
             CoverImageUrl = source.CoverImageUrl, UpdatedAt = DateTime.UtcNow
         };
@@ -169,7 +177,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             Id = Guid.NewGuid(), TripId = cloneTripId, UserId = destinationUserId,
             FromPlaceId = MapOptionalPlace(source.FromPlaceId, placeMap),
             ToPlaceId = MapOptionalPlace(source.ToPlaceId, placeMap),
-            Mode = source.Mode, TransportProfileId = source.TransportProfileId,
+            Title = source.Title, Mode = source.Mode, TransportProfileId = source.TransportProfileId,
             RouteGeometry = source.RouteGeometry == null ? null : (LineString)source.RouteGeometry.Copy(),
             EstimatedDuration = source.EstimatedDuration,
             EstimatedDurationSource = source.EstimatedDurationSource,

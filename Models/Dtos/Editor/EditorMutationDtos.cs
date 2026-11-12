@@ -120,7 +120,7 @@ public sealed record EditorSegmentSaveRequest(
     string? AggregateConcurrencyToken,
     EditorSegmentProposalEnvelope? Proposal = null,
     string? OriginalRouteToken = null,
-    EditorSegmentNotesIntent? NotesIntent = null)
+    EditorSegmentNotesIntent? NotesIntent = null, EditorSegmentTitleIntent? TitleIntent = null)
 {
     /// <summary>Distinguishes strict independently protected route requests from conservative complete drafts.</summary>
     public bool IndependentRoute => OriginalRouteToken != null;
@@ -128,6 +128,9 @@ public sealed record EditorSegmentSaveRequest(
 
 /// <summary>Authored Notes with exact nullable original; absent intent never assigns Notes.</summary>
 public sealed record EditorSegmentNotesIntent(string? Expected, string Desired);
+
+/// <summary>Optional authored title with exact nullable original, independent of route/Notes.</summary>
+public sealed record EditorSegmentTitleIntent(string? Expected, string? Desired);
 
 /// <summary>
 /// Complete desired trip-level segment order.

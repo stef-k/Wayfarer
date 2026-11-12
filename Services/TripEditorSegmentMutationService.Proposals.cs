@@ -17,7 +17,8 @@ public sealed partial class TripEditorSegmentMutationService
             request.WaypointPlaceIds.Select((id, index) => new SegmentWaypointProposal(id, index, request.WaypointRouteVertexIndices[index])).ToArray(), request.Route,
             new(mode.Key, mode.ProfileId, request.EstimatedDurationSource, request.EstimatedDurationMinutes),
             ApplyNotes: !request.IndependentRoute || request.NotesIntent != null,
-            NotesHtml: request.IndependentRoute ? request.NotesIntent?.Desired : request.NotesHtml);
+            NotesHtml: request.IndependentRoute ? request.NotesIntent?.Desired : request.NotesHtml,
+            ApplyTitle: request.TitleIntent != null, Title: request.TitleIntent?.Desired);
 
     private static EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>> ProposalFailed(string code) =>
         EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(

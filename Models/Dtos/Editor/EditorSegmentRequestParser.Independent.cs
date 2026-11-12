@@ -21,13 +21,13 @@ internal static partial class EditorSegmentRequestParser
             StrictFields(route, ["type", "coordinates"], errors);
         var hasExpected = request.TryGetProperty("expected", out var expected);
         var hasChanges = request.TryGetProperty("changes", out var changes);
-        if (hasExpected) StrictFields(expected, ["notesHtml"], errors);
+        if (hasExpected) StrictFields(expected, ["notesHtml", "title"], errors);
         var original = default(JsonElement);
         var hasOriginal = hasExpected && expected.ValueKind == JsonValueKind.Object && expected.TryGetProperty("notesHtml", out original);
         if (hasOriginal && original.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
             errors["notesHtml"] = ["Original Notes must be a string or null."];
         if (!hasChanges) return null;
-        StrictFields(changes, ["notesHtml"], errors);
+        StrictFields(changes, ["notesHtml", "title"], errors);
         if (changes.ValueKind != JsonValueKind.Object || !changes.TryGetProperty("notesHtml", out var desired)) return null;
         if (desired.ValueKind == JsonValueKind.Null) return null;
         if (desired.ValueKind != JsonValueKind.String)
@@ -42,6 +42,22 @@ internal static partial class EditorSegmentRequestParser
         }
         ValidateNotes(desired.GetString(), errors);
         return new(original.GetString(), RichNotes.Normalize(desired.GetString())!);
+    }
+
+    /// <summary>Reads independently selected title without deriving Clear from omission.</summary>
+    private static EditorSegmentTitleIntent? ReadTitleIntent(JsonElement request, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Object
+            || !changes.TryGetProperty("title", out var title)) return null;
+        if (title.ValueKind is not (JsonValueKind.Null or JsonValueKind.String)
+            || !request.TryGetProperty("expected", out var expected) || expected.ValueKind != JsonValueKind.Object
+            || !expected.TryGetProperty("title", out var original) || original.ValueKind is not (JsonValueKind.Null or JsonValueKind.String))
+        {
+            errors["title"] = ["Title requires a string or null and its exact original."];
+            return null;
+        }
+        try { return new(original.GetString(), Wayfarer.Services.TripCreditCodec.Title(title.GetString())); }
+        catch (FormatException) { errors["title"] = ["Title must contain at most 200 characters."]; return null; }
     }
 
     /// <summary>Requires exact member spelling and unique fields at each new dialect object boundary.</summary>

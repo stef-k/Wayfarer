@@ -39,6 +39,7 @@ internal static partial class EditorSegmentRequestParser
             || request.TryGetProperty("originalRouteToken", out _) || request.TryGetProperty("expected", out _)
             || request.TryGetProperty("changes", out _);
         var notesIntent = independent ? ReadIndependentIntent(request, errors) : null;
+        var titleIntent = independent ? ReadTitleIntent(request, errors) : null;
         var notesHtml = independent ? null : ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
         var proposal = ReadProposal(request, errors);
@@ -70,7 +71,7 @@ internal static partial class EditorSegmentRequestParser
             durationSource,
             EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             route,
-            aggregateToken, proposal, routeToken, notesIntent);
+            aggregateToken, proposal, routeToken, notesIntent, titleIntent);
         return true;
     }
 

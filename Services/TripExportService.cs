@@ -51,10 +51,31 @@ namespace Wayfarer.Parsers
             _imageProxyService = imageProxyService;
         }
 
+        /// <summary>Acquires a current source row before graph capture; a post-wait snapshot conflict aborts normally.</summary>
+        private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? BeginAcquisition(Guid tripId)
+        {
+            var transaction = _db.Database.IsRelational()
+                ? _db.Database.BeginTransaction(System.Data.IsolationLevel.RepeatableRead) : null;
+            try
+            {
+                if (transaction != null)
+                    _db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {tripId} FOR SHARE")
+                        .AsNoTracking().ToList();
+                RequireReuse(tripId);
+                return transaction;
+            }
+            catch { transaction?.Dispose(); throw; }
+        }
+
+        /// <summary>Every service reload and final delivery checks current policy, even after generation waits.</summary>
+        private void RequireReuse(Guid tripId) => TripReusePolicy.RequireAsync(_db, tripId,
+            TripReusePolicy.Caller(_ctx)).GetAwaiter().GetResult();
+
         /* ---------------------------------------------------------------- KML stubs */
 
         public string GenerateWayfarerKml(Guid tripId)
         {
+            using var acquisition = BeginAcquisition(tripId);
             var trip = _db.Trips
                            .Include(t => t.Regions).ThenInclude(r => r.Places)
                            .Include(t => t.Regions).ThenInclude(r => r.Areas)
@@ -74,6 +95,7 @@ namespace Wayfarer.Parsers
         /// <returns>The complete Google My Maps KML document.</returns>
         public string GenerateGoogleMyMapsKml(Guid tripId)
         {
+            using var acquisition = BeginAcquisition(tripId);
             var trip = _db.Trips
                 .Include(t => t.Regions).ThenInclude(r => r.Places)
                 .Include(t => t.Regions).ThenInclude(r => r.Areas)
@@ -89,6 +111,11 @@ namespace Wayfarer.Parsers
             /* root                                                                */
             var doc = new XElement(k + "Document",
                 new XElement(k + "name", trip.Name));
+
+            var attribution = TripCreditCodec.WriteAttribution(trip);
+            doc.Add(new XElement(k + "ExtendedData", new XElement(k + "Data",
+                new XAttribute("name", "WayfarerAttribution"), new XElement(k + "value", attribution))));
+            doc.Add(new XElement(k + "description", TripCreditCodec.Readable(TripCreditCodec.ReadAttribution(attribution))));
 
             // Add tags as ExtendedData at document level
             if (trip.Tags != null && trip.Tags.Any())
@@ -162,9 +189,6 @@ namespace Wayfarer.Parsers
                             string.IsNullOrWhiteSpace(p.Notes)
                                 ? null
                                 : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.Normalize(p.Notes)!)),
-                            /* hidden place-id */
-                            new XElement(k + "ExtendedData",
-                                new XElement(wf + "PlaceId", p.Id)),
                             /* geometry */
                             new XElement(k + "Point",
                                 new XElement(k + "coordinates",
@@ -216,7 +240,7 @@ namespace Wayfarer.Parsers
                     : "";
                 string modeTxt = string.IsNullOrWhiteSpace(s.Mode) ? "segment" : s.Mode;
 
-                string title = $"{fromTxt} → {toTxt}";
+                string title = s.Title ?? $"{fromTxt} → {toTxt}";
                 string desc = $"{etaTxt} by {modeTxt}".Trim();
 
                 doc.Add(

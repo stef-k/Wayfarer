@@ -32,6 +32,8 @@ internal static class WayfarerKmlAggregateMapper
             UserId = userId,
             Name = source.Name,
             Notes = source.Notes,
+            ContributionPolicy = source.ContributionPolicy,
+            Credits = source.Credits ?? [],
             CoverImageUrl = source.CoverImageUrl,
             CenterLat = source.CenterLat,
             CenterLon = source.CenterLon,
@@ -103,10 +105,11 @@ internal static class WayfarerKmlAggregateMapper
                 Id = segmentIds[sourceSegment.Id], TripId = tripId, UserId = userId,
                 FromPlaceId = fromId, FromPlace = sourceSegment.FromPlaceId.HasValue ? places[sourceSegment.FromPlaceId.Value] : null,
                 ToPlaceId = toId, ToPlace = sourceSegment.ToPlaceId.HasValue ? places[sourceSegment.ToPlaceId.Value] : null,
+                Title = sourceSegment.Title,
                 Mode = sourceSegment.Mode, TransportProfileId = profile?.Id,
                 RouteGeometry = sourceSegment.HasCustomRoute ? Copy(sourceSegment.Geometry) : null,
-                EstimatedDistanceKm = source.Version is 3 or 4 ? sourceSegment.DistanceKm : null,
-                EstimatedDuration = source.Version is 3 or 4 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
+                EstimatedDistanceKm = source.Version is 3 or 4 or 5 ? sourceSegment.DistanceKm : null,
+                EstimatedDuration = source.Version is 3 or 4 or 5 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
                     ? sourceSegment.Duration : null,
                 EstimatedDurationSource = sourceSegment.DurationSource,
                 DisplayOrder = sourceSegment.DisplayOrder,
@@ -114,7 +117,7 @@ internal static class WayfarerKmlAggregateMapper
                 Planning = CopyPlanning(sourceSegment.Planning, remapIdentities)
             };
             sourceSegment.RouteProvenance?.ApplyTo(segment);
-            if (source.Version is 3 or 4)
+            if (source.Version is 3 or 4 or 5)
             {
                 try { SegmentMeasurementState.Validate(segment); }
                 catch (InvalidOperationException exception) { throw new TripImportValidationException(exception.Message); }
@@ -172,7 +175,7 @@ internal static class WayfarerKmlAggregateMapper
             throw new TripImportValidationException("Manual duration is required.");
         if (segment.Duration is { Ticks: < 0 })
             throw new TripImportValidationException("Manual duration is outside the supported range.");
-        if (version is not (3 or 4) && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)
+        if (version is not (3 or 4 or 5) && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)
             throw new TripImportValidationException("Unavailable Automatic duration metadata must be empty.");
     }
 

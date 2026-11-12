@@ -82,9 +82,10 @@ public static class EditorTripStateMapper
         {
             Planning = trip.Planning,
             PlanningDiagnostics = Wayfarer.Models.Planning.PlanningValidation.Diagnostics(trip.Planning, "trip"),
+            ContributionPolicy = trip.ContributionPolicy, Credits = trip.Credits,
             OriginalValues = new(trip.Name, RichNotes.Normalize(trip.Notes), trip.IsPublic,
                 trip.CoverImageUrl == null ? null : new EditorImageUpdateRequest(trip.CoverImageUrl),
-                new(trip.CenterLat, trip.CenterLon), trip.Zoom)
+                new(trip.CenterLat, trip.CenterLon), trip.Zoom, trip.ContributionPolicy, trip.Credits)
         };
 
     /// <summary>
@@ -160,7 +161,8 @@ public static class EditorTripStateMapper
         {
             Planning = segment.Planning,
             PlanningDiagnostics = Wayfarer.Models.Planning.PlanningValidation.Diagnostics(segment.Planning, "segment"),
-            OriginalValues = new(RichNotes.Normalize(segment.Notes)),
+            Title = segment.Title,
+            OriginalValues = new(RichNotes.Normalize(segment.Notes), segment.Title),
             OriginalRouteToken = originalRouteToken
         };
     }

@@ -4,10 +4,11 @@ using Wayfarer.Util;
 
 namespace Wayfarer.Models.Dtos;
 
-/// <summary>Strict Notes-only intent with independently present nullable published originals.</summary>
-internal sealed record SegmentNotesConditionalRequest(string? Expected, string Desired)
+/// <summary>Strict independent Segment title/Notes intent; omission keeps each unselected field.</summary>
+internal sealed record SegmentNotesConditionalRequest(string? Expected, string? Desired,
+    bool HasNotes = true, bool HasTitle = false, string? ExpectedTitle = null, string? Title = null)
 {
-    /// <summary>Rejects ambiguous envelopes and non-Notes fields; null/omitted desired Notes never produces a fake save.</summary>
+    /// <summary>Each authored group requires its exact nullable original; explicit null title clears it.</summary>
     internal static async Task<SegmentNotesConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token)
     {
         try
@@ -15,37 +16,40 @@ internal sealed record SegmentNotesConditionalRequest(string? Expected, string D
             using var document = await JsonDocument.ParseAsync(body, cancellationToken: token);
             var root = Fields(document.RootElement, ["expected", "changes"]);
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
-                throw Invalid("request", "Both expected and changes objects are required.");
+                throw Invalid("Both expected and changes objects are required.");
             var key = web ? "notesHtml" : "notes";
-            var originals = Fields(expected, [key]);
-            var desired = Fields(changes, [key]);
-            if (!originals.TryGetValue(key, out var original)) throw Invalid(key, "The original published Notes value is required, including null.");
-            var before = Text(original, key);
-            if (!desired.TryGetValue(key, out var next) || Text(next, key) is not { } text)
-                throw Invalid("changes", "At least one effective Notes change is required. Use an empty string to clear Notes.");
-            if (RichNotes.ContainsDataImageSource(text)) throw Invalid(key, "Notes images must use external image URLs.");
-            // Originals are already published canonical evidence: never sanitize a different submitted base into a match.
-            return new(before, RichNotes.Normalize(text)!);
+            var originals = Fields(expected, [key, "title"]);
+            var desired = Fields(changes, [key, "title"]);
+            if (originals.Keys.Except(desired.Keys).Any() || desired.Keys.Except(originals.Keys).Any())
+                throw Invalid("Each selected field requires its original, including null.");
+            var notes = desired.TryGetValue(key, out var n) ? Text(n) : null;
+            var hasNotes = notes != null;
+            var hasTitle = desired.ContainsKey("title");
+            if (!hasNotes && !hasTitle) throw Invalid("Select at least one field. Clear Notes with an empty string.");
+            if (RichNotes.ContainsDataImageSource(notes)) throw Invalid("Notes images must use external image URLs.");
+            return new(hasNotes ? Text(originals[key]) : null, RichNotes.Normalize(notes), hasNotes, hasTitle,
+                hasTitle ? Text(originals["title"]) : null, hasTitle ? TripCreditCodec.Title(Text(desired["title"])) : null);
         }
-        catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
+        catch (Exception error) when (error is JsonException or FormatException)
+        { throw Invalid("The request contains invalid title or Notes data."); }
     }
 
-    /// <summary>Requires exact spelling and unique keys at each accepted object boundary.</summary>
     private static Dictionary<string, JsonElement> Fields(JsonElement value, string[] allowed)
     {
-        if (value.ValueKind != JsonValueKind.Object) throw Invalid("request", "An object is required.");
+        if (value.ValueKind != JsonValueKind.Object) throw Invalid("An object is required.");
         var fields = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         foreach (var field in value.EnumerateObject())
             if (!allowed.Contains(field.Name) || !fields.TryAdd(field.Name, field.Value))
-                throw Invalid("request", "Unknown or duplicate fields are not supported.");
+                throw Invalid("Unknown or duplicate fields are not supported.");
         return fields;
     }
 
-    /// <summary>Preserves null and empty separately and rejects coercion of non-text values.</summary>
-    private static string? Text(JsonElement value, string key) => value.ValueKind is JsonValueKind.String or JsonValueKind.Null
-        ? value.GetString() : throw Invalid(key, "Notes must be a string or null.");
+    private static string? Text(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.Null => null,
+        JsonValueKind.String => value.GetString(),
+        _ => throw Invalid("A string or null is required.")
+    };
 
-    /// <summary>Gives field guidance without reflecting private submitted content.</summary>
-    private static TripMetadataMutationRejected Invalid(string key, string message) =>
-        new(400, "mutation-request-invalid", "Check the requested Segment Notes.", new() { [key] = [message] });
+    private static TripMetadataMutationRejected Invalid(string detail) => new(400, "mutation-request-invalid", detail);
 }

@@ -5,6 +5,10 @@ namespace Wayfarer.Models.Dtos;
 /// </summary>
 public class ApiTripDto
 {
+    /// <summary>Owner contributions only; inherited notices remain distinct and legacy null is view-only.</summary>
+    public string? ContributionPolicy { get; set; }
+    /// <summary>Self-contained publishable inherited attribution.</summary>
+    public IReadOnlyList<Wayfarer.Models.TripCredit> Credits { get; set; } = [];
     public Guid Id { get; set; }
     public string Name { get; set; } = "";
     public string? Notes { get; set; }
@@ -29,6 +33,10 @@ public class ApiTripDto
 /// </summary>
 public class ApiTagDto
 {
+    /// <summary>Owner contributions only; inherited notices remain distinct and legacy null is view-only.</summary>
+    public string? ContributionPolicy { get; set; }
+    /// <summary>Self-contained publishable inherited attribution.</summary>
+    public IReadOnlyList<Wayfarer.Models.TripCredit> Credits { get; set; } = [];
     public Guid Id { get; set; }
     public string Slug { get; set; } = "";
     public string Name { get; set; } = "";

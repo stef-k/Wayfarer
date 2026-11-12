@@ -899,6 +899,7 @@ public partial class TripsController : BaseApiController
             return Ok(new
             {
                 clonedTripId = clone.ClonedTripId,
+                mediaOmitted = clone.MediaOmitted,
                 message = $"Trip '{clone.SourceTripName}' has been cloned successfully"
             });
         }

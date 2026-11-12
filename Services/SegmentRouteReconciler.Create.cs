@@ -88,6 +88,7 @@ public static partial class SegmentRouteReconciler
         ApplyTrackedState(dbContext, segment, proposal, placesById, geometry);
         ApplyMeasurements(segment, measurement!);
         if (proposal.ApplyNotes) segment.Notes = proposal.NotesHtml ?? string.Empty;
+        if (proposal.ApplyTitle) segment.Title = TripCreditCodec.Title(proposal.Title);
         return new(true, [], anchors);
     }
 

@@ -79,6 +79,8 @@ public static class GoogleMyMapsKmlParser
         }
 
         var trip = BuildTrip(root, acceptedRoutes, userId);
+        var attribution = WayfarerKmlParser.ReadGoogleAttribution(document);
+        if (attribution != null) trip.Credits = TripCreditCodec.Inherited(attribution);
         return new(trip, BuildNotices(acceptedRoutes));
     }
 

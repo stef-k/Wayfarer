@@ -24,6 +24,7 @@ public partial class TripImportService
             TripRichNotes.NormalizeDestination(incoming);
             var current = await LockReplacementAsync(source.TripId, owner, cancellationToken);
             await ValidateReplacementIdentitiesAsync(incoming, cancellationToken);
+            PreservePortableOmissions(source, current, incoming);
             TripImportTagReconciler.ValidateTokens(source.Tags);
             return _review.Preview(current, incoming, NativeImportReviewProtection.Binding(current, owner, digest));
         }
@@ -37,6 +38,17 @@ public partial class TripImportService
         var (classification, digest) = await ReadInputAsync(file, cancellationToken);
         var source = classification.Document ?? throw new TripImportValidationException("Only native KML supports update.");
         return new(await ImportNativeAsync(source, owner, TripImportMode.Upsert, digest, approval, cancellationToken), []);
+    }
+
+    /// <summary>Older envelopes omit portable intent; retain root and same-type Segment fields across reconstruction.</summary>
+    private static void PreservePortableOmissions(WayfarerKmlDocument source, Trip current, Trip incoming)
+    {
+        if (source.Version >= 5) return;
+        incoming.Credits = current.Credits;
+        incoming.ContributionPolicy = current.ContributionPolicy;
+        var titles = current.Segments.ToDictionary(s => s.Id, s => s.Title);
+        foreach (var segment in incoming.Segments)
+            if (titles.TryGetValue(segment.Id, out var title)) segment.Title = title;
     }
 
     /// <summary>Hashes every original byte, including encoding and trailing whitespace, inside the established budget.</summary>
