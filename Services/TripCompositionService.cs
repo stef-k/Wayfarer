@@ -39,7 +39,7 @@ public sealed class TripCompositionService(ApplicationDbContext db)
             if (sourceB.HasValue && (b == null || b.UserId != owner && (!b.IsPublic || !TripReusePolicy.GrantsReuse(b)))) throw Unavailable();
             // Ownership discovered before the transaction is only lock ordering input, never authority.
             if (!owners.Contains(a.UserId) || b != null && !owners.Contains(b.UserId)) throw Unavailable();
-            var mappings = new Dictionary<Guid, Guid>();
+            var mappings = new List<TripCompositionMapping>();
             Trip c;
             try { c = await construction.ConstructCloneAsync(a, owner, token, keepPlanning, mappings); }
             catch (Exception invalid) when (invalid is InvalidOperationException or FormatException)
@@ -58,7 +58,7 @@ public sealed class TripCompositionService(ApplicationDbContext db)
                     Id = compositionId!.Value, TripId = c.Id, UserId = owner, CreatedAt = DateTime.UtcNow,
                     SourceAId = a.Id, SourceBId = b.Id,
                     SnapshotA = TripCompositionSnapshot.Capture(a, true),
-                    SnapshotB = TripCompositionSnapshot.Capture(b, b.UserId == owner),
+                    SnapshotB = TripCompositionSnapshot.Capture(b, b.UserId == owner, mediaOmitted),
                     Mappings = JsonSerializer.Serialize(mappings, TripCompositionSnapshot.Json)
                 });
             }
@@ -109,15 +109,17 @@ public sealed class TripCompositionService(ApplicationDbContext db)
         if (workspace.FinishedAt != null) throw Closed();
         if (credential != null && !await credential(token)) throw Unavailable();
         var current = await new TripCloneCoordinator(db).LoadSourceAsync(workspace.TripId, token) ?? throw Unavailable();
-        var present = current.Regions.Select(r => r.Id).Concat(current.Regions.SelectMany(r => r.Places).Select(p => p.Id))
-            .Concat(current.Regions.SelectMany(r => r.Areas).Select(a => a.Id)).Concat(current.Segments.Select(s => s.Id)).Append(current.Id).ToHashSet();
-        var mappings = JsonSerializer.Deserialize<Dictionary<Guid, Guid>>(workspace.Mappings!)!;
+        var present = current.Regions.Select(r => ("region", r.Id))
+            .Concat(current.Regions.SelectMany(r => r.Places).Select(p => ("place", p.Id)))
+            .Concat(current.Regions.SelectMany(r => r.Areas).Select(a => ("area", a.Id)))
+            .Concat(current.Segments.Select(s => ("segment", s.Id))).Append(("trip", current.Id)).ToHashSet();
+        var mappings = JsonSerializer.Deserialize<TripCompositionMapping[]>(workspace.Mappings!, TripCompositionSnapshot.Json)!;
         return new
         {
             compositionId = workspace.Id, tripId = current.Id, status = "inProgress",
             sourceA = JsonSerializer.Deserialize<JsonElement>(workspace.SnapshotA!),
             sourceB = JsonSerializer.Deserialize<JsonElement>(workspace.SnapshotB!),
-            mappings = mappings.Select(m => new { sourceId = m.Key, destinationId = m.Value, decision = present.Contains(m.Value) ? "included" : "destinationRemoved" }).ToArray(),
+            mappings = mappings.Select(m => new { source = "a", kind = m.Kind, sourceId = m.SourceId, destinationId = m.DestinationId, decision = present.Contains((m.Kind, m.DestinationId)) ? "included" : "destinationRemoved" }).ToArray(),
             current = TripCompositionSnapshot.Project(current, true)
         };
     }

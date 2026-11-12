@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Wayfarer.Models;
 using Wayfarer.Services;
@@ -26,13 +27,17 @@ public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture f
         var b = new Trip { Id = Guid.NewGuid(), UserId = foreign.Id, Name = "Reusable B", IsPublic = true, ContributionPolicy = "CC-BY-4.0",
             Planning = new(1, [new(Guid.NewGuid(), new("unknown"), "foreign-secret")]) };
         fixture.RegisterTrip(a.Id); fixture.RegisterTrip(b.Id);
-        db.AddRange(a, b, new ApiToken { Name = "composition", Token = owner.Id, UserId = owner.Id });
+        db.AddRange(a, b, new ApiToken { Name = "composition", Token = owner.Id, UserId = owner.Id, User = await db.Users.SingleAsync(u => u.Id == owner.Id) });
         await db.SaveChangesAsync();
+        var logs = new TestLogProvider();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
+            services.AddLogging(l => l.AddProvider(logs));
             services.AddScoped(_ => fixture.CreateContext());
             services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new Factory(fixture));
             services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+            services.AddSingleton(Mock.Of<IIconColorProvider>());
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
         });
         using var browser = app.GetTestClient(); using var mobile = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(browser, app.Services, owner.Id);
@@ -41,7 +46,7 @@ public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture f
         Assert.Equal(HttpStatusCode.BadRequest, csrf.StatusCode); Assert.True(csrf.Headers.CacheControl!.NoStore);
         // A cookie cannot authorize the mobile surface.
         using var noBearer = await browser.PostAsJsonAsync("/api/trips/compositions", request);
-        Assert.Equal(HttpStatusCode.Unauthorized, noBearer.StatusCode); Assert.True(noBearer.Headers.CacheControl!.NoStore);
+        Assert.True(noBearer.StatusCode == HttpStatusCode.Unauthorized, await noBearer.Content.ReadAsStringAsync() + string.Join("\n", logs.Entries.Select(e => e.Exception?.ToString()))); Assert.True(noBearer.Headers.CacheControl!.NoStore);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(browser);
         using var start = await browser.PostAsJsonAsync("/api/trip-compositions", request);
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
@@ -49,6 +54,8 @@ public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture f
         var c = created.RootElement.GetProperty("tripId").GetGuid(); fixture.RegisterTrip(c);
         var workspace = created.RootElement.GetProperty("compositionId").GetGuid();
         mobile.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", owner.Id);
+        using var foreignVersion = await mobile.PostAsJsonAsync("/api/trips/versions", new { sourceA = b.Id });
+        Assert.Equal(HttpStatusCode.NotFound, foreignVersion.StatusCode);
         using var resumed = await mobile.GetAsync($"/api/trips/compositions/{workspace}");
         Assert.Equal(HttpStatusCode.OK, resumed.StatusCode); Assert.True(resumed.Headers.CacheControl!.NoStore);
         using var comparison = JsonDocument.Parse(await resumed.Content.ReadAsStringAsync());
@@ -59,12 +66,12 @@ public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture f
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Contains(workspace.ToString(), await list.Content.ReadAsStringAsync());
         // Publication uses the normal conditional writer and remains independent of Finish.
-        using var published = await mobile.PatchAsJsonAsync($"/api/trips/{c}/conditional", new
+        using var published = await browser.PatchAsJsonAsync($"/api/trips/{c}/editor/metadata/conditional", new
         {
             expected = new { isPublic = false, contributionPolicy = (string?)null },
             changes = new { isPublic = true, contributionPolicy = "CC0-1.0" }
         });
-        Assert.Equal(HttpStatusCode.OK, published.StatusCode);
+        Assert.True(published.StatusCode == HttpStatusCode.OK, await published.Content.ReadAsStringAsync());
         var publicBefore = await browser.GetByteArrayAsync($"/api/trips/{c}");
         var publicText = System.Text.Encoding.UTF8.GetString(publicBefore);
         Assert.DoesNotContain("planning", publicText, StringComparison.OrdinalIgnoreCase);

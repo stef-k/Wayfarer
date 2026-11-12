@@ -6,6 +6,7 @@ namespace Wayfarer.Models.Configuration;
 /// <summary>Only C owns comparison/origin rows; source deletion never cascades into independent content.</summary>
 public sealed class TripCompositionConfiguration : IEntityTypeConfiguration<TripComposition>, IEntityTypeConfiguration<TripOrigin>
 {
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<TripComposition> row)
     {
         row.ToTable("TripCompositions");
@@ -22,6 +23,7 @@ public sealed class TripCompositionConfiguration : IEntityTypeConfiguration<Trip
             "(\"FinishedAt\" IS NOT NULL AND \"SnapshotA\" IS NULL AND \"SnapshotB\" IS NULL AND \"Mappings\" IS NULL AND \"SourceAId\" IS NULL AND \"SourceBId\" IS NULL)"));
     }
 
+    /// <inheritdoc />
     public void Configure(EntityTypeBuilder<TripOrigin> row)
     {
         row.ToTable("TripOrigins");

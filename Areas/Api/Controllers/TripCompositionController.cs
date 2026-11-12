@@ -9,18 +9,20 @@ namespace Wayfarer.Areas.Api.Controllers;
 
 /// <summary>Explicit construction input; an omitted own-planning choice retains it. No retry/request key exists.</summary>
 public sealed record TripConstructionRequest(Guid SourceA, Guid? SourceB,
-    [property: StringLength(200, MinimumLength = 1)] string? Name,
-    [property: StringLength(2000)] string? ChangeNote, bool KeepOwnBasePlanning = true);
+    [StringLength(200, MinimumLength = 1)] string? Name,
+    [StringLength(2000)] string? ChangeNote, bool KeepOwnBasePlanning = true);
 
 /// <summary>Cookie/antiforgery lifecycle foundation for the later My Trips interface.</summary>
 [ApiController, Area("Api"), Authorize(Roles = "User"), Route("api/trip-compositions")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class TripCompositionController(ApplicationDbContext db) : ControllerBase
 {
+    /// <summary>Creates a private independent owned version without a comparison workspace.</summary>
     [HttpPost("versions"), ValidateAntiForgeryToken, RequestSizeLimit(8192)]
     public Task<IActionResult> Version(TripConstructionRequest request, CancellationToken token) => Execute(async owner =>
         await new TripCompositionService(db).CreateAsync(owner, request.SourceA, null, request.Name, request.ChangeNote, request.KeepOwnBasePlanning, token: token));
 
+    /// <summary>Explicitly creates a new private C and immutable authorized A/B comparison.</summary>
     [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(8192)]
     public Task<IActionResult> Start(TripConstructionRequest request, CancellationToken token) => Execute(async owner =>
     {
@@ -28,12 +30,15 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
         return await new TripCompositionService(db).CreateAsync(owner, request.SourceA, request.SourceB, request.Name, request.ChangeNote, request.KeepOwnBasePlanning, token: token);
     });
 
+    /// <summary>Lists unfinished comparisons, optionally by the ordered source pair.</summary>
     [HttpGet]
     public Task<IActionResult> List(Guid? sourceA, Guid? sourceB, CancellationToken token) => Execute(owner => new TripCompositionService(db).ListAsync(owner, sourceA, sourceB, token));
 
+    /// <summary>Resumes the same C with its current content and captured comparison inputs.</summary>
     [HttpGet("{id:guid}")]
     public Task<IActionResult> Read(Guid id, CancellationToken token) => Execute(owner => new TripCompositionService(db).ReadAsync(owner, id, token));
 
+    /// <summary>Closes comparison and removes its payload without altering C.</summary>
     [HttpPost("{id:guid}/finish"), ValidateAntiForgeryToken]
     public Task<IActionResult> Finish(Guid id, CancellationToken token) => Execute(async owner => await new TripCompositionService(db).FinishAsync(owner, id, token: token));
 
@@ -44,7 +49,8 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
         if (owner == null) return Unauthorized();
         try { return Ok(await action(owner)); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
-        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException)
+        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException or AggregateException
+            || error is InvalidOperationException { InnerException: System.Data.Common.DbException })
         {
             return StatusCode(503, new { code = "composition-save-unconfirmed", detail = "The request could not be confirmed. Inspect or refresh your Trips before trying again." });
         }
@@ -58,6 +64,7 @@ public partial class TripsController
     public Task<IActionResult> CreateVersion(TripConstructionRequest request, CancellationToken token) => CompositionRequest(async (owner, check) =>
         await new TripCompositionService(_dbContext).CreateAsync(owner, request.SourceA, null, request.Name, request.ChangeNote, request.KeepOwnBasePlanning, check, token), token);
 
+    /// <summary>Bearer Start uses the same owned-base and current public-reuse authority.</summary>
     [HttpPost("compositions"), RequestSizeLimit(8192)]
     public Task<IActionResult> StartComposition(TripConstructionRequest request, CancellationToken token) => CompositionRequest(async (owner, check) =>
     {
@@ -65,14 +72,17 @@ public partial class TripsController
         return await new TripCompositionService(_dbContext).CreateAsync(owner, request.SourceA, request.SourceB, request.Name, request.ChangeNote, request.KeepOwnBasePlanning, check, token);
     }, token);
 
+    /// <summary>Lists this active bearer owner's unfinished comparisons.</summary>
     [HttpGet("compositions")]
     public Task<IActionResult> ListCompositions(Guid? sourceA, Guid? sourceB, CancellationToken token) => CompositionRequest(
         (owner, check) => new TripCompositionService(_dbContext).ListAsync(owner, sourceA, sourceB, token, check), token);
 
+    /// <summary>Reads the saved comparison and independently editable current C.</summary>
     [HttpGet("compositions/{id:guid}")]
     public Task<IActionResult> ReadComposition(Guid id, CancellationToken token) => CompositionRequest(
         (owner, check) => new TripCompositionService(_dbContext).ReadAsync(owner, id, token, check), token);
 
+    /// <summary>Revalidates bearer authority and atomically finishes the owned comparison.</summary>
     [HttpPost("compositions/{id:guid}/finish")]
     public Task<IActionResult> FinishComposition(Guid id, CancellationToken token) => CompositionRequest(async (owner, check) =>
         await new TripCompositionService(_dbContext).FinishAsync(owner, id, check, token), token);
@@ -86,7 +96,8 @@ public partial class TripsController
         if (user == null) return Unauthorized();
         try { return Ok(await action(user.Id, ct => authority.RevalidateMutationAsync(HttpContext, user.Id, ct))); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
-        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException)
+        catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException or AggregateException
+            || error is InvalidOperationException { InnerException: System.Data.Common.DbException })
         {
             return StatusCode(503, new { code = "composition-save-unconfirmed", detail = "The request could not be confirmed. Inspect or refresh your Trips before trying again." });
         }

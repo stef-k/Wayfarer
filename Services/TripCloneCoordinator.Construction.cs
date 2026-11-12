@@ -13,7 +13,7 @@ public sealed partial class TripCloneCoordinator
         Trip source,
         string destinationUserId,
         CancellationToken cancellationToken, bool keepPlanning = false,
-        IDictionary<Guid, Guid>? identities = null)
+        ICollection<TripCompositionMapping>? identities = null)
     {
         if (source.Regions.Count(r => r.Name == "Unassigned Places") > 1)
             throw new InvalidOperationException("Duplicate Unassigned Places Regions require reconciliation.");
@@ -27,7 +27,7 @@ public sealed partial class TripCloneCoordinator
             CoverImageUrl = source.CoverImageUrl, UpdatedAt = DateTime.UtcNow,
             Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(source.Planning, true) : null
         };
-        identities?.Add(source.Id, clone.Id);
+        identities?.Add(new("trip", source.Id, clone.Id));
         var placeMap = new Dictionary<Guid, Guid>();
         foreach (var sourceRegion in source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id))
         {
@@ -39,11 +39,11 @@ public sealed partial class TripCloneCoordinator
                 Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourceRegion.Planning, true) : null, CoverImageUrl = sourceRegion.CoverImageUrl,
                 Center = CopyPoint(sourceRegion.Center)
             };
-            identities?.Add(sourceRegion.Id, region.Id);
+            identities?.Add(new("region", sourceRegion.Id, region.Id));
             foreach (var sourcePlace in sourceRegion.Places.OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id))
             {
                 var placeId = Guid.NewGuid();
-                identities?.Add(sourcePlace.Id, placeId);
+                identities?.Add(new("place", sourcePlace.Id, placeId));
                 if (!placeMap.TryAdd(sourcePlace.Id, placeId))
                     throw new InvalidOperationException("A source Place identity was loaded more than once.");
                 var enrichment = ResolvedFeatureMetadata.NormalizePersisted(
@@ -67,7 +67,7 @@ public sealed partial class TripCloneCoordinator
             foreach (var sourceArea in sourceRegion.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).ThenBy(a => a.Id))
             {
                 var areaId = Guid.NewGuid();
-                identities?.Add(sourceArea.Id, areaId);
+                identities?.Add(new("area", sourceArea.Id, areaId));
                 region.Areas.Add(new Area
                 {
                     Id = areaId, RegionId = region.Id, Name = sourceArea.Name,
@@ -90,7 +90,7 @@ public sealed partial class TripCloneCoordinator
             var segment = CreateSegmentClone(sourceSegment, clone.Id, destinationUserId, placeMap);
             segment.DisplayOrder = clone.Segments.Count;
             segment.Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourceSegment.Planning, true) : null;
-            identities?.Add(sourceSegment.Id, segment.Id);
+            identities?.Add(new("segment", sourceSegment.Id, segment.Id));
             clone.Segments.Add(segment);
         }
 

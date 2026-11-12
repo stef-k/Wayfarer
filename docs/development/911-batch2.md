@@ -78,9 +78,10 @@ orders and unrelated lists are unchanged. Later interactive placement is Batch 3
 Snapshots use a versioned explicit graph projection, raw stored routes/measurements,
 and separate sequence vectors. Authorized own planning has a separate projection;
 foreign planning has no property, placeholder, count, diagnostics or presence hint.
+The snapshot retains a `mediaOmitted` indication for later reselection.
 No account objects, credentials, visits, progress-sharing state or private origins
 enter this projection. Batch-1 media omission applies before foreign snapshotting.
-Resume returns immutable `sourceA`/`sourceB`, initial source-to-C `mappings` and
+Resume returns immutable `sourceA`/`sourceB`, initial type-scoped source-A-to-C `mappings` and
 current C with own planning. Missing C identities report `destinationRemoved`;
 retained scalar mappings survive deletions and no read reconstructs content.
 There is no per-action history or premature matching engine.

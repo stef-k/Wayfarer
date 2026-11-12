@@ -15,7 +15,7 @@ internal static class TripCompositionSnapshot
     };
 
     /// <summary>Captures complete stored routes, without a public fallback resolver replacing custom geometry or measurements.</summary>
-    internal static object Project(Trip source, bool own)
+    internal static object Project(Trip source, bool own, bool mediaOmitted = false)
     {
         var places = source.Regions.SelectMany(r => r.Places).Select(p => p.Id).ToHashSet();
         foreach (var segment in source.Segments)
@@ -44,7 +44,7 @@ internal static class TripCompositionSnapshot
         var order = source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToArray();
         return new
         {
-            format = 1, graph,
+            format = 1, graph, mediaOmitted,
             regionOrder = order.Select(r => r.Id),
             placeOrder = order.ToDictionary(r => r.Id, r => r.Places.OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Id).ToArray()),
             areaOrder = order.ToDictionary(r => r.Id, r => r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).ThenBy(a => a.Id).Select(a => a.Id).ToArray()),
@@ -52,5 +52,8 @@ internal static class TripCompositionSnapshot
         };
     }
 
-    internal static string Capture(Trip source, bool own) => JsonSerializer.Serialize(Project(source, own), Json);
+    internal static string Capture(Trip source, bool own, bool mediaOmitted = false) => JsonSerializer.Serialize(Project(source, own, mediaOmitted), Json);
 }
+
+/// <summary>Type-scoped identities avoid conflating valid equal UUIDs in different source tables.</summary>
+internal sealed record TripCompositionMapping(string Kind, Guid SourceId, Guid DestinationId);

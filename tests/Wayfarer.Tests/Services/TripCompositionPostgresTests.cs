@@ -79,6 +79,7 @@ public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixtu
         fixture.RegisterTrip(result.TripId);
         Assert.True(result.MediaOmitted);
         var workspace = await db.Set<TripComposition>().SingleAsync(w => w.Id == result.CompositionId);
+        Assert.True(JsonDocument.Parse(workspace.SnapshotB!).RootElement.GetProperty("mediaOmitted").GetBoolean());
         Assert.DoesNotContain("planning", workspace.SnapshotB!, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(b.UserId, workspace.SnapshotB!);
         Assert.DoesNotContain("secret-plan", workspace.SnapshotB!);
@@ -97,6 +98,7 @@ public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixtu
         TripConstructionResult result;
         await using (var db = fixture.CreateContext())
         {
+            await db.Trips.Where(t => t.Id == b.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.IsPublic, false));
             result = await new TripCompositionService(db).CreateAsync(a.UserId, a.Id, b.Id, null, null);
             fixture.RegisterTrip(result.TripId);
         }
@@ -104,6 +106,8 @@ public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixtu
         var service = new TripCompositionService(read);
         var before = await read.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == result.CompositionId);
         Assert.Contains("secret-plan", before.SnapshotB!);
+        var another = await service.CreateAsync(a.UserId, a.Id, b.Id, null, null);
+        fixture.RegisterTrip(another.TripId); Assert.NotEqual(result.TripId, another.TripId);
         await read.Trips.Where(t => t.Id == result.TripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.Name, "Edited C").SetProperty(t => t.IsPublic, true));
         var removed = await read.Areas.Where(p => p.Region.TripId == result.TripId).FirstAsync();
         read.Areas.Remove(removed); await read.SaveChangesAsync(); read.ChangeTracker.Clear();
@@ -114,9 +118,7 @@ public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixtu
         Assert.Contains("Edited C", resumed.GetProperty("current").ToString());
         Assert.Contains("destinationRemoved", resumed.GetProperty("mappings").ToString());
         Assert.True(JsonElement.DeepEquals(JsonDocument.Parse(before.SnapshotA!).RootElement, resumed.GetProperty("sourceA")));
-        Assert.Single((JsonSerializer.SerializeToElement(await service.ListAsync(a.UserId, a.Id, b.Id))).EnumerateArray());
-        var another = await service.CreateAsync(a.UserId, a.Id, a.Id, null, null);
-        fixture.RegisterTrip(another.TripId); Assert.NotEqual(result.TripId, another.TripId);
+        Assert.Equal(2, JsonSerializer.SerializeToElement(await service.ListAsync(a.UserId, a.Id, b.Id)).GetArrayLength());
         var c = await Load(read, result.TripId);
         var timestamp = c.UpdatedAt;
         await service.FinishAsync(a.UserId, result.CompositionId.Value);
@@ -272,6 +274,26 @@ public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixtu
         Assert.Null(historical.FromPlaceId); Assert.Null(historical.ToPlaceId); Assert.Null(historical.RouteGeometry);
         Assert.Null(historical.EstimatedDistanceKm); Assert.Null(historical.EstimatedDuration);
         Assert.All((await Load(db, a.Id)).Regions.Single(r => r.Name == "Region").Places.Where(p => p.DisplayOrder != null), p => Assert.Equal(8, p.DisplayOrder));
+    }
+
+    /// <summary>Database UUIDs are scoped by graph type, including equal Trip/Region/Place keys.</summary>
+    [PostgresFact]
+    public async Task EqualIdsAcrossSourceTypesRemainIndependentMappings()
+    {
+        var owner = await fixture.CreateUserAsync();
+        var id = Guid.NewGuid();
+        var a = new Trip { Id = id, UserId = owner.Id, Name = "Typed source" };
+        var region = new Region { Id = id, TripId = id, UserId = owner.Id, Name = "Region" };
+        region.Places.Add(new Place { Id = id, RegionId = id, UserId = owner.Id, Name = "Place" });
+        a.Regions.Add(region); fixture.RegisterTrip(id);
+        await using var db = fixture.CreateContext(); db.Trips.Add(a); await db.SaveChangesAsync();
+        var result = await new TripCompositionService(db).CreateAsync(owner.Id, id, id, null, null);
+        fixture.RegisterTrip(result.TripId);
+        var read = JsonSerializer.SerializeToElement(await new TripCompositionService(db).ReadAsync(owner.Id, result.CompositionId!.Value));
+        var mappings = read.GetProperty("mappings").EnumerateArray().ToArray();
+        Assert.Equal(3, mappings.Length);
+        Assert.Equal(3, mappings.Select(m => m.GetProperty("destinationId").GetGuid()).Distinct().Count());
+        Assert.All(mappings, m => Assert.Equal("included", m.GetProperty("decision").GetString()));
     }
 
     /// <summary>Pauses source acquisition at its actual row barrier after the repeatable snapshot has started.</summary>
