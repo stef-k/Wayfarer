@@ -39,7 +39,16 @@ internal static partial class EditorSegmentRequestParser
             || request.TryGetProperty("originalRouteToken", out _) || request.TryGetProperty("expected", out _)
             || request.TryGetProperty("changes", out _);
         var notesIntent = independent ? ReadIndependentIntent(request, errors) : null;
-        var titleIntent = independent ? ReadTitleIntent(request, errors) : null;
+        var titleIntent = ReadTitleIntent(request, errors);
+        if (!independent && request.TryGetProperty("title", out var legacyTitle))
+        {
+            try
+            {
+                if (legacyTitle.ValueKind is not (JsonValueKind.String or JsonValueKind.Null)) throw new FormatException();
+                titleIntent = new(null, Wayfarer.Services.TripCreditCodec.Title(legacyTitle.GetString()));
+            }
+            catch (FormatException) { errors["title"] = ["Title must be a string of at most 200 characters, or null."]; }
+        }
         var notesHtml = independent ? null : ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
         var proposal = ReadProposal(request, errors);

@@ -92,6 +92,11 @@
 <!-- ░ Cover ░ -->
 <section class="avoid-break" style="page-break-after:always;text-align:center;">
     <h1>@trip.Name</h1>
+    @* Actual self-contained notices remain readable in the downloaded PDF. *@
+    <section aria-label="Sources and credits">
+        <h2>Sources &amp; credits</h2>
+        <p style="white-space:pre-wrap">@Wayfarer.Services.TripCreditCodec.Readable(Wayfarer.Services.TripCreditCodec.ReadAttribution(Wayfarer.Services.TripCreditCodec.WriteAttribution(trip)))</p>
+    </section>
     @if (!string.IsNullOrWhiteSpace(Snap("cover")))
     {
         <img src="@Snap("cover")" class="map"/>
@@ -162,7 +167,7 @@
 
                 <li class="avoid-break" style="margin-bottom:.7rem;">
                     <p class="mb-1">
-                        <strong>@journey.TrailText</strong><br/>
+                        <strong>@(s.Title ?? journey.TrailText)</strong><br/>
                         Estimated Distance: @dist km |
                         Estimated Duration: @dur |
                         Transport Mode: @s.Mode
@@ -266,15 +271,7 @@
             }
         </ul>
 
-        @{
-            // region-specific segments (kept exactly as before)
-            var segs = Model.Segments.Where(s =>
-            {
-                var fromReg = Model.Places.First(pl => pl.Id == s.FromPlaceId).RegionId;
-                var toReg = Model.Places.First(pl => pl.Id == s.ToPlaceId).RegionId;
-                return fromReg == r.Id || toReg == r.Id;
-            }).ToList();
-        }
+
     </section>
 }
 </body>

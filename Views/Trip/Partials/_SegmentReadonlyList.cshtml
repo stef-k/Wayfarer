@@ -41,7 +41,7 @@
                 var toName = journey.Anchors.LastOrDefault()?.DisplayName ?? "Unavailable place";
                 var fromRegion = journey.Anchors.FirstOrDefault()?.RegionName ?? "";
                 var toRegion = journey.Anchors.LastOrDefault()?.RegionName ?? "";
-                var label = journey.TrailText ?? "Journey unavailable";
+                var label = seg.Title ?? journey.TrailText ?? "Journey unavailable";
                 var presentationAnchors = JsonSerializer.Serialize(journey.Anchors.Select(anchor => new
                 {
                     position = anchor.Position,
@@ -86,8 +86,8 @@
                         }
                         data-segment-notes="@(Wayfarer.Util.RichNotes.Normalize(seg?.Notes) ?? "")">
 
-                        <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@journey.AccessibleName">
-                            @journey.CompactTrail
+                        <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@(seg.Title ?? journey.AccessibleName)">
+                            @(seg.Title ?? journey.CompactTrail)
                         </button>
                         <div class="d-flex align-items-start gap-2 small">
                             <span class="fs-5" aria-hidden="true">@emojiIcon</span>

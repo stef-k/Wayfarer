@@ -25,6 +25,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var destination = TestDataFixtures.CreateUser(id: "destination");
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Tuple clone", isPublic: true);
+        source.ContributionPolicy = "CC-BY-4.0";
         var region = RegionWithPlaces(source, owner.Id, out var places);
         source.Notes = "<p onclick='bad()'>clone</p><script>bad()</script>";
         source.Regions = [region];
@@ -55,6 +56,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var destination = TestDataFixtures.CreateUser(id: "destination");
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Canonical clone", isPublic: true);
+        source.ContributionPolicy = "CC-BY-4.0";
         var region = RegionWithPlaces(source, owner.Id, out var places);
         places[0].Address = "Tokyo Tower, Tokyo";
         places[0].ResolvedFeatureName = "Tokyo Tower";
@@ -151,6 +153,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var destination = TestDataFixtures.CreateUser(id: "destination");
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Malformed clone", isPublic: true);
+        source.ContributionPolicy = "CC-BY-4.0";
         source.Segments.Add(new Segment
         {
             Id = Guid.NewGuid(), TripId = source.Id, UserId = owner.Id,
@@ -175,6 +178,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var destination = TestDataFixtures.CreateUser(id: "destination");
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Sub-second Manual clone", isPublic: true);
+        source.ContributionPolicy = "CC-BY-4.0";
         var region = RegionWithPlaces(source, owner.Id, out var places);
         source.Regions = [region];
         var segment = Segment(source, owner.Id, places[0], places[2], places[1], null, null);

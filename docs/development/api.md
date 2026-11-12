@@ -1643,6 +1643,13 @@ above. C4 retains its accepted evidence; C1/C2/C5 acceptance remains separate. #
 lost-reply behavior was accepted via #919. No schema migration or native Mobile
 qualification is part of C4.
 
+## Portable fields and reuse policy (#911 Batch 1)
+
+See the [authoritative field matrix, protected requests, native/Google examples and
+mobile coordination brief](911-batch1.md). Segment Title, Trip credits and the
+owner contribution policy are additive fields. Public full reads remain available
+and planning-redacted; reuse eligibility applies separately to Clone and downloads.
+
 ## Saved Trip measurements and native KML
 
 A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns
@@ -1654,8 +1661,7 @@ present. Provider credentials,
 verification, availability and current planning speeds do not participate in
 reading, transferring or cloning an already accepted result.
 
-Default native Trip exports declare `WayfarerSchemaVersion=3`; owner opt-in selects
-v4. See [personal native interchange](native-personal-interchange.md) for the complete
+Every new native Trip export declares `WayfarerSchemaVersion=5`; private planning inclusion remains independently opt-in. See [personal native interchange](native-personal-interchange.md) for the complete
 file codec, owner actions, import review/choice permits, atomicity and cache contract. Geometry, identities,
 waypoint integrity, ownership and numerical validity remain checked. The native
 version controls the following distinct representations:
@@ -1664,9 +1670,9 @@ version controls the following distinct representations:
 | --- | --- | --- |
 | v1 / recognized versionless legacy | `DurationMin` | Established Manual normalization and geometry/planning reconciliation. |
 | v2 | Integer `DurationSeconds` | Established canonical compatibility checks; no reinterpretation as fractional time. |
-| v3/v4 | Integer `DurationTicks` | Exact active `TimeSpan` ticks; values must be nonnegative multiples of 10, matching PostgreSQL interval microseconds. |
+| v3/v4/v5 | Integer `DurationTicks` | Exact active `TimeSpan` ticks; values must be nonnegative multiples of 10, matching PostgreSQL interval microseconds. |
 
-V3/v4 write `DistanceKm` with round-trip double precision and carries existing
+V3/v4/v5 write `DistanceKm` with round-trip double precision and carries existing
 credential-free source metadata in `RouteProvenance` JSON: `Provider`,
 `StorageMode`, `MappingMode`, `GeneratedAt`, `Attribution`, `InstructionsJson`,
 `TransportProfileId`, `ProviderConfigurationId`, `ProviderConfigurationVersion`.
@@ -1674,9 +1680,9 @@ Configuration/profile IDs in this provenance are historical scalar identities,
 not execution authority. The actual planning profile still resolves through
 `TransportProfileKey`. JSON members are bounded and duplicate/unknown claims,
 unsupported retention rights and invalid normalized instructions are rejected.
-Neither `DurationTicks` in older versions nor `DurationSeconds` in v3/v4 is accepted.
+Neither `DurationTicks` in older versions nor `DurationSeconds` in v3/v4/v5 is accepted.
 
-V3/v4 imports and existing clones preserve valid nulls, active values and Manual intent
+V3/v4/v5 imports and existing clones preserve valid nulls, active values and Manual intent
 without numerical recalculation. Finite nonnegative historical estimates remain
 valid even when current geometry/planning produces different numbers. Missing
 source metadata stays unknown; numerical differences never invent provider
@@ -1709,8 +1715,8 @@ as `FormatException` through the established `invalid_kml` response. Detached
 parsing finishes before either import path tracks a new graph or the native
 upsert transaction replaces children; the existing transaction owners are unchanged.
 
-These standard boundaries are supported by all current native v1/v2/v3/v4 readers,
-including recognized versionless v1. Default native export stays at v3; owner planning inclusion uses v4. This does
+These standard boundaries are supported by all current native v1/v2/v3/v4/v5 readers,
+including recognized versionless v1. Every new native export uses v5; owner planning inclusion remains independently opt-in. This does
 not qualify older Wayfarer readers or the external Google My Maps service. The
 change only affects Polygon Area interchange; existing saved Areas and the
 Region/Place/Segment contracts remain unchanged.

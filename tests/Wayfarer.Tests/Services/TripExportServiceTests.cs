@@ -29,7 +29,9 @@ public class TripExportServiceTests : TestBase
         return new TripExportService(
             db,
             null!, // MapSnapshotService - not needed for KML
-            null!, // IHttpContextAccessor - not needed for KML
+            new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext {
+                User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+                    [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, db.Trips.FirstOrDefault() == null ? "missing" : db.Trips.First().UserId)], "Test")) } },
             null!, // LinkGenerator - not needed for KML
             null!, // IRazorViewRenderer - not needed for KML
             NullLogger<TripExportService>.Instance,

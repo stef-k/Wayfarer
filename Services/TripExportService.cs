@@ -54,17 +54,33 @@ namespace Wayfarer.Parsers
         /// <summary>Acquires a current source row before graph capture; a post-wait snapshot conflict aborts normally.</summary>
         private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? BeginAcquisition(Guid tripId)
         {
+            var sourceOwner = _db.Trips.AsNoTracking().Where(t => t.Id == tripId).Select(t => t.UserId).SingleOrDefault();
             var transaction = _db.Database.IsRelational()
                 ? _db.Database.BeginTransaction(System.Data.IsolationLevel.RepeatableRead) : null;
             try
             {
+                if (transaction != null && sourceOwner != null)
+                    foreach (var owner in new[] { sourceOwner, TripReusePolicy.Caller(_ctx) }.OfType<string>().Distinct().Order(StringComparer.Ordinal))
+                        LocationDeletionFence.AcquireAsync(_db, owner, CancellationToken.None).GetAwaiter().GetResult();
+                if (transaction != null && sourceOwner != null)
+                    _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {sourceOwner} FOR SHARE")
+                        .AsNoTracking().ToList();
                 if (transaction != null)
                     _db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {tripId} FOR SHARE")
                         .AsNoTracking().ToList();
+                if (!_db.Trips.AsNoTracking().Any(t => t.Id == tripId))
+                    throw new ArgumentException("Trip not found.", nameof(tripId));
                 RequireReuse(tripId);
                 return transaction;
             }
-            catch { transaction?.Dispose(); throw; }
+            catch (Exception primary)
+            {
+                try { transaction?.Dispose(); }
+                catch (Exception cleanup) { throw new AggregateException("Export acquisition and cleanup failed.", primary, cleanup); }
+                if (primary is InvalidOperationException { InnerException: Npgsql.PostgresException { SqlState: "40001" or "40P01" } })
+                    throw new System.Data.DBConcurrencyException("The Trip changed during export acquisition.", primary);
+                throw;
+            }
         }
 
         /// <summary>Every service reload and final delivery checks current policy, even after generation waits.</summary>
@@ -85,6 +101,7 @@ namespace Wayfarer.Parsers
                            .FirstOrDefault(t => t.Id == tripId)
                        ?? throw new ArgumentException($"Trip not found: {tripId}", nameof(tripId));
 
+            if (TripReusePolicy.Caller(_ctx) != trip.UserId) TripCopyMedia.OmitUnqualified(trip);
             return TripWayfarerKmlExporter.BuildKml(trip);
         }
 
@@ -104,6 +121,7 @@ namespace Wayfarer.Parsers
                 .AsNoTracking()
                 .First(t => t.Id == tripId);
 
+            if (TripReusePolicy.Caller(_ctx) != trip.UserId) TripCopyMedia.OmitUnqualified(trip);
             /* namespaces --------------------------------------------------------- */
             XNamespace k = "http://www.opengis.net/kml/2.2";
             XNamespace wf = "https://wayfarer.stefk.me/kml"; // private → never shown

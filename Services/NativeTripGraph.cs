@@ -27,6 +27,6 @@ internal static class NativeTripGraph
             foreach (var place in region.Places) yield return ("place", place.Id, region.Id, place.Name, place);
             foreach (var area in region.Areas) yield return ("area", area.Id, region.Id, area.Name, area);
         }
-        foreach (var segment in trip.Segments) yield return ("segment", segment.Id, trip.Id, segment.Mode, segment);
+        foreach (var segment in trip.Segments) yield return ("segment", segment.Id, trip.Id, segment.Title ?? segment.Mode, segment);
     }
 }

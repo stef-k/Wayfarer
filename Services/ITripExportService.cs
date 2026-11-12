@@ -7,7 +7,7 @@ public interface ITripExportService
         bool includePrivatePlanning, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Builds redacted native v3 reusable content; personal planning requires the explicit owner action.
+    /// Builds redacted native v5 reusable content; personal planning requires the explicit owner action.
     /// </summary>
     string GenerateWayfarerKml(Guid tripId);
 

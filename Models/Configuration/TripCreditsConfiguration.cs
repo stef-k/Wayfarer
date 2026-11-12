@@ -11,7 +11,7 @@ public sealed class TripCreditsConfiguration : IEntityTypeConfiguration<Trip>
     /// <summary>Uses the shared strict codec for snapshots, persistence and authored originals.</summary>
     public void Configure(EntityTypeBuilder<Trip> builder)
     {
-        builder.Property(t => t.Credits).HasColumnType("jsonb")
+        builder.Property(t => t.Credits).HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb")
             .HasConversion(value => TripCreditCodec.Write(value), json => TripCreditCodec.Read(json))
             .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<TripCredit>>(
                 (a, b) => TripCreditCodec.Write(a!) == TripCreditCodec.Write(b!),

@@ -227,7 +227,7 @@ verify server history separately. For undelivered recordings, follow
 
 From your own **View/Export Trip** page, choose **Wayfarer KML**. **Include
 private planning** starts unchecked every time. Unchecked downloads use native
-v3 with no private planning. Check it for a native v4 personal file preserving
+v5 with no private planning. Check it for a native v5 personal file preserving
 all saved planning entries, precision, zones and optional details together with
 the reusable Trip content, including Area holes, routes, Notes and tags.
 
@@ -325,7 +325,7 @@ Timeline exports still omit that identifier. Queue-recovery files carry it for
 
 Native Trip KML preserves Regions, Places, Areas, ordered From/Via/To connections,
 route geometry, the saved distance and duration, and automatic/manual duration
-choices. Default exports use native version 3; personal planning inclusion selects v4.
+choices. Every new native export uses version 5; personal planning inclusion is an independent choice.
 Both preserve provider estimates, fractional
 seconds and retained route attribution survive import and copying. Wayfarer
 estimates are equally valid; a provider connection is not required to transfer a
@@ -443,3 +443,32 @@ prior attempt cleanup. Accepted replay recovers the original result even after
 payload removal; it never imports again. Import completion or payload removal
 is not proof every original was stored, does not authorize deleting phone originals,
 and never resumes the phone's paused delivery or cancels independent enrichment.
+
+
+## Titles, sources and reuse policy
+
+Trips start private. Publishing offers CC BY 4.0 (visibly selected initially),
+CC0 1.0 or Public view-only for your contributions. Inherited licences and notices
+remain separate. Legacy unlicensed public Trips stay viewable but are effectively
+view-only until their author chooses. View-only blocks other-user Wayfarer Clone
+and downloads; it neither prevents manual copying nor revokes inherited rights.
+
+Edit optional Segment titles independently of transport mode and route. Clear a
+title to restore the derived journey label. Trip settings has one collapsed
+Sources & credits section. Keep readable source descriptions, licences, notices
+and modification indications even when a source URL/account is unavailable.
+Correct or remove only inapplicable credits; credits are not verified ownership.
+The public author area shows the contribution policy and expandable Credits.
+
+Native v5 preserves the portable fields and complete supported eligible content.
+Older files remain importable; replacing retained identities keeps newly omitted
+fields until you explicitly choose Use/Clear in review. Removing/reidentifying a
+titled object requires consent. New independent imports are private and inherit
+source terms without selecting the new owner's publication policy. Older Wayfarer
+readers refuse v5; upgrade before importing it.
+
+Google output includes typed and readable attribution; supported generic import
+preserves it or refuses the file. Third-party Google edits/re-export may lose
+custom data. PDF includes readable actual credits. Clone reports omitted covers
+and embedded images when transferable permission is unavailable; select permitted
+images in the copy. Reachable proxy URLs do not establish permission to reuse.

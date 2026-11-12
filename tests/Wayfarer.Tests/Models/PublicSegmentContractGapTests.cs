@@ -63,7 +63,7 @@ public sealed class PublicSegmentContractGapTests : TestBase
                 "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute",
                 "routeInstructionsJson", "routeProvider", "routeProviderConfigurationId",
                 "routeProviderConfigurationVersion", "routeTransportProfileId", "routeGeneratedAt",
-                "routeAttribution", "routeStorageMode"],
+                "routeAttribution", "routeStorageMode", "title", "estimatedDurationTicks", "estimatedDurationSource", "routeMappingMode"],
             document.RootElement.EnumerateObject().Select(item => item.Name));
         var waypoint = document.RootElement.GetProperty("waypoints")[0];
         Assert.Equal(["placeId", "position", "routeVertexIndex"], waypoint.EnumerateObject().Select(item => item.Name));

@@ -8,32 +8,24 @@ of this format. Future cloning/versioning and mobile implementation are separate
 
 ## Formats and fidelity
 
-| Download | Native version | Planning |
-| --- | --- | --- |
-| Public/default Wayfarer KML | 3 | No keys, null markers, counts or existence hints |
-| Authenticated personal download, Include unchecked | 3 | Same redacted reusable content |
-| Authenticated personal download, Include checked | 4, including an empty Trip | Complete typed aggregates on annotated objects |
-| Google My Maps KML, PDF, other formats | Existing formats | Generic exclusion; no Include control or partial preservation claim |
+All newly generated native exports use **v5**, including empty/default/public and
+personal-unchecked files. Planning remains independently default-off. Only explicit
+active-owner personal opt-in includes private planning. See [Batch 1's complete
+portable contract and mobile brief](911-batch1.md) for Title/Credits/ContentReuse,
+strict admission, replacement and Google attribution.
 
-V4 shares v3 parsing, mapping and reconciliation: exact `DistanceKm` doubles,
-nonnegative `DurationTicks` in multiples of ten, automatic/manual provenance,
-custom/fallback route state and From/To/ordered Via references, every Area ring
-and hole, authored graph order (including null Place order), supported rich Notes,
-tags and credential-free route/address provenance. Saved estimates are not
-recalculated using destination profile speeds. Provenance identifiers remain
-historical scalars, never credential or mutation authority.
+V5 retains v3 exact measurements/provenance and v4 planning, plus nullable title,
+self-contained credits, separate contribution terms, eligible Region covers,
+complete geometry with every hole and coherent enrichment. Saved estimates are
+not recalculated from destination profile speeds. Imported source grants are
+inherited descriptions, never a publication choice for the new owner.
 
-Personal v4 also carries optional Region `CoverImageUrl` ExtendedData through the
-typed parser and both graph projections. Missing means null; an explicit empty
-value stays empty. Duplicate/unsupported metadata still rejects. Current import
-review material includes the Region cover through the complete v4 writer, so a
-cover-only change invalidates a stale review even without a timestamp change.
-Default/public v3 output is unchanged and omits Region covers; supported v1–v3
-imports and older v4 files without this field supply no cover. Legacy replacement
-retains its existing reusable-content replacement behavior, so an omitted cover
-becomes absent; the special omission-preservation rule below applies to Planning.
-Use personal v4 to retain Region covers through export/replacement. Fidelity tests
-compare persisted source Region fields with imported owner content as well as XML.
+Supported v1–v4 files remain readable. Retained root/same-type identities preserve
+omitted new portable fields and planning. Reviewed Use/Clear/removal remains
+explicit; independent copies remap graph and planning-entry identities. Older
+explicit-version readers refuse v5, rather than silently dropping its fields.
+Google output stays generic and PDF includes readable actual attribution; neither
+is a replacement for native round-trip fidelity.
 
 Region Folders are identified by their native `RegionId`, independently of the
 authored name. A Region named `Segments` stays a Region, including when empty or
@@ -49,7 +41,7 @@ precision, optional meaning/allocation, absence, open bounds, explicit
 unknown/flexible timing and supported zones/fold choices. Missing Data is omission.
 JSON null, empty strings or empty collections are invalid, never Clear.
 
-Example within a v4 identity-bearing node:
+Example within a v4/v5 identity-bearing node:
 
 ```xml
 <Data name="Planning"><value>{"format":1,"entries":[{"id":"11111111-1111-4111-8111-111111111111","when":{"form":"at","value":{"precision":"month","local":"2027-03"}}}]}</value></Data>
@@ -57,7 +49,7 @@ Example within a v4 identity-bearing node:
 
 Detection precedes generic fallback. Reserved Planning claims anywhere in
 legacy/unversioned/generic content or at ignored/misplaced nodes reject. Unknown
-native versions, unsupported v4 metadata/JSON members or enums, duplicate XML
+native versions, unsupported v4/v5 metadata/JSON members or enums, duplicate XML
 values/keys, duplicate JSON keys (including case aliases), ambiguous graph IDs,
 invalid references and invalid planning reject the entire file. New file values
 use current zone rules; uploaded claims cannot obtain WB1's trusted historical
@@ -84,12 +76,12 @@ and qualification; unsupported file surfaces must be stated as unsupported.
 
 | Action | Method and route | Authority |
 | --- | --- | --- |
-| Public/default native export | `GET /Trip/ExportWayfarerKml/{id}` | Public Trip or existing owner access; flags cannot upgrade to personal |
+| Public/default native export | `GET /Trip/ExportWayfarerKml/{id}` | Current public reuse grant or active owner access; flags cannot upgrade to personal |
 | Personal native export | `GET /Trip/ExportPersonalWayfarerKml/{id}?includePrivatePlanning=true` | Active authenticated User and exact ownership, including public Trips |
 | Import or apply reviewed update | `POST /User/Trip/Import` | Cookie authentication, antiforgery and upload admission |
 | Read replacement review | `POST /User/Trip/ReviewImport` | Same cookie, antiforgery and upload admission |
 
-Omit `includePrivatePlanning` for personal v3. Native personal controls reset to
+Omit `includePrivatePlanning` for v5 without planning. Native personal controls reset to
 unchecked on every opening and successful download, and display the approved
 downloaded-file disclosure. The personal service reads active authority and the
 complete graph/planning in one repeatable-read snapshot. No posted owner ID is
@@ -100,7 +92,7 @@ Auto preserves the established duplicate-owned-Trip response:
 `{ status: "duplicate", tripId }`. Otherwise it creates a new private Trip for the
 active user. CreateNew always remaps graph and entry IDs and internal references;
 it never hydrates another stored Trip's content by uploaded identities. Personal
-v4 preserves the authored Trip name; legacy/native older-version naming retains
+v4/v5 preserve the authored Trip name; legacy/native older-version naming retains
 its established Imported suffix. Server write timestamps are new mutation metadata.
 
 Every native Upsert requires review. Send the exact selected file to ReviewImport;

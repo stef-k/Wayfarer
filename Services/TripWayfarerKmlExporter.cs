@@ -9,7 +9,7 @@ using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>Serializes reusable content as native v3, or complete personal planning under explicit native v4 inclusion.</summary>
+/// <summary>Serializes complete portable native v5 content, with private planning included only on explicit owner opt-in.</summary>
 public static class TripWayfarerKmlExporter
 {
     private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";
@@ -59,7 +59,7 @@ public static class TripWayfarerKmlExporter
         return result;
     }
 
-    /// <summary>Personal v4 includes the editable Region cover; default/public v3 retains its established shape.</summary>
+    /// <summary>Every v5 file preserves eligible Region covers independently of planning inclusion.</summary>
     private static XElement BuildRegion(Region region, Guid tripId, bool includePrivatePlanning)
     {
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));

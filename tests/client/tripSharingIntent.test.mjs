@@ -45,10 +45,10 @@ const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import
 const { default: actualApp, patchMetadata, orderSegments } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 
 // Self-contained client fixtures mirror the routed contract; no local database/evidence directory is needed.
-const metadata = (enabled = false) => ({ id: 'trip', planning: null, name: 'Trip', notesHtml: '', isPublic: true,
+const metadata = (enabled = false) => ({ contributionPolicy: 'CC-BY-4.0', credits: [], id: 'trip', planning: null, name: 'Trip', notesHtml: '', isPublic: true,
   shareProgressEnabled: enabled, center: null, zoom: null, coverImage: null,
   updatedAt: '2026-10-23T10:00:00Z', publicUrl: '/Public/Trips/trip', progressPublicUrl: enabled ? '/Public/Trips/trip?progress=1' : null,
-  originalValues: { name: 'Trip', notesHtml: null, isPublic: true, center: null, zoom: null, coverImage: null } });
+  originalValues: { contributionPolicy: 'CC-BY-4.0', credits: [], name: 'Trip', notesHtml: null, isPublic: true, center: null, zoom: null, coverImage: null } });
 const initial = { tripId: 'trip', metadata: metadata(), regionsById: {}, regionOrder: [], placesById: {}, placeOrderByRegionId: {},
   areasById: {}, areaOrderByRegionId: {}, segmentsById: {}, segmentOrder: [], tagsBySlug: {}, tagOrder: [],
   visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] },
@@ -747,7 +747,7 @@ for (const clear of [false, true]) test(`M1: normalized submitted values and ${c
   const saved = { ...metadata(), name: '\uFEFFSaved name\uFEFF', notesHtml: clear ? '' : 'Normalized notes', isPublic: false,
     center: clear ? null : { latitude: 1, longitude: 2 }, zoom: clear ? null : 3,
     coverImage: clear ? null : { rawUrl: 'https://example.test/new.jpg', proxiedUrl: '/Public/ProxyImage' } };
-  saved.originalValues = { name: saved.name, notesHtml: saved.notesHtml, isPublic: false,
+  saved.originalValues = { contributionPolicy: saved.contributionPolicy, credits: saved.credits, name: saved.name, notesHtml: saved.notesHtml, isPublic: false,
     center: clear ? { latitude: null, longitude: null } : saved.center, zoom: saved.zoom,
     coverImage: clear ? null : { rawUrl: saved.coverImage.rawUrl } };
   globalThis.fetch = async () => new Response(reply(false, saved));
@@ -1036,3 +1036,27 @@ test('late comparison review cannot exchange a deleted recovery original or rele
   assert.equal(draft.original, null); assert.equal(draft.deleted, true);
   assert.equal(parent.planningWorkspace.hasChanges.value, true);
 }));
+
+// Portable list values use field-scoped originals and the existing immutable metadata attempt.
+test('credits and policy retain newer list edits after a delayed metadata acknowledgement', () => withApp(async ({ editor, parent }) => {
+  const reply = deferred();
+  const credit = { contributor: 'Bob', sourceTitle: 'Offline source', licence: 'CC-BY-4.0', licenceUrl: null, notices: 'Retain', modifications: null, sourceUrl: null };
+  const calls = [];
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
+  editor.draft.credits = [credit]; editor.draft.contributionPolicy = 'CC0-1.0';
+  const saving = editor.saveAndExit();
+  editor.draft.credits[0].modifications = 'Newer draft';
+  const state = { ...metadata(), contributionPolicy: 'CC0-1.0', credits: [{ ...credit, modifications: null }],
+    originalValues: { ...metadata().originalValues, contributionPolicy: 'CC0-1.0', credits: [{ ...credit, modifications: null }] } };
+  reply.resolve(new Response(replyForPortable(state)));
+  await saving; await nextTick();
+  assert.equal(calls[0].expected.contributionPolicy, 'CC-BY-4.0');
+  assert.deepEqual(calls[0].expected.credits, []);
+  assert.equal(calls[0].changes.credits[0].modifications, null);
+  assert.equal(editor.draft.credits[0].modifications, 'Newer draft');
+  assert.equal(editor.isDirty, true);
+}));
+
+function replyForPortable(metadata) {
+  return JSON.stringify({ success: true, data: metadata, affected: { metadata }, warnings: [] });
+}

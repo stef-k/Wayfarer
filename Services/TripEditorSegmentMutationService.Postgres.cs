@@ -202,7 +202,7 @@ public sealed partial class TripEditorSegmentMutationService
             }
             aggregateTokenCompared = true;
             if (request.NotesIntent is { } notes && !string.Equals(notes.Expected, Wayfarer.Util.RichNotes.Normalize(canonical.Notes), StringComparison.Ordinal)
-                || request.TitleIntent is { } title && title.Expected != canonical.Title)
+                || request.IndependentRoute && request.TitleIntent is { } title && title.Expected != canonical.Title)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(

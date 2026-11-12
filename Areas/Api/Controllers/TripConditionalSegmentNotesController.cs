@@ -19,7 +19,7 @@ public partial class TripsController
                 token => authority.RevalidateMutationAsync(HttpContext, user.Id, token), cancellationToken);
             // Like the legacy Segment Notes writer, this operation schedules no external work.
             return Ok(new { contract = "bd2-1", success = true, applied = result.Applied,
-                segment = new { id = result.Segment.Id, notes = Wayfarer.Util.RichNotes.Normalize(result.Segment.Notes) } });
+                segment = new { id = result.Segment.Id, title = result.Segment.Title, notes = Wayfarer.Util.RichNotes.Normalize(result.Segment.Notes) } });
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
     }

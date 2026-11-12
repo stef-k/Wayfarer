@@ -44,7 +44,7 @@ public static partial class WayfarerKmlParser
         return Classify(source);
     }
 
-    private static WayfarerKmlClassification Classify(XDocument source)
+    internal static WayfarerKmlClassification Classify(XDocument source)
     {
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
         if (source.Root!.Elements(Kml + "Document").Count() != 1) throw new FormatException("Ambiguous KML Document.");
@@ -244,6 +244,7 @@ public static partial class WayfarerKmlParser
     {
         var trip = new Trip { Id = source.TripId, Name = source.Name, CoverImageUrl = source.CoverImageUrl, Notes = source.Notes,
             CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom, UpdatedAt = DateTime.UtcNow, IsPublic = false,
+            ContributionPolicy = source.ContributionPolicy, Credits = source.Credits ?? [],
             Planning = source.Planning, Tags = source.Tags.Select(token => new Tag { Slug = token, Name = token }).ToList() };
         trip.Regions = source.Regions.Select(region => new Region { Id = region.Id, TripId = source.TripId, Name = region.Name,
             DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center, Planning = region.Planning, CoverImageUrl = region.CoverImageUrl,
@@ -258,7 +259,7 @@ public static partial class WayfarerKmlParser
         var places = trip.Regions.SelectMany(region => region.Places.Select(place => (region, place))).ToDictionary(item => item.place.Id);
         foreach (var (region, place) in places.Values) place.Region = region;
         trip.Segments = source.Segments.Select(segment => new Segment { Id = segment.Id, TripId = source.TripId,
-            FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Mode = segment.Mode,
+            FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Title = segment.Title, Mode = segment.Mode,
             EstimatedDistanceKm = source.Version is 3 or 4 or 5 ? segment.DistanceKm : null,
             EstimatedDuration = segment.Duration,
             EstimatedDurationSource = segment.DurationSource, DisplayOrder = segment.DisplayOrder, Notes = segment.Notes,

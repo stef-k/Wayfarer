@@ -38,6 +38,8 @@ namespace Wayfarer.Controllers
             if (trip == null)
                 throw new ArgumentException($"Trip not found: {id}", nameof(id));
 
+            Response.Headers.CacheControl = "private, no-store";
+            await TripReusePolicy.RequireAsync(_dbContext, id, User.FindFirstValue(ClaimTypes.NameIdentifier), HttpContext.RequestAborted);
             if (!trip.IsPublic)
             {
                 Wayfarer.Middleware.BrowserResponsePolicyMiddleware.RequirePrivateResponse(HttpContext);
@@ -60,6 +62,7 @@ namespace Wayfarer.Controllers
                 var owner = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (owner == null) return Unauthorized();
                 var download = await _exportSvc.GeneratePersonalNativeAsync(id, owner, includePrivatePlanning, HttpContext.RequestAborted);
+                await TripReusePolicy.RequireAsync(_dbContext, id, owner, HttpContext.RequestAborted);
                 return File(System.Text.Encoding.UTF8.GetBytes(download.Kml), "application/vnd.google-earth.kml+xml", $"{download.Name}-Wayfarer.kml");
             }
             catch (UnauthorizedAccessException) { return NotFound(); }
@@ -88,7 +91,14 @@ namespace Wayfarer.Controllers
             }
 
             // Only lookup/authentication failures above are translated into 404/403.
-            var kml = _exportSvc.GenerateWayfarerKml(trip.Id);
+            string kml;
+            try { kml = _exportSvc.GenerateWayfarerKml(trip.Id); await LoadAndAuthorizeAsync(id); }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (System.Data.DBConcurrencyException)
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
+            catch (Npgsql.PostgresException error) when (error.SqlState is "40001" or "40P01")
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
+            // Current delivery authorization completed above.
             var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
             return File(bytes,
                 "application/vnd.google-earth.kml+xml",
@@ -114,7 +124,13 @@ namespace Wayfarer.Controllers
             }
 
             // Keep serialization outside the missing-Trip and access-denial boundary.
-            var kml = _exportSvc.GenerateGoogleMyMapsKml(trip.Id);
+            string kml;
+            try { kml = _exportSvc.GenerateGoogleMyMapsKml(trip.Id); await LoadAndAuthorizeAsync(id); }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (System.Data.DBConcurrencyException)
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
+            catch (Npgsql.PostgresException error) when (error.SqlState is "40001" or "40P01")
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
             var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
             return File(bytes,
                 "application/vnd.google-earth.kml+xml",
@@ -179,8 +195,15 @@ namespace Wayfarer.Controllers
             try
             {
                 var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel, linked.Token);
+                try { await LoadAndAuthorizeAsync(id); }
+                catch { await stream.DisposeAsync(); throw; }
                 return File(stream, "application/pdf", $"{trip.Name}.pdf");
             }
+            catch (UnauthorizedAccessException) { return Forbid(); }
+            catch (System.Data.DBConcurrencyException)
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
+            catch (Npgsql.PostgresException error) when (error.SqlState is "40001" or "40P01")
+            { return Conflict("The Trip changed while export was waiting. Review its current availability before trying again."); }
             catch (BrowserUnavailableException)
             {
                 Response.Headers.RetryAfter = "10";

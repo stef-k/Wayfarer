@@ -30,9 +30,16 @@ export const mountTripImport = () => {
         for (const row of state.review?.planning || []) {
             const field = document.createElement('fieldset');
             field.className = 'border rounded p-3 mb-3';
-            const legend = document.createElement('legend'); legend.className = 'fs-6'; legend.textContent = `${row.kind}: ${row.name}`;
+            const legend = document.createElement('legend'); legend.className = 'fs-6'; legend.textContent = `${row.kind}: ${row.name} — ${row.field || 'planning'}`;
             const explanation = document.createElement('p'); explanation.textContent = status[row.state] || '';
             field.append(legend, explanation);
+            if (row.field && row.field !== 'planning') {
+                explanation.textContent = row.state === 'removed' ? 'Removing this object also removes its title. Explicit consent is required.'
+                    : 'Keep existing is the default. Use or Clear applies only to these reviewed portable fields. Retain all still-applicable inherited notices.';
+                const text = document.createElement('pre');
+                text.style.whiteSpace = 'pre-wrap'; text.textContent = `Existing: ${row.currentText ?? '(absent)'}\nImported: ${row.importedText ?? '(absent)'}`;
+                field.append(text);
+            }
             for (const [title, plan] of [['Existing planning', row.current], ['Imported planning', row.imported]]) {
                 if (!plan) continue;
                 const details = document.createElement('details'); const summary = document.createElement('summary'); summary.textContent = `${title}: ${plan.entries.length} entries`;
@@ -44,7 +51,7 @@ export const mountTripImport = () => {
                 }
                 details.append(summary, list); field.append(details);
             }
-            if (row.state === 'conflict') {
+            if (row.state === 'conflict' && row.current && row.imported) {
                 const removed = row.current.entries.filter(entry => !row.imported.entries.some(next => next.id === entry.id));
                 if (removed.length) {
                     const warning = document.createElement('p'); warning.textContent = 'Use imported planning removes these existing entries:';
@@ -60,7 +67,7 @@ export const mountTripImport = () => {
                 input.value = choice.action; input.checked = state.choices.get(row.key) === choice.action;
                 input.disabled = state.busy || state.uncertain;
                 input.addEventListener('change', () => importer.choose(row.key, input.checked ? choice.action : ''));
-                wrapper.append(input, document.createTextNode(` ${label[choice.action]}`)); field.append(wrapper);
+                wrapper.append(input, document.createTextNode(` ${(row.field && row.field !== 'planning' ? { keep: 'Keep existing', use: 'Use imported value', clear: 'Explicitly clear this value', remove: 'I agree to remove this object and its portable content' }[choice.action] : label[choice.action])}`)); field.append(wrapper);
             }
             rows.append(field);
         }

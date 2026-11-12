@@ -31,7 +31,7 @@ public sealed class PolygonKmlRoundTripTests : TestBase
         AssertBoundaries(xml, expected);
         using var stream = Stream(xml.ToString());
         var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
-        Assert.Equal(WayfarerKmlKind.NativeV3, parsed.Kind);
+        Assert.Equal(WayfarerKmlKind.NativeV5, parsed.Kind);
         var mapped = WayfarerKmlAggregateMapper.Map(parsed.Document!, "destination", new Dictionary<string, TransportProfile>(), true);
         AssertPolygon(expected, mapped.Regions.Single().Areas.Single().Geometry);
         AssertPolygon(CreatePolygon(holes), expected);
@@ -46,6 +46,9 @@ public sealed class PolygonKmlRoundTripTests : TestBase
     {
         using var db = CreateDbContext();
         var trip = CreateTrip(holes);
+        trip.IsPublic = true;
+        trip.ContributionPolicy = "CC-BY-4.0";
+        db.Users.Add(TestDataFixtures.CreateUser(id: trip.UserId));
         db.Trips.Add(trip);
         db.SaveChanges();
         var service = new TripExportService(db, null!, null!, null!, null!,

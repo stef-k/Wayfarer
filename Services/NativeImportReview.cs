@@ -13,7 +13,7 @@ public sealed record NativeImportChoice(string Action, string Token);
 
 /// <summary>Owner-only whole-aggregate comparison; a removed row requires affirmative loss consent.</summary>
 public sealed record NativeImportPlanningRow(string Key, string Kind, string Name, string State,
-    PlanningAggregate? Current, PlanningAggregate? Imported, IReadOnlyList<NativeImportChoice> Choices);
+    PlanningAggregate? Current, PlanningAggregate? Imported, IReadOnlyList<NativeImportChoice> Choices, string Field = "planning", string? CurrentText = null, string? ImportedText = null);
 
 /// <summary>Read-only replacement preview. Its permits convey no authority without a current owned target.</summary>
 public sealed record NativeImportReview(string Token, Guid TripId, string TargetName, string ImportedName,
@@ -33,7 +33,7 @@ public sealed class NativeImportReviewException(string code) : Exception("Review
 public sealed class NativeImportOutcomeUnknownException() : Exception("The import outcome could not be confirmed.");
 
 /// <summary>Small native-import permit codec, using the existing application key ring, without a receipt ledger.</summary>
-internal sealed class NativeImportReviewProtection(IDataProtectionProvider protection)
+internal sealed partial class NativeImportReviewProtection(IDataProtectionProvider protection)
 {
     private readonly IDataProtector protector = protection.CreateProtector("Wayfarer.NativeImport.Review.v1");
     private sealed record Permit(string Binding, string Key, string Action, DateTimeOffset Expires);
@@ -89,6 +89,7 @@ internal sealed class NativeImportReviewProtection(IDataProtectionProvider prote
         }
         rows.AddRange(next.Where(t => t.Value.Target.Planning != null).Select(t =>
             new NativeImportPlanningRow(t.Key, t.Value.Kind, t.Value.Name, "new", null, t.Value.Target.Planning, [])));
+        rows.AddRange(PortableRows(current, incoming, binding));
         return new(Issue(binding, "", "review"), current.Id, current.Name, incoming.Name, rows);
     }
 
@@ -110,6 +111,7 @@ internal sealed class NativeImportReviewProtection(IDataProtectionProvider prote
         foreach (var row in preview.Planning.Where(row => row.State == "removed"))
             if (!selected.TryGetValue(row.Key, out var action) || action != "remove")
                 throw new NativeImportReviewException("import_loss_consent_required");
+        ApplyPortable(current, incoming, selected);
         var previous = NativeTripGraph.Targets(current).ToDictionary(t => Key(t.Kind, t.Id));
         foreach (var item in NativeTripGraph.Targets(incoming))
         {

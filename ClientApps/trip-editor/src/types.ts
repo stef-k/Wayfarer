@@ -31,7 +31,16 @@ export interface EditorTripState {
   permissions: EditorPermissions;
 }
 
+/** Readable transferable attribution; links are optional and never identify local account authority. */
+export interface TripCredit {
+  contributor: string; sourceTitle: string; licence: string; licenceUrl: string | null;
+  notices: string | null; modifications: string | null; sourceUrl: string | null;
+}
+export type ContributionPolicy = 'CC-BY-4.0' | 'CC0-1.0' | 'view-only';
+
 export interface EditorTripMetadata {
+  contributionPolicy: ContributionPolicy | null;
+  credits: TripCredit[];
   /** Complete private aggregate; absence must be explicit in owner snapshots. */
   planning?: import('./planning/planningTypes').PlanningAggregate | null;
   id: Guid;

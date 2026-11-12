@@ -12,6 +12,7 @@ public static class TripCreditCodec
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        PropertyNameCaseInsensitive = false,
         MaxDepth = 16
     };
 
@@ -26,7 +27,7 @@ public static class TripCreditCodec
     public static IReadOnlyList<TripCredit> Read(string json)
     {
         CheckJson(json);
-        var credits = JsonSerializer.Deserialize<TripCredit[]>(json, Options) ?? throw new FormatException("Credits must be a list.");
+        var credits = Deserialize<TripCredit[]>(json) ?? throw new FormatException("Credits must be a list.");
         Validate(credits);
         return credits;
     }
@@ -62,7 +63,7 @@ public static class TripCreditCodec
     public static Attribution ReadAttribution(string json)
     {
         CheckJson(json);
-        var value = JsonSerializer.Deserialize<Attribution>(json, Options) ?? throw new FormatException("Attribution is required.");
+        var value = Deserialize<Attribution>(json) ?? throw new FormatException("Attribution is required.");
         if (value.Version != 1 || value.Credits == null || string.IsNullOrWhiteSpace(value.SourceTitle))
             throw new FormatException("Unsupported attribution structure.");
         Text(value.SourceTitle, 200); Policy(value.ContributionPolicy); Validate(value.Credits);
@@ -77,7 +78,9 @@ public static class TripCreditCodec
 
     /// <summary>Independent copies inherit source grants descriptively, never as the new owner's publication choice.</summary>
     public static IReadOnlyList<TripCredit> Inherited(Trip source) => Inherited(
-        new Attribution(1, source.Name, source.ContributionPolicy, source.Credits));
+        new Attribution(1, source.Name, source.ContributionPolicy, source.Credits))
+        .Select(c => c.SourceTitle == source.Name && c.Contributor.Length == 0 && c.Licence == source.ContributionPolicy
+            ? c with { Contributor = source.User?.DisplayName ?? "" } : c).ToArray();
 
     /// <summary>Preserves inherited terms and a source contribution grant without account IDs or private origins.</summary>
     public static IReadOnlyList<TripCredit> Inherited(Attribution source)
@@ -118,6 +121,12 @@ public static class TripCreditCodec
             Unique(syntax.RootElement);
         }
         catch (JsonException error) { throw new FormatException("Invalid attribution JSON.", error); }
+    }
+
+    private static T? Deserialize<T>(string json)
+    {
+        try { return JsonSerializer.Deserialize<T>(json, Options); }
+        catch (JsonException error) { throw new FormatException("Unsupported attribution structure.", error); }
     }
 
     private static void Unique(JsonElement value)

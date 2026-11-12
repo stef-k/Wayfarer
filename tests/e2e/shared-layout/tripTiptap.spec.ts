@@ -44,3 +44,47 @@ test('Trip Tiptap Vue interaction retains formatting, dialogs and saved HTML', a
   await expect(form.getByRole('textbox', { name: 'Notes', exact: true }).locator('a')).toContainText('W2 Native notes');
   await form.locator('.trip-editor-rich-notes').screenshot({ path: process.env.WAYFARER_W2_SCREENSHOT || testInfo.outputPath('trip-tiptap.png') });
 });
+
+/** Batch 1 has one bounded real-browser author/public journey; lower seams own denial and race matrices. */
+test('Batch 1 portable title and publication credits', async ({ page }, testInfo) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  await page.route('**/api/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
+  await page.goto(`/User/Trip/Edit/${tripId}`);
+  const form = page.locator('#trip-editor-metadata-form');
+  await form.getByLabel('Public trip', { exact: true }).uncheck();
+  let saved = page.waitForResponse(r => r.url().endsWith('/metadata/conditional') && r.request().method() === 'PATCH');
+  await page.getByRole('button', { name: 'Save settings & Continue', exact: true }).click();
+  expect((await saved).ok()).toBeTruthy();
+  await form.getByLabel('Public trip', { exact: true }).check();
+  await expect(form.getByLabel('Publication policy', { exact: true })).toHaveValue('CC-BY-4.0');
+  await expect(form.locator('details').filter({ hasText: 'Sources & credits' })).not.toHaveAttribute('open', '');
+  await form.getByText('Sources & credits', { exact: true }).click();
+  await form.getByRole('button', { name: 'Add credit', exact: true }).click();
+  await form.getByLabel('Contributor', { exact: true }).fill('Bob');
+  await form.getByLabel('Source description', { exact: true }).fill('Offline source');
+  await form.getByLabel('Inherited licence / terms', { exact: true }).fill('CC-BY-4.0');
+  await form.getByLabel('Notices', { exact: true }).fill('Keep this readable notice');
+  await form.getByLabel('Publication policy', { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: process.env.WAYFARER_911_AUTHOR_SCREENSHOT || testInfo.outputPath('911-author.png') });
+  saved = page.waitForResponse(r => r.url().endsWith('/metadata/conditional') && r.request().method() === 'PATCH');
+  await page.getByRole('button', { name: 'Save settings & Continue', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Publish Trip?', exact: true }).getByRole('button', { name: 'Publish', exact: true }).click();
+  expect((await saved).ok()).toBeTruthy();
+  await page.getByRole('button', { name: 'Add Segment', exact: true }).click();
+  await page.locator('[data-segment-field="title"]').fill('Morning walk');
+  await page.locator('[data-segment-field="mode"]').selectOption('walk');
+  const segmentSaved = page.waitForResponse(r => r.url().endsWith('/segments') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Save Segment', exact: true }).click();
+  const created = await segmentSaved;
+  expect(created.ok(), await created.text()).toBeTruthy();
+  await page.goto(`/Public/Trips/${tripId}`);
+  await expect(page.locator('.segment-list-item').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
+  await page.locator('details:visible').filter({ has: page.getByText('Credits', { exact: true }) }).first().locator('summary').click();
+  await expect(page.getByText('Keep this readable notice', { exact: true }).first()).toBeVisible();
+  await page.screenshot({ path: process.env.WAYFARER_911_PUBLIC_SCREENSHOT || testInfo.outputPath('911-public.png') });
+});

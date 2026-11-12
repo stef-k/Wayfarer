@@ -11,7 +11,7 @@
         {
             var journey = ViewerSegmentJourneyResolver.Resolve(segment, Model.Id, waypointsLoaded: true);
             <section class="segment-readable mb-3 pb-3 border-bottom">
-                <strong>@segment.Mode</strong>
+                <strong>@(segment.Title ?? segment.Mode)</strong>
                 @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey)
                 @if (HtmlHelpers.HasVisibleContent(segment.Notes))
                 {

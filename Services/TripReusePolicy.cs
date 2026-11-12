@@ -24,5 +24,5 @@ public static class TripReusePolicy
     }
 
     /// <summary>Cookie identity is used only by cookie-protected export entry points, never bearer mutations.</summary>
-    internal static string? Caller(IHttpContextAccessor context) => context.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    internal static string? Caller(IHttpContextAccessor? context) => context?.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
 }
