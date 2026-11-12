@@ -18,6 +18,7 @@ export type EditorSegmentPresentation = {
   key: SegmentPresentationKey;
   source: EditorSegmentPresentationSource;
   segmentId: Guid | null;
+  title: string | null;
   anchors: ResolvedSegmentAnchors;
   coordinates: Array<[number, number]>;
   orientation: SegmentOrientation;
@@ -70,6 +71,7 @@ function resolvePresentation(
     key,
     source,
     segmentId,
+    title: value.title?.trim() || null,
     anchors: resolvedAnchors,
     coordinates: orientation === 'reversed' ? [...geometry].reverse().map(point => [...point] as [number, number]) : geometry,
     orientation,

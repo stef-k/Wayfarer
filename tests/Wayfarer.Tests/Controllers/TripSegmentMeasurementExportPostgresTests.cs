@@ -184,6 +184,8 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
             && e.Attribute("name")?.Value is "Title" or "Credits" or "ContentReuse" or "Planning").ToArray()) field.Remove();
         xml.Descendants().Single(e => e.Name.LocalName == "Data" && e.Attribute("name")?.Value == "WayfarerSchemaVersion")
             .Elements().Single().Value = "3";
+        using (var historical = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml.ToString())))
+            Assert.Equal(WayfarerKmlKind.NativeV3, WayfarerKmlParser.ClassifyAndParse(historical).Kind);
         var data = xml.Descendants().Single(item => item.Name.LocalName == "Data"
             && item.Attribute("name")?.Value == (invalidProvenance ? "RouteProvenance" : "DistanceKm"));
         data.Elements().Single().Value = invalidProvenance

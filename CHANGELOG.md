@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Correct #911 Batch 1 copying of valid title-only credits and preserve inherited
+  attribution when titles/licences coincide. Show public credits without an owner
+  name, improve inherited-terms contrast and use authored Segment titles on map
+  hover. Keep policy/credits at the Trip boundary; align copy/export qualification
+  fixtures with explicit grants and foreign-media omission. Admit exactly assessed
+  rustup 1.29.3 while retaining compiler 1.90.0 and existing trust controls.
+
 - Add #911 Batch 1 portable Segment titles, structured credits and explicit
   own-contribution policies. Legacy public Trips are effectively view-only for
   other-user Clone/download; owners retain authorized access. Add protected Web/API

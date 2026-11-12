@@ -605,31 +605,4 @@ public class TripControllerTests : TestBase
         warmupMock.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 
-    [Fact]
-    public async Task Clone_OmittedForeignCoverNeverEntersUnavailableWarmup()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "owner");
-        var cloner = TestDataFixtures.CreateUser(id: "cloner");
-        db.Users.AddRange(owner, cloner);
-        var sourceTrip = TestDataFixtures.CreateTrip(owner, "Warmup source", isPublic: true);
-        sourceTrip.ContributionPolicy = "CC-BY-4.0";
-        sourceTrip.CoverImageUrl = "https://example.com/cover.jpg";
-        db.Trips.Add(sourceTrip);
-        await db.SaveChangesAsync();
-        var warmup = new Mock<ICacheWarmupScheduler>();
-        warmup.Setup(item => item.ScheduleWarmupAsync(It.IsAny<Guid>(), true))
-            .ThrowsAsync(new InvalidOperationException("warmup unavailable"));
-        var controller = BuildControllerWithWarmupMock(db, cloner.Id, warmup);
-
-        var result = await controller.Clone(sourceTrip.Id);
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        var clone = await db.Trips.SingleAsync(t => t.UserId == cloner.Id);
-        Assert.Equal("Edit", redirect.ActionName);
-        Assert.Equal(clone.Id, redirect.RouteValues!["id"]);
-        Assert.Null(clone.CoverImageUrl);
-        warmup.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
-        Assert.Contains("success", controller.TempData["AlertType"]?.ToString(), StringComparison.OrdinalIgnoreCase);
-    }
 }

@@ -28,9 +28,9 @@ globalThis.previewLeaflet = { map: () => map, layerGroup: group, latLng: (lat, l
   polyline: (coordinates, style) => ({ coordinates, style, options: style, attributes: {},
     addTo(owner) { paths.push(this); owner.owned.push(this); return this; },
     setStyle(next) { Object.assign(style, next); return this; }, on() { return this; }, off() {},
-    bindTooltip() { return this; }, unbindTooltip() {},
+    bindTooltip(label) { this.tooltip = label; return this; }, unbindTooltip() {},
     getElement() { return { setAttribute: (name, value) => { this.attributes[name] = value; } }; } }) };
-const bundle = await build({ stdin: { contents: "export { createSegmentPresentationLayer } from './ClientApps/trip-editor/src/map/segmentPresentationLayer'; export { createTripEditorMap } from './ClientApps/trip-editor/src/map/leafletAdapter'; export { createSegmentRouteDraftPreviewLayer } from './ClientApps/trip-editor/src/map/segmentRouteDraftPreviewLayer';", resolveDir: process.cwd() },
+const bundle = await build({ stdin: { contents: "export { resolvePersistedSegmentPresentation } from './ClientApps/trip-editor/src/segments/editorSegmentPresentation'; export { createSegmentPresentationLayer } from './ClientApps/trip-editor/src/map/segmentPresentationLayer'; export { createTripEditorMap } from './ClientApps/trip-editor/src/map/leafletAdapter'; export { createSegmentRouteDraftPreviewLayer } from './ClientApps/trip-editor/src/map/segmentRouteDraftPreviewLayer';", resolveDir: process.cwd() },
   bundle: true, format: 'esm', platform: 'node', write: false, plugins: [{ name: 'map-boundaries', setup(builder) {
     builder.onResolve({ filter: /leaflet$/ }, () => ({ path: 'leaflet', namespace: 'mock' }));
     builder.onLoad({ filter: /.*/, namespace: 'mock' }, () => ({ contents: 'export default globalThis.previewLeaflet;' }));
@@ -42,7 +42,20 @@ const bundle = await build({ stdin: { contents: "export { createSegmentPresentat
       return { contents: exports.map(name => `export const ${name} = () => ({ addTo() { return this; }, isActive: () => false, dispose() {}, remove() {} });`).join('\n') };
     });
   } }] });
-const { createTripEditorMap, createSegmentRouteDraftPreviewLayer, createSegmentPresentationLayer } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { resolvePersistedSegmentPresentation, createTripEditorMap, createSegmentRouteDraftPreviewLayer, createSegmentPresentationLayer } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+
+test('ordinary Segment hover prefers escaped authored titles and retains the derived fallback', () => {
+  const layer = createSegmentPresentationLayer(map, () => true);
+  const segment = { id: 'segment', title: 'Morning <walk>', mode: 'walk', waypointPlaceIds: [],
+    route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] } };
+  const state = { placesById: {} };
+  layer.render([resolvePersistedSegmentPresentation(segment, state)], null);
+  assert.ok(paths.some(path => path.tooltip === 'Morning &lt;walk&gt;'));
+  segment.title = null;
+  layer.render([resolvePersistedSegmentPresentation(segment, state)], null);
+  assert.ok(paths.some(path => path.tooltip === 'Route direction unavailable'));
+  layer.dispose();
+});
 
 test('adapter publishes proposal geometry and clears it without duplicating ordinary draft ownership', () => {
   const adapter = createTripEditorMap({}, '/controlled-tiles');

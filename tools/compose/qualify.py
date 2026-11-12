@@ -175,7 +175,7 @@ class Stack:
         self.compose('run', '--rm', '-T', 'wayfarer', 'admin', 'bootstrap', 'compose-admin', '--stdin',
                      data=self.password + '\n')
         self.sql(f'''INSERT INTO "Trips" ("Id","UserId","Name","IsPublic","ShareProgressEnabled","UpdatedAt","CenterLat","CenterLon","Zoom","ContributionPolicy")
-            SELECT '{TRIP}',"Id",'Compose qualification',true,false,now(),37.9,23.7,3 FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
+            SELECT '{TRIP}',"Id",'Compose qualification',true,false,now(),37.9,23.7,3,'CC-BY-4.0' FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
         # Private capture uses the existing User-area page; the synthetic owner needs that product role too.
         self.sql('''INSERT INTO "AspNetUserRoles" ("UserId","RoleId")
             SELECT u."Id",r."Id" FROM "AspNetUsers" u CROSS JOIN "AspNetRoles" r

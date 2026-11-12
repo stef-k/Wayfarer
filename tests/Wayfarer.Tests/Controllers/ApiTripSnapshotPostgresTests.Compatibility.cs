@@ -125,6 +125,7 @@ public sealed partial class ApiTripSnapshotPostgresTests
         Assert.Equal("<p>Safe</p>", json.GetProperty("notes").GetString());
         Assert.Equal(stored.CoverImageUrl, json.GetProperty("coverImageUrl").GetString());
         Assert.Equal(tag.Id, json.GetProperty("tags")[0].GetProperty("id").GetGuid());
+        Assert.Equal(new[] { "id", "name", "slug" }, json.GetProperty("tags")[0].EnumerateObject().Select(p => p.Name).Order());
         var regions = json.GetProperty("regions").EnumerateArray().ToArray();
         var empty = regions.Single(region => region.GetProperty("name").GetString() == "Empty");
         Assert.Equal(0, empty.GetProperty("places").GetArrayLength());
