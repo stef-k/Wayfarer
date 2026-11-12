@@ -285,3 +285,51 @@ PDF rendering; migration/rollback; backend transport documentation and separatel
 owned mobile compatibility. Corrections do not substitute a narrow credit-only
 review for that matrix. No independent reviewer was launched, no acceptance or
 hosted ARM64/image/lifecycle success is inferred from local source tests.
+
+
+### Fresh local validation and limits
+
+- Before correction: 126 passed / 42 failed, zero skips. This reproduces all 36
+  ordinary CI failures plus four null/omitted-contributor service crashes, the
+  attribution rewrite and blank-owner rendering. Named-owner and native
+  coincidence controls passed. Original logs/TRX remain retained.
+- Corrected affected selection: 188 passed, zero skips. Ordinary .NET selection
+  then ran once: 5,955 passed / 18 failed, zero skips. Every remaining failure is
+  an unchanged `ReleaseBundleTests` fixture creating group-writable directories
+  under this host's `umask 0002`; production correctly refuses those directories.
+  All 33 release-bundle cases passed under `umask 0022`, with no source/assertion
+  changes. The ordinary receipt includes the subsequently removed redundant
+  foreign-warmup test; the final test-only delta (removal, exact tag inventory,
+  explicit valid-v3 admission) passed 52 cases. Counts overlap, not additive.
+  No complete ordinary-suite green rerun is claimed.
+- Client selection: 561 passed, zero skips; typecheck passed. The live title/fallback
+  test uses the existing resolver/Leaflet layer seam. An initial test wired to the
+  obsolete adapter helper exposed an incomplete mock; it was replaced by the actual
+  presentation-owner test, not treated as a product failure.
+- Sequential Vite build, built-asset checks, Release build/publish and the exact
+  published-directory asset graph passed. Existing compiler warnings remain. No
+  concurrent Debug/Release build wrote this worktree's static-asset prerequisites.
+- Exactly one fresh managed author/public browser smoke passed without a retry.
+  Both updated screenshots were inspected: inherited-terms help is readable and
+  public notices visible. Fixture and environment cleanup verification passed.
+  Blank-owner cases remain compiled-Razor evidence; no expanded browser matrix.
+- Compose tooling: 32 passed; browser/tool lifecycle tests: 43 passed. CI-tooling
+  discovery ran 56 tests with one skip; two Windows cache-selection methods cannot
+  launch missing `pwsh` (14 subtest errors). Focused Rust admission/backend/ordering
+  and host-trust refusal/positive controls passed. No Windows-runtime claim.
+- Rustup 1.29.3 passed local host-CA and manager admission. Explicit rustls/no-curl
+  toolchain checking reported existing Rust 1.90.0 unchanged. This is a guarded
+  local channel check, not fresh compiler acquisition or hosted ARM64 execution.
+- Docker is absent, so existing image/Compose integration cannot execute locally.
+  No image build, lifecycle, container PDF/SSE or hosted ARM64 success is inferred
+  from the passing tooling/service checks. Hosted exact-head CI remains pending.
+
+Code Guard retains the shipped policies and allowances. Complete pinned-base scope
+reports REVIEW only: existing controller/DTO/view responsibilities, cohesive draft,
+parser/transaction/export and map owners, grouped behavioral fixtures and the
+Compose qualification sequence remain readable at their current boundaries. The
+single nested bounds traversal and distinct protocol/domain branches justify the
+nesting/complexity reviews; API/changelog remain navigable reference/history.
+No mechanical splitting, exclusion, threshold, baseline or assertion weakening.
+The obsolete foreign-fetch test was removed because the behavior is forbidden, and
+the unused adapter renderer was removed because it was not the live hover owner.
