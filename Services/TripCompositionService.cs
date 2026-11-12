@@ -129,20 +129,33 @@ public sealed class TripCompositionService(ApplicationDbContext db)
         Func<CancellationToken, Task<bool>>? credential = null, CancellationToken token = default)
     {
         await using var transaction = await LocationDeletionFence.BeginAsync(db, owner, token);
-        await RequireActiveAsync(owner, token);
-        await TripCompositionLifecycle.LockAsync(db, owner, null, id, token);
-        var workspace = await OwnedAsync(owner, id, token);
-        var trips = await db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {workspace.TripId} FOR UPDATE").AsNoTracking().ToListAsync(token);
-        if (trips.Count != 1 || trips[0].UserId != owner || credential != null && !await credential(token)) throw Unavailable();
-        // Reload after the destination wait: another Finish or deletion may have won.
-        workspace = await OwnedAsync(owner, id, token);
-        if (workspace.FinishedAt != null) throw Closed();
-        await db.Set<TripComposition>().Where(w => w.Id == id).ExecuteUpdateAsync(s => s
-            .SetProperty(w => w.FinishedAt, DateTime.UtcNow).SetProperty(w => w.SnapshotA, (string?)null)
-            .SetProperty(w => w.SnapshotB, (string?)null).SetProperty(w => w.Mappings, (string?)null)
-            .SetProperty(w => w.SourceAId, (Guid?)null).SetProperty(w => w.SourceBId, (Guid?)null), token);
-        await transaction!.CommitAsync(token);
-        return new(workspace.TripId, workspace.Id, "finished", false);
+        var committing = false;
+        try
+        {
+            await RequireActiveAsync(owner, token);
+            await TripCompositionLifecycle.LockAsync(db, owner, null, id, token);
+            var workspace = await OwnedAsync(owner, id, token);
+            var trips = await db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {workspace.TripId} FOR UPDATE").AsNoTracking().ToListAsync(token);
+            if (trips.Count != 1 || trips[0].UserId != owner || credential != null && !await credential(token)) throw Unavailable();
+            // Reload after the destination wait: another Finish or deletion may have won.
+            workspace = await OwnedAsync(owner, id, token);
+            if (workspace.FinishedAt != null) throw Closed();
+            await db.Set<TripComposition>().Where(w => w.Id == id).ExecuteUpdateAsync(s => s
+                .SetProperty(w => w.FinishedAt, DateTime.UtcNow).SetProperty(w => w.SnapshotA, (string?)null)
+                .SetProperty(w => w.SnapshotB, (string?)null).SetProperty(w => w.Mappings, (string?)null)
+                .SetProperty(w => w.SourceAId, (Guid?)null).SetProperty(w => w.SourceBId, (Guid?)null), token);
+            committing = true;
+            await transaction!.CommitAsync(token);
+            return new(workspace.TripId, workspace.Id, "finished", false);
+        }
+        catch (Exception primary)
+        {
+            try { await transaction!.RollbackAsync(CancellationToken.None); }
+            catch (Exception cleanup) { throw new AggregateException("Finish failed and rollback could not be confirmed.", primary, cleanup); }
+            if (!committing && primary.GetBaseException() is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected })
+                throw new TripMetadataMutationRejected(409, "composition-contention", "The comparison changed while waiting. Refresh its current state.");
+            throw;
+        }
     }
 
     private async Task RequireActiveAsync(string owner, CancellationToken token)

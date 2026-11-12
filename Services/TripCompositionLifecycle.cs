@@ -21,12 +21,25 @@ internal static class TripCompositionLifecycle
     internal static async Task<bool> DeleteAsync(ApplicationDbContext db, Guid id, string owner, CancellationToken token)
     {
         await using var transaction = await LocationDeletionFence.BeginAsync(db, owner, token);
-        await LockAsync(db, owner, id, null, token);
-        var trip = await db.Trips.SingleOrDefaultAsync(t => t.Id == id && t.UserId == owner, token);
-        if (trip == null) return false;
-        db.Trips.Remove(trip);
-        await db.SaveChangesAsync(token);
-        if (transaction != null) await transaction.CommitAsync(token);
-        return true;
+        try
+        {
+            await LockAsync(db, owner, id, null, token);
+            var trip = await db.Trips.SingleOrDefaultAsync(t => t.Id == id && t.UserId == owner, token);
+            if (trip == null) return false;
+            db.Trips.Remove(trip);
+            await db.SaveChangesAsync(token);
+            if (transaction != null) await transaction.CommitAsync(token);
+            return true;
+        }
+        catch (Exception primary)
+        {
+            db.ChangeTracker.Clear();
+            if (transaction != null)
+            {
+                try { await transaction.RollbackAsync(CancellationToken.None); }
+                catch (Exception cleanup) { throw new AggregateException("Trip deletion failed and rollback could not be confirmed.", primary, cleanup); }
+            }
+            throw;
+        }
     }
 }
