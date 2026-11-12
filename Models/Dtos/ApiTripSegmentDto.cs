@@ -48,4 +48,12 @@ public class ApiTripSegmentDto
     public string? RouteAttribution { get; init; }
     /// <summary>Gets provider-authorized offline storage mode.</summary>
     public string? RouteStorageMode { get; init; }
+    /// <summary>Nullable authored title, with derived-label fallback when absent.</summary>
+    public string? Title { get; init; }
+    /// <summary>Exact stored duration at database microsecond precision; minutes remain unchanged.</summary>
+    public long? EstimatedDurationTicks { get; init; }
+    /// <summary>Automatic/Manual intent, distinct from route provenance.</summary>
+    public string EstimatedDurationSource { get; init; } = "Automatic";
+    /// <summary>Historical provider mapping, distinct from current transport selection.</summary>
+    public string? RouteMappingMode { get; init; }
 }

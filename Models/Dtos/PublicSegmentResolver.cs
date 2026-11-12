@@ -57,6 +57,8 @@ public static class PublicSegmentResolver
         return new PublicSegmentResolution(new ApiTripSegmentDto
         {
             Id = segment.Id,
+            Title = segment.Title, EstimatedDurationTicks = segment.EstimatedDuration?.Ticks,
+            EstimatedDurationSource = segment.EstimatedDurationSource.ToString(), RouteMappingMode = segment.RouteMappingMode,
             Mode = segment.Mode ?? string.Empty,
             EstimatedDistanceKm = segment.EstimatedDistanceKm,
             EstimatedDurationMinutes = segment.EstimatedDuration?.TotalMinutes,

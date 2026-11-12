@@ -58,6 +58,47 @@ public sealed class TripViewerItineraryRenderingTests
         finally { Directory.Delete(webRoot, recursive: true); }
     }
 
+    /// <summary>Actual compiled public/print templates retain safe readable credits and the authored title.</summary>
+    [Theory]
+    [InlineData("Author")]
+    [InlineData("")]
+    public async Task PortableFieldsRenderSafelyInPublicAndPdfTemplates(string displayName)
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"wayfarer-portable-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(root);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            trip.IsPublic = true; trip.ContributionPolicy = "CC0-1.0";
+            trip.User = new ApplicationUser { Id = "owner", DisplayName = displayName, IsActive = true };
+            trip.Segments.Single().Title = "Morning walk";
+            trip.Credits = [new("Bob <script>unsafe()</script>", "Offline source", "CC-BY-4.0",
+                "https://creativecommons.org/licenses/by/4.0/", "Keep this notice", "Adapted")];
+            var html = await RenderViewerAsync(scope.ServiceProvider, trip);
+            var viewer = new HtmlParser().ParseDocument(html);
+            Assert.Contains("Morning walk", viewer.QuerySelector(".segment-list-item")!.TextContent);
+            Assert.Contains("Owner's contributions: CC0-1.0", viewer.Body!.TextContent);
+            Assert.Equal(2, viewer.QuerySelectorAll("details").Count(e => e.TextContent.Contains("Keep this notice")));
+            Assert.Contains("Keep this notice", viewer.Body.TextContent);
+            Assert.Contains("Bob <script>unsafe()</script>", viewer.Body.TextContent);
+            Assert.DoesNotContain(viewer.QuerySelectorAll("script"), e => e.TextContent == "unsafe()");
+            // A historical unlinked Segment remains printable without inventing endpoint Places.
+            trip.Segments.Single().FromPlaceId = null;
+            trip.Segments.Single().ToPlaceId = null;
+            var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(),
+                Places = trip.Regions.SelectMany(r => r.Places).ToList(), Segments = trip.Segments.ToList() };
+            var print = new HtmlParser().ParseDocument(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
+            Assert.Contains("Keep this notice", print.Body!.TextContent);
+            Assert.Contains("CC-BY-4.0", print.Body.TextContent);
+            Assert.Contains("Adapted", print.Body.TextContent);
+            Assert.Contains("Morning walk", print.Body.TextContent);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     /// <summary>Every image-bearing note surface proxies once without rewriting the source model or local map.</summary>
     [Fact]
     public async Task ViewerProxiesNotesBeforeInsertionAndPreservesLocalMapsAndLinks()

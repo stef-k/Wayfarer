@@ -4,6 +4,8 @@ import type { Guid, GeoJsonLineString, EditorEntityCapabilities, EditorExternalR
 export interface EditorSegment {
   /** Complete private intentions from the coherent owner snapshot. */
   planning?: import('../planning/planningTypes').PlanningAggregate | null;
+  /** Optional authored title independent of route. */
+  title?: string | null;
   id: Guid;
   tripId: Guid;
   fromPlaceId: Guid | null;
@@ -25,18 +27,19 @@ export interface EditorSegment {
   displayOrder: number;
   capabilities: EditorEntityCapabilities;
   /** Server-published nullable Notes, independent of the displayed empty-string default. */
-  originalValues?: { notesHtml: string | null };
+  originalValues?: { notesHtml: string | null; title?: string | null };
   externalRouting?: EditorExternalRoutingCapability | null;
 }
 
 /** Protected Notes-only intent never carries an aggregate route draft or a raw row version. */
 export interface EditorSegmentNotesConditionalRequest {
-  expected: { notesHtml: string | null };
-  changes: { notesHtml: string };
+  expected: { notesHtml?: string | null; title?: string | null };
+  changes: { notesHtml?: string; title?: string | null };
 }
 
 /** Route/create wire fields; the save owner selects the strict dialect and optional authored Notes. */
 export interface EditorSegmentSaveRequest {
+  title?: string | null;
   proposal?: { proposalId: Guid; protectedContext: string; manualDurationOverride: boolean };
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;
@@ -52,12 +55,13 @@ export interface EditorSegmentSaveRequest {
   /** Fail-closed C4 dialect omits both legacy required fields. */
   contract?: 'segment-route-notes-1';
   originalRouteToken?: string | null;
-  expected?: { notesHtml: string | null };
-  changes?: { notesHtml: string };
+  expected?: { notesHtml?: string | null; title?: string | null };
+  changes?: { notesHtml?: string; title?: string | null };
 }
 
 /** Component-owned route and Notes draft with independently pinned route evidence. */
 export interface EditorSegmentDraft {
+  title: string;
   id: Guid | null;
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;

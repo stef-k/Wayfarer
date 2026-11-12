@@ -66,6 +66,8 @@ public class TripImportControllerTests : TestBase
     public async Task Import_GenericRoute_InstallsOneTimeInformationAndReturnsEditorRedirect()
     {
         var db = CreateDbContext();
+        db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        await db.SaveChangesAsync();
         var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
         var controller = BuildController(service);
         ConfigureControllerWithUser(controller, "u1");

@@ -1,0 +1,18 @@
+@model Wayfarer.Models.Trip
+@* Credits are publishable plain text; Razor escapes every field and only the shared codec admits links. *@
+<span class="small text-muted">Owner's contributions: @(Model.ContributionPolicy ?? "Unlicensed / view-only")@(Model.Credits.Count > 0 ? " · Includes inherited terms" : "")</span>
+<details class="d-inline-block small ms-2">
+    <summary class="link-primary">Credits</summary>
+    <p>Policy covers the owner's contributions. Inherited terms and notices remain separate. View-only does not revoke inherited rights or prevent manual copying.</p>
+    @foreach (var credit in Model.Credits)
+    {
+        <section class="mb-2">
+            <strong>@credit.Contributor</strong> <span>@credit.SourceTitle</span>
+            <p style="white-space:pre-wrap">@credit.Licence</p>
+            @if (credit.LicenceUrl != null) { <a href="@credit.LicenceUrl" rel="noopener noreferrer">Licence information</a> }
+            <p style="white-space:pre-wrap">@credit.Notices</p>
+            <p style="white-space:pre-wrap">@credit.Modifications</p>
+            @if (credit.SourceUrl != null) { <a href="@credit.SourceUrl" rel="noopener noreferrer">Source</a> }
+        </section>
+    }
+</details>

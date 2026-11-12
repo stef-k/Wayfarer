@@ -113,8 +113,11 @@ public sealed partial class ApiTripSnapshotPostgresTests
         using var response = await client.GetAsync($"/api/trips/{trip.Id}");
         using var document = await ReadJsonAsync(response);
         var json = document.RootElement;
-        Assert.Equal(new[] { "id", "name", "notes", "isPublic", "centerLat", "centerLon", "zoom", "coverImageUrl", "updatedAt", "regions", "segments", "tags" }.Order(),
+        Assert.Equal(new[] { "id", "name", "notes", "isPublic", "centerLat", "centerLon", "zoom", "coverImageUrl", "updatedAt", "regions", "segments", "tags", "contributionPolicy", "credits" }.Order(),
             json.EnumerateObject().Select(property => property.Name).Order());
+        // Additive portable fields retain legacy absence without manufacturing a reuse grant.
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("contributionPolicy").ValueKind);
+        Assert.Empty(json.GetProperty("credits").EnumerateArray());
         Assert.Equal(latitude.HasValue ? JsonValueKind.Number : JsonValueKind.Null, json.GetProperty("centerLat").ValueKind);
         Assert.Equal(longitude.HasValue ? JsonValueKind.Number : JsonValueKind.Null, json.GetProperty("centerLon").ValueKind);
         Assert.Equal(latitude, json.GetProperty("centerLat").Deserialize<double?>());
@@ -122,6 +125,7 @@ public sealed partial class ApiTripSnapshotPostgresTests
         Assert.Equal("<p>Safe</p>", json.GetProperty("notes").GetString());
         Assert.Equal(stored.CoverImageUrl, json.GetProperty("coverImageUrl").GetString());
         Assert.Equal(tag.Id, json.GetProperty("tags")[0].GetProperty("id").GetGuid());
+        Assert.Equal(new[] { "id", "name", "slug" }, json.GetProperty("tags")[0].EnumerateObject().Select(p => p.Name).Order());
         var regions = json.GetProperty("regions").EnumerateArray().ToArray();
         var empty = regions.Single(region => region.GetProperty("name").GetString() == "Empty");
         Assert.Equal(0, empty.GetProperty("places").GetArrayLength());

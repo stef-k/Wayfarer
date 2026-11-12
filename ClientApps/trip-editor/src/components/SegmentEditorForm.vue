@@ -67,6 +67,11 @@ function unavailableEndpoint(id: Guid | null): boolean {
     </div>
 
     <label class="trip-editor-field">
+      <span>Segment title (optional)</span>
+      <input v-model="draft.title" data-segment-field="title" maxlength="200" placeholder="Use derived journey label" />
+      <small v-for="message in fieldErrors('title')" :key="message">{{ message }}</small>
+    </label>
+    <label class="trip-editor-field">
       <span>From place</span>
       <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId'); $emit('semanticEditsUnsafe')">
         <option :value="null">Unlinked</option>

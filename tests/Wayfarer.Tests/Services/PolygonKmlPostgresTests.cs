@@ -186,7 +186,7 @@ public sealed class PolygonKmlPostgresTests(PostgresImportTestFixture fixture)
     /// <summary>Uses the actual KML export service with no browser/PDF dependencies.</summary>
     private static string Export(ApplicationDbContext db, Guid tripId, bool google)
     {
-        var service = new TripExportService(db, null!, null!, null!, null!, NullLogger<TripExportService>.Instance,
+        var service = new TripExportService(db, null!, new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, db.Trips.Single(t => t.Id == tripId).UserId)], "test")) } }, null!, null!, NullLogger<TripExportService>.Instance,
             Mock.Of<IConfiguration>(), null!, Mock.Of<IImageProxyService>());
         return google ? service.GenerateGoogleMyMapsKml(tripId) : service.GenerateWayfarerKml(tripId);
     }

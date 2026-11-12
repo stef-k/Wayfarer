@@ -4,7 +4,7 @@ import type { EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } from '../segments/editorSegmentPresentation';
-import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
+import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer, type AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 import { createMapUtilitiesControl } from './mapUtilitiesControl';
 import { createPlaceCoordinatePickLayer, createPlaceDraftPreviewLayer, type CoordinatePickOptions } from './placeDraftPreviewLayer';
@@ -15,7 +15,7 @@ import { createSegmentRouteDraftPreviewLayer, type SegmentDraftRoutePreview } fr
 import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 import { createSegmentPresentationLayer } from './segmentPresentationLayer';
 import { createTripEditorTileLayer } from './tileRetryLayer';
-import { allGeometryBounds, applyInitialMapView, fallbackSegmentCoordinates, fitBounds, focusActiveEntity, focusSavedTripView,
+import { allGeometryBounds, applyInitialMapView, fitBounds, focusActiveEntity, focusSavedTripView,
   type FitAllGeometryResult, type FocusActiveEntityResult, type FocusSavedTripViewResult } from './mapNavigation';
 import { createMapViewport, type TripEditorMapView } from './mapViewport';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
@@ -316,33 +316,6 @@ const renderArea = (area: EditorArea, layers: LayerGroup): void => {
     fillOpacity: 0.25,
     weight: 2
   }).bindTooltip(escapeHtml(area.name)).addTo(layers);
-};
-
-const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: LayerGroup): void => {
-  // The server-supplied effective route is authoritative for custom and waypoint fallback rendering.
-  const coordinates = segment.effectiveRoute?.coordinates ?? segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state);
-  if (!coordinates || coordinates.length < 2) {
-    return;
-  }
-
-  const latLngs = coordinates.map(([longitude, latitude]) => [latitude, longitude] as [number, number]);
-  const polyline = L.polyline(latLngs, {
-    color: '#0ea5e9',
-    weight: 3,
-    opacity: 0.8
-  }).bindTooltip(escapeHtml(segmentLabel(segment, state))).addTo(layers);
-  const element = polyline.getElement();
-  if (element) {
-    element.setAttribute('data-segment-id', segment.id);
-    element.setAttribute('data-route-owner', 'saved');
-    element.setAttribute('data-route-kind', segment.hasCustomRoute ? 'custom' : 'fallback');
-  }
-};
-
-const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {
-  const fromName = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
-  const toName = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.name : null;
-  return [fromName, toName].filter(Boolean).join(' to ') || segment.mode || 'Segment';
 };
 
 const escapeHtml = (value: string): string =>

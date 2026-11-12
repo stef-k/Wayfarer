@@ -118,7 +118,7 @@ public sealed class TripPdfBrowserTests : TestBase
     private static Trip Seed(ApplicationDbContext db, int regions)
     {
         var user = TestDataFixtures.CreateUser();
-        var trip = new Trip { Id = Guid.NewGuid(), Name = "PDF boundary", UserId = user.Id, IsPublic = true };
+        var trip = new Trip { Id = Guid.NewGuid(), Name = "PDF boundary", UserId = user.Id, IsPublic = true, ContributionPolicy = "CC-BY-4.0" };
         db.Users.Add(user);
         db.Trips.Add(trip);
         for (var i = 0; i < regions; i++) db.Regions.Add(new Region

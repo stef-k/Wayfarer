@@ -48,7 +48,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.True(exported.Headers.CacheControl!.Private && exported.Headers.CacheControl.NoStore);
         Assert.Equal("attachment", exported.Content.Headers.ContentDisposition!.DispositionType);
         var original = await exported.Content.ReadAsStringAsync();
-        Assert.Equal(WayfarerKmlKind.NativeV4, WayfarerKmlParser.ClassifyAndParse(File(original)).Kind);
+        Assert.Equal(WayfarerKmlKind.NativeV5, WayfarerKmlParser.ClassifyAndParse(File(original)).Kind);
         var destination = await fixture.CreateUserAsync();
         var importer = new TripImportService(db, NullLogger<TripImportService>.Instance);
         var result = await importer.ImportWayfarerKmlAsync(File(original), destination.Id, TripImportMode.CreateNew);
@@ -86,7 +86,13 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         }
         var repeated = (await Exporter(db).GeneratePersonalNativeAsync(saved.Id, destination.Id, true)).Kml;
         foreach (var (mapped, old) in idMap) repeated = repeated.Replace(mapped.ToString("D"), old.ToString("D"), StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(Normalize(original).ToString(), Normalize(repeated).ToString());
+        Assert.Null(saved.ContributionPolicy);
+        Assert.Equal(TripCreditCodec.Inherited(source), saved.Credits);
+        var inheritedOriginal = XDocument.Parse(original);
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        inheritedOriginal.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "ContentReuse").Element(k + "value")!.Value = "";
+        inheritedOriginal.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "Credits").Element(k + "value")!.Value = TripCreditCodec.Write(saved.Credits);
+        Assert.Equal(Normalize(inheritedOriginal.ToString()).ToString(), Normalize(repeated).ToString());
         db.ApiTokens.Add(new() { User = null!, UserId = destination.Id, Name = "native-owner-read", TokenHash = ApiTokenService.HashToken(destination.Id) });
         await db.SaveChangesAsync();
         using var reader = app.GetTestClient();
@@ -127,13 +133,13 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.Single(preview.Planning, r => r.State == "conflict");
         Assert.Single(preview.Planning, r => r.State == "absent");
         Assert.All(preview.Planning.Where(r => r.State == "equal"), r => Assert.DoesNotContain(r.Choices, c => c.Action == "use"));
-        var root = preview.Planning.Single(r => r.Kind == "trip");
+        var root = preview.Planning.Single(r => r.Kind == "trip" && r.Field == "planning");
         await service.ImportReviewedNativeAsync(File(xml), trip.UserId, new(preview.Token, [root.Choices.Single(c => c.Action == action).Token]));
         var saved = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
         Assert.True(PlanningCodec.Equal(action == "clear" ? null : action == "use" ? incoming.Planning : oldPlan, saved.Planning));
         Assert.True(PlanningCodec.Equal(absent.Planning, saved.Regions.SelectMany(r => r.Places).Single(p => p.Id == absent.Id).Planning));
         // v3 omits Planning and Region covers. Planning is retained specially; reusable legacy content is replaced.
-        var legacy = TripWayfarerKmlExporter.BuildKml(saved);
+        var legacy = LegacyV3(TripWayfarerKmlExporter.BuildKml(saved));
         var retained = await service.ReviewNativeAsync(File(legacy), trip.UserId);
         await service.ImportReviewedNativeAsync(File(legacy), trip.UserId, new(retained.Token, []));
         var after = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
@@ -237,7 +243,13 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.DoesNotContain("Planning", Encoding.UTF8.GetString(bytes));
         using var owner = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(owner, app.Services, trip.UserId);
         using var excluded = await owner.GetAsync($"/Trip/ExportPersonalWayfarerKml/{trip.Id}");
-        Assert.Equal(bytes, await excluded.Content.ReadAsByteArrayAsync());
+        var excludedXml = await excluded.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Planning", excludedXml);
+        var personalDocument = WayfarerKmlParser.ClassifyAndParse(File(excludedXml)).Document!;
+        var publicDocument = WayfarerKmlParser.ClassifyAndParse(File(Encoding.UTF8.GetString(bytes))).Document!;
+        Assert.Equal(5, personalDocument.Version); Assert.Equal(5, publicDocument.Version);
+        Assert.Equal(trip.Regions.Single().CoverImageUrl, personalDocument.Regions.Single().CoverImageUrl);
+        Assert.Null(publicDocument.Regions.Single().CoverImageUrl);
         using var included = await owner.GetAsync($"/Trip/ExportPersonalWayfarerKml/{trip.Id}?includePrivatePlanning=true");
         Assert.Contains("name=\"Planning\"", await included.Content.ReadAsStringAsync());
         using var unauthorized = await publicClient.GetAsync($"/Trip/ExportPersonalWayfarerKml/{trip.Id}?includePrivatePlanning=true");
@@ -270,7 +282,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         var failure = new FailReconciliation(); await using var db = fixture.CreateContext(failure);
         var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
         var review = await service.ReviewNativeAsync(File(xml), trip.UserId);
-        var use = review.Planning.Single(r => r.Kind == "trip").Choices.Single(c => c.Action == "use").Token;
+        var use = review.Planning.Single(r => r.Kind == "trip" && r.Field == "planning").Choices.Single(c => c.Action == "use").Token;
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportReviewedNativeAsync(File(xml), trip.UserId, new(review.Token, [use])));
         Assert.True(failure.Rebuilt); Assert.Empty(db.ChangeTracker.Entries());
         await using var verify = fixture.CreateContext();
@@ -408,12 +420,23 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
     }
 
     /// <summary>Rich source owns every geometry/reference/provenance seam and all five planning aggregates.</summary>
+    /// <summary>Constructs a genuine older envelope without protected v5 fields or v4 Region covers.</summary>
+    private static string LegacyV3(string xml)
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var document = XDocument.Parse(xml);
+        foreach (var data in document.Descendants(k + "Data").Where(d => (string?)d.Attribute("name") is "Credits" or "ContentReuse" or "Title"
+            || (string?)d.Attribute("name") == "CoverImageUrl" && d.Parent?.Parent?.Name == k + "Folder").ToArray()) data.Remove();
+        document.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "WayfarerSchemaVersion").Element(k + "value")!.Value = "3";
+        return document.ToString();
+    }
+
     private async Task<Trip> SeedAsync(string namedRegion = "ordinary")
     {
         var user = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
         var profile = await db.Set<TransportProfile>().AsNoTracking().SingleAsync(p => p.Key == "walk");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Native rich Trip", Notes = "<p>Trip &amp; Notes</p>", IsPublic = true,
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Native rich Trip", Notes = "<p>Trip &amp; Notes</p>", IsPublic = true, ContributionPolicy = "CC-BY-4.0",
             CoverImageUrl = "https://example.invalid/cover.png", CenterLat = 37, CenterLon = 23, Zoom = 9, Planning = NativeKmlV4Tests.Plan() };
         var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region", CoverImageUrl = "https://example.invalid/region.png?x=1&y=2", DisplayOrder = 3, Notes = "<p>Region</p>", Center = new Point(23, 37) { SRID = 4326 }, Planning = NativeKmlV4Tests.Plan() };
         var places = new[] { "From", "Via", "To" }.Select((name, i) => new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = name,

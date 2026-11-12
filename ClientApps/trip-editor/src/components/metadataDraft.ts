@@ -1,6 +1,6 @@
 import { reactive, ref, shallowRef } from 'vue';
 import { EditorMutationHttpError, EditorValidationError } from '../api/tripEditorApi';
-import type { EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
+import type { ContributionPolicy, TripCredit, EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { normalizeNotesHtml } from '../notes/notesHtml';
 
@@ -8,6 +8,8 @@ import { normalizeNotesHtml } from '../notes/notesHtml';
 export type MetadataDraft = {
   name: string;
   isPublic: boolean;
+  contributionPolicy: ContributionPolicy | null;
+  credits: TripCredit[];
   shareProgressEnabled: boolean;
   notesHtml: string;
   coverImageRawUrl: string;
@@ -59,6 +61,8 @@ export function toMetadataDraft(metadata: EditorTripMetadata): Omit<MetadataDraf
   return {
     name: metadata.name,
     isPublic: metadata.isPublic,
+    contributionPolicy: metadata.contributionPolicy ?? null,
+    credits: JSON.parse(JSON.stringify(metadata.credits ?? [])),
     shareProgressEnabled: metadata.isPublic && metadata.shareProgressEnabled,
     notesHtml: normalizeNotesHtml(metadata.notesHtml),
     coverImageRawUrl: metadata.coverImage?.rawUrl ?? '',
@@ -80,6 +84,8 @@ export function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUp
     name: value.name,
     notesHtml: normalizeNotesHtml(value.notesHtml),
     isPublic: value.isPublic,
+    contributionPolicy: value.contributionPolicy,
+    credits: value.credits.map(c => ({ ...c, licenceUrl: c.licenceUrl?.trim() || null, sourceUrl: c.sourceUrl?.trim() || null })),
     coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
     center: hasPartialCenter
       ? { latitude: centerLatitude ? Number(centerLatitude) : Number.NaN, longitude: centerLongitude ? Number(centerLongitude) : Number.NaN }
@@ -89,13 +95,14 @@ export function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUp
 }
 
 /** Fields in one metadata operation; each retains its own original even when other props refresh. */
-const metadataFields = ['name', 'notesHtml', 'isPublic', 'coverImage', 'center', 'zoom'] as const;
+const metadataFields = ['name', 'notesHtml', 'isPublic', 'contributionPolicy', 'credits', 'coverImage', 'center', 'zoom'] as const;
 type MetadataField = typeof metadataFields[number];
 const same = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right);
 
 /** Copies one logical API field, keeping a coordinate pair together. */
 function assignField(target: MetadataDraft, source: MetadataDraft, field: MetadataField): void {
   switch (field) {
+    case 'credits': target.credits = JSON.parse(JSON.stringify(source.credits)); break;
     case 'coverImage': target.coverImageRawUrl = source.coverImageRawUrl; break;
     case 'center': target.centerLatitude = source.centerLatitude; target.centerLongitude = source.centerLongitude; break;
     default: Object.assign(target, { [field]: source[field] });
@@ -269,6 +276,7 @@ const matchesSubmittedMetadata = (original: EditorMetadataOriginalValues, submit
     if (!Object.hasOwn(submitted.changes, field)) return true;
     const changes = submitted.changes;
     switch (field) {
+      case 'credits': return same(original.credits, changes.credits);
       case 'name': return original.name === trimServerWhitespace(changes.name!);
       // RichNotes applies a different HTML policy. This reply has no canonical submitted echo;
       // only explicit Clear has predictable equality. Other Notes rely on the correlated attempt

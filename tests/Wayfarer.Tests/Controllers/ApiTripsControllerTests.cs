@@ -385,6 +385,7 @@ public partial class ApiTripsControllerTests : TestBase
             UserId = sourceOwner.Id,
             Name = "Public Trip",
             IsPublic = true,
+            ContributionPolicy = "CC-BY-4.0",
             Regions = new List<Region>(),
             Segments = new List<Segment>()
         };
@@ -510,6 +511,7 @@ public partial class ApiTripsControllerTests : TestBase
             UserId = sourceOwner.Id,
             Name = "Public Trip",
             IsPublic = true,
+            ContributionPolicy = "CC-BY-4.0",
             Regions = new List<Region>
             {
                 new Region

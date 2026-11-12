@@ -57,8 +57,9 @@ export const createSegmentPresentationLayer = (
     }).addTo(group);
     const hit = L.polyline(latLngs, { opacity: 0, weight: 16, className: 'segment-route-hit' })
       .on('click', () => void onSelected(presentation.key))
-      .bindTooltip(presentation.directionTrustworthy
-        ? presentation.anchors.anchors.map(anchor => `${anchor.label} — ${anchor.roleText} — ${anchor.displayName}`).join('<br>')
+      // Authored titles distinguish same-endpoint alternatives; historical routes retain their role labels.
+      .bindTooltip(presentation.title ? escapeHtml(presentation.title) : presentation.directionTrustworthy
+        ? presentation.anchors.anchors.map(anchor => escapeHtml(`${anchor.label} — ${anchor.roleText} — ${anchor.displayName}`)).join('<br>')
         : 'Route direction unavailable', { className: 'trip-rich-tooltip' })
       .addTo(group);
     const chevrons = presentation.directionTrustworthy ? renderChevrons(presentation, active, group) : [];

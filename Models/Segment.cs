@@ -59,6 +59,10 @@ public class Segment : Wayfarer.Models.Planning.IPlanningTarget
     [JsonIgnore]
     public ICollection<SegmentWaypoint> Waypoints { get; set; } = new List<SegmentWaypoint>();
 
+    /// <summary>Optional authored title, independent of mode, route, Notes and private planning.</summary>
+    [StringLength(200)]
+    public string? Title { get; set; }
+
     /// <summary>Mode of transport (e.g., "walk", "bike").</summary>
     public string Mode { get; set; } = string.Empty;
 

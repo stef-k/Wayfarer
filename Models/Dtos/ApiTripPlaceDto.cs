@@ -14,4 +14,10 @@ public class ApiTripPlaceDto
     /// <summary>Optional normalized detected feature type.</summary>
     public string? ResolvedFeatureType { get; set; }
     public double[]? Location { get; set; }  // [lon, lat]
+    /// <summary>Authorized persisted enrichment provenance; no regenerated provider claims.</summary>
+    public string? AddressEnrichmentProvider { get; set; }
+    /// <summary>Retained provider storage mode.</summary>
+    public string? AddressEnrichmentStorageMode { get; set; }
+    /// <summary>Original enrichment instant, independent of Trip updates.</summary>
+    public DateTimeOffset? AddressEnrichedAt { get; set; }
 }

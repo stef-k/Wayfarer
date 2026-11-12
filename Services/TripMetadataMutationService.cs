@@ -36,6 +36,9 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
                 throw new TripMetadataMutationRejected(409, "mutation-base-stale",
                     "The edited Trip fields changed. Keep your draft, review current values and explicitly choose a new base before saving.");
 
+            if (request.Changes.TryGetValue("isPublic", out var publish) && publish is true
+                && (request.Changes.GetValueOrDefault("contributionPolicy", trip.ContributionPolicy) == null))
+                throw new TripMetadataMutationRejected(400, "publication-policy-required", "Choose a contribution policy before publication.");
             var beforeImages = Images(trip);
             var disableSharing = request.Changes.TryGetValue("isPublic", out var publication) && publication is false && trip.ShareProgressEnabled;
             var applied = request.Changes.Any(field => !Equals(field.Value, field.Key == "notes" ? trip.Notes : current[field.Key])) || disableSharing;
@@ -72,6 +75,14 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
             {
                 switch (key)
                 {
+                    case "contributionPolicy":
+                        trip.ContributionPolicy = (string?)value;
+                        setters.SetProperty(t => t.ContributionPolicy, trip.ContributionPolicy);
+                        break;
+                    case "credits":
+                        trip.Credits = TripCreditCodec.Read((string)value!);
+                        setters.SetProperty(t => t.Credits, trip.Credits);
+                        break;
                     case "name":
                         trip.Name = (string)value!;
                         setters.SetProperty(t => t.Name, trip.Name);
@@ -112,6 +123,7 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
     /// <summary>Published original Notes are normalized without conflating null and empty.</summary>
     private static Dictionary<string, object?> Values(Trip trip) => new()
     {
+        ["contributionPolicy"] = trip.ContributionPolicy, ["credits"] = TripCreditCodec.Write(trip.Credits),
         ["name"] = trip.Name, ["notes"] = RichNotes.Normalize(trip.Notes), ["isPublic"] = trip.IsPublic,
         ["coverImage"] = trip.CoverImageUrl, ["center"] = new TripMetadataCenter(trip.CenterLat, trip.CenterLon), ["zoom"] = trip.Zoom
     };

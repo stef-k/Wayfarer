@@ -77,7 +77,7 @@ let reorderSnapshotIds: Guid[] | null = null;
 const activeSegment = computed(() => (draft.id ? props.state.segmentsById[draft.id] ?? null : null));
 const isDraftOpen = computed(() => props.editorSurface.isTargetActive(activeSegmentTarget.value) || draft.id !== null || Boolean(draft.fromPlaceId || draft.toPlaceId || draft.mode || draft.estimatedDistanceKm || draft.estimatedDurationMinutes || draft.notesHtml || draft.route));
 const baselineRequest = computed(() => draft.id ? buildSegmentRequest(persistedBaseline.value) : createBaselineRequest.value ?? buildSegmentRequest(emptySegmentDraft()));
-const isDirty = computed(() => notes.held.value || routeProposalDraft.hasProposal.value || JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
+const isDirty = computed(() => draft.title !== persistedBaseline.value.title || notes.held.value || routeProposalDraft.hasProposal.value || JSON.stringify(buildSegmentRequest(draft)) !== JSON.stringify(baselineRequest.value));
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
 const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
   .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
@@ -612,7 +612,7 @@ function markSaved(): void {
 function segmentLabel(segment: EditorSegment): string {
   const from = segment.fromPlaceId ? props.state.placesById[segment.fromPlaceId]?.name : null;
   const to = segment.toPlaceId ? props.state.placesById[segment.toPlaceId]?.name : null;
-  return [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
+  return segment.title || [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
 }
 
 function modeText(segment: EditorSegment): string {

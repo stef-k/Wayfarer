@@ -201,7 +201,8 @@ public sealed partial class TripEditorSegmentMutationService
                         "The Segment changed. Reload its authoritative state before saving.", null, null));
             }
             aggregateTokenCompared = true;
-            if (request.NotesIntent is { } notes && !string.Equals(notes.Expected, Wayfarer.Util.RichNotes.Normalize(canonical.Notes), StringComparison.Ordinal))
+            if (request.NotesIntent is { } notes && !string.Equals(notes.Expected, Wayfarer.Util.RichNotes.Normalize(canonical.Notes), StringComparison.Ordinal)
+                || request.IndependentRoute && request.TitleIntent is { } title && title.Expected != canonical.Title)
             {
                 await transaction.RollbackAsync(CancellationToken.None);
                 return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.Conflicted(

@@ -2184,6 +2184,10 @@ namespace Wayfarer.Migrations
                         .HasColumnType("xid")
                         .HasColumnName("xmin");
 
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid?>("ToPlaceId")
                         .HasColumnType("uuid");
 
@@ -2411,8 +2415,18 @@ namespace Wayfarer.Migrations
                     b.Property<double?>("CenterLon")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("ContributionPolicy")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("CoverImageUrl")
                         .HasColumnType("text");
+
+                    b.Property<string>("Credits")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'[]'::jsonb");
 
                     b.Property<bool>("IsPublic")
                         .HasColumnType("boolean");

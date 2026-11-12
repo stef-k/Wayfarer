@@ -83,6 +83,7 @@ public sealed class CanonicalRegionImportClonePostgresTests(PostgresMigrationTes
         Assert.Equal(hasFallback, imported.Regions.Any(region => region.Name == "Unassigned Places"));
         Assert.All(imported.Regions, region => Assert.Equal(owner.Id, region.UserId));
         imported.IsPublic = true;
+        imported.ContributionPolicy = "CC-BY-4.0";
         await db.SaveChangesAsync();
         var expected = imported.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Name)
             .Select(region => (region.Name, region.DisplayOrder, region.Notes)).ToArray();
@@ -108,7 +109,7 @@ public sealed class CanonicalRegionImportClonePostgresTests(PostgresMigrationTes
         var destination = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
         await db.Database.ExecuteSqlRawAsync("DROP INDEX \"UX_Regions_Trip_UnassignedPlaces\"");
-        var source = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Invalid source", IsPublic = true };
+        var source = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Invalid source", IsPublic = true, ContributionPolicy = "CC-BY-4.0" };
         db.Trips.Add(source);
         foreach (var order in new[] { 0, 17 }) source.Regions.Add(new Region
         {

@@ -22,7 +22,7 @@ public partial class TripsController
             return Ok(new
             {
                 contract = "bd2-1", success = true, applied = result.Applied,
-                trip = new { result.Trip.Id, result.Trip.Name, Notes = RichNotes.Normalize(result.Trip.Notes), result.Trip.UpdatedAt }
+                trip = new { result.Trip.Id, result.Trip.Name, Notes = RichNotes.Normalize(result.Trip.Notes), result.Trip.UpdatedAt, result.Trip.ContributionPolicy, result.Trip.Credits }
             });
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }

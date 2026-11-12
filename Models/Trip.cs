@@ -39,6 +39,13 @@ namespace Wayfarer.Models
         /// <summary>Rich-text HTML notes, may include embedded images via &lt;img&gt; tags.</summary>
         public string? Notes { get; set; }
 
+        /// <summary>Explicit own-contribution policy; null keeps legacy Trips unlicensed. Inherited rights remain in Credits.</summary>
+        [StringLength(16)]
+        public string? ContributionPolicy { get; set; }
+
+        /// <summary>Publishable readable inherited terms, independent of current source/account availability.</summary>
+        public IReadOnlyList<TripCredit> Credits { get; set; } = [];
+
         /// <summary>Whether this trip is publicly shareable.</summary>
         public bool IsPublic { get; set; } = false;
 

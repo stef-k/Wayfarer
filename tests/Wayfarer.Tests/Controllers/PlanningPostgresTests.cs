@@ -311,7 +311,7 @@ public sealed class PlanningPostgresTests(PostgresImportTestFixture fixture) : T
     private async Task<Trip> SeedAsync(int? tiedPlaceOrder = null)
     {
         var user = await fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Planning privacy", IsPublic = true };
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Planning privacy", IsPublic = true, ContributionPolicy = "CC-BY-4.0" };
         var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Name = "Region" };
         var first = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "One", DisplayOrder = tiedPlaceOrder, Location = new Point(23, 37) { SRID = 4326 } };
         var last = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = user.Id, Name = "Two", DisplayOrder = tiedPlaceOrder, Location = new Point(24, 38) { SRID = 4326 } };

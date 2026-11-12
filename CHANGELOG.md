@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+- Correct #911 Batch 1 copying of valid title-only credits and preserve inherited
+  attribution when titles/licences coincide. Show public credits without an owner
+  name, improve inherited-terms contrast and use authored Segment titles on map
+  hover. Keep policy/credits at the Trip boundary; align copy/export qualification
+  fixtures with explicit grants and foreign-media omission. Admit exactly assessed
+  rustup 1.29.3 while retaining compiler 1.90.0 and existing trust controls.
+
+- Add #911 Batch 1 portable Segment titles, structured credits and explicit
+  own-contribution policies. Legacy public Trips are effectively view-only for
+  other-user Clone/download; owners retain authorized access. Add protected Web/API
+  edits, readable public/PDF credits, complete native v5 and generic Google
+  attribution preservation-or-refusal. The additive migration leaves old titles
+  and policies null; rollback drops the new content. Composition Batches 2–5 and
+  mobile/native qualification remain separate.
+
 - Admit stable .NET major 10 minor/patch releases at or above 10.0.13 for history
   qualification, replacing the patch allowlist that rejected runtime 10.0.15 before
   PR #974 ordinary tests. Select stable major 10 in hosted .NET setup; preserve

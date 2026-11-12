@@ -119,7 +119,7 @@ export function buildAreaRequest(value: EditorAreaDraft): EditorAreaSaveRequest 
 }
 
 export function emptySegmentDraft(): EditorSegmentDraft {
-  return { id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], waypointRows: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null, originalRouteToken: null };
+  return { title: '', id: null, fromPlaceId: null, toPlaceId: null, waypointPlaceIds: [], waypointRouteVertexIndices: [], waypointRows: [], mode: '', transportProfileId: null, estimatedDistanceKm: '', estimatedDurationMinutes: '', estimatedDurationSource: 'Automatic', notesHtml: '', route: null, effectiveRoute: null, aggregateConcurrencyToken: null, originalRouteToken: null };
 }
 
 export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraft {
@@ -129,6 +129,7 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
 
   const waypointRows = segment.waypointPlaceIds.map((placeId, index) => createWaypointRow(placeId, segment.waypointRouteVertexIndices[index] ?? null));
   return {
+    title: segment.title ?? '',
     id: segment.id,
     fromPlaceId: segment.fromPlaceId,
     toPlaceId: segment.toPlaceId,
@@ -151,6 +152,7 @@ export function toSegmentDraft(segment: EditorSegment | null): EditorSegmentDraf
 export function buildSegmentRequest(value: EditorSegmentDraft): EditorSegmentSaveRequest {
   const waypointRows = value.waypointRows;
   return {
+    ...(!value.id ? { title: value.title.trim() || null } : {}),
     fromPlaceId: value.fromPlaceId || null,
     toPlaceId: value.toPlaceId || null,
     waypointPlaceIds: waypointRows.map(row => row.placeId),

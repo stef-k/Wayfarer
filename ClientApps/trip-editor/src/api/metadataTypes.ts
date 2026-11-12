@@ -1,10 +1,12 @@
-import type { EditorCoordinate } from '../types';
+import type { EditorCoordinate, TripCredit, ContributionPolicy } from '../types';
 
 /** Existing form validation shape used for conversion before selecting dirty fields. */
 export interface EditorTripMetadataUpdateRequest {
   name: string;
   notesHtml: string | null;
   isPublic: boolean;
+  contributionPolicy: ContributionPolicy | null;
+  credits: TripCredit[];
   coverImage: { rawUrl: string | null } | null;
   center: EditorCoordinate | null;
   zoom: number | null;
@@ -15,6 +17,8 @@ export interface EditorMetadataOriginalValues {
   name: string;
   notesHtml: string | null;
   isPublic: boolean;
+  contributionPolicy: ContributionPolicy | null;
+  credits: TripCredit[];
   coverImage: { rawUrl: string | null } | null;
   center: { latitude: number | null; longitude: number | null } | null;
   zoom: number | null;

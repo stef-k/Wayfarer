@@ -185,7 +185,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         var id = Guid.NewGuid();
         db.Users.AddRange(owner, caller);
         db.ApiTokens.Add(new ApiToken { User = caller, UserId = caller.Id, Name = "mobile", Token = "phone" });
-        db.Trips.Add(new Trip { Id = id, User = owner, UserId = owner.Id, Name = "Shared trip", IsPublic = true });
+        db.Trips.Add(new Trip { Id = id, User = owner, UserId = owner.Id, Name = "Shared trip", IsPublic = true, ContributionPolicy = "CC-BY-4.0" });
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
             services => services.AddSingleton(Mock.Of<ICacheWarmupScheduler>()));

@@ -112,7 +112,7 @@ attempts cannot be discarded this way.
 
 Planning stays private even on public Trips and does not appear on public URLs,
 downloads or another user's copy. Dates written into ordinary Notes keep the
-visibility of those Notes. Personal planning export/import uses [native v4 files](import-export.md#move-trip-plans).
+visibility of those Notes. Personal planning export/import uses [native v5 files](import-export.md#move-trip-plans).
 
 ## Check plan when it helps
 

@@ -90,11 +90,13 @@ public sealed class RichNotesImportExportTests : TestBase
         db.Places.Single().Notes = Unsafe;
         db.Areas.Single().Notes = Unsafe;
         await db.SaveChangesAsync();
-        var exporter = new TripExportService(db, null!, null!, null!, null!,
+        var exporter = new TripExportService(db, null!, new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = BuildHttpContextWithUser(user.Id) }, null!, null!,
             NullLogger<TripExportService>.Instance, Mock.Of<IConfiguration>(), null!, Mock.Of<IImageProxyService>());
         var exported = XDocument.Parse(exporter.GenerateGoogleMyMapsKml(db.Trips.Single().Id));
-        Assert.All(exported.Descendants(k + "description"), description => Assert.Equal(Safe, description.Value));
-        Assert.Equal(2, exported.Descendants(k + "description").Count());
+        var descriptions = exported.Descendants(k + "Placemark").Elements(k + "description").ToArray();
+        Assert.All(descriptions, description => Assert.Equal(Safe, description.Value));
+        Assert.Equal(2, descriptions.Length);
+        Assert.Contains("Owner's contributions", exported.Descendants(k + "Document").Single().Element(k + "description")!.Value);
         Assert.Equal(Unsafe, db.Places.Single().Notes);
     }
 

@@ -109,7 +109,7 @@ public sealed class SegmentMeasurementAuthorityPostgresTests(PostgresImportTestF
         await using (var context = fixture.CreateContext())
         {
             await context.Trips.Where(item => item.Id == seed.TripId)
-                .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsPublic, true));
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsPublic, true).SetProperty(item => item.ContributionPolicy, "CC-BY-4.0"));
             var result = await new TripCloneCoordinator(context).CloneAsync(seed.TripId, destination.Id);
             Assert.Equal(TripCloneStatus.Succeeded, result.Status);
             cloned = result.ClonedTripId!.Value;

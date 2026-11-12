@@ -225,7 +225,7 @@ function targetKindLabel(kind: string): string {
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {
   const from = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.name : null;
   const to = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.name : null;
-  return [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
+  return segment.title || [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
 };
 
 const transportModeLabel = (state: EditorTripState, mode: string): string | null =>

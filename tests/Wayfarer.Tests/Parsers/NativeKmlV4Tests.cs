@@ -17,13 +17,13 @@ public sealed class NativeKmlV4Tests
         var trip = new Trip { Id = Guid.NewGuid(), Name = "Personal", Planning = Plan() };
         var ordinary = TripWayfarerKmlExporter.BuildKml(trip);
         Assert.DoesNotContain("Planning", ordinary);
-        Assert.Contains("<value>3</value>", ordinary);
+        Assert.Contains("<value>5</value>", ordinary);
         var personal = TripWayfarerKmlExporter.BuildKml(trip, includePrivatePlanning: true);
         var parsed = Parse(personal);
-        Assert.Equal(WayfarerKmlKind.NativeV4, parsed.Kind);
+        Assert.Equal(WayfarerKmlKind.NativeV5, parsed.Kind);
         Assert.True(PlanningCodec.Equal(trip.Planning, parsed.Document!.Planning));
         trip.Planning = null;
-        Assert.Equal(WayfarerKmlKind.NativeV4, Parse(TripWayfarerKmlExporter.BuildKml(trip, true)).Kind);
+        Assert.Equal(WayfarerKmlKind.NativeV5, Parse(TripWayfarerKmlExporter.BuildKml(trip, true)).Kind);
     }
 
     /// <summary>V4 preserves Region covers with XML escaping; legacy/default output retains its established omission.</summary>
@@ -46,7 +46,7 @@ public sealed class NativeKmlV4Tests
         Assert.Null(Parse(xml.ToString()).Document!.Regions.Single().CoverImageUrl);
         foreach (var version in new[] { "1", "2", "3" })
         {
-            var legacy = TripWayfarerKmlExporter.BuildKml(trip).Replace("<value>3</value>", $"<value>{version}</value>");
+            var legacy = Legacy(TripWayfarerKmlExporter.BuildKml(trip), version);
             Assert.Null(Parse(legacy).Document!.Regions.Single().CoverImageUrl);
             Assert.DoesNotContain("Planning", legacy);
         }
@@ -63,7 +63,7 @@ public sealed class NativeKmlV4Tests
     [InlineData("1")]
     [InlineData("2")]
     [InlineData("3")]
-    [InlineData("5")]
+    [InlineData("6")]
     public void PlanningRequiresSupportedExplicitVersion(string? version)
     {
         var xml = XDocument.Parse(TripWayfarerKmlExporter.BuildKml(new Trip { Id = Guid.NewGuid(), Name = "Empty", Planning = Plan() }, true));
@@ -134,6 +134,18 @@ public sealed class NativeKmlV4Tests
         var xml = XDocument.Parse(TripWayfarerKmlExporter.BuildKml(trip, true));
         xml.Descendants(k + "Point").Single().Add(new XElement(k + "coordinates", "24,38,0"));
         Assert.Throws<FormatException>(() => Parse(xml.ToString()));
+    }
+
+    /// <summary>Constructs actual older envelopes without downgrading protected v5 claims.</summary>
+    private static string Legacy(string xml, string version)
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var document = XDocument.Parse(xml);
+        foreach (var data in document.Descendants(k + "Data").Where(d =>
+            (string?)d.Attribute("name") is "Credits" or "ContentReuse" or "Title"
+            || (string?)d.Attribute("name") == "CoverImageUrl" && d.Parent?.Parent?.Name == k + "Folder").ToArray()) data.Remove();
+        document.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "WayfarerSchemaVersion").Element(k + "value")!.Value = version;
+        return document.ToString();
     }
 
     private static WayfarerKmlClassification Parse(string text) => WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(text)));

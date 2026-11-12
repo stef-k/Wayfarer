@@ -8,6 +8,8 @@ import { buildMetadataRequest, capturedViewDraft, createMetadataDraftState, equi
   viewDraft, type MetadataDraft } from './metadataDraft';
 import EditorSurface from './EditorSurface.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
+import TripCreditsEditor from './TripCreditsEditor.vue';
+import { confirmFirstPublication } from './publicationPolicy';
 import type {
   EditorMutationResult,
   EditorOptions,
@@ -145,6 +147,7 @@ watch(tagInput, () => {
 watch(
   () => draft.isPublic,
   isPublic => {
+    if (isPublic && draft.contributionPolicy === null) draft.contributionPolicy = 'CC-BY-4.0';
     if (!isPublic && !draftState.sharingAttempt.value) {
       draft.shareProgressEnabled = false;
     }
@@ -196,6 +199,7 @@ const saveAndExit = async (): Promise<void> => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   if (isSaving.value || saveUnconfirmed.value) return;
+  if (draft.isPublic && !props.metadata.isPublic && props.metadata.contributionPolicy === null && !await confirmFirstPublication(draft)) return;
   const savingSession = editSession.value;
   shareProgressEditedDuringSave = false;
   isSaving.value = true;
@@ -313,9 +317,8 @@ function confirmDiscardTripEditorChanges(): Promise<boolean> {
   });
 }
 
-async function openMetadata(): Promise<void> {
-  await props.editorSurface.activateTarget(target.value);
-}
+/** Opens the existing metadata surface without replacing pending drafts. */
+const openMetadata = (): Promise<boolean> => props.editorSurface.activateTarget(target.value);
 
 async function loadTagSuggestions(): Promise<void> {
   const query = tagInput.value.trim();
@@ -403,6 +406,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           <input v-model="draft.isPublic" type="checkbox" />
           <span>Public trip</span>
         </label>
+        <TripCreditsEditor :draft="draft" />
 
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-share-progress-heading">
           <h3 id="trip-editor-share-progress-heading">Share Progress</h3>
@@ -449,7 +453,8 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
           </template>
         </section>
 
-        <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+
+            <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
           <span>Cover Image URL</span>

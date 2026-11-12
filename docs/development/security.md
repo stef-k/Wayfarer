@@ -331,7 +331,7 @@ certificate installation authority.
 
 The host `rustup toolchain install` consumers retain Rust 1.90.0. Immediately
 before acquisition, the same guard's `--rustup` mode requires assessed rustup
-1.29.1 or 1.29.2, rejects alternate backend/distribution/update configuration, and logs
+1.29.1, 1.29.2 or 1.29.3, rejects alternate backend/distribution/update configuration, and logs
 the manager version, rejected input names and trust path. Override values are not logged.
 The invocation explicitly selects `RUSTUP_USE_RUSTLS=1`,
 which fails if that backend is unavailable. The assessed
@@ -346,6 +346,19 @@ The [official patch release](https://blog.rust-lang.org/2026/10/20/Rustup-1.29.2
 addresses the eMudhra intermediate-certificate issue. The Ubuntu 24.04
 [20261026.354 image inventory](https://github.com/actions/runner-images/blob/ubuntu24/20261026.354/images/ubuntu/Ubuntu2404-Readme.md)
 lists rustup 1.29.2 separately from rustc 1.99.1; compiler output is not manager evidence.
+The [1.29.3 source delta](https://github.com/rust-lang/rustup/compare/1.29.2...1.29.3)
+leaves downloader selection and embedded anchors unchanged: GlobalSign Root R46
+and Amazon Root CA 1, neither G3. Its lockfile updates reqwest 0.13.4→0.13.5,
+rustls 0.23.43→0.23.46, native-certs 0.8.4→0.8.5, platform-verifier 0.7.0→0.7.1,
+root-certs 1.0.10→1.0.11 and aws-lc. The assessed Linux
+[platform-verifier delta](https://github.com/rustls/rustls-platform-verifier/compare/v%2F0.7.0...v%2F0.7.1)
+only simplifies Arc ownership/formatting in its verification path; the
+[native-certs delta](https://github.com/rustls/rustls-native-certs/compare/v%2F0.8.4...v%2F0.8.5)
+deduplicates Unix certificate files by device/inode without adding trust sources.
+Admission is limited to these three assessed manager versions. Rust compiler
+1.90.0, explicit rustls/no-curl selection, the approved distribution authority,
+rejected overrides and host-CA negative G3/positive X1 controls remain unchanged.
+This source assessment is distinct from local acquisition and hosted ARM64 execution.
 No compiler/crate update or claim of independent runner-binary authentication
 follows from this check. Other manager versions still fail closed.
 

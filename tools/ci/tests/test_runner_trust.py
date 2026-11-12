@@ -130,7 +130,8 @@ class RunnerTrustTests(unittest.TestCase):
             tool.write_text('#!/bin/bash\necho "rustup ${TEST_RUSTUP_VERSION:-1.29.1} (fixture)"\n')
             tool.chmod(0o755)
             cases = [{}, {'TEST_RUSTUP_VERSION': '1.29.2'},
-                     {'TEST_RUSTUP_VERSION': '1.29.3'}, {'TEST_RUSTUP_VERSION': '1.28.2'}, {'RUSTUP_USE_CURL': '1'},
+                     {'TEST_RUSTUP_VERSION': '1.29.3'}, {'TEST_RUSTUP_VERSION': '1.29.4'},
+                     {'TEST_RUSTUP_VERSION': '1.30.0'}, {'TEST_RUSTUP_VERSION': '1.28.2'}, {'RUSTUP_USE_CURL': '1'},
                      {'RUSTUP_USE_CURL': ''}, {'RUSTUP_USE_RUSTLS': '0'},
                      {'RUSTUP_DIST_SERVER': 'https://unassessed.invalid'},
                      {'RUSTUP_DIST_ROOT': 'https://unassessed.invalid/dist'},
@@ -144,7 +145,8 @@ class RunnerTrustTests(unittest.TestCase):
                     result = subprocess.run(['bash', '-e', '-c',
                         'bash deployment/check-trust.sh --rustup; echo ACQUISITION_REACHED'],
                         cwd=ROOT, env=env, text=True, capture_output=True)
-                    admitted = not overrides or overrides == {'TEST_RUSTUP_VERSION': '1.29.2'}
+                    admitted = not overrides or overrides in ({'TEST_RUSTUP_VERSION': '1.29.2'},
+                                                             {'TEST_RUSTUP_VERSION': '1.29.3'})
                     self.assertEqual(result.returncode == 0, admitted, result.stdout + result.stderr)
                     self.assertEqual('ACQUISITION_REACHED' in result.stdout, admitted)
                     self.assertIn('Rustup manager: rustup ' + overrides.get('TEST_RUSTUP_VERSION', '1.29.1'), result.stdout)

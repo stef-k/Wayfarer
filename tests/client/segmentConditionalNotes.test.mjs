@@ -44,12 +44,12 @@ const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import
 const actualApp = (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default;
 const route = { type: 'LineString', coordinates: [[0, 0], [1, 1], [2, 2]] };
 const segment = (overrides = {}) => {
-  const value = { id: 'segment', tripId: 'trip', fromPlaceId: 'from', toPlaceId: 'to', waypointPlaceIds: ['waypoint'],
+  const value = { title: null, id: 'segment', tripId: 'trip', fromPlaceId: 'from', toPlaceId: 'to', waypointPlaceIds: ['waypoint'],
     waypointRouteVertexIndices: [1], mode: 'walk', transportProfileId: 'profile', hasCustomRoute: true,
     estimatedDistanceKm: 20, estimatedDurationMinutes: 90, estimatedDurationSource: 'Manual', notesHtml: '',
     route, effectiveRoute: route, originalRouteToken: 'original-route', aggregateConcurrencyToken: 'original-aggregate', displayOrder: 1,
     capabilities: { canEdit: true, canDelete: true }, ...overrides };
-  value.originalValues ??= { notesHtml: value.notesHtml || null };
+  value.originalValues = { title: value.title, ...(value.originalValues ?? { notesHtml: value.notesHtml || null }) };
   return value;
 };
 const envelope = data => ({ success: true, data, affected: { metadata: null, regions: [], places: [], areas: [],
@@ -743,4 +743,29 @@ test('later route intent during create retains its draft under the created ident
   await editor.saveDraft();
   assert.equal(calls, 1);
   assert.match(editor.saveError, /review/i);
+}));
+
+// Title uses the same ordinary pending/error/acknowledgement boundary while remaining independent of Notes and route.
+test('title-only PATCH pins its original across refresh and retains later typing after acknowledgement', () => withApp(async ({ parent, editor }) => {
+  const reply = deferred();
+  const calls = [];
+  const originalSegment = segment({ title: 'Original', originalValues: { notesHtml: null, title: 'Original' } });
+  parent.applyMutation(envelope(originalSegment));
+  await editor.openEdit(originalSegment);
+  editor.draft.title = 'Submitted';
+  parent.applyMutation(envelope(segment({ title: 'Other device', originalValues: { notesHtml: null, title: 'Other device' } })));
+  await nextTick();
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
+  const saving = editor.saveDraft();
+  editor.draft.title = 'Newer title';
+  reply.resolve(saved(segment({ title: 'Submitted', originalValues: { notesHtml: null, title: 'Submitted' } })));
+  await saving; await nextTick();
+  assert.deepEqual(calls[0], { expected: { title: 'Original' }, changes: { title: 'Submitted' } });
+  assert.equal(editor.draft.title, 'Newer title');
+  assert.equal(editor.isDirty, true);
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return saved(segment({ title: null, originalValues: { notesHtml: null, title: null } })); };
+  editor.draft.title = '';
+  await editor.saveDraft();
+  assert.deepEqual(calls[1], { expected: { title: 'Submitted' }, changes: { title: null } });
+  assert.equal(editor.isDirty, false);
 }));

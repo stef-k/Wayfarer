@@ -16,7 +16,7 @@ public sealed class NativeKmlV2RoundTripTests
         var (trip, segment, waypoint) = CreateWaypointTrip(true);
         var kml = TripWayfarerKmlExporter.BuildKml(trip);
         Assert.Contains("WayfarerSchemaVersion", kml);
-        Assert.Contains("<value>3</value>", kml);
+        Assert.Contains("<value>5</value>", kml);
         Assert.Contains("<value>true</value>", kml);
         Assert.Contains(waypoint.PlaceId.ToString("D"), kml);
         Assert.Contains($"<value>{waypoint.RouteVertexIndex}</value>", kml);
@@ -44,7 +44,7 @@ public sealed class NativeKmlV2RoundTripTests
         using var stream = Stream(TripWayfarerKmlExporter.BuildKml(trip));
         var parsed = WayfarerKmlParser.ClassifyAndParse(stream);
         var segment = Assert.Single(parsed.Document!.Segments);
-        Assert.Equal(WayfarerKmlKind.NativeV3, parsed.Kind);
+        Assert.Equal(WayfarerKmlKind.NativeV5, parsed.Kind);
         Assert.Equal(hasCustomRoute, segment.HasCustomRoute);
         Assert.Equal(waypoint.PlaceId, Assert.Single(segment.WaypointPlaceIds));
         Assert.Equal(expectedIndex, Assert.Single(segment.WaypointRouteVertexIndices));

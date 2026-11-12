@@ -22,6 +22,7 @@ public partial class TripExportService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
         using var admission = BrowserAdmission.Shared.TryAcquire()
             ?? throw new BrowserUnavailableException("Browser capacity is full. Retry shortly.");
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(5), DeadlineClock);
@@ -50,6 +51,7 @@ public partial class TripExportService
         // Helper to send progress updates if channel is provided
         async Task ReportProgress(string message)
         {
+            await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
             if (!string.IsNullOrEmpty(progressChannel))
             {
                 await _sseService.BroadcastAsync(progressChannel,
@@ -61,17 +63,24 @@ public partial class TripExportService
         cancellationToken.ThrowIfCancellationRequested();
 
         /* 1 ── load trip + related data ------------------------------------ */
-        var trip = await _db.Trips
+        using var acquisition = BeginAcquisition(tripId);
+        var trip = await _db.Trips.AsNoTracking()
                        .Include(t => t.User)
                        .FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken)
                    ?? throw new KeyNotFoundException($"Trip not found: {tripId}");
 
-        var regions = await _db.Regions.Include(r => r.Areas).Where(r => r.TripId == tripId).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToListAsync(cancellationToken);
-        var places = await _db.Places.Where(p => p.Region.TripId == tripId).OrderBy(p => p.DisplayOrder).ThenBy(p => p.Id).ToListAsync(cancellationToken);
+        var regions = await _db.Regions.AsNoTracking().Include(r => r.Areas).Where(r => r.TripId == tripId).OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToListAsync(cancellationToken);
+        var places = await _db.Places.AsNoTracking().Where(p => p.Region.TripId == tripId).OrderBy(p => p.DisplayOrder).ThenBy(p => p.Id).ToListAsync(cancellationToken);
         // The separate PDF reader explicitly loads each authorized journey anchor.
-        var segments = await _db.Segments.Include(s => s.FromPlace).Include(s => s.ToPlace).Include(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+        var segments = await _db.Segments.AsNoTracking().Include(s => s.FromPlace).Include(s => s.ToPlace).Include(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
             .Where(s => s.TripId == tripId).OrderBy(s => s.DisplayOrder).ThenBy(s => s.Id).ToListAsync(cancellationToken);
 
+        trip.Regions = regions;
+        trip.Segments = segments;
+        foreach (var region in regions) region.Places = places.Where(p => p.RegionId == region.Id).ToList();
+        if (TripReusePolicy.Caller(_ctx) != trip.UserId) TripCopyMedia.OmitUnqualified(trip);
+        acquisition?.Dispose(); // Graph capture is complete; no database barrier is held over browser/media work.
+        await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
         await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments");
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -265,6 +274,7 @@ public partial class TripExportService
 
         await ReportProgress("✅ PDF ready! Starting download...");
         cancellationToken.ThrowIfCancellationRequested();
+        await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
         return new MemoryStream(pdfBytes);
     }
 

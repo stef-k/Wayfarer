@@ -34,14 +34,20 @@ internal sealed class SegmentNotesConditionalMutationService(ApplicationDbContex
                 .AsNoTracking().ToListAsync(token);
             if (active.Count == 0 || revalidateBearer != null && !await revalidateBearer(token))
                 throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
-            if (!string.Equals(request.Expected, RichNotes.Normalize(segment.Notes), StringComparison.Ordinal))
+            if (request.HasNotes && !string.Equals(request.Expected, RichNotes.Normalize(segment.Notes), StringComparison.Ordinal)
+                || request.HasTitle && !string.Equals(request.ExpectedTitle, segment.Title, StringComparison.Ordinal))
                 throw new TripMetadataMutationRejected(409, "mutation-base-stale",
                     "Segment Notes changed. Keep your draft, review current Notes and explicitly choose a new base before saving.");
-            var applied = !string.Equals(request.Desired, segment.Notes, StringComparison.Ordinal);
+            var applied = request.HasNotes && !string.Equals(request.Desired, segment.Notes, StringComparison.Ordinal)
+                || request.HasTitle && !string.Equals(request.Title, segment.Title, StringComparison.Ordinal);
             if (applied)
             {
                 await db.Segments.Where(s => s.Id == segmentId && s.TripId == tripId && s.UserId == userId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(s => s.Notes, request.Desired), token);
+                    .ExecuteUpdateAsync(setters =>
+                    {
+                        if (request.HasNotes) setters.SetProperty(s => s.Notes, request.Desired);
+                        if (request.HasTitle) setters.SetProperty(s => s.Title, request.Title);
+                    }, token);
                 var now = DateTime.UtcNow;
                 await db.Trips.Where(t => t.Id == tripId && t.UserId == userId)
                     .ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);

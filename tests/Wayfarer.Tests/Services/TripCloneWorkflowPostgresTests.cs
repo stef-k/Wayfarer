@@ -97,7 +97,7 @@ public sealed class TripCloneWorkflowPostgresTests(PostgresImportTestFixture fix
         ApplicationUser owner, ApplicationUser apiUser, Guid tripId, Guid profileId, Guid tagId)
     {
         await using var context = fixture.CreateContext();
-        var trip = new Trip { Id = tripId, UserId = owner.Id, Name = "Clone workflow", IsPublic = true };
+        var trip = new Trip { Id = tripId, UserId = owner.Id, Name = "Clone workflow", IsPublic = true, ContributionPolicy = "CC-BY-4.0" };
         var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, UserId = owner.Id, Name = "Route" };
         var a = Place(region, owner.Id, "A", 0, 0);
         var b = Place(region, owner.Id, "B", 0.1, 0);

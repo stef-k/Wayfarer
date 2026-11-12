@@ -90,15 +90,21 @@ public partial class TripImportService : ITripImportService
                 source, userId, profiles, remapIdentities: createNew,
                 targetTripId: createNew ? null : source.TripId);
             TripRichNotes.NormalizeDestination(mapped);
-            if (createNew && source.Version != 4) mapped.Name = $"{mapped.Name} (Imported)";
+            if (createNew && source.Version < 4) mapped.Name = $"{mapped.Name} (Imported)";
 
             if (!createNew)
             {
                 var current = await LockReplacementAsync(mapped.Id, userId, cancellationToken);
                 await ValidateReplacementIdentitiesAsync(mapped, cancellationToken);
+                PreservePortableOmissions(source, current, mapped);
                 _review.Apply(current, mapped, NativeImportReviewProtection.Binding(current, userId, digest), approval);
             }
-            else await RequireActiveImportOwnerAsync(userId, cancellationToken);
+            else
+            {
+                await RequireActiveImportOwnerAsync(userId, cancellationToken);
+                mapped.Credits = TripCreditCodec.Inherited(mapped);
+                mapped.ContributionPolicy = null;
+            }
             var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);
             if (createNew)
             {
@@ -119,6 +125,8 @@ public partial class TripImportService : ITripImportService
                 target.CenterLon = mapped.CenterLon;
                 target.Zoom = mapped.Zoom;
                 target.Planning = mapped.Planning;
+                target.ContributionPolicy = mapped.ContributionPolicy;
+                target.Credits = mapped.Credits;
                 target.UpdatedAt = DateTime.UtcNow;
                 target.Tags.Clear();
                 foreach (var tag in reconciledTags) target.Tags.Add(tag);
@@ -130,7 +138,7 @@ public partial class TripImportService : ITripImportService
             _dbContext.ChangeTracker.Clear();
             await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
                 _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken,
-                preserveSavedMeasurements: source.Version is 3 or 4);
+                preserveSavedMeasurements: source.Version is 3 or 4 or 5);
             await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
             if (transaction is not null)
             {
@@ -190,12 +198,12 @@ public partial class TripImportService : ITripImportService
             var expected = source.Segments[index];
             if (!persisted.TryGetValue(mapped.Segments.ElementAt(index).Id, out var actual))
                 throw new TripImportValidationException("An imported Segment identity changed during reconciliation.");
-            if ((source.Version is 3 or 4 || expected.DistanceKm.HasValue) && actual.EstimatedDistanceKm != expected.DistanceKm)
+            if ((source.Version is 3 or 4 or 5 || expected.DistanceKm.HasValue) && actual.EstimatedDistanceKm != expected.DistanceKm)
                 throw new TripImportValidationException("Distance compatibility metadata does not match canonical reconciliation.");
             if (expected.DurationSource == EstimatedDurationSource.Manual
                 && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Manual duration did not reconcile exactly.");
-            if (expected.DurationSource == EstimatedDurationSource.Automatic && (source.Version is 3 or 4 || expected.Duration.HasValue)
+            if (expected.DurationSource == EstimatedDurationSource.Automatic && (source.Version is 3 or 4 or 5 || expected.Duration.HasValue)
                 && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Automatic duration compatibility metadata does not match canonical reconciliation.");
         }

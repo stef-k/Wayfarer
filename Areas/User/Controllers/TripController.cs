@@ -345,7 +345,8 @@ namespace Wayfarer.Areas.User.Controllers
                     _logger.LogWarning(ex, "Trip clone {ClonedTripId} committed but cache warmup scheduling failed", clone.ClonedTripId);
                 }
             }
-            SetAlert($"Trip '{clone.SourceTripName}' has been cloned to your account!", "success");
+            SetAlert($"Trip '{clone.SourceTripName}' has been cloned to your account!" +
+                (clone.MediaOmitted ? " Covers and embedded images were omitted because transferable permission is unavailable. Select permitted images in your copy." : ""), "success");
             return RedirectToAction("Edit", new { id = clone.ClonedTripId });
         }
     }

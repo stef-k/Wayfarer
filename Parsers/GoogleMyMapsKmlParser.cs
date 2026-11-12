@@ -39,6 +39,8 @@ public static class GoogleMyMapsKmlParser
         string userId,
         CancellationToken cancellationToken)
     {
+        if (WayfarerKmlParser.Classify(document).Kind != WayfarerKmlKind.Generic)
+            throw new FormatException("Native claims require the native import path.");
         var root = document.Root?.Element(Kml + "Document")
             ?? throw new FormatException("Missing KML Document.");
         var lineOwners = root.Elements(Kml + "Folder").SelectMany(folder => folder.Elements(Kml + "Placemark"))
@@ -79,6 +81,8 @@ public static class GoogleMyMapsKmlParser
         }
 
         var trip = BuildTrip(root, acceptedRoutes, userId);
+        var attribution = WayfarerKmlParser.ReadGoogleAttribution(document);
+        if (attribution != null) trip.Credits = TripCreditCodec.Inherited(attribution);
         return new(trip, BuildNotices(acceptedRoutes));
     }
 

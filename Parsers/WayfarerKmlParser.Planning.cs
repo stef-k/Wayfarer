@@ -21,7 +21,7 @@ public static partial class WayfarerKmlParser
     {
         var claims = source.Descendants().Where(e => e.Name.LocalName.Equals("Planning", StringComparison.OrdinalIgnoreCase)
             || ((string?)e.Attribute("name"))?.Trim().Equals("Planning", StringComparison.OrdinalIgnoreCase) == true).ToArray();
-        var v4 = versions.Count == 1 && versions[0].Trim() == "4";
+        var v4 = versions.Count == 1 && versions[0].Trim() is "4" or "5";
         if (claims.Length > 0 && !v4) throw new FormatException("Private planning requires native KML version 4.");
         foreach (var claim in claims)
         {
@@ -60,6 +60,13 @@ public static partial class WayfarerKmlParser
             ["area"] = ["AreaId", "RegionId", "DisplayOrder", "NotesHtml", "FillHex"],
             ["segment"] = ["SegmentId", "FromPlaceId", "ToPlaceId", "Mode", "TransportProfileKey", "DistanceKm", "DurationTicks", "DurationSource", "DisplayOrder", "NotesHtml", "HasCustomRoute", "WaypointPlaceIds", "WaypointRouteVertexIndices", "TripId", "RouteProvenance"]
         };
+        if (Values(document, "WayfarerSchemaVersion").SingleOrDefault() == "5")
+        {
+            fields["trip"] = [.. fields["trip"], "Credits", "ContentReuse"];
+            fields["segment"] = [.. fields["segment"], "Title"];
+            _ = RequiredScalar(document, "Credits");
+            _ = RequiredScalar(document, "ContentReuse");
+        }
         HashSet<Guid> identities = [];
         foreach (var owner in document.DescendantsAndSelf().Where(e => e == document || e.Name == Kml + "Folder" || e.Name == Kml + "Placemark"))
         {

@@ -12,7 +12,7 @@ public sealed record TripCloneResult(
     TripCloneStatus Status,
     Guid? ClonedTripId = null,
     string? SourceTripName = null,
-    bool RequiresImageWarmup = false);
+    bool RequiresImageWarmup = false, bool MediaOmitted = false);
 
 /// <summary>Identifies path-neutral Trip clone outcomes translated by each controller.</summary>
 public enum TripCloneStatus
@@ -36,20 +36,36 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         string destinationUserId,
         CancellationToken cancellationToken = default)
     {
+        var sourceOwner = await dbContext.Trips.AsNoTracking().Where(t => t.Id == sourceTripId).Select(t => t.UserId).SingleOrDefaultAsync(cancellationToken);
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             : null;
         try
         {
+            if (transaction != null && sourceOwner != null)
+                foreach (var owner in new[] { sourceOwner, destinationUserId }.Distinct().Order(StringComparer.Ordinal))
+                    await LocationDeletionFence.AcquireAsync(dbContext, owner, cancellationToken);
+            if (transaction != null)
+                foreach (var owner in new[] { sourceOwner, destinationUserId }.OfType<string>().Distinct().Order(StringComparer.Ordinal))
+                    await dbContext.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {owner} FOR SHARE")
+                        .AsNoTracking().ToListAsync(cancellationToken);
+            if (transaction != null)
+                await dbContext.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {sourceTripId} FOR SHARE")
+                    .AsNoTracking().ToListAsync(cancellationToken);
             var source = await LoadSourceAsync(sourceTripId, cancellationToken);
             if (source == null) return new(TripCloneStatus.NotFound);
             if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
             if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
+            if (!TripReusePolicy.GrantsReuse(source)
+                || !await dbContext.Users.AnyAsync(u => u.Id == source.UserId && u.IsActive, cancellationToken)
+                || !await dbContext.Users.AnyAsync(u => u.Id == destinationUserId && u.IsActive, cancellationToken))
+                return new(TripCloneStatus.NotPublic);
 
             if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
                 throw new InvalidOperationException("Duplicate Unassigned Places Regions require reconciliation.");
 
             var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
+            var mediaOmitted = TripCopyMedia.OmitUnqualified(clone);
             TripRichNotes.NormalizeDestination(clone);
             dbContext.Trips.Add(clone);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -60,7 +76,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
 
             var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
                 || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
-            return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
+            return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup, mediaOmitted);
         }
         catch (Exception cloneFailure)
         {
@@ -80,6 +96,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
     /// <summary>Explicitly loads every clone-owned aggregate child inside the coordinator snapshot.</summary>
     private Task<Trip?> LoadSourceAsync(Guid sourceTripId, CancellationToken cancellationToken) =>
         dbContext.Trips.AsNoTracking()
+            .Include(trip => trip.User)
             .Include(trip => trip.Tags)
             .Include(trip => trip.Regions).ThenInclude(region => region.Places)
             .Include(trip => trip.Regions).ThenInclude(region => region.Areas)
@@ -97,7 +114,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         var clone = new Trip
         {
             Id = Guid.NewGuid(), UserId = destinationUserId, Name = $"{source.Name} (Copy)",
-            Notes = source.Notes, IsPublic = false, ShareProgressEnabled = false,
+            Notes = source.Notes, Credits = TripCreditCodec.Inherited(source), IsPublic = false, ShareProgressEnabled = false,
             CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom,
             CoverImageUrl = source.CoverImageUrl, UpdatedAt = DateTime.UtcNow
         };
@@ -145,8 +162,16 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             clone.Regions.Add(region);
         }
 
+        var sourcePlaces = source.Regions.SelectMany(r => r.Places).ToDictionary(p => p.Id);
         foreach (var sourceSegment in source.Segments.OrderBy(segment => segment.DisplayOrder).ThenBy(segment => segment.Id))
+        {
+            sourceSegment.FromPlace = sourceSegment.FromPlaceId is { } from ? sourcePlaces.GetValueOrDefault(from) : null;
+            sourceSegment.ToPlace = sourceSegment.ToPlaceId is { } to ? sourcePlaces.GetValueOrDefault(to) : null;
+            foreach (var waypoint in sourceSegment.Waypoints)
+                waypoint.Place = sourcePlaces.GetValueOrDefault(waypoint.PlaceId)!;
+            ValidateCopyRoute(sourceSegment);
             clone.Segments.Add(CreateSegmentClone(sourceSegment, clone.Id, destinationUserId, placeMap));
+        }
 
         var tagIds = source.Tags.Select(tag => tag.Id).Distinct().ToArray();
         var tags = await dbContext.Tags.Where(tag => tagIds.Contains(tag.Id)).ToArrayAsync(cancellationToken);
@@ -154,6 +179,22 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             throw new InvalidOperationException("A source Tag identity could not be resolved.");
         foreach (var tag in tags) clone.Tags.Add(tag);
         return clone;
+    }
+
+    /// <summary>Checks source-coordinate compatibility before installing trusted unchanged-route measurements.</summary>
+    private static void ValidateCopyRoute(Segment source)
+    {
+        var errors = SegmentRouteReconciler.ValidateProjectedAggregate(source);
+        if (errors.Count != 0) throw new InvalidOperationException(string.Join(" ", errors));
+        if (source.RouteGeometry is not { } route) return;
+        foreach (var endpoint in new[] { (source.FromPlace, Index: 0), (source.ToPlace, Index: route.NumPoints - 1) })
+        {
+            if (endpoint.Item1 == null) continue;
+            var point = endpoint.Item1.Location;
+            var vertex = route.GetCoordinateN(endpoint.Index);
+            if (point == null || Math.Abs(point.X - vertex.X) > 0.0000001 || Math.Abs(point.Y - vertex.Y) > 0.0000001)
+                throw new InvalidOperationException("The source route does not match its saved endpoint. Repair the route explicitly before cloning.");
+        }
     }
 
     /// <summary>Creates one remapped Segment aggregate without sharing mutable geometry with its source.</summary>
@@ -169,7 +210,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             Id = Guid.NewGuid(), TripId = cloneTripId, UserId = destinationUserId,
             FromPlaceId = MapOptionalPlace(source.FromPlaceId, placeMap),
             ToPlaceId = MapOptionalPlace(source.ToPlaceId, placeMap),
-            Mode = source.Mode, TransportProfileId = source.TransportProfileId,
+            Title = source.Title, Mode = source.Mode, TransportProfileId = source.TransportProfileId,
             RouteGeometry = source.RouteGeometry == null ? null : (LineString)source.RouteGeometry.Copy(),
             EstimatedDuration = source.EstimatedDuration,
             EstimatedDurationSource = source.EstimatedDurationSource,

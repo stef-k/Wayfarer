@@ -6,7 +6,7 @@ import { confirm } from '../composables/useConfirmDialog';
 
 /** Existing aggregate fields remain a single intent with their pinned route token, separate from Notes display/originals. */
 const routeIntent = (draft: EditorSegmentDraft, request = buildSegmentRequest(draft)): string => {
-  const { notesHtml: _notes, aggregateConcurrencyToken: _token, ...route } = request;
+  const { notesHtml: _notes, title: _title, aggregateConcurrencyToken: _token, ...route } = request;
   return JSON.stringify({ ...route, transportProfileId: draft.transportProfileId });
 };
 
@@ -22,6 +22,7 @@ export const completeSegment = (next: EditorSegment): boolean => {
     && typeof next.aggregateConcurrencyToken === 'string' && next.aggregateConcurrencyToken.length > 0
     && Array.isArray(next.waypointPlaceIds) && Array.isArray(next.waypointRouteVertexIndices)
     && nullableString(next.fromPlaceId) && nullableString(next.toPlaceId) && nullableString(next.transportProfileId)
+    && (next.title === undefined || nullableString(next.title))
     && typeof next.mode === 'string' && nullableNumber(next.estimatedDistanceKm) && nullableNumber(next.estimatedDurationMinutes)
     && ['Manual', 'Automatic'].includes(next.estimatedDurationSource) && geometry(next.route) && geometry(next.effectiveRoute)
     && next.waypointPlaceIds.every(id => typeof id === 'string')
@@ -87,6 +88,8 @@ export const createSegmentNotesDraft = (options: {
   formId: string;
 }) => {
   const { draft, baseline, isSaving } = options;
+  let submittedTitle = '';
+  let originalTitle: string | null | undefined;
   const pending = ref(false);
   const uncertain = ref(false);
   const routeHeld = ref(false);
@@ -100,6 +103,7 @@ export const createSegmentNotesDraft = (options: {
   /** Takes only server-origin evidence, never inferring null from the displayed blank editor. */
   const pin = (segment: EditorSegment | null): void => {
     original = segment?.originalValues?.notesHtml;
+    originalTitle = segment?.originalValues?.title;
   };
 
   /** Explicit open/reset/discard retires all late feedback and the old saving gate. */
@@ -115,7 +119,12 @@ export const createSegmentNotesDraft = (options: {
   }, { flush: 'sync' });
   watch(options.current, next => {
     if (!next || next.id !== draft.id || pending.value || uncertain.value || routeHeld.value) return;
-    if (buildSegmentRequest(draft).notesHtml !== buildSegmentRequest(baseline.value).notesHtml) return;
+    const titleDirty = draft.title !== baseline.value.title;
+    if (!titleDirty) {
+      draft.title = baseline.value.title = toSegmentDraft(next).title;
+      originalTitle = next.originalValues?.title;
+    }
+    if (buildSegmentRequest(draft).notesHtml !== buildSegmentRequest(baseline.value).notesHtml || titleDirty) return;
     const previousNotes = draft.notesHtml;
     draft.notesHtml = baseline.value.notesHtml = toSegmentDraft(next).notesHtml;
     if (draft.notesHtml !== previousNotes) notesAdoption.value++;
@@ -127,7 +136,7 @@ export const createSegmentNotesDraft = (options: {
   const held = computed(() => pending.value || uncertain.value || routeHeld.value);
   const onlyNotes = (): boolean => Boolean(draft.id) && !options.routeAuthored()
     && routeIntent(draft) === routeIntent(baseline.value)
-    && buildSegmentRequest(draft).notesHtml !== buildSegmentRequest(baseline.value).notesHtml;
+    && (buildSegmentRequest(draft).notesHtml !== buildSegmentRequest(baseline.value).notesHtml || draft.title !== baseline.value.title);
 
   /** Blocks replay after uncertainty and implicit token advancement over a later route/proposal intention. */
   const blocked = (): boolean => {
@@ -139,12 +148,13 @@ export const createSegmentNotesDraft = (options: {
   };
 
   /** Rejects incomplete success before any local base or parent slice can change. */
-  const validate = (result: EditorMutationResult<EditorSegment>): EditorSegment => {
+  const validate = (result: EditorMutationResult<EditorSegment>, expectedTitle?: string | null): EditorSegment => {
     const next = result?.data;
     if (result?.success !== true || next?.id !== draft.id || next.tripId !== options.current()?.tripId
       || typeof next.notesHtml !== 'string' || !next.originalValues || !Object.hasOwn(next.originalValues, 'notesHtml')
       || next.originalValues.notesHtml !== null && typeof next.originalValues.notesHtml !== 'string'
       || (next.originalValues.notesHtml ?? '') !== next.notesHtml
+      || expectedTitle !== undefined && (next.title !== expectedTitle || next.originalValues?.title !== expectedTitle)
       || !completeSegment(next)
       || result.affected?.segments?.length !== 1 || JSON.stringify(result.affected.segments[0]) !== JSON.stringify(next))
       throw new Error('The Segment Notes save acknowledgement is incomplete. Keep your draft and review the unknown outcome.');
@@ -160,26 +170,32 @@ export const createSegmentNotesDraft = (options: {
     try {
       if (original === undefined) throw new Error('Original Segment Notes are unavailable. Keep your draft and reload before saving.');
       const desired = buildSegmentRequest(draft).notesHtml ?? '';
+      const desiredTitle = draft.title;
+      const titleChanged = desiredTitle !== baseline.value.title;
       pending.value = isSaving.value = true;
       routeChangedDuringSave = false;
       attempted = true;
       const result = await patchSegmentNotes(options.endpoint(), draft.id!, options.antiforgery(), {
-        expected: { notesHtml: original }, changes: { notesHtml: desired }
+        expected: { ...(desired !== buildSegmentRequest(baseline.value).notesHtml ? { notesHtml: original } : {}), ...(titleChanged ? { title: originalTitle ?? null } : {}) },
+        changes: { ...(desired !== buildSegmentRequest(baseline.value).notesHtml ? { notesHtml: desired } : {}), ...(titleChanged ? { title: desiredTitle.trim() || null } : {}) }
       });
       if (!currentAttempt()) return;
-      const next = validate(result);
+      const next = validate(result, titleChanged ? desiredTitle.trim() || null : undefined);
       const previousNotes = draft.notesHtml;
       const newer = buildSegmentRequest(draft).notesHtml !== desired ? draft.notesHtml : null;
       const incoming = toSegmentDraft(next);
+      const retainedTitle = draft.title !== desiredTitle ? draft.title : incoming.title;
       // End observation before authoritative adoption; our own updates are not authored route changes.
       pending.value = false;
       if (routeChangedDuringSave) {
+        baseline.value.title = incoming.title;
+        draft.title = retainedTitle;
         baseline.value.notesHtml = incoming.notesHtml;
         draft.notesHtml = newer ?? incoming.notesHtml;
         routeHeld.value = true;
       } else {
         baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
-        Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
+        Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml, title: retainedTitle });
       }
       if (draft.notesHtml !== previousNotes) notesAdoption.value++;
       pin(next);
@@ -198,18 +214,21 @@ export const createSegmentNotesDraft = (options: {
   const acceptComplete = (next: EditorSegment): EditorSegmentDraft => {
     const previousNotes = draft.notesHtml;
     const incoming = toSegmentDraft(next);
+    const retainedTitle = draft.title !== submittedTitle ? draft.title : incoming.title;
     const newer = buildSegmentRequest(draft).notesHtml !== submittedNotes ? draft.notesHtml : null;
     pending.value = false;
     if (routeChangedDuringSave) {
       // Creation installs only its persisted identity; later route work still requires explicit review/reset.
       if (!draft.id) draft.id = baseline.value.id = next.id;
       // Later route/proposal work retains its original evidence until explicit review/reset.
+      baseline.value.title = incoming.title;
+      draft.title = retainedTitle;
       baseline.value.notesHtml = incoming.notesHtml;
       draft.notesHtml = newer ?? incoming.notesHtml;
       routeHeld.value = true;
     } else {
       baseline.value = JSON.parse(JSON.stringify(incoming)) as EditorSegmentDraft;
-      Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml });
+      Object.assign(draft, incoming, { notesHtml: newer ?? incoming.notesHtml, title: retainedTitle });
     }
     if (draft.notesHtml !== previousNotes) notesAdoption.value++;
     pin(next);
@@ -224,6 +243,7 @@ export const createSegmentNotesDraft = (options: {
     const currentAttempt = (): boolean => attempt === session.value;
     const request = options.buildRequest();
     submittedNotes = buildSegmentRequest(draft).notesHtml;
+    submittedTitle = draft.title;
     const segmentId = draft.id;
     if (segmentId) {
       if (!draft.originalRouteToken || original === undefined) {
@@ -236,6 +256,10 @@ export const createSegmentNotesDraft = (options: {
         request.expected = { notesHtml: original };
         request.changes = { notesHtml: submittedNotes ?? '' };
       }
+      if (draft.title !== baseline.value.title) {
+        request.expected = { ...request.expected, title: originalTitle ?? null };
+        request.changes = { ...request.changes, title: draft.title.trim() || null };
+      }
       delete request.notesHtml;
       delete request.aggregateConcurrencyToken;
     }
@@ -244,6 +268,9 @@ export const createSegmentNotesDraft = (options: {
     // Every complete response crosses this boundary before draft, proposal, preview, parent or Saved adoption.
     const accept = (result: EditorMutationResult<EditorSegment>): void => {
       validateComplete(result, tripId, segmentId);
+      const title = request.changes && Object.hasOwn(request.changes, 'title') ? request.changes.title : request.title;
+      if (title !== undefined && (result.data.title !== title || result.data.originalValues?.title !== title))
+        throw new Error('The Segment title acknowledgement is incomplete. Keep your draft and review the outcome.');
       options.accepted(result, segmentId === null);
     };
     const rows = draft.waypointRows.map(row => ({ ...row }));

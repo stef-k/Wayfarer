@@ -22,6 +22,11 @@ public class ApiTripDto
     /// Tags associated with this trip for categorization
     /// </summary>
     public List<ApiTagDto>? Tags { get; set; }
+    /// <summary>Owner contributions only; inherited notices remain distinct and legacy null is view-only.</summary>
+    public string? ContributionPolicy { get; set; }
+    /// <summary>Self-contained publishable inherited attribution.</summary>
+    public IReadOnlyList<Wayfarer.Models.TripCredit> Credits { get; set; } = [];
+
 }
 
 /// <summary>

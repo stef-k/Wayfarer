@@ -16,7 +16,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
             var root = Fields(document.RootElement, ["expected", "changes"]);
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
-            string[] allowed = web ? ["name", "notesHtml", "isPublic", "coverImage", "center", "zoom"] : ["name", "notes"];
+            string[] allowed = web ? ["name", "notesHtml", "isPublic", "coverImage", "center", "zoom", "contributionPolicy", "credits"] : ["name", "notes", "contributionPolicy", "credits"];
             var originals = Fields(expected, allowed);
             var desired = Fields(changes, allowed);
             var parsed = new TripMetadataConditionalRequest([], []);
@@ -38,6 +38,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
             if (parsed.Changes.Count == 0) throw Invalid("changes", "At least one effective field change is required.");
             return parsed;
         }
+        catch (FormatException) { throw Invalid("credits", "Check the contribution policy and complete readable credits."); }
         catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
     }
 
@@ -58,6 +59,8 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
     private static object? ReadValue(string key, JsonElement value, bool desired) => key switch
     {
         "name" => ReadName(value, desired),
+        "contributionPolicy" => TripCreditCodec.Policy(NullableString(key, value)),
+        "credits" => TripCreditCodec.Write(TripCreditCodec.Read(value.GetRawText())),
         "notes" or "notesHtml" => ReadNotes(key, value, desired),
         "isPublic" when value.ValueKind is JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
         "coverImage" => ReadCover(value, desired),
