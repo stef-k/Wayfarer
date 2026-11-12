@@ -1,0 +1,32 @@
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
+
+namespace Wayfarer.Services;
+
+/// <summary>Narrow workspace barrier shared by Finish and normal destination deletion.</summary>
+internal static class TripCompositionLifecycle
+{
+    /// <summary>Locks owner-scoped headers before destination rows; source identities never participate in deletion.</summary>
+    internal static async Task LockAsync(ApplicationDbContext db, string owner, Guid? tripId, Guid? compositionId, CancellationToken token)
+    {
+        if (!db.Database.IsNpgsql()) return;
+        await db.Set<TripComposition>().FromSqlInterpolated($"""
+            SELECT * FROM public."TripCompositions" WHERE "UserId" = {owner}
+            AND (({tripId} IS NOT NULL AND "TripId" = {tripId}) OR ({compositionId} IS NOT NULL AND "Id" = {compositionId}))
+            ORDER BY "Id" FOR UPDATE
+            """).AsNoTracking().ToListAsync(token);
+    }
+
+    /// <summary>Deletes C with workspace/origins through FK cascades in the same account-fenced transaction.</summary>
+    internal static async Task<bool> DeleteAsync(ApplicationDbContext db, Guid id, string owner, CancellationToken token)
+    {
+        await using var transaction = await LocationDeletionFence.BeginAsync(db, owner, token);
+        await LockAsync(db, owner, id, null, token);
+        var trip = await db.Trips.SingleOrDefaultAsync(t => t.Id == id && t.UserId == owner, token);
+        if (trip == null) return false;
+        db.Trips.Remove(trip);
+        await db.SaveChangesAsync(token);
+        if (transaction != null) await transaction.CommitAsync(token);
+        return true;
+    }
+}
