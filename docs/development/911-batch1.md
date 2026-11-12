@@ -203,3 +203,39 @@ Validation receipts and any limitations are recorded in the draft PR and #911
 progress comment. Source/design conclusions are distinct from fresh runtime results;
 mobile/native application qualification and independent complete-PR review remain
 separately owned gates.
+
+
+## Implementation validation receipt
+
+Implementation source checkpoint: `6abf3685cdec6141db45315f6fec15a63147445a`.
+Final documentation/test-only delta is identified in the PR; it does not change
+runtime source. Local source qualification used stable .NET 10 and Node 24.22.2.
+
+- Complete affected .NET selection: 479 passed, no skips. The additional coherent
+  API snapshot/DTO/address/antiforgery/cryptography selection: 122 passed, no skips;
+  it overlaps the first selection.
+- Complete client selection: 560 passed, no skips. Typecheck, Vite build, built
+  assets, Release build/publish, published-file asset graph and EF model consistency
+  checks passed. No full-repository .NET green claim is made.
+- One bounded managed-browser selection passed with both screenshots and verified
+  fixture/environment cleanup. Its initial run used an invalid Automatic-duration
+  draft without a profile; the allowed correction exposed a real public-row title
+  omission. The rendering regression fixed that product defect, permitting the
+  final bounded run under the repository's explicit exception. No further browser
+  campaign ran. Subsequent export-contention translation and a TypeScript return
+  annotation are outside the smoke's author/public presentation scope.
+- The acquisition-wait test proves revocation cannot produce a file; PostgreSQL's
+  serialization refusal is translated to normal conflict. A consolidation attempt
+  invalidated Debug static assets while Release bundling ran concurrently; the
+  full selection passed after sequential Debug regeneration. Earlier Node 26
+  trust failures were environment evidence; final Node 24 selections passed.
+- Code Guard complete branch scope: REVIEW only, no policy changes. Existing
+  large controllers/views, cohesive draft closures, native classifiers, export
+  orchestration and grouped regression fixtures retain their responsibility
+  boundaries. Large API/changelog documents remain navigable reference/history;
+  this focused brief carries the new detail. Reviewed size/complexity/nesting
+  findings do not justify mechanical splitting or policy relaxation.
+
+Independent complete-PR review, current-head hosted CI, maintainer acceptance and
+mobile/native application qualification remain unperformed here. Batch 1 does not
+complete #911. No later-batch implementation, merge, closure or deployment occurred.
