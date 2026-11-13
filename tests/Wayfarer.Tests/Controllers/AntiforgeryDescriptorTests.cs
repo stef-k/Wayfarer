@@ -51,6 +51,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Backfill.Apply Api.Backfill.Clear Api.ExternalRouteProposals.Generate Api.Groups.Create
         Api.Groups.ToggleOrgPeerVisibility Api.Groups.SetMemberOrgPeerVisibilityAccess Api.Groups.Leave Api.Groups.RemoveMember
         Api.Invitations.Create Api.Invitations.Accept Api.Invitations.Decline Api.Location.BulkDelete
+        Api.TripComposition.Version Api.TripComposition.Start Api.TripComposition.Finish
         Api.TripEditor.CreateArea Api.TripEditor.UpdateArea Api.TripEditor.UpdateAreaGeometry Api.TripEditor.DeleteArea
         Api.TripEditor.OrderAreas Api.TripEditor.PatchMetadata Api.TripEditor.CreateRegion Api.TripEditor.UpdateRegion
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
@@ -79,6 +80,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Trips.DeletePlace Api.Trips.CreateConditionalRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes
         Api.Trips.RejectUnconditionalRegionCreation Api.Trips.RejectUnconditionalPlaceCreation
         Api.Trips.UpdateRegion Api.Trips.UpdateArea Api.Trips.DeleteRegion Api.Trips.CloneTrip
+        Api.Trips.CreateVersion Api.Trips.StartComposition Api.Trips.FinishComposition
         Api.Trips.PreviewRegionDeletion Api.Trips.ConfirmRegionDeletion
         Api.Trips.PreviewPlaceDeletion Api.Trips.ConfirmPlaceDeletion
         Api.Trips.PatchConditionalMetadata Api.Trips.PatchConditionalRegion Api.Trips.PatchConditionalArea

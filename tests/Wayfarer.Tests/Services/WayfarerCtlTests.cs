@@ -310,7 +310,7 @@ public sealed class WayfarerCtlTests
         Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("database migrate"));
         if (completed >= 2) Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("database seed"));
         if (completed >= 2) Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("admin bootstrap"));
-        else Assert.Single(retry.Calls.Where(call => Join(call).Contains("admin bootstrap")));
+        else Assert.Single(retry.Calls, call => Join(call).Contains("admin bootstrap"));
         Assert.Equal(original.Fingerprint, restored.Fingerprint);
         if (completed >= 2) Assert.All(retry.Inputs, Assert.Null);
         Assert.DoesNotContain(retry.Calls, call => call.Contains("down") || call.Contains("-v"));
@@ -342,7 +342,7 @@ public sealed class WayfarerCtlTests
         Assert.DoesNotContain(process.Calls, call => Join(call).Contains("admin bootstrap") || call.Last() == "caddy");
         var retry = new FakeProcess { Reply = args => new(Join(args).Contains("user find") ? 1 : 0, "") };
         await new Setup(retry, new FakeTerminal()).ExecuteAsync("/etc/wayfarer", Config(), "new-protected", default, progress, retryAdmin: true);
-        Assert.Single(retry.Calls.Where(call => Join(call).Contains("admin bootstrap")));
+        Assert.Single(retry.Calls, call => Join(call).Contains("admin bootstrap"));
         Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("admin reset"));
         Assert.Equal("new-protected", retry.Inputs.Single(value => value is not null));
     }

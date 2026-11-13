@@ -58,10 +58,14 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
     {
         var predicate = new HistoryPredicate(owner, scope.Query, token);
         var counts = await CountsAsync(predicate, token);
+        // #977: HistoryPredicate supplies only internal SQL; owner/search/activity/time/offset/area values use Add.
+        // MembershipDate selects a fixed capture column or parameterized NodaTime transition segments, never a zone string.
+#pragma warning disable EF1002 // Composed predicate syntax is intentional; CopyParameters binds every variable value.
         var dates = await db.Database.SqlQueryRaw<string>($"""
             SELECT DISTINCT ({predicate.MembershipDate})::text AS "Value" FROM "Locations" l
             WHERE {predicate.Where} AND {predicate.Matches} ORDER BY "Value"
             """, predicate.CopyParameters()).ToArrayAsync(token);
+#pragma warning restore EF1002
         var result = Envelope(owner, scope, asOf);
         result["displayedMonth"] = scope.Date.ToString("yyyy-MM", CultureInfo.InvariantCulture);
         result["presentDates"] = dates; result["hasUnresolvedCandidates"] = counts.Candidates > 0;
@@ -73,9 +77,13 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
         bool geometry, DateTime asOf, CancellationToken token)
     {
         var predicate = new HistoryPredicate(owner, scope.Query, token);
+        // #977: OwnerWhere binds identity through HistoryPredicate.Add; EventValid is constant SQL.
+        // This owner-wide check deliberately retains invalid events excluded by the selected filters as continuity barriers.
+#pragma warning disable EF1002 // No request value is interpolated; the owner value is in CopyParameters.
         var invalid = await db.Database.SqlQueryRaw<bool>($"""
             SELECT EXISTS (SELECT FROM "Locations" l WHERE {predicate.OwnerWhere} AND NOT ({HistoryPredicate.EventValid})) AS "Value"
             """, predicate.CopyParameters()).SingleAsync(token);
+#pragma warning restore EF1002
         var reducer = new TimelineConnections(rules, geometry && !invalid);
         await using (var command = Command(SourceSql(predicate), predicate))
         await using (var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token))
@@ -117,13 +125,17 @@ internal sealed class TimelineCalendarReadService(ApplicationDbContext db)
         """;
 
     /// <summary>Exact three-valued membership counts include unplaceable candidates independently of mapped records.</summary>
+    // #977: Truth/Where are HistoryPredicate's internal expressions; PositionValid is constant SQL.
+    // Owner, text/activity, time/offset and area values remain bound through Add/CopyParameters.
     private Task<TimelineCalendarCounts> CountsAsync(HistoryPredicate predicate, CancellationToken token) =>
+#pragma warning disable EF1002 // Only assessed predicate fragments enter SQL syntax, never request values.
         db.Database.SqlQueryRaw<TimelineCalendarCounts>($"""
             SELECT count(*) FILTER (WHERE ({predicate.Truth}) IS TRUE) AS "Known",
                 count(*) FILTER (WHERE ({predicate.Truth}) IS TRUE AND ({HistoryPredicate.PositionValid})) AS "Mapped",
                 count(*) FILTER (WHERE ({predicate.Truth}) IS NULL) AS "Candidates"
             FROM "Locations" l WHERE {predicate.Where}
             """, predicate.CopyParameters()).SingleAsync(token);
+#pragma warning restore EF1002
 
     /// <summary>Display sampling follows membership/position validity; rich day records remain intentionally unsampled.</summary>
     private async Task<object[]> MarkersAsync(HistoryPredicate predicate, TimelineCalendarScope scope, long known, CancellationToken token)

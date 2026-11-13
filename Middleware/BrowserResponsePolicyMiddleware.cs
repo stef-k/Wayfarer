@@ -28,6 +28,10 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
             || path.StartsWith("/Trip/ExportPersonalWayfarerKml/", StringComparison.OrdinalIgnoreCase)
             || path.TrimEnd('/').Equals("/User/Trip/Import", StringComparison.OrdinalIgnoreCase)
             || path.TrimEnd('/').Equals("/User/Trip/ReviewImport", StringComparison.OrdinalIgnoreCase);
+        // Composition payloads stay private even when authorization/antiforgery short-circuits MVC.
+        var privateComposition = context.Request.Path.StartsWithSegments("/api/trip-compositions", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.StartsWithSegments("/api/trips/compositions", StringComparison.OrdinalIgnoreCase)
+            || context.Request.Path.StartsWithSegments("/api/trips/versions", StringComparison.OrdinalIgnoreCase);
         // Capture photo/reference routes before authentication or error re-execution.
         var privatePhoto = path.StartsWith("/api/profile-photo/", StringComparison.OrdinalIgnoreCase)
             || ((path.StartsWith("/api/groups/", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/api/mobile/groups/", StringComparison.OrdinalIgnoreCase))
@@ -46,7 +50,7 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
                 response.Headers.CacheControl = "no-store";
                 response.Headers.Pragma = "no-cache";
             }
-            if (privateCalendar || privatePlanning || privatePhoto || privateGroupPhotoPage || context.Items.ContainsKey(PrivateKey))
+            if (privateComposition || privateCalendar || privatePlanning || privatePhoto || privateGroupPhotoPage || context.Items.ContainsKey(PrivateKey))
             {
                 response.Headers.CacheControl = "private, no-store";
                 response.Headers.Pragma = "no-cache";

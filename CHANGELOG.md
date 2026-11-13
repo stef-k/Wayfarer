@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- Add #911 Batch 2 atomic owned versions and durable composition lifecycle APIs.
+  Share direct graph construction with Clone, normalize destination sequences,
+  preserve authorized planning and precise routes, resume current C, and Finish
+  without changing its visibility/content. Cascade workspace/origin cleanup with
+  destination/account deletion. The additive migration has no backfill; rollback
+  loses comparisons/origins but keeps C. Layout B, selective actions and mobile
+  implementation remain pending.
+  Classify all six lifecycle mutations in the exhaustive cookie/bearer security
+  inventory and preserve nullable Segment Notes through shared copy route staging,
+  including existing foreign Clone, without changing ordinary route creation.
+
 - Correct #911 Batch 1 copying of valid title-only credits and preserve inherited
   attribution when titles/licences coincide. Show public credits without an owner
   name, improve inherited-terms contrast and use authored Segment titles on map

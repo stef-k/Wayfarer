@@ -61,7 +61,7 @@ public sealed class CanonicalRegionImportClonePostgresTests(PostgresMigrationTes
         Assert.Equal((region.Id, 17, "Original Region"), (retained.Id, retained.DisplayOrder, retained.Notes));
     }
 
-    /// <summary>Canonical order/metadata survive import and clone; v2/v3 absence and near-names remain compatible.</summary>
+    /// <summary>Canonical sequence/metadata survive import and clone with normalized destination orders; v2/v3 absence and near-names remain compatible.</summary>
     [PostgresTheory]
     [InlineData(0, true)]
     [InlineData(1, true)]
@@ -85,8 +85,9 @@ public sealed class CanonicalRegionImportClonePostgresTests(PostgresMigrationTes
         imported.IsPublic = true;
         imported.ContributionPolicy = "CC-BY-4.0";
         await db.SaveChangesAsync();
-        var expected = imported.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Name)
-            .Select(region => (region.Name, region.DisplayOrder, region.Notes)).ToArray();
+        // Fresh identities must not reorder tied source rows; normalization changes only C's numeric orders.
+        var expected = imported.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Id)
+            .Select((region, index) => (region.Name, DisplayOrder: index, region.Notes)).ToArray();
 
         var cloneResult = await new TripCloneCoordinator(db).CloneAsync(imported.Id, destination.Id);
 

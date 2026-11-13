@@ -35,6 +35,7 @@
                 var modeKey = (seg.Mode ?? "").ToLowerInvariant();
                 var emojiIcon = emoji.TryGetValue(modeKey, out var e) ? e : "❓";
 
+                // Trip.Segments contains non-null Segments; nullable endpoints and historical routes are resolved below.
                 // Controller readers explicitly load waypoint Places, making this collection authoritative.
                 var journey = ViewerSegmentJourneyResolver.Resolve(seg, Model.Id, waypointsLoaded: true);
                 var fromName = journey.Anchors.FirstOrDefault()?.DisplayName ?? "Unavailable place";
@@ -69,22 +70,22 @@
                         {
                         <text> title="Click to view the route" </text>
                         }
-                        data-segment-id="@(seg?.Id)"
+                        data-segment-id="@seg.Id"
                         data-from-place-name="@fromName"
                         data-from-placeregion-name="@fromRegion"
                         data-to-place-name="@toName"
                         data-to-placeregion-name="@toRegion"
-                        data-segment-name="@($"{seg?.Mode}: {label}")"
+                        data-segment-name="@($"{seg.Mode}: {label}")"
                         data-segment-anchors="@presentationAnchors"
                         data-route-orientation="@journey.RouteOrientation"
-                        data-transport-mode="@seg?.Mode"
-                        data-estimated-distance="@seg?.EstimatedDistanceKm"
-                        data-estimated-duration="@seg?.EstimatedDuration.FormatDuration()"
+                        data-transport-mode="@seg.Mode"
+                        data-estimated-distance="@seg.EstimatedDistanceKm"
+                        data-estimated-duration="@seg.EstimatedDuration.FormatDuration()"
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> data-route-wkt="@wkt" </text>
                         }
-                        data-segment-notes="@(Wayfarer.Util.RichNotes.Normalize(seg?.Notes) ?? "")">
+                        data-segment-notes="@(Wayfarer.Util.RichNotes.Normalize(seg.Notes) ?? "")">
 
                         <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@(seg.Title ?? journey.AccessibleName)">
                             @(seg.Title ?? journey.CompactTrail)
@@ -92,7 +93,7 @@
                         <div class="d-flex align-items-start gap-2 small">
                             <span class="fs-5" aria-hidden="true">@emojiIcon</span>
                             <div>
-                                <div><strong>@(seg?.Mode)</strong></div>
+                                <div><strong>@seg.Mode</strong></div>
                                 <div>
                                     (<span title="Estimated time">⏱️ @durTxt&nbsp;min</span> /
                                     <span title="Estimated distance">📏 @distTxt&nbsp;km</span>)
@@ -105,10 +106,10 @@
                                 </div>
                                 @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey,
                                     new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["Interactive"] = true })
-                                @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
+                                @if (HtmlHelpers.HasVisibleContent(seg.Notes))
                                 {
                                     <div class="text-muted mt-1 segment-notes-preview rich-notes-content" style="max-height: 100px; overflow-y: auto;">
-                                        @Html.ProxyNotesImages(seg?.Notes)
+                                        @Html.ProxyNotesImages(seg.Notes)
                                     </div>
                                 }
                             </div>

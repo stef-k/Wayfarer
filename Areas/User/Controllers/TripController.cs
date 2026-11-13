@@ -224,21 +224,12 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                var trip = await _dbContext.Trips.FindAsync(id);
-                if (trip == null)
+                // Join the durable comparison barrier before normal root/cascade deletion.
+                if (userId == null || !await TripCompositionLifecycle.DeleteAsync(_dbContext, id, userId, HttpContext.RequestAborted))
                 {
-                    SetAlert("Trip not found.", "warning");
+                    SetAlert("Trip not found or unavailable.", "warning");
                     return RedirectToAction(nameof(Index));
                 }
-
-                if (trip.UserId != userId)
-                {
-                    SetAlert("Unauthorized access.", "danger");
-                    return RedirectToAction(nameof(Index));
-                }
-
-                _dbContext.Trips.Remove(trip);
-                await _dbContext.SaveChangesAsync();
                 await _tripTagService.RemoveOrphanTagsAsync();
 
                 // Clean up associated thumbnails

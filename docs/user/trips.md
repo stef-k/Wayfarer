@@ -371,3 +371,17 @@ For KML imports, reusable exports and printable PDF guides, see
 [Trip import and export](import-export.md#move-trip-plans).
 
 [User guide](index.md) · [Documentation home](../README.md)
+
+
+## Versions and saved comparisons: backend foundation
+
+The backend now supports creating an independent private version of your Trip,
+with your planning retained unless you explicitly clear it. It also supports
+starting a private result from your Trip and comparing it with another owned Trip
+or a public Trip whose author permits reuse. Sources remain unchanged.
+
+A saved comparison resumes the same result, including ordinary edits. Finish keeps
+the result and its credits, removes comparison inputs and does not publish or freeze
+the Trip. Deleting the result is the discard action. There is no automatic expiry.
+The full My Trips/Continue Composition and comparison interface is still pending;
+this batch exposes the [authorized backend routes](../development/911-batch2.md).
