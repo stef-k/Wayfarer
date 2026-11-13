@@ -61,7 +61,7 @@ public class MiddlewareTests
         logger.Verify(l => l.Log(
             LogLevel.Information,
             It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((o, _) => o.ToString()!.Contains("Request [GET] /health")),
+            It.Is<It.IsAnyType>((o, _) => o != null && (o.ToString() ?? "").Contains("Request [GET] /health")),
             null,
             It.IsAny<Func<It.IsAnyType, Exception?, string>>()), Times.Once);
     }

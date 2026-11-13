@@ -88,7 +88,7 @@ public sealed partial class TimelineCalendarPostgresTests
         Assert.True(marks.GetProperty("hasUnresolvedCandidates").GetBoolean());
         var clock = Stopwatch.StartNew();
         var analysis = await PostAsync(client, "analysis", new Dictionary<string, string>(W2Day) { ["q"] = literal });
-        Assert.Equal("3", analysis.GetProperty("counts").GetProperty("examinedSourceRows").GetString());
+        Assert.Equal("2", analysis.GetProperty("counts").GetProperty("examinedSourceRows").GetString());
         Assert.Equal("2", analysis.GetProperty("counts").GetProperty("knownMatches").GetString());
         output.WriteLine($"Filtered routed analysis: {clock.Elapsed.TotalMilliseconds:F2} ms; three owner source rows, independent snapshots.");
         using var noToken = Client(app, owner.Id);

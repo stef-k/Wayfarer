@@ -232,7 +232,7 @@ public sealed partial class LocationCoordinatesPostgresTests(PostgresImportTestF
                 Assert.DoesNotContain("value=\"0\"", input);
             }
         }
-        foreach (var pair in new[] { (Lat: (string?)null, Lon: (string?)null), (null, "0"), ("0", null),
+        foreach (var pair in new[] { ((string?)null, (string?)null), (null, "0"), ("0", null),
                      ("", "0"), ("0", ""), ("NaN", "0"), ("0", "NaN"), ("Infinity", "0"),
                      ("91", "0"), ("0", "-181"), ("bad", "0") })
         {
