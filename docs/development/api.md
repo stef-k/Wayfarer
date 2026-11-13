@@ -1969,7 +1969,8 @@ deletion removes its workspace. These backend foundations do not deliver Layout 
 or mobile composition UI; those remain later batches.
 
 Cookie `/api/trip-compositions/{id}` and bearer `/api/trips/compositions/{id}` also
-provide `GET /candidates` for bounded suggestions/manual search and `POST /actions`
+provide `GET /candidates` for at most 20 suggestions/manual search (evidence is
+computed before truncation; total geometry work is not fixed) and `POST /actions`
 for reviewed copy/reuse/skip/removal, selected fields, dependencies and list placement.
 Read the [selective apply reference](911-batch2.md#matching-and-durable-selections)
 for exact originals, captured-source authority, current-C validation, durable A/B

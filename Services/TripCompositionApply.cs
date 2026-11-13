@@ -8,7 +8,8 @@ namespace Wayfarer.Services;
 /// <summary>Reviewed snapshot selection and current-C apply. Construction and domain owners retain field/route/lifecycle authority.</summary>
 internal sealed partial class TripCompositionApply(ApplicationDbContext db, Trip current, TripCompositionSource source, string side,
     List<TripCompositionMapping> mappings, PlaceRegionLifecycleService lifecycle, SegmentAggregateTokenService routeTokens,
-    SegmentRouteClearConfirmation routeConsent, IReadOnlySet<string> icons, IReadOnlySet<string> colors)
+    SegmentRouteClearConfirmation routeConsent, IReadOnlySet<string> icons, IReadOnlySet<string> colors,
+    IReadOnlyDictionary<TripCompositionItem, TripCompositionRouteInput> routeInputs)
 {
     private Trip destination = current;
     private readonly TripCompositionOrderOriginal[] initialRegions = current.Regions.Select(r => new TripCompositionOrderOriginal(r.Id, r.DisplayOrder)).ToArray();

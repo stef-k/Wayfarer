@@ -15,6 +15,7 @@ public sealed partial class TripCompositionService
     {
         if (action.Source is not ("a" or "b") || action.Items == null || action.Items.Count is < 1 or > 128 || action.Items.Any(i => i == null)
             || action.Items.Sum(i => 1 + (i.Children?.Count ?? 0)) > 128) throw TripCompositionOrdering.Invalid("Select 1–128 objects from one captured source.");
+        var routeInputs = TripCompositionRouteInput.Validate(action.Items);
         SegmentRouteReconciler.EnsureCleanContext(db);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
         var committing = false;
@@ -28,7 +29,7 @@ public sealed partial class TripCompositionService
             var discovered = await DestinationAsync(workspace.TripId, owner, false, token);
             var profiles = discovered.Segments.Select(s => s.TransportProfileId).OfType<Guid>()
                 .Concat(source.Trip.Segments.Select(s => s.TransportProfileId).OfType<Guid>())
-                .Concat(RequestedProfiles(action.Items)).Distinct().Order().ToArray();
+                .Concat(routeInputs.Values.Select(r => r.TransportProfileId).OfType<Guid>()).Distinct().Order().ToArray();
             await LockDestinationAsync(discovered, profiles, token);
             await RequireActiveAsync(owner, token);
             if (credential != null && !await credential(token)) throw Unavailable();
@@ -40,7 +41,7 @@ public sealed partial class TripCompositionService
                 || current.Segments.Select(s => s.TransportProfileId).OfType<Guid>().Except(profiles).Any()) throw TripCompositionOrdering.Stale();
             var mappings = JsonSerializer.Deserialize<List<TripCompositionMapping>>(workspace.Mappings!, TripCompositionSnapshot.Json)!;
             MarkRemoved(mappings, current);
-            var apply = new TripCompositionApply(db, current, source, action.Source, mappings, lifecycle, routeTokens, routeConsent, icons, colors);
+            var apply = new TripCompositionApply(db, current, source, action.Source, mappings, lifecycle, routeTokens, routeConsent, icons, colors, routeInputs);
             await apply.ApplyAsync(action.Items, token);
             await db.SaveChangesAsync(token);
             if (apply.TagsChanged)
@@ -94,16 +95,6 @@ public sealed partial class TripCompositionService
         var query = db.Trips.Include(t => t.Tags).Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas).Include(t => t.Segments).ThenInclude(s => s.Waypoints).AsSplitQuery();
         return await (tracking ? query : query.AsNoTracking()).SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == owner, token) ?? throw Unavailable();
-    }
-
-    private static IEnumerable<Guid> RequestedProfiles(IReadOnlyList<TripCompositionItem> items)
-    {
-        foreach (var item in items)
-        {
-            if (item.Fields?.Route is { Operation: "edit" } route && route.Value.ValueKind == JsonValueKind.Object && route.Value.TryGetProperty("transportProfileId", out var value)
-                && value.ValueKind != JsonValueKind.Null) yield return value.GetGuid();
-            if (item.Children != null) foreach (var id in RequestedProfiles(item.Children)) yield return id;
-        }
     }
 
     /// <summary>Locks the discovered destination classes once, before any mutation or route staging; no late whole-Trip reconciliation.</summary>

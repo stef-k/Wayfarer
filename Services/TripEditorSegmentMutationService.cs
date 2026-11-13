@@ -220,7 +220,8 @@ public sealed partial class TripEditorSegmentMutationService
         if (RequiresRouteClearConfirmation(segment, parsed.Value!))
         {
             var fingerprint = SegmentRouteClearConfirmation.Fingerprint(userId, tripId, segment, parsed.Value!, mode.Value.ProfileId);
-            if (!_routeConfirmation.IsValid(confirmationToken, segmentId, fingerprint))
+            var confirmed = ApplyConfirmedRouteClear(segment, parsed.Value!, mode.Value.ProfileId, userId, confirmationToken, _routeConfirmation);
+            if (confirmed == null)
             {
                 var issued = _routeConfirmation.Issue(segmentId, fingerprint);
                 var code = string.IsNullOrWhiteSpace(confirmationToken)
@@ -230,11 +231,7 @@ public sealed partial class TripEditorSegmentMutationService
                     new EditorSegmentConflictDto(code, "update", await LoadSegmentDtoAsync(segmentId, tripId, userId, cancellationToken),
                         "Saving this anchor change requires clearing the custom route.", issued.ExpiresAt, issued.Token));
             }
-            parsed = (parsed.Value! with
-            {
-                Route = null,
-                WaypointRouteVertexIndices = parsed.Value.WaypointRouteVertexIndices.Select(_ => (int?)null).ToArray()
-            }, null);
+            parsed = (confirmed, null);
         }
 
         var proposal = BuildSavedRoute(segment, parsed.Value!, mode.Value, null);

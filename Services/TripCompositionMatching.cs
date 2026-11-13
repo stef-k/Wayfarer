@@ -3,7 +3,7 @@ using Wayfarer.Models;
 
 namespace Wayfarer.Services;
 
-/// <summary>Deterministic bounded review suggestions. No score proves equivalence or writes mappings.</summary>
+/// <summary>Deterministic review suggestions limited to 20 results; evidence is computed over all matching candidates. No score proves equivalence or writes mappings.</summary>
 internal static class TripCompositionMatching
 {
     internal static IReadOnlyList<object> Candidates(Trip source, Trip current, string side, string kind, Guid id,

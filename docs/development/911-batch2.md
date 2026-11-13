@@ -102,7 +102,9 @@ Candidate query parameters are `source=a|b`, `kind=region|place|area|segment`,
 name/context and distance, mapped child distribution, full polygon relationships,
 or mapped ordered anchors/mode/profile/route shape. Neither a score, equal name,
 950-metre separation, overlap nor common endpoints confirms identity. Planning is
-not matching evidence. Manual reuse can choose another current same-type C ID. Place/Area reuse also
+not matching evidence. This is a result-count bound: the current graph is materialized
+and evidence (including polygon topology) is computed before truncation. There is
+no fixed total-work bound. Manual search filters names before evidence; manual reuse can choose another current same-type C ID. Place/Area reuse also
 supplies `expectedParentId` from the reviewed current counterpart; it never moves it.
 
 Actions accept one `source` and 1–128 reviewed `items` including Region children.
@@ -207,7 +209,15 @@ editor `originalRouteToken`; destructive dependency changes also supply the exis
 manualDurationMinutes}` and uses ordinary reconciliation, never client provider or
 trusted measurement assertions. Route Clear selects fallback with current ordered
 anchors; it does not silently move Places. Edit/Clear also approve each current
-anchor with exact originals. No refusal renews consent.
+anchor with exact originals. An unchanged authored route uses the ordinary editor's
+server-owned measurement preservation, including exact distance/ticks and qualified
+provider duration. Intentional duration/source or route changes reconcile normally.
+A consent approving custom-route clearing clears geometry and Via vertex indices
+for authored edits. Source adoption requiring that effect refuses: clear/repair
+with ordinary controls and review again. It never converts a captured custom route
+to fallback. Route facts and nested waypoint members are strictly validated once
+before profile discovery; missing required facts, null entries and unknown members
+are ordinary 400 refusals. No refusal renews consent.
 
 Existing Place location adoption uses the ordinary coordinate prepare/condition
 proof for exactly the selected coordinates in `conditionToken`. The same domain

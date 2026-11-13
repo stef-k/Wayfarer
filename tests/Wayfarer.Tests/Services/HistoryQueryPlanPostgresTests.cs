@@ -189,9 +189,13 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
                 output.WriteLine($"GIN pending pages cleaned after natural production plans: {cleaned}");
                 // Competing owner/time indexes are legitimate cost choices for the full predicate.
                 // Its exact text clause must independently admit GIN and return just the one candidate.
+                var textPattern = (NpgsqlParameter)pattern.Clone();
+                textPattern.ParameterName = "pattern";
                 var textPlan = await db.Database.SqlQueryRaw<string>(
-                    $"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT l.\"Id\" FROM \"Locations\" l WHERE {textFilter}",
-                    (NpgsqlParameter)pattern.Clone()).ToListAsync();
+                    """
+                    EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT l."Id" FROM "Locations" l
+                    WHERE l."HistorySearchText" LIKE @pattern ESCAPE E'\\'
+                    """, textPattern).ToListAsync();
                 output.WriteLine(Assert.Single(textPlan));
                 using var document = JsonDocument.Parse(Assert.Single(textPlan));
                 var nodes = PlanNodes(document.RootElement[0].GetProperty("Plan")).ToArray();
@@ -206,7 +210,9 @@ public sealed class HistoryQueryPlanPostgresTests(PostgresMigrationTestFixture f
             Assert.DoesNotContain(natural, line => line.Contains("external merge"));
             await transaction.RollbackAsync();
         }
-        // Inspect the executed overview, rather than a simpler stand-in aggregation.
+        // EF1003 assessment: this private interceptor captures actual production OverviewAsync SQL and clones
+        // its typed, bound parameters. Only the fixed EXPLAIN prefix is added; SQL text cannot be a bound value.
+        // Retain this production-plan evidence and reassess if the capture provenance changes.
         var tap = new OverviewCapture();
         await using var overviewDb = fixture.CreateContext(tap);
         var overview = HistoryQueryTests.Parse(utc.Replace("2025-07-28", "2025-01-01").Replace("2025-07-29", "2026-12-31"), true);

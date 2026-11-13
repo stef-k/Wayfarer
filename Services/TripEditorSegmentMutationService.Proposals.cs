@@ -28,11 +28,16 @@ public sealed partial class TripEditorSegmentMutationService
     private static SegmentRouteProposal BuildSavedRoute(
         Segment canonical, EditorSegmentSaveRequest request, (string Key, Guid? ProfileId) mode,
         ExternalRouteProposalBinding? binding)
+        => PreserveSavedMeasurements(canonical, BuildProposal(canonical.Id, request, mode), binding);
+
+    /// <summary>Prepares database-owned measurements for ordinary and composition saves after the final route consequence.</summary>
+    internal static SegmentRouteProposal PreserveSavedMeasurements(
+        Segment canonical, SegmentRouteProposal route, ExternalRouteProposalBinding? binding = null)
     {
-        var route = BuildProposal(canonical.Id, request, mode);
+        var measurement = route.Measurement!;
         var retained = SegmentRouteReconciler.SameRouteIdentity(canonical, route);
         if (binding == null && !retained) return route;
-        var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual;
+        var manual = measurement.DurationSource == EstimatedDurationSource.Manual;
         var provider = SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider() == true;
         var duration = binding != null
             ? binding.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null
@@ -40,10 +45,21 @@ public sealed partial class TripEditorSegmentMutationService
         var source = manual ? EstimatedDurationSource.Manual : EstimatedDurationSource.Automatic;
         var recalculateDuration = binding == null && !provider && !manual
             && (canonical.EstimatedDurationSource == EstimatedDurationSource.Manual
-                || mode.Key != canonical.Mode || mode.ProfileId != canonical.TransportProfileId);
+                || measurement.Mode != canonical.Mode || measurement.TransportProfileId != canonical.TransportProfileId);
         return route with { PreservedMeasurements = new(
             binding != null ? binding.DistanceMetres / 1000d : canonical.EstimatedDistanceKm,
-            duration, source, manual ? request.EstimatedDurationMinutes : null, recalculateDuration) };
+            duration, source, manual ? measurement.ManualDurationMinutes : null, recalculateDuration) };
+    }
+
+    /// <summary>Validates ordinary clear consent and returns its exact geometry/Via effect, without issuing replacement consent.</summary>
+    internal static EditorSegmentSaveRequest? ApplyConfirmedRouteClear(
+        Segment current, EditorSegmentSaveRequest proposed, Guid? profileId, string owner,
+        string? confirmationToken, SegmentRouteClearConfirmation confirmation)
+    {
+        if (!RequiresRouteClearConfirmation(current, proposed)) return proposed;
+        if (!confirmation.IsValid(confirmationToken, current.Id,
+            SegmentRouteClearConfirmation.Fingerprint(owner, current.TripId, current, proposed, profileId))) return null;
+        return proposed with { Route = null, WaypointRouteVertexIndices = proposed.WaypointRouteVertexIndices.Select(_ => (int?)null).ToArray() };
     }
 
     /// <summary>Copies provenance exclusively from the final validated binding, before the caller commits.</summary>

@@ -9,7 +9,11 @@
   measurements/provenance. Save content, dependencies, order, credits and decisions
   atomically, with cookie/bearer security and no live-source reacquisition. Existing
   workspaces keep their initial A mappings; no schema migration is required.
-  Layout B/My Trips, lightweight existing-Trip copy and mobile delivery remain separate.
+  Preserve unchanged authored route measurements through the ordinary editor policy,
+  enforce the approved route-clear effect, and reject malformed nested route facts
+  before profile discovery. Suggestions have a 20-result bound, without a fixed
+  total-work guarantee. Layout B/My Trips, lightweight existing-Trip copy and mobile
+  delivery remain separate.
 
 - Add #911 Batch 2 atomic owned versions and durable composition lifecycle APIs.
   Share direct graph construction with Clone, normalize destination sequences,

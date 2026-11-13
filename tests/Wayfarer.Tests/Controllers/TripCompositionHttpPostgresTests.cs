@@ -16,7 +16,7 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Real routed lifecycle authority, antiforgery, mobile bearer transport and public/private boundaries.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture fixture) : TestBase
+public sealed partial class TripCompositionHttpPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
     [PostgresFact]
     public async Task CookieAndBearerResumeSameCWithoutPublicWorkspaceOrPlanningFreshness()
