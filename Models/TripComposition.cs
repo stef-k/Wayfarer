@@ -21,7 +21,7 @@ public sealed class TripComposition
     public string? SnapshotA { get; set; }
     /// <summary>Immutable authorized comparison graph; foreign planning is never serialized.</summary>
     public string? SnapshotB { get; set; }
-    /// <summary>Initial included identities; current membership determines removed decisions on read.</summary>
+    /// <summary>Type-scoped A/B mappings and explicit reuse, separate, skip and destination-removed product decisions; not request histories.</summary>
     public string? Mappings { get; set; }
 }
 

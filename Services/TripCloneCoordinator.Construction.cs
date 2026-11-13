@@ -21,60 +21,42 @@ public sealed partial class TripCloneCoordinator
         keepPlanning &= own;
         var clone = new Trip
         {
-            Id = Guid.NewGuid(), UserId = destinationUserId, Name = $"{source.Name} (Copy)",
-            Notes = source.Notes, Credits = own ? TripCreditCodec.Read(TripCreditCodec.Write(source.Credits)) : TripCreditCodec.Inherited(source), IsPublic = false, ShareProgressEnabled = false,
-            CenterLat = source.CenterLat, CenterLon = source.CenterLon, Zoom = source.Zoom,
-            CoverImageUrl = source.CoverImageUrl, UpdatedAt = DateTime.UtcNow,
+            Id = Guid.NewGuid(),
+            UserId = destinationUserId,
+            Name = $"{source.Name} (Copy)",
+            Notes = source.Notes,
+            Credits = own ? TripCreditCodec.Read(TripCreditCodec.Write(source.Credits)) : TripCreditCodec.Inherited(source),
+            IsPublic = false,
+            ShareProgressEnabled = false,
+            CenterLat = source.CenterLat,
+            CenterLon = source.CenterLon,
+            Zoom = source.Zoom,
+            CoverImageUrl = source.CoverImageUrl,
+            UpdatedAt = DateTime.UtcNow,
             Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(source.Planning, true) : null
         };
         identities?.Add(new("trip", source.Id, clone.Id));
         var placeMap = new Dictionary<Guid, Guid>();
         foreach (var sourceRegion in source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id))
         {
-            var region = new Region
-            {
-                Id = Guid.NewGuid(), UserId = destinationUserId, TripId = clone.Id,
-                Name = sourceRegion.Name, Notes = sourceRegion.Notes,
-                DisplayOrder = clone.Regions.Count,
-                Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourceRegion.Planning, true) : null, CoverImageUrl = sourceRegion.CoverImageUrl,
-                Center = CopyPoint(sourceRegion.Center)
-            };
+            var region = CopyRegion(sourceRegion, clone.Id, destinationUserId, keepPlanning);
+            region.DisplayOrder = clone.Regions.Count;
             identities?.Add(new("region", sourceRegion.Id, region.Id));
             foreach (var sourcePlace in sourceRegion.Places.OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id))
             {
-                var placeId = Guid.NewGuid();
-                identities?.Add(new("place", sourcePlace.Id, placeId));
-                if (!placeMap.TryAdd(sourcePlace.Id, placeId))
+                var place = CopyPlace(sourcePlace, region.Id, destinationUserId, keepPlanning);
+                identities?.Add(new("place", sourcePlace.Id, place.Id));
+                if (!placeMap.TryAdd(sourcePlace.Id, place.Id))
                     throw new InvalidOperationException("A source Place identity was loaded more than once.");
-                var enrichment = ResolvedFeatureMetadata.NormalizePersisted(
-                    sourcePlace.ResolvedFeatureName, sourcePlace.ResolvedFeatureType,
-                    sourcePlace.AddressEnrichmentProvider, sourcePlace.AddressEnrichmentStorageMode,
-                    sourcePlace.AddressEnrichedAt);
-                region.Places.Add(new Place
-                {
-                    Id = placeId, UserId = destinationUserId, RegionId = region.Id,
-                    Name = sourcePlace.Name, Location = CopyPoint(sourcePlace.Location), Notes = sourcePlace.Notes,
-                    DisplayOrder = region.Places.Count,
-                    Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourcePlace.Planning, true) : null, IconName = sourcePlace.IconName,
-                    MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address,
-                    ResolvedFeatureName = enrichment.Name,
-                    ResolvedFeatureType = enrichment.Type,
-                    AddressEnrichmentProvider = enrichment.Provider,
-                    AddressEnrichmentStorageMode = enrichment.StorageMode,
-                    AddressEnrichedAt = enrichment.EnrichedAt
-                });
+                place.DisplayOrder = region.Places.Count;
+                region.Places.Add(place);
             }
             foreach (var sourceArea in sourceRegion.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).ThenBy(a => a.Id))
             {
-                var areaId = Guid.NewGuid();
-                identities?.Add(new("area", sourceArea.Id, areaId));
-                region.Areas.Add(new Area
-                {
-                    Id = areaId, RegionId = region.Id, Name = sourceArea.Name,
-                    Notes = sourceArea.Notes, DisplayOrder = region.Areas.Count,
-                    Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(sourceArea.Planning, true) : null,
-                    FillHex = sourceArea.FillHex, Geometry = (Polygon)sourceArea.Geometry.Copy()
-                });
+                var area = CopyArea(sourceArea, region.Id, keepPlanning);
+                identities?.Add(new("area", sourceArea.Id, area.Id));
+                area.DisplayOrder = region.Areas.Count;
+                region.Areas.Add(area);
             }
             clone.Regions.Add(region);
         }
@@ -102,8 +84,67 @@ public sealed partial class TripCloneCoordinator
         return clone;
     }
 
+    /// <summary>Constructs normal or canonical Region metadata under caller-owned destination authority.</summary>
+    internal static Region CopyRegion(Region source, Guid tripId, string owner, bool keepPlanning) =>
+        new Region
+        {
+            Id = Guid.NewGuid(),
+            UserId = owner,
+            TripId = tripId,
+            Name = source.Name,
+            Notes = source.Notes,
+            DisplayOrder = 0,
+            Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(source.Planning, true) : null,
+            CoverImageUrl = source.CoverImageUrl,
+            Center = CopyPoint(source.Center)
+        };
+
+    /// <summary>Constructs a detached Place, preserving the coherent permitted enrichment tuple.</summary>
+    internal static Place CopyPlace(Place source, Guid regionId, string owner, bool keepPlanning)
+    {
+        var enrichment = ResolvedFeatureMetadata.NormalizePersisted(
+            source.ResolvedFeatureName, source.ResolvedFeatureType,
+            source.AddressEnrichmentProvider, source.AddressEnrichmentStorageMode,
+            source.AddressEnrichedAt);
+        return new Place
+        {
+            Id = Guid.NewGuid(),
+            UserId = owner,
+            RegionId = regionId,
+            Name = source.Name,
+            Location = CopyPoint(source.Location),
+            Notes = source.Notes,
+            DisplayOrder = 0,
+            Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(source.Planning, true) : null,
+            IconName = source.IconName,
+            MarkerColor = source.MarkerColor,
+            Address = source.Address,
+            ResolvedFeatureName = enrichment.Name,
+            ResolvedFeatureType = enrichment.Type,
+            AddressEnrichmentProvider = enrichment.Provider,
+            AddressEnrichmentStorageMode = enrichment.StorageMode,
+            AddressEnrichedAt = enrichment.EnrichedAt
+        };
+    }
+
+    /// <summary>Copies the complete polygon, including every hole, without sharing mutable coordinates.</summary>
+    internal static Area CopyArea(Area source, Guid regionId, bool keepPlanning)
+    {
+        return new Area
+        {
+            Id = Guid.NewGuid(),
+            RegionId = regionId,
+            Name = source.Name,
+            Notes = source.Notes,
+            DisplayOrder = 0,
+            Planning = keepPlanning ? WayfarerKmlAggregateMapper.CopyPlanning(source.Planning, true) : null,
+            FillHex = source.FillHex,
+            Geometry = (Polygon)source.Geometry.Copy()
+        };
+    }
+
     /// <summary>Checks source-coordinate compatibility before installing trusted unchanged-route measurements.</summary>
-    private static void ValidateCopyRoute(Segment source)
+    internal static void ValidateCopyRoute(Segment source)
     {
         var errors = SegmentRouteReconciler.ValidateProjectedAggregate(source);
         if (errors.Count != 0) throw new InvalidOperationException(string.Join(" ", errors));
@@ -119,7 +160,7 @@ public sealed partial class TripCloneCoordinator
     }
 
     /// <summary>Creates one remapped Segment aggregate without sharing mutable geometry with its source.</summary>
-    private static Segment CreateSegmentClone(
+    internal static Segment CreateSegmentClone(
         Segment source,
         Guid cloneTripId,
         string destinationUserId,
@@ -128,22 +169,30 @@ public sealed partial class TripCloneCoordinator
         SegmentMeasurementState.Validate(source);
         var segment = new Segment
         {
-            Id = Guid.NewGuid(), TripId = cloneTripId, UserId = destinationUserId,
+            Id = Guid.NewGuid(),
+            TripId = cloneTripId,
+            UserId = destinationUserId,
             FromPlaceId = MapOptionalPlace(source.FromPlaceId, placeMap),
             ToPlaceId = MapOptionalPlace(source.ToPlaceId, placeMap),
-            Title = source.Title, Mode = source.Mode, TransportProfileId = source.TransportProfileId,
+            Title = source.Title,
+            Mode = source.Mode,
+            TransportProfileId = source.TransportProfileId,
             RouteGeometry = source.RouteGeometry == null ? null : (LineString)source.RouteGeometry.Copy(),
             EstimatedDuration = source.EstimatedDuration,
             EstimatedDurationSource = source.EstimatedDurationSource,
-            EstimatedDistanceKm = source.EstimatedDistanceKm, DisplayOrder = source.DisplayOrder, Notes = source.Notes
+            EstimatedDistanceKm = source.EstimatedDistanceKm,
+            DisplayOrder = source.DisplayOrder,
+            Notes = source.Notes
         };
         SegmentRouteProvenance.Capture(source)?.ApplyTo(segment);
         foreach (var waypoint in source.Waypoints.OrderBy(item => item.Position))
         {
             segment.Waypoints.Add(new SegmentWaypoint
             {
-                SegmentId = segment.Id, PlaceId = MapRequiredPlace(waypoint.PlaceId, placeMap),
-                Position = waypoint.Position, RouteVertexIndex = waypoint.RouteVertexIndex
+                SegmentId = segment.Id,
+                PlaceId = MapRequiredPlace(waypoint.PlaceId, placeMap),
+                Position = waypoint.Position,
+                RouteVertexIndex = waypoint.RouteVertexIndex
             });
         }
         return segment;

@@ -106,7 +106,7 @@ internal sealed record PlaceStructuralRequest(string Operation, bool Web, JsonEl
     }
 
     /// <summary>Rejects ambiguous originals and vectors too, including objects nested inside arrays.</summary>
-    private static void RejectDuplicateMembers(JsonElement value)
+    internal static void RejectDuplicateMembers(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {

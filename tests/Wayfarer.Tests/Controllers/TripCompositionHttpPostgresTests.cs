@@ -86,6 +86,40 @@ public sealed class TripCompositionHttpPostgresTests(PostgresImportTestFixture f
         });
         Assert.Equal(HttpStatusCode.OK, planning.StatusCode);
         Assert.Equal(publicBefore, await browser.GetByteArrayAsync($"/api/trips/{c}"));
+        // New cookie actions retain CSRF and bearer actions require the incoming token; suggestions never apply content.
+        var action = new { source = "b", items = new[] { new { kind = "trip", sourceId = b.Id, decision = "reuse", destinationId = c } } };
+        using var anonymous = app.GetTestClient();
+        using var unauthenticated = await anonymous.PostAsJsonAsync($"/api/trip-compositions/{workspace}/actions", action);
+        Assert.True(unauthenticated.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+        using var cookieOnly = await browser.PostAsJsonAsync($"/api/trips/compositions/{workspace}/actions", action);
+        Assert.Equal(HttpStatusCode.Unauthorized, cookieOnly.StatusCode);
+        using var noCsrfBrowser = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(noCsrfBrowser, app.Services, owner.Id);
+        using var noCsrf = await noCsrfBrowser.PostAsJsonAsync($"/api/trip-compositions/{workspace}/actions", action);
+        Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
+        using var foreignRead = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(foreignRead, app.Services, foreign.Id);
+        using var concealed = await foreignRead.GetAsync($"/api/trip-compositions/{workspace}/candidates?source=b&kind=place&sourceId={Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.NotFound, concealed.StatusCode);
+        using var applied = await mobile.PostAsJsonAsync($"/api/trips/compositions/{workspace}/actions", action);
+        Assert.True(applied.StatusCode == HttpStatusCode.OK, await applied.Content.ReadAsStringAsync());
+        Assert.True(applied.Headers.CacheControl!.NoStore);
+        Assert.DoesNotContain("foreign-secret", await applied.Content.ReadAsStringAsync());
+        Assert.Equal(publicBefore, await browser.GetByteArrayAsync($"/api/trips/{c}"));
+        using var cookieApplied = await browser.PostAsJsonAsync($"/api/trip-compositions/{workspace}/actions", new
+        { source = "b", items = new[] { new { kind = "trip", sourceId = b.Id, decision = "reuse", destinationId = c, expectedDecision = new { destinationId = c, decision = "reuse" } } } });
+        Assert.True(cookieApplied.StatusCode == HttpStatusCode.OK, await cookieApplied.Content.ReadAsStringAsync());
+        using var malformed = await mobile.PostAsJsonAsync($"/api/trips/compositions/{workspace}/actions", new { source = "b", items = new[] { new { kind = "trip", sourceId = b.Id, decision = "reuse", destinationId = c, extra = true } } });
+        Assert.Equal(HttpStatusCode.BadRequest, malformed.StatusCode);
+        var beforeSelectedPublicEdit = publicBefore;
+        using var selectedPublicEdit = await browser.PostAsJsonAsync($"/api/trip-compositions/{workspace}/actions", new
+        {
+            source = "b", items = new[] { new { kind = "trip", sourceId = b.Id, decision = "reuse", destinationId = c,
+                expectedDecision = new { destinationId = c, decision = "reuse" },
+                fields = new { notes = new { operation = "edit", expected = (string?)null, value = "<p>Public selected content</p>" } } } }
+        });
+        Assert.True(selectedPublicEdit.StatusCode == HttpStatusCode.OK, await selectedPublicEdit.Content.ReadAsStringAsync());
+        publicBefore = await browser.GetByteArrayAsync($"/api/trips/{c}");
+        Assert.False(beforeSelectedPublicEdit.AsSpan().SequenceEqual(publicBefore));
+        Assert.Contains("Public selected content", System.Text.Encoding.UTF8.GetString(publicBefore));
         using var finish = await mobile.PostAsync($"/api/trips/compositions/{workspace}/finish", null);
         Assert.Equal(HttpStatusCode.OK, finish.StatusCode);
         Assert.Equal(publicBefore, await browser.GetByteArrayAsync($"/api/trips/{c}"));

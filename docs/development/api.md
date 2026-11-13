@@ -1955,11 +1955,11 @@ Private body/scope/parameter content must not be logged. All results/errors rema
 no-store with existing active-owner admission/deadline/cancellation protections.
 
 
-## Trip versions and composition lifecycle (#911 Batch 2)
+## Trip versions, composition lifecycle and selective actions (#911)
 
 Bearer clients can create owned private versions, start an owned A plus eligible B
 comparison, list/resume the same saved C, and Finish through the routes documented
-in [the Batch-2 contract](911-batch2.md#routes-and-authority). Cookie equivalents
+in [the construction reference](911-batch2.md#routes-and-authority). Cookie equivalents
 require User authorization and antiforgery for POSTs. All workspace responses are
 private/no-store; ordinary public Trip reads do not expose comparison state.
 
@@ -1967,3 +1967,10 @@ Start is an explicit new creation, not a retry-safe operation. Resume is a GET o
 an existing composition. Finish keeps C and removes comparison payloads. Normal C
 deletion removes its workspace. These backend foundations do not deliver Layout B
 or mobile composition UI; those remain later batches.
+
+Cookie `/api/trip-compositions/{id}` and bearer `/api/trips/compositions/{id}` also
+provide `GET /candidates` for bounded suggestions/manual search and `POST /actions`
+for reviewed copy/reuse/skip/removal, selected fields, dependencies and list placement.
+Read the [selective apply reference](911-batch2.md#matching-and-durable-selections)
+for exact originals, captured-source authority, current-C validation, durable A/B
+decisions and one-transaction refusal/commit semantics. Foreign planning remains absent.

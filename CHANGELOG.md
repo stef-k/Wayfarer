@@ -2,13 +2,21 @@
 
 ## [Unreleased]
 
+- Add #911 selective composition backend actions for captured A/B matching suggestions,
+  manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,
+  Region scopes and current-C container/ordered-block placement. Reuse domain
+  consequence and route staging cores; compatible source routes retain exact
+  measurements/provenance. Save content, dependencies, order, credits and decisions
+  atomically, with cookie/bearer security and no live-source reacquisition. Existing
+  workspaces keep their initial A mappings; no schema migration is required.
+  Layout B/My Trips, lightweight existing-Trip copy and mobile delivery remain separate.
+
 - Add #911 Batch 2 atomic owned versions and durable composition lifecycle APIs.
   Share direct graph construction with Clone, normalize destination sequences,
   preserve authorized planning and precise routes, resume current C, and Finish
   without changing its visibility/content. Cascade workspace/origin cleanup with
   destination/account deletion. The additive migration has no backfill; rollback
-  loses comparisons/origins but keeps C. Layout B, selective actions and mobile
-  implementation remain pending.
+  loses comparisons/origins but keeps C. Layout B and mobile implementation remain separate.
   Classify all six lifecycle mutations in the exhaustive cookie/bearer security
   inventory and preserve nullable Segment Notes through shared copy route staging,
   including existing foreign Clone, without changing ordinary route creation.
