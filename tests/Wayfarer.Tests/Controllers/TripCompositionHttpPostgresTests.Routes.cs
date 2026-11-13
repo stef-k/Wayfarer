@@ -69,10 +69,13 @@ public sealed partial class TripCompositionHttpPostgresTests
             routeJson = new NetTopologySuite.IO.GeoJsonWriter().Write(target.RouteGeometry),
             target.Mode, target.TransportProfileId, durationSource = "Manual", manualDurationMinutes = target.EstimatedDuration!.Value.TotalMinutes });
         // Select the captured A route against its initial counterpart, retaining its actual initial decision original.
-        var original = TripCompositionFieldValues.Element(new TripCompositionAction("a", [new("segment", segment.Id, "reuse",
-            DestinationId: target.Id, ExpectedDecision: new(target.Id, "included"), ConditionToken: proof,
-            Anchors: anchors.Select(p => new TripCompositionAnchor(Guid.Empty, p.Id, p.RegionId, [p.Location!.X, p.Location.Y])).ToArray(),
-            Fields: new(Route: new("edit", TripCompositionFieldValues.Element(TripCompositionFieldValues.Route(target)), route)))]));
+        var original = TripCompositionFieldValues.Element(new { source = "a", items = new[] { new
+        {
+            kind = "segment", sourceId = segment.Id, decision = "reuse", destinationId = target.Id,
+            expectedDecision = new { destinationId = target.Id, decision = "included" }, conditionToken = proof,
+            anchors = anchors.Select(p => new TripCompositionAnchor(Guid.Empty, p.Id, p.RegionId, [p.Location!.X, p.Location.Y])),
+            fields = new { route = new { operation = "edit", expected = TripCompositionFieldValues.Route(target), value = route } }
+        } } });
         var before = await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == created.CompositionId);
         var beforeTrip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == created.TripId);
         foreach (var scenario in new[] { "profile", "anchor", "waypoint-null", "waypoint-unknown", "waypoint-missing", "waypoint-kind",

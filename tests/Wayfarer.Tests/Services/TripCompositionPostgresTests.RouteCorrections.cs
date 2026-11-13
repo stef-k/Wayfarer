@@ -12,9 +12,15 @@ public sealed partial class TripCompositionPostgresTests
 {
     /// <summary>An unchanged authored route must retain the database-owned accepted estimates.</summary>
     [PostgresTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Review_UnchangedRouteRetainsMeasurements(bool provider)
+    [InlineData(false, "same")]
+    [InlineData(true, "same")]
+    [InlineData(false, "manual")]
+    [InlineData(true, "manual")]
+    [InlineData(false, "automatic")]
+    [InlineData(true, "automatic")]
+    [InlineData(false, "geometry")]
+    [InlineData(true, "geometry")]
+    public async Task Review_UnchangedRouteRetainsMeasurements(bool provider, string change)
     {
         var a = await Seed(); var b = await Seed(a.UserId);
         await using var db = fixture.CreateContext();
@@ -22,7 +28,7 @@ public sealed partial class TripCompositionPostgresTests
         {
             await db.Segments.Where(s => s.TripId == a.Id).ExecuteUpdateAsync(s => s
                 .SetProperty(s => s.RouteProvider, "geoapify").SetProperty(s => s.RouteStorageMode, "persistent")
-                .SetProperty(s => s.EstimatedDurationSource, EstimatedDurationSource.Automatic));
+                .SetProperty(s => s.EstimatedDurationSource, change == "automatic" ? EstimatedDurationSource.Manual : EstimatedDurationSource.Automatic));
         }
         var created = await StartSelection(db, a, b);
         var c = await Load(db, created.TripId); var target = c.Segments.Single();
@@ -33,13 +39,39 @@ public sealed partial class TripCompositionPostgresTests
             .Select(p => new TripCompositionAnchor(Guid.Empty, p.Id, p.RegionId, [p.Location!.X, p.Location.Y])).ToArray();
         var route = E(new { target.FromPlaceId, target.ToPlaceId,
             waypoints = target.Waypoints.OrderBy(w => w.Position).Select(w => new { w.PlaceId, w.Position, w.RouteVertexIndex }),
-            routeJson = new NetTopologySuite.IO.GeoJsonWriter().Write(target.RouteGeometry), target.Mode, target.TransportProfileId,
-            durationSource = target.EstimatedDurationSource.ToString(), manualDurationMinutes = provider ? (double?)null : target.EstimatedDuration?.TotalMinutes });
+            routeJson = change == "geometry" ? "{\"type\":\"LineString\",\"coordinates\":[[12,40],[13,41],[13.5,42],[14,42]]}"
+                : new NetTopologySuite.IO.GeoJsonWriter().Write(target.RouteGeometry), target.Mode, target.TransportProfileId,
+            durationSource = change == "manual" ? "Manual" : change == "automatic" ? "Automatic" : target.EstimatedDurationSource.ToString(),
+            manualDurationMinutes = change == "manual" ? 5.0 : change == "automatic" || provider ? (double?)null : target.EstimatedDuration?.TotalMinutes });
         await Select(db, a.UserId, created, "b", [new("segment", b.Segments.Single().Id, "reuse", DestinationId: target.Id,
             ConditionToken: proof, Anchors: anchors, Fields: new(Route: new("edit", E(TripCompositionFieldValues.Route(target)), route)))]);
         var saved = (await Load(db, c.Id)).Segments.Single();
-        Assert.Equal(target.EstimatedDuration, saved.EstimatedDuration);
-        Assert.Equal(target.EstimatedDistanceKm, saved.EstimatedDistanceKm);
+        if (change == "same")
+        {
+            Assert.Equal(target.EstimatedDuration, saved.EstimatedDuration);
+            Assert.Equal(target.EstimatedDistanceKm, saved.EstimatedDistanceKm);
+            Assert.Equal(SegmentRouteProvenance.Capture(target), SegmentRouteProvenance.Capture(saved));
+        }
+        else if (change == "manual")
+        {
+            Assert.Equal(TimeSpan.FromMinutes(5), saved.EstimatedDuration);
+            Assert.Equal(EstimatedDurationSource.Manual, saved.EstimatedDurationSource);
+            Assert.Equal(target.EstimatedDistanceKm, saved.EstimatedDistanceKm);
+            Assert.Equal(SegmentRouteProvenance.Capture(target), SegmentRouteProvenance.Capture(saved));
+        }
+        else if (change == "automatic")
+        {
+            Assert.Equal(EstimatedDurationSource.Automatic, saved.EstimatedDurationSource);
+            Assert.NotEqual(target.EstimatedDuration, saved.EstimatedDuration);
+            if (provider) Assert.Null(saved.EstimatedDuration);
+        }
+        else
+        {
+            Assert.NotEqual(target.EstimatedDistanceKm, saved.EstimatedDistanceKm);
+            Assert.Null(saved.RouteProvider);
+            if (!provider) Assert.Equal(target.EstimatedDuration, saved.EstimatedDuration);
+        }
+        Assert.Equal(target.Title, saved.Title); Assert.Equal(target.Notes, saved.Notes);
     }
 
     /// <summary>Malformed nested values must be rejected by ordinary product validation.</summary>
@@ -51,15 +83,13 @@ public sealed partial class TripCompositionPostgresTests
         var a = await Seed(); var b = await Seed(a.UserId);
         await using var db = fixture.CreateContext(); var created = await StartSelection(db, a, b);
         var c = await Load(db, created.TripId); var target = c.Segments.Single();
-        TripCompositionItem item = scenario == "viewport"
-            ? new("trip", b.Id, "reuse", DestinationId: c.Id, Fields: new(Viewport: new("edit", E(TripCompositionFieldValues.Current(c,"viewport")), E(1))))
-            : new("segment", b.Segments.Single().Id, "reuse", DestinationId: target.Id,
-                Anchors: scenario == "anchor" ? [null!, null!, null!] : [], Fields: new(Route: new("edit", E(TripCompositionFieldValues.Route(target)),
-                    scenario == "profile" ? E(new { transportProfileId = 1 }) : E(new { target.FromPlaceId, target.ToPlaceId,
-                        waypoints = target.Waypoints.Select(w => new { w.PlaceId, w.Position, w.RouteVertexIndex }), routeJson = (string?)null,
-                        target.Mode, target.TransportProfileId, durationSource = "Manual", manualDurationMinutes = 5 }))));
+        var item = new TripCompositionItem("segment", b.Segments.Single().Id, "reuse", DestinationId: target.Id,
+            Anchors: scenario == "anchor" ? [null!, null!, null!] : [], Fields: new(Route: new("edit", E(TripCompositionFieldValues.Route(target)),
+                scenario == "profile" ? E(new { transportProfileId = 1 }) : E(new { target.FromPlaceId, target.ToPlaceId,
+                    waypoints = target.Waypoints.Select(w => new { w.PlaceId, w.Position, w.RouteVertexIndex }), routeJson = (string?)null,
+                    target.Mode, target.TransportProfileId, durationSource = "Manual", manualDurationMinutes = 5 }))));
         var error = await Record.ExceptionAsync(() => Select(db, a.UserId, created, "b", [item]));
-        Assert.True(error is TripMetadataMutationRejected or JsonException or FormatException or KeyNotFoundException,
+        Assert.True(error is TripMetadataMutationRejected or JsonException,
             "Expected a normal validation exception; got " + error?.GetType().FullName + ": " + error?.Message);
     }
 
