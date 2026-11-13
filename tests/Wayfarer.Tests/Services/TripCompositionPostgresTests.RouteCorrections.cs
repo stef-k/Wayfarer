@@ -119,7 +119,7 @@ public sealed partial class TripCompositionPostgresTests
         Assert.True(challenge.Status == EditorRegionMutationStatus.Conflict, E(challenge).GetRawText());
         var confirmation = Assert.IsType<EditorSegmentConflictDto>(challenge.Conflict);
         Assert.Equal("segment-route-clear-confirmation-required", confirmation.Code);
-        
+
         db.ChangeTracker.Clear();
         var anchors = b.Regions.Single().Places.Where(p => p.Location != null).Select(p => {
             var to = p.Name == "Via" ? alternate : c.Regions.Single().Places.Single(x => x.Name == p.Name);
