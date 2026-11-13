@@ -7,7 +7,7 @@ using Wayfarer.Models;
 namespace Wayfarer.Services;
 
 /// <summary>Atomic owned Version and durable A/B comparison lifecycle. Source content is never applied again on resume.</summary>
-public sealed class TripCompositionService(ApplicationDbContext db)
+public sealed partial class TripCompositionService(ApplicationDbContext db)
 {
     /// <summary>Creates one independent private version or comparison; repeated requests are deliberate separate creations.</summary>
     public async Task<TripConstructionResult> CreateAsync(string owner, Guid sourceA, Guid? sourceB,
@@ -104,22 +104,26 @@ public sealed class TripCompositionService(ApplicationDbContext db)
         Func<CancellationToken, Task<bool>>? credential = null)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
-        await RequireActiveAsync(owner, token);
+        await LocationDeletionFence.AcquireAsync(db, owner, token);
+        await TripCompositionLifecycle.LockAsync(db, owner, null, id, token);
         var workspace = await OwnedAsync(owner, id, token);
         if (workspace.FinishedAt != null) throw Closed();
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {workspace.TripId} FOR SHARE", token);
+        await RequireActiveAsync(owner, token);
         if (credential != null && !await credential(token)) throw Unavailable();
         var current = await new TripCloneCoordinator(db).LoadSourceAsync(workspace.TripId, token) ?? throw Unavailable();
-        var present = current.Regions.Select(r => ("region", r.Id))
-            .Concat(current.Regions.SelectMany(r => r.Places).Select(p => ("place", p.Id)))
-            .Concat(current.Regions.SelectMany(r => r.Areas).Select(a => ("area", a.Id)))
-            .Concat(current.Segments.Select(s => ("segment", s.Id))).Append(("trip", current.Id)).ToHashSet();
-        var mappings = JsonSerializer.Deserialize<TripCompositionMapping[]>(workspace.Mappings!, TripCompositionSnapshot.Json)!;
+        var mappings = JsonSerializer.Deserialize<List<TripCompositionMapping>>(workspace.Mappings!, TripCompositionSnapshot.Json)!;
+        MarkRemoved(mappings, current);
+        var decisions = JsonSerializer.Serialize(mappings, TripCompositionSnapshot.Json);
+        if (decisions != workspace.Mappings)
+            await db.Set<TripComposition>().Where(w => w.Id == id).ExecuteUpdateAsync(s => s.SetProperty(w => w.Mappings, decisions), token);
+        await transaction.CommitAsync(token);
         return new
         {
             compositionId = workspace.Id, tripId = current.Id, status = "inProgress",
             sourceA = JsonSerializer.Deserialize<JsonElement>(workspace.SnapshotA!),
             sourceB = JsonSerializer.Deserialize<JsonElement>(workspace.SnapshotB!),
-            mappings = mappings.Select(m => new { source = "a", kind = m.Kind, sourceId = m.SourceId, destinationId = m.DestinationId, decision = present.Contains((m.Kind, m.DestinationId)) ? "included" : "destinationRemoved" }).ToArray(),
+            mappings = mappings.Select(m => new { source = m.Source, kind = m.Kind, sourceId = m.SourceId, destinationId = m.DestinationId, decision = m.Decision }).ToArray(),
             current = TripCompositionSnapshot.Project(current, true)
         };
     }

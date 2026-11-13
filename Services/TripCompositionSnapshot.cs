@@ -56,4 +56,4 @@ internal static class TripCompositionSnapshot
 }
 
 /// <summary>Type-scoped identities avoid conflating valid equal UUIDs in different source tables.</summary>
-internal sealed record TripCompositionMapping(string Kind, Guid SourceId, Guid DestinationId);
+internal sealed record TripCompositionMapping(string Kind, Guid SourceId, Guid DestinationId, string Source = "a", string Decision = "included");

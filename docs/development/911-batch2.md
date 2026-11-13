@@ -1,18 +1,18 @@
-# #911 Batch 2: construction and composition lifecycle
+# Trip construction, saved composition and selective apply
 
 Contract: [#911](https://github.com/stef-k/Wayfarer/issues/911), decoded UTF-8 body
 SHA-256 `3393c7f4ba24b2617b4e0a9328ea61c86ce725b2ecfef189c316331c7aecaeb2`.
-Base: `0f66cd49c7d30060371482624e52d47550be4cbb`, accepted Batch 1 / PR #975.
-This slice supplies backend foundations. Matching/adoption, Layout B/My Trips,
-existing-Trip copy and mobile implementation remain separately owned later work.
+Backend construction and selective-apply reference. Product decisions and acceptance
+remain in the tracker. Layout B/My Trips, existing-Trip copy and mobile implementation
+are separate delivery scopes.
 
 ## Routes and authority
 
 All responses are owner-private/no-store. Cookie routes require the User role;
 POSTs require antiforgery. Bearer routes ignore cookie identity and resolve the
 incoming API token, then revalidate it inside the service transaction after waits.
-The exhaustive production mutation inventory classifies all three cookie and all
-three bearer commands; list/read GETs remain outside the unsafe-action inventory.
+The exhaustive production mutation inventory classifies every cookie and bearer
+command; list/read/candidate GETs remain outside the unsafe-action inventory.
 
 | Operation | Cookie route | Bearer route |
 | --- | --- | --- |
@@ -21,6 +21,8 @@ three bearer commands; list/read GETs remain outside the unsafe-action inventory
 | List unfinished | `GET /api/trip-compositions` | `GET /api/trips/compositions` |
 | Resume | `GET /api/trip-compositions/{id}` | `GET /api/trips/compositions/{id}` |
 | Finish | `POST /api/trip-compositions/{id}/finish` | `POST /api/trips/compositions/{id}/finish` |
+| Suggestions/search | `GET /api/trip-compositions/{id}/candidates` | `GET /api/trips/compositions/{id}/candidates` |
+| Selected action | `POST /api/trip-compositions/{id}/actions` | `POST /api/trips/compositions/{id}/actions` |
 
 Version and Start accept `sourceA`, optional `name` (1–200 characters), optional
 `changeNote` (at most 2000 characters), and `keepOwnBasePlanning` (default true).
@@ -79,7 +81,7 @@ Each new destination list receives distinct nonnegative order values in source
 editor sequence: Regions/Segments by order then ID, Places with null order last
 then ID, Areas by order then name then ID. Canonical Unassigned retains its reserved
 identity and source sequence position; it is not renamed or duplicated. Source
-orders and unrelated lists are unchanged. Later interactive placement is Batch 3.
+orders and unrelated lists are unchanged. Selective placement is described below.
 
 Snapshots use a versioned explicit graph projection, raw stored routes/measurements,
 and separate sequence vectors. Authorized own planning has a separate projection;
@@ -87,10 +89,156 @@ foreign planning has no property, placeholder, count, diagnostics or presence hi
 The snapshot retains a `mediaOmitted` indication for later reselection.
 No account objects, credentials, visits, progress-sharing state or private origins
 enter this projection. Batch-1 media omission applies before foreign snapshotting.
-Resume returns immutable `sourceA`/`sourceB`, initial type-scoped source-A-to-C `mappings` and
-current C with own planning. Missing C identities report `destinationRemoved`;
+Resume returns immutable `sourceA`/`sourceB`, type-scoped A/B `mappings` and
+current C with own planning. Old initial A mappings remain `included`. Missing C
+identities become durable `destinationRemoved` decisions on resume or apply;
 retained scalar mappings survive deletions and no read reconstructs content.
-There is no per-action history or premature matching engine.
+
+## Matching and durable selections
+
+Candidate query parameters are `source=a|b`, `kind=region|place|area|segment`,
+`sourceId` and optional `search` (at most 200 characters). Responses contain at most
+20 deterministic `possibleMatch` suggestions with current C IDs and evidence:
+name/context and distance, mapped child distribution, full polygon relationships,
+or mapped ordered anchors/mode/profile/route shape. Neither a score, equal name,
+950-metre separation, overlap nor common endpoints confirms identity. Planning is
+not matching evidence. This is a result-count bound: the current graph is materialized
+and evidence (including polygon topology) is computed before truncation. There is
+no fixed total-work bound. Manual search filters names before evidence; manual reuse can choose another current same-type C ID. Place/Area reuse also
+supplies `expectedParentId` from the reviewed current counterpart; it never moves it.
+
+Actions accept one `source` and 1–128 reviewed `items` including Region children.
+Each item has `kind`, `sourceId`, `decision=copy|reuse|skip|remove` and, when already
+resolved, `expectedDecision: {destinationId,decision}` from resume. Decisions are
+`included`, `reuse`, `separate`, `skip` or `destinationRemoved`, scoped by source
+and kind. Active additional copies retain their own counterparts, including the initial A
+identity. Re-add replaces its removed choice; no per-action history accumulates.
+`separate:true` explicitly approves a same-name/additional distinct copy.
+`readd:true` is required to deliberately copy/reuse an excluded or removed idea.
+Skip does not silently delete an already included counterpart: use reviewed Remove.
+
+Copy receives fresh IDs. Optional `name` selects a validated custom name/title;
+omission uses the captured original, preserving null Segment titles. Place/Area
+copies select `regionId` in current C. A Place with no Region uses the unique
+canonical Unassigned category; an Area must select a normal Region or specify
+`newRegionName` and its `regionPlacement`. `expectedRegions` carries current
+`{id,displayOrder}` originals for canonical lookup/creation or explicit normal
+Region creation. No source Region ID authorizes a destination.
+
+A Region item with omitted `children` copies only normal metadata. To copy children,
+provide every direct Place/Area once with an explicit copy/reuse/skip decision,
+in reviewed order; no Segment is implicit. Reused children retain their current
+containers. Canonical Unassigned is not a normal Region to duplicate: copy its
+selected Places to C's canonical category instead.
+
+Every new list block carries `placement: {expected, position, afterId}`. `position`
+is `append` (default), `start` or `after`; only `after` has a reference.
+`expected` is the full affected current list of `{id,displayOrder}` in displayed
+sequence, including exact nullable/tied raw orders. Use current `regionOrder`,
+`placeOrder`, `areaOrder` and Segment display sequence from resume. Normal Region
+placement excludes canonical Unassigned. A newly created empty parent uses `[]`.
+All new siblings in the same list use the same placement and enter contiguously in
+item order. Reused items stay put. Reference/type/parent/membership/order drift
+refuses atomically; no fallback append or container change occurs. Existing C
+counterpart IDs may be resolved explicitly from confirmed mappings; a source row
+alone supplies no position. Normalize only affected lists, preserving geography,
+planning and route/Via order.
+
+```json
+{
+  "source": "b",
+  "items": [{
+    "kind": "place",
+    "sourceId": "11111111-1111-1111-1111-111111111111",
+    "decision": "reuse",
+    "destinationId": "22222222-2222-2222-2222-222222222222",
+    "expectedParentId": "33333333-3333-3333-3333-333333333333",
+    "fields": { "notes": { "operation": "useSource", "expected": null } }
+  }]
+}
+```
+
+## Selected fields and domain consequences
+
+`fields` has only named groups: `name`, independent nullable Segment `title`, whole
+`notes`, `iconName`, `markerColor`, `fillHex`, `cover`, coherent `address`, complete
+`location`/`geometry`/`center`, whole `route`, whole `planning`, Trip `tags` and
+`viewport`. Omission keeps the field. Each selected group uses
+`{operation:"useSource"|"edit"|"clear", expected, value?}`. Matched targets compare
+only selected current originals, including explicit nulls, after waits. A stale
+selected group rolls back the entire action; disjoint edits survive. New copies
+may select fields without destination originals. Required names/geometry cannot
+be cleared. Notes replace as one normalized rich value; never concatenate HTML.
+
+Originals use the camel-case captured/current field shapes: coordinate pairs are
+`[lon,lat]`; Area geometry is the complete GeoJSON string; address is
+`{address,resolvedFeatureName,resolvedFeatureType,addressEnrichmentProvider,
+addressEnrichmentStorageMode,addressEnrichedAt}` with explicit nulls. Only Use source
+may carry captured enrichment authority. Authored address edits accept `{address}`
+and clear provider evidence. Cover is a nullable raw authorized HTTP(S) reference.
+Viewport is `{centerLat,centerLon,zoom}`. Tag originals are sorted slugs; Use source
+reconciles captured tag names/slugs with the current catalogue, while Edit accepts
+validated tag names (up to 25). No source tag ID is destination authority.
+
+Planning is the existing complete ordered aggregate. New B copies default absent;
+own B Use source is explicit and remaps entry UUIDs. Matched Keep preserves current
+entry keys. Foreign snapshots contain no planning, diagnostics or presence hints;
+unavailable selected groups receive generic validation. Importing a child does not
+adopt B's Trip Notes/tags/cover/viewport. Applicable captured credits accompany copied
+or adopted content, including readable title-only notices. Own-source names are not
+automatically public credits; existing inherited notices are retained on removal.
+Foreign unqualified covers/Notes images remain omitted with `mediaOmitted` feedback.
+No fetching, rehosting or proxy permission inference occurs during apply.
+
+Route Use source requires explicit `anchors`, one per distinct captured From/To/Via
+Place: `{sourceId,destinationId,regionId,location}`. Existing destinations include
+exact current parent/location originals. `destinationId:null` refers only to an
+explicit earlier copied Place in this action, shared across routes by source ID.
+Source coordinates never authorize current C movement. Every custom present endpoint
+is checked even with zero Via; Via identities, contiguous positions and strictly
+increasing interior indices are validated. Custom tolerance is 0.0000001 degrees;
+fallback coordinates and incomplete/null state must agree exactly. Incompatible
+routes refuse with a correction path, without snapping, conversion or regeneration.
+Compatible copies retain exact saved distance, duration ticks/source and provenance.
+
+Matched route originals use the complete current route/dependency/measurement group,
+excluding independent Notes/title/planning. `conditionToken` is the existing owner
+editor `originalRouteToken`; destructive dependency changes also supply the existing
+`routeClearToken` from ordinary route review. Route Edit accepts only
+`{fromPlaceId,toPlaceId,waypoints,routeJson,mode,transportProfileId,durationSource,
+manualDurationMinutes}` and uses ordinary reconciliation, never client provider or
+trusted measurement assertions. Route Clear selects fallback with current ordered
+anchors; it does not silently move Places. Edit/Clear also approve each current
+anchor with exact originals. An unchanged authored route uses the ordinary editor's
+server-owned measurement preservation, including exact distance/ticks and qualified
+provider duration. Intentional duration/source or route changes reconcile normally.
+A consent approving custom-route clearing clears geometry and Via vertex indices
+for authored edits. Source adoption requiring that effect refuses: clear/repair
+with ordinary controls and review again. It never converts a captured custom route
+to fallback. Route facts and nested waypoint members are strictly validated once
+before profile discovery; missing required facts, null entries and unknown members
+are ordinary 400 refusals. No refusal renews consent.
+
+Existing Place location adoption uses the ordinary coordinate prepare/condition
+proof for exactly the selected coordinates in `conditionToken`. The same domain
+core owns affected routes and enrichment consequences. Region/Place removal uses
+the existing deletion preview token in `conditionToken`; Region also supplies
+explicit `places=keep|delete` and `areas=keep|delete`. Leaf removal supplies `original`
+with complete `content` (Area API DTO or Segment route group), `planning`, normalized
+`notes` and nullable `title`. Removal retains all still-applicable Trip notices.
+
+Selective apply joins account → workspace → discovered profiles → Segments → Places
+→ Areas → Regions → Trip barriers in one Serializable transaction. It validates
+active caller/credential, owned C, active workspace, originals and dependencies after
+waits. Expanded earlier lock scope aborts for ordinary review. Approved dependencies
+are saved before route staging, inside the same transaction. Lifecycle helpers use
+narrow transaction-neutral cores; pending changes are flushed before tracker clearing,
+then current C is reloaded. Content, dependencies, affected ordering, credits and
+A/B decisions commit once. No independent endpoint calls or live-source reacquisition
+occur. Finish/Delete/account erasure use the same workspace lifetime boundary.
+Public content advances ordinary freshness and post-commit thumbnail/cache effects;
+private planning/decision-only changes do not. No communication error proves rollback
+or authorizes blind replay.
 
 ## Lifecycle, persistence and rollback
 
@@ -122,7 +270,7 @@ its content and credits. Back up before rollback; an old binary cannot resume th
 comparisons. Do not reconstruct them from public content or infer a completed state
 from missing records.
 
-## Evidence and remaining ownership
+## Validation boundaries
 
 `TripCompositionPostgresTests` covers independent construction, planning choice,
 policy/privacy, complete staged routes, rollback, resume/current edits, source loss,
@@ -138,5 +286,5 @@ No browser campaign is needed for these backend routes; no Layout B journey is
 claimed. Mobile must adopt the documented bearer requests and complete graph,
 sequence, precision, private planning and credit representations with account-scoped
 storage and honest uncertain-save handling. Mobile UI/native qualification remains
-pending. Independent Batch-2 review and final combined backend/Web reconciliation
-remain required; this implementation does not accept itself or close #911.
+separately owned. Independent technical acceptance and final combined backend/Web
+reconciliation are recorded in #911; backend checks do not establish a full UI journey.

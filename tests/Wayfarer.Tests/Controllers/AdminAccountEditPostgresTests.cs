@@ -237,21 +237,54 @@ public sealed class AdminAccountEditPostgresTests(PostgresMigrationTestFixture f
     public async Task PostgreSqlFailure_RollsBackCompleteEdit(string stage)
     {
         await using var browser = await StartAsync();
-        var target = await browser.UserAsync("User", protect: true);
+        var targetName = stage switch
+        {
+            "role" => "admin-edit-failure-role",
+            "stamp" => "admin-edit-failure-stamp",
+            "audit" => "admin-edit-failure-audit",
+            _ => throw new ArgumentOutOfRangeException(nameof(stage))
+        };
+        var target = await browser.UserAsync("User", protect: true, name: targetName);
         await browser.DependentsAsync(target);
         var before = await ReadAsync(target.Id);
-        Assert.True(Guid.TryParse(target.Id, out _));
-        var table = stage == "role" ? "AspNetUserRoles" : stage == "stamp" ? "AspNetUsers" : "AuditLogs";
-        var predicate = stage == "role" ? $"NEW.\"UserId\" = '{target.Id}'"
-            : stage == "stamp" ? $"NEW.\"Id\" = '{target.Id}' AND NEW.\"SecurityStamp\" IS DISTINCT FROM OLD.\"SecurityStamp\""
-            : "NEW.\"Action\" = 'Edit User'";
+        // Fixed stage-specific DDL keeps each real database failure scoped to its own fixture account.
+        var setupSql = stage switch
+        {
+            "role" => """
+                CREATE FUNCTION public.reject_admin_edit() RETURNS trigger LANGUAGE plpgsql AS
+                $body$ BEGIN
+                    IF NEW."UserId" = (SELECT "Id" FROM "AspNetUsers" WHERE "UserName" = 'admin-edit-failure-role') THEN
+                        RAISE EXCEPTION 'Fixture-owned PostgreSQL failure';
+                    END IF;
+                    RETURN NEW;
+                END $body$;
+                CREATE TRIGGER admin_edit_failure BEFORE INSERT ON "AspNetUserRoles"
+                FOR EACH ROW EXECUTE FUNCTION public.reject_admin_edit();
+                """,
+            "stamp" => """
+                CREATE FUNCTION public.reject_admin_edit() RETURNS trigger LANGUAGE plpgsql AS
+                $body$ BEGIN
+                    IF NEW."Id" = (SELECT "Id" FROM "AspNetUsers" WHERE "UserName" = 'admin-edit-failure-stamp') THEN
+                        RAISE EXCEPTION 'Fixture-owned PostgreSQL failure';
+                    END IF;
+                    RETURN NEW;
+                END $body$;
+                CREATE TRIGGER admin_edit_failure BEFORE UPDATE ON "AspNetUsers"
+                FOR EACH ROW WHEN (NEW."SecurityStamp" IS DISTINCT FROM OLD."SecurityStamp")
+                EXECUTE FUNCTION public.reject_admin_edit();
+                """,
+            "audit" => """
+                CREATE FUNCTION public.reject_admin_edit() RETURNS trigger LANGUAGE plpgsql AS
+                $body$ BEGIN RAISE EXCEPTION 'Fixture-owned PostgreSQL failure'; END $body$;
+                CREATE TRIGGER admin_edit_failure BEFORE INSERT ON "AuditLogs"
+                FOR EACH ROW WHEN (NEW."Action" = 'Edit User'
+                    AND NEW."Details" LIKE 'User Data Changed: User admin-edit-failure-audit role:%')
+                EXECUTE FUNCTION public.reject_admin_edit();
+                """,
+            _ => throw new ArgumentOutOfRangeException(nameof(stage))
+        };
         await using var setup = fixture.CreateContext();
-        await setup.Database.ExecuteSqlRawAsync($$"""
-            CREATE FUNCTION public.reject_admin_edit() RETURNS trigger LANGUAGE plpgsql AS
-            $body$ BEGIN RAISE EXCEPTION 'Fixture-owned PostgreSQL failure'; END $body$;
-            CREATE TRIGGER admin_edit_failure BEFORE {{(stage == "stamp" ? "UPDATE" : "INSERT")}} ON "{{table}}"
-            FOR EACH ROW WHEN ({{predicate}}) EXECUTE FUNCTION public.reject_admin_edit();
-            """);
+        await setup.Database.ExecuteSqlRawAsync(setupSql);
         try
         {
             using var result = await EditAsync(browser, target, "Manager");
@@ -260,7 +293,14 @@ public sealed class AdminAccountEditPostgresTests(PostgresMigrationTestFixture f
         }
         finally
         {
-            await setup.Database.ExecuteSqlRawAsync($"DROP TRIGGER admin_edit_failure ON \"{table}\"; DROP FUNCTION public.reject_admin_edit();");
+            var cleanupSql = stage switch
+            {
+                "role" => "DROP TRIGGER admin_edit_failure ON \"AspNetUserRoles\"; DROP FUNCTION public.reject_admin_edit();",
+                "stamp" => "DROP TRIGGER admin_edit_failure ON \"AspNetUsers\"; DROP FUNCTION public.reject_admin_edit();",
+                "audit" => "DROP TRIGGER admin_edit_failure ON \"AuditLogs\"; DROP FUNCTION public.reject_admin_edit();",
+                _ => throw new ArgumentOutOfRangeException(nameof(stage))
+            };
+            await setup.Database.ExecuteSqlRawAsync(cleanupSql);
         }
     }
 

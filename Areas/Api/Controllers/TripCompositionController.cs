@@ -38,6 +38,21 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
     [HttpGet("{id:guid}")]
     public Task<IActionResult> Read(Guid id, CancellationToken token) => Execute(owner => new TripCompositionService(db).ReadAsync(owner, id, token));
 
+    /// <summary>Returns bounded captured-source suggestions or manual current-C search; never confirms a match.</summary>
+    [HttpGet("{id:guid}/candidates")]
+    public Task<IActionResult> Candidates(Guid id, string source, string kind, Guid sourceId, string? search, CancellationToken token) => Execute(owner =>
+        new TripCompositionService(db).CandidatesAsync(owner, id, source, kind, sourceId, search, token: token));
+
+    /// <summary>Saves selected content, placement, dependencies, decisions and credits in one transaction.</summary>
+    [HttpPost("{id:guid}/actions"), ValidateAntiForgeryToken, RequestSizeLimit(10485760)]
+    public Task<IActionResult> Apply(Guid id, [FromBody] System.Text.Json.JsonElement request,
+        [FromServices] PlaceRegionLifecycleService lifecycle, [FromServices] IWebHostEnvironment environment,
+        [FromServices] IIconColorProvider colors, [FromServices] SegmentAggregateTokenService routeTokens,
+        [FromServices] SegmentRouteClearConfirmation routeConsent, [FromServices] ITripMapThumbnailGenerator thumbnails,
+        [FromServices] ICacheWarmupScheduler warmup, CancellationToken token) => Execute(owner =>
+        TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(db).ApplyAsync(owner, id, TripCompositionInput.Parse(request), lifecycle, routeTokens, routeConsent,
+            TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), token: token), thumbnails, warmup));
+
     /// <summary>Closes comparison and removes its payload without altering C.</summary>
     [HttpPost("{id:guid}/finish"), ValidateAntiForgeryToken]
     public Task<IActionResult> Finish(Guid id, CancellationToken token) => Execute(async owner => await new TripCompositionService(db).FinishAsync(owner, id, token: token));
@@ -49,6 +64,9 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
         if (owner == null) return Unauthorized();
         try { return Ok(await action(owner)); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
+        catch (Wayfarer.Models.Dtos.Editor.RegionDeletionRejectedException error) { return StatusCode(error.Status, new { code = error.Code, detail = error.Message }); }
+        catch (Exception error) when (error is System.Text.Json.JsonException or FormatException or KeyNotFoundException)
+        { return BadRequest(new { code = "composition-request-invalid", detail = "Review the selected fields, dependencies and originals." }); }
         catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException or AggregateException
             || error is InvalidOperationException { InnerException: System.Data.Common.DbException })
         {
@@ -82,6 +100,20 @@ public partial class TripsController
     public Task<IActionResult> ReadComposition(Guid id, CancellationToken token) => CompositionRequest(
         (owner, check) => new TripCompositionService(_dbContext).ReadAsync(owner, id, token, check), token);
 
+    /// <summary>Bearer suggestions use immutable inputs and only current owned destination counterparts.</summary>
+    [HttpGet("compositions/{id:guid}/candidates")]
+    public Task<IActionResult> CompositionCandidates(Guid id, string source, string kind, Guid sourceId, string? search, CancellationToken token) => CompositionRequest(
+        (owner, check) => new TripCompositionService(_dbContext).CandidatesAsync(owner, id, source, kind, sourceId, search, check, token), token);
+
+    /// <summary>Bearer selected actions revalidate the incoming credential after all domain waits.</summary>
+    [HttpPost("compositions/{id:guid}/actions"), RequestSizeLimit(10485760)]
+    public Task<IActionResult> ApplyComposition(Guid id, [FromBody] System.Text.Json.JsonElement request,
+        [FromServices] IWebHostEnvironment environment, [FromServices] IIconColorProvider colors, [FromServices] SegmentAggregateTokenService routeTokens,
+        [FromServices] SegmentRouteClearConfirmation routeConsent, [FromServices] ITripMapThumbnailGenerator thumbnails,
+        [FromServices] ICacheWarmupScheduler warmup, CancellationToken token) => CompositionRequest(
+        (owner, check) => TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(_dbContext).ApplyAsync(owner, id, TripCompositionInput.Parse(request), _lifecycle, routeTokens, routeConsent,
+            TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), check, token), thumbnails, warmup), token);
+
     /// <summary>Revalidates bearer authority and atomically finishes the owned comparison.</summary>
     [HttpPost("compositions/{id:guid}/finish")]
     public Task<IActionResult> FinishComposition(Guid id, CancellationToken token) => CompositionRequest(async (owner, check) =>
@@ -96,6 +128,9 @@ public partial class TripsController
         if (user == null) return Unauthorized();
         try { return Ok(await action(user.Id, ct => authority.RevalidateMutationAsync(HttpContext, user.Id, ct))); }
         catch (TripMetadataMutationRejected error) { return error.ToActionResult(); }
+        catch (Wayfarer.Models.Dtos.Editor.RegionDeletionRejectedException error) { return StatusCode(error.Status, new { code = error.Code, detail = error.Message }); }
+        catch (Exception error) when (error is System.Text.Json.JsonException or FormatException or KeyNotFoundException)
+        { return BadRequest(new { code = "composition-request-invalid", detail = "Review the selected fields, dependencies and originals." }); }
         catch (Exception error) when (error is System.Data.Common.DbException or Microsoft.EntityFrameworkCore.DbUpdateException or TimeoutException or AggregateException
             || error is InvalidOperationException { InnerException: System.Data.Common.DbException })
         {

@@ -12,7 +12,7 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Batch 2 atomic construction and durable lifecycle at the real PostgreSQL/FK boundary.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class TripCompositionPostgresTests(PostgresImportTestFixture fixture)
+public sealed partial class TripCompositionPostgresTests(PostgresImportTestFixture fixture)
 {
     /// <summary>Both shared copy callers preserve raw nullable Notes after normalization and validated route staging.</summary>
     [PostgresTheory]

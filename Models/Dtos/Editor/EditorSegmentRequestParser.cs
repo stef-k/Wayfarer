@@ -299,7 +299,8 @@ internal static partial class EditorSegmentRequestParser
         return source;
     }
 
-    private static LineString? ReadRequiredNullableRoute(JsonElement request, Dictionary<string, string[]> errors)
+    /// <summary>Parses the shared nullable GeoJSON route and validates each coordinate without persistence.</summary>
+    internal static LineString? ReadRequiredNullableRoute(JsonElement request, Dictionary<string, string[]> errors)
     {
         if (!request.TryGetProperty("route", out var property))
         {
