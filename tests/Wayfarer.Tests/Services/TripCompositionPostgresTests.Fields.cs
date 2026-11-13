@@ -70,6 +70,36 @@ public sealed partial class TripCompositionPostgresTests
         Assert.Null((await Load(db, c.Id)).Segments.Single().Title);
     }
 
+    /// <summary>Authored route edits and explicit Clear use complete originals and ordinary reconciliation, independent of title/Notes.</summary>
+    [PostgresFact]
+    public async Task SelectedRouteEditAndClearKeepIndependentFields()
+    {
+        var a = await Seed(); var b = await Seed(a.UserId);
+        await using var db = fixture.CreateContext(); var created = await StartSelection(db, a, b);
+        var c = await Load(db, created.TripId); var target = c.Segments.Single();
+        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new Exception();
+        var tokens = new SegmentAggregateTokenService(selectionProtection);
+        var proof = tokens.IssueRoute(a.UserId, c.Id, canonical); db.ChangeTracker.Clear();
+        var anchors = c.Regions.SelectMany(r => r.Places).Where(p => p.Location != null)
+            .Select(p => new TripCompositionAnchor(Guid.Empty, p.Id, p.RegionId, [p.Location!.X, p.Location.Y])).ToArray();
+        var route = E(new { target.FromPlaceId, target.ToPlaceId, waypoints = target.Waypoints.OrderBy(w => w.Position)
+            .Select(w => new { w.PlaceId, w.Position, w.RouteVertexIndex }), routeJson = new NetTopologySuite.IO.GeoJsonWriter().Write(target.RouteGeometry),
+            target.Mode, target.TransportProfileId, durationSource = "Manual", manualDurationMinutes = 5.0 });
+        await Select(db, a.UserId, created, "b", [new("segment", b.Segments.Single().Id, "reuse", DestinationId: target.Id,
+            ConditionToken: proof, Anchors: anchors, Fields: new(Route: new("edit", E(TripCompositionFieldValues.Route(target)), route)))]);
+        var saved = (await Load(db, c.Id)).Segments.Single();
+        Assert.Equal(TimeSpan.FromMinutes(5), saved.EstimatedDuration); Assert.Equal(target.Title, saved.Title); Assert.Equal(target.Notes, saved.Notes);
+        canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new Exception();
+        proof = tokens.IssueRoute(a.UserId, c.Id, canonical); db.ChangeTracker.Clear();
+        await Select(db, a.UserId, created, "b", [new("segment", b.Segments.Single().Id, "reuse", DestinationId: target.Id,
+            ExpectedDecision: new(target.Id, "reuse"), ConditionToken: proof, Anchors: anchors,
+            Fields: new(Route: new("clear", E(TripCompositionFieldValues.Route(saved)))))]);
+        saved = (await Load(db, c.Id)).Segments.Single();
+        Assert.Null(saved.RouteGeometry); Assert.Null(saved.Waypoints.Single().RouteVertexIndex);
+        Assert.Equal(TimeSpan.FromMinutes(5), saved.EstimatedDuration); Assert.Equal(target.Title, saved.Title);
+        Assert.Equal(target.DisplayOrder, saved.DisplayOrder); Assert.Equal(target.Notes, saved.Notes);
+    }
+
     [PostgresFact]
     public async Task PlanningOnlyAdoptionDoesNotPublishSourceNoticesOrAdvanceFreshness()
     {
