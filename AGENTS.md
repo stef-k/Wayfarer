@@ -55,6 +55,10 @@
 
 ## Validation & PR Readiness
 
+- Inspect and classify diagnostics from every validation command (build, compiler, typecheck, tests and analyzers). Report each distinct warning's code, location, origin and disposition, separating new/changed warnings from inherited warnings. State incremental or selection limits; absent output does not prove zero warnings.
+- Fix actionable warnings introduced or exposed by the change before readiness. “Existing” is not a disposition: inherited warnings require correction or a linked tracker assessment of affected behavior, risk, proposed correction and ownership. Actionable deferral requires explicit maintainer acceptance; untriaged warnings preclude an unqualified readiness/PASS claim.
+- Proven-safe analyzer limitations require specific evidence and narrowly documented handling at the code boundary. Do not disable analyzers, broaden `NoWarn`, add unexplained null-forgiving operators or rearrange code to evade detection.
+- PRs, independent reviews, completion reports and merge reconciliation must disclose warning dispositions or link their durable assessment, distinguishing fresh from reused evidence. Passing tests/builds/CI do not substitute for diagnostic assessment. See [#977](https://github.com/stef-k/Wayfarer/issues/977).
 - Use the installed Code Guard skill and repository configuration after meaningful supported source or Markdown edits: `code-guard . --changed-only --json --json-mode compact`.
 - Before completion, cover the complete branch change with `code-guard . --base-ref main --ci`; outside Git, pass the exact edited files. Full scans are deliberate audits.
 - PASS continues normally. REVIEW requires inspection and a concise design justification or a genuine improvement, not automatic refactoring. FAIL, INCOMPLETE, and tool/configuration errors block completion unless an applicable explicit exception covers the finding; retain completed evidence.

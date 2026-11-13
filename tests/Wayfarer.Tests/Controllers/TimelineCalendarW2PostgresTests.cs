@@ -53,17 +53,19 @@ public sealed partial class TimelineCalendarPostgresTests
         Assert.Equal("unavailable", result.GetProperty("geometry").GetProperty("state").GetString());
     }
 
-    /// <summary>Known unmapped records page by exact identity; month presence replaces selected dates and preserves uncertainty.</summary>
+    /// <summary>Hostile literal text stays owner-scoped across records, detailed statistics, month membership and analysis.</summary>
     [PostgresFact]
     public async Task RecordsAndAvailabilityUsePrivateFilteredScope()
     {
-        var owner = await fixture.CreateUserAsync();
-        var first = Row(owner.Id, "2026-10-25T10:00Z"); first.Notes = "literal_% blue";
+        var owner = await fixture.CreateUserAsync(); var other = await fixture.CreateUserAsync();
+        const string literal = "literal_%' OR 1=1 --";
+        var first = Row(owner.Id, "2026-10-25T10:00Z"); first.Notes = literal + " blue";
         var unmapped = Row(owner.Id, "2026-10-25T11:00Z"); unmapped.Notes = first.Notes; unmapped.Coordinates = NetTopologySuite.Geometries.Point.Empty;
         var outside = Row(owner.Id, "2026-10-26T10:00Z"); outside.Notes = first.Notes;
-        await SeedAsync(first, unmapped, outside); await ReadyTextAsync();
+        var foreign = Row(other.Id, "2026-10-25T10:00Z"); foreign.Notes = first.Notes;
+        await SeedAsync(first, unmapped, outside, foreign); await ReadyTextAsync();
         await using var app = await HostAsync(); using var client = Client(app, owner.Id); await PostTokenAsync(client);
-        var values = new Dictionary<string, string>(W2Day) { ["q"] = "literal_%", ["pageSize"] = "1" };
+        var values = new Dictionary<string, string>(W2Day) { ["q"] = literal, ["pageSize"] = "1" };
         var page = await PostAsync(client, "records", values);
         Assert.Equal(unmapped.Id, Assert.Single(page.GetProperty("items").EnumerateArray()).GetProperty("locationId").GetInt32());
         Assert.Equal("live-request", page.GetProperty("consistency").GetString());
@@ -73,7 +75,11 @@ public sealed partial class TimelineCalendarPostgresTests
         Assert.Equal(JsonValueKind.Null, page.GetProperty("nextContinuation").ValueKind);
         values["q"] = "other";
         await PostAsync(client, "records", values, 400, "continuationInvalid");
-        var month = new Dictionary<string, string>(W2Day); month.Remove("dateType"); month.Remove("day"); month["q"] = "literal_%";
+        // Exercise all three aggregate call sites using the same hostile value and selected owner/window.
+        var detail = await PostAsync(client, "statistics", new Dictionary<string, string>(W2Day) { ["q"] = literal });
+        Assert.Equal(2, detail.GetProperty("statistics").GetProperty("totalLocations").GetInt32());
+        Assert.Equal(2, Assert.Single(detail.GetProperty("statistics").GetProperty("countries").EnumerateArray()).GetProperty("visitCount").GetInt32());
+        var month = new Dictionary<string, string>(W2Day); month.Remove("dateType"); month.Remove("day"); month["q"] = literal;
         var marks = await PostAsync(client, "availability", month);
         Assert.Equal(new[] { "2026-10-25", "2026-10-26" }, marks.GetProperty("presentDates").EnumerateArray().Select(x => x.GetString()));
         Assert.False(marks.GetProperty("hasUnresolvedCandidates").GetBoolean());
@@ -81,7 +87,9 @@ public sealed partial class TimelineCalendarPostgresTests
         marks = await PostAsync(client, "availability", month);
         Assert.True(marks.GetProperty("hasUnresolvedCandidates").GetBoolean());
         var clock = Stopwatch.StartNew();
-        await PostAsync(client, "analysis", new Dictionary<string, string>(W2Day) { ["q"] = "literal_%" });
+        var analysis = await PostAsync(client, "analysis", new Dictionary<string, string>(W2Day) { ["q"] = literal });
+        Assert.Equal("3", analysis.GetProperty("counts").GetProperty("examinedSourceRows").GetString());
+        Assert.Equal("2", analysis.GetProperty("counts").GetProperty("knownMatches").GetString());
         output.WriteLine($"Filtered routed analysis: {clock.Elapsed.TotalMilliseconds:F2} ms; three owner source rows, independent snapshots.");
         using var noToken = Client(app, owner.Id);
         await PostAsync(noToken, "records", W2Day, 400);

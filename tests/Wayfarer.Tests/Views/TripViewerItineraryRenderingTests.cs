@@ -80,6 +80,7 @@ public sealed class TripViewerItineraryRenderingTests
             var html = await RenderViewerAsync(scope.ServiceProvider, trip);
             var viewer = new HtmlParser().ParseDocument(html);
             Assert.Contains("Morning walk", viewer.QuerySelector(".segment-list-item")!.TextContent);
+            Assert.Equal("Morning walk", viewer.QuerySelector(".segment-selection-button")!.GetAttribute("aria-label"));
             Assert.Contains("Owner's contributions: CC0-1.0", viewer.Body!.TextContent);
             Assert.Equal(2, viewer.QuerySelectorAll("details").Count(e => e.TextContent.Contains("Keep this notice")));
             Assert.Contains("Keep this notice", viewer.Body.TextContent);
@@ -88,6 +89,14 @@ public sealed class TripViewerItineraryRenderingTests
             // A historical unlinked Segment remains printable without inventing endpoint Places.
             trip.Segments.Single().FromPlaceId = null;
             trip.Segments.Single().ToPlaceId = null;
+            // Historical endpoint loss keeps the authored selection name and resolver-owned neutral presentation.
+            var historical = new HtmlParser().ParseDocument(await RenderViewerAsync(scope.ServiceProvider, trip));
+            var historicalSegment = historical.QuerySelector(".segment-list-item")!;
+            Assert.Equal("Morning walk", historicalSegment.QuerySelector(".segment-selection-button")!.TextContent.Trim());
+            Assert.Equal("Morning walk", historicalSegment.QuerySelector(".segment-selection-button")!.GetAttribute("aria-label"));
+            Assert.Contains("Unlinked start", historicalSegment.TextContent);
+            Assert.Contains("Unlinked end", historicalSegment.TextContent);
+            Assert.Null(historicalSegment.GetAttribute("data-route-wkt"));
             var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(),
                 Places = trip.Regions.SelectMany(r => r.Places).ToList(), Segments = trip.Segments.ToList() };
             var print = new HtmlParser().ParseDocument(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
@@ -203,6 +212,8 @@ public sealed class TripViewerItineraryRenderingTests
             var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
             Assert.Contains("2.14", segment.TextContent);
             Assert.Contains("00:06", segment.TextContent);
+            Assert.Equal("A A → B B → C C", NormalizeText(segment.QuerySelector(".segment-selection-button")!.TextContent));
+            Assert.Equal("Segment from A via B to C", segment.QuerySelector(".segment-selection-button")!.GetAttribute("aria-label"));
 
             Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],
                 segment.QuerySelectorAll(".segment-journey-role").Select(item => NormalizeText(item.TextContent)));

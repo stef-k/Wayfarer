@@ -67,7 +67,10 @@ public class LocationStatsService : ILocationStatsService
     /// Shared read-only projection for every statistics query. PostgreSQL C collation keeps
     /// component equality exact. btrim removes only the six authorized ASCII characters;
     /// empty strings represent missing components internally and in the legacy DTOs.
-    /// Only trusted SQL fragments vary; user IDs and inclusive bounds remain parameters.
+    /// SQL syntax comes only from the fixed timestamp/bounds choices, PublicTimelineLocationProjection.SourceSql,
+    /// or CalendarScope's HistoryPredicate fragments. Owner, cutoff, text/activity, time/offset and area values
+    /// remain EF placeholders or typed Npgsql parameters; source strings never come from callers outside this class.
+    /// See issue #977 for the call-site analyzer assessment.
     /// </summary>
     private static string StatisticsScope(bool dateRange, string? publicSource = null, bool selected = false)
     {
@@ -113,6 +116,8 @@ public class LocationStatsService : ILocationStatsService
     {
         var summary = await ReadSummaryAsync(scope, parameters, token);
         var totalLocations = summary.TotalLocations;
+        // #977: scope is built only by StatisticsScope/CalendarScope above; every variable value is in parameters.
+#pragma warning disable EF1003 // Fixed aggregate SQL plus internal scope fragments; no request text enters SQL syntax.
         var countryGroupsSql = await _db.Database.SqlQueryRaw<CountryGroupResult>(scope + """
 
             SELECT "Country", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
@@ -121,6 +126,7 @@ public class LocationStatsService : ILocationStatsService
                 AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
             FROM scoped WHERE "Country" <> '' GROUP BY "Country"
             """, parameters).ToListAsync(token);
+#pragma warning restore EF1003
         // Detect home country: country with >40% of total visits or significantly more than average
         var averageVisitCount = countryGroupsSql.Any() ? countryGroupsSql.Average(c => c.VisitCount) : 0;
         var homeCountryThreshold = Math.Max(totalLocations * 0.4, averageVisitCount * 3);
@@ -141,6 +147,8 @@ public class LocationStatsService : ILocationStatsService
             .ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
 
+        // #977: the same internal scope and bound parameters feed region grouping without interpolated values.
+#pragma warning disable EF1003 // Fixed aggregate SQL plus the assessed StatisticsScope/CalendarScope fragments.
         var regionGroupsSql = await _db.Database.SqlQueryRaw<RegionGroupResult>(scope + """
 
             SELECT "Country", "Region", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
@@ -149,6 +157,7 @@ public class LocationStatsService : ILocationStatsService
                 AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
             FROM scoped WHERE "Region" <> '' GROUP BY "Country", "Region"
             """, parameters).ToListAsync(token);
+#pragma warning restore EF1003
         var regions = regionGroupsSql
             .Select(r => new RegionVisitDetail
             {
@@ -165,6 +174,8 @@ public class LocationStatsService : ILocationStatsService
             .ToList();
 
         // The full partition aggregates all visits; DISTINCT ON selects exactly one coordinate row.
+        // #977: partition/order syntax is fixed; scope and parameter provenance are identical to country/region groups.
+#pragma warning disable EF1003 // Fixed aggregate SQL plus the assessed StatisticsScope/CalendarScope fragments.
         var cityGroupsSql = await _db.Database.SqlQueryRaw<CityGroupResult>(scope + """
 
             SELECT DISTINCT ON ("Country", "Region", "Place") "Country", "Region", "Place",
@@ -177,6 +188,7 @@ public class LocationStatsService : ILocationStatsService
             WINDOW membership AS (PARTITION BY "Country", "Region", "Place")
             ORDER BY "Country", "Region", "Place", "VisitTime" DESC, "Id" DESC
             """, parameters).ToListAsync(token);
+#pragma warning restore EF1003
         var cities = cityGroupsSql
             .Select(c => new CityVisitDetail
             {
