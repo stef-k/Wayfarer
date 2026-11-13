@@ -26,7 +26,7 @@ public sealed record TripCompositionMappingOriginal(Guid DestinationId, string D
 
 /// <summary>Approved route anchor identity and exact current location/parent. A copied dependency names an earlier item by source ID.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed record TripCompositionAnchor(Guid SourceId, Guid? DestinationId, Guid? RegionId, double[]? Location);
+public sealed record TripCompositionAnchor(Guid SourceId, Guid? DestinationId, Guid? RegionId, [property: JsonNumberHandling(JsonNumberHandling.Strict)] double[]? Location);
 
 /// <summary>Only named product groups are selectable. Omission keeps current destination values.</summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

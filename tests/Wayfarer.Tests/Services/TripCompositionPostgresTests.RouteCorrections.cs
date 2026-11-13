@@ -10,7 +10,7 @@ namespace Wayfarer.Tests.Services;
 
 public sealed partial class TripCompositionPostgresTests
 {
-    /// <summary>An unchanged authored route must retain the database-owned accepted estimates.</summary>
+    /// <summary>Authored edits preserve accepted unchanged measurements and reconcile deliberate duration intent or geometry changes.</summary>
     [PostgresTheory]
     [InlineData(false, "same")]
     [InlineData(true, "same")]
@@ -32,7 +32,7 @@ public sealed partial class TripCompositionPostgresTests
         }
         var created = await StartSelection(db, a, b);
         var c = await Load(db, created.TripId); var target = c.Segments.Single();
-        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new Exception();
+        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new InvalidOperationException();
         var proof = new SegmentAggregateTokenService(selectionProtection).IssueRoute(a.UserId, c.Id, canonical);
         db.ChangeTracker.Clear();
         var anchors = c.Regions.SelectMany(r => r.Places).Where(p => p.Location != null)
@@ -103,9 +103,9 @@ public sealed partial class TripCompositionPostgresTests
         await using var db = fixture.CreateContext(); var created = await StartSelection(db, a, b);
         var c = await Load(db, created.TripId); var target = c.Segments.Single();
         var region = c.Regions.Single();
-        var alternate = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = a.UserId, Name = "Alternative Via", Location = new NetTopologySuite.Geometries.Point(13,41) { SRID = 4326 } };
+        var alternate = new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = a.UserId, Name = "Alternative Via", Location = new NetTopologySuite.Geometries.Point(13, 41) { SRID = 4326 } };
         db.Places.Add(alternate); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
-        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new Exception();
+        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db, target.Id) ?? throw new InvalidOperationException();
         var tokens = new SegmentAggregateTokenService(selectionProtection);
         var consent = new SegmentRouteClearConfirmation(selectionProtection, TimeProvider.System);
         var proof = tokens.IssueRoute(a.UserId, c.Id, canonical);
@@ -122,8 +122,8 @@ public sealed partial class TripCompositionPostgresTests
         
         db.ChangeTracker.Clear();
         var anchors = b.Regions.Single().Places.Where(p => p.Location != null).Select(p => {
-            var to = p.Name == "Via" ? alternate : c.Regions.Single().Places.Single(x=>x.Name==p.Name);
-            return new TripCompositionAnchor(p.Id,to.Id,to.RegionId,[to.Location!.X,to.Location.Y]);
+            var to = p.Name == "Via" ? alternate : c.Regions.Single().Places.Single(x => x.Name == p.Name);
+            return new TripCompositionAnchor(p.Id, to.Id, to.RegionId, [to.Location!.X, to.Location.Y]);
         }).ToArray();
         var routeEdit = E(new { target.FromPlaceId, target.ToPlaceId,
             waypoints = new[] { new { placeId = alternate.Id, position = 0, routeVertexIndex = 1 } },
@@ -176,7 +176,7 @@ public sealed partial class TripCompositionPostgresTests
         var a = await Seed(); var b = await Seed(a.UserId);
         await using var db = fixture.CreateContext(); var created = await StartSelection(db,a,b);
         var c = await Load(db,created.TripId); var target = c.Segments.Single();
-        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db,target.Id) ?? throw new Exception();
+        var canonical = await SegmentRouteReconciler.LoadAggregateAsync(db,target.Id) ?? throw new InvalidOperationException();
         var proof = new SegmentAggregateTokenService(selectionProtection).IssueRoute(a.UserId,c.Id,canonical); db.ChangeTracker.Clear();
         var anchors = c.Regions.SelectMany(r=>r.Places).Where(p=>p.Location!=null)
             .Select(p=>new TripCompositionAnchor(Guid.Empty,p.Id,p.RegionId,[p.Location!.X,p.Location.Y])).ToArray();

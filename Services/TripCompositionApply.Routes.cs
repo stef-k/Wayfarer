@@ -67,7 +67,6 @@ internal sealed partial class TripCompositionApply
             null, target.Mode, target.TransportProfileId, target.EstimatedDurationSource.ToString(),
             target.EstimatedDurationSource == EstimatedDurationSource.Manual ? target.EstimatedDuration?.TotalMinutes : null)
             : routeInputs[item];
-        if (edit.Waypoints == null || edit.Waypoints.Count > 128 || edit.Waypoints.Any(w => w == null)) throw RouteInvalid();
         var ids = edit.Waypoints.Select(w => w.PlaceId).Concat(new[] { edit.FromPlaceId, edit.ToPlaceId }.OfType<Guid>()).Distinct().ToArray();
         if (item.Anchors == null || item.Anchors.Count != ids.Length || item.Anchors.Select(a => a.DestinationId).Distinct().Count() != ids.Length) throw RouteInvalid();
         foreach (var id in ids)
@@ -119,5 +118,4 @@ internal sealed partial class TripCompositionApply
 
     private static TripMetadataMutationRejected RouteInvalid() => new(400, "composition-route-incompatible",
         "The complete route, endpoints or ordered Via are incompatible. Choose/create separate source-coordinate Places, or explicitly repair the Place/route with ordinary controls and review again. A misaligned source route itself must be repaired.");
-
 }

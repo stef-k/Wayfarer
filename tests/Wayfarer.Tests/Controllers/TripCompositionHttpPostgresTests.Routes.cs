@@ -78,7 +78,7 @@ public sealed partial class TripCompositionHttpPostgresTests
         } } });
         var before = await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == created.CompositionId);
         var beforeTrip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == created.TripId);
-        foreach (var scenario in new[] { "profile", "anchor", "waypoint-null", "waypoint-unknown", "waypoint-missing", "waypoint-kind",
+        foreach (var scenario in new[] { "profile", "anchor", "anchor-kind", "waypoint-null", "waypoint-unknown", "waypoint-missing", "waypoint-kind",
             "mode", "missing-route", "null-route", "unknown-route", "geometry", "wrong-object", "clear-value", "duplicate" })
         {
             var request = JsonNode.Parse(original.GetRawText())!;
@@ -89,6 +89,7 @@ public sealed partial class TripCompositionHttpPostgresTests
             {
                 case "profile": value["transportProfileId"] = 1; break;
                 case "anchor": item["anchors"]![0] = null; break;
+                case "anchor-kind": item["anchors"]![0]!["location"]![0] = "12"; break;
                 case "waypoint-null": value["waypoints"]![0] = null; break;
                 case "waypoint-unknown": value["waypoints"]![0]!["unexpected"] = "must refuse"; break;
                 case "waypoint-missing": value["waypoints"]![0]!.AsObject().Remove("routeVertexIndex"); break;
