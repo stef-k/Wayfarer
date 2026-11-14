@@ -92,14 +92,15 @@ async function apply(): Promise<void> {
   catch (error) { state.error = error instanceof Error ? error.message : 'Review your selected fields and destination.'; return; }
   await store.submit(retained, action, async frozen => {
     const current = await api.read(props.compositionId);
-    if (disposed || current.compositionId !== props.compositionId || current.tripId !== state.workspace!.tripId) throw new Error('Comparison context changed. Inspect saved C.');
+    if (disposed) throw new Error('Comparison context changed. Inspect saved C.');
+    store.validateWorkspace(current);
     state.workspace = current;
     if (!await api.prepare(current, frozen, message => confirm({ title: 'Review consequences in C', message, confirmLabel: 'Apply reviewed action', cancelLabel: 'Keep choices', variant: 'warning' })))
       throw new Error('Action not applied. Choices retained for review.');
     if (disposed) throw new Error('Comparison context changed.');
     return await api.apply(props.compositionId, frozen);
   }, () => {
-    if (state.view.blockMode) { state.view.block = null; state.view.blockMode = false; }
+    if (state.view.blockMode) { state.view.block = null; state.view.blockMode = false; return; }
     const selection = state.view.selection;
     if (selection && state.workspace) {
       const review = newReview(state.workspace, selection.side);
@@ -135,16 +136,18 @@ async function finish(): Promise<void> {
   if (finishing.value || state.pending || !state.workspace) return;
   if (!await confirm({ title: 'Finish comparison?', message: 'Keep C, its current visibility, saved content and credits. Remove this comparison’s source snapshots and workspace decisions permanently. The historical comparison cannot reopen. Unapplied local choices will not be applied. You can continue ordinary editing and publication.', confirmLabel: 'Finish comparison', cancelLabel: 'Continue comparison', variant: 'warning' })) return;
   finishing.value = true; lifecycleError.value = '';
+  const tripId = state.workspace.tripId;
   try { const response = await api.finish(props.compositionId);
-    if (!disposed && response.tripId === state.workspace.tripId && response.status === 'finished') {
-      finishedTripId.value = response.tripId; finished.value = true;
-      // Retire pending reads and release captured inputs/drafts after confirmed server cleanup.
-      store.dispose(); state.workspace = null; state.view.drafts = {}; state.view.block = null; state.view.selection = null;
-      try { localStorage.removeItem(key); storageError.value = ''; }
-      catch { storageError.value = 'Comparison finished on the server, but this browser could not clear its retained local choices.'; }
-      await nextTick(); completionElement.value?.focus();
-    }
-  } catch (error) { lifecycleError.value = error instanceof Error ? error.message : 'Finish could not be confirmed. Refresh C.'; }
+    if (disposed) return;
+    if (response?.tripId !== tripId || response.status !== 'finished')
+      throw new Error('The reply is incomplete or belongs to another Trip.');
+    finishedTripId.value = response.tripId; finished.value = true;
+    // Retire pending reads and release captured inputs/drafts after confirmed server cleanup.
+    store.dispose(); state.workspace = null; state.view.drafts = {}; state.view.block = null; state.view.selection = null;
+    try { localStorage.removeItem(key); storageError.value = ''; }
+    catch { storageError.value = 'Comparison finished on the server, but this browser could not clear its retained local choices.'; }
+    await nextTick(); completionElement.value?.focus();
+  } catch (error) { lifecycleError.value = `Finish could not be confirmed. Inspect or refresh saved C. ${error instanceof Error ? error.message : ''}`; }
   finally { finishing.value = false; }
 }
 /** Uses the ordinary Trip delete route and confirmation convention; source Trips never enter the request. */

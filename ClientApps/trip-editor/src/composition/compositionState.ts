@@ -17,8 +17,15 @@ export const createCompositionState = (account: string, composition: string) => 
   const state = reactive({ workspace: null as Workspace | null, pending: false, loading: false, error: '', status: '',
     needsInspection: false, view: { selection: null, drafts: {}, expanded: [], drawer: 45, collapsed: false, tab: 'a', block: null, blockMode: false } as RetainedView });
   const current = (): boolean => active && Boolean(account && composition);
+  /** Every full workspace ingress checks the same complete shape and bound destination before publication or preparation. */
+  const validateWorkspace = (w: Workspace): void => {
+    if (w?.compositionId !== composition || !completeSnapshot(w.current) || !completeSnapshot(w.sourceA)
+      || !completeSnapshot(w.sourceB) || w.current.graph.id !== w.tripId || !Array.isArray(w.mappings))
+      throw new Error('Comparison response is incomplete or belongs to another context. Refresh saved C.');
+    if (state.workspace && w.tripId !== state.workspace.tripId) throw new Error('The saved destination does not match this comparison. Inspect or refresh saved C.');
+  };
   return {
-    state,
+    state, validateWorkspace,
     restore: (value: string | null): void => {
       try { const v = JSON.parse(value ?? 'null') as RetainedView | null;
         if (v && v.drafts && Array.isArray(v.expanded) && typeof v.drawer === 'number') state.view = v;
@@ -30,9 +37,7 @@ export const createCompositionState = (account: string, composition: string) => 
       try {
         const w = await load();
         if (!current() || generation !== readGeneration) return false;
-        if (w?.compositionId !== composition || !completeSnapshot(w.current) || !completeSnapshot(w.sourceA)
-          || !completeSnapshot(w.sourceB) || w.current.graph.id !== w.tripId || !Array.isArray(w.mappings)) throw new Error('Comparison response is incomplete or belongs to another context. Refresh saved C.');
-        if (state.workspace && w.tripId !== state.workspace.tripId) throw new Error('The saved destination does not match this comparison.');
+        validateWorkspace(w);
         state.workspace = w; state.needsInspection = false; state.error = ''; return true;
       } catch (error) { if (current() && generation === readGeneration) state.error = error instanceof Error ? error.message : 'Refresh unavailable.'; return false; }
       finally { if (current() && generation === readGeneration) state.loading = false; }
@@ -44,7 +49,7 @@ export const createCompositionState = (account: string, composition: string) => 
       const inspector = (): string | null => state.view.blockMode ? `block/${draft.side}` : state.view.selection && viewKey(state.view.selection);
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
       const frozen = copy(action); state.pending = true; state.error = ''; state.status = 'Saving the reviewed action…';
-      ++readGeneration;
+      ++readGeneration; state.loading = false; // Retire both the generation and the superseded read's loading ownership.
       try {
         const result = await save(frozen);
         if (!current()) return;

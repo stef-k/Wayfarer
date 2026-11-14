@@ -68,6 +68,25 @@ test('a block stages a shared explicitly copied Place before routes without copy
   assert.throws(() => buildAction(w, review), /same reviewed destination/);
 });
 
+test('a Region child supplies one approved route dependency in its effective destination before the Segment', () => {
+  const w = workspace(); w.sourceB.graph.segments = [{ id: 'route', title: 'Route', fromPlaceId: 'beach', toPlaceId: null, waypoints: [] }];
+  w.sourceB.graph.regions[0].id = 'sourceRegion';
+  const region = newChoice(w, 'b', 'region', 'sourceRegion'); region.decision = 'reuse'; region.destinationId = 'region'; region.withChildren = true;
+  region.children = ['beach', 'castle'].map(id => newChoice(w, 'b', 'place', id));
+  const route = newChoice(w, 'b', 'segment', 'route'); route.anchors[0].approveCopy = true; route.anchors[0].regionId = 'region';
+  const review = newReview(w, 'b'); review.items = [route, region];
+  const action = buildAction(w, review);
+  assert.deepEqual(action.items.map(i => i.kind), ['region', 'segment']);
+  assert.deepEqual(action.items[0].children.map(i => i.sourceId), ['beach', 'castle']);
+  assert.equal(action.items[0].children[0].regionId, undefined, 'the reused Region owns the effective parent');
+  assert.deepEqual(action.items[0].children[0].placement.expected, [{ id: 'cafe', displayOrder: null }]);
+  assert.equal(action.items[1].anchors[0].destinationId, null, 'server resolves the one earlier copy');
+  route.anchors[0].regionId = '';
+  assert.throws(() => buildAction(w, review), /same reviewed destination/i);
+  region.decision = 'copy'; route.anchors[0].regionId = 'region';
+  assert.throws(() => buildAction(w, review), /same reviewed destination/i, 'a new Region cannot be approved as an existing Region');
+});
+
 test('Region hierarchy and Trip-level Segment placement are distinct; Areas never use canonical Unassigned', () => {
   const w = workspace(); w.current.graph.regions.push({ id: 'canonical', name: 'Unassigned Places', places: [], areas: [] });
   w.current.regionOrder.push('canonical'); w.sourceB.graph.regions[0].areas = [{ id: 'park', name: 'Park', geometryGeoJson: '{"type":"Polygon","coordinates":[]}' }];

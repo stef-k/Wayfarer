@@ -1,20 +1,26 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import RichNotesEditor from '../components/RichNotesEditor.vue';
 import IconSelector from '../components/IconSelector.vue';
 import { placeNotesPreviewHtml } from '../displayHelpers';
 import { describePlanningTiming, type PlanningAggregate } from '../planning/planningTypes';
-import { copy, fieldKeys, fieldValue, sourceSnapshot } from './compositionModel';
+import { copy, fieldKeys, fieldValue, find, sourceSnapshot } from './compositionModel';
 import type { Choice, FieldChoice, ReviewDraft, Workspace } from './compositionTypes';
 import type { EditorOptions } from '../types';
 const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; editorUrl: string; options: EditorOptions | null }>();
 const adoption = ref(0);
+// A different choice owns different Notes (item/block/reset); edits within that choice remain local echoes.
+watch(() => props.choice, () => { adoption.value++; });
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
 const keys = computed(() => fieldKeys(props.choice.kind, Boolean(source.value.planning)));
 const titles: Record<string, string> = { name: 'Name', title: 'Segment title', notes: 'Notes', iconName: 'Icon', markerColor: 'Marker colour', fillHex: 'Area fill',
   address: 'Address & enrichment', location: 'Location', geometry: 'Complete polygon', center: 'Region centre', cover: 'Cover', tags: 'Trip tags', viewport: 'Trip viewport', route: 'Complete route', planning: 'Personal planning' };
 const original = (key: string): unknown => props.choice.decision === 'reuse'
   ? fieldValue(props.review.baseline, props.choice.kind, props.choice.destinationId, key) : null;
+const hasCurrent = computed(() => Boolean(find(props.workspace.current, props.choice.kind, props.choice.destinationId)));
+const currentValue = (key: string): unknown => hasCurrent.value
+  ? fieldValue(props.workspace.current, props.choice.kind, props.choice.destinationId, key) : null;
+const changedSinceReview = (key: string): boolean => !hasCurrent.value || JSON.stringify(original(key)) !== JSON.stringify(currentValue(key));
 const captured = (key: string): unknown => fieldValue(source.value, props.choice.kind, props.choice.sourceId, key);
 const fieldChoice = (key: string): FieldChoice => props.choice.fields[key] ??= { operation: 'keep', value: null };
 const notes = computed({ get: () => String(fieldChoice('notes').value ?? ''), set: value => { fieldChoice('notes').value = value; } });
@@ -57,11 +63,11 @@ const markerColor = computed(() => {
   return String((field.operation === 'useSource' || props.choice.decision === 'copy' ? captured('markerColor') : original('markerColor')) || 'bg-blue');
 });
 /** Route dependencies need explicit review; fresh planning entry IDs alone do not make the intentions different. */
-function comparison(key: string): string {
+function comparison(key: string, value: unknown): string {
   if (key === 'route') return 'Review complete route and dependencies';
   const intentions = (value: unknown) => key === 'planning' && value
     ? (value as PlanningAggregate).entries.map(({ id: _id, ...entry }) => entry) : value;
-  return JSON.stringify(intentions(original(key))) === JSON.stringify(intentions(captured(key))) ? 'Same value' : 'Different value';
+  return JSON.stringify(intentions(value)) === JSON.stringify(intentions(captured(key))) ? 'Same value' : 'Different value';
 }
 </script>
 
@@ -76,9 +82,16 @@ function comparison(key: string): string {
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(captured(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, captured(key)) }}</p>
         </div>
-        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current C · {{ comparison(key) }}</strong>
+        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Reviewed original C · {{ comparison(key, original(key)) }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(original(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, original(key)) }}</p>
+        </div>
+        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current C · {{ hasCurrent ? comparison(key, currentValue(key)) : 'Counterpart unavailable' }}</strong>
+          <template v-if="hasCurrent">
+            <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(currentValue(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
+            <p v-else>{{ describe(key, currentValue(key)) }}</p>
+          </template>
+          <p v-if="changedSinceReview(key)">Current C changed since this review. Your choices and reviewed originals are retained. Use Review current C / refresh originals to review the change explicitly.</p>
         </div>
       </div>
       <label class="composition-field">{{ titles[key] }} action

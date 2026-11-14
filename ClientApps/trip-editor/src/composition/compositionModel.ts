@@ -102,7 +102,8 @@ export const anchorIds = (item: Content): string[] => [...new Set([item.fromPlac
 export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
   const snapshot = sourceSnapshot(w, draft.side); const current = draft.baseline;
   const dependencyCopies = new Map<string, ActionItem>();
-  const explicitPlaces = new Map(draft.items.filter(c => c.kind === 'place' && c.decision === 'copy').map(c => [c.sourceId, c]));
+  const copiedPlaces = new Map<string, string>();
+  const effectiveRegion = (id: string): string => id || current.graph.regions.find(r => r.name === 'Unassigned Places')?.id || '';
   const build = (c: Choice, forcedParent?: string): ActionItem => {
     const item: ActionItem = { kind: c.kind, sourceId: c.sourceId, decision: c.decision };
     const previous = draft.mappings.find(m => m.source === draft.side && m.kind === c.kind && m.sourceId === c.sourceId && m.destinationId === c.mappingId);
@@ -145,6 +146,9 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
         }
       }
       const expected = parent === '__new__' ? [] : orderOriginals(current, c.kind, parent);
+      // Index staged Place copies, including Region children, using their reviewed effective parent.
+      // A newly created normal Region has no existing ID an anchor can approve as its destination.
+      if (c.kind === 'place') copiedPlaces.set(c.sourceId, c.newRegionName && !forcedParent ? '__new__' : forcedParent ?? c.regionId);
       if (c.position === 'after' && !expected.some(x => x.id === c.afterId)) throw new Error('Select a compatible current C item for After.');
       item.placement = { expected, position: c.position, ...(c.position === 'after' ? { afterId: c.afterId } : {}) };
     }
@@ -165,9 +169,8 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
           return { sourceId: a.sourceId, destinationId: a.destinationId, regionId: parentId(current, 'place', a.destinationId) ?? null, location: place.location ?? null };
         }
         if (!a.approveCopy) throw new Error('Explicitly approve every missing From / To / Via Place.');
-        const explicit = explicitPlaces.get(a.sourceId);
-        if (explicit) {
-          if (explicit.regionId !== a.regionId) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
+        if (copiedPlaces.has(a.sourceId)) {
+          if (effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
           return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
         }
         if (!dependencyCopies.has(a.sourceId)) {
