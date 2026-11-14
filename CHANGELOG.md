@@ -19,6 +19,11 @@
   Keep unchanged workspace reads free of mapping writes despite PostgreSQL JSONB
   formatting, while retaining durable removed-destination reconciliation and the
   existing coherent-read, ownership and Finish/Delete barriers.
+  Refuse browser-root finalization when terminal discovery pins a still-live helper.
+  Initialize fresh/incomplete receipt-cleanup cursors safely and preserve continuation.
+  Propagate navigation cancellation without an API 500; retain managed-import error ownership.
+  Load editor/cache graphs with snapshot-bound split queries and make mutation-loader
+  statement-consistency choices explicit; release cache snapshots before external fetches.
 
 - Add #911 selective composition backend actions for captured A/B matching suggestions,
   manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,

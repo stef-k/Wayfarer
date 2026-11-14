@@ -92,6 +92,8 @@ public sealed partial class TripEditorController : ControllerBase
             ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken) : null;
         var trip = await _dbContext.Trips
             .AsNoTracking()
+            // The existing RepeatableRead snapshot keeps split collections and visit data coherent.
+            .AsSplitQuery()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
             .Include(t => t.Segments).ThenInclude(s => s.FromPlace).ThenInclude(p => p!.Region)

@@ -236,6 +236,27 @@ private connection and reusable Playwright cache when removing disposable runs.
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
+Receipt cleanup is tested through `LocationMutationCleanupJob.Execute`, including
+fresh/partial Quartz data, the persisted continuation, busy-owner deferral,
+retention eligibility, cancellation and the bounded follow-up trigger. Service-only
+checks cannot establish that fresh job registration reaches cleanup. Run the
+`LocationMutationPostgresTests` cleanup cases with the guarded connection above.
+
+`EditorAndWarmup_PreserveMultiChildGraphWithSnapshotSplitQueries` exercises the real
+editor endpoint and cache job with multiple Regions, Places, Areas, Segments,
+Waypoints and tags. It checks complete content, a committed child edit between
+snapshot queries, bounded collection queries and snapshot release before external
+image fetches. Editor reads reuse their existing RepeatableRead transaction;
+cache warmup captures under RepeatableRead and disposes it before network work.
+The Segment creation reread splits inside its existing Serializable transaction.
+Other mutation graph loaders deliberately retain one-statement originals without
+adding read transactions; Area's single nested collection path grows linearly.
+No global query-splitting default or warning suppression is used. Single-query
+Segment mutation loaders still have join-amplification cost on large Trips; this
+choice preserves their current consistency/authority boundary, not a broad
+performance qualification. Internal request cancellation remains a server error;
+the middleware tests separately prove aborted requests and managed-import ownership.
+
 Historical migration tests may use one outer transaction for rollback isolation.
 In that transaction, reapply only the migration being qualified: unrelated later
 migrations can retain `ON COMMIT DROP` temporary tables until the outer transaction
@@ -439,6 +460,11 @@ checks encoded byte length before creating the root and refuses an overlong OS
 temporary-directory prefix. Detached unproved helpers never acquire signaling
 authority: cleanup stops pinned writers first and waits briefly for helpers to
 exit naturally. Remaining unproved live writers still retain the entire root.
+Terminal inspection may discover a proved TERM-time helper after an earlier
+liveness check. A final liveness barrier retains handles and the root until that
+writer exits; `closed` never grants removal while a newly retained writer lives.
+The focused tooling regression uses the real process/root owners and synchronizes
+only the fork timing. It also verifies safe removal after natural helper exit.
 
 `npm run test:e2e:trip-editor` remains the externally attached mode. The distinct
 Lifecycle spec's real database outage requires an independently owned disposable

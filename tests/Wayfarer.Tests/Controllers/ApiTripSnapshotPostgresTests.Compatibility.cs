@@ -5,8 +5,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using NetTopologySuite.Geometries;
 using Npgsql;
+using JobBuilder = Quartz.JobBuilder;
+using IJobExecutionContext = Quartz.IJobExecutionContext;
+using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
@@ -17,6 +22,97 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class ApiTripSnapshotPostgresTests
 {
+    /// <summary>Editor and cache snapshots retain every child without joining independent collections into a product.</summary>
+    [PostgresFact]
+    public async Task EditorAndWarmup_PreserveMultiChildGraphWithSnapshotSplitQueries()
+    {
+        var trip = await SeedAsync(false);
+        var urls = new HashSet<string>();
+        await using var db = fixture.CreateContext();
+        var stored = await db.Trips.SingleAsync(t => t.Id == trip.Id);
+        stored.Notes = Image("trip");
+        foreach (var region in trip.Regions)
+        {
+            var tracked = await db.Regions.SingleAsync(r => r.Id == region.Id);
+            tracked.Notes = Image(region.Id.ToString());
+            for (var index = 0; index < 2; index++)
+            {
+                db.Places.Add(new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = trip.UserId,
+                    Name = $"Child {index}", Location = new Point(24 + index, 38) { SRID = 4326 },
+                    Notes = Image($"place-{region.Id}-{index}") });
+                db.Areas.Add(new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = $"Area {index}",
+                    Notes = Image($"area-{region.Id}-{index}"),
+                    Geometry = new Polygon(new LinearRing([new(20, 30), new(21, 30), new(21, 31), new(20, 30)])) { SRID = 4326 } });
+            }
+        }
+        for (var index = 0; index < 2; index++)
+        {
+            var tag = new Tag { Id = Guid.NewGuid(), Name = $"Graph {index}", Slug = $"graph-{trip.Id}-{index}" };
+            fixture.RegisterTag(tag);
+            db.Tags.Add(tag);
+            stored.Tags.Add(tag);
+        }
+        await db.SaveChangesAsync();
+        var places = await db.Places.Where(p => p.Region.TripId == trip.Id).OrderBy(p => p.Id).ToArrayAsync();
+        var segment = new Segment { Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId,
+            Mode = "walk", Title = "Complete route", FromPlaceId = places[0].Id, ToPlaceId = places[1].Id,
+            Waypoints = [new() { PlaceId = places[2].Id, Position = 0 }, new() { PlaceId = places[3].Id, Position = 1 }] };
+        db.Segments.Add(segment); await db.SaveChangesAsync();
+        var gate = new ReadGate();
+        await using var app = await StartAsync(db, gate);
+        using var client = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(client, app.Services, trip.UserId);
+        var pending = client.GetAsync($"/api/trips/{trip.Id}/editor");
+        try
+        {
+            await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(System.Data.IsolationLevel.RepeatableRead, gate.Isolation);
+            // Commit a child change after the root read; the editor must still see the captured graph.
+            await db.Places.Where(p => p.Id == places[2].Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Name, "After snapshot"));
+        }
+        finally { gate.Release.TrySetResult(); }
+        using var response = await pending;
+        using var json = await ReadJsonAsync(response);
+        var state = json.RootElement;
+        Assert.Equal(2, state.GetProperty("regionsById").EnumerateObject().Count());
+        Assert.Equal(5, state.GetProperty("placesById").EnumerateObject().Count());
+        Assert.Equal(4, state.GetProperty("areasById").EnumerateObject().Count());
+        Assert.Equal(2, state.GetProperty("segmentsById").EnumerateObject().Count());
+        Assert.Equal(2, state.GetProperty("tagsBySlug").EnumerateObject().Count());
+        Assert.Equal(places[2].Name, state.GetProperty("placesById").GetProperty(places[2].Id.ToString()).GetProperty("name").GetString());
+        var route = state.GetProperty("segmentsById").GetProperty(segment.Id.ToString());
+        Assert.Equal(segment.FromPlaceId, route.GetProperty("fromPlaceId").GetGuid());
+        Assert.Equal(segment.ToPlaceId, route.GetProperty("toPlaceId").GetGuid());
+        Assert.Equal(new[] { places[2].Id, places[3].Id }, route.GetProperty("waypointPlaceIds").EnumerateArray().Select(p => p.GetGuid()));
+        Assert.Equal(7, gate.Commands.Count(sql => sql.Contains("FROM \"Trips\"")));
+
+        var cacheGate = new ReadGate();
+        await using var cacheDb = fixture.CreateContext(cacheGate);
+        var fetched = new HashSet<string>();
+        var proxy = new Mock<IImageProxyService>();
+        proxy.Setup(p => p.FetchAndCacheAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, CancellationToken>((url, _) => { Assert.Null(cacheDb.Database.CurrentTransaction); fetched.Add(url); })
+            .ReturnsAsync(true);
+        var detail = JobBuilder.Create<CacheWarmupJob>().UsingJobData("tripId", trip.Id.ToString()).Build();
+        var context = new Mock<IJobExecutionContext>(); context.SetupGet(c => c.JobDetail).Returns(detail);
+        var warmup = new CacheWarmupJob(cacheDb, proxy.Object, NullLogger<CacheWarmupJob>.Instance).Execute(context.Object);
+        try
+        {
+            await cacheGate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(System.Data.IsolationLevel.RepeatableRead, cacheGate.Isolation);
+        }
+        finally { cacheGate.Release.TrySetResult(); }
+        await warmup;
+        Assert.True(urls.SetEquals(fetched));
+        Assert.Equal(4, cacheGate.Commands.Count(sql => sql.Contains("FROM \"Trips\"")));
+
+        string Image(string key)
+        {
+            var url = $"https://example.invalid/{key}.png"; urls.Add(url);
+            return $"<img src=\"{url}\">";
+        }
+    }
+
     /// <summary>Freezes the existing public/private, bearer/cookie and absent-resource status boundaries.</summary>
     [PostgresTheory]
     [InlineData(true, "invalid", false, 200)]
