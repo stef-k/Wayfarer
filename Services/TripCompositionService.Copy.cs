@@ -17,7 +17,7 @@ public sealed partial class TripCompositionService
         var omitted = !own && TripCopyMedia.OmitUnqualified(source);
         var projection = TripCompositionSnapshot.Project(source, own, omitted);
         var originals = TripCopyOriginals.Capture(source, own, projection);
-        return new { sourceTripId, tripId = current.Id, source = projection,
+        return new { sourceTripId, tripId = current.Id, source = System.Text.Json.JsonSerializer.SerializeToElement(projection, TripCompositionSnapshot.Json),
             current = TripCompositionSnapshot.Project(current, true), context = originals.Context, originals = originals.Objects };
     }
 

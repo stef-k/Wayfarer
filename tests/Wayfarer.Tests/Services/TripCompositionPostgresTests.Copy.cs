@@ -32,11 +32,11 @@ public sealed partial class TripCompositionPostgresTests
         var saved = await Load(db, destination.Id);
         Assert.Equal(destination.Name, saved.Name); Assert.Equal(destination.IsPublic, saved.IsPublic);
         Assert.Equal(destination.ContributionPolicy, saved.ContributionPolicy); Assert.Equal(destination.CoverImageUrl, saved.CoverImageUrl);
-        Assert.Equal(destination.Tags.Single().Id, saved.Tags.Single().Id); Assert.Equal(destination.Planning, saved.Planning);
+        Assert.Equal(destination.Tags.Single().Id, saved.Tags.Single().Id); Assert.True(Wayfarer.Models.Planning.PlanningCodec.Equal(destination.Planning, saved.Planning));
         var untouched = saved.Regions.Single(r => r.Id == existing.Id);
         Assert.Equal(existing.Places.Select(p => p.Id).Order(), untouched.Places.Select(p => p.Id).Order());
         var added = saved.Regions.Single(r => r.Name == "Copied region");
-        Assert.Equal(0, added.DisplayOrder); Assert.Equal(1, untouched.DisplayOrder);
+        Assert.Equal(1, added.DisplayOrder); Assert.Equal(2, untouched.DisplayOrder);
         Assert.Equal(region.Places.OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id).Select(p => p.Name),
             added.Places.OrderBy(p => p.DisplayOrder).Select(p => p.Name));
         Assert.All(added.Places, p => { Assert.DoesNotContain(region.Places, old => old.Id == p.Id); Assert.Null(p.Planning); });
@@ -48,7 +48,7 @@ public sealed partial class TripCompositionPostgresTests
         Assert.Contains(added.Places, p => p.Id == copiedRoute.FromPlaceId);
         Assert.Contains(added.Places, p => p.Id == copiedRoute.ToPlaceId);
         Assert.Equal(added.Places.Single(p => p.Name == "Via").Id, copiedRoute.Waypoints.Single().PlaceId);
-        Assert.Equal(1, copiedRoute.Waypoints.Single().RouteVertexIndex); Assert.Equal(1, copiedRoute.DisplayOrder);
+        Assert.Equal(1, copiedRoute.Waypoints.Single().RouteVertexIndex); Assert.Equal(2, copiedRoute.DisplayOrder);
         Assert.Contains(saved.Credits, c => c.SourceTitle == source.Name && c.Licence == "CC-BY-4.0");
         Assert.False(await db.Set<TripComposition>().AnyAsync(w => w.TripId == destination.Id));
         Assert.False(await db.Set<TripOrigin>().AnyAsync(o => o.TripId == destination.Id));
@@ -108,7 +108,7 @@ public sealed partial class TripCompositionPostgresTests
         var destination = await Seed(); var source = await Seed();
         await using var db = fixture.CreateContext();
         var projection = await new TripCompositionService(db).PreviewCopyAsync(destination.UserId, source.Id, destination.Id);
-        var json = JsonSerializer.Serialize(projection);
+        var json = JsonSerializer.SerializeToElement(projection, TripCompositionSnapshot.Json).GetProperty("source").ToString();
         Assert.DoesNotContain("secret-plan", json); Assert.DoesNotContain("private-image", json);
         var root = JsonSerializer.SerializeToElement(projection);
         Assert.False(root.GetProperty("source").TryGetProperty("planning", out _));
@@ -123,6 +123,36 @@ public sealed partial class TripCompositionPostgresTests
         Assert.Equal(404, Assert.IsType<Microsoft.AspNetCore.Mvc.ObjectResult>(error.ToActionResult()).StatusCode);
         await Assert.ThrowsAsync<TripMetadataMutationRejected>(() => new TripCompositionService(db).PreviewCopyAsync(destination.UserId, source.Id, destination.Id));
         Assert.Single((await Load(db, destination.Id)).Regions);
+    }
+
+    /// <summary>Actual lock contention cannot renew reviewed source content or selected destination originals.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CopyRechecksSelectedOriginalsAfterActualRowWait(bool sourceChanges)
+    {
+        var destination = await Seed(); var source = await Seed(destination.UserId);
+        await using var writer = fixture.CreateContext();
+        var review = await CopyReview(writer, destination.UserId, source.Id, destination.Id);
+        var original = source.Regions.Single().Places.First(); var target = destination.Regions.Single().Places.First();
+        var heldId = sourceChanges ? original.Id : target.Id;
+        await using var held = await writer.Database.BeginTransactionAsync();
+        await writer.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {heldId} FOR UPDATE");
+        await using var applying = fixture.CreateContext(); await applying.Database.OpenConnectionAsync();
+        var pid = ((Npgsql.NpgsqlConnection)applying.Database.GetDbConnection()).ProcessID;
+        var item = new TripCompositionItem("place", original.Id, "reuse", DestinationId: target.Id, ExpectedParentId: target.RegionId,
+            Fields: new(Notes: new("useSource", E(target.Notes))));
+        var task = Copy(applying, destination.UserId, review with { Items = [item] });
+        try
+        {
+            await AssertBlocked(writer, pid);
+            await writer.Places.Where(p => p.Id == heldId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Notes, "<p>Winner</p>"));
+        }
+        finally { await held.CommitAsync(); }
+        await Assert.ThrowsAsync<TripMetadataMutationRejected>(() => task);
+        var unchanged = await Load(writer, destination.Id);
+        Assert.Equal(sourceChanges ? target.Notes : "<p>Winner</p>", unchanged.Regions.Single().Places.Single(p => p.Id == target.Id).Notes);
+        Assert.Equal(destination.Credits, unchanged.Credits);
     }
 
     private static async Task<TripCopyRequest> CopyReview(ApplicationDbContext db, string owner, Guid source, Guid destination)

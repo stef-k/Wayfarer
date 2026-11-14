@@ -30,6 +30,9 @@
     }
 }
 
+@* Copy opens a lightweight destination-bound flow; no comparison workspace is required. *@
+<p><a asp-area="User" asp-controller="Trip" asp-action="Copy" asp-route-destination="@Model.TripId">Copy ideas into this Trip</a></p>
+
 <form id="trip-editor-antiforgery" class="d-none">
     @Html.AntiForgeryToken()
 </form>

@@ -7,7 +7,7 @@ import { createSSRApp, createRenderer, nextTick } from 'vue';
 import { renderToString } from '@vue/server-renderer';
 
 // Compile the actual hierarchy/choice components at the existing in-memory Vue seam.
-const bundle = await build({ stdin: { contents: `export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
+const bundle = await build({ stdin: { contents: `export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
   loader: 'ts', resolveDir: 'ClientApps/trip-editor/src/composition' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'vue', setup(builder) {
     builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
@@ -44,7 +44,7 @@ const bundle = await build({ stdin: { contents: `export { default as Composition
     });
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-const { SourceTree, ChoiceControls, CompositionStart, CompositionApp, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
+const { SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
 const source = { graph: { id: 'source', name: 'Source', regions: [
   { id: 'region', name: 'Segments', places: [{ id: 'tower', name: 'Taipei 101', location: [121, 25] }], areas: [] }
 ], segments: [{ id: 'route', mode: 'walk', fromPlaceId: 'tower', toPlaceId: null, waypoints: [] }], credits: [] },
@@ -103,9 +103,9 @@ const descendants = node => [node, ...(node.children ?? []).flatMap(descendants)
 const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].join('');
 
 // Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
-const withWorkspace = async action => {
+const withWorkspace = async (action, lightweight = false) => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
-  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' };
+  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null;
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
   globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
   globalThis.HTMLElement = class {};
@@ -113,6 +113,9 @@ const withWorkspace = async action => {
   globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   globalThis.fetch = async (url, init) => {
     requests.push(url);
+    if (url.includes('/sources?')) return Response.json([]);
+    if (url.includes('/copy-preview?')) return Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
+    if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
@@ -131,13 +134,13 @@ const withWorkspace = async action => {
     patchProp: (n, key, _old, value) => { n.props[key] = value; }, remove,
     insert(n, p, anchor) { remove(n); n.parent = p; const index = anchor ? p.children.indexOf(anchor) : -1; p.children.splice(index < 0 ? p.children.length : index, 0, n); },
     querySelector: () => body });
-  const host = node('root'); const app = renderer.createApp(CompositionApp, { account: 'owner', compositionId: 'S', token: 'csrf' });
+  const host = node('root'); const app = renderer.createApp(lightweight ? CopyToTrip : CompositionApp, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
   app.config.errorHandler = error => { errors.push(error.message); };
   app.mount(host);
   try {
     await flush();
     await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
-      readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
+      copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
     assert.deepEqual(errors, [], 'component exceptions must fail the regression');
@@ -248,3 +251,47 @@ test('refresh/edit-return shows current C separately from retained originals and
   assert.equal(app.draft.value.baseline.graph.regions[0].places[0].notes, '<p>Saved elsewhere</p>');
   assert.equal(app.draft.value.items[0].fields.notes.value, '<p>Typed choice</p>');
 }));
+
+
+test('lightweight copy owns immutable submitted Notes while newer choices and selection survive the acknowledgement', () => withWorkspace(async ({ captured, sent, copyWith, saved, host }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const choice = app.draft.value.items[0]; choice.decision = 'reuse'; choice.destinationId = 'CP';
+  await flush(); captured.FieldChoices.select('notes', 'edit'); await flush();
+  globalThis.compositionNotes.visible = '<p>Submitted Notes</p>'; globalThis.compositionNotes.change(); await nextTick();
+  const wait = deferred(); copyWith(() => wait.promise); const apply = app.apply(); await flush();
+  globalThis.compositionNotes.visible = '<p>Later Notes</p>'; globalThis.compositionNotes.change();
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await nextTick();
+  wait.resolve(Response.json({ ...saved, status: 'copied' })); await apply; await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].sourceTripId, 'B'); assert.equal(sent[0].destinationTripId, 'C');
+  assert.equal(sent[0].items[0].fields.notes.value, '<p>Submitted Notes</p>');
+  assert.equal(app.draft.value.items[0].fields.notes.value, '<p>Later Notes</p>');
+  assert.equal(app.draft.value.items.length, 2); assert.equal(app.state.value.view.selection.id, 'BR');
+  assert.match(app.state.value.status, /Earlier action saved.*Newer choices remain unsaved/);
+  assert.equal(descendants(host).filter(n => n.tagName === 'BUTTON' && /^(Finish comparison|Start New|Trip details)/.test(textOf(n))).length, 0);
+}, true));
+
+test('lightweight refusal retains destination, placement and choices without replay; changed pair cannot save', () => withWorkspace(async ({ captured, sent, copyWith }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const choice = app.draft.value.items[0]; choice.regionId = 'CR'; choice.position = 'after'; choice.afterId = 'CP';
+  copyWith(async () => Response.json({ detail: 'Reviewed source changed.' }, { status: 409 }));
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(app.draft.value.items[0], choice); assert.equal(choice.afterId, 'CP');
+  assert.equal(app.destinationId.value, 'C'); assert.equal(app.state.value.needsInspection, true);
+  assert.match(app.state.value.error, /source changed/);
+  await app.apply(); assert.equal(sent.length, 1);
+  app.destinationId.value = 'Another Trip'; await app.apply(); assert.equal(sent.length, 1);
+  assert.equal(app.preview.value.tripId, 'C');
+}, true));
+
+
+test('changing the destination while copy waits keeps that newer context and never labels its choices saved', () => withWorkspace(async ({ captured, sent, copyWith, saved }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  app.draft.value.items[0].regionId = 'CR'; const retained = app.draft.value;
+  const wait = deferred(); copyWith(() => wait.promise); const apply = app.apply(); await flush();
+  app.destinationId.value = 'Later destination';
+  wait.resolve(Response.json({ ...saved, status: 'copied' })); await apply;
+  assert.equal(sent[0].destinationTripId, 'C'); assert.equal(app.destinationId.value, 'Later destination');
+  assert.equal(app.draft.value, retained); assert.equal(app.draft.value.items.length, 1);
+  assert.match(app.state.value.status, /Earlier action saved.*Newer choices remain unsaved/);
+}, true));

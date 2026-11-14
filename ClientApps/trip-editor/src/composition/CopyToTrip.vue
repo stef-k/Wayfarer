@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import SourceTree from './SourceTree.vue';
+import CompositionMap from './CompositionMap.vue';
 import ChoiceControls from './ChoiceControls.vue';
 import FieldChoices from './FieldChoices.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
@@ -20,6 +21,8 @@ const sourceId = ref(props.source); const destinationId = ref(props.destination)
 const sourceSearch = ref(''); const destinationSearch = ref('');
 const sources = ref<SourceOption[]>([]); const destinations = ref<SourceOption[]>([]);
 const preview = ref<CopyPreview | null>(null); const options = ref<EditorOptions | null>(null);
+const map = ref<InstanceType<typeof CompositionMap> | null>(null); const mapStatus = ref('');
+const visible = ref({ a: false, b: true, c: true });
 const loading = ref(false); const error = ref(''); const expanded = ref<string[]>([]);
 let generation = 0; let disposed = false;
 interface Original { kind: string; id: string; value: string; children?: string }
@@ -52,7 +55,7 @@ async function load(): Promise<void> {
     if (disposed || attempt !== generation || sourceId.value !== source || destinationId.value !== destination) return;
     if (value.sourceTripId !== source || value.tripId !== destination || !Array.isArray(value.originals) || !value.context)
       throw new Error('The preview does not match the selected Trips. Review again.');
-    if (same && draft.value?.items.some(c => !find(value.source, c.kind, c.sourceId)))
+    if (same && draft.value?.items.flatMap(c => [c, ...c.children]).some(c => !find(value.source, c.kind, c.sourceId)))
       throw new Error('A selected source object was removed. Keep the old review or remove that local choice before refreshing.');
     const retained = same ? copy(draft.value?.items ?? []) : [];
     const next = createCompositionState(props.account, 'copy', 'destination Trip');
@@ -93,7 +96,9 @@ async function apply(): Promise<void> {
           context: submittedPreview.context, originals: submittedPreview.originals, items: frozen.items });
       if (result.status !== 'copied') throw new Error('Save could not be confirmed. Inspect the destination before another copy.');
       return { ...result, compositionId: 'copy' };
-    }, () => { if (owned.state.view.block) owned.state.view.block.items = []; });
+    }, () => {
+      if (owned.state.workspace) owned.state.view.block = newReview(owned.state.workspace, 'b');
+    }, () => sourceId.value === submittedPreview.sourceTripId && destinationId.value === submittedPreview.tripId);
   } catch (e) { error.value = e instanceof Error ? e.message : 'Review the selected choices.'; }
 }
 onMounted(async () => { await Promise.all([search(false), search(true)]); if (props.source && props.destination) await load(); });
@@ -115,6 +120,10 @@ onUnmounted(() => { disposed = true; ++generation; store.dispose(); disposeConfi
     <template v-if="preview && state.workspace && draft">
       <h2>Destination · {{ state.workspace.current.graph.name }}</h2><p>{{ state.workspace.current.graph.isPublic ? 'Public · saved content updates this Trip' : 'Private' }} · <a :href="editUrl">Edit / inspect destination Trip</a></p>
       <p v-if="preview.source.mediaOmitted" role="status">Unqualified source covers and Notes images were omitted. Copying does not grant media permission; reselect eligible images in the destination editor.</p>
+      <div class="copy-map">
+        <CompositionMap ref="map" :workspace="state.workspace" :selection="state.view.selection" :counterpart="selected?.destinationId || ''" :visible="visible" map-label="Source and existing destination Trip map" @select="select" @status="mapStatus = $event" />
+      </div>
+      <fieldset><legend>Preview map</legend><label><input v-model="visible.b" type="checkbox" /> Source (orange)</label> · <label><input v-model="visible.c" type="checkbox" /> Destination (green)</label><button type="button" @click="map?.focus()">Focus selected geography</button></fieldset><p role="status">{{ mapStatus }}</p>
       <div class="copy-review">
         <SourceTree :snapshot="preview.source" side="b" :selection="state.view.selection" :mappings="[]" :expanded="expanded" objects-only caption="Source" @select="select" @expand="expand" />
         <section aria-label="Reviewed copy choices">

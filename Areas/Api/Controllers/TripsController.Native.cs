@@ -58,6 +58,7 @@ public partial class TripsController
             await using var stream = file.OpenReadStream();
             try { return await action(stream, owner, check); }
             catch (TripDuplicateException duplicate) { return new { status = "duplicate", tripId = duplicate.TripId }; }
+            catch (NativeImportOutcomeUnknownException) { throw new TripMetadataMutationRejected(503, "native-import-unconfirmed", "The import could not be confirmed. Inspect My Trips before starting another import."); }
             catch (NativeImportReviewException error) { throw new TripMetadataMutationRejected(409, error.Code, error.Message); }
             catch (UnauthorizedAccessException) { throw new TripMetadataMutationRejected(401, "native-authority-invalid", "The incoming credential is unavailable."); }
             catch (Exception error) when (error is TripImportValidationException or FormatException or System.Xml.XmlException or InvalidOperationException)

@@ -169,6 +169,11 @@
                                     }
                                     @if (Wayfarer.Services.TripReusePolicy.GrantsReuse(Model))
                                 {
+                                    @* Source-bound entry still rechecks current eligibility in the private copy preview. *@
+                                    @if (User.Identity?.IsAuthenticated == true && ((bool)(ViewBag.IsOwner ?? false) || Wayfarer.Services.TripReusePolicy.GrantsReuse(Model)))
+                                    {
+                                        <li><a class="dropdown-item" asp-area="User" asp-controller="Trip" asp-action="Copy" asp-route-source="@Model.Id">Copy selected objects to existing Trip</a></li>
+                                    }
                                     @* Clone button - show for authenticated users, login prompt for others *@
                                     @if (User.Identity?.IsAuthenticated == true)
                                     {

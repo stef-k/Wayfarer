@@ -44,7 +44,7 @@ export const createCompositionState = (account: string, composition: string, des
     },
     /** Captures submitted choices before previews/network; later input remains owned by its current draft. */
     submit: async (draft: ReviewDraft, action: Action, save: (frozen: Action) => Promise<Pick<Workspace, 'compositionId' | 'tripId' | 'current' | 'mappings'>>,
-      accepted: () => void): Promise<void> => {
+      accepted: () => void, ownsAttempt: () => boolean = () => true): Promise<void> => {
       if (!current() || state.pending || state.needsInspection || !state.workspace) return;
       const inspector = (): string | null => state.view.blockMode ? `block/${draft.side}` : state.view.selection && viewKey(state.view.selection);
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
@@ -56,7 +56,7 @@ export const createCompositionState = (account: string, composition: string, des
         if (result?.compositionId !== composition || result.tripId !== workspace.tripId || !completeSnapshot(result.current)
           || result.current.graph.id !== workspace.tripId || !Array.isArray(result.mappings)) throw new Error('The reply does not match this comparison or is incomplete. Refresh saved C before another action.');
         state.workspace = { ...workspace, current: result.current, mappings: result.mappings };
-        const sameDraft = selected === inspector() && submitted === JSON.stringify(draft);
+        const sameDraft = ownsAttempt() && selected === inspector() && submitted === JSON.stringify(draft);
         if (sameDraft) { accepted(); state.status = `Saved to ${destination}.`; }
         else state.status = `Earlier action saved to ${destination}. Newer choices remain unsaved; review current ${destination} before applying.`;
       } catch (error) {

@@ -87,3 +87,6 @@
 .copy-to-trip summary { cursor: pointer; }
 .copy-to-trip button { margin: .25rem; }
 @media (max-width: 760px) { .copy-context, .copy-review { grid-template-columns: minmax(0, 1fr); } }
+
+.copy-map { position: relative; height: 22rem; margin: 1rem 0; }
+.copy-map .composition-map { height: 100%; }
