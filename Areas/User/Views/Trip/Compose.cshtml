@@ -1,0 +1,23 @@
+@inject IWebHostEnvironment Environment
+@using System.Security.Claims
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var assets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/trip-editor/src/main.ts");
+}
+@section Styles {
+    @foreach (var href in assets.Css) { <link rel="stylesheet" href="@href" /> }
+}
+@* Only the caller's partition and workspace identity bootstrap the private API-backed surface. *@
+<form id="trip-editor-antiforgery" hidden>@Html.AntiForgeryToken()</form>
+<div id="trip-composition-app" data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
+     data-composition-id="@ViewData["CompositionId"]">
+    <p role="status">Loading Trip composition…</p>
+</div>
+@section Scripts {
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/@@vite/client"></script>
+        <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/main.ts"></script>
+    }
+    else if (assets.Script != null) { <script type="module" src="@assets.Script"></script> }
+}

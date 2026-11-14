@@ -16,6 +16,14 @@
 }
 
 @section Styles {
+    @if (ViewData["CompositionReturnUrl"] != null)
+    {
+        <style>
+            /* The return link occupies part of the existing editor navigation budget. */
+            .trip-editor-comparison-return { padding: .3rem .75rem; }
+            .trip-editor-comparison-return + #trip-editor-app .trip-editor-workspace { height: calc(100vh - 148px); }
+        </style>
+    }
     @foreach (var href in manifest.Css)
     {
         <link rel="stylesheet" href="@href" />
@@ -25,6 +33,11 @@
 <form id="trip-editor-antiforgery" class="d-none">
     @Html.AntiForgeryToken()
 </form>
+
+@if (ViewData["CompositionReturnUrl"] is string comparisonUrl)
+{
+    <nav class="trip-editor-comparison-return" aria-label="Comparison return"><a href="@comparisonUrl">Return to saved comparison</a> · Every successful edit is already saved to C.</nav>
+}
 
 <div id="trip-editor-app"
      data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
