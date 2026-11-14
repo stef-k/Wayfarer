@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import L from 'leaflet';
+// Composition loads independently of the ordinary editor's Leaflet adapter and its CSS.
+import 'leaflet/dist/leaflet.css';
 import { createTripEditorTileLayer } from '../map/tileRetryLayer';
 import { anchorIds, contents, find, isCoordinate, label, spatialContent } from './compositionModel';
 import type { Content, Kind, Selection, Snapshot, Workspace } from './compositionTypes';
