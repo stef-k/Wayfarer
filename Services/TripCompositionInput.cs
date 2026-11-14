@@ -70,6 +70,12 @@ internal static class TripCompositionInput
         Models.Dtos.PlaceStructuralRequest.RejectDuplicateMembers(request);
         return request.Deserialize<TripCompositionAction>(TripCompositionFieldValues.Wire) ?? throw TripCompositionFieldValues.Invalid();
     }
+    /// <summary>Uses the same strict duplicate/member handling for live copy as saved comparison actions.</summary>
+    internal static TripCopyRequest ParseCopy(JsonElement request)
+    {
+        Models.Dtos.PlaceStructuralRequest.RejectDuplicateMembers(request);
+        return request.Deserialize<TripCopyRequest>(TripCompositionFieldValues.Wire) ?? throw TripCompositionFieldValues.Invalid();
+    }
     internal static IReadOnlySet<string> Icons(IWebHostEnvironment environment)
     {
         if (string.IsNullOrEmpty(environment.WebRootPath)) return new HashSet<string>(StringComparer.Ordinal);

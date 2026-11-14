@@ -78,3 +78,12 @@
   .composition-differences { grid-template-columns: minmax(0, 1fr); }
   .composition-layers { font-size: .7rem; padding: .3rem; }
 }
+
+/* Lightweight copy uses normal document flow and shared choice controls at every viewport. */
+.copy-to-trip { max-width: 90rem; margin: 1rem auto; padding: 1rem; }
+.copy-context, .copy-review { display: grid; grid-template-columns: minmax(15rem, 1fr) minmax(20rem, 2fr); gap: 1.5rem; margin: 1rem 0; }
+.copy-review > *, .copy-context > * { min-width: 0; }
+.copy-to-trip details { margin: .75rem 0; }
+.copy-to-trip summary { cursor: pointer; }
+.copy-to-trip button { margin: .25rem; }
+@media (max-width: 760px) { .copy-context, .copy-review { grid-template-columns: minmax(0, 1fr); } }

@@ -54,6 +54,18 @@ namespace Wayfarer.Areas.User.Controllers
             return View();
         }
         
+        /// <summary>Lightweight copy shell reuses shared choice controls, without creating a comparison or another Trip.</summary>
+        [HttpGet]
+        public IActionResult Copy(Guid? source, Guid? destination)
+        {
+            ViewData["Title"] = "Copy to existing Trip";
+            ViewData["CopyMode"] = true;
+            ViewData["CopySource"] = source;
+            ViewData["CopyDestination"] = destination;
+            Response.Headers.CacheControl = "private, no-store";
+            return View("Compose");
+        }
+
         // GET: /User/Trips/View/{id}
         [HttpGet]
         public async Task<IActionResult> View(Guid id)

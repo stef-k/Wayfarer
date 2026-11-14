@@ -66,7 +66,7 @@ public partial class TripImportService : ITripImportService
         TripImportMode mode,
         string digest,
         NativeImportApproval? approval,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<CancellationToken, Task<bool>>? credential = null)
     {
         if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
             throw new TripImportValidationException("Duplicate Unassigned Places Regions require reconciliation.");
@@ -76,6 +76,7 @@ public partial class TripImportService : ITripImportService
         var committing = false;
         try
         {
+            if (credential != null) await LocationDeletionFence.AcquireAsync(_dbContext, userId, cancellationToken);
             var existing = await _dbContext.Trips.AsNoTracking()
                 .SingleOrDefaultAsync(trip => trip.Id == source.TripId, cancellationToken);
             var owned = existing?.UserId == userId;
@@ -140,6 +141,7 @@ public partial class TripImportService : ITripImportService
                 _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken,
                 preserveSavedMeasurements: source.Version is 3 or 4 or 5);
             await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
+            if (credential != null && !await credential(cancellationToken)) throw new UnauthorizedAccessException("The incoming credential is no longer valid.");
             if (transaction is not null)
             {
                 committing = true;

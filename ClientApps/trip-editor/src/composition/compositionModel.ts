@@ -170,9 +170,10 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
         }
         if (!a.approveCopy) throw new Error('Explicitly approve every missing From / To / Via Place.');
         if (copiedPlaces.has(a.sourceId)) {
-          if (effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
+          if (!a.useSelectedCopy && effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
           return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
         }
+        if (a.useSelectedCopy) throw new Error('Select the approved dependency Place in this block before applying.');
         const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
         dep.decision = 'copy'; dep.separate = true;
         dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));

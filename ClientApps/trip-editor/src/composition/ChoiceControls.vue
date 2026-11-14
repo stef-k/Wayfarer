@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { contents, find, label, newChoice, ordered, parentId, sourceSnapshot } from './compositionModel';
 import type { Choice, Content, Kind, ReviewDraft, Workspace } from './compositionTypes';
-const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string }>();
+const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string; existingTrip?: boolean }>();
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
 const captured = computed(() => find(source.value, props.choice.kind, props.choice.sourceId)!);
 const current = computed(() => props.review.baseline);
@@ -27,6 +27,8 @@ function scope(event: Event): void {
 const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 'From' : '',
   ...[...captured.value.waypoints ?? []].sort((a, b) => a.position - b.position).filter(w => w.placeId === id).map(w => `Via ${w.position + 1}${w.routeVertexIndex == null ? '' : ` · route vertex ${w.routeVertexIndex}`}`),
   captured.value.toPlaceId === id ? 'To' : ''].filter(Boolean).join(' / ');
+const selectedCopy = (id: string): boolean => props.review.items.some(c => c.kind === 'place' && c.sourceId === id && c.decision === 'copy'
+  || c.withChildren && c.children.some(child => child.kind === 'place' && child.sourceId === id && child.decision === 'copy'));
 const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => m.source === props.review.side && m.kind === 'place'
   && m.sourceId === id && ['skip', 'destinationRemoved'].includes(m.decision));
 </script>
@@ -39,8 +41,8 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
         <option v-for="m in previous" :key="m.destinationId" :value="m.destinationId">{{ find(current, choice.kind, m.destinationId) ? label(find(current, choice.kind, m.destinationId)!) : 'Removed counterpart' }} · {{ m.decision }}</option>
       </select>
     </label>
-    <label class="composition-field">Action for C
-      <select v-model="choice.decision" aria-label="Action for C">
+    <label class="composition-field">Action for {{ existingTrip ? 'destination Trip' : 'C' }}
+      <select v-model="choice.decision" aria-label="Action for {{ existingTrip ? 'destination Trip' : 'C' }}">
         <option v-if="choice.kind !== 'trip' && !canonical" value="copy">Copy / keep separate</option>
         <option value="reuse">Reuse current counterpart / Keep or adopt selected fields</option>
         <option v-if="choice.kind !== 'trip' && !canRemove" value="skip">Skip this source idea</option>
@@ -92,7 +94,7 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
     <template v-if="choice.kind === 'region' && !canonical && ['copy', 'reuse'].includes(choice.decision)">
       <label class="composition-check"><input :checked="choice.withChildren" type="checkbox" @change="scope" /> Region and direct Places/Areas (otherwise Region only)</label>
       <p>No sub-Regions or automatic Segments. Reused children keep their C container.</p>
-      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" child />
+      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :existing-trip="existingTrip" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" child />
     </template>
     <fieldset v-if="choice.kind === 'segment' && (choice.decision === 'copy' || choice.fields.route?.operation === 'useSource')">
       <legend>Approve complete From / ordered Via / To dependencies</legend>
@@ -105,7 +107,8 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
           <option value="">Copy a separate source-coordinate Place</option><option v-for="place in contents(current, 'place')" :key="place.id" :value="place.id">{{ destinationLabel(place, 'place') }} · {{ place.location?.slice().reverse().join(', ') ?? 'Unlocated' }}</option>
         </select></label>
         <template v-if="!anchor.destinationId">
-          <label class="composition-field">Missing Place destination Region<select v-model="anchor.regionId"><option value="">Canonical Unassigned Places</option><option v-for="r in ordered(current, 'region')" :key="r.id" :value="r.id">{{ r.name }}</option></select></label>
+          <label v-if="selectedCopy(anchor.sourceId)" class="composition-check"><input v-model="anchor.useSelectedCopy" type="checkbox" /> Use the Place already selected in this block, in its reviewed container</label>
+          <label v-if="!anchor.useSelectedCopy" class="composition-field">Missing Place destination Region<select v-model="anchor.regionId"><option value="">Canonical Unassigned Places</option><option v-for="r in ordered(current, 'region')" :key="r.id" :value="r.id">{{ r.name }}</option></select></label>
           <label class="composition-check"><input v-model="anchor.approveCopy" type="checkbox" /> Approve a separate Place with the captured location, appended here{{ excludedAnchor(anchor.sourceId) ? ' · deliberately re-add this excluded dependency' : '' }}</label>
         </template>
       </fieldset>

@@ -33,6 +33,13 @@ public sealed record TripImportResult(
 
 public interface ITripImportService
 {
+    /// <summary>Complete bearer native import; credential is checked within the transaction after domain waits.</summary>
+    Task<TripImportResult> ImportNativeForBearerAsync(Stream file, string owner, TripImportMode mode,
+        NativeImportApproval? approval, Func<CancellationToken, Task<bool>> credential, CancellationToken token);
+
+    /// <summary>Bearer replacement review uses the same native protection and current originals as Web.</summary>
+    Task<NativeImportReview> ReviewNativeForBearerAsync(Stream file, string owner, Func<CancellationToken, Task<bool>> credential, CancellationToken token);
+
     /// <summary>Validates the whole native file and previews replacement against locked current owner content.</summary>
     Task<NativeImportReview> ReviewNativeAsync(Stream kmlStream, string currentUserId, CancellationToken cancellationToken = default);
 
