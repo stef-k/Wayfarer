@@ -10,22 +10,22 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   plugins: [{ name: 'place-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
-      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { props: ['surfaceMode'], setup(_, { slots }) {
         return () => [slots.default?.(), slots.map?.()];
       } };` };
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
         context.expose({ focusNotes() {}, focusRouteAction: () => false }); return () => null;
       } };` };
-      if (!/(?:App|TripSidebar|RegionManager|PlaceEditorSurface|EditorSurface)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
+      if (!/(?:App|TripSidebar|RegionManager|PlaceEditorSurface|EditorSurface)\.vue$/.test(args.path)) return { contents: `export default { name: '${args.path.split('/').at(-1).replace('.vue', '')}', render: () => null };` };
       const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
       const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
         compilerOptions: { bindingMetadata: script.bindings } });
-      return { loader: 'ts', contents: `${script.content}\n${template.code}\n__component.render = render;
+      return { loader: 'ts', contents: `import { getCurrentInstance as captureInstance } from 'vue';\n${script.content}\n${template.code}\n__component.render = render;
         const setup = __component.setup;
         __component.setup = (props, context) => {
           const bindings = setup(props, context);
-          globalThis.capturePlaceComponent(${JSON.stringify(args.path.split('/').at(-1))}, bindings);
+          globalThis.capturePlaceComponent(${JSON.stringify(args.path.split('/').at(-1))}, bindings, captureInstance());
           return bindings;
         }; export default __component;` };
     });
@@ -83,8 +83,8 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 const withApp = async action => {
   const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, CSS: globalThis.CSS,
     placeConfirm: globalThis.placeConfirm, capturePlaceComponent: globalThis.capturePlaceComponent };
-  const captured = {};
-  globalThis.capturePlaceComponent = (name, bindings) => { captured[name] = proxyRefs(bindings); };
+  const captured = {}; const instances = {};
+  globalThis.capturePlaceComponent = (name, bindings, instance) => { captured[name] = proxyRefs(bindings); instances[name] = instance; };
   globalThis.placeConfirm = async () => true;
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
@@ -129,7 +129,7 @@ const withApp = async action => {
       }
       return apply(url, init);
     };
-    await action({ prepared, parent, editor, sidebar: captured['TripSidebar.vue'] });
+    await action({ prepared, parent, editor, sidebar: captured['TripSidebar.vue'], sidebarTree: () => instances['TripSidebar.vue'].subTree });
   } finally {
     await nextTick();
     await nextTick();

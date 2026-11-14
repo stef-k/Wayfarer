@@ -257,8 +257,10 @@ public sealed class TripEditorAreaMutationService
         return EditorAreaRequestParser.TryParseGeometryUpdate(request.Value!.Value, out var value, out var errors) ? (value, null) : (null, errors);
     }
 
+    /// <summary>One statement preserves mutation originals; the nested Region→Area path has no sibling product.</summary>
     private async Task<Trip?> LoadTripGraphAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Trips
+            .AsSingleQuery()
             .Include(t => t.Regions).ThenInclude(r => r.Areas)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 

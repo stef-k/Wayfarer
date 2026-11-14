@@ -156,11 +156,11 @@ public sealed class MobileAccountHttpTests : TestBase
         finally { foreach (var permit in permits) permit.Dispose(); }
     }
 
-    /// <summary>Store failure and server cancellation never become invalid-token responses or account proof.</summary>
+    /// <summary>Storage failures remain sanitized server errors; host-owned request aborts return no account proof.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedOrCancelledLookup_DoesNotProveInvalidCredentials(bool cancel)
+    public async Task StoreFailureOrRequestAbort_DoesNotProveInvalidCredentials(bool requestAborted)
     {
         using var db = CreateDbContext();
         using var cancellation = new CancellationTokenSource();
@@ -169,21 +169,35 @@ public sealed class MobileAccountHttpTests : TestBase
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
             services => services.AddLogging(logging => logging.AddProvider(logs)), host =>
             {
-                if (cancel) host.Use((context, next) => { context.RequestAborted = cancellation.Token; return next(context); });
+                if (requestAborted) host.Use((context, next) => { context.RequestAborted = cancellation.Token; return next(context); });
                 host.UseMiddleware<ApiErrorResponseMiddleware>();
             });
-        if (!cancel) await db.DisposeAsync();
+        if (!requestAborted) await db.DisposeAsync();
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", FirstToken);
         using var response = await client.GetAsync(Route);
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(requestAborted ? (HttpStatusCode)StatusCodes.Status499ClientClosedRequest
+            : HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.True(response.Headers.CacheControl?.NoStore);
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("userId", body);
-        Assert.DoesNotContain(FirstToken, body);
-        var failure = Assert.Single(logs.Entries, entry => entry.Category == typeof(ApiErrorResponseMiddleware).FullName);
-        Assert.Equal(cancel ? "OperationCanceledException" : "ObjectDisposedException", failure.Fields["ExceptionType"]);
-        Assert.Null(failure.Exception);
+        var diagnostics = string.Join(Environment.NewLine, logs.Entries.Select(entry =>
+            $"{entry.Message} {entry.Exception} {string.Join(" ", entry.Fields.Values)}"));
+        Assert.DoesNotContain(FirstToken, body + response.Headers + response.Content.Headers + diagnostics);
+        Assert.DoesNotContain(ApiTokenService.HashToken(FirstToken), body + response.Headers + response.Content.Headers + diagnostics);
+        if (requestAborted)
+        {
+            // The routed host owns 499; the API middleware must not synthesize an error body or log.
+            Assert.Empty(body);
+            Assert.DoesNotContain(logs.Entries, entry => entry.Category == typeof(ApiErrorResponseMiddleware).FullName);
+        }
+        else
+        {
+            var failure = Assert.Single(logs.Entries, entry => entry.Category == typeof(ApiErrorResponseMiddleware).FullName);
+            Assert.Equal(LogLevel.Error, failure.Level);
+            Assert.Equal("ObjectDisposedException", failure.Fields["ExceptionType"]);
+            Assert.Null(failure.Exception);
+        }
         Assert.Equal(0, ApiWorkAdmission.TokenLookups.IdentityCount);
     }
 

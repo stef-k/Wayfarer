@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Hosting;
 using Wayfarer.Middleware;
@@ -60,6 +61,66 @@ public class ApiErrorResponseMiddlewareTests
         Assert.Null(entry.Exception);
         Assert.DoesNotContain("secret-663", entry.Message + string.Join(",", entry.Fields.Values));
         Assert.Equal("InvalidOperationException", entry.Fields["ExceptionType"]);
+    }
+
+    /// <summary>Navigation aborts propagate to the host without a synthetic error response or error log.</summary>
+    [Fact]
+    public async Task AbortedRequestCancellation_DoesNotBecomeServerFailure()
+    {
+        using var logs = new Wayfarer.Tests.Infrastructure.TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var context = new DefaultHttpContext { RequestAborted = cancellation.Token };
+        context.Request.Path = "/api/trip-compositions/candidates";
+        context.Response.Body = new MemoryStream();
+        var failure = new OperationCanceledException(cancellation.Token);
+        var middleware = new ApiErrorResponseMiddleware(_ => throw failure);
+        Assert.Same(failure, await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            middleware.InvokeAsync(context, factory.CreateLogger<ApiErrorResponseMiddleware>())));
+        Assert.Empty(logs.Entries);
+        Assert.Equal(0, context.Response.Body.Length);
+        Assert.NotEqual(500, context.Response.StatusCode);
+    }
+
+    /// <summary>An internal cancellation or an unrelated failure during an abort remains a server error.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ServerFailure_StillGetsErrorEnvelope(bool requestAborted)
+    {
+        using var logs = new Wayfarer.Tests.Infrastructure.TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/test-error";
+        context.Response.Body = new MemoryStream();
+        Exception failure = requestAborted ? new InvalidOperationException() : new OperationCanceledException();
+        if (requestAborted) context.RequestAborted = new CancellationToken(true);
+        await new ApiErrorResponseMiddleware(_ => throw failure)
+            .InvokeAsync(context, factory.CreateLogger<ApiErrorResponseMiddleware>());
+        Assert.Equal(500, context.Response.StatusCode);
+        Assert.Equal(failure.GetType().Name, Assert.Single(logs.Entries).Fields["ExceptionType"]);
+    }
+
+    /// <summary>The managed-import adapter retains ownership of all its exceptions, including aborts.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManagedImportFailure_PropagatesToItsAdapter(bool aborted)
+    {
+        using var logs = new Wayfarer.Tests.Infrastructure.TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        var context = new DefaultHttpContext { RequestAborted = new CancellationToken(aborted) };
+        context.Request.Path = "/api/import";
+        context.Response.Body = new MemoryStream();
+        context.SetEndpoint(new Endpoint(_ => Task.CompletedTask,
+            new EndpointMetadataCollection(new ManagedImportAttribute()), "managed"));
+        Exception failure = aborted ? new OperationCanceledException(context.RequestAborted) : new IOException();
+        var middleware = new ApiErrorResponseMiddleware(_ => throw failure);
+        Assert.Same(failure, await Record.ExceptionAsync(() =>
+            middleware.InvokeAsync(context, factory.CreateLogger<ApiErrorResponseMiddleware>())));
+        Assert.Empty(logs.Entries);
+        Assert.Equal(0, context.Response.Body.Length);
     }
 
     private static async Task<IHost> CreateHostAsync(int statusCode)

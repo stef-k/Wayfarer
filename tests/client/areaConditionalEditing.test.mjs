@@ -281,7 +281,7 @@ const appBundle = await build({ stdin: { contents: 'export { default } from "./A
   plugins: [{ name: 'actual-area-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
-      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { props: ['surfaceMode'], setup(_, { slots }) {
         return () => [slots.default?.(), slots.map?.()];
       } };` };
       if (!/(?:App|TripSidebar|RegionManager)\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };

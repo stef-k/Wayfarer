@@ -47,11 +47,18 @@ public class CacheWarmupJob : IJob
 
         _logger.LogInformation("Starting cache warm-up for trip {TripId}.", tripId);
 
-        var trip = await _dbContext.Trips
-            .Include(t => t.Regions!).ThenInclude(r => r.Places!)
-            .Include(t => t.Regions!).ThenInclude(r => r.Areas!)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(t => t.Id == tripId, ct);
+        Trip? trip;
+        // Capture one graph without a Places×Areas product. Release the snapshot before external fetches.
+        await using (var snapshot = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct) : null)
+        {
+            trip = await _dbContext.Trips
+                .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                .Include(t => t.Regions!).ThenInclude(r => r.Areas!)
+                .AsNoTracking()
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(t => t.Id == tripId, ct);
+        }
 
         if (trip == null)
         {

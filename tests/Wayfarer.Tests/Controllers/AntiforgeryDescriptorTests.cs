@@ -52,6 +52,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.Groups.ToggleOrgPeerVisibility Api.Groups.SetMemberOrgPeerVisibilityAccess Api.Groups.Leave Api.Groups.RemoveMember
         Api.Invitations.Create Api.Invitations.Accept Api.Invitations.Decline Api.Location.BulkDelete
         Api.TripComposition.Version Api.TripComposition.Start Api.TripComposition.Finish Api.TripComposition.Apply
+        Api.TripEditor.PrepareCompositionCoordinates
         Api.TripEditor.CreateArea Api.TripEditor.UpdateArea Api.TripEditor.UpdateAreaGeometry Api.TripEditor.DeleteArea
         Api.TripEditor.OrderAreas Api.TripEditor.PatchMetadata Api.TripEditor.CreateRegion Api.TripEditor.UpdateRegion
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea

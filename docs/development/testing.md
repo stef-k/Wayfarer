@@ -236,6 +236,27 @@ private connection and reusable Playwright cache when removing disposable runs.
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
+Receipt cleanup is tested through `LocationMutationCleanupJob.Execute`, including
+fresh/partial Quartz data, the persisted continuation, busy-owner deferral,
+retention eligibility, cancellation and the bounded follow-up trigger. Service-only
+checks cannot establish that fresh job registration reaches cleanup. Run the
+`LocationMutationPostgresTests` cleanup cases with the guarded connection above.
+
+`EditorAndWarmup_PreserveMultiChildGraphWithSnapshotSplitQueries` exercises the real
+editor endpoint and cache job with multiple Regions, Places, Areas, Segments,
+Waypoints and tags. It checks complete content, a committed child edit between
+snapshot queries, bounded collection queries and snapshot release before external
+image fetches. Editor reads reuse their existing RepeatableRead transaction;
+cache warmup captures under RepeatableRead and disposes it before network work.
+The Segment creation reread splits inside its existing Serializable transaction.
+Other mutation graph loaders deliberately retain one-statement originals without
+adding read transactions; Area's single nested collection path grows linearly.
+No global query-splitting default or warning suppression is used. Single-query
+Segment mutation loaders still have join-amplification cost on large Trips; this
+choice preserves their current consistency/authority boundary, not a broad
+performance qualification. Internal request cancellation remains a server error;
+the middleware tests separately prove aborted requests and managed-import ownership.
+
 Historical migration tests may use one outer transaction for rollback isolation.
 In that transaction, reapply only the migration being qualified: unrelated later
 migrations can retain `ON COMMIT DROP` temporary tables until the outer transaction
@@ -374,9 +395,23 @@ Windows), the guarded PG18 connection above, Node/npm and installed Chromium:
 ~~~sh
 npm run test:e2e:shared-layout
 npm run test:e2e:shared-layout -- --grep 'connect apps'
+npm run test:e2e:shared-layout -- --headed --grep 'Batch 4 Layout B'
 npm run test:e2e:waypoint
 python3 -B -m unittest discover -s tools/tests -v
 ~~~
+
+Load the persistent connection with `source ~/.config/wayfarer/test-postgres.env`
+and use Node 24 (`nvm use`) before invoking the runner. `--headed` is a supported
+supervisor option forwarded only as Playwright's fixed headed switch; omitting it
+keeps ordinary headless operation. On Linux, headed execution requires a working
+X11 `DISPLAY` (the maintained workstation uses `:0`). The Batch 4 native-zoom
+observation also needs `xdotool` and its `libxdo` dependency on the library path;
+`WAYFARER_NATIVE_KEYBOARD_TOOL` can select an installed executable. It verifies
+the visible window's ancestry against the current Playwright worker before
+targeting that exact window. CSS zoom and device emulation do not qualify native
+browser zoom. Check `python3 -B tools/browser_e2e.py --help`, the selected display,
+and pinned Chromium launch/open/close before application/database provisioning
+when repairing browser prerequisites.
 
 The supervisor copies source/build output into a private UUID temporary root,
 verifies the effective application connection, prepares the maintained schema,
@@ -417,6 +452,19 @@ Diagnostic file writes require verified root ownership and pinned directory/file
 descriptors, rejecting links and replaced targets. Unsafe storage or platforms
 without descriptor-relative, no-follow opens (including Windows) use sanitized
 stderr only and report the retention failure without interrupting cleanup.
+Diagnostic appends verify the root/marker and pinned log, without traversing
+unrelated active IPC; recursive deletion retains all special-file checks.
+Linux roots use `wf-<full UUID>`: under `/tmp`, the pinned Chromium singleton
+socket pathname is 98 bytes against the 107-byte payload limit. The supervisor
+checks encoded byte length before creating the root and refuses an overlong OS
+temporary-directory prefix. Detached unproved helpers never acquire signaling
+authority: cleanup stops pinned writers first and waits briefly for helpers to
+exit naturally. Remaining unproved live writers still retain the entire root.
+Terminal inspection may discover a proved TERM-time helper after an earlier
+liveness check. A final liveness barrier retains handles and the root until that
+writer exits; `closed` never grants removal while a newly retained writer lives.
+The focused tooling regression uses the real process/root owners and synchronizes
+only the fork timing. It also verifies safe removal after natural helper exit.
 
 `npm run test:e2e:trip-editor` remains the externally attached mode. The distinct
 Lifecycle spec's real database outage requires an independently owned disposable

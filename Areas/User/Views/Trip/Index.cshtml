@@ -12,6 +12,10 @@
         <i class="bi bi-plus-lg me-1"></i> Create New Trip
     </a>
 
+    <a asp-action="Compose" class="btn btn-outline-primary">Compare &amp; combine / New version</a>
+
+    @* Saved comparisons load independently of the ordinary Trip pagination and filters. *@
+
     <label class="btn btn-outline-secondary mb-0" title="Import a Trip from a Wayfarer extended KML file (*.kml)">
         <i class="bi bi-upload me-1"></i> Import Trip&nbsp;
         <input type="file"
@@ -46,6 +50,7 @@
 </div>
 
 <!-- Summary stats: dynamically updated by Index.js from API response -->
+<section id="unfinished-compositions" class="mb-3" aria-label="Unfinished compositions" aria-live="polite"></section>
 <div id="trip-stats" class="d-flex gap-3 mb-3 text-muted small" aria-live="polite">
     <span><strong id="stat-total">0</strong> <span id="stat-total-label">total</span></span>
     <span><strong id="stat-public">0</strong> public</span>
@@ -394,4 +399,5 @@
 @section Scripts
 {
     @Html.FrontendViewScripts()
+    <script type="module" src="~/js/Areas/User/Trip/compositionEntries.js" asp-append-version="true"></script>
 }

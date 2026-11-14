@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Services;
 
@@ -17,6 +18,19 @@ public sealed record TripConstructionRequest(Guid SourceA, Guid? SourceB,
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class TripCompositionController(ApplicationDbContext db) : ControllerBase
 {
+    /// <summary>Discovers a bounded set of owned or currently reusable sources without planning or private owner details.</summary>
+    [HttpGet("sources")]
+    public Task<IActionResult> Sources(string? search, bool ownedOnly, CancellationToken token) => Execute(async owner =>
+    {
+        if (search?.Length > 200) throw new TripMetadataMutationRejected(400, "composition-search-invalid", "Use at most 200 characters.");
+        if (!await db.Users.AnyAsync(u => u.Id == owner && u.IsActive, token)) throw new TripMetadataMutationRejected(404, "composition-unavailable", "Sources are unavailable.");
+        var query = db.Trips.AsNoTracking().Where(t => t.User.IsActive && (t.UserId == owner || !ownedOnly && t.IsPublic
+            && (t.ContributionPolicy == "CC-BY-4.0" || t.ContributionPolicy == "CC0-1.0")));
+        if (!string.IsNullOrWhiteSpace(search)) query = query.Where(t => t.Name.ToLower().Contains(search.Trim().ToLower()));
+        return await query.OrderBy(t => t.Name).ThenBy(t => t.Id).Take(20)
+            .Select(t => new { t.Id, t.Name, owned = t.UserId == owner, t.ContributionPolicy }).ToArrayAsync(token);
+    });
+
     /// <summary>Creates a private independent owned version without a comparison workspace.</summary>
     [HttpPost("versions"), ValidateAntiForgeryToken, RequestSizeLimit(8192)]
     public Task<IActionResult> Version(TripConstructionRequest request, CancellationToken token) => Execute(async owner =>

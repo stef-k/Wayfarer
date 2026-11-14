@@ -113,10 +113,12 @@ public sealed partial class TripCompositionService(ApplicationDbContext db)
         if (credential != null && !await credential(token)) throw Unavailable();
         var current = await new TripCloneCoordinator(db).LoadSourceAsync(workspace.TripId, token) ?? throw Unavailable();
         var mappings = JsonSerializer.Deserialize<List<TripCompositionMapping>>(workspace.Mappings!, TripCompositionSnapshot.Json)!;
-        MarkRemoved(mappings, current);
-        var decisions = JsonSerializer.Serialize(mappings, TripCompositionSnapshot.Json);
-        if (decisions != workspace.Mappings)
+        // JSONB normalizes text formatting; persist only an actual decision change.
+        if (MarkRemoved(mappings, current))
+        {
+            var decisions = JsonSerializer.Serialize(mappings, TripCompositionSnapshot.Json);
             await db.Set<TripComposition>().Where(w => w.Id == id).ExecuteUpdateAsync(s => s.SetProperty(w => w.Mappings, decisions), token);
+        }
         await transaction.CommitAsync(token);
         return new
         {

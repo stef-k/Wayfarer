@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Moq;
+using Quartz;
+using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Services.LocationMutations;
@@ -26,15 +29,71 @@ public sealed partial class LocationMutationPostgresTests
         await using var busy = fixture.CreateContext();
         await using var fence = await LocationDeletionFence.BeginAsync(busy, owners[0], default);
         await using var cleanup = fixture.CreateContext();
-        var first = await new LocationMutationCleanup(cleanup).RunAsync(default);
-        Assert.Equal(19, first.Deleted); Assert.True(first.FollowUp); Assert.NotNull(first.Cursor);
-        var next = await new LocationMutationCleanup(cleanup).RunAsync(default, first.Cursor);
-        Assert.Equal(1, next.Deleted); Assert.Null(next.Cursor);
+        var data = new JobDataMap(); // Same absent cursor state as fresh Quartz registration.
+        var scheduler = new Mock<IScheduler>();
+        var context = CleanupJobContext(data, scheduler.Object);
+        var job = new LocationMutationCleanupJob(cleanup);
+        await job.Execute(context);
+        Assert.Equal("Completed", data.GetString("Status"));
+        Assert.Equal("Deleted 19 eligible Location receipts", data.GetString("StatusMessage"));
+        Assert.False(string.IsNullOrEmpty(data.GetString("CursorTime")));
+        scheduler.Verify(s => s.ScheduleJob(It.Is<ITrigger>(t =>
+            t.Key.Name == "LocationMutationCleanupFollowUp" && t.JobKey!.Name == "LocationMutationCleanupJob"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        await job.Execute(context); // Retained JobDataMap resumes beyond the busy owner.
+        Assert.Equal("Deleted 1 eligible Location receipts", data.GetString("StatusMessage"));
+        Assert.Equal("", data.GetString("CursorTime"));
+        Assert.Equal("", data.GetString("CursorOwner"));
+        Assert.Equal("", data.GetString("CursorId"));
         Assert.True(await cleanup.LocationMutationOperations.AnyAsync(row => row.UserId == owners[0]));
         await fence!.RollbackAsync();
         var final = await new LocationMutationCleanup(cleanup).RunAsync(default);
         Assert.Equal(1, final.Deleted);
         Assert.False(await cleanup.LocationMutationOperations.AnyAsync(row => owners.Contains(row.UserId)));
+    }
+
+    /// <summary>Incomplete initial cursor tuples restart safely rather than skipping eligible receipts.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CleanupJobIncompleteCursorStartsAtBeginning(bool includeId)
+    {
+        var owner = (await fixture.CreateUserAsync()).Id;
+        await using var db = fixture.CreateContext();
+        db.LocationMutationOperations.Add(Receipt(owner, DateTime.UtcNow.AddDays(-32)));
+        await db.SaveChangesAsync();
+        var data = new JobDataMap { ["CursorTime"] = DateTime.UtcNow.ToString("O") };
+        if (includeId) data["CursorId"] = "1"; // Owner is still absent: this is not a valid continuation.
+        var scheduler = new Mock<IScheduler>(MockBehavior.Strict);
+        await new LocationMutationCleanupJob(db).Execute(CleanupJobContext(data, scheduler.Object));
+        Assert.Equal("Completed", data.GetString("Status"));
+        Assert.Equal("Deleted 1 eligible Location receipts", data.GetString("StatusMessage"));
+        Assert.False(await db.LocationMutationOperations.AnyAsync(row => row.UserId == owner));
+    }
+
+    /// <summary>Cancellation reaches the cleanup service and retains Quartz's cancelled outcome.</summary>
+    [PostgresFact]
+    public async Task CleanupJobCancellationIsReportedAndPropagated()
+    {
+        await using var db = fixture.CreateContext();
+        var data = new JobDataMap();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var context = CleanupJobContext(data, Mock.Of<IScheduler>(), cancellation.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new LocationMutationCleanupJob(db).Execute(context));
+        Assert.Equal("Cancelled", data.GetString("Status"));
+    }
+
+    /// <summary>Invoke the actual job with Quartz's durable map and scheduler boundary.</summary>
+    private static IJobExecutionContext CleanupJobContext(JobDataMap data, IScheduler scheduler, CancellationToken token = default)
+    {
+        var detail = new Mock<IJobDetail>();
+        detail.SetupGet(d => d.JobDataMap).Returns(data);
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(c => c.JobDetail).Returns(detail.Object);
+        context.SetupGet(c => c.Scheduler).Returns(scheduler);
+        context.SetupGet(c => c.CancellationToken).Returns(token);
+        return context.Object;
     }
 
     /// <summary>Pages remain bounded at 200; a future retention threshold and ingestion markers survive cleanup.</summary>

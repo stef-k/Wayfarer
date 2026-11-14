@@ -116,12 +116,18 @@ public sealed partial class TripCompositionService
         .Concat(current.Regions.SelectMany(r => r.Areas).Select(a => ("area", a.Id)))
         .Concat(current.Segments.Select(s => ("segment", s.Id))).Append(("trip", current.Id)).ToHashSet();
 
-    internal static void MarkRemoved(List<TripCompositionMapping> mappings, Trip current)
+    /// <summary>Marks newly missing destinations and reports semantic changes independently of JSONB text formatting.</summary>
+    internal static bool MarkRemoved(List<TripCompositionMapping> mappings, Trip current)
     {
         var present = Identities(current);
+        var changed = false;
         for (var i = 0; i < mappings.Count; i++)
             if (mappings[i].Decision is not ("skip" or "destinationRemoved") && !present.Contains((mappings[i].Kind, mappings[i].DestinationId)))
+            {
                 mappings[i] = mappings[i] with { Decision = "destinationRemoved" };
+                changed = true;
+            }
+        return changed;
     }
 }
 

@@ -11,7 +11,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   plugins: [{ name: 'c3-sharing-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
-      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { props: ['surfaceMode'], setup(_, { slots }) {
         return () => [slots.default?.(), slots.map?.()];
       } };` };
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {
@@ -54,7 +54,7 @@ const initial = { tripId: 'trip', metadata: metadata(), regionsById: {}, regionO
   visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] },
   options: { iconNames: [], markerColorClasses: [], transportModes: [], areaDefaults: { fillHex: '#ff6600' }, tag: { maxTags: 10, suggestionTake: 5 } },
   permissions: { canEditMetadata: true } };
-const reply = (enabled, saved = metadata(enabled)) => JSON.stringify({ success: true, data: saved, affected: { metadata: saved,
+const reply = (enabled, saved = metadata(enabled)) => JSON.stringify({ contract: 'bd2-1', success: true, data: saved, affected: { metadata: saved,
   regions: [], places: [], areas: [], segments: [], tags: [], regionOrder: null, segmentOrder: null, tagOrder: null,
   placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, visitProgress: null, options: null },
   deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] }, warnings: [] });
@@ -109,6 +109,8 @@ const withApp = async action => {
   const app = renderer.createApp(actualApp, { config: { editorEndpoint: `/api/trips/${initial.tripId}/editor`,
     antiforgeryToken: 'anti', tripIndexUrl: '/User/Trip' } });
   const root = { children: [] };
+  const componentErrors = [];
+  app.config.errorHandler = error => { componentErrors.push(error.message); };
   app.mount(root);
   try {
     for (let tick = 0; tick < 20 && !captured['MetadataEditor.vue']; tick++) await new Promise(done => setImmediate(done));
@@ -126,6 +128,7 @@ const withApp = async action => {
     app.unmount();
     await nextTick();
     Object.assign(globalThis, previous);
+    assert.deepEqual(componentErrors, [], 'component exceptions must fail the mounted test');
   }
 };
 
@@ -1039,24 +1042,22 @@ test('late comparison review cannot exchange a deleted recovery original or rele
 
 // Portable list values use field-scoped originals and the existing immutable metadata attempt.
 test('credits and policy retain newer list edits after a delayed metadata acknowledgement', () => withApp(async ({ editor, parent }) => {
-  const reply = deferred();
+  const gate = deferred();
   const credit = { contributor: 'Bob', sourceTitle: 'Offline source', licence: 'CC-BY-4.0', licenceUrl: null, notices: 'Retain', modifications: null, sourceUrl: null };
   const calls = [];
-  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return reply.promise; };
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return gate.promise; };
   editor.draft.credits = [credit]; editor.draft.contributionPolicy = 'CC0-1.0';
   const saving = editor.saveAndExit();
   editor.draft.credits[0].modifications = 'Newer draft';
   const state = { ...metadata(), contributionPolicy: 'CC0-1.0', credits: [{ ...credit, modifications: null }],
     originalValues: { ...metadata().originalValues, contributionPolicy: 'CC0-1.0', credits: [{ ...credit, modifications: null }] } };
-  reply.resolve(new Response(replyForPortable(state)));
+  gate.resolve(new Response(reply(false, state)));
   await saving; await nextTick();
   assert.equal(calls[0].expected.contributionPolicy, 'CC-BY-4.0');
   assert.deepEqual(calls[0].expected.credits, []);
   assert.equal(calls[0].changes.credits[0].modifications, null);
   assert.equal(editor.draft.credits[0].modifications, 'Newer draft');
   assert.equal(editor.isDirty, true);
+  assert.equal(parent.state.metadata.contributionPolicy, 'CC0-1.0');
+  assert.equal(parent.state.metadata.credits[0].modifications, null);
 }));
-
-function replyForPortable(metadata) {
-  return JSON.stringify({ success: true, data: metadata, affected: { metadata }, warnings: [] });
-}

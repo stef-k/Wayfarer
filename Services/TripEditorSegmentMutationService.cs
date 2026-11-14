@@ -334,16 +334,20 @@ public sealed partial class TripEditorSegmentMutationService
         return EditorSegmentRequestParser.TryParseSave(request.Value!.Value, out var value, out var errors) ? (value, null) : (null, errors);
     }
 
+    /// <summary>Keep one statement snapshot for mutation originals outside a multi-statement read transaction.</summary>
     private async Task<Trip?> LoadTripGraphAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Trips
+            .AsSingleQuery()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments).ThenInclude(s => s.FromPlace)
             .Include(t => t.Segments).ThenInclude(s => s.ToPlace)
             .Include(t => t.Segments).ThenInclude(s => s.Waypoints).ThenInclude(w => w.Place)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);
 
+    /// <summary>Preliminary references/order share one statement; relational creation revalidates them under locks.</summary>
     private async Task<Trip?> LoadTripCandidateAsync(Guid tripId, string userId, CancellationToken cancellationToken) =>
         await _dbContext.Trips.AsNoTracking()
+            .AsSingleQuery()
             .Include(t => t.Regions).ThenInclude(r => r.Places)
             .Include(t => t.Segments)
             .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == userId, cancellationToken);

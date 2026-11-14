@@ -32,6 +32,8 @@ public sealed partial class TripEditorSegmentMutationService
                 .Where(item => item.HasValue).Select(item => item!.Value).Distinct().Order().ToArray();
             await SegmentRouteReconciler.LockPlacesAndRegionsAsync(_dbContext, placeIds, cancellationToken);
             var canonicalTrip = await _dbContext.Trips.AsNoTracking()
+                // The Serializable transaction owns this authoritative reread; avoid multiplying Places by Segments.
+                .AsSplitQuery()
                 .Include(item => item.Regions).ThenInclude(item => item.Places)
                 .Include(item => item.Segments)
                 .SingleOrDefaultAsync(item => item.Id == tripId && item.UserId == userId, cancellationToken);

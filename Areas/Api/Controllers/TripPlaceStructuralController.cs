@@ -57,6 +57,25 @@ public partial class TripsController
 
 public sealed partial class TripEditorController
 {
+    /// <summary>Prepares composition's coordinate-only intent with the existing domain proof, never a combined Web-update proof.</summary>
+    [HttpPost("places/{placeId:guid}/coordinates/prepare"), ValidateAntiForgeryToken, RequestSizeLimit(8192)]
+    public async Task<IActionResult> PrepareCompositionCoordinates(Guid tripId, Guid placeId,
+        [FromServices] PlaceRegionLifecycleService lifecycle, CancellationToken token)
+    {
+        var failure = RequireEditorUser(out var userId);
+        if (failure != null) return failure;
+        Response.Headers.CacheControl = "private, no-store";
+        if (!await _dbContext.Places.AsNoTracking().AnyAsync(p => p.Id == placeId && p.UserId == userId
+            && p.Region.TripId == tripId && p.Region.UserId == userId && p.Region.Trip.UserId == userId, token)) return NotFound();
+        try
+        {
+            var request = await PlaceStructuralRequest.ReadAsync(Request.Body, "coordinates", false, token);
+            return Ok(await lifecycle.PreparePlaceStructureAsync(tripId, placeId, userId!, request,
+                new HashSet<string>(), new HashSet<string>(), token));
+        }
+        catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
+    }
+
     /// <summary>Prepares one combined Web edit; it cannot silently adopt a new scalar, membership or private dependency base.</summary>
     [HttpPost("places/{placeId:guid}/prepare")]
     [ValidateAntiForgeryToken]
