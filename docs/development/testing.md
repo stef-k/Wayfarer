@@ -820,3 +820,18 @@ restoration owners; timelineDetailedStatistics covers actual endpoint clocks.
 The managed shared-layout selection private Timeline W2 owns one browser core journey
 with keyboard focus, Custom/filter/area, protected edit return and camera/reflow.
 See [calendar contract](timeline-calendar.md) for observation and acceptance limits.
+
+
+## Existing-Trip copy and cross-client contract
+
+`TripCompositionPostgresTests.Copy` covers populated existing destinations,
+selected fields/planning, nested/shared route dependencies, holes, exact saved
+measurements, fresh identities, atomic stale refusal and real lock waits.
+`TripCompositionHttpPostgresTests.Copy` exercises actual cookie/CSRF and bearer
+copy/native routes, redaction and freshness. Run the exhaustive
+`AntiforgeryDescriptorTests` and `StableIdentityCryptographyTests` alongside changes
+to these endpoints; copy originals are unsigned content hashes and add no protection
+purpose. The component/model cases in `tests/client/composition*.test.mjs` mount the
+actual lightweight owner across newer typing, selection, destination changes and
+refusals. The managed `--grep 'Batch 5 copy'` selection is one concise rendered
+copy-to-existing journey; it does not repeat Layout B/native zoom qualification.

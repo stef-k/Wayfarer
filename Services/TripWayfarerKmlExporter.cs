@@ -26,8 +26,8 @@ public static class TripWayfarerKmlExporter
             ("WayfarerSchemaVersion", "5"),
             ("TripId", GuidText(trip.Id)),
             ("UpdatedAt", trip.UpdatedAt.ToString("O", Invariant)),
-            ("CoverImageUrl", trip.CoverImageUrl ?? ""),
-            ("NotesHtml", RichNotes.Normalize(trip.Notes) ?? ""),
+            ("CoverImageUrl", trip.CoverImageUrl),
+            ("NotesHtml", RichNotes.Normalize(trip.Notes)),
             ("CenterLat", Number(trip.CenterLat)),
             ("CenterLon", Number(trip.CenterLon)),
             ("Zoom", Number(trip.Zoom)),
@@ -65,7 +65,7 @@ public static class TripWayfarerKmlExporter
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));
         AddData(folder,
             ("RegionId", GuidText(region.Id)), ("TripId", GuidText(tripId)),
-            ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes) ?? ""),
+            ("DisplayOrder", Number(region.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(region.Notes)),
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
         if (region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
@@ -82,9 +82,9 @@ public static class TripWayfarerKmlExporter
             new XElement(Kml + "styleUrl", $"#wf_{place.IconName}_{place.MarkerColor}"));
         AddData(placemark,
             ("PlaceId", GuidText(place.Id)), ("RegionId", GuidText(regionId)),
-            ("DisplayOrder", Number(place.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(place.Notes) ?? ""),
-            ("IconName", place.IconName ?? ""), ("MarkerColor", place.MarkerColor ?? ""),
-            ("Address", place.Address ?? ""), ("ResolvedFeatureName", place.ResolvedFeatureName ?? ""),
+            ("DisplayOrder", Number(place.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(place.Notes)),
+            ("IconName", place.IconName), ("MarkerColor", place.MarkerColor),
+            ("Address", place.Address), ("ResolvedFeatureName", place.ResolvedFeatureName ?? ""),
             ("ResolvedFeatureType", place.ResolvedFeatureType ?? ""),
             ("AddressEnrichmentProvider", place.AddressEnrichmentProvider ?? ""),
             ("AddressEnrichmentStorageMode", place.AddressEnrichmentStorageMode ?? ""),
@@ -101,8 +101,8 @@ public static class TripWayfarerKmlExporter
         var placemark = new XElement(Kml + "Placemark", new XElement(Kml + "name", area.Name));
         AddData(placemark,
             ("AreaId", GuidText(area.Id)), ("RegionId", GuidText(regionId)),
-            ("DisplayOrder", Number(area.DisplayOrder)), ("FillHex", area.FillHex ?? ""),
-            ("NotesHtml", RichNotes.Normalize(area.Notes) ?? ""));
+            ("DisplayOrder", Number(area.DisplayOrder)), ("FillHex", area.FillHex),
+            ("NotesHtml", RichNotes.Normalize(area.Notes)));
         AddPlanning(placemark, area, "area", includePrivatePlanning);
         if (area.Geometry is Polygon polygon)
             placemark.Add(new XElement(Kml + "Polygon", KmlPolygonGeometry.WriteBoundaries(polygon)));
@@ -123,7 +123,7 @@ public static class TripWayfarerKmlExporter
             ("DistanceKm", segment.EstimatedDistanceKm?.ToString("R", Invariant) ?? ""),
             ("DurationTicks", Number(segment.EstimatedDuration?.Ticks)),
             ("DurationSource", segment.EstimatedDurationSource.ToString()),
-            ("DisplayOrder", Number(segment.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(segment.Notes) ?? ""),
+            ("DisplayOrder", Number(segment.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(segment.Notes)),
             ("HasCustomRoute", hasCustomRoute ? "true" : "false"),
             ("WaypointPlaceIds", string.Join(',', waypoints.Select(waypoint => GuidText(waypoint.PlaceId)))),
             ("WaypointRouteVertexIndices", string.Join(',', waypoints.Select(waypoint => waypoint.RouteVertexIndex?.ToString(Invariant) ?? "null"))));
@@ -188,8 +188,9 @@ public static class TripWayfarerKmlExporter
         AddData(owner, ("Planning", json));
     }
 
-    private static void AddData(XElement owner, params (string Name, string Value)[] values) =>
-        owner.Add(new XElement(Kml + "ExtendedData", values.Select(value =>
+    /// <summary>Absent optional text stays null; present empty text remains an explicit empty value in native v5.</summary>
+    private static void AddData(XElement owner, params (string Name, string? Value)[] values) =>
+        owner.Add(new XElement(Kml + "ExtendedData", values.Where(value => value.Value != null).Select(value =>
             new XElement(Kml + "Data", new XAttribute("name", value.Name), new XElement(Kml + "value", value.Value)))));
 
     private static string GuidText(Guid value) => value.ToString("D", Invariant).ToLowerInvariant();

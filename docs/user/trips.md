@@ -477,3 +477,37 @@ inspect or refresh saved C before deciding what to do next.
 **Delete C** uses normal permanent-deletion confirmation and removes its
 workspace with it; A, B and independent copies remain unchanged. There is no
 separate Abandon action or inactivity expiry.
+
+
+## Copy ideas into an existing Trip
+
+In **My Trips**, choose **Copy to existing Trip**. The ordinary editor also offers
+**Copy ideas into this Trip**, and eligible source viewers offer the source-bound
+copy entry. Choose an owned or publicly reusable source and a destination you own,
+then **Preview copy choices**. This does not create another Trip or require a
+comparison workspace.
+
+Select Regions, Places, Areas or Trip-level Segments from the source hierarchy.
+Review the source geography and destination on the preview map. Each selected item
+has an explicit copy/reuse choice, original/custom name, destination container,
+and **Append**, **At start** or **After selection** position. Select a counterpart
+to keep its identity and adopt only named fields; unselected fields Keep. A Region
+can include individually reviewed direct Places/Areas. A Segment requires approval
+for every missing From/To/Via Place; a Place already selected in the block can be
+shared in its reviewed container. Reused objects do not move. Mixed lists keep
+separate positions; new siblings form a block in displayed order.
+
+Review Notes, selected fields, applicable source credits/notices and the proposed
+container/position before **Apply reviewed copy to destination**. Existing Trip
+identity, visibility, owner contribution policy and unrelated content stay.
+Source Trip metadata is not adopted. Own personal planning is copied only when
+explicitly selected; another owner's planning is never shown. Unqualified source
+media is omitted with feedback, and cannot be rehosted merely because it is viewable.
+
+A refusal keeps local choices. **Refresh and review current values** explicitly
+renews reviewed originals; it never silently changes a destination or placement.
+Later selections/typing remain unsaved when an earlier action succeeds. A connection
+failure means the save could not be confirmed: use **Edit / inspect destination
+Trip** before trying again. Do not blindly resubmit. Successful content changes are
+saved immediately, including on public Trips at their existing URL. The editing
+link opens the same destination. Destructive cross-Trip moves are separate work.

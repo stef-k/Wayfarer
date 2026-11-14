@@ -91,9 +91,12 @@ async function apply(): Promise<void> {
     await owned.submit(submittedDraft, action, async frozen => {
       if (!await api.prepare(workspace, frozen, message => confirm({ title: 'Review destination consequences', message,
         confirmLabel: 'Apply reviewed copy', cancelLabel: 'Keep choices', variant: 'warning' }))) throw new Error('Copy not applied. Choices retained.');
+      const selected = frozen.items.flatMap(i => [i, ...i.children ?? []]);
+      const identities = new Set(selected.map(i => `${i.kind}/${i.sourceId}`).concat(selected.flatMap(i => (i.anchors ?? []).map(a => `place/${a.sourceId}`))));
+      const originals = submittedPreview.originals.filter(o => identities.has(`${o.kind}/${o.id}`));
       const result = await api.request<{ tripId: string; compositionId: string; status: string; current: Workspace['current']; mappings: Workspace['mappings'] }>(
         '/api/trip-compositions/copy', { sourceTripId: submittedPreview.sourceTripId, destinationTripId: submittedPreview.tripId,
-          context: submittedPreview.context, originals: submittedPreview.originals, items: frozen.items });
+          context: submittedPreview.context, originals, items: frozen.items });
       if (result.status !== 'copied') throw new Error('Save could not be confirmed. Inspect the destination before another copy.');
       return { ...result, compositionId: 'copy' };
     }, () => {
@@ -110,9 +113,9 @@ onUnmounted(() => { disposed = true; ++generation; store.dispose(); disposeConfi
     <header><h1>Copy to existing Trip</h1><p>Choose an owned or publicly reusable source and an existing Trip you own. Source Trips stay unchanged.</p><a href="/User/Trip">My Trips</a></header>
     <div class="copy-context">
       <fieldset><legend>Read-only source</legend><form @submit.prevent="search(false)"><label class="composition-field">Find source Trip<input v-model="sourceSearch" type="search" maxlength="200" /></label><button>Search sources</button></form>
-        <label class="composition-field">Source Trip<select v-model="sourceId"><option value="">Select source</option><option v-if="sourceId && !sources.some(x => x.id === sourceId)" :value="sourceId">Selected source</option><option v-for="item in sources" :key="item.id" :value="item.id">{{ item.name }} · {{ item.owned ? 'Owned' : item.contributionPolicy }}</option></select></label></fieldset>
+        <label class="composition-field">Source Trip<select v-model="sourceId" aria-label="Source Trip"><option value="">Select source</option><option v-if="sourceId && !sources.some(x => x.id === sourceId)" :value="sourceId">Selected source</option><option v-for="item in sources" :key="item.id" :value="item.id">{{ item.name }} · {{ item.owned ? 'Owned' : item.contributionPolicy }}</option></select></label></fieldset>
       <fieldset><legend>Existing owned destination</legend><form @submit.prevent="search(true)"><label class="composition-field">Find destination Trip<input v-model="destinationSearch" type="search" maxlength="200" /></label><button>Search destinations</button></form>
-        <label class="composition-field">Destination Trip<select v-model="destinationId"><option value="">Select destination</option><option v-if="destinationId && !destinations.some(x => x.id === destinationId)" :value="destinationId">Selected destination</option><option v-for="item in destinations" :key="item.id" :value="item.id">{{ item.name }}</option></select></label></fieldset>
+        <label class="composition-field">Destination Trip<select v-model="destinationId" aria-label="Destination Trip"><option value="">Select destination</option><option v-if="destinationId && !destinations.some(x => x.id === destinationId)" :value="destinationId">Selected destination</option><option v-for="item in destinations" :key="item.id" :value="item.id">{{ item.name }}</option></select></label></fieldset>
     </div>
     <button type="button" :disabled="loading || state.pending || !sourceId || !destinationId" @click="load">{{ loading ? 'Loading preview…' : preview && pairMatches ? 'Refresh and review current values' : 'Preview copy choices' }}</button>
     <div aria-live="polite"><p v-if="error || state.error" role="alert">{{ error || state.error }} <a :href="editUrl">Inspect destination Trip</a></p><p>{{ state.status }}</p>
@@ -136,7 +139,7 @@ onUnmounted(() => { disposed = true; ++generation; store.dispose(); disposeConfi
             <button type="button" :disabled="index === draft.items.length - 1" @click="[draft.items[index], draft.items[index + 1]] = [draft.items[index + 1], draft.items[index]]">Move down</button>
             <button type="button" @click="draft.items.splice(index, 1)">Remove local choice</button>
             <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" existing-trip />
-            <FieldChoices v-if="item.decision === 'copy' || item.decision === 'reuse' && find(draft.baseline, item.kind, item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" />
+            <FieldChoices v-if="item.decision === 'copy' || item.decision === 'reuse' && find(draft.baseline, item.kind, item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" existing-trip />
           </details>
           <details class="composition-credits"><summary>Applicable source credits &amp; notices</summary>
             <p>Destination owner’s contribution policy stays {{ state.workspace.current.graph.contributionPolicy || 'unselected' }}. Inherited notices remain separate.</p>

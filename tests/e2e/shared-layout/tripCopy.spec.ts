@@ -4,7 +4,7 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 /** One rendered copy journey; concurrency, authority and fidelity matrices stay at client/relational seams. */
 test('Batch 5 copy selected block into existing populated Trip', async ({ page }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(180_000); page.setDefaultTimeout(15_000);
   const credentials = loadSharedLayoutConfig(); const destination = process.env.WAYFARER_E2E_TRIP_ID!;
   const evidence = process.env.WAYFARER_COMPOSITION_EVIDENCE ?? testInfo.outputPath('captures');
   await mkdir(evidence, { recursive: true });
@@ -32,6 +32,9 @@ test('Batch 5 copy selected block into existing populated Trip', async ({ page }
   const region = before.regionOrder[0]; const reference = before.placeOrderByRegionId[region][0];
   await page.goto('/User/Trip');
   await page.getByRole('link', { name: 'Copy to existing Trip', exact: true }).click();
+  await page.getByLabel('Find source Trip', { exact: true }).fill('Batch 5 coastal ideas');
+  await page.getByRole('button', { name: 'Search sources', exact: true }).click();
+  await expect(page.getByLabel('Source Trip', { exact: true }).locator(`option[value="${source}"]`)).toHaveCount(1);
   await page.getByLabel('Source Trip', { exact: true }).selectOption(source);
   await page.getByLabel('Destination Trip', { exact: true }).selectOption(destination);
   await page.getByRole('button', { name: 'Preview copy choices', exact: true }).click();
@@ -45,7 +48,7 @@ test('Batch 5 copy selected block into existing populated Trip', async ({ page }
     const item = choices.locator('fieldset.composition-choice').filter({ has: page.locator('legend', { hasText: `place · ${name}` }) });
     await item.getByLabel('Destination Region', { exact: true }).selectOption(region);
     await item.getByLabel('Insertion position (independent of Region)').selectOption('after');
-    await item.getByLabel('After this current C place').selectOption(reference);
+    await item.getByLabel('After this current destination place').selectOption(reference);
     await expect(item.locator('.composition-result')).toContainText('After');
   }
   await page.screenshot({ path: `${evidence}/01-copy-review-desktop.png`, fullPage: true });

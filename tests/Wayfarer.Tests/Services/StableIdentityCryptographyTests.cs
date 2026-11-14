@@ -142,6 +142,7 @@ public sealed class StableIdentityCryptographyTests
     [Fact]
     public void ExplicitPurposeInventory_RemainsBounded()
     {
+        // Lightweight copy uses plain source-content originals; it introduces no Data Protection purpose.
         var root = FindRoot();
         var purposes = Directory.GetFiles(Path.Combine(root, "Services"), "*.cs", SearchOption.AllDirectories)
             .SelectMany(path => Regex.Matches(File.ReadAllText(path), "\"(Wayfarer\\.[A-Za-z.]+\\.v[0-9]+)\"")

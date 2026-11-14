@@ -52,6 +52,52 @@ public sealed class NativeKmlV5Tests
         Assert.Throws<FormatException>(() => TripCreditCodec.Write([value with { SourceUrl = "https://user:pass@example.org" }]));
     }
 
+    /// <summary>Published default/personal fixtures agree with complete backend fields, exact values and absence semantics.</summary>
+    [Fact]
+    public void SharedCrossClientFixturesRetainCompleteNativeRepresentations()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "Fixtures", "Trips");
+        var captured = TripCompositionSource.Read(File.ReadAllText(Path.Combine(root, "cross-client-owner.json")));
+        var personal = Parse(File.ReadAllText(Path.Combine(root, "cross-client-v5-personal.kml"))).Document!;
+        var ordinaryText = File.ReadAllText(Path.Combine(root, "cross-client-v5.kml"));
+        var ordinary = Parse(ordinaryText).Document!;
+        Assert.Equal(5, personal.Version); Assert.Equal(5, ordinary.Version);
+        Assert.DoesNotContain("Planning", ordinaryText);
+        Assert.Equal(captured.Trip.Credits, personal.Credits); Assert.Equal(captured.Trip.ContributionPolicy, personal.ContributionPolicy);
+        Assert.True(Wayfarer.Models.Planning.PlanningCodec.Equal(captured.Trip.Planning, personal.Planning));
+        var region = captured.Trip.Regions.Single(); var importedRegion = personal.Regions.Single();
+        Assert.Equal(region.CoverImageUrl, importedRegion.CoverImageUrl);
+        Assert.Equal(1, Assert.IsType<NetTopologySuite.Geometries.Polygon>(importedRegion.Areas.Single().Geometry).NumInteriorRings);
+        Assert.Equal(4, importedRegion.Places.Count);
+        Assert.Contains(importedRegion.Places, p => p.Location == null && p.Notes == null && p.Address == null);
+        var sourceRoute = captured.Trip.Segments.Single(s => s.Title != null);
+        var route = personal.Segments.Single(s => s.Title != null);
+        Assert.Equal(sourceRoute.Title, route.Title); Assert.Equal(sourceRoute.Notes, route.Notes);
+        Assert.Equal(sourceRoute.EstimatedDuration!.Value.Ticks, route.Duration!.Value.Ticks);
+        Assert.Equal(sourceRoute.EstimatedDistanceKm, route.DistanceKm);
+        Assert.Equal("walk", sourceRoute.RouteMappingMode);
+        Assert.Contains(captured.Trip.Segments, s => s.Title == null && s.FromPlaceId == null && s.ToPlaceId == null && s.RouteGeometry == null);
+        Assert.Contains(region.Places, p => p.Location == null && p.DisplayOrder == null && p.Notes == null);
+        Assert.Equal("persistent", region.Places.Single(p => p.Address != null).AddressEnrichmentStorageMode);
+    }
+
+    /// <summary>V5 optional Notes preserve null versus present empty text on every target through writing and parsing.</summary>
+    [Fact]
+    public void NativeV5DistinguishesNullAndEmptyOptionalNotes()
+    {
+        var trip = TripCompositionSource.Read(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Trips", "cross-client-owner.json"))).Trip;
+        var region = trip.Regions.Single(); var place = region.Places.First(); var area = region.Areas.Single(); var segment = trip.Segments.First();
+        foreach (var notes in new string?[] { null, "" })
+        {
+            trip.Notes = notes; region.Notes = notes; place.Notes = notes; area.Notes = notes; segment.Notes = notes;
+            var parsed = Parse(TripWayfarerKmlExporter.BuildKml(trip)).Document!;
+            Assert.Equal(notes, parsed.Notes); Assert.Equal(notes, parsed.Regions.Single().Notes);
+            Assert.Equal(notes, parsed.Regions.Single().Places.Single(p => p.Id == place.Id).Notes);
+            Assert.Equal(notes, parsed.Regions.Single().Areas.Single().Notes);
+            Assert.Equal(notes, parsed.Segments.Single(s => s.Id == segment.Id).Notes);
+        }
+    }
+
     private static WayfarerKmlClassification Parse(string xml) =>
         WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(xml)));
 }

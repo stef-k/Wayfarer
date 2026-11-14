@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+- Add #911 lightweight Copy to existing Trip from My Trips, the editor and eligible
+  source viewers. Reuse shared copy/adoption, placement, lifecycle and route cores
+  for atomic selected content/dependencies/credits in an existing owned destination,
+  with live-source review originals, current cookie/bearer authority, explicit planning,
+  media omissions, public freshness and honest unconfirmed-save feedback. Preserve
+  newer drafts and provide the same destination editing link without a comparison
+  workspace. Add bearer native-v5 owner downloads and complete native import/review
+  transport through the existing codecs/importer; document field precision and
+  presence/Clear semantics. No database migration. Mobile implementation and both
+  final assembled-feature acceptance reviews remain separately owned.
+
 - Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
   ordinary independent versions, deliberately start/continue a source pair, review
   A/B hierarchies and complete geography on one shared map, select copies/reuse/fields,

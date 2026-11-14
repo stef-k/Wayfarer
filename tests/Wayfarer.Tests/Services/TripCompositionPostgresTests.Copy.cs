@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -125,6 +126,24 @@ public sealed partial class TripCompositionPostgresTests
         Assert.Single((await Load(db, destination.Id)).Regions);
     }
 
+    /// <summary>Foreign private-only planning edits cannot affect reusable source originals or create presence/change hints.</summary>
+    [PostgresFact]
+    public async Task CopyForeignPlanningDoesNotEnterPreviewOrFreshnessOriginals()
+    {
+        var destination = await Seed(); var source = await Seed();
+        await using var db = fixture.CreateContext();
+        var before = await CopyReview(db, destination.UserId, source.Id, destination.Id);
+        var changed = source.Regions.Single().Places.First();
+        await db.Places.Where(p => p.Id == changed.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Planning, (Wayfarer.Models.Planning.PlanningAggregate?)null));
+        await db.Trips.Where(t => t.Id == source.Id).ExecuteUpdateAsync(s => s.SetProperty(t => t.Planning, (Wayfarer.Models.Planning.PlanningAggregate?)null));
+        var after = await CopyReview(db, destination.UserId, source.Id, destination.Id);
+        Assert.Equal(before.Context, after.Context); Assert.Equal(before.Originals, after.Originals);
+        var parent = destination.Regions.Single();
+        await Copy(db, destination.UserId, before with { Items = [new("place", changed.Id, "copy", RegionId: parent.Id, Name: "No foreign plan",
+            Placement: new(parent.Places.Select(p => new TripCompositionOrderOriginal(p.Id, p.DisplayOrder)).ToArray()))] });
+        Assert.Null((await db.Places.AsNoTracking().SingleAsync(p => p.RegionId == parent.Id && p.Name == "No foreign plan")).Planning);
+    }
+
     /// <summary>Actual lock contention cannot renew reviewed source content or selected destination originals.</summary>
     [PostgresTheory]
     [InlineData(true)]
@@ -153,6 +172,38 @@ public sealed partial class TripCompositionPostgresTests
         var unchanged = await Load(writer, destination.Id);
         Assert.Equal(sourceChanges ? target.Notes : "<p>Winner</p>", unchanged.Regions.Single().Places.Single(p => p.Id == target.Id).Notes);
         Assert.Equal(destination.Credits, unchanged.Credits);
+    }
+
+    /// <summary>The published personal fixture crosses real native admission/mapping/persistence and subsequent writing without dropped fields.</summary>
+    [PostgresFact]
+    public async Task CrossClientFixtureImportsCompleteOwnedGraphAndWritesV5Again()
+    {
+        var owner = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        await using var input = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Trips", "cross-client-v5-personal.kml"));
+        var imported = await new TripImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<TripImportService>.Instance)
+            .ImportNativeForBearerAsync(input, owner.Id, TripImportMode.CreateNew, null, _ => Task.FromResult(true), default);
+        fixture.RegisterTrip(imported.TripId);
+        var trip = await Load(db, imported.TripId);
+        Assert.False(trip.IsPublic); Assert.Null(trip.ContributionPolicy);
+        Assert.Contains(trip.Credits, c => c.Licence == "CC0-1.0"); Assert.Contains(trip.Credits, c => c.Notices == "Keep supplied notice");
+        var region = trip.Regions.Single(); Assert.NotNull(region.Planning); Assert.NotNull(region.CoverImageUrl);
+        Assert.Single(region.Areas); Assert.Equal(1, region.Areas.Single().Geometry.NumInteriorRings);
+        Assert.Contains(region.Places, p => p.Location == null && p.DisplayOrder == null);
+        var enriched = region.Places.Single(p => p.Address == "1 Coastal road");
+        Assert.Equal("Coastal museum", enriched.ResolvedFeatureName); Assert.Equal("geoapify", enriched.AddressEnrichmentProvider);
+        Assert.NotNull(enriched.Planning); Assert.Equal(0, enriched.Planning.Entries[1].AllocationMinutes);
+        var route = trip.Segments.Single(s => s.Title != null);
+        Assert.Equal(12345670, route.EstimatedDuration!.Value.Ticks); Assert.Equal(1.23456789, route.EstimatedDistanceKm);
+        Assert.Equal("walk", route.RouteMappingMode); Assert.Equal("[]", route.RouteInstructionsJson);
+        Assert.Equal(1, route.Waypoints.Single().RouteVertexIndex); Assert.NotNull(route.Planning);
+        // The writer needs the same eagerly loaded anchors/profile as ordinary owner downloads.
+        var complete = await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id);
+        var xml = TripWayfarerKmlExporter.BuildKml(complete, true);
+        using var output = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
+        var parsed = await Wayfarer.Parsers.WayfarerKmlParser.ClassifyAndParseAsync(output, default);
+        Assert.Equal(5, parsed.Document!.Version); Assert.Equal(trip.Credits, parsed.Document.Credits);
+        Assert.True(Wayfarer.Models.Planning.PlanningCodec.Equal(trip.Planning, parsed.Document.Planning));
     }
 
     private static async Task<TripCopyRequest> CopyReview(ApplicationDbContext db, string owner, Guid source, Guid destination)
