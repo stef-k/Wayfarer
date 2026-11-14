@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+- Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
+  ordinary independent versions, deliberately start/continue a source pair, review
+  A/B hierarchies and complete geography on one shared map, select copies/reuse/fields,
+  scope, destinations, blocks and approved route dependencies, and edit C with a
+  saved-comparison return path. Preserve newer input and account-scoped local choices,
+  use existing domain consent, and Finish/Delete without changing the sources.
+  Unfinished C retains ordinary publication and credits. Add bounded source discovery
+  and a cookie coordinate-only preview adapter; no database migration. Lightweight
+  existing-Trip copy, mobile implementation and final combined reconciliation remain separate.
+  Correct item/block Notes ownership and preserve their independent drafts; share
+  approved route dependencies with nested Region child copies. Settle superseded
+  Refresh loading, validate preparation replies before previews or writes, report
+  unconfirmed Finish outcomes, and distinguish retained originals from current C
+  without replacing choices or silently renewing the review.
+  Keep unchanged workspace reads free of mapping writes despite PostgreSQL JSONB
+  formatting, while retaining durable removed-destination reconciliation and the
+  existing coherent-read, ownership and Finish/Delete barriers.
+
 - Add #911 selective composition backend actions for captured A/B matching suggestions,
   manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,
   Region scopes and current-C container/ordered-block placement. Reuse domain
@@ -510,6 +528,11 @@
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed
+- Load Leaflet styling when opening Trip composition directly, keeping map tiles
+  and controls inside their map instead of covering the comparison drawer (#911).
+  Repair managed headed-browser socket paths, diagnostic retention and safe
+  shutdown of proven writers around detached browser helpers.
+
 - Correct #789 combined findings C1–C4: preserve Region covers in personal native
   v4 and bind them into import review originals; assess explicit simultaneous
   presence moments and half-open interval boundaries; show current check-snapshot

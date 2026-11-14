@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import socket
 import subprocess
 import sys
 import tempfile
@@ -29,6 +30,38 @@ class ArtifactTests(unittest.TestCase):
         self.root.remove()
         self.root.remove()
         self.assertFalse(self.root.path.exists())
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux Chromium singleton socket budget')
+    def test_chromium_singleton_socket_fits_native_byte_budget(self):
+        """Bind the pinned Chromium suffix under the actual full-UUID managed path."""
+        directory = self.root.path / 'TempRoot' / 'org.chromium.Chromium.ABC123'
+        directory.mkdir(parents=True)
+        endpoint = directory / 'SingletonSocket'
+        self.assertIn(self.root.run_id, str(endpoint))
+        self.assertLessEqual(len(os.fsencode(endpoint)), 107)
+        try:
+            with socket.socket(socket.AF_UNIX) as listener:
+                listener.bind(os.fsencode(endpoint))
+        finally:
+            endpoint.unlink(missing_ok=True)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Live Linux CLR IPC diagnostics')
+    def test_diagnostic_append_with_live_clr_residue_keeps_cleanup_strict(self):
+        """An unrelated live FIFO cannot hide diagnostics or authorize recursive deletion."""
+        child = self.retained_child()
+        temporary = self.root.path / 'TempRoot'
+        temporary.mkdir()
+        entry = temporary / f'clr-debug-pipe-{child.record["pid"]}-{child.record["start"]}-in'
+        os.mkfifo(entry)
+        try:
+            self.root.append_diagnostic('primary failure frame\n')
+            self.assertEqual('primary failure frame\n', (self.root.path / 'supervisor.log').read_text())
+            with self.assertRaises(ValueError):
+                self.root.remove([child])
+            child.stop()
+            self.root.remove([child])
+        finally:
+            entry.unlink(missing_ok=True)
 
     def retained_child(self):
         """Use the existing native owner so stopped-child authority is exercised directly."""
@@ -144,8 +177,8 @@ class ArtifactTests(unittest.TestCase):
         saved = path.with_name(path.name + '-test-saved')
         verify = self.root.verify
 
-        def substitute():
-            verify()
+        def substitute(**kwargs):
+            verify(**kwargs)
             path.rename(saved)
             path.mkdir()
             (path / 'owner.json').write_bytes((saved / 'owner.json').read_bytes())

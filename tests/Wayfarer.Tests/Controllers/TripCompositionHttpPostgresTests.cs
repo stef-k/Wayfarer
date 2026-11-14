@@ -97,6 +97,8 @@ public sealed partial class TripCompositionHttpPostgresTests(PostgresImportTestF
         using var noCsrf = await noCsrfBrowser.PostAsJsonAsync($"/api/trip-compositions/{workspace}/actions", action);
         Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
         using var foreignRead = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(foreignRead, app.Services, foreign.Id);
+        using var concealedWorkspace = await foreignRead.GetAsync($"/api/trip-compositions/{workspace}");
+        Assert.Equal(HttpStatusCode.NotFound, concealedWorkspace.StatusCode); Assert.True(concealedWorkspace.Headers.CacheControl!.NoStore);
         using var concealed = await foreignRead.GetAsync($"/api/trip-compositions/{workspace}/candidates?source=b&kind=place&sourceId={Guid.NewGuid()}");
         Assert.Equal(HttpStatusCode.NotFound, concealed.StatusCode);
         using var applied = await mobile.PostAsJsonAsync($"/api/trips/compositions/{workspace}/actions", action);

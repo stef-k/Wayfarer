@@ -11,7 +11,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   plugins: [{ name: 'segment-parent-tree', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
-      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { setup(_, { slots }) {
+      if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { props: ['surfaceMode'], setup(_, { slots }) {
         return () => [slots.default?.(), slots.map?.()];
       } };` };
       if (/SegmentEditorSurface\.vue$/.test(args.path)) return { contents: `export default { setup(_, context) {

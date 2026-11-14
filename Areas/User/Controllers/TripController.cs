@@ -42,6 +42,17 @@ namespace Wayfarer.Areas.User.Controllers
             SetPageTitle("My Trips");
             return View();
         }
+
+        /// <summary>Private Layout B shell; the composition API authorizes every saved workspace read and action.</summary>
+        [HttpGet]
+        public IActionResult Compose(Guid? id)
+        {
+            ViewData["Title"] = "Compare & combine Trips";
+            ViewData["BodyClass"] = "container-fluid";
+            ViewData["CompositionId"] = id;
+            Response.Headers.CacheControl = "private, no-store";
+            return View();
+        }
         
         // GET: /User/Trips/View/{id}
         [HttpGet]
@@ -186,7 +197,7 @@ namespace Wayfarer.Areas.User.Controllers
         /// <summary>
         /// Shows the canonical Vue Trip Editor shell for an owned trip.
         /// </summary>
-        public async Task<IActionResult> Edit(Guid id)
+        public async Task<IActionResult> Edit(Guid id, Guid? composition = null)
         {
             SetPageTitle("Edit Trip");
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -206,12 +217,18 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["BodyClass"] = "container-fluid";
             ViewData["LoadLeaflet"] = false;
 
+            // Return context must belong to this caller and this C; arbitrary return URLs are never accepted.
+            var comparisonUrl = composition.HasValue && await _dbContext.Set<TripComposition>().AnyAsync(w =>
+                w.Id == composition && w.TripId == id && w.UserId == userId && w.FinishedAt == null)
+                ? $"/User/Trip/Compose/{composition.Value}" : null;
+            ViewData["CompositionReturnUrl"] = comparisonUrl;
+
             return View("~/Areas/User/Views/Trip/Edit.cshtml", new TripEditorShellViewModel
             {
                 TripId = trip.Id,
                 TripName = trip.Name,
                 EditorEndpointUrl = $"/api/trips/{trip.Id}/editor",
-                TripIndexUrl = Url?.Action(nameof(Index), "Trip", new { area = "User" }) ?? "/User/Trip/Index",
+                TripIndexUrl = comparisonUrl ?? Url?.Action(nameof(Index), "Trip", new { area = "User" }) ?? "/User/Trip/Index",
                 TilesUrl = "/Public/tiles/{z}/{x}/{y}.png"
             });
         }
