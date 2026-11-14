@@ -49,14 +49,28 @@ test('Batch 4 Layout B start copy edit return resume and Finish', async ({ page 
   await page.getByLabel('Source B', { exact: true }).selectOption(b);
   await page.getByLabel('New Trip name (optional)').fill('Coastal comparison C');
   const creation = page.waitForResponse(r => r.url().endsWith('/api/trip-compositions') && r.request().method() === 'POST');
+  // Observe the new page's own read; a separate GET would compete with the UI and change the observation.
+  const workspaceRead = page.waitForResponse(r => r.request().method() === 'GET'
+    && /^\/api\/trip-compositions\/[0-9a-f-]+$/.test(new URL(r.url()).pathname));
   await page.getByRole('button', { name: 'Start New composition', exact: true }).click();
   expect((await creation).ok()).toBeTruthy();
   await expect(page).toHaveURL(/\/User\/Trip\/Compose\/[0-9a-f-]+$/);
-  // Navigation owns the creation response; reread the saved workspace rather than asking CDP for a discarded body.
+  // The response belongs to the destination document, so navigation cannot discard the creation body's readback.
   const composition = new URL(page.url()).pathname.split('/').at(-1)!;
-  const created = await (await page.request.get(`/api/trip-compositions/${composition}`)).json(); const c = created.tripId;
+  const response = await workspaceRead;
+  expect(new URL(response.url()).pathname).toBe(`/api/trip-compositions/${composition}`);
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const created = await response.json(); const c = created.tripId;
+  expect(created.compositionId).toBe(composition); expect(c).not.toBe(a); expect(c).not.toBe(b);
   const inspector = page.getByRole('region', { name: 'Contextual comparison inspector' });
   const bTree = page.getByRole('region', { name: 'Source B hierarchy' });
+  // The unavailable shell also has .composition-workspace; only populated content qualifies as rendered.
+  const map = page.getByRole('region', { name: 'Shared A B C Trip map' });
+  await expect(map.locator('.leaflet-overlay-pane path').first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Source A hierarchy' }).getByRole('button', { name: /Trip details/ })).toBeVisible();
+  await expect(bTree.getByRole('heading', { name: /Coastal ideas B/ })).toBeVisible();
+  await expect(inspector.getByRole('heading', { name: 'Select a source idea', exact: true })).toBeVisible();
+  await expect(page.locator('.composition-feedback [role="alert"]')).toHaveCount(0);
   await bTree.getByText('Browser region', { exact: true }).click();
   await bTree.getByRole('button', { name: /Place · Coastal viewpoint/ }).click();
   const cState = await (await page.request.get(`/api/trips/${c}/editor`)).json();
@@ -97,8 +111,11 @@ test('Batch 4 Layout B start copy edit return resume and Finish', async ({ page 
   await page.goto('/User/Trip');
   await page.locator('#unfinished-compositions').getByRole('link', { name: 'Continue Composition', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(composition));
-  await page.reload(); await expect(page.locator('.composition-header')).toContainText('Edited current C');
-  const resumed = await (await page.request.get(`/api/trip-compositions/${composition}`)).json(); expect(resumed.tripId).toBe(c);
+  const resumeRead = page.waitForResponse(r => r.url().endsWith(`/api/trip-compositions/${composition}`) && r.request().method() === 'GET');
+  await page.reload();
+  const resumeResponse = await resumeRead; expect(resumeResponse.ok(), await resumeResponse.text()).toBeTruthy();
+  expect((await resumeResponse.json()).tripId).toBe(c);
+  await expect(page.locator('.composition-header')).toContainText('Edited current C');
   const completion = page.waitForResponse(r => r.url().endsWith(`/trip-compositions/${composition}/finish`));
   await page.getByRole('button', { name: 'Finish comparison', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Finish comparison?' }); await expect(dialog).toContainText('historical comparison cannot reopen');

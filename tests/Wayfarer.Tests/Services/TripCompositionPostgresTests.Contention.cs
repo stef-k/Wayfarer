@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Wayfarer.Models;
@@ -57,6 +58,75 @@ public sealed partial class TripCompositionPostgresTests
         Assert.NotNull(workspace.FinishedAt); Assert.Null(workspace.Mappings);
         Assert.True(await observe.Trips.AnyAsync(t => t.Id == created.TripId));
     }
+
+    /// <summary>JSONB text normalization must not turn ordinary reads into writes, including after a real removal.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatedReadsPersistOnlyRealRemovedDestinationChanges(bool removeDestination)
+    {
+        var a = await Seed(); var b = await Seed(a.UserId);
+        await using var db = fixture.CreateContext(); var created = await StartSelection(db, a, b);
+        var id = created.CompositionId!.Value;
+        var before = await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == id);
+        var beforeVersion = await MappingVersion(db, id);
+        var mappings = JsonSerializer.Deserialize<List<TripCompositionMapping>>(before.Mappings!, TripCompositionSnapshot.Json)!;
+        // PostgreSQL's JSONB text differs from the serializer even though the decisions are identical.
+        var compact = JsonSerializer.Serialize(mappings, TripCompositionSnapshot.Json);
+        Assert.NotEqual(before.Mappings, compact);
+        Assert.True(JsonElement.DeepEquals(JsonDocument.Parse(before.Mappings!).RootElement, JsonDocument.Parse(compact).RootElement));
+        var removed = mappings.First(m => m.Kind == "area");
+        if (removeDestination) await db.Areas.Where(p => p.Id == removed.DestinationId).ExecuteDeleteAsync();
+        var first = E(await new TripCompositionService(db).ReadAsync(a.UserId, id));
+        var after = await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == id);
+        var afterVersion = await MappingVersion(db, id);
+        var persisted = JsonSerializer.Deserialize<List<TripCompositionMapping>>(after.Mappings!, TripCompositionSnapshot.Json)!;
+        Assert.Equal(mappings.Select(m => removeDestination && m == removed ? m with { Decision = "destinationRemoved" } : m), persisted);
+        Assert.Equal(before.SnapshotA, after.SnapshotA); Assert.Equal(before.SnapshotB, after.SnapshotB);
+        if (removeDestination) Assert.NotEqual(beforeVersion, afterVersion);
+        else Assert.Equal(beforeVersion, afterVersion);
+        for (var i = 0; i < 2; i++)
+        {
+            await using var fresh = fixture.CreateContext();
+            Assert.True(JsonElement.DeepEquals(first, E(await new TripCompositionService(fresh).ReadAsync(a.UserId, id))));
+            Assert.Equal(afterVersion, await MappingVersion(fresh, id));
+        }
+    }
+
+    /// <summary>The waiting read has a real RepeatableRead snapshot before the first unchanged read commits.</summary>
+    [PostgresFact]
+    public async Task OverlappingUnchangedReadsBothReturnCoherentWorkspaceWithoutWrites()
+    {
+        var a = await Seed(); var b = await Seed(a.UserId);
+        await using var observer = fixture.CreateContext(); var created = await StartSelection(observer, a, b);
+        var id = created.CompositionId!.Value; var before = await MappingVersion(observer, id);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var first = fixture.CreateContext();
+        var reading = new TripCompositionService(first).ReadAsync(a.UserId, id, credential: async token =>
+        {
+            entered.TrySetResult(); await release.Task.WaitAsync(TimeSpan.FromSeconds(10), token); return true;
+        });
+        await using var second = fixture.CreateContext(); await second.Database.OpenConnectionAsync();
+        var pid = ((Npgsql.NpgsqlConnection)second.Database.GetDbConnection()).ProcessID;
+        Task<object>? waiting = null;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            waiting = new TripCompositionService(second).ReadAsync(a.UserId, id);
+            await AssertBlocked(observer, pid);
+        }
+        finally { release.TrySetResult(); }
+        var results = await Task.WhenAll(reading, waiting!);
+        Assert.True(JsonElement.DeepEquals(E(results[0]), E(results[1])));
+        Assert.Equal(created.TripId, E(results[0]).GetProperty("tripId").GetGuid());
+        Assert.Equal(before, await MappingVersion(observer, id));
+    }
+
+    /// <summary>A physical tuple version detects UPDATEs even when PostgreSQL stores identical JSONB values.</summary>
+    private static Task<string> MappingVersion(ApplicationDbContext db, Guid id) => db.Database.SqlQuery<string>($"""
+        SELECT xmin::text AS "Value" FROM public."TripCompositions" WHERE "Id" = {id}
+        """).SingleAsync();
 
     private static async Task AssertBlocked(ApplicationDbContext observer, int pid)
     {
