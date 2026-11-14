@@ -24,7 +24,7 @@ const workspaceElement = ref<HTMLElement | null>(null);
 const options = ref<EditorOptions | null>(null);
 const candidates = ref<Candidate[]>([]); const candidateSearch = ref(''); const candidatePending = ref(false);
 const candidateResultSearch = ref('');
-const finishing = ref(false); const finished = ref(false); const lifecycleError = ref('');
+const finishing = ref(false); const finished = ref(false); const finishedTripId = ref(''); const lifecycleError = ref('');
 const storageError = ref(''); let candidateGeneration = 0; let disposed = false;
 const key = draftKey(window.location.origin, props.account, props.compositionId);
 const selectedDraft = computed(() => state.view.selection ? state.view.drafts[viewKey(state.view.selection)] ?? null : null);
@@ -136,7 +136,11 @@ async function finish(): Promise<void> {
   finishing.value = true; lifecycleError.value = '';
   try { const response = await api.finish(props.compositionId);
     if (!disposed && response.tripId === state.workspace.tripId && response.status === 'finished') {
-      finished.value = true; localStorage.removeItem(key);
+      finishedTripId.value = response.tripId; finished.value = true;
+      // Retire pending reads and release captured inputs/drafts after confirmed server cleanup.
+      store.dispose(); state.workspace = null; state.view.drafts = {}; state.view.block = null; state.view.selection = null;
+      try { localStorage.removeItem(key); storageError.value = ''; }
+      catch { storageError.value = 'Comparison finished on the server, but this browser could not clear its retained local choices.'; }
     }
   } catch (error) { lifecycleError.value = error instanceof Error ? error.message : 'Finish could not be confirmed. Refresh C.'; }
   finally { finishing.value = false; }
@@ -206,7 +210,8 @@ watch(() => state.view.collapsed, cancelResize);
   <section v-else-if="finished" class="composition-start" role="status">
     <h1>Comparison finished</h1>
     <p v-if="finished">C keeps its saved content, visibility and credits. This historical comparison cannot reopen.</p>
-    <a v-if="finished && state.workspace" :href="`/User/Trip/Edit/${state.workspace.tripId}`">Continue ordinary editing of C</a> · <a href="/User/Trip">My Trips</a>
+    <p v-if="storageError" role="status">{{ storageError }}</p>
+    <a :href="`/User/Trip/Edit/${finishedTripId}`">Continue ordinary editing of C</a> · <a href="/User/Trip">My Trips</a>
   </section>
   <section v-else ref="workspaceElement" class="composition-workspace" :class="{ 'drawer-collapsed': state.view.collapsed }" :style="{ '--composition-drawer': `${state.view.drawer}%` }" aria-label="Trip comparison workspace">
     <header class="composition-header">
