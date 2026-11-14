@@ -18,6 +18,7 @@ public sealed record TripCopyRequest(Guid SourceTripId, Guid DestinationTripId, 
 /// <summary>Computes originals from the authorized projection only; foreign planning/media never enters hashes.</summary>
 internal static class TripCopyOriginals
 {
+    /// <summary>Separates applicable source terms from object originals and optional reviewed Region-child content.</summary>
     internal static (string Context, TripCopyOriginal[] Objects) Capture(Trip source, bool own, object projection)
     {
         var root = JsonSerializer.SerializeToNode(projection, TripCompositionSnapshot.Json)!;
@@ -42,6 +43,7 @@ internal static class TripCopyOriginals
         }
     }
 
+    /// <summary>Compares only selected objects and approved route dependencies against the current authorized projection.</summary>
     internal static void Validate(TripCopyRequest request, string context, IReadOnlyList<TripCopyOriginal> current)
     {
         if (request.Context != context) throw Stale();
@@ -62,6 +64,7 @@ internal static class TripCopyOriginals
         }
     }
 
+    /// <summary>Enumerates the supported direct-child scope; deeper nesting is rejected before apply.</summary>
     internal static IEnumerable<TripCompositionItem> Flatten(IReadOnlyList<TripCompositionItem> items) =>
         items.SelectMany(i => new[] { i }.Concat(i.Children ?? []));
     private static string Hash(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value, TripCompositionSnapshot.Json)));

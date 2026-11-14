@@ -49,6 +49,7 @@ public partial class TripsController
     public Task<IActionResult> ReviewNative(IFormFile file, [FromServices] ITripImportService imports, CancellationToken token) =>
         NativeImportRequest(file, async (stream, owner, check) => new { status = "review", review = await imports.ReviewNativeForBearerAsync(stream, owner, check, token) }, token);
 
+    /// <summary>Adapts bounded multipart input to shared bearer authority and safe refusal/unconfirmed-outcome responses.</summary>
     private async Task<IActionResult> NativeImportRequest(IFormFile file,
         Func<Stream, string, Func<CancellationToken, Task<bool>>, Task<object>> action, CancellationToken token) =>
         await CompositionRequest(async (owner, check) =>

@@ -15,6 +15,7 @@ public partial class TripImportService
     public Task<NativeImportReview> ReviewNativeForBearerAsync(Stream file, string owner, Func<CancellationToken, Task<bool>> credential, CancellationToken token) =>
         ReviewNativeCoreAsync(file, owner, credential, token);
 
+    /// <summary>Shares byte-bound current-content review, with bearer authority checked after replacement waits.</summary>
     private async Task<NativeImportReview> ReviewNativeCoreAsync(Stream file, string owner, Func<CancellationToken, Task<bool>>? credential, CancellationToken cancellationToken)
     {
         var (classification, digest) = await ReadInputAsync(file, cancellationToken);

@@ -19,6 +19,7 @@ public partial class TripExportService
         Func<CancellationToken, Task<bool>> credential, CancellationToken token) =>
         GeneratePersonalNativeCoreAsync(tripId, owner, includePrivatePlanning, credential, token);
 
+    /// <summary>Buffers the complete owned snapshot while active-owner and optional incoming-credential barriers remain held.</summary>
     private async Task<PersonalNativeExport> GeneratePersonalNativeCoreAsync(Guid tripId, string owner, bool includePrivatePlanning,
         Func<CancellationToken, Task<bool>>? credential, CancellationToken cancellationToken)
     {

@@ -180,6 +180,12 @@ public sealed partial class TripCompositionPostgresTests
     {
         var owner = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
+        // Reuse an existing catalogue row; register only a fixture-created row for cleanup.
+        if (!await db.Tags.AnyAsync(t => t.Slug == "coastal" || t.Name == "coastal"))
+        {
+            var tag = new Tag { Id = Guid.NewGuid(), Name = "coastal", Slug = "coastal" };
+            fixture.RegisterTag(tag); db.Tags.Add(tag); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+        }
         await using var input = File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Trips", "cross-client-v5-personal.kml"));
         var imported = await new TripImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<TripImportService>.Instance)
             .ImportNativeForBearerAsync(input, owner.Id, TripImportMode.CreateNew, null, _ => Task.FromResult(true), default);
