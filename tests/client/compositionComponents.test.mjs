@@ -105,7 +105,7 @@ const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].j
 // Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
 const withWorkspace = async (action, lightweight = false) => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
-  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null;
+  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
   globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
   globalThis.HTMLElement = class {};
@@ -114,7 +114,7 @@ const withWorkspace = async (action, lightweight = false) => {
   globalThis.fetch = async (url, init) => {
     requests.push(url);
     if (url.includes('/sources?')) return Response.json([]);
-    if (url.includes('/copy-preview?')) return Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
+    if (url.includes('/copy-preview?')) return previewReply ? await previewReply() : Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
     if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
@@ -140,7 +140,7 @@ const withWorkspace = async (action, lightweight = false) => {
   try {
     await flush();
     await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
-      copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
+      previewWith: fn => { previewReply = fn; }, copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
     assert.deepEqual(errors, [], 'component exceptions must fail the regression');
@@ -294,4 +294,17 @@ test('changing the destination while copy waits keeps that newer context and nev
   assert.equal(sent[0].destinationTripId, 'C'); assert.equal(app.destinationId.value, 'Later destination');
   assert.equal(app.draft.value, retained); assert.equal(app.draft.value.items.length, 1);
   assert.match(app.state.value.status, /Earlier action saved.*Newer choices remain unsaved/);
+}, true));
+
+
+test('explicit same-pair refresh retains newer selection, expansion and local choices while its preview waits', () => withWorkspace(async ({ captured, previewWith, saved }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const wait = deferred(); previewWith(() => wait.promise);
+  const read = app.load(); settleConfirmDialog(true); await flush();
+  app.draft.value.items[0].customName = true; app.draft.value.items[0].name = 'Later name';
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); app.expanded.value = ['b/segments'];
+  wait.resolve(Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'refreshed', originals: [] }));
+  await read; await flush();
+  assert.equal(app.state.value.view.selection.id, 'BR'); assert.equal(app.draft.value.items.length, 2);
+  assert.equal(app.draft.value.items[0].name, 'Later name'); assert.deepEqual([...app.expanded.value], ['b/segments']);
 }, true));

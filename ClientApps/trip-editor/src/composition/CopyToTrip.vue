@@ -58,13 +58,15 @@ async function load(): Promise<void> {
     if (same && draft.value?.items.flatMap(c => [c, ...c.children]).some(c => !find(value.source, c.kind, c.sourceId)))
       throw new Error('A selected source object was removed. Keep the old review or remove that local choice before refreshing.');
     const retained = same ? copy(draft.value?.items ?? []) : [];
+    const selection = same ? copy(state.value.view.selection) : null;
     const next = createCompositionState(props.account, 'copy', 'destination Trip');
     const workspace: Workspace = { compositionId: 'copy', tripId: value.tripId, sourceA: value.source, sourceB: value.source, current: value.current, mappings: [] };
     if (!await next.read(async () => workspace)) throw new Error(next.state.error);
     store.dispose(); store = next; state.value = store.state; preview.value = value;
     const review = newReview(workspace, 'b'); review.items = retained; state.value.view.block = review; state.value.view.blockMode = true;
+    state.value.view.selection = selection;
     state.value.status = 'Preview ready. Choose objects, destinations, dependencies and selected fields.';
-    expanded.value = value.source.regionOrder.map(id => `b/${id}`);
+    if (!same) expanded.value = value.source.regionOrder.map(id => `b/${id}`);
     options.value = null;
     try { const editor = await api.editorState(value.tripId); if (!disposed && attempt === generation) options.value = editor.options; }
     catch { /* Existing source choices and review remain usable; ordinary editing can repair unavailable route options. */ }
