@@ -2,8 +2,11 @@ import type { Action, ActionItem, Choice, Content, Kind, OrderOriginal, ReviewDr
 
 /** Clones plain wire data, including Vue proxies, before an asynchronous boundary. */
 export const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-export const label = (item: Content): string => item.name ?? item.title ?? `${item.mode || 'Historical'} route`;
+export const label = (item: Content | undefined): string => item ? item.name ?? item.title ?? `${item.mode || 'Historical'} route` : 'Unavailable object';
 export const sourceSnapshot = (w: Workspace, side: Side): Snapshot => side === 'a' ? w.sourceA : w.sourceB;
+/** Historical missing/non-finite coordinates never become a synthetic marker or route vertex. */
+export const isCoordinate = (value: unknown): value is number[] => Array.isArray(value) && value.length === 2
+  && value.every(Number.isFinite) && Math.abs(value[0]) <= 180 && Math.abs(value[1]) <= 90;
 /** Identity/type is authoritative even for a normal Region named Segments. */
 export const contents = (snapshot: Snapshot, kind: Kind): Content[] => {
   switch (kind) {
@@ -62,6 +65,18 @@ export const fieldKeys = (kind: Kind, own: boolean): string[] => {
 
 /** Fresh review never renews retained consent; the UI asks explicitly before replacing a draft baseline. */
 export const newReview = (w: Workspace, side: Side): ReviewDraft => ({ side, items: [], baseline: copy(w.current), mappings: copy(w.mappings) });
+/** Explicit review renews comparison evidence only; authored operations, names, values and destinations stay intact. */
+export const reviewAgainstCurrent = (w: Workspace, draft: ReviewDraft): void => {
+  draft.baseline = copy(w.current); draft.mappings = copy(w.mappings);
+  const decisions = (items: Choice[]): void => {
+    for (const item of items) {
+      const matches = draft.mappings.filter(m => m.source === draft.side && m.kind === item.kind && m.sourceId === item.sourceId);
+      if (!matches.some(m => m.destinationId === item.mappingId)) item.mappingId = matches[0]?.destinationId ?? '';
+      decisions(item.children);
+    }
+  };
+  decisions(draft.items);
+};
 export const newChoice = (w: Workspace, side: Side, kind: Kind, id: string): Choice => {
   const s = sourceSnapshot(w, side); const item = find(s, kind, id);
   if (!item) throw new Error('The captured source object is unavailable.');
@@ -87,6 +102,7 @@ export const anchorIds = (item: Content): string[] => [...new Set([item.fromPlac
 export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
   const snapshot = sourceSnapshot(w, draft.side); const current = draft.baseline;
   const dependencyCopies = new Map<string, ActionItem>();
+  const explicitPlaces = new Map(draft.items.filter(c => c.kind === 'place' && c.decision === 'copy').map(c => [c.sourceId, c]));
   const build = (c: Choice, forcedParent?: string): ActionItem => {
     const item: ActionItem = { kind: c.kind, sourceId: c.sourceId, decision: c.decision };
     const previous = draft.mappings.find(m => m.source === draft.side && m.kind === c.kind && m.sourceId === c.sourceId && m.destinationId === c.mappingId);
@@ -149,9 +165,16 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
           return { sourceId: a.sourceId, destinationId: a.destinationId, regionId: parentId(current, 'place', a.destinationId) ?? null, location: place.location ?? null };
         }
         if (!a.approveCopy) throw new Error('Explicitly approve every missing From / To / Via Place.');
+        const explicit = explicitPlaces.get(a.sourceId);
+        if (explicit) {
+          if (explicit.regionId !== a.regionId) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
+          return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
+        }
         if (!dependencyCopies.has(a.sourceId)) {
           const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
-          dep.decision = 'copy'; dep.separate = true; dep.readd = true; dep.regionId = a.regionId;
+          dep.decision = 'copy'; dep.separate = true;
+          dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));
+          dep.regionId = a.regionId;
           dependencyCopies.set(a.sourceId, build(dep));
         } else if (dependencyCopies.get(a.sourceId)!.regionId !== (a.regionId || undefined)) throw new Error('Shared route dependencies require the same reviewed destination.');
         return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
@@ -159,15 +182,16 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
     }
     return item;
   };
-  const items = draft.items.map(c => build(c));
+  // Dependencies stage before Trip-level routes; relative order inside each destination list is unchanged.
+  const items = [...draft.items.filter(c => c.kind !== 'segment'), ...draft.items.filter(c => c.kind === 'segment')].map(c => build(c));
+  if (items.length > 1 && items.some(i => i.decision === 'remove')) throw new Error('Review removal as a separate action from a block.');
   return copy({ source: draft.side, items: [...dependencyCopies.values(), ...items] });
 };
 
 /** Real spatial vertices only: all polygon rings, saved routes and available anchors, with no synthetic placeholders. */
 export const spatialContent = (s: Snapshot, kind: Kind, id: string): number[][] => {
   const item = find(s, kind, id); if (!item) return [];
-  const pair = (p: number[] | null | undefined): number[][] => p?.length === 2 && p.every(Number.isFinite)
-    && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90 ? [p] : [];
+  const pair = (p: number[] | null | undefined): number[][] => isCoordinate(p) ? [p] : [];
   const geometry = (json: string | null | undefined, type: string): number[][] => {
     try { const g = JSON.parse(json ?? 'null'); if (g?.type !== type) return [];
       return (type === 'Polygon' ? g.coordinates.flat() : g.coordinates).flatMap(pair);

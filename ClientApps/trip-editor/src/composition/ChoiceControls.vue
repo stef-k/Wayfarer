@@ -27,6 +27,8 @@ function scope(event: Event): void {
 const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 'From' : '',
   ...[...captured.value.waypoints ?? []].sort((a, b) => a.position - b.position).filter(w => w.placeId === id).map(w => `Via ${w.position + 1}${w.routeVertexIndex == null ? '' : ` · route vertex ${w.routeVertexIndex}`}`),
   captured.value.toPlaceId === id ? 'To' : ''].filter(Boolean).join(' / ');
+const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => m.source === props.review.side && m.kind === 'place'
+  && m.sourceId === id && ['skip', 'destinationRemoved'].includes(m.decision));
 </script>
 
 <template>
@@ -38,7 +40,7 @@ const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 
       </select>
     </label>
     <label class="composition-field">Action for C
-      <select v-model="choice.decision">
+      <select v-model="choice.decision" aria-label="Action for C">
         <option v-if="choice.kind !== 'trip' && !canonical" value="copy">Copy / keep separate</option>
         <option value="reuse">Reuse current counterpart / Keep or adopt selected fields</option>
         <option v-if="choice.kind !== 'trip' && !canRemove" value="skip">Skip this source idea</option>
@@ -49,12 +51,13 @@ const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 
     <label v-if="previous.some(m => ['skip', 'destinationRemoved'].includes(m.decision))" class="composition-check"><input v-model="choice.readd" type="checkbox" /> Deliberately re-add this excluded idea</label>
     <template v-if="choice.decision === 'reuse' || choice.decision === 'remove'">
       <label class="composition-field">Current C counterpart
-        <select v-model="choice.destinationId" required>
+        <select v-model="choice.destinationId" aria-label="Current C counterpart" required>
           <option value="" disabled>Select a current counterpart</option>
           <option v-for="item in destinations" :key="item.id" :value="item.id">{{ destinationLabel(item, choice.kind) }}</option>
         </select>
       </label>
       <p>Reuse keeps this identity, its Region and its position. Matched fields default Keep.</p>
+      <p v-if="choice.destinationId && !find(current, choice.kind, choice.destinationId)" role="status">The selected counterpart is unavailable in these originals. Review current C, then choose a current counterpart. Your field choices remain retained.</p>
     </template>
     <template v-if="choice.decision === 'copy'">
       <label class="composition-check"><input v-model="choice.customName" type="checkbox" /> Use a custom name</label>
@@ -64,7 +67,7 @@ const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 
       <p v-if="contents(current, choice.kind).some(x => label(x) === (choice.customName ? choice.name : label(captured)))" class="composition-warning">A same-name item exists in C. Review reuse or explicitly approve a separate copy.</p>
       <template v-if="!child && (choice.kind === 'place' || choice.kind === 'area')">
         <label class="composition-field">Destination Region
-          <select v-model="choice.regionId" :disabled="Boolean(choice.newRegionName)" :required="choice.kind === 'area' && !choice.newRegionName">
+          <select v-model="choice.regionId" aria-label="Destination Region" :disabled="Boolean(choice.newRegionName)" :required="choice.kind === 'area' && !choice.newRegionName">
             <option value="">{{ choice.kind === 'place' ? 'Canonical Unassigned Places (default)' : 'Select a normal Region' }}</option>
             <option v-for="region in regions" :key="region.id" :value="region.id">{{ region.name }}</option>
           </select>
@@ -97,15 +100,16 @@ const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 
       <fieldset v-for="anchor in choice.anchors" :key="anchor.sourceId">
         <legend>{{ anchorRole(anchor.sourceId) }} · {{ label(find(source, 'place', anchor.sourceId)!) }}</legend>
         <p>Source coordinates: {{ find(source, 'place', anchor.sourceId)?.location?.slice().reverse().join(', ') ?? 'Unlocated' }}</p>
-        <label class="composition-field">Approved current C Place<select v-model="anchor.destinationId">
+        <label class="composition-field">Approved current C Place<select v-model="anchor.destinationId" aria-label="Approved current C Place">
           <option value="">Copy a separate source-coordinate Place</option><option v-for="place in contents(current, 'place')" :key="place.id" :value="place.id">{{ destinationLabel(place, 'place') }} · {{ place.location?.slice().reverse().join(', ') ?? 'Unlocated' }}</option>
         </select></label>
         <template v-if="!anchor.destinationId">
           <label class="composition-field">Missing Place destination Region<select v-model="anchor.regionId"><option value="">Canonical Unassigned Places</option><option v-for="r in ordered(current, 'region')" :key="r.id" :value="r.id">{{ r.name }}</option></select></label>
-          <label class="composition-check"><input v-model="anchor.approveCopy" type="checkbox" /> Approve a separate Place with the captured location, appended here</label>
+          <label class="composition-check"><input v-model="anchor.approveCopy" type="checkbox" /> Approve a separate Place with the captured location, appended here{{ excludedAnchor(anchor.sourceId) ? ' · deliberately re-add this excluded dependency' : '' }}</label>
         </template>
       </fieldset>
       <p>Close semantic matches can still be incompatible route anchors. No Places move, no captured geometry clears, and no route regenerates without ordinary review.</p>
+      <p>Shared approved dependencies and a Place copied elsewhere in this block use one new C Place when their reviewed destinations agree.</p>
     </fieldset>
   </fieldset>
 </template>

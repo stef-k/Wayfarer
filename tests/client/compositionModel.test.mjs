@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { newChoice, buildAction, newReview, fieldValue, ordered, spatialContent } from '../../ClientApps/trip-editor/src/composition/compositionModel.ts';
+import { newChoice, buildAction, newReview, reviewAgainstCurrent, fieldValue, ordered, spatialContent } from '../../ClientApps/trip-editor/src/composition/compositionModel.ts';
 
 const snapshot = () => ({ graph: { id: 'trip', name: 'C', regions: [
   { id: 'region', name: 'Taipei', displayOrder: 2, places: [{ id: 'cafe', name: 'Café', displayOrder: null, location: [121, 25] }], areas: [] }
@@ -36,6 +36,38 @@ test('new B copies do not copy planning; foreign planning controls do not exist 
   assert.throws(() => buildAction(w, review), /unavailable/i);
 });
 
+test('similarly named Places about 950 metres apart remain unconfirmed without an accepted mapping', () => {
+  const w = workspace(); w.current.graph.regions[0].places[0].name = 'Taipei 101';
+  w.sourceB.graph.regions[0].places[0].name = 'Taipei 101';
+  w.sourceB.graph.regions[0].places[0].location = [121.0094, 25];
+  const choice = newChoice(w, 'b', 'place', 'beach');
+  assert.equal(choice.decision, 'copy'); assert.equal(choice.destinationId, ''); assert.equal(choice.separate, false);
+});
+
+test('explicit refresh reviews a newer decision while preserving fields, deliberate copy intent and placement', () => {
+  const w = workspace(); const review = newReview(w, 'b'); const choice = newChoice(w, 'b', 'place', 'beach');
+  choice.regionId = 'region'; choice.position = 'after'; choice.afterId = 'cafe'; choice.separate = true;
+  choice.fields.notes = { operation: 'edit', value: '<p>Retained typing</p>' }; review.items = [choice];
+  w.mappings = [{ source: 'b', kind: 'place', sourceId: 'beach', destinationId: 'cafe', decision: 'reuse' }];
+  reviewAgainstCurrent(w, review);
+  const item = buildAction(w, review).items[0];
+  assert.equal(item.decision, 'copy'); assert.equal(item.placement.afterId, 'cafe');
+  assert.deepEqual(item.expectedDecision, { destinationId: 'cafe', decision: 'reuse' });
+  assert.equal(item.fields.notes.value, '<p>Retained typing</p>');
+});
+
+test('a block stages a shared explicitly copied Place before routes without copying that dependency twice', () => {
+  const w = workspace(); w.sourceB.graph.segments = [{ id: 'route', title: 'Route', fromPlaceId: 'beach', toPlaceId: null, waypoints: [] }];
+  const place = newChoice(w, 'b', 'place', 'beach'); place.regionId = 'region';
+  const route = newChoice(w, 'b', 'segment', 'route'); route.anchors[0].approveCopy = true; route.anchors[0].regionId = 'region';
+  const review = newReview(w, 'b'); review.items = [route, place];
+  const action = buildAction(w, review);
+  assert.deepEqual(action.items.map(i => i.kind), ['place', 'segment']);
+  assert.deepEqual(action.items[1].anchors, [{ sourceId: 'beach', destinationId: null, regionId: null, location: null }]);
+  route.anchors[0].regionId = '';
+  assert.throws(() => buildAction(w, review), /same reviewed destination/);
+});
+
 test('Region hierarchy and Trip-level Segment placement are distinct; Areas never use canonical Unassigned', () => {
   const w = workspace(); w.current.graph.regions.push({ id: 'canonical', name: 'Unassigned Places', places: [], areas: [] });
   w.current.regionOrder.push('canonical'); w.sourceB.graph.regions[0].areas = [{ id: 'park', name: 'Park', geometryGeoJson: '{"type":"Polygon","coordinates":[]}' }];
@@ -54,5 +86,7 @@ test('map extent includes complete polygon holes, route geometry/anchors, Region
   assert.equal(spatialContent(s, 'area', 'polygon').length, 8);
   assert.equal(spatialContent(s, 'region', 'region').length, 10);
   assert.deepEqual(spatialContent(s, 'place', 'missing'), []);
+  s.graph.regions[0].places[0].location = [Infinity, 25];
+  assert.deepEqual(spatialContent(s, 'place', 'cafe'), []);
   assert.equal(fieldValue(s, 'place', 'cafe', 'notes'), null);
 });

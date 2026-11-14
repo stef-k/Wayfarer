@@ -3,8 +3,8 @@
 Contract: [#911](https://github.com/stef-k/Wayfarer/issues/911), decoded UTF-8 body
 SHA-256 `3393c7f4ba24b2617b4e0a9328ea61c86ce725b2ecfef189c316331c7aecaeb2`.
 Backend construction and selective-apply reference. Product decisions and acceptance
-remain in the tracker. Layout B/My Trips, existing-Trip copy and mobile implementation
-are separate delivery scopes.
+remain in the tracker. Web Layout B/My Trips consumes the same domain owners below.
+Lightweight existing-Trip copy and mobile implementation remain separate scopes.
 
 ## Routes and authority
 
@@ -23,6 +23,13 @@ command; list/read/candidate GETs remain outside the unsafe-action inventory.
 | Finish | `POST /api/trip-compositions/{id}/finish` | `POST /api/trips/compositions/{id}/finish` |
 | Suggestions/search | `GET /api/trip-compositions/{id}/candidates` | `GET /api/trips/compositions/{id}/candidates` |
 | Selected action | `POST /api/trip-compositions/{id}/actions` | `POST /api/trips/compositions/{id}/actions` |
+
+Web discovery adds `GET /api/trip-compositions/sources` with a name search and
+`ownedOnly` filter. Its bounded 20-row projection contains only ID, name, owned
+flag and contribution policy, after active-owner/eligibility checks. No planning,
+diagnostics, account objects or graph content is returned. Construction remains
+the acquisition authority. `/User/Trip/Compose/{id}` is a private shell; it has no
+private source bootstrap data and every API read/action reauthorizes the workspace.
 
 Version and Start accept `sourceA`, optional `name` (1–200 characters), optional
 `changeNote` (at most 2000 characters), and `keepOwnBasePlanning` (default true).
@@ -282,9 +289,58 @@ The focused shared-copy relational regression reloads raw values through fresh E
 contexts for null, empty and sanitized nonempty Notes in both callers, retaining
 source immutability, identity/Via remapping, geometry, measurements and provenance.
 
-No browser campaign is needed for these backend routes; no Layout B journey is
-claimed. Mobile must adopt the documented bearer requests and complete graph,
+Backend tests alone do not qualify the rendered Layout B journey. Mobile must
+adopt the documented bearer requests and complete graph,
 sequence, precision, private planning and credit representations with account-scoped
 storage and honest uncertain-save handling. Mobile UI/native qualification remains
 separately owned. Independent technical acceptance and final combined backend/Web
 reconciliation are recorded in #911; backend checks do not establish a full UI journey.
+
+## Web ownership and ordinary editor integration
+
+The existing Vue entry selects the ordinary editor or Layout B. Both share theme,
+Leaflet/tile behavior, confirmation dialogs, rich Notes and ordinary domain editing.
+The comparison drawer occupies its own layout box; map fitting uses the actual
+positive map dimensions, with bounded padding. Complete polygon rings and route
+anchors are retained. Keyboard/pointer drawer resizing shares the editor's viewport
+budget and cancels on Escape; the compact layout shows one drawer section at a time.
+
+`compositionModel` freezes the named selected field, decision, parent and list
+originals from a reviewed baseline. `compositionState` owns the mounted comparison,
+immutable submitted attempt and newer local choices. It rejects wrong-context replies
+and read generations; a delayed acknowledgement updates saved C without resetting
+newer input or closing another inspector. Stale/refused/unconfirmed actions retain
+choices for explicit refresh/review, never replay. No outcome ledger or global
+revision is introduced.
+
+Only the local view/drafts are retained under an origin/account/comparison key.
+The retained baseline is owned C, not A/B snapshots; consent tokens and HTTP outcomes
+are excluded. The server owns durable snapshots, decisions and C. Foreign planning
+does not enter fields, labels, diagnostics, storage, candidate evidence or requests.
+RichNotes adoption advances only for an explicit owner replacement, never a local
+echo or an older save reply.
+
+Each apply rereads authoritative C while retaining the submitted originals until
+the user explicitly reviews a new baseline. Place/Region removal obtains existing
+deletion previews, coordinate adoption obtains the coordinate-purpose proof, and
+route adoption obtains current editor `originalRouteToken` plus complete selected
+route facts and anchor approvals. Source adoption requiring custom-route clearing
+is refused by the domain. Ordinary route editing owns original/clear-consequence
+tokens, repair and measurements; it is linked with a validated same-owner/same-C
+comparison return URL. Polygon and full planning editing also use ordinary controls.
+There is no alternate rich editor, route adaptation or historical-format adapter.
+
+The coordinate-only cookie preview is the small integration addition: it checks
+owned Trip/Region/Place scope before parsing, requires antiforgery, is private/no-store,
+and calls `PlaceRegionLifecycleService.PreparePlaceStructureAsync` with operation
+`coordinates` and the existing purpose-separated proof. It cannot grant a Web-update,
+move or different coordinate effect. The unsafe-action inventory explicitly classifies
+this read-only POST as a cookie/antiforgery contract. New routed tests exercise
+discovery privacy/eligibility and exact preview-to-composition-apply intent.
+
+My Trips reads unfinished work independently of ordinary list pagination. Existing
+source pairs are checked again before deliberate Start New. Finish confirms permanent
+comparison cleanup; normal native form submission owns Delete C's redirects/alerts.
+The editor shell validates a supplied composition against the caller, destination
+and active workspace before emitting its return link. Public readers, contribution
+policy, credits and freshness remain with their existing owners.

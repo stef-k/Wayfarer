@@ -9,8 +9,8 @@ import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { confirm, disposeConfirmDialogHost } from '../composables/useConfirmDialog';
 import { compositionApi, editorUrl } from './compositionApi';
 import { createCompositionState, draftKey, viewKey } from './compositionState';
-import { buildAction, copy, find, label, newChoice, newReview, sourceSnapshot } from './compositionModel';
-import type { Candidate, ReviewDraft, Selection } from './compositionTypes';
+import { buildAction, copy, find, label, newChoice, newReview, reviewAgainstCurrent, sourceSnapshot } from './compositionModel';
+import type { Candidate, Selection } from './compositionTypes';
 import type { EditorOptions } from '../types';
 import './composition.css';
 
@@ -23,6 +23,7 @@ const mapStatus = ref(''); const map = ref<InstanceType<typeof CompositionMap> |
 const workspaceElement = ref<HTMLElement | null>(null);
 const options = ref<EditorOptions | null>(null);
 const candidates = ref<Candidate[]>([]); const candidateSearch = ref(''); const candidatePending = ref(false);
+const candidateResultSearch = ref('');
 const finishing = ref(false); const finished = ref(false); const lifecycleError = ref('');
 const storageError = ref(''); let candidateGeneration = 0; let disposed = false;
 const key = draftKey(window.location.origin, props.account, props.compositionId);
@@ -49,6 +50,7 @@ async function refresh(): Promise<boolean> {
 async function select(selection: Selection): Promise<void> {
   if (!state.workspace || finished.value) return;
   state.view.selection = selection; state.view.blockMode = false; state.view.tab = 'inspector';
+  ++candidateGeneration; candidatePending.value = false;
   state.view.collapsed = false; candidateSearch.value = ''; candidates.value = [];
   const selected = viewKey(selection);
   if (!state.view.drafts[selected]) {
@@ -63,9 +65,12 @@ async function select(selection: Selection): Promise<void> {
 async function searchCandidates(): Promise<void> {
   const selection = state.view.selection; if (!selection || selection.kind === 'trip') return;
   const selected = viewKey(selection); const generation = ++candidateGeneration; candidatePending.value = true;
+  const submittedSearch = candidateSearch.value;
   try {
-    const result = await api.request<{ candidates: Candidate[] }>(`/api/trip-compositions/${props.compositionId}/candidates?${new URLSearchParams({ source: selection.side, kind: selection.kind, sourceId: selection.id, search: candidateSearch.value })}`);
-    if (!disposed && generation === candidateGeneration && state.view.selection && viewKey(state.view.selection) === selected) candidates.value = result.candidates;
+    const result = await api.request<{ candidates: Candidate[] }>(`/api/trip-compositions/${props.compositionId}/candidates?${new URLSearchParams({ source: selection.side, kind: selection.kind, sourceId: selection.id, search: submittedSearch })}`);
+    if (!disposed && generation === candidateGeneration && state.view.selection && viewKey(state.view.selection) === selected) {
+      candidates.value = result.candidates; candidateResultSearch.value = submittedSearch;
+    }
   } catch (error) { if (!disposed && generation === candidateGeneration) state.error = error instanceof Error ? error.message : 'Candidate search unavailable.'; }
   finally { if (!disposed && generation === candidateGeneration) candidatePending.value = false; }
 }
@@ -75,19 +80,22 @@ async function reviewCurrent(): Promise<void> {
   if (!retained || state.pending) return;
   if (!await refresh() || !state.workspace) return;
   if (!await confirm({ title: 'Review current C?', message: 'Keep your choices and use current C as the new comparison. Inspect the updated differences and placement before applying; this does not save the choices.', confirmLabel: 'Review current originals', cancelLabel: 'Keep prior originals' })) return;
-  retained.baseline = copy(state.workspace.current); retained.mappings = copy(state.workspace.mappings);
+  reviewAgainstCurrent(state.workspace, retained);
   state.status = 'Current originals loaded. Review the retained choices before applying.';
 }
 /** Refreshes C, freezes the submitted review, prepares ordinary consent, then commits exactly one domain action. */
 async function apply(): Promise<void> {
   const retained = draft.value; if (!retained || !state.workspace || state.pending || finishing.value) return;
-  if (!await refresh() || !state.workspace) return;
   let action;
-  try { action = buildAction(state.workspace, retained); }
+  try { action = buildAction(state.workspace, copy(retained)); }
   catch (error) { state.error = error instanceof Error ? error.message : 'Review your selected fields and destination.'; return; }
   await store.submit(retained, action, async frozen => {
-    if (!await api.prepare(state.workspace!, frozen, message => confirm({ title: 'Review consequences in C', message, confirmLabel: 'Apply reviewed action', cancelLabel: 'Keep choices', variant: 'warning' })))
+    const current = await api.read(props.compositionId);
+    if (disposed || current.compositionId !== props.compositionId || current.tripId !== state.workspace!.tripId) throw new Error('Comparison context changed. Inspect saved C.');
+    state.workspace = current;
+    if (!await api.prepare(current, frozen, message => confirm({ title: 'Review consequences in C', message, confirmLabel: 'Apply reviewed action', cancelLabel: 'Keep choices', variant: 'warning' })))
       throw new Error('Action not applied. Choices retained for review.');
+    if (disposed) throw new Error('Comparison context changed.');
     return await api.apply(props.compositionId, frozen);
   }, () => {
     if (state.view.blockMode) { state.view.block = null; state.view.blockMode = false; }
@@ -111,6 +119,7 @@ function addToBlock(): void {
 function syncBlock(): void {
   const items = state.view.block?.items; if (!items?.length) return;
   const first = items[0];
+  if (first.newRegionName) { state.error = 'A block shares an existing destination Region. To create one Region with several direct children atomically, use the Region-with-children scope.'; return; }
   for (const item of items.slice(1).filter(c => c.kind === first.kind && c.decision === 'copy')) {
     item.regionId = first.regionId; item.newRegionName = first.newRegionName; item.position = first.position; item.afterId = first.afterId;
   }
@@ -169,6 +178,7 @@ function moveResize(event: PointerEvent): void {
 function stopResize(): void { if (drag?.element.hasPointerCapture(drag.id)) drag.element.releasePointerCapture(drag.id); drag = null; }
 function cancelResize(): void { if (drag) state.view.drawer = drag.before; stopResize(); }
 onMounted(async () => {
+  window.addEventListener('blur', cancelResize); window.addEventListener('resize', cancelResize);
   if (!props.compositionId) return;
   try { store.restore(localStorage.getItem(key)); } catch { storageError.value = 'Local view storage is unavailable; saved C still resumes from My Trips.'; }
   await refresh();
@@ -179,7 +189,11 @@ watch(() => state.view, () => {
   if (!props.compositionId || finished.value) return;
   try { localStorage.setItem(key, store.retain()); } catch { storageError.value = 'Local choices could not be retained. Keep this page open; server-saved actions are unaffected.'; }
 }, { deep: true });
-onUnmounted(() => { disposed = true; ++candidateGeneration; store.dispose(); stopResize(); disposeConfirmDialogHost(); });
+onUnmounted(() => {
+  disposed = true; ++candidateGeneration; store.dispose(); stopResize(); disposeConfirmDialogHost();
+  window.removeEventListener('blur', cancelResize); window.removeEventListener('resize', cancelResize);
+});
+watch(() => state.view.collapsed, cancelResize);
 </script>
 
 <template>
@@ -216,7 +230,7 @@ onUnmounted(() => { disposed = true; ++candidateGeneration; store.dispose(); sto
       </div>
       <div v-show="!state.view.collapsed" id="comparison-drawer" class="composition-drawer">
         <nav class="composition-tabs" aria-label="Comparison drawer sections"><button v-for="tab in ['a', 'b', 'inspector']" :key="tab" type="button" :aria-pressed="state.view.tab === tab" @click="state.view.tab = tab">{{ tab === 'inspector' ? 'Inspector' : `Source ${tab.toUpperCase()}` }}</button></nav>
-        <SourceTree v-for="side in (['a', 'b'] as const)" v-show="state.view.tab === side" :key="side" :class="`composition-tree-${side}`" :snapshot="sourceSnapshot(state.workspace, side)" :side="side" :selection="state.view.selection" :mappings="state.workspace.mappings" :expanded="state.view.expanded" @select="select" @expand="expand" />
+        <SourceTree v-for="side in (['a', 'b'] as const)" v-show="state.view.tab === side" :key="side" :class="`composition-tree-${side}`" :snapshot="sourceSnapshot(state.workspace, side)" :side="side" :selection="state.view.selection" :mappings="state.workspace.mappings" :expanded="state.view.expanded" :counterpart="state.view.selection && counterpart ? { kind: state.view.selection.kind, id: counterpart } : null" @select="select" @expand="expand" />
         <section v-show="state.view.tab === 'inspector'" class="composition-inspector" aria-label="Contextual comparison inspector">
           <h2>{{ state.view.blockMode ? 'Reviewed item block' : selectionTitle }}</h2>
           <p v-if="source?.mediaOmitted" role="status">Some source media was omitted by its permissions/storage policy. Reselect eligible images explicitly in C’s ordinary editor; copying does not grant media permission.</p>
@@ -224,6 +238,7 @@ onUnmounted(() => { disposed = true; ++candidateGeneration; store.dispose(); sto
             <form @submit.prevent="searchCandidates"><label class="composition-field">Manual counterpart search<input v-model="candidateSearch" type="search" maxlength="200" /></label><button :disabled="candidatePending">{{ candidatePending ? 'Searching…' : 'Find possible counterparts' }}</button></form>
             <details><summary>Possible match—review needed · {{ candidates.length }} suggestions</summary>
               <p>Evidence helps review; it does not prove identity. Nearby Places and overlapping Areas may be distinct.</p>
+              <p>Results for {{ candidateResultSearch ? `“${candidateResultSearch}”` : 'the unfiltered source selection' }}.</p>
               <div v-for="candidate in candidates" :key="candidate.destinationId" class="composition-candidate">
                 <strong>{{ candidate.name }}</strong> · Possible match—review needed
                 <p>{{ candidate.sameName ? 'Same name' : 'Different name' }}<span v-if="candidate.distanceKm !== null"> · {{ Math.round(candidate.distanceKm * 1000) }} metres apart</span><span v-if="candidate.geometry"> · Geometry: {{ candidate.geometry }}</span><span v-if="candidate.mappedChildren"> · {{ candidate.mappedChildren }} confirmed child counterparts</span><span v-if="state.view.selection?.kind === 'segment'"> · {{ candidate.mappedAnchors ? 'Confirmed mapped anchors' : 'Different or unconfirmed anchors' }} · Mode {{ candidate.sameMode ? 'same' : 'different' }} · Profile {{ candidate.sameProfile ? 'same' : 'different' }}</span></p>
@@ -232,14 +247,19 @@ onUnmounted(() => { disposed = true; ++candidateGeneration; store.dispose(); sto
             </details>
           </template>
           <div v-if="draft" :aria-busy="state.pending">
+            <p>These review choices are local until Apply. All earlier successful actions are already saved in C.</p>
             <template v-for="(item, index) in draft.items" :key="`${item.kind}/${item.sourceId}`">
+              <p v-if="state.view.blockMode"><strong>Block item {{ index + 1 }}</strong>
+                <button type="button" :disabled="index === 0" @click="[draft.items[index - 1], draft.items[index]] = [draft.items[index], draft.items[index - 1]]">Move up in block</button>
+                <button type="button" :disabled="index === draft.items.length - 1" @click="[draft.items[index], draft.items[index + 1]] = [draft.items[index + 1], draft.items[index]]">Move down in block</button>
+              </p>
               <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" />
-              <FieldChoices v-if="['copy', 'reuse'].includes(item.decision) && (item.decision === 'copy' || item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" />
+              <FieldChoices v-if="item.decision === 'copy' || item.decision === 'reuse' && find(draft.baseline, item.kind, item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" />
               <button v-if="state.view.blockMode" type="button" @click="draft.items.splice(index, 1)">Remove from local block</button>
             </template>
             <button v-if="state.view.blockMode && draft.items.length > 1" type="button" @click="syncBlock">Use first item’s destination / position for same-type copies</button>
             <p v-if="state.view.blockMode">New siblings in each destination list enter one contiguous block in the displayed order. Reused identities stay at their current positions.</p>
-            <div class="composition-actions"><button type="button" :disabled="state.pending || finishing || !draft.items.length" @click="apply">{{ state.pending ? 'Saving submitted action…' : 'Apply reviewed action to C' }}</button>
+            <div class="composition-actions"><button type="button" :disabled="state.pending || state.needsInspection || finishing || !draft.items.length" @click="apply">{{ state.pending ? 'Saving submitted action…' : 'Apply reviewed action to C' }}</button>
               <button type="button" :disabled="state.pending" @click="reviewCurrent">Review current C / refresh originals</button>
               <button v-if="!state.view.blockMode" type="button" @click="addToBlock">Add this reviewed item to block</button>
             </div>

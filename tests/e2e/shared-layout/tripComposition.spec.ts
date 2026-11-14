@@ -42,13 +42,19 @@ test('Batch 4 Layout B start copy edit return resume and Finish', async ({ page 
       [[23.8, 38], [23.8, 38.03], [23.84, 38.03], [23.84, 38], [23.8, 38]]]
   } });
   await page.goto('/User/Trip/Compose');
+  await page.getByLabel('Find eligible B', { exact: true }).fill('Coastal ideas B');
+  await page.getByRole('button', { name: 'Search sources / refresh unfinished work', exact: true }).click();
+  await expect(page.getByLabel('Source B', { exact: true }).locator(`option[value="${b}"]`)).toHaveCount(1);
   await page.getByLabel('Source A', { exact: true }).selectOption(a);
   await page.getByLabel('Source B', { exact: true }).selectOption(b);
   await page.getByLabel('New Trip name (optional)').fill('Coastal comparison C');
   const creation = page.waitForResponse(r => r.url().endsWith('/api/trip-compositions') && r.request().method() === 'POST');
   await page.getByRole('button', { name: 'Start New composition', exact: true }).click();
-  const created = await (await creation).json(); const c = created.tripId; const composition = created.compositionId;
-  await expect(page).toHaveURL(new RegExp(`/User/Trip/Compose/${composition}`));
+  expect((await creation).ok()).toBeTruthy();
+  await expect(page).toHaveURL(/\/User\/Trip\/Compose\/[0-9a-f-]+$/);
+  // Navigation owns the creation response; reread the saved workspace rather than asking CDP for a discarded body.
+  const composition = new URL(page.url()).pathname.split('/').at(-1)!;
+  const created = await (await page.request.get(`/api/trip-compositions/${composition}`)).json(); const c = created.tripId;
   const inspector = page.getByRole('region', { name: 'Contextual comparison inspector' });
   const bTree = page.getByRole('region', { name: 'Source B hierarchy' });
   await bTree.getByText('Browser region', { exact: true }).click();

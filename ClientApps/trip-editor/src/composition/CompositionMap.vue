@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import L from 'leaflet';
 import { createTripEditorTileLayer } from '../map/tileRetryLayer';
-import { anchorIds, contents, find, label, spatialContent } from './compositionModel';
+import { anchorIds, contents, find, isCoordinate, label, spatialContent } from './compositionModel';
 import type { Content, Kind, Selection, Snapshot, Workspace } from './compositionTypes';
 
 const props = defineProps<{ workspace: Workspace; selection: Selection | null; counterpart: string; visible: Record<string, boolean> }>();
@@ -27,7 +27,11 @@ function focus(): void {
   if (size.x < 48 || size.y < 48) return;
   // Clamp both axes to leave a positive fitting area, even under a narrow viewport or a tall drawer.
   const pad = Math.min(32, Math.floor(Math.min(size.x, size.y) / 8));
-  map.fitBounds(L.latLngBounds(points.map(p => L.latLng(p[1], p[0]))), { padding: [pad, pad], maxZoom: 16, animate: false });
+  const controls = host.value?.parentElement?.querySelector('.composition-layers')?.getBoundingClientRect();
+  const right = Math.min(size.x * .45, Math.max(pad, (controls?.width ?? 0) + 20));
+  // Reserve the actual layer controls, native zoom buttons and bottom status without exhausting either axis.
+  map.fitBounds(L.latLngBounds(points.map(p => L.latLng(p[1], p[0]))), {
+    paddingTopLeft: [Math.min(48, size.x * .15), pad], paddingBottomRight: [right, Math.min(56, size.y / 4)], maxZoom: 16, animate: false });
   emit('status', 'Map fitted to the selection’s complete available geography.');
 }
 
@@ -39,14 +43,16 @@ function render(): void {
     if (!props.visible[side]) continue;
     const layer = L.layerGroup().addTo(map); layers.push(layer);
     const selected = (kind: Kind, id: string): boolean => side === 'c' ? props.selection?.kind === kind && props.counterpart === id
-      : props.selection?.side === side && props.selection.kind === kind && props.selection.id === id;
+      : props.selection?.side === side && props.selection.kind === kind && props.selection.id === id
+        || props.selection?.kind === kind && props.workspace.mappings.some(m => m.source === side && m.kind === kind && m.sourceId === id
+          && m.destinationId === props.counterpart && !['skip', 'destinationRemoved'].includes(m.decision));
     const attach = (path: L.Path, kind: Kind, item: Content): void => {
       path.addTo(layer).bindTooltip(`${side.toUpperCase()} · ${kind} · ${label(item)}`);
       if (side !== 'c') path.on('click', () => emit('select', { side: side as 'a' | 'b', kind, id: item.id }));
     };
     for (const kind of ['region', 'place'] as Kind[]) for (const item of contents(snapshot, kind)) {
       const coordinate = kind === 'region' ? item.center : item.location;
-      if (!coordinate || !spatialContent(snapshot, kind, item.id).length) continue;
+      if (!isCoordinate(coordinate)) continue;
       attach(L.circleMarker([coordinate[1], coordinate[0]], { radius: selected(kind, item.id) ? 11 : kind === 'region' ? 8 : 5,
         color: colors[side as keyof typeof colors], weight: selected(kind, item.id) ? 4 : 2, fillOpacity: kind === 'region' ? .08 : .6,
         ...(kind === 'region' ? { dashArray: '3 3' } : {}) }), kind, item);
@@ -69,12 +75,12 @@ function render(): void {
         const points = chain.map(id => find(snapshot, 'place', id)?.location);
         if (points.every((p): p is number[] => Boolean(p))) coordinates = points;
       }
-      if (coordinates.length >= 2) attach(L.polyline(coordinates.map(p => [p[1], p[0]]), {
+      if (coordinates.length >= 2 && coordinates.every(isCoordinate)) attach(L.polyline(coordinates.map(p => [p[1], p[0]]), {
         color: colors[side as keyof typeof colors], weight: selected('segment', item.id) ? 7 : 3,
         dashArray: item.hasCustomRoute ? undefined : '6 5' }), 'segment', item);
       if (selected('segment', item.id)) for (const id of anchorIds(item)) {
         const p = find(snapshot, 'place', id)?.location;
-        if (p) L.circleMarker([p[1], p[0]], { color: colors[side as keyof typeof colors], radius: 9, fillOpacity: .1 }).addTo(layer);
+        if (isCoordinate(p)) L.circleMarker([p[1], p[0]], { color: colors[side as keyof typeof colors], radius: 9, fillOpacity: .1 }).addTo(layer);
       }
     }
   }

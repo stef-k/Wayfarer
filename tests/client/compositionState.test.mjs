@@ -7,7 +7,8 @@ const bundle = await build({ stdin: { contents: `export * from './compositionSta
   resolveDir: 'ClientApps/trip-editor/src/composition', loader: 'ts' }, bundle: true, write: false, platform: 'node', format: 'esm', external: ['vue'] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const { createCompositionState, draftKey, compositionApi, editorUrl } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
-const workspace = () => ({ compositionId: 'workspace', tripId: 'C', sourceA: {}, sourceB: {}, current: { graph: { id: 'C', name: 'C' } }, mappings: [] });
+const snapshot = id => ({ graph: { id, name: id, regions: [], segments: [], credits: [] }, regionOrder: [], placeOrder: {}, areaOrder: {} });
+const workspace = () => ({ compositionId: 'workspace', tripId: 'C', sourceA: snapshot('A'), sourceB: snapshot('B'), current: snapshot('C'), mappings: [] });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const setup = async () => {
   const store = createCompositionState('account', 'workspace'); await store.read(async () => workspace());
@@ -68,6 +69,13 @@ test('ordinary edit/return restores drafts, selection, expansion and drawer only
   assert.notEqual(draftKey('server', 'A', 'workspace'), draftKey('another', 'A', 'workspace'));
   assert.equal(value.includes('sourceA'), false); assert.equal(value.includes('conditionToken'), false);
   assert.equal(editorUrl('C', 'workspace'), '/User/Trip/Edit/C?composition=workspace');
+});
+
+test('a malformed success body keeps the saved graph and draft usable without claiming Saved', async () => {
+  const { store, draft } = await setup();
+  await store.submit(draft, { source: 'b', items: [] }, async () => ({ ...workspace(), current: null }), () => assert.fail('incomplete acknowledgement'));
+  assert.equal(store.state.workspace.current.graph.id, 'C'); assert.equal(draft.items[0].name, 'Initial');
+  assert.equal(store.state.needsInspection, true); assert.match(store.state.error, /incomplete/);
 });
 
 test('HTTP construction uses cookies/CSRF, never replays failures, and preserves uncertain-save wording', async () => {

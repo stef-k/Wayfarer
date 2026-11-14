@@ -1965,8 +1965,23 @@ private/no-store; ordinary public Trip reads do not expose comparison state.
 
 Start is an explicit new creation, not a retry-safe operation. Resume is a GET of
 an existing composition. Finish keeps C and removes comparison payloads. Normal C
-deletion removes its workspace. These backend foundations do not deliver Layout B
-or mobile composition UI; those remain later batches.
+deletion removes its workspace. The Web Layout B/My Trips interface consumes these
+same routes; lightweight existing-Trip copy and mobile delivery remain separate.
+
+Web source discovery uses `GET /api/trip-compositions/sources?search=…&ownedOnly=true`
+for A, or `ownedOnly=false` for eligible B. It returns at most 20 `{id,name,owned,
+contributionPolicy}` rows, with active owner/current reuse eligibility and no
+planning, private owner details or graph data. Start revalidates acquisition.
+
+Cookie coordinate consent for selected composition fields uses
+`POST /api/trips/{tripId}/editor/places/{placeId}/coordinates/prepare` with
+`{expected:{regionId,location:{latitude,longitude}},location:{latitude,longitude}}`.
+Nullable original location is supported for historical Places; the proposed pair
+is required. This read-only POST requires User/cookie authorization and antiforgery,
+conceals foreign targets, and issues the existing `coordinates` condition proof.
+Use that proof only for the exact composition `location` effect. Combined Web-update
+previews are a distinct purpose and cannot authorize it. The existing bearer
+coordinate preparation contract is unchanged.
 
 Cookie `/api/trip-compositions/{id}` and bearer `/api/trips/compositions/{id}` also
 provide `GET /candidates` for at most 20 suggestions/manual search (evidence is

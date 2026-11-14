@@ -23,16 +23,16 @@ if (compositionElement) {
   throw new Error('Trip Editor mount element was not found.');
 } else {
 
-const tokenInput = document.querySelector<HTMLInputElement>('#trip-editor-antiforgery input[name="__RequestVerificationToken"]');
-const config: BootstrapConfig = {
-  tripId: mountElement.dataset.tripId ?? '',
-  tripName: mountElement.dataset.tripName ?? '',
-  editorEndpoint: mountElement.dataset.editorEndpoint ?? '',
-  tripIndexUrl: mountElement.dataset.tripIndexUrl ?? '/User/Trip/Index',
-  tilesUrl: mountElement.dataset.tilesUrl ?? '/Public/tiles/{z}/{x}/{y}.png',
-  antiforgeryToken: tokenInput?.value ?? ''
-};
+  const tokenInput = document.querySelector<HTMLInputElement>('#trip-editor-antiforgery input[name="__RequestVerificationToken"]');
+  const config: BootstrapConfig = {
+    tripId: mountElement.dataset.tripId ?? '',
+    tripName: mountElement.dataset.tripName ?? '',
+    editorEndpoint: mountElement.dataset.editorEndpoint ?? '',
+    tripIndexUrl: mountElement.dataset.tripIndexUrl ?? '/User/Trip/Index',
+    tilesUrl: mountElement.dataset.tilesUrl ?? '/Public/tiles/{z}/{x}/{y}.png',
+    antiforgeryToken: tokenInput?.value ?? ''
+  };
 
-// Load only the selected workspace. Shared Vue/Leaflet/editor code remains a common Vite chunk.
-void import('./App.vue').then(({ default: App }) => createApp(App, { config }).mount(mountElement));
+  // Load only the selected workspace. Shared Vue/Leaflet/editor code remains a common Vite chunk.
+  void import('./App.vue').then(({ default: App }) => createApp(App, { config }).mount(mountElement));
 }

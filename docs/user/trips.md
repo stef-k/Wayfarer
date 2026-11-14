@@ -373,22 +373,94 @@ For KML imports, reusable exports and printable PDF guides, see
 [User guide](index.md) · [Documentation home](../README.md)
 
 
-## Versions and saved comparisons: backend support
+## Create a version or compare Trips
 
-The backend now supports creating an independent private version of your Trip,
-with your planning retained unless you explicitly clear it. It also supports
-starting a private result from your Trip and comparing it with another owned Trip
-or a public Trip whose author permits reuse. Sources remain unchanged.
+In **My Trips**, choose **Compare & combine / New version**. For a new version,
+select **Create an independent new version of A**, choose your source and optionally
+name it or add a private change note. Your planning is retained unless you clear
+that choice. The new private Trip opens in the ordinary editor with no comparison
+workspace to complete.
 
-A saved comparison resumes the same result, including ordinary edits. Finish keeps
-the result and its credits, removes comparison inputs and does not publish or freeze
-the Trip. Deleting the result is the discard action. There is no automatic expiry.
-The backend also supports reviewed selections from either captured source: copy a
-separate idea, reuse a current counterpart, replace only chosen fields, skip an idea
-or remove it from the result. Nearby/same-name suggestions require a decision;
-removed items stay removed until you deliberately review a re-add. New items can be
-appended, inserted at the start or after a compatible current result item. Existing
-counterparts keep their identity, container and position.
+For composition, choose owned **A** and an owned or public reuse-eligible **B**.
+Search by name to refine the source lists. Private, unlicensed and public view-only
+Trips belonging to other people are unavailable. **Start New composition** saves an
+independent private **C**, initially containing A. If this source pair already has
+unfinished work, **Continue Existing** resumes that same C; a further Start New
+requires deliberate confirmation. A and B remain unchanged.
 
-The full My Trips/Continue Composition and comparison interface is still pending;
-these capabilities currently expose [authorized backend routes](../development/911-batch2.md).
+### Review on the shared map
+
+The map shows **A in blue, B in orange and C in green**, with labelled independent
+layer controls. Expand either source's Regions to find its direct Places and Areas;
+**Trip-level Segments** has its own section. The source hierarchy stays intact.
+Select an item to fit its actual centre/children, point, complete polygon including
+holes, or route and available anchors. Empty or unlocated content has no invented
+position. Use the contextual inspector for the captured source and current C.
+
+Drag the quiet grip beside **Collapse comparison**, or focus **Resize comparison
+drawer** and use Up/Down arrows. Shift changes the larger step; Home/End select the
+limits and Escape cancels a drag. Collapsing gives the map more room. Narrow screens
+switch between Source A, Source B and Inspector tabs while retaining the map.
+
+**Possible match—review needed** is a suggestion, not proof of identity. Inspect its
+name, distance, polygon or route evidence, or use manual counterpart search. Select
+a current C counterpart to review reuse; its fields default **Keep** and its Region
+and position stay unchanged. Choose **Copy / keep separate** for a distinct idea and
+explicitly approve a same-name/additional copy when applicable. **Skip** excludes an
+unimported idea; removing an included counterpart requires current consequence
+review. Excluded or removed ideas return only through deliberate **re-add**.
+
+For a copy, retain the original name or enter a custom name. Region scope can be
+**Region only** or **Region and direct Places/Areas**, with each child's own choice.
+Segments never belong to Regions. A standalone Area needs a normal destination
+Region, which can be created with that copy. A Place with no selected Region goes
+to C's canonical **Unassigned Places**.
+
+Choose **Append**, **At start** or **After selection** independently of the Region.
+The result line identifies the destination and position before apply. **Add this
+reviewed item to block** collects multiple selections from one source. Open the
+block to inspect every item in order and its destination/position. New siblings
+sharing a destination list require the same placement and enter as one contiguous
+block; reused counterparts stay put. Mixed lists have independent placements.
+
+Select only the fields to adopt: **Keep**, **Use source**, supported **Edit value**
+or explicit **Clear**. Notes use the shared rich editor and replace one complete
+value. Location, names, Notes, styling, planning and route intent stay independent;
+copying a child does not adopt unrelated Trip metadata. Own B planning is an
+explicit choice. Another person's planning is never shown or inferred.
+
+For a Segment, approve every From/To/ordered Via dependency. Choose current C
+Places or explicitly approve separate source-coordinate Places and their Regions.
+Close semantic matches can still be incompatible route anchors. Use **Edit C /
+publish** or the inspector's ordinary-editor link for planning, polygon/route
+editing, route clearing and consequence review, then return to compare again.
+Copying never silently moves Places, clears captured geometry or regenerates a
+route. A captured misaligned source route needs repair and a deliberately new
+comparison to capture that repair; a saved snapshot does not silently refresh.
+
+### Saved actions, resume and Finish
+
+**Apply reviewed action to C** saves that action immediately. There is no final bulk
+Save. C is available for ordinary editing and publication throughout comparison;
+public-content saves update its existing public Trip without republishing. Use the
+compact **Sources & credits** section to review inherited terms separately from
+your contribution policy. Omitted media needs explicit eligible reselection in C.
+
+**Edit C / publish** opens ordinary editing with **Return to saved comparison**.
+Source selection, expansion, drawer state and local choices remain in this
+server/account/comparison partition on this browser. C itself, its decisions and
+source snapshots are saved on the server. My Trips identifies unfinished work and
+provides **Continue Composition**, including after navigation, sign-out or restart.
+
+A delayed reply does not replace newer typing. If originals or placement changed,
+your choices remain: refresh saved C, then deliberately **Review current C / refresh
+originals**, inspect the changed differences and apply again. A communication error
+does not prove rollback. Inspect or refresh C/My Trips before another creation or
+copy; the app does not replay it automatically.
+
+**Finish comparison** keeps C's saved content, visibility and credits, removes the
+comparison payload and explains that this historical comparison cannot reopen.
+Unapplied local choices are not applied by Finish. C remains an ordinary editable
+Trip. **Delete C** uses normal permanent-deletion confirmation and removes its
+workspace with it; A, B and independent copies remain unchanged. There is no
+separate Abandon action or inactivity expiry.

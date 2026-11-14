@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
+  ordinary independent versions, deliberately start/continue a source pair, review
+  A/B hierarchies and complete geography on one shared map, select copies/reuse/fields,
+  scope, destinations, blocks and approved route dependencies, and edit C with a
+  saved-comparison return path. Preserve newer input and account-scoped local choices,
+  use existing domain consent, and Finish/Delete without changing the sources.
+  Unfinished C retains ordinary publication and credits. Add bounded source discovery
+  and a cookie coordinate-only preview adapter; no database migration. Lightweight
+  existing-Trip copy, mobile implementation and final combined reconciliation remain separate.
+
 - Add #911 selective composition backend actions for captured A/B matching suggestions,
   manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,
   Region scopes and current-C container/ordered-block placement. Reuse domain
