@@ -102,6 +102,13 @@ Resume returns immutable `sourceA`/`sourceB`, type-scoped A/B `mappings` and
 current C with own planning. Old initial A mappings remain `included`. Missing C
 identities become durable `destinationRemoved` decisions on resume or apply;
 retained scalar mappings survive deletions and no read reconstructs content.
+Resume retains RepeatableRead and the account → workspace → destination barriers,
+with active-owner and credential revalidation after waits. It persists mappings
+only when a destination decision actually changes; PostgreSQL JSONB formatting
+alone never causes an UPDATE. Repeated or overlapping unchanged reads therefore
+do not invalidate each other's workspace snapshots. Real concurrent mutations,
+including removal reconciliation, may still receive the existing explicit
+contention or unconfirmed response; clients must inspect or refresh without replay.
 
 ## Matching and durable selections
 

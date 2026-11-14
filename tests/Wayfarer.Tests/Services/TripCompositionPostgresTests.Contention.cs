@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Wayfarer.Models;
@@ -121,6 +122,36 @@ public sealed partial class TripCompositionPostgresTests
         Assert.True(JsonElement.DeepEquals(E(results[0]), E(results[1])));
         Assert.Equal(created.TripId, E(results[0]).GetProperty("tripId").GetGuid());
         Assert.Equal(before, await MappingVersion(observer, id));
+    }
+
+    /// <summary>Bearer revalidation after the account wait must see a credential revoked by the lock holder.</summary>
+    [PostgresFact]
+    public async Task ReadRevalidatesCredentialAfterAccountWait()
+    {
+        var a = await Seed(); var b = await Seed(a.UserId);
+        await using var writer = fixture.CreateContext(); var created = await StartSelection(writer, a, b);
+        writer.ApiTokens.Add(new ApiToken { UserId = a.UserId, User = await writer.Users.SingleAsync(u => u.Id == a.UserId), Name = "read-wait", Token = a.UserId });
+        await writer.SaveChangesAsync();
+        var before = await MappingVersion(writer, created.CompositionId!.Value);
+        await using var held = await LocationDeletionFence.BeginAsync(writer, a.UserId, default);
+        await using var reader = fixture.CreateContext(); await reader.Database.OpenConnectionAsync();
+        var pid = ((Npgsql.NpgsqlConnection)reader.Database.GetDbConnection()).ProcessID;
+        var reading = new TripCompositionService(reader).ReadAsync(a.UserId, created.CompositionId.Value, credential: async token =>
+        {
+            await using var authority = fixture.CreateContext();
+            return await authority.ApiTokens.AnyAsync(t => t.Token == a.UserId, token);
+        });
+        try
+        {
+            await AssertBlocked(writer, pid);
+            await writer.ApiTokens.Where(t => t.Token == a.UserId).ExecuteDeleteAsync();
+        }
+        finally { await held!.CommitAsync(); }
+        var refusal = await Assert.ThrowsAsync<TripMetadataMutationRejected>(() => reading);
+        var response = Assert.IsType<ObjectResult>(refusal.ToActionResult());
+        Assert.Equal(404, response.StatusCode);
+        Assert.Equal("composition-unavailable", Assert.IsType<ProblemDetails>(response.Value).Extensions["code"]);
+        Assert.Equal(before, await MappingVersion(writer, created.CompositionId.Value));
     }
 
     /// <summary>A physical tuple version detects UPDATEs even when PostgreSQL stores identical JSONB values.</summary>

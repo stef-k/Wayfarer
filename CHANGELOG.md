@@ -16,6 +16,9 @@
   Refresh loading, validate preparation replies before previews or writes, report
   unconfirmed Finish outcomes, and distinguish retained originals from current C
   without replacing choices or silently renewing the review.
+  Keep unchanged workspace reads free of mapping writes despite PostgreSQL JSONB
+  formatting, while retaining durable removed-destination reconciliation and the
+  existing coherent-read, ownership and Finish/Delete barriers.
 
 - Add #911 selective composition backend actions for captured A/B matching suggestions,
   manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,
