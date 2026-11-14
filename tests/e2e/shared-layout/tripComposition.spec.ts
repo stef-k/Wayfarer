@@ -212,7 +212,7 @@ test('Batch 4 Layout B start copy edit return resume and Finish', async ({ page 
   const zoomAfter = await page.evaluate(() => ({ innerWidth, outerWidth, dpr: devicePixelRatio, scale: visualViewport?.scale, cssZoom: getComputedStyle(document.documentElement).zoom }));
   const native200 = zoomAfter.dpr / zoomBefore.dpr === 2 && zoomBefore.innerWidth / zoomAfter.innerWidth === 2 && zoomAfter.cssZoom === zoomBefore.cssZoom && zoomAfter.scale === zoomBefore.scale;
   await record('Native browser 200 percent zoom observation', { before: zoomBefore, after: zoomAfter, nativeWindow, native200, zoomDiagnostic });
-  await page.screenshot({ path: `${evidence}/05-native-zoom.png`, fullPage: true });
+  await page.screenshot({ path: `${evidence}/05-native-zoom.png`, fullPage: false });
   expect(native200, `Genuine native 200 percent zoom: ${zoomDiagnostic}`).toBeTruthy();
   if (native200) {
     await observeGeometry(page, evidence, 'native-200-route');
