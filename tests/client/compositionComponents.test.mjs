@@ -105,13 +105,14 @@ const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].j
 // Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
 const withWorkspace = async action => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
-  const captured = {}; const errors = []; const sent = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' };
+  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' };
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
   globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
   globalThis.HTMLElement = class {};
   globalThis.document = { activeElement: null, contains: () => false };
   globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   globalThis.fetch = async (url, init) => {
+    requests.push(url);
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
@@ -135,7 +136,7 @@ const withWorkspace = async action => {
   app.mount(host);
   try {
     await flush();
-    await action({ captured, sent, host, get saved() { return saved; }, set saved(w) { saved = w; },
+    await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
       readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
@@ -182,26 +183,46 @@ test('deferred Refresh retired by Apply settles loading, keeps submitted input a
   readWith(null); assert.equal(await app.refresh(), true); assert.equal(app.state.loading, false);
 }));
 
-test('Apply preparation rejects wrong and incomplete workspaces before publication or any preview/write', () => withWorkspace(async ({ captured, sent, readWith, saved }) => {
+test('mounted Region scope and Segment block submit each approved nested Place once before its route', () => withWorkspace(async ({ captured, sent, saved }) => {
+  const app = captured.CompositionApp;
+  saved.sourceB.graph.segments = [{ id: 'BS', title: 'Route', fromPlaceId: 'BP', toPlaceId: null, waypoints: [] }];
+  await app.refresh(); await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const region = app.draft.value.items[0]; region.decision = 'reuse'; region.destinationId = 'CR';
+  captured.ChoiceControls.scope({ target: { checked: true } }); app.addToBlock();
+  await app.select({ side: 'b', kind: 'segment', id: 'BS' }); await flush();
+  const route = app.draft.value.items[0]; route.anchors[0].approveCopy = true; route.anchors[0].regionId = 'CR';
+  app.addToBlock(); app.state.view.blockMode = true; await flush(); await app.apply();
+  assert.equal(sent.length, 1); assert.deepEqual(sent[0].items.map(i => i.kind), ['region', 'segment']);
+  assert.deepEqual(sent[0].items[0].children.map(i => i.sourceId), ['BP']);
+  assert.deepEqual(sent[0].items[1].anchors, [{ sourceId: 'BP', destinationId: null, regionId: null, location: null }]);
+}));
+
+test('Apply preparation rejects wrong and incomplete workspaces before publication or any preview/write', () => withWorkspace(async ({ captured, sent, requests, readWith, saved }) => {
   const app = captured.CompositionApp; await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
   const retained = app.draft.value;
+  retained.items[0].decision = 'reuse'; retained.items[0].destinationId = 'CP';
+  retained.items[0].fields.location.operation = 'useSource';
   for (const invalid of [{ ...saved, current: null }, { ...saved, sourceB: null }, { ...saved, mappings: null },
     { ...saved, compositionId: 'OTHER' }, { ...saved, tripId: 'OTHER' }]) {
     const lastWorkspace = app.state.workspace;
+    const before = requests.length;
     readWith(() => Response.json(invalid)); await app.apply(); await flush();
     assert.equal(sent.length, 0); assert.equal(app.state.workspace, lastWorkspace); assert.equal(app.draft.value, retained);
+    assert.deepEqual(requests.slice(before), ['/api/trip-compositions/S']);
     assert.match(app.state.error, /incomplete|context|match/i); assert.match(app.state.error, /refresh|inspect/i);
     readWith(null); await app.refresh();
   }
 }));
 
-test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith }) => {
+test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith, host }) => {
   const app = captured.CompositionApp; await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
   const retained = app.draft.value; const current = app.state.workspace;
+  app.state.error = 'Earlier action refused.';
   for (const reply of [{ tripId: 'OTHER', status: 'finished' }, { tripId: 'C' }, null]) {
-    finishWith(reply); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
+    finishWith(reply); const attempt = app.finish(); settleConfirmDialog(true); await attempt; await nextTick();
     assert.equal(app.finished.value, false); assert.equal(app.state.workspace, current); assert.equal(app.draft.value, retained);
     assert.match(app.lifecycleError.value, /could not be confirmed/i); assert.equal(app.finishing.value, false);
+    assert.match(textOf(host), /Finish could not be confirmed/);
   }
   finishWith({ tripId: 'C', status: 'finished' }); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
   assert.equal(app.finished.value, true); assert.equal(app.finishedTripId.value, 'C'); assert.equal(app.state.workspace, null);

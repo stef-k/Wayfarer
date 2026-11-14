@@ -101,7 +101,7 @@ export const anchorIds = (item: Content): string[] => [...new Set([item.fromPlac
 /** Freezes a complete selected intent without granting authority from any captured ID. */
 export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
   const snapshot = sourceSnapshot(w, draft.side); const current = draft.baseline;
-  const dependencyCopies = new Map<string, ActionItem>();
+  const dependencyCopies: ActionItem[] = [];
   const copiedPlaces = new Map<string, string>();
   const effectiveRegion = (id: string): string => id || current.graph.regions.find(r => r.name === 'Unassigned Places')?.id || '';
   const build = (c: Choice, forcedParent?: string): ActionItem => {
@@ -173,13 +173,11 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
           if (effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
           return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
         }
-        if (!dependencyCopies.has(a.sourceId)) {
-          const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
-          dep.decision = 'copy'; dep.separate = true;
-          dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));
-          dep.regionId = a.regionId;
-          dependencyCopies.set(a.sourceId, build(dep));
-        } else if (dependencyCopies.get(a.sourceId)!.regionId !== (a.regionId || undefined)) throw new Error('Shared route dependencies require the same reviewed destination.');
+        const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
+        dep.decision = 'copy'; dep.separate = true;
+        dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));
+        dep.regionId = a.regionId;
+        dependencyCopies.push(build(dep));
         return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
       });
     }
@@ -188,7 +186,7 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
   // Dependencies stage before Trip-level routes; relative order inside each destination list is unchanged.
   const items = [...draft.items.filter(c => c.kind !== 'segment'), ...draft.items.filter(c => c.kind === 'segment')].map(c => build(c));
   if (items.length > 1 && items.some(i => i.decision === 'remove')) throw new Error('Review removal as a separate action from a block.');
-  return copy({ source: draft.side, items: [...dependencyCopies.values(), ...items] });
+  return copy({ source: draft.side, items: [...dependencyCopies, ...items] });
 };
 
 /** Real spatial vertices only: all polygon rings, saved routes and available anchors, with no synthetic placeholders. */

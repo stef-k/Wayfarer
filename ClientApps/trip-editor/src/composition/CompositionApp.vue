@@ -228,7 +228,8 @@ watch(() => state.view.collapsed, cancelResize);
       </nav>
     </header>
     <div class="composition-feedback" aria-live="polite">
-      <p v-if="state.error || lifecycleError" role="alert">{{ state.error || lifecycleError }} <a :href="editUrl">Inspect saved C</a></p>
+      <p v-if="state.error" role="alert">{{ state.error }} <a :href="editUrl">Inspect saved C</a></p>
+      <p v-if="lifecycleError" role="alert">{{ lifecycleError }} <a :href="editUrl">Inspect saved C</a></p>
       <p v-if="storageError">{{ storageError }}</p>
       <span v-if="state.loading">Loading current saved C…</span><span v-else>{{ state.status }}</span>
     </div>

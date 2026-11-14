@@ -314,6 +314,10 @@ and read generations; a delayed acknowledgement updates saved C without resettin
 newer input or closing another inspector. Stale/refused/unconfirmed actions retain
 choices for explicit refresh/review, never replay. No outcome ledger or global
 revision is introduced.
+Retiring a read generation also releases its loading ownership. Apply's preparation
+read uses the same complete workspace/context validator as Refresh, before publishing
+the reply, obtaining previews or dispatching a mutation; invalid replies retain the
+last usable comparison and choices.
 
 Only the local view/drafts are retained under an origin/account/comparison key.
 The retained baseline is owned C, not A/B snapshots; consent tokens and HTTP outcomes
@@ -321,6 +325,11 @@ are excluded. The server owns durable snapshots, decisions and C. Foreign planni
 does not enter fields, labels, diagnostics, storage, candidate evidence or requests.
 RichNotes adoption advances only for an explicit owner replacement, never a local
 echo or an older save reply.
+The choice object identifies the editing owner: switching between a selected item
+and its collected block adopts that owner's Notes, and applying a block retains the
+independent item draft. Retained reviewed originals are labelled separately from
+fresh current-C values; refresh/edit-return flags changes without renewing originals
+or replacing authored choices. Explicit originals review remains the consent boundary.
 
 Each apply rereads authoritative C while retaining the submitted originals until
 the user explicitly reviews a new baseline. Place/Region removal obtains existing
@@ -331,6 +340,12 @@ is refused by the domain. Ordinary route editing owns original/clear-consequence
 tokens, repair and measurements; it is linked with a validated same-owner/same-C
 comparison return URL. Polygon and full planning editing also use ordinary controls.
 There is no alternate rich editor, route adaptation or historical-format adapter.
+The encoder indexes explicit copied Places through Region children as well as
+top-level choices, using the effective forced parent. It stages those copies before
+Trip-level Segments, shares each approved dependency, and refuses conflicting
+destination approvals. Server source uniqueness, list placement and atomicity remain
+unchanged. A newly copied normal Region has no existing destination ID for a Segment
+approval; review that Region first, then refresh and approve its saved destination.
 
 The coordinate-only cookie preview is the small integration addition: it checks
 owned Trip/Region/Place scope before parsing, requires antiforgery, is private/no-store,
@@ -346,3 +361,6 @@ comparison cleanup; normal native form submission owns Delete C's redirects/aler
 The editor shell validates a supplied composition against the caller, destination
 and active workspace before emitting its return link. Public readers, contribution
 policy, credits and freshness remain with their existing owners.
+Only a complete Finish reply bound to C releases the workspace and local drafts.
+An incomplete or mismatched reply explicitly reports an unconfirmed Finish and
+retains the last usable comparison for inspection, without replay or an outcome registry.

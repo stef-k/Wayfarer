@@ -422,6 +422,8 @@ reviewed item to block** collects multiple selections from one source. Open the
 block to inspect every item in order and its destination/position. New siblings
 sharing a destination list require the same placement and enter as one contiguous
 block; reused counterparts stay put. Mixed lists have independent placements.
+The item draft and its collected block draft are independent. Opening either one
+shows that draft's Notes; applying the block keeps the unapplied item choices.
 
 Select only the fields to adopt: **Keep**, **Use source**, supported **Edit value**
 or explicit **Clear**. Notes use the shared rich editor and replace one complete
@@ -433,6 +435,9 @@ For a Segment, approve every From/To/ordered Via dependency. Choose current C
 Places or explicitly approve separate source-coordinate Places and their Regions.
 To customise a new dependency's name or fields in the same atomic action, include
 that Place in the reviewed block and approve the same Region in the Segment.
+This also works for copied direct Places inside a reused Region's child scope:
+approve that Region in the Segment and the block creates each shared Place once.
+Conflicting destination approvals must be resolved before Apply.
 Close semantic matches can still be incompatible route anchors. Use **Edit C /
 publish** or the inspector's ordinary-editor link for planning, polygon/route
 editing, route clearing and consequence review, then return to compare again.
@@ -454,6 +459,10 @@ server/account/comparison partition on this browser. C itself, its decisions and
 source snapshots are saved on the server. My Trips identifies unfinished work and
 provides **Continue Composition**, including after navigation, sign-out or restart.
 
+After refresh or ordinary edit/return, **Reviewed original C** remains the baseline
+you approved, while **Current C** shows the latest saved value. A change since your
+review is flagged without replacing your typed choices or renewing the originals.
+
 A delayed reply does not replace newer typing. If originals or placement changed,
 your choices remain: refresh saved C, then deliberately **Review current C / refresh
 originals**, inspect the changed differences and apply again. A communication error
@@ -463,6 +472,8 @@ copy; the app does not replay it automatically.
 **Finish comparison** keeps C's saved content, visibility and credits, removes the
 comparison payload and explains that this historical comparison cannot reopen.
 Unapplied local choices are not applied by Finish. C remains an ordinary editable
-Trip. **Delete C** uses normal permanent-deletion confirmation and removes its
+Trip. If Finish cannot be confirmed, the workspace and choices remain available;
+inspect or refresh saved C before deciding what to do next.
+**Delete C** uses normal permanent-deletion confirmation and removes its
 workspace with it; A, B and independent copies remain unchanged. There is no
 separate Abandon action or inactivity expiry.

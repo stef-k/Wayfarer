@@ -15,6 +15,64 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class TripCompositionHttpPostgresTests
 {
+    /// <summary>A Region's direct Place copies stage once before the dependent route; duplicate selection still rolls back atomically.</summary>
+    [PostgresFact]
+    public async Task RegionChildrenAndRouteShareOneCopyPerApprovedPlace()
+    {
+        var owner = await fixture.CreateUserAsync();
+        var a = Source(owner.Id, "Nested base", false, null, 23.73);
+        var b = Source(owner.Id, "Nested source", false, null, 24);
+        var sourceRegion = b.Regions.Single(); var from = sourceRegion.Places.Single(); from.Name = "B start";
+        var to = new Place { Id = Guid.NewGuid(), Region = sourceRegion, UserId = owner.Id, Name = "B end",
+            Location = new Point(25, 38) { SRID = 4326 }, DisplayOrder = 1 };
+        sourceRegion.Places.Add(to);
+        var route = new Segment { Id = Guid.NewGuid(), Trip = b, UserId = owner.Id, Title = "B route", Mode = "walk",
+            FromPlaceId = from.Id, ToPlaceId = to.Id, EstimatedDurationSource = EstimatedDurationSource.Manual,
+            EstimatedDuration = TimeSpan.FromMinutes(10) };
+        b.Segments.Add(route);
+        await using var db = fixture.CreateContext(); db.AddRange(a, b); await db.SaveChangesAsync();
+        fixture.RegisterTrip(a.Id); fixture.RegisterTrip(b.Id);
+        var started = await new TripCompositionService(db).CreateAsync(owner.Id, a.Id, b.Id, null, null);
+        fixture.RegisterTrip(started.TripId);
+        var target = await db.Regions.AsNoTracking().SingleAsync(r => r.TripId == started.TripId);
+        var existing = await db.Places.AsNoTracking().SingleAsync(p => p.RegionId == target.Id);
+        var expected = new[] { new { id = existing.Id, displayOrder = existing.DisplayOrder } };
+        var children = new[] { from, to }.Select(p => new { kind = "place", sourceId = p.Id, decision = "copy",
+            separate = false, placement = new { expected, position = "append" } }).ToArray();
+        object region = new { kind = "region", sourceId = sourceRegion.Id, decision = "reuse", destinationId = target.Id, children };
+        object segment = new { kind = "segment", sourceId = route.Id, decision = "copy", separate = false,
+            placement = new { expected = Array.Empty<object>(), position = "append" },
+            anchors = new[] { from, to }.Select(p => new { sourceId = p.Id, destinationId = (Guid?)null, regionId = (Guid?)null, location = (double[]?)null }) };
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddScoped(_ => fixture.CreateContext());
+            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+            services.AddSingleton(Mock.Of<IIconColorProvider>());
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+        });
+        using var client = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(client, app.Services, owner.Id);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
+        var url = $"/api/trip-compositions/{started.CompositionId}/actions";
+        var before = await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == started.CompositionId);
+        // Retain the original encoder's duplicate dependency as an explicit server atomicity counterexample.
+        object duplicate = new { kind = "place", sourceId = from.Id, decision = "copy", regionId = target.Id,
+            placement = new { expected, position = "append" } };
+        using var refused = await client.PostAsJsonAsync(url, new { source = "b", items = new[] { duplicate, region, segment } });
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Single(await db.Places.AsNoTracking().Where(p => p.Region.TripId == started.TripId).ToArrayAsync());
+        Assert.Empty(await db.Segments.AsNoTracking().Where(s => s.TripId == started.TripId).ToArrayAsync());
+        Assert.Equal(before.Mappings, (await db.Set<TripComposition>().AsNoTracking().SingleAsync(w => w.Id == before.Id)).Mappings);
+        // This is the corrected client's Region-child-before-Segment wire shape; no synthetic top-level Places.
+        using var applied = await client.PostAsJsonAsync(url, new { source = "b", items = new[] { region, segment } });
+        Assert.True(applied.StatusCode == HttpStatusCode.OK, await applied.Content.ReadAsStringAsync());
+        var places = await db.Places.AsNoTracking().Where(p => p.Region.TripId == started.TripId).OrderBy(p => p.DisplayOrder).ToArrayAsync();
+        Assert.Equal(new[] { existing.Id, places.Single(p => p.Name == from.Name).Id, places.Single(p => p.Name == to.Name).Id }, places.Select(p => p.Id));
+        Assert.Equal(3, places.Length); Assert.All(places, p => Assert.Equal(target.Id, p.RegionId));
+        var saved = await db.Segments.AsNoTracking().SingleAsync(s => s.TripId == started.TripId);
+        Assert.Equal(places.Single(p => p.Name == from.Name).Id, saved.FromPlaceId);
+        Assert.Equal(places.Single(p => p.Name == to.Name).Id, saved.ToPlaceId);
+    }
+
     /// <summary>Web discovery is eligibility-only; the coordinate adapter issues the domain proof used by atomic composition apply.</summary>
     [PostgresFact]
     public async Task LayoutDiscoveryAndCoordinatePreviewRetainAuthorityPrivacyAndIntent()

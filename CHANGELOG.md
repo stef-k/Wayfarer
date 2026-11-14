@@ -11,6 +11,11 @@
   Unfinished C retains ordinary publication and credits. Add bounded source discovery
   and a cookie coordinate-only preview adapter; no database migration. Lightweight
   existing-Trip copy, mobile implementation and final combined reconciliation remain separate.
+  Correct item/block Notes ownership and preserve their independent drafts; share
+  approved route dependencies with nested Region child copies. Settle superseded
+  Refresh loading, validate preparation replies before previews or writes, report
+  unconfirmed Finish outcomes, and distinguish retained originals from current C
+  without replacing choices or silently renewing the review.
 
 - Add #911 selective composition backend actions for captured A/B matching suggestions,
   manual reuse, durable separate/skip/removal/re-add decisions, selected field groups,
