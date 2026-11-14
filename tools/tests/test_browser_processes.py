@@ -6,11 +6,13 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from browser_processes import Child, identity
+from test_artifact_paths import BrowserRoot
 
 
 class ProcessTests(unittest.TestCase):
@@ -96,6 +98,68 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(7, child.wait(10))
         child.stop()
         self.assertTrue(child.closed)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux TERM-time session discovery')
+    def test_terminal_discovery_retains_root_while_late_helper_lives(self):
+        """A real TERM handler forks after inspection; final discovery must block removal."""
+        root = BrowserRoot('late-helper-test', identity(os.getpid()))
+        script = '''import os,signal,subprocess,sys,time
+from pathlib import Path
+root=Path(sys.argv[1])
+def stop(*_):
+    while not (root/'release').exists(): time.sleep(.001)
+    helper=subprocess.Popen([sys.executable,'-c',
+        'import sys,time;from pathlib import Path;p=Path(sys.argv[1]);(p/"helper-ready").touch();'
+        '\\nwhile not (p/"exit").exists(): time.sleep(.001)\\nprint("natural helper exit")',str(root)])
+    while not (root/'helper-ready').exists(): time.sleep(.001)
+    (root/'helper').write_text(str(helper.pid))
+    os._exit(0)
+signal.signal(signal.SIGTERM,stop)
+(root/'ready').touch()
+while True: time.sleep(.01)
+'''
+        child = Child([sys.executable, '-c', script, str(root.path)], cwd=root.path,
+                      env=os.environ.copy(), log=root.path / 'child.log')
+        live = child._live
+        calls = 0
+
+        def synchronized_live():
+            """Schedule the real fork before liveness reads; preserve the actual result."""
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                (root.path / 'release').touch()
+                child.process.wait(timeout=5)
+            return live()
+
+        try:
+            deadline = time.monotonic() + 5
+            while not (root.path / 'ready').exists():
+                self.assertLess(time.monotonic(), deadline, 'TERM handler setup timed out')
+                time.sleep(.001)
+            with patch.object(child, '_live', synchronized_live):
+                with self.assertRaisesRegex(RuntimeError, 'Owned descendants remain'):
+                    child.stop()
+            helper = int((root.path / 'helper').read_text())
+            self.assertIn(helper, child.members)
+            self.assertTrue(live())
+            self.assertFalse(child.closed)
+            self.assertFalse(child.log.closed)
+            with self.assertRaisesRegex(ValueError, 'writers have not stopped'):
+                root.remove([child])
+            self.assertTrue(root.path.exists())
+            self.assertNotEqual('Z', Path(f'/proc/{helper}/stat').read_text().rsplit(')', 1)[1].split()[0])
+        finally:
+            # Release the helper naturally even when the original unsafe stop makes the assertion fail.
+            (root.path / 'release').touch()
+            (root.path / 'exit').touch()
+            child.process.wait(timeout=5)
+            if (root.path / 'helper').exists():
+                helper = int((root.path / 'helper').read_text())
+                self.assertEqual((helper, 0), os.waitpid(helper, 0))
+            child.stop()
+            root.remove([child])
+        self.assertFalse(root.path.exists())
 
     @unittest.skipUnless(sys.platform == 'linux', 'Linux procfs returns ESRCH after exit/reap')
     def test_exit_during_stat_read_does_not_abort_wait_or_cleanup(self):

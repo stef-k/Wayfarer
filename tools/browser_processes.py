@@ -304,6 +304,10 @@ class Child:
             while self.inspect(allow_unproved=True) and time.monotonic() < deadline:
                 time.sleep(0.05)
             self.inspect()  # Unproved live writers still refuse finalization/removal; never signal them.
+        # Terminal discovery can pin a TERM-time helper after the earlier liveness check.
+        # Retain handles and the root until every newly proved writer has also exited.
+        if self._live():
+            raise RuntimeError('Owned descendants remain; preserving residue')
         self.log.close()
         for _, descriptor in self.members.values():
             if descriptor is not None:
