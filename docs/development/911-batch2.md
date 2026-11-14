@@ -1,7 +1,9 @@
 # Trip construction, saved composition and selective apply
 
 Contract: [#911](https://github.com/stef-k/Wayfarer/issues/911), decoded UTF-8 body
-SHA-256 `3393c7f4ba24b2617b4e0a9328ea61c86ce725b2ecfef189c316331c7aecaeb2`.
+SHA-256 `4d4ea3b4e0bafb9237fc319d9dd2303b279cad355d13306df26cd2b4f03b81b6`.
+The assignment's initial pin was `3393c7f4ba24b2617b4e0a9328ea61c86ce725b2ecfef189c316331c7aecaeb2`;
+the 14 November review-only amendment leaves the five implementation scopes unchanged.
 Backend construction and selective-apply reference. Product decisions and acceptance
 remain in the tracker. Web Layout B/My Trips consumes the same domain owners below.
 Lightweight existing-Trip copy and mobile implementation remain separate scopes.
