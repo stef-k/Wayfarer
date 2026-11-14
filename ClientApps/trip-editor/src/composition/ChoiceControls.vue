@@ -2,14 +2,14 @@
 import { computed } from 'vue';
 import { contents, find, label, newChoice, ordered, parentId, sourceSnapshot } from './compositionModel';
 import type { Choice, Content, Kind, ReviewDraft, Workspace } from './compositionTypes';
-const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean }>();
+const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string }>();
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
 const captured = computed(() => find(source.value, props.choice.kind, props.choice.sourceId)!);
 const current = computed(() => props.review.baseline);
 const destinations = computed(() => contents(current.value, props.choice.kind));
 const regions = computed(() => ordered(current.value, 'region').filter(r => props.choice.kind !== 'area' || r.name !== 'Unassigned Places'));
 const previous = computed(() => props.review.mappings.filter(m => m.source === props.review.side && m.kind === props.choice.kind && m.sourceId === props.choice.sourceId));
-const positionItems = computed(() => ordered(current.value, props.choice.kind, props.choice.regionId
+const positionItems = computed(() => ordered(current.value, props.choice.kind, props.destinationParent || props.choice.regionId
   || (props.choice.kind === 'place' ? current.value.graph.regions.find(r => r.name === 'Unassigned Places')?.id : undefined))
   .filter(r => props.choice.kind !== 'region' || r.name !== 'Unassigned Places'));
 const canonical = computed(() => props.choice.kind === 'region' && captured.value.name === 'Unassigned Places');
@@ -74,14 +74,14 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
         </label>
         <label v-if="choice.kind === 'area'" class="composition-field">Or create a normal Region with this copy<input v-model="choice.newRegionName" maxlength="200" :disabled="Boolean(choice.regionId)" /></label>
       </template>
-      <template v-if="!child">
+      <template v-if="!child || destinationParent">
         <label class="composition-field">{{ choice.kind === 'segment' ? 'Trip-level insertion position' : 'Insertion position (independent of Region)' }}
           <select v-model="choice.position"><option value="append">Append</option><option value="start">At start</option><option value="after" :disabled="Boolean(choice.newRegionName)">After selection</option></select>
         </label>
         <label v-if="choice.position === 'after'" class="composition-field">After this current C {{ choice.kind }}
           <select v-model="choice.afterId" required><option value="" disabled>Select a compatible item</option><option v-for="item in positionItems" :key="item.id" :value="item.id">{{ label(item) }}</option></select>
         </label>
-        <p class="composition-result">Result: {{ choice.kind === 'segment' ? 'C · Trip-level Segments' : choice.kind === 'region' ? 'C · Regions' : choice.newRegionName || find(current, 'region', choice.regionId)?.name || 'Unassigned Places' }} · {{ choice.position === 'after' ? `After ${find(current, choice.kind, choice.afterId) ? label(find(current, choice.kind, choice.afterId)!) : '…'}` : choice.position === 'start' ? 'At start' : 'Append' }}</p>
+        <p class="composition-result">Result: {{ choice.kind === 'segment' ? 'C · Trip-level Segments' : choice.kind === 'region' ? 'C · Regions' : choice.newRegionName ? `New normal Region “${choice.newRegionName}” (created for this item)` : find(current, 'region', destinationParent || choice.regionId)?.name || 'Unassigned Places' }} · {{ choice.position === 'after' ? `After ${find(current, choice.kind, choice.afterId) ? label(find(current, choice.kind, choice.afterId)!) : '…'}` : choice.position === 'start' ? 'At start' : 'Append' }}</p>
       </template>
     </template>
     <template v-if="choice.decision === 'remove' && choice.kind === 'region'">
@@ -92,10 +92,11 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
     <template v-if="choice.kind === 'region' && !canonical && ['copy', 'reuse'].includes(choice.decision)">
       <label class="composition-check"><input :checked="choice.withChildren" type="checkbox" @change="scope" /> Region and direct Places/Areas (otherwise Region only)</label>
       <p>No sub-Regions or automatic Segments. Reused children keep their C container.</p>
-      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" child />
+      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" child />
     </template>
     <fieldset v-if="choice.kind === 'segment' && (choice.decision === 'copy' || choice.fields.route?.operation === 'useSource')">
       <legend>Approve complete From / ordered Via / To dependencies</legend>
+      <p>From: {{ captured.fromPlaceId ? label(find(source, 'place', captured.fromPlaceId)) : 'Not set' }} · To: {{ captured.toPlaceId ? label(find(source, 'place', captured.toPlaceId)) : 'Not set' }} · {{ captured.waypoints?.length ?? 0 }} ordered Via.</p>
       <p v-if="!choice.anchors.length">This historical route has no Place anchors. Its saved geometry is shown when available.</p>
       <fieldset v-for="anchor in choice.anchors" :key="anchor.sourceId">
         <legend>{{ anchorRole(anchor.sourceId) }} · {{ label(find(source, 'place', anchor.sourceId)!) }}</legend>

@@ -41,7 +41,8 @@ watch([sourceA, sourceB], async () => {
 /** Captures all creation input before waiting and always checks the pair again at activation. */
 const creationInput = () => ({ version: mode.value === 'version', body: { sourceA: sourceA.value,
   ...(mode.value === 'version' ? {} : { sourceB: sourceB.value }), name: name.value.trim() || null,
-  changeNote: changeNote.value.trim() || null, keepOwnBasePlanning: keepPlanning.value } });
+  changeNote: changeNote.value.trim() || null, keepOwnBasePlanning: keepPlanning.value },
+  view: { searchA: searchA.value, searchB: searchB.value, name: name.value, changeNote: changeNote.value } });
 async function create(): Promise<void> {
   if (pending.value || inspect.value) return;
   const captured = creationInput(); const { version, body: submitted } = captured;

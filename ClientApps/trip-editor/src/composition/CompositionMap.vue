@@ -97,4 +97,7 @@ onUnmounted(() => { observer?.disconnect(); map?.remove(); map = null; });
 defineExpose({ focus });
 </script>
 
-<template><div ref="host" class="composition-map" role="region" aria-label="Shared A B C Trip map" tabindex="0"></div></template>
+<template>
+  <div ref="host" class="composition-map" role="region" aria-label="Shared A B C Trip map" aria-describedby="composition-map-help" tabindex="0"></div>
+  <p id="composition-map-help" class="visually-hidden">Use the source trees and contextual inspector to select ideas. Arrow keys pan the map; plus and minus zoom.</p>
+</template>

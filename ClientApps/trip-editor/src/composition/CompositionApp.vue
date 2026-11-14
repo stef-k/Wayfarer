@@ -110,11 +110,16 @@ async function apply(): Promise<void> {
 function addToBlock(): void {
   if (!selectedDraft.value || !state.workspace) return;
   const review = selectedDraft.value;
+  if (!state.view.block?.items.length) state.view.block = null;
   if (state.view.block && state.view.block.side !== review.side) { state.error = 'One action block uses a single source. Apply or clear the existing block first.'; return; }
   state.view.block ??= { ...copy(review), items: [] };
   const item = review.items[0];
   if (state.view.block.items.some(c => c.kind === item.kind && c.sourceId === item.sourceId)) { state.error = 'This item is already in the block. Open the block to edit it.'; return; }
   state.view.block.items.push(copy(item)); state.status = 'Added to reviewed block. Open it to check destinations and position.';
+}
+async function clearBlock(): Promise<void> {
+  if (state.pending || !await confirm({ title: 'Clear local block?', message: 'Clear these unapplied block choices? Saved C and its comparison remain unchanged.', confirmLabel: 'Clear local block', cancelLabel: 'Keep block' })) return;
+  state.view.block = null; state.view.blockMode = false;
 }
 function syncBlock(): void {
   const items = state.view.block?.items; if (!items?.length) return;
@@ -203,7 +208,7 @@ watch(() => state.view.collapsed, cancelResize);
     <p v-if="finished">C keeps its saved content, visibility and credits. This historical comparison cannot reopen.</p>
     <a v-if="finished && state.workspace" :href="`/User/Trip/Edit/${state.workspace.tripId}`">Continue ordinary editing of C</a> · <a href="/User/Trip">My Trips</a>
   </section>
-  <main v-else ref="workspaceElement" class="composition-workspace" :class="{ 'drawer-collapsed': state.view.collapsed }" :style="{ '--composition-drawer': `${state.view.drawer}%` }" aria-label="Trip comparison workspace">
+  <section v-else ref="workspaceElement" class="composition-workspace" :class="{ 'drawer-collapsed': state.view.collapsed }" :style="{ '--composition-drawer': `${state.view.drawer}%` }" aria-label="Trip comparison workspace">
     <header class="composition-header">
       <div><h1>Compare &amp; combine</h1><p v-if="state.workspace"><strong class="source-c">C · {{ state.workspace.current.graph.name }}</strong> · {{ state.workspace.current.graph.isPublic ? 'Public · saved changes update the same Trip' : 'Private Trip' }} · {{ state.status || 'Saved / editable' }}</p></div>
       <nav aria-label="Composition actions"><a href="/User/Trip">My Trips</a><a v-if="state.workspace" :href="editUrl">Edit C / publish</a>
@@ -258,6 +263,7 @@ watch(() => state.view.collapsed, cancelResize);
               <button v-if="state.view.blockMode" type="button" @click="draft.items.splice(index, 1)">Remove from local block</button>
             </template>
             <button v-if="state.view.blockMode && draft.items.length > 1" type="button" @click="syncBlock">Use first item’s destination / position for same-type copies</button>
+            <button v-if="state.view.blockMode" type="button" :disabled="state.pending" @click="clearBlock">Clear local block</button>
             <p v-if="state.view.blockMode">New siblings in each destination list enter one contiguous block in the displayed order. Reused identities stay at their current positions.</p>
             <div class="composition-actions"><button type="button" :disabled="state.pending || state.needsInspection || finishing || !draft.items.length" @click="apply">{{ state.pending ? 'Saving submitted action…' : 'Apply reviewed action to C' }}</button>
               <button type="button" :disabled="state.pending" @click="reviewCurrent">Review current C / refresh originals</button>
@@ -275,6 +281,6 @@ watch(() => state.view.collapsed, cancelResize);
       </div>
     </template>
     <p v-else class="composition-start">Loading or comparison unavailable. <button type="button" :disabled="state.loading" @click="refresh">Try reading again</button> · <a href="/User/Trip">My Trips</a></p>
-  </main>
+  </section>
   <ConfirmDialog />
 </template>

@@ -20,4 +20,8 @@
         <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/main.ts"></script>
     }
     else if (assets.Script != null) { <script type="module" src="@assets.Script"></script> }
+    else
+    {
+        <p role="alert">Trip composition assets are unavailable. <a href="/User/Trip">Return to My Trips</a>.</p>
+    }
 }

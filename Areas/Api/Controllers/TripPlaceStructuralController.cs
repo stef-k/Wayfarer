@@ -58,7 +58,7 @@ public partial class TripsController
 public sealed partial class TripEditorController
 {
     /// <summary>Prepares composition's coordinate-only intent with the existing domain proof, never a combined Web-update proof.</summary>
-    [HttpPost("places/{placeId:guid}/coordinates/prepare"), ValidateAntiForgeryToken]
+    [HttpPost("places/{placeId:guid}/coordinates/prepare"), ValidateAntiForgeryToken, RequestSizeLimit(8192)]
     public async Task<IActionResult> PrepareCompositionCoordinates(Guid tripId, Guid placeId,
         [FromServices] PlaceRegionLifecycleService lifecycle, CancellationToken token)
     {

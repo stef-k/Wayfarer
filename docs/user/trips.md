@@ -431,6 +431,8 @@ explicit choice. Another person's planning is never shown or inferred.
 
 For a Segment, approve every From/To/ordered Via dependency. Choose current C
 Places or explicitly approve separate source-coordinate Places and their Regions.
+To customise a new dependency's name or fields in the same atomic action, include
+that Place in the reviewed block and approve the same Region in the Segment.
 Close semantic matches can still be incompatible route anchors. Use **Edit C /
 publish** or the inspector's ordinary-editor link for planning, polygon/route
 editing, route clearing and consequence review, then return to compare again.
