@@ -191,8 +191,15 @@ the same connection in every checkout and installer/test process that needs it:
 
 ~~~sh
 source ~/.config/wayfarer/test-postgres.env
+umask 022
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'Category!=RequiresSpatialite&Category!=RequiresPlaywright'
 ~~~
+
+Use `umask 022` for ordinary Linux checks: the release-bundle fixtures intentionally
+reject group-writable payload directories. A workstation shell inheriting `0002`
+otherwise creates unsafe fixture directories before product validation starts;
+retain that failure separately and rerun with the normal non-writable-group mode.
+Do not weaken the release validator or its assertions.
 
 The configured Linux workstation reuses the existing PostgreSQL 18 system cluster
 (`18/main`) on `127.0.0.1:5432`, with PostGIS, citext and pg_trgm. There is one

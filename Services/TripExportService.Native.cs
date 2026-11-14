@@ -25,7 +25,10 @@ public partial class TripExportService
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken) : null;
         if (credential != null) await LocationDeletionFence.AcquireAsync(_db, owner, cancellationToken);
-        var active = await _db.Users.AsNoTracking().AnyAsync(u => u.Id == owner && u.IsActive, cancellationToken);
+        // A locking active-owner read rejects an older snapshot after a revocation wait.
+        var active = _db.Database.IsNpgsql()
+            ? (await _db.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {owner} AND \"IsActive\" FOR SHARE").AsNoTracking().ToListAsync(cancellationToken)).Count == 1
+            : await _db.Users.AsNoTracking().AnyAsync(u => u.Id == owner && u.IsActive, cancellationToken);
         var trip = active ? await NativeTripGraph.Query(_db).SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == owner, cancellationToken) : null;
         if (trip == null) throw new UnauthorizedAccessException("The personal download is unavailable.");
         var kml = TripWayfarerKmlExporter.BuildKml(trip, includePrivatePlanning);

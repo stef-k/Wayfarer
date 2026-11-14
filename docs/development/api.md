@@ -1781,7 +1781,9 @@ same file bytes and review token. Successful import returns `status: success`,
 `tripId`, `notices`; refusal is atomic. A lost response requires inspection.
 
 Shared synthetic fixtures live in `tests/Wayfarer.Tests/Fixtures/Trips/`:
-`cross-client-owner.json`, `cross-client-v5.kml` (planning off), and
+`cross-client-owner.json` (the format-1 owned copy/composition projection, with
+`graph` containing the complete `ApiTripDto`, rather than the owner-read envelope),
+`cross-client-v5.kml` (planning off), and
 `cross-client-v5-personal.kml`. They include all five planning targets, end-only and
 flexible intentions, explicit zero allocation, rich Notes, a polygon hole,
 nullable/unlocated historical content, ordered Via, exact measurements, retained

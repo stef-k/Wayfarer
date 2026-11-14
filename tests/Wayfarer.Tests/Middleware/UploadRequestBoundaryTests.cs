@@ -83,14 +83,22 @@ public sealed class UploadRequestBoundaryTests : TestBase
             It.IsAny<CancellationToken>()), oversized ? Times.Never() : Times.Once());
     }
 
-    /// <summary>Web, managed and photo uploads opt in with their respective parser and passive request budgets.</summary>
+    /// <summary>Web, bearer-native, managed and photo uploads opt in with their respective parser and passive request budgets.</summary>
     [Fact]
     public async Task Metadata_MarksWebAndManagedUploads()
     {
         using var host = await StartHost(CreateDbContext(), ImportStaging.Create(CreateTestDirectory()), Settings(1), Mock.Of<ITripImportService>());
         var actions = host.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>().Where(a => a.EndpointMetadata.OfType<UserFileUploadAttribute>().Any()).ToArray();
-        Assert.Equal(5, actions.Length);
+        Assert.Equal(7, actions.Length);
+        var native = actions.Where(a => a.ControllerTypeInfo.AsType() == typeof(Wayfarer.Areas.Api.Controllers.TripsController)).OrderBy(a => a.ActionName).ToArray();
+        Assert.Equal(new[] { "ImportNative", "ReviewNative" }, native.Select(a => a.ActionName));
+        Assert.All(native, action =>
+        {
+            Assert.Empty(action.MethodInfo.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), false));
+            Assert.Equal(WayfarerKmlParser.MaximumEncodedDocumentBytes,
+                Assert.Single(action.MethodInfo.GetCustomAttributes(typeof(RequestFormLimitsAttribute), false).Cast<RequestFormLimitsAttribute>()).MultipartBodyLengthLimit);
+        });
         var photo = Assert.Single(actions, a => a.ControllerTypeInfo.AsType() == typeof(Wayfarer.Areas.Api.Controllers.ProfilePhotoController));
         Assert.Equal(16 * 1024 * 1024, Assert.Single(photo.EndpointMetadata.OfType<IRequestSizeLimitMetadata>()).MaxRequestBodySize);
         Assert.Empty(photo.MethodInfo.GetCustomAttributes(typeof(RequestSizeLimitAttribute), false));
