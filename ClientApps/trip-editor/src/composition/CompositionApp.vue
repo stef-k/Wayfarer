@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import CompositionStart from './CompositionStart.vue';
 import CompositionMap from './CompositionMap.vue';
 import SourceTree from './SourceTree.vue';
@@ -21,6 +21,7 @@ const state = store.state;
 const visible = ref({ a: true, b: true, c: true });
 const mapStatus = ref(''); const map = ref<InstanceType<typeof CompositionMap> | null>(null);
 const workspaceElement = ref<HTMLElement | null>(null);
+const completionElement = ref<HTMLElement | null>(null);
 const options = ref<EditorOptions | null>(null);
 const candidates = ref<Candidate[]>([]); const candidateSearch = ref(''); const candidatePending = ref(false);
 const candidateResultSearch = ref('');
@@ -141,6 +142,7 @@ async function finish(): Promise<void> {
       store.dispose(); state.workspace = null; state.view.drafts = {}; state.view.block = null; state.view.selection = null;
       try { localStorage.removeItem(key); storageError.value = ''; }
       catch { storageError.value = 'Comparison finished on the server, but this browser could not clear its retained local choices.'; }
+      await nextTick(); completionElement.value?.focus();
     }
   } catch (error) { lifecycleError.value = error instanceof Error ? error.message : 'Finish could not be confirmed. Refresh C.'; }
   finally { finishing.value = false; }
@@ -207,7 +209,7 @@ watch(() => state.view.collapsed, cancelResize);
 
 <template>
   <CompositionStart v-if="!compositionId" :token="token" />
-  <section v-else-if="finished" class="composition-start" role="status">
+  <section v-else-if="finished" ref="completionElement" class="composition-start" role="status" tabindex="-1">
     <h1>Comparison finished</h1>
     <p v-if="finished">C keeps its saved content, visibility and credits. This historical comparison cannot reopen.</p>
     <p v-if="storageError" role="status">{{ storageError }}</p>
@@ -238,7 +240,7 @@ watch(() => state.view.collapsed, cancelResize);
           title="Drag or use Up/Down arrows; Shift for larger steps; Home/End; Escape cancels drag" @keydown="resize" @pointerdown="startResize" @pointermove="moveResize" @pointerup="stopResize" @pointercancel="cancelResize" @lostpointercapture="stopResize"></div>
         <button type="button" :aria-expanded="!state.view.collapsed" aria-controls="comparison-drawer" @click="state.view.collapsed = !state.view.collapsed">{{ state.view.collapsed ? 'Show comparison' : 'Collapse comparison' }}</button>
       </div>
-      <div v-show="!state.view.collapsed" id="comparison-drawer" class="composition-drawer">
+      <div v-show="!state.view.collapsed" id="comparison-drawer" class="composition-drawer" :inert="finishing">
         <nav class="composition-tabs" aria-label="Comparison drawer sections"><button v-for="tab in ['a', 'b', 'inspector']" :key="tab" type="button" :aria-pressed="state.view.tab === tab" @click="state.view.tab = tab">{{ tab === 'inspector' ? 'Inspector' : `Source ${tab.toUpperCase()}` }}</button></nav>
         <SourceTree v-for="side in (['a', 'b'] as const)" v-show="state.view.tab === side" :key="side" :class="`composition-tree-${side}`" :snapshot="sourceSnapshot(state.workspace, side)" :side="side" :selection="state.view.selection" :mappings="state.workspace.mappings" :expanded="state.view.expanded" :counterpart="state.view.selection && counterpart ? { kind: state.view.selection.kind, id: counterpart } : null" @select="select" @expand="expand" />
         <section v-show="state.view.tab === 'inspector'" class="composition-inspector" aria-label="Contextual comparison inspector">

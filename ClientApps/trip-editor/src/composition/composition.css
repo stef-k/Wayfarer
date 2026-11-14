@@ -41,7 +41,7 @@
 .composition-row { text-align: left; display: block; width: 100%; margin: .3rem 0; overflow-wrap: anywhere; }
 .composition-row small { display: block; font-size: .7rem; color: var(--trip-editor-muted); }
 .composition-row[aria-pressed="true"] { border-color: var(--source-color); box-shadow: inset 4px 0 0 var(--source-color); }
-.composition-row.is-counterpart { outline: 1px dashed var(--source-color); outline-offset: -3px; }
+.composition-row.is-counterpart:not(:focus-visible) { outline: 1px dashed var(--source-color); outline-offset: -3px; }
 .composition-child { padding-left: 1.1rem !important; }
 .composition-workspace details { margin-block: .45rem; }
 .composition-workspace summary { cursor: pointer; padding-block: .3rem; }
