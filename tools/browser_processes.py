@@ -196,8 +196,8 @@ class Child:
             raise
         self.members[pid] = before, descriptor
 
-    def inspect(self):
-        """Include reparented descendants by session, and refuse changed retained identities."""
+    def inspect(self, *, allow_unproved=False):
+        """Pin proved descendants; report adopted writers without granting signal authority."""
         if os.name == 'nt':
             if identity(self.process.pid, int(self.process._handle)) != self.record:
                 raise RuntimeError('Child creation identity changed')
@@ -233,11 +233,17 @@ class Child:
         known = set(self._owners)
         for owner in self._owners.values():
             known.update(owner.members)
-        if any(int(fields[1]) == os.getpid() and pid not in known and fields[0] != 'Z'
-               for pid, fields in table.items()):
+        unproved = [pid for pid, fields in table.items()
+                    if int(fields[1]) == os.getpid() and pid not in known and fields[0] != 'Z']
+        if unproved and not allow_unproved:
+            # Native identities are useful diagnostics, never authority to adopt these PIDs.
+            for pid in unproved:
+                self.log.write(f'Unproved adopted writer: pid={pid}, start={table[pid][19]}\n'.encode())
+            self.log.flush()
             raise RuntimeError('Unproved adopted descendant; preserving residue')
         if self.process.poll() is None and identity(self.process.pid) != self.record:
             raise RuntimeError('Forged/reused child identity refused')
+        return unproved
 
     def _live(self):
         """Find remaining writers without treating zombies or reaped parents as active."""
@@ -265,13 +271,15 @@ class Child:
         """Stop only retained references, verify every writer exited, reap and close logs."""
         if self.closed:
             return
-        self.inspect()
+        # Crashpad can detach before inspection. It must not prevent safe stopping
+        # of pinned writers; its own lifetime ends when those writers close their IPC.
+        self.inspect(allow_unproved=True)
         if os.name == 'nt':
             if self._live():
                 _win('TerminateJobObject', self.job, 1)
         else:
             for stop_signal in (signal.SIGTERM, signal.SIGKILL):
-                self.inspect()
+                self.inspect(allow_unproved=True)
                 for pid, descriptor in self._live():
                     try:
                         if descriptor is not None:
@@ -284,13 +292,18 @@ class Child:
                         pass  # A pinned member may exit between inspection and signaling.
                 deadline = time.monotonic() + 5
                 while self._live() and time.monotonic() < deadline:
-                    self.inspect()
+                    self.inspect(allow_unproved=True)
                     time.sleep(0.05)
                 if not self._live():
                     break
         self.process.wait(timeout=10)
         if self._live():
             raise RuntimeError('Owned descendants remain; preserving residue')
+        if os.name != 'nt':
+            deadline = time.monotonic() + 5
+            while self.inspect(allow_unproved=True) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.inspect()  # Unproved live writers still refuse finalization/removal; never signal them.
         self.log.close()
         for _, descriptor in self.members.values():
             if descriptor is not None:
@@ -312,7 +325,7 @@ class Child:
         """Observe early host death while a bounded build/helper/browser command runs."""
         deadline = time.monotonic() + timeout
         while self.process.poll() is None:
-            self.inspect()
+            self.inspect(allow_unproved=True)
             if watch is not None and watch.process.poll() is not None:
                 raise RuntimeError('Application host terminated during child execution')
             if time.monotonic() >= deadline:

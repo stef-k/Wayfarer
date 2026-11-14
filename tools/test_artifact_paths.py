@@ -45,7 +45,11 @@ class BrowserRoot:
     def __init__(self, profile, supervisor):
         self.run_id = str(uuid.uuid4())
         self._parent = ordinary(Path(tempfile.gettempdir()))
-        self.path = self._parent / f'wayfarer-browser-e2e-{self.run_id}'
+        # Keep the full creation UUID while fitting Chromium's 107-byte Unix socket budget.
+        self.path = self._parent / f'wf-{self.run_id}'
+        endpoint = self.path / 'TempRoot' / 'org.chromium.Chromium.ABC123' / 'SingletonSocket'
+        if sys.platform == 'linux' and len(os.fsencode(endpoint)) > 107:
+            raise ValueError('OS temporary directory exceeds Chromium socket pathname budget')
         self.path.mkdir(mode=0o700)
         self._identity = self.path.stat().st_dev, self.path.stat().st_ino
         self._marker = {'run': self.run_id, 'profile': profile, 'supervisor': supervisor}
@@ -55,9 +59,9 @@ class BrowserRoot:
         self._removed = False
         self._diagnostic = None
 
-    def verify(self, *, stopped_children=()):
+    def verify(self, *, stopped_children=(), tree=True):
         """Refuse foreign roots, replacement directories and changed creation markers."""
-        if self.path != self._parent / f'wayfarer-browser-e2e-{self.run_id}':
+        if self.path != self._parent / f'wf-{self.run_id}':
             raise ValueError('Foreign browser root refused')
         ordinary(self.path)
         if not self.path.is_dir() or (self.path.stat().st_dev, self.path.stat().st_ino) != self._identity:
@@ -65,7 +69,8 @@ class BrowserRoot:
         ordinary(self.marker)
         if json.loads(self.marker.read_text(encoding='utf-8')) != self._marker:
             raise ValueError('Browser ownership marker changed')
-        ordinary(self.path, tree=True, _clr_residue=self._clr_residue(stopped_children))
+        if tree:
+            ordinary(self.path, tree=True, _clr_residue=self._clr_residue(stopped_children))
 
     def _clr_residue(self, children):
         """Derive Linux IPC paths only from retained, stopped children, never JSON records."""
@@ -99,7 +104,9 @@ class BrowserRoot:
 
     def append_diagnostic(self, diagnostic):
         """Write only through pinned owned descriptors; refuse unsafe platform fallbacks."""
-        self.verify()
+        # Active runtime IPC is unrelated to this pinned ordinary log. Recursive
+        # special-file checks still apply to removal after every writer stops.
+        self.verify(tree=False)
         if self._diagnostic is None:
             if os.open not in os.supports_dir_fd or not hasattr(os, 'O_NOFOLLOW'):
                 raise NotImplementedError('Pinned diagnostic storage is unavailable')

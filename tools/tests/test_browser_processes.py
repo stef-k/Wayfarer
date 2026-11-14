@@ -60,18 +60,35 @@ class ProcessTests(unittest.TestCase):
         self.assertNotIn(foreign.process.pid, child.members)
 
     @unittest.skipIf(os.name == 'nt', 'Windows job handles supply complete descendant authority')
-    def test_unproved_writer_refuses_stop_without_signaling_foreign_child(self):
-        """Missing ancestry proof cannot turn an adopted/direct foreign child into kill authority."""
+    def test_unproved_writer_retains_residue_after_proven_child_stops(self):
+        """Stop pinned writers, but never signal an unproved direct/adopted foreign child."""
         child = self.child('import time; time.sleep(60)')
         foreign = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
         try:
             with self.assertRaisesRegex(RuntimeError, 'Unproved adopted'):
                 child.stop()
             self.assertIsNone(foreign.poll())
-            self.assertIsNone(child.process.poll())
+            self.assertIsNotNone(child.process.poll())
+            self.assertFalse(child.closed)
         finally:
             foreign.terminate()
             foreign.wait(timeout=10)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux adopted Crashpad lifetime')
+    def test_unproved_helper_exits_naturally_after_proven_writer_stops(self):
+        """An unproved helper waiting on browser IPC cannot prevent safe owned shutdown."""
+        child = self.child('import time; time.sleep(60)')
+        foreign = subprocess.Popen([sys.executable, '-c',
+                                    f'import os,time;\nwhile os.path.exists("/proc/{child.process.pid}"): time.sleep(0.01)'])
+        try:
+            child.stop()
+            foreign.wait(timeout=10)
+            self.assertTrue(child.closed)
+            self.assertEqual(0, foreign.returncode)
+        finally:
+            if foreign.poll() is None:
+                foreign.terminate()
+                foreign.wait(timeout=10)
 
     def test_early_exit_is_reaped_and_log_closed(self):
         """An already exited child is not reopened or signaled."""

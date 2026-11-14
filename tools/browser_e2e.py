@@ -122,11 +122,12 @@ def wait_ready(child, url, port, timeout=180):
 class BrowserRun:
     """Retains all child references and one finalizer for a fixed managed profile."""
 
-    def __init__(self, repository, profile):
+    def __init__(self, repository, profile, *, headed=False):
         if not os.environ.get('WAYFARER_TEST_POSTGRES_CONNECTION', '').strip():
             raise ValueError('WAYFARER_TEST_POSTGRES_CONNECTION is required')
         self.repository = repository
         self.profile = profile
+        self.headed = headed
         self.root = BrowserRoot(profile, identity(os.getpid()))
         self.children = []
         try:
@@ -253,6 +254,8 @@ class BrowserRun:
         self.started_endpoint = True
         wait_ready(self.host, url + '/Home/Privacy', self.port)
         cli = ['node', self.source / 'node_modules/@playwright/test/cli.js', 'test']
+        if self.headed:
+            cli.append('--headed')
         if self.profile == 'shared-layout':
             cli += ['--config=playwright.shared-layout.config.ts', *selection]
         else:
@@ -358,6 +361,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('profile', choices=('shared-layout', 'waypoint'))
     parser.add_argument('--grep', help='Bound a shared-layout journey using its existing test title')
+    parser.add_argument('--headed', action='store_true', help='Launch Chromium visibly on the configured display')
     args = parser.parse_args()
     if args.profile == 'waypoint' and args.grep:
         parser.error('waypoint has a fixed two-spec selection')
@@ -365,7 +369,7 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
     repository = Path(__file__).absolute().parents[1]
     try:
-        run = BrowserRun(repository, args.profile)
+        run = BrowserRun(repository, args.profile, headed=args.headed)
     except Exception as error:
         report_error('prerequisite', error)
         return 1

@@ -374,9 +374,23 @@ Windows), the guarded PG18 connection above, Node/npm and installed Chromium:
 ~~~sh
 npm run test:e2e:shared-layout
 npm run test:e2e:shared-layout -- --grep 'connect apps'
+npm run test:e2e:shared-layout -- --headed --grep 'Batch 4 Layout B'
 npm run test:e2e:waypoint
 python3 -B -m unittest discover -s tools/tests -v
 ~~~
+
+Load the persistent connection with `source ~/.config/wayfarer/test-postgres.env`
+and use Node 24 (`nvm use`) before invoking the runner. `--headed` is a supported
+supervisor option forwarded only as Playwright's fixed headed switch; omitting it
+keeps ordinary headless operation. On Linux, headed execution requires a working
+X11 `DISPLAY` (the maintained workstation uses `:0`). The Batch 4 native-zoom
+observation also needs `xdotool` and its `libxdo` dependency on the library path;
+`WAYFARER_NATIVE_KEYBOARD_TOOL` can select an installed executable. It verifies
+the visible window's ancestry against the current Playwright worker before
+targeting that exact window. CSS zoom and device emulation do not qualify native
+browser zoom. Check `python3 -B tools/browser_e2e.py --help`, the selected display,
+and pinned Chromium launch/open/close before application/database provisioning
+when repairing browser prerequisites.
 
 The supervisor copies source/build output into a private UUID temporary root,
 verifies the effective application connection, prepares the maintained schema,
@@ -417,6 +431,14 @@ Diagnostic file writes require verified root ownership and pinned directory/file
 descriptors, rejecting links and replaced targets. Unsafe storage or platforms
 without descriptor-relative, no-follow opens (including Windows) use sanitized
 stderr only and report the retention failure without interrupting cleanup.
+Diagnostic appends verify the root/marker and pinned log, without traversing
+unrelated active IPC; recursive deletion retains all special-file checks.
+Linux roots use `wf-<full UUID>`: under `/tmp`, the pinned Chromium singleton
+socket pathname is 98 bytes against the 107-byte payload limit. The supervisor
+checks encoded byte length before creating the root and refuses an overlong OS
+temporary-directory prefix. Detached unproved helpers never acquire signaling
+authority: cleanup stops pinned writers first and waits briefly for helpers to
+exit naturally. Remaining unproved live writers still retain the entire root.
 
 `npm run test:e2e:trip-editor` remains the externally attached mode. The distinct
 Lifecycle spec's real database outage requires an independently owned disposable
