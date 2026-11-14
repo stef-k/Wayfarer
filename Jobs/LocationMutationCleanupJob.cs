@@ -19,8 +19,14 @@ public sealed class LocationMutationCleanupJob(ApplicationDbContext db) : IJob
         try
         {
             LocationMutationCleanupCursor? cursor = null;
-            if (DateTime.TryParse(data.GetString("CursorTime"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var time)
-                && long.TryParse(data.GetString("CursorId"), out var id)) cursor = new(time, data.GetString("CursorOwner") ?? "", id);
+            // Fresh registration has no cursor keys. Only a complete persisted tuple can resume a scan.
+            if (data.TryGetValue("CursorTime", out var cursorTime) && cursorTime is string timeText
+                && data.TryGetValue("CursorId", out var cursorId) && cursorId is string idText
+                && data.TryGetValue("CursorOwner", out var cursorOwner) && cursorOwner is string owner && owner.Length > 0
+                && DateTime.TryParse(timeText, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var time)
+                && long.TryParse(idText, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out var id)) cursor = new(time, owner, id);
             var result = await new LocationMutationCleanup(db).RunAsync(context.CancellationToken, cursor);
             data["CursorTime"] = result.Cursor?.RetainUntilUtc.ToString("O") ?? "";
             data["CursorOwner"] = result.Cursor?.Owner ?? "";

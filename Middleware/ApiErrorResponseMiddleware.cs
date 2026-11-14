@@ -48,6 +48,9 @@ public sealed class ApiErrorResponseMiddleware
         // The managed adapter owns bounded mutation-uncertainty/storage errors, including its early replay path.
         catch (Exception) when (isApi && context.GetEndpoint()?.Metadata.GetMetadata<ManagedImportAttribute>() is not null)
         { throw; }
+        // The host owns disconnected requests. Internal cancellations still use the server-error path.
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        { throw; }
         catch (Exception ex) when (isApi && !context.Response.HasStarted)
         {
             // Keep exception payloads out of both the public envelope and routine diagnostics.
