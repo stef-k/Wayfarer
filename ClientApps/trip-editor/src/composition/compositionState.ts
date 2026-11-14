@@ -40,7 +40,8 @@ export const createCompositionState = (account: string, composition: string) => 
       ++readGeneration;
       try {
         const result = await save(frozen);
-        if (!current() || result.compositionId !== composition || result.tripId !== workspace.tripId) return;
+        if (!current()) return;
+        if (result.compositionId !== composition || result.tripId !== workspace.tripId) throw new Error('The reply does not match this comparison. Refresh saved C before another action.');
         state.workspace = { ...workspace, current: result.current, mappings: result.mappings };
         const sameDraft = selected === (state.view.selection && viewKey(state.view.selection)) && submitted === JSON.stringify(draft);
         if (sameDraft) { accepted(); state.status = 'Saved to C.'; }

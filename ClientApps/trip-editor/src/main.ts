@@ -1,5 +1,4 @@
 import { createApp } from 'vue';
-import App from './App.vue';
 import type { BootstrapConfig } from './types';
 import './theme.css';
 import './map.css';
@@ -34,5 +33,6 @@ const config: BootstrapConfig = {
   antiforgeryToken: tokenInput?.value ?? ''
 };
 
-createApp(App, { config }).mount(mountElement);
+// Load only the selected workspace. Shared Vue/Leaflet/editor code remains a common Vite chunk.
+void import('./App.vue').then(({ default: App }) => createApp(App, { config }).mount(mountElement));
 }

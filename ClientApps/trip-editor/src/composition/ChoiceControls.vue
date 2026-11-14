@@ -72,7 +72,7 @@ const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 
         <label v-if="choice.kind === 'area'" class="composition-field">Or create a normal Region with this copy<input v-model="choice.newRegionName" maxlength="200" :disabled="Boolean(choice.regionId)" /></label>
       </template>
       <template v-if="!child">
-        <label class="composition-field">Insertion position (independent of Region)
+        <label class="composition-field">{{ choice.kind === 'segment' ? 'Trip-level insertion position' : 'Insertion position (independent of Region)' }}
           <select v-model="choice.position"><option value="append">Append</option><option value="start">At start</option><option value="after" :disabled="Boolean(choice.newRegionName)">After selection</option></select>
         </label>
         <label v-if="choice.position === 'after'" class="composition-field">After this current C {{ choice.kind }}
