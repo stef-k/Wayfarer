@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
@@ -73,8 +73,38 @@ test('Batch 5 copy selected block into existing populated Trip', async ({ page }
     keyboardActivation: true, sourceOrderUnchanged: true, destinationEditingLink: true, scope: 'Development owned-source representative copy; no native zoom or full comparison campaign' }, null, 2));
 });
 
+/** Assert the rendered shared contract and record footer/control geometry without changing provider settings. */
+async function observeMap(page: Page, map: Locator) {
+  const footer = map.locator('.leaflet-control-attribution');
+  await expect(footer).toBeVisible();
+  await expect(footer).toHaveAttribute('aria-label', 'Map attribution');
+  await expect(footer).toHaveAttribute('title', 'Map attribution');
+  for (const [name, href] of [['Wayfarer', 'https://wayfarer.stefk.me'], ['Stef K', 'https://stefk.me'], ['Leaflet', 'https://leafletjs.com/']]) {
+    const link = footer.getByRole('link', { name, exact: true });
+    await expect(link).toHaveAttribute('href', href); await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', /noopener/);
+  }
+  const observation = await map.evaluate(element => {
+    const footer = element.querySelector('.leaflet-control-attribution')!;
+    const expected = document.createElement('div'); expected.innerHTML = (window as any).wayfarerTileConfig?.attribution ?? '';
+    const rect = (node: Element) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+    const box = rect(element), credit = rect(footer);
+    const controls = [...element.querySelectorAll('.leaflet-control-zoom'), ...element.parentElement!.querySelectorAll('.composition-layers, .composition-map-status')].map(rect);
+    const selected = [...element.querySelectorAll('path[stroke-width="7"], circle[r="11"]')].map(rect);
+    const overlaps = (a: typeof box, b: typeof box) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    return { text: footer.textContent, html: footer.innerHTML, expected: expected.textContent, box, credit, controls, selected,
+      providerLinks: [...expected.querySelectorAll('a')].map(link => ({ href: link.href, present: [...footer.querySelectorAll('a')].some(actual => actual.href === link.href) })),
+      inside: credit.left >= box.left && credit.right <= box.right + 1 && credit.top >= box.top && credit.bottom <= box.bottom + 1,
+      unobscured: controls.every(control => !overlaps(control, credit)) && selected.every(path => !overlaps(path, credit)) };
+  });
+  expect(observation.text).toContain(observation.expected);
+  expect(observation.providerLinks.every(link => link.present)).toBeTruthy();
+  expect(observation.inside).toBeTruthy(); expect(observation.unobscured).toBeTruthy();
+  return observation;
+}
+
 /** Focused assembled-workspace correction proof; exhaustive draft/race permutations remain component tests. */
-test('Final 911 UX corrections route focus and full workspace block recovery', async ({ page }, testInfo) => {
+test('Final 911 map conformance and G1 saved effect with route focus', async ({ page }, testInfo) => {
   test.setTimeout(180_000); page.setDefaultTimeout(15_000);
   const credentials = loadSharedLayoutConfig(); const a = process.env.WAYFARER_E2E_TRIP_ID!;
   const evidence = process.env.WAYFARER_COMPOSITION_EVIDENCE ?? testInfo.outputPath('captures');
@@ -86,6 +116,8 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
   await page.getByLabel('Username').fill(credentials.username); await page.getByLabel('Password').fill(credentials.password);
   await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
   await page.goto(`/User/Trip/Edit/${a}`); await expect(page.locator('.trip-editor-workspace')).toBeVisible();
+  observations.editorMap = await observeMap(page, page.locator('.trip-editor-map'));
+  await capture('M1-ordinary-editor-shared-attribution');
   const token = await page.locator('#trip-editor-antiforgery input').inputValue();
   const post = async (url: string, data: unknown) => {
     const response = await page.request.post(url, { headers: { RequestVerificationToken: token }, data });
@@ -106,6 +138,11 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
   }
   const started = await post('/api/trip-compositions', { sourceA: a, sourceB: b, name: 'Focused correction C' });
   const composition = started.compositionId; const c = started.tripId;
+  await page.goto(`/User/Trip/Copy?source=${b}&destination=${a}`);
+  await page.getByRole('button', { name: 'Preview copy choices', exact: true }).click();
+  const copyMap = page.getByRole('region', { name: 'Source and existing destination Trip map' });
+  await expect(copyMap.locator('.leaflet-overlay-pane path').first()).toBeVisible();
+  observations.copyMap = await observeMap(page, copyMap); await capture('M2-lightweight-copy-attribution');
   await page.goto(`/User/Trip/Compose/${composition}`);
   const inspector = page.getByRole('region', { name: 'Contextual comparison inspector' });
   const tree = page.getByRole('region', { name: 'Source B hierarchy' });
@@ -117,6 +154,8 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
     const routeRow = tree.getByRole('button', { name: /B harbour route/ });
     await routeRow.focus(); await page.keyboard.press('Enter');
     await expect(inspector.getByRole('heading', { name: 'B harbour route', exact: true })).toBeVisible();
+    observations.compositionMap = await observeMap(page, page.locator('.composition-map'));
+    await capture('M3-full-composition-desktop-attribution');
     await expect(routeRow).toBeFocused(); // Desktop source remains visible and owns its focus.
     await inspector.getByLabel('Action for C', { exact: true }).selectOption('reuse');
     await inspector.getByLabel('Current C counterpart', { exact: true }).selectOption(workspace.current.graph.segments[0].id);
@@ -144,7 +183,8 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
       expect(await inspector.evaluate(element => element.scrollTop)).toBe(0);
       observations.focus = await heading.evaluate(element => ({ tag: document.activeElement?.tagName, focused: element === document.activeElement,
         outline: getComputedStyle(element).outlineStyle, context: element.nextElementSibling?.textContent }));
-      await capture('F2-narrow-keyboard-selected-inspector-context');
+      observations.narrowMap = await observeMap(page, page.locator('.composition-map'));
+      await capture('M4-narrow-footer-controls-and-selected-context');
     } finally { releaseCandidates(); await page.unrouteAll({ behavior: 'wait' }); }
     await page.getByRole('button', { name: 'Source B', exact: true }).click();
     await expect(routeRow).toBeVisible(); // Source-return path and expansion survive.
@@ -223,7 +263,11 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
     await expect(notesField.locator('.composition-differences > div').nth(2)).toContainText('Applied block child Notes');
     await expect(notes).toHaveText('Independent selected-item Notes');
     await notesField.scrollIntoViewIfNeeded(); await capture('G1-saved-effect-and-independent-item-draft');
-    observations.block = { ...observations.block as object,
-      displayed: await notesField.innerText(), independentItem: await notes.innerText(), independentRegion: 'Independent Region Notes' };
+    const displayed = await notesField.innerText(); const independentItem = await notes.innerText();
+    await tree.getByRole('button', { name: /Region · Browser region/ }).click();
+    await expect(regionNotesField.locator('.tiptap')).toHaveText('Independent Region Notes');
+    await capture('G1-retained-independent-region-draft');
+    observations.block = { ...observations.block as object, explicitReview: true, counterpartAvailable: copied[0].id,
+      displayed, independentItem, independentRegion: 'Independent Region Notes' };
   } finally { await writeFile(`${evidence}/correction-observations.json`, JSON.stringify(observations, null, 2)); }
 });

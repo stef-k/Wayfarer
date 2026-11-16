@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Share the Trip Editor base-map setup with full composition and lightweight Copy,
+  retaining project branding, accessible attribution labels, server-resolved provider
+  credit and tile retry/concurrency. Keep wrapped credit, comparison status and
+  fitted selection geography clear on narrow maps. No database migration.
+
 - Make #911 complete-route adoption readable in composition and Copy: show saved
   duration beside distance/source, preserve unavailable versus zero and fractional
   values, and identify changed profile/provenance facts with compact details.
