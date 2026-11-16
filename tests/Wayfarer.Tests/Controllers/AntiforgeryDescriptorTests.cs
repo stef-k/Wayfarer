@@ -205,11 +205,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Assert.Equal(HttpStatusCode.MethodNotAllowed, get.StatusCode);
         using var alias = await client.GetAsync($"/api/Trips/api/trips/{id}/clone");
         Assert.Equal(HttpStatusCode.NotFound, alias.StatusCode);
-        client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
-        using var cloned = await client.PostAsync($"/api/trips/{id}/clone", null);
-        Assert.Equal(HttpStatusCode.OK, cloned.StatusCode);
-        Assert.Contains("clonedTripId", await cloned.Content.ReadAsStringAsync());
-        Assert.Single(db.Trips, trip => trip.UserId == caller.Id && !trip.IsPublic);
+        // Authenticated Clone now requires a real transaction/token barrier; routed positive and revoked
+        // controls live in TripCloneWorkflowPostgresTests, alongside the complete persisted graph proof.
     }
 
     /// <summary>Use method identity because MVC ActionName can intentionally differ on confirmation forms.</summary>

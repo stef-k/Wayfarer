@@ -1650,6 +1650,12 @@ mobile coordination brief](911-batch1.md). Segment Title, Trip credits and the
 owner contribution policy are additive fields. Public full reads remain available
 and planning-redacted; reuse eligibility applies separately to Clone and downloads.
 
+Legacy bearer `POST /api/trips/{id}/clone` revalidates the incoming token after
+acquisition waits inside the Clone transaction and holds its credential barrier
+through commit. Revocation refuses with HTTP 401 and no copied graph; another
+cookie or token cannot substitute for that incoming credential. Cookie Clone uses
+its existing authority path.
+
 ## Copy selected objects into an existing Trip (#911 Batch 5)
 
 Web uses `GET /api/trip-compositions/copy-preview` and

@@ -26,6 +26,25 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripCloneWorkflowPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Existing source eligibility refusals use the real bearer transaction rather than an InMemory authority substitute.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BearerCloneRefusesOwnOrPrivateSource(bool own)
+    {
+        var caller = await fixture.CreateUserAsync();
+        var sourceOwner = own ? caller : await fixture.CreateUserAsync();
+        var source = new Trip { Id = Guid.NewGuid(), UserId = sourceOwner.Id, Name = "Ineligible source",
+            IsPublic = own, ContributionPolicy = "CC-BY-4.0" };
+        fixture.RegisterTrip(source.Id);
+        await using var db = fixture.CreateContext();
+        db.AddRange(source, new ApiToken { User = null!, UserId = caller.Id, Name = "clone eligibility", Token = caller.Id });
+        await db.SaveChangesAsync();
+        Assert.IsType<BadRequestObjectResult>(await BuildApiController(db, caller.Id).CloneTrip(source.Id));
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Trips.AnyAsync(t => t.UserId == caller.Id && t.Id != source.Id));
+    }
+
     /// <summary>The routed bearer caller rechecks its incoming credential after an observed PostgreSQL source wait.</summary>
     [PostgresTheory]
     [InlineData(true)]

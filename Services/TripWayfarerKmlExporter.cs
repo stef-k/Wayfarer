@@ -59,7 +59,7 @@ public static class TripWayfarerKmlExporter
         return result;
     }
 
-    /// <summary>Every v5 file preserves eligible Region covers independently of planning inclusion.</summary>
+    /// <summary>Preserves eligible Region covers and emits children in their established visible per-type order.</summary>
     private static XElement BuildRegion(Region region, Guid tripId, bool includePrivatePlanning)
     {
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));

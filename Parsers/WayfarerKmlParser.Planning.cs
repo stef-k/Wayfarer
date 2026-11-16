@@ -49,7 +49,7 @@ public static partial class WayfarerKmlParser
         return Values(owner, "PlaceId").Count == 1 ? "place" : null;
     }
 
-    /// <summary>V4's closed native metadata shape prevents duplicate, foreign-parent or silently ignored claims.</summary>
+    /// <summary>The closed native metadata shape prevents same-type duplicates, foreign parents and silently ignored claims.</summary>
     private static void ValidateV4Structure(XElement document)
     {
         var fields = new Dictionary<string, string[]>

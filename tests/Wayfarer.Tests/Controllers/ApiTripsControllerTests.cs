@@ -242,22 +242,6 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CloneTrip_ReturnsBadRequest_WhenCloningOwnTrip()
-    {
-        var db = CreateDbContext();
-        var requester = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = requester.Id, Name = "Mine", IsPublic = true };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CloneTrip(trip.Id);
-
-        Assert.IsType<BadRequestObjectResult>(result);
-    }
-
-
-    [Fact]
     public async Task UpdateRegion_ConcealsDifferentOwner()
     {
         var db = CreateDbContext();
@@ -274,22 +258,6 @@ public partial class ApiTripsControllerTests : TestBase
         var result = await controller.UpdateRegion(region.Id, new RegionUpdateRequestDto { Name = "New" });
 
         Assert.IsType<NotFoundObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task CloneTrip_ReturnsBadRequest_WhenPrivate()
-    {
-        var db = CreateDbContext();
-        var requester = SeedUserWithToken(db, "tok");
-        var owner = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(owner);
-        db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Private", IsPublic = false });
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CloneTrip(db.Trips.First().Id);
-
-        Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
@@ -371,36 +339,6 @@ public partial class ApiTripsControllerTests : TestBase
         var result = await controller.CloneTrip(Guid.NewGuid());
 
         Assert.IsType<UnauthorizedObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task CloneTrip_CreatesNewTrip_ForPublicSource()
-    {
-        var db = CreateDbContext();
-        var sourceOwner = TestDataFixtures.CreateUser(id: "owner");
-        var requester = SeedUserWithToken(db, "tok");
-        var sourceTrip = new Trip
-        {
-            Id = Guid.NewGuid(),
-            UserId = sourceOwner.Id,
-            Name = "Public Trip",
-            IsPublic = true,
-            ContributionPolicy = "CC-BY-4.0",
-            Regions = new List<Region>(),
-            Segments = new List<Segment>()
-        };
-        db.Users.Add(sourceOwner);
-        db.Trips.Add(sourceTrip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CloneTrip(sourceTrip.Id);
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var clonedId = (Guid?)payload.GetType().GetProperty("clonedTripId")?.GetValue(payload);
-        Assert.NotNull(clonedId);
-        Assert.True(db.Trips.Any(t => t.Id == clonedId && t.UserId == requester.Id));
     }
 
     [Fact]
@@ -497,51 +435,6 @@ public partial class ApiTripsControllerTests : TestBase
         var result = await controller.UpdatePlace(place.Id, new PlaceUpdateRequestDto { Latitude = 100, Longitude = 200 });
 
         Assert.Equal(409, Assert.IsType<ObjectResult>(result).StatusCode);
-    }
-
-    [Fact]
-    public async Task CloneTrip_CopiesRegionsAndPlaces()
-    {
-        var db = CreateDbContext();
-        var sourceOwner = TestDataFixtures.CreateUser(id: "owner");
-        var requester = SeedUserWithToken(db, "tok");
-        var sourceTrip = new Trip
-        {
-            Id = Guid.NewGuid(),
-            UserId = sourceOwner.Id,
-            Name = "Public Trip",
-            IsPublic = true,
-            ContributionPolicy = "CC-BY-4.0",
-            Regions = new List<Region>
-            {
-                new Region
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Region1",
-                    UserId = sourceOwner.Id,
-                    Places = new List<Place>
-                    {
-                        new Place { Id = Guid.NewGuid(), Name = "Place1", UserId = sourceOwner.Id, Location = new Point(10, 20) { SRID = 4326 } }
-                    }
-                }
-            },
-            Segments = new List<Segment>()
-        };
-        db.Users.Add(sourceOwner);
-        db.Trips.Add(sourceTrip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CloneTrip(sourceTrip.Id);
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var clonedId = (Guid?)payload.GetType().GetProperty("clonedTripId")?.GetValue(payload);
-        Assert.NotNull(clonedId);
-        var clonedTrip = db.Trips.Include(t => t.Regions).ThenInclude(r => r.Places).First(t => t.Id == clonedId);
-        Assert.Equal(requester.Id, clonedTrip.UserId);
-        Assert.Single(clonedTrip.Regions);
-        Assert.Single(clonedTrip.Regions.First().Places);
     }
 
     [Fact]

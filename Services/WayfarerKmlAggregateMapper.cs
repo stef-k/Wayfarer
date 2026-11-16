@@ -7,7 +7,7 @@ namespace Wayfarer.Services;
 /// <summary>Validates and maps detached native KML transport data into one owned Trip aggregate.</summary>
 internal static class WayfarerKmlAggregateMapper
 {
-    /// <summary>Creates a complete entity graph, remapping every source identity when requested.</summary>
+    /// <summary>Validates identities per type and creates a complete graph; independent copies normalize source-visible order.</summary>
     internal static Trip Map(
         WayfarerKmlDocument source,
         string userId,
