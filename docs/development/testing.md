@@ -848,6 +848,10 @@ through ordinary lifecycle deletion before the adapter replies; saved remains sa
 Private-marker regressions cover inspection, unexpected/expected cancellation and
 independent thumbnail/warmup failures, checking captured exceptions, formatted text
 and structured fields. Lost commit acknowledgement remains unconfirmed without replay.
+The real-effect regression uses the actual thumbnail generator and warmup scheduler:
+removing its owned thumbnail directory and failing Quartz through `IScheduler` proves
+that both internal warnings retain only the operation, Trip ID and failure type,
+while warmup is attempted and exactly one new Trip remains confirmed saved.
 Mounted scope/reselection, effective-placement resolution and shared Place/Area block
 cases assert actual submitted intent, retained independent drafts and truthful refusal
 of conflicting authored choices; own planning, foreign privacy and Notes owners remain covered.

@@ -21,6 +21,8 @@
   and nested identities inside each local review/block, refusing conflicting drafts.
   Show folded children's effective container and resolve incompatible After placement
   explicitly. Log native post-commit failures using only type, phase and stable IDs.
+  Bound the real thumbnail-invalidation and warmup-scheduling warnings to operation,
+  Trip ID and exception type, preserving independent best-effort effects and saved truth.
 
 - Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
   ordinary independent versions, deliberately start/continue a source pair, review

@@ -7,10 +7,12 @@ using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Builder;
 using Moq;
+using Quartz;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -275,6 +277,80 @@ public sealed partial class TripCompositionHttpPostgresTests
                 throw failure;
             }
             return result;
+        }
+    }
+
+    /// <summary>Real effect owners keep useful bounded warnings and confirmed save truth when both effects fail internally.</summary>
+    [PostgresFact]
+    public async Task NativeRealDerivedEffectFailuresPreserveSavedTruthWithoutPrivateDiagnostics()
+    {
+        var owner = await fixture.CreateUserAsync();
+        var source = Source(owner.Id, "Real derived owners", false, null, 24);
+        fixture.RegisterTrip(source.Id);
+        await using var db = fixture.CreateContext();
+        db.AddRange(source, new ApiToken { UserId = owner.Id, User = await db.Users.SingleAsync(u => u.Id == owner.Id), Token = owner.Id, Name = "native" });
+        await db.SaveChangesAsync();
+        using var logs = new TestLogProvider();
+        using var loggerFactory = LoggerFactory.Create(l => l.AddProvider(logs));
+        const string sentinel = "PRIVATE_NATIVE_EFFECT_DIAGNOSTIC";
+        var privateRoot = Path.Combine(CreateTestDirectory(), sentinel);
+        var storage = new TripThumbnailStorage(TestDirectory.Storage(privateRoot));
+        var thumbnails = new TripMapThumbnailGenerator(loggerFactory.CreateLogger<TripMapThumbnailGenerator>(),
+            storage, new ConfigurationBuilder().Build());
+        // A real filesystem failure occurs after initialization, inside InvalidateThumbnails.
+        Directory.Delete(storage.Root);
+        Exception diagnostic;
+        try { throw new IOException(sentinel, new InvalidOperationException(sentinel + "_INNER")); }
+        catch (IOException captured) { diagnostic = captured; }
+        diagnostic.Data[sentinel + "_KEY"] = sentinel + "_DATA";
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(s => s.CheckExists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>())).ThrowsAsync(diagnostic);
+        var warmup = new CacheWarmupScheduler(scheduler.Object, loggerFactory.CreateLogger<CacheWarmupScheduler>());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddLogging(l => l.AddProvider(logs));
+            services.AddScoped(_ => fixture.CreateContext());
+            services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new Factory(fixture));
+            services.AddSingleton<ITripMapThumbnailGenerator>(thumbnails);
+            services.AddSingleton<ICacheWarmupScheduler>(warmup);
+            services.AddSingleton(Mock.Of<IIconColorProvider>());
+        });
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Id);
+        using var response = await client.PostAsync("/api/trips/native/import", Upload(TripWayfarerKmlExporter.BuildKml(source), "CreateNew"));
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(text);
+        var body = document.RootElement;
+        Assert.Equal("success", body.GetProperty("status").GetString());
+        var id = body.GetProperty("tripId").GetGuid();
+        fixture.RegisterTrip(id);
+        Assert.NotEqual(source.Id, id);
+        Assert.True(body.GetProperty("currentAvailable").GetBoolean());
+        Assert.Contains("saved", body.GetProperty("detail").GetString());
+        Assert.True(await db.Trips.AsNoTracking().AnyAsync(t => t.Id == id && t.UserId == owner.Id));
+        Assert.Equal(2, await db.Trips.CountAsync(t => t.UserId == owner.Id));
+        Assert.DoesNotContain(sentinel, text);
+        scheduler.Verify(s => s.CheckExists(new TriggerKey($"CacheWarmup-{id}", "CacheWarmup"), It.IsAny<CancellationToken>()), Times.Once);
+        // Capture both actual service categories, rather than only exceptions escaping to the adapter.
+        var effects = logs.Entries.Where(l => l.Level >= LogLevel.Warning &&
+            (l.Category == typeof(TripMapThumbnailGenerator).FullName || l.Category == typeof(CacheWarmupScheduler).FullName)).ToArray();
+        Assert.Equal(2, effects.Length);
+        foreach (var (category, failureType, message) in new[]
+        {
+            (typeof(TripMapThumbnailGenerator).FullName, nameof(DirectoryNotFoundException), $"Failed to invalidate thumbnails for trip {id} ({nameof(DirectoryNotFoundException)})"),
+            (typeof(CacheWarmupScheduler).FullName, nameof(IOException), $"Failed to schedule cache warm-up for trip {id} ({nameof(IOException)}).")
+        })
+        {
+            var entry = Assert.Single(effects, l => l.Category == category);
+            Assert.Equal(LogLevel.Warning, entry.Level);
+            Assert.Equal(message, entry.Message);
+            Assert.Null(entry.Exception);
+            Assert.Equal(new[] { "FailureType", "TripId" }, entry.Fields.Keys.Order());
+            Assert.Equal(id, entry.Fields["TripId"]);
+            Assert.Equal(failureType, entry.Fields["FailureType"]);
+            Assert.DoesNotContain(sentinel, entry.Message + JsonSerializer.Serialize(entry.Fields));
+            Assert.DoesNotContain(privateRoot, entry.Message + JsonSerializer.Serialize(entry.Fields));
         }
     }
 
