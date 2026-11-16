@@ -109,3 +109,19 @@ test('map extent includes complete polygon holes, route geometry/anchors, Region
   assert.deepEqual(spatialContent(s, 'place', 'cafe'), []);
   assert.equal(fieldValue(s, 'place', 'cafe', 'notes'), null);
 });
+
+
+test('a new Region and its nested approved route Place share one copy in the explicitly reviewed container', () => {
+  const w = workspace(); const r = w.sourceB.graph.regions[0];
+  w.sourceB.graph.segments = [{ id: 'route', fromPlaceId: 'beach', toPlaceId: 'castle', waypoints: [] }];
+  const review = newReview(w, 'b'); const region = newChoice(w, 'b', 'region', r.id);
+  region.withChildren = true; region.separate = true;
+  region.children = r.places.map(p => newChoice(w, 'b', 'place', p.id));
+  const route = newChoice(w, 'b', 'segment', 'route');
+  route.anchors.forEach(a => { a.approveCopy = true; a.useSelectedCopy = true; });
+  review.items = [region, route];
+  const action = buildAction(w, review);
+  assert.deepEqual(action.items.map(i => i.kind), ['region', 'segment']);
+  assert.deepEqual(action.items[0].children.map(i => i.sourceId), ['beach', 'castle']);
+  assert.ok(action.items[1].anchors.every(a => a.destinationId === null));
+});

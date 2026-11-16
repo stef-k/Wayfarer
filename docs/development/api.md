@@ -1650,6 +1650,173 @@ mobile coordination brief](911-batch1.md). Segment Title, Trip credits and the
 owner contribution policy are additive fields. Public full reads remain available
 and planning-redacted; reuse eligibility applies separately to Clone and downloads.
 
+## Copy selected objects into an existing Trip (#911 Batch 5)
+
+Web uses `GET /api/trip-compositions/copy-preview` and
+`POST /api/trip-compositions/copy` with User-role cookies and antiforgery on POST.
+Bearer clients use `GET /api/trips/copy-preview` and `POST /api/trips/copy`.
+A cookie cannot authorize the bearer surface, and a bearer cannot substitute for
+Web antiforgery. Both call the same application operation, recheck active owners,
+current source eligibility and incoming credentials after waits, and return
+private/no-store responses. No comparison workspace or new Trip is created.
+
+Preview query parameters are `sourceTripId` and `destinationTripId` (UUIDs).
+Sources must be owned, or currently public with CC BY/CC0 reuse permission and an
+active owner. The destination must currently belong to the caller. Preview returns:
+
+```json
+{
+  "sourceTripId": "11111111-1111-1111-1111-111111111111",
+  "tripId": "22222222-2222-2222-2222-222222222222",
+  "source": { "format": 1, "graph": {}, "regionOrder": [], "placeOrder": {}, "areaOrder": {}, "mediaOmitted": false },
+  "current": { "format": 1, "graph": {}, "regionOrder": [], "placeOrder": {}, "areaOrder": {}, "planning": {} },
+  "context": "server-returned-content-original",
+  "originals": [{ "kind": "place", "id": "33333333-3333-3333-3333-333333333333", "value": "server-returned-object-original" }]
+}
+```
+
+The empty graph/planning objects above abbreviate complete projections, not valid
+replacement DTOs. The graph uses `ApiTripDto`; planning uses `PlanningOwnerSnapshot`.
+Foreign `source` has **no planning member**, even when it has no planning; no
+presence/count/diagnostic/hash of foreign planning is exposed. Unqualified foreign
+covers and embedded Notes images are omitted before projection and hashing.
+`mediaOmitted` explains the safe omission; it grants no permission to fetch/rehost.
+Owner previews may contain authorized planning/media. Source selection does not
+implicitly import own planning into new selected objects.
+
+Echo preview `context` and relevant `originals` unchanged, alongside the selected
+composition items. These SHA-256 values are plain content comparisons, not signed
+grants, credentials, expiring permits, request IDs or replay protection. The server
+reads all actual source values and rechecks authority. Only selected objects and
+route dependencies are compared; a Region-with-children also checks its reviewed
+child content/membership. Unselected source objects do not invalidate an otherwise
+unchanged selection. Changes to applicable credits/policy invalidate the review.
+
+For example, two Places become one ordered block after an existing Café:
+
+```json
+{
+  "sourceTripId": "11111111-1111-1111-1111-111111111111",
+  "destinationTripId": "22222222-2222-2222-2222-222222222222",
+  "context": "echo-preview-context",
+  "originals": [
+    { "kind": "place", "id": "33333333-3333-3333-3333-333333333333", "value": "echo-beach-original" },
+    { "kind": "place", "id": "44444444-4444-4444-4444-444444444444", "value": "echo-castle-original" }
+  ],
+  "items": [
+    {
+      "kind": "place", "sourceId": "33333333-3333-3333-3333-333333333333", "decision": "copy",
+      "regionId": "55555555-5555-5555-5555-555555555555",
+      "placement": { "position": "after", "afterId": "66666666-6666-6666-6666-666666666666", "expected": [{ "id": "66666666-6666-6666-6666-666666666666", "displayOrder": 7 }] }
+    },
+    {
+      "kind": "place", "sourceId": "44444444-4444-4444-4444-444444444444", "decision": "copy", "name": "Castle viewpoint",
+      "regionId": "55555555-5555-5555-5555-555555555555",
+      "placement": { "position": "after", "afterId": "66666666-6666-6666-6666-666666666666", "expected": [{ "id": "66666666-6666-6666-6666-666666666666", "displayOrder": 7 }] }
+    }
+  ]
+}
+```
+
+The example destination list contains only Café; real `expected` arrays contain
+all current members of that affected list, in reviewed order, with exact nullable
+stored orders. `append` and `start` omit `afterId`. Parent and reference must agree.
+Mixed kinds/parents have separate lists. New siblings normalize to distinct
+positive orders, preserving existing relative sequence. Canonical Unassigned
+retains its reserved semantics. Missing/stale targets never redirect or append.
+Regions support individual `children` copy/reuse/skip choices; Segments are always
+Trip-level. All approved From/To/Via dependencies precede routes. An anchor either
+names an existing destination Place with exact `regionId` and `[lon,lat]` original,
+or uses `destinationId: null` to reference an explicitly copied Place earlier in
+the same action (including a nested Region child). Shared dependencies copy once.
+A route must remain compatible with approved coordinates before retaining exact
+measurements/provenance; no snapping, fallback conversion or provider regeneration.
+
+Use `decision: "reuse"`, `destinationId`, and (Place/Area) `expectedParentId` for a
+current counterpart. This keeps identity/container/position. Omitted fields Keep;
+`fields.notes: { "operation": "useSource", "expected": "<p>Current note</p>" }`
+adopts only Notes, plus applicable inherited notices. `edit` supplies `value`;
+`clear` is explicit and subject to domain rules. `expected: null` is a real original,
+not omission. Nullable title is separate from Notes/route. Whole planning adoption
+is authorized-own-only, explicit, ordered and remaps entry IDs. Required names and
+geometry cannot Clear. Lifecycle/route adoption retains existing prepare/confirmation
+tokens; the Web uses the shared preparation owner. Removal and Trip metadata
+adoption are refused on this lightweight surface. Skip is local to this selection;
+it does not create a retained exclusion/workspace.
+
+200 returns `status: "copied"`, the unchanged destination `tripId`, complete owned
+`current`, identity `mappings` for this operation and `mediaOmitted`. The compatibility
+`compositionId` is the empty UUID, **not** a workspace to resume. No mappings or
+request history are persisted. Content, references, order and credits commit once.
+Destination name, visibility, owner contribution policy and unselected content stay.
+Public changes use existing freshness/thumbnail/warmup; private-only planning does
+not advance public freshness. 400 rejects malformed/incompatible intent, 404 conceals
+unavailable authority, and 409 requires explicit refresh/review without changing
+choices. Transport/503 failures leave the save unconfirmed: inspect the destination
+before another attempt. No automatic replay or exactly-once guarantee exists.
+
+### Complete cross-client reads and native transport
+
+| Data | Supported backend representation and presence semantics |
+| --- | --- |
+| Complete reusable graph | `GET /api/trips/{id}`; public remains planning-redacted even for its owner. Private graph requires owner bearer. Empty graphs, nullable coordinates/endpoints/orders and alternative Segments remain valid. |
+| Coherent owned graph/planning | `GET /api/trips/{id}/planning` returns `{ trip, planning }` under owner bearer/private no-store. No public fallback for a denied owner read. Planning is the complete ordered format-1 aggregate on all five target types. |
+| Exact measurements | Segment `estimatedDistanceKm` nullable double; `estimatedDurationMinutes` retains its existing unit; authoritative `estimatedDurationTicks` is nullable integer ticks (10 ticks/microsecond), alongside `estimatedDurationSource` Automatic/Manual. Never round-trip through integer minutes. |
+| Complete route | `routeJson` nullable GeoJSON LineString **string**, `hasCustomRoute`, nullable From/To, ordered `waypoints` with `placeId`, contiguous `position` and nullable `routeVertexIndex`. A fallback geometry is not a stored custom route. |
+| Provenance | `routeProvider`, `routeStorageMode`, `routeMappingMode`, `routeGeneratedAt`, `routeAttribution`, `routeInstructionsJson`, `routeTransportProfileId`, `routeProviderConfigurationId`, `routeProviderConfigurationVersion`; nullable retained evidence, no credentials or execution authority. |
+| Enrichment | Place `address`, `resolvedFeatureName`, `resolvedFeatureType`, `addressEnrichmentProvider`, `addressEnrichmentStorageMode`, `addressEnrichedAt`; preserve the coherent authorized tuple and nulls. |
+| Content/policy | Nullable rich `notes`, Segment `title`, Trip/Region `coverImageUrl`, icons/colour/fill, viewport, shared tags, structured Trip `credits` and separate `contributionPolicy`. Areas use `geometryGeoJson` as a GeoJSON Polygon string including every hole. Points use `[lon,lat]`. |
+| Native owner download | `GET /api/trips/{id}/native?includePrivatePlanning=false`, incoming owner bearer, private/no-store. Always native v5. Personal planning requires explicit `true`; default contains no planning hints. Existing cookie native routes remain supported. |
+| Native upload/review | `POST /api/trips/native/import`, multipart `file`, `mode` = Auto/CreateNew/Upsert (default Auto), optional `reviewToken`/repeated `choices`. `POST /api/trips/native/review`, multipart `file`, previews owned replacement. Both require bearer, use existing upload limits, and never require cookie antiforgery. |
+
+Native bearer transport shares strict version/classification, mapper, review protection
+and importer with Web. Generic KML is explicitly refused on the new native endpoint;
+the existing Web generic/Google importer remains supported. Native v1–v5 retain their
+established semantics; all new output is v5. Auto returns ordinary `status: duplicate`
+for an owned duplicate only after current active-owner and incoming-credential checks
+following the account wait; CreateNew remaps graph/planning IDs into a private Trip;
+Upsert requires current owned-target review. Review returns `review.token` and
+per-row choices; send the selected choice tokens in multipart `choices`. Empty
+choices retain protected fields by default, rather than consent to loss. Echo the
+same file bytes and review token. Successful import returns `status: success`,
+`tripId`, `notices`, `currentAvailable` and `detail`. `currentAvailable` describes
+the post-commit inspection: true for an available destination, false if it has
+already disappeared, null if inspection failed. Each preserves the known saved
+fact; later inspection/thumbnail/warmup failures never become validation refusals.
+These boundaries log only exception type, phase, Trip ID and owner ID, without raw
+exceptions, messages or payloads. Expected request cancellation after commit uses
+debug diagnostics and retains the saved/current-uninspectable result.
+Validation refusal before commit is atomic. A genuinely uncertain commit or lost
+response requires inspection, without automatic import retry.
+
+Shared synthetic fixtures live in `tests/Wayfarer.Tests/Fixtures/Trips/`:
+`cross-client-owner.json` (the format-1 owned copy/composition projection, with
+`graph` containing the complete `ApiTripDto`, rather than the owner-read envelope),
+`cross-client-v5.kml` (planning off), and
+`cross-client-v5-personal.kml`. They include all five planning targets, end-only and
+flexible intentions, explicit zero allocation, rich Notes, a polygon hole,
+nullable/unlocated historical content, ordered Via, exact measurements, retained
+provenance/enrichment and separate credits/policy. Parser and real PostgreSQL
+CreateNew/subsequent-writer tests consume the same files. These are backend fixtures,
+not a claim that a mobile DTO, storage layer or native reader already passes them.
+
+Native v5 optional text (including Notes and Address) omits its metadata value
+when null and retains a present empty value when empty; the typed parser already
+distinguishes these. Title and contribution policy keep their dedicated explicit
+blank/null representation, rather than treating their omission as Clear on retained
+targets. This is separate from default-off personal planning and protected writes.
+
+Read DTOs distinguish actual null/absence from zero. Write presence remains
+operation-specific: omitted selected groups Keep; explicit protected Clear is not
+inferred from missing/null transport. Native v5 Title/credits/terms carry explicit
+intent, older omission preserves retained same-type fields, and default file planning
+omission preserves target planning. Native personal files, public reads, owner
+planning reads and editor state are different audience contracts, not interchangeable
+fallbacks. Do not derive a complete transport/storage model from the narrower mobile
+Foundation presentation model. Mobile owns lossless DTO/storage mappings, supported
+controls/native codecs, offline attribution, account partitioning and Android/iOS
+runtime qualification; backend evidence is not end-to-end mobile compatibility.
+
 ## Saved Trip measurements and native KML
 
 A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns

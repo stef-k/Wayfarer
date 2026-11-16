@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { find, label, ordered } from './compositionModel';
 import type { Kind, Mapping, Selection, Side, Snapshot } from './compositionTypes';
 const props = defineProps<{ snapshot: Snapshot; side: Side; selection: Selection | null; mappings: Mapping[]; expanded: string[];
-  counterpart?: { kind: Kind; id: string } | null }>();
+  objectsOnly?: boolean; caption?: string; counterpart?: { kind: Kind; id: string } | null }>();
 const emit = defineEmits<{ select: [selection: Selection]; expand: [key: string, open: boolean] }>();
 const search = ref('');
 const matches = (kind: Kind, id: string): boolean => label(find(props.snapshot, kind, id)!).toLowerCase().includes(search.value.toLowerCase());
@@ -24,9 +24,9 @@ const toggle = (key: string, event: Event): void => emit('expand', key, (event.t
 
 <template>
   <section class="composition-source" :class="`source-${side}`" :aria-label="`Source ${side.toUpperCase()} hierarchy`">
-    <h2>{{ side.toUpperCase() }} · {{ snapshot.graph.name }} <small>Read-only source</small></h2>
+    <h2>{{ caption || side.toUpperCase() }} · {{ snapshot.graph.name }} <small>Read-only source</small></h2>
     <label class="composition-field">Search {{ side.toUpperCase() }}<input v-model="search" type="search" maxlength="200" /></label>
-    <button type="button" class="composition-row" :aria-pressed="active('trip', snapshot.graph.id)" @click="select('trip', snapshot.graph.id)">Trip details <small>{{ status('trip', snapshot.graph.id) }}</small></button>
+    <button v-if="!objectsOnly" type="button" class="composition-row" :aria-pressed="active('trip', snapshot.graph.id)" @click="select('trip', snapshot.graph.id)">Trip details <small>{{ status('trip', snapshot.graph.id) }}</small></button>
     <details v-for="region in regions" :key="region.id" :open="Boolean(search) || expanded.includes(`${side}/${region.id}`)" @toggle="toggle(`${side}/${region.id}`, $event)">
       <summary>{{ region.name }}</summary>
       <button type="button" class="composition-row" :class="{ 'is-counterpart': linked('region', region.id) }" :aria-pressed="active('region', region.id)" @click="select('region', region.id)">Region · {{ region.name }} <small>{{ linked('region', region.id) ? 'Current C counterpart · ' : '' }}{{ status('region', region.id) }}</small></button>

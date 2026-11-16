@@ -1,0 +1,392 @@
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Cross-client coastal ideas</name>
+    <ExtendedData>
+      <Data name="WayfarerSchemaVersion">
+        <value>5</value>
+      </Data>
+      <Data name="TripId">
+        <value>10000000-0000-0000-0000-000000000001</value>
+      </Data>
+      <Data name="UpdatedAt">
+        <value>2026-11-14T12:00:00.0000000Z</value>
+      </Data>
+      <Data name="CoverImageUrl">
+        <value>https://example.invalid/owned-trip-cover.jpg</value>
+      </Data>
+      <Data name="NotesHtml">
+        <value>&lt;p&gt;Trip &lt;strong&gt;Notes&lt;/strong&gt;&lt;/p&gt;</value>
+      </Data>
+      <Data name="CenterLat">
+        <value>40</value>
+      </Data>
+      <Data name="CenterLon">
+        <value>12</value>
+      </Data>
+      <Data name="Zoom">
+        <value>9</value>
+      </Data>
+      <Data name="Tags">
+        <value>coastal</value>
+      </Data>
+    </ExtendedData>
+    <ExtendedData>
+      <Data name="ContentReuse">
+        <value>CC0-1.0</value>
+      </Data>
+      <Data name="Credits">
+        <value>[{"contributor":"Prior contributor","sourceTitle":"Offline source","licence":"CC-BY-4.0","licenceUrl":"https://creativecommons.org/licenses/by/4.0/","notices":"Keep supplied notice","modifications":"Selected content adapted","sourceUrl":"https://example.invalid/source"}]</value>
+      </Data>
+    </ExtendedData>
+    <Style id="wf_marker_bg-blue">
+      <IconStyle>
+        <Icon>
+          <href>/icons/wayfarer-map-icons/dist/png/marker/bg-blue/marker.png</href>
+        </Icon>
+      </IconStyle>
+    </Style>
+    <Folder>
+      <name>Coast</name>
+      <ExtendedData>
+        <Data name="RegionId">
+          <value>10000000-0000-0000-0000-000000000002</value>
+        </Data>
+        <Data name="TripId">
+          <value>10000000-0000-0000-0000-000000000001</value>
+        </Data>
+        <Data name="DisplayOrder">
+          <value>4</value>
+        </Data>
+        <Data name="NotesHtml">
+          <value>&lt;p&gt;Region Notes&lt;/p&gt;</value>
+        </Data>
+        <Data name="CenterLat">
+          <value>41</value>
+        </Data>
+        <Data name="CenterLon">
+          <value>13</value>
+        </Data>
+      </ExtendedData>
+      <ExtendedData>
+        <Data name="CoverImageUrl">
+          <value>https://example.invalid/owned-region-cover.jpg</value>
+        </Data>
+      </ExtendedData>
+      <Placemark>
+        <name>Unlocated</name>
+        <styleUrl>#wf_marker_bg-blue</styleUrl>
+        <ExtendedData>
+          <Data name="PlaceId">
+            <value>10000000-0000-0000-0000-000000000013</value>
+          </Data>
+          <Data name="RegionId">
+            <value>10000000-0000-0000-0000-000000000002</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value></value>
+          </Data>
+          <Data name="IconName">
+            <value>marker</value>
+          </Data>
+          <Data name="MarkerColor">
+            <value>bg-blue</value>
+          </Data>
+          <Data name="ResolvedFeatureName">
+            <value></value>
+          </Data>
+          <Data name="ResolvedFeatureType">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentProvider">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentStorageMode">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichedAt">
+            <value></value>
+          </Data>
+        </ExtendedData>
+      </Placemark>
+      <Placemark>
+        <name>Start</name>
+        <styleUrl>#wf_marker_bg-blue</styleUrl>
+        <ExtendedData>
+          <Data name="PlaceId">
+            <value>10000000-0000-0000-0000-000000000010</value>
+          </Data>
+          <Data name="RegionId">
+            <value>10000000-0000-0000-0000-000000000002</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>0</value>
+          </Data>
+          <Data name="NotesHtml">
+            <value>&lt;p&gt;Start Notes&lt;/p&gt;</value>
+          </Data>
+          <Data name="IconName">
+            <value>marker</value>
+          </Data>
+          <Data name="MarkerColor">
+            <value>bg-blue</value>
+          </Data>
+          <Data name="Address">
+            <value>1 Coastal road</value>
+          </Data>
+          <Data name="ResolvedFeatureName">
+            <value>Coastal museum</value>
+          </Data>
+          <Data name="ResolvedFeatureType">
+            <value>amenity</value>
+          </Data>
+          <Data name="AddressEnrichmentProvider">
+            <value>geoapify</value>
+          </Data>
+          <Data name="AddressEnrichmentStorageMode">
+            <value>persistent</value>
+          </Data>
+          <Data name="AddressEnrichedAt">
+            <value>2026-11-01T10:00:00.0000000+00:00</value>
+          </Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>12,40,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Via</name>
+        <styleUrl>#wf_marker_bg-blue</styleUrl>
+        <ExtendedData>
+          <Data name="PlaceId">
+            <value>10000000-0000-0000-0000-000000000011</value>
+          </Data>
+          <Data name="RegionId">
+            <value>10000000-0000-0000-0000-000000000002</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>1</value>
+          </Data>
+          <Data name="NotesHtml">
+            <value>&lt;p&gt;Via Notes&lt;/p&gt;</value>
+          </Data>
+          <Data name="IconName">
+            <value>marker</value>
+          </Data>
+          <Data name="MarkerColor">
+            <value>bg-blue</value>
+          </Data>
+          <Data name="ResolvedFeatureName">
+            <value></value>
+          </Data>
+          <Data name="ResolvedFeatureType">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentProvider">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentStorageMode">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichedAt">
+            <value></value>
+          </Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>13,41,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>End</name>
+        <styleUrl>#wf_marker_bg-blue</styleUrl>
+        <ExtendedData>
+          <Data name="PlaceId">
+            <value>10000000-0000-0000-0000-000000000012</value>
+          </Data>
+          <Data name="RegionId">
+            <value>10000000-0000-0000-0000-000000000002</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>2</value>
+          </Data>
+          <Data name="NotesHtml">
+            <value>&lt;p&gt;End Notes&lt;/p&gt;</value>
+          </Data>
+          <Data name="IconName">
+            <value>marker</value>
+          </Data>
+          <Data name="MarkerColor">
+            <value>bg-blue</value>
+          </Data>
+          <Data name="ResolvedFeatureName">
+            <value></value>
+          </Data>
+          <Data name="ResolvedFeatureType">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentProvider">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichmentStorageMode">
+            <value></value>
+          </Data>
+          <Data name="AddressEnrichedAt">
+            <value></value>
+          </Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>14,42,0</coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Park with hole</name>
+        <ExtendedData>
+          <Data name="AreaId">
+            <value>10000000-0000-0000-0000-000000000020</value>
+          </Data>
+          <Data name="RegionId">
+            <value>10000000-0000-0000-0000-000000000002</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>2</value>
+          </Data>
+          <Data name="FillHex">
+            <value>#3388FF</value>
+          </Data>
+          <Data name="NotesHtml">
+            <value>&lt;p&gt;Area Notes&lt;/p&gt;</value>
+          </Data>
+        </ExtendedData>
+        <Polygon>
+          <outerBoundaryIs>
+            <LinearRing>
+              <coordinates>1,1,0 5,1,0 5,5,0 1,5,0 1,1,0</coordinates>
+            </LinearRing>
+          </outerBoundaryIs>
+          <innerBoundaryIs>
+            <LinearRing>
+              <coordinates>2,2,0 2,3,0 3,3,0 3,2,0 2,2,0</coordinates>
+            </LinearRing>
+          </innerBoundaryIs>
+        </Polygon>
+      </Placemark>
+    </Folder>
+    <Folder>
+      <name>Segments</name>
+      <Placemark>
+        <name>Coastal route</name>
+        <ExtendedData>
+          <Data name="SegmentId">
+            <value>10000000-0000-0000-0000-000000000030</value>
+          </Data>
+          <Data name="FromPlaceId">
+            <value>10000000-0000-0000-0000-000000000010</value>
+          </Data>
+          <Data name="ToPlaceId">
+            <value>10000000-0000-0000-0000-000000000012</value>
+          </Data>
+          <Data name="Mode">
+            <value>walk</value>
+          </Data>
+          <Data name="TransportProfileKey">
+            <value></value>
+          </Data>
+          <Data name="DistanceKm">
+            <value>1.23456789</value>
+          </Data>
+          <Data name="DurationTicks">
+            <value>12345670</value>
+          </Data>
+          <Data name="DurationSource">
+            <value>Manual</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>3</value>
+          </Data>
+          <Data name="NotesHtml">
+            <value>&lt;p&gt;Segment Notes&lt;/p&gt;</value>
+          </Data>
+          <Data name="HasCustomRoute">
+            <value>true</value>
+          </Data>
+          <Data name="WaypointPlaceIds">
+            <value>10000000-0000-0000-0000-000000000011</value>
+          </Data>
+          <Data name="WaypointRouteVertexIndices">
+            <value>1</value>
+          </Data>
+        </ExtendedData>
+        <ExtendedData>
+          <Data name="TripId">
+            <value>10000000-0000-0000-0000-000000000001</value>
+          </Data>
+          <Data name="Title">
+            <value>Coastal route</value>
+          </Data>
+        </ExtendedData>
+        <ExtendedData>
+          <Data name="RouteProvenance">
+            <value>{"Provider":"geoapify","StorageMode":"persistent","MappingMode":"walk","GeneratedAt":"2026-11-01T10:00:00+00:00","Attribution":"Synthetic retained attribution","InstructionsJson":"[]","TransportProfileId":"10000000-0000-0000-0000-000000000200","ProviderConfigurationId":"10000000-0000-0000-0000-000000000201","ProviderConfigurationVersion":1}</value>
+          </Data>
+        </ExtendedData>
+        <LineString>
+          <tessellate>1</tessellate>
+          <coordinates>12,40,0 13,41,0 14,42,0</coordinates>
+        </LineString>
+      </Placemark>
+      <Placemark>
+        <name></name>
+        <ExtendedData>
+          <Data name="SegmentId">
+            <value>10000000-0000-0000-0000-000000000031</value>
+          </Data>
+          <Data name="FromPlaceId">
+            <value></value>
+          </Data>
+          <Data name="ToPlaceId">
+            <value></value>
+          </Data>
+          <Data name="Mode">
+            <value></value>
+          </Data>
+          <Data name="TransportProfileKey">
+            <value></value>
+          </Data>
+          <Data name="DistanceKm">
+            <value></value>
+          </Data>
+          <Data name="DurationTicks">
+            <value></value>
+          </Data>
+          <Data name="DurationSource">
+            <value>Automatic</value>
+          </Data>
+          <Data name="DisplayOrder">
+            <value>4</value>
+          </Data>
+          <Data name="HasCustomRoute">
+            <value>false</value>
+          </Data>
+          <Data name="WaypointPlaceIds">
+            <value></value>
+          </Data>
+          <Data name="WaypointRouteVertexIndices">
+            <value></value>
+          </Data>
+        </ExtendedData>
+        <ExtendedData>
+          <Data name="TripId">
+            <value>10000000-0000-0000-0000-000000000001</value>
+          </Data>
+          <Data name="Title">
+            <value></value>
+          </Data>
+        </ExtendedData>
+        <ExtendedData>
+          <Data name="RouteProvenance">
+            <value></value>
+          </Data>
+        </ExtendedData>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>

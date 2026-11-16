@@ -20,11 +20,12 @@ public sealed record TripImportNotice(
     double? MaximumDeviationMetres,
     int? AdditionalRouteCount = null);
 
-/// <summary>Bounded successful import result returned without source geometry.</summary>
+/// <summary>Known committed import without source geometry; native results include persisted freshness for post-commit effects.</summary>
 public sealed record TripImportResult(
     Guid TripId,
     IReadOnlyList<TripImportNotice> Notices,
-    bool IsGenericWithRoutes = false)
+    bool IsGenericWithRoutes = false,
+    DateTime? UpdatedAt = null)
 {
     /// <summary>Supports existing internal consumers that require only the imported identity.</summary>
     public static implicit operator Guid(TripImportResult result) => result.TripId;
@@ -33,6 +34,13 @@ public sealed record TripImportResult(
 
 public interface ITripImportService
 {
+    /// <summary>Complete bearer native import; credential is checked within the transaction after domain waits.</summary>
+    Task<TripImportResult> ImportNativeForBearerAsync(Stream file, string owner, TripImportMode mode,
+        NativeImportApproval? approval, Func<CancellationToken, Task<bool>> credential, CancellationToken token);
+
+    /// <summary>Bearer replacement review uses the same native protection and current originals as Web.</summary>
+    Task<NativeImportReview> ReviewNativeForBearerAsync(Stream file, string owner, Func<CancellationToken, Task<bool>> credential, CancellationToken token);
+
     /// <summary>Validates the whole native file and previews replacement against locked current owner content.</summary>
     Task<NativeImportReview> ReviewNativeAsync(Stream kmlStream, string currentUserId, CancellationToken cancellationToken = default);
 

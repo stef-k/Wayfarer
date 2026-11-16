@@ -1,0 +1,370 @@
+{
+  "format": 1,
+  "graph": {
+    "id": "10000000-0000-0000-0000-000000000001",
+    "name": "Cross-client coastal ideas",
+    "notes": "\u003Cp\u003ETrip \u003Cstrong\u003ENotes\u003C/strong\u003E\u003C/p\u003E",
+    "isPublic": false,
+    "centerLat": 40,
+    "centerLon": 12,
+    "zoom": 9,
+    "coverImageUrl": "https://example.invalid/owned-trip-cover.jpg",
+    "updatedAt": "2026-11-14T12:00:00Z",
+    "regions": [
+      {
+        "id": "10000000-0000-0000-0000-000000000002",
+        "name": "Coast",
+        "notes": "\u003Cp\u003ERegion Notes\u003C/p\u003E",
+        "displayOrder": 4,
+        "coverImageUrl": "https://example.invalid/owned-region-cover.jpg",
+        "center": [
+          13,
+          41
+        ],
+        "places": [
+          {
+            "id": "10000000-0000-0000-0000-000000000013",
+            "name": "Unlocated",
+            "notes": null,
+            "displayOrder": null,
+            "iconName": "marker",
+            "markerColor": "bg-blue",
+            "address": null,
+            "resolvedFeatureName": null,
+            "resolvedFeatureType": null,
+            "location": null,
+            "addressEnrichmentProvider": null,
+            "addressEnrichmentStorageMode": null,
+            "addressEnrichedAt": null
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000010",
+            "name": "Start",
+            "notes": "\u003Cp\u003EStart Notes\u003C/p\u003E",
+            "displayOrder": 0,
+            "iconName": "marker",
+            "markerColor": "bg-blue",
+            "address": "1 Coastal road",
+            "resolvedFeatureName": "Coastal museum",
+            "resolvedFeatureType": "amenity",
+            "location": [
+              12,
+              40
+            ],
+            "addressEnrichmentProvider": "geoapify",
+            "addressEnrichmentStorageMode": "persistent",
+            "addressEnrichedAt": "2026-11-01T10:00:00+00:00"
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000011",
+            "name": "Via",
+            "notes": "\u003Cp\u003EVia Notes\u003C/p\u003E",
+            "displayOrder": 1,
+            "iconName": "marker",
+            "markerColor": "bg-blue",
+            "address": null,
+            "resolvedFeatureName": null,
+            "resolvedFeatureType": null,
+            "location": [
+              13,
+              41
+            ],
+            "addressEnrichmentProvider": null,
+            "addressEnrichmentStorageMode": null,
+            "addressEnrichedAt": null
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000012",
+            "name": "End",
+            "notes": "\u003Cp\u003EEnd Notes\u003C/p\u003E",
+            "displayOrder": 2,
+            "iconName": "marker",
+            "markerColor": "bg-blue",
+            "address": null,
+            "resolvedFeatureName": null,
+            "resolvedFeatureType": null,
+            "location": [
+              14,
+              42
+            ],
+            "addressEnrichmentProvider": null,
+            "addressEnrichmentStorageMode": null,
+            "addressEnrichedAt": null
+          }
+        ],
+        "areas": [
+          {
+            "id": "10000000-0000-0000-0000-000000000020",
+            "name": "Park with hole",
+            "notes": "\u003Cp\u003EArea Notes\u003C/p\u003E",
+            "displayOrder": 2,
+            "fillHex": "#3388FF",
+            "geometryGeoJson": "{\u0022type\u0022:\u0022Polygon\u0022,\u0022coordinates\u0022:[[[1.0,1.0],[5.0,1.0],[5.0,5.0],[1.0,5.0],[1.0,1.0]],[[2.0,2.0],[2.0,3.0],[3.0,3.0],[3.0,2.0],[2.0,2.0]]]}"
+          }
+        ]
+      }
+    ],
+    "segments": [
+      {
+        "id": "10000000-0000-0000-0000-000000000030",
+        "mode": "walk",
+        "estimatedDistanceKm": 1.23456789,
+        "estimatedDurationMinutes": 0.020576116666666668,
+        "notes": "\u003Cp\u003ESegment Notes\u003C/p\u003E",
+        "displayOrder": 3,
+        "transportProfileId": null,
+        "fromPlaceId": "10000000-0000-0000-0000-000000000010",
+        "toPlaceId": "10000000-0000-0000-0000-000000000012",
+        "routeJson": "{\u0022type\u0022:\u0022LineString\u0022,\u0022coordinates\u0022:[[12.0,40.0],[13.0,41.0],[14.0,42.0]]}",
+        "waypoints": [
+          {
+            "placeId": "10000000-0000-0000-0000-000000000011",
+            "position": 0,
+            "routeVertexIndex": 1
+          }
+        ],
+        "hasCustomRoute": true,
+        "routeInstructionsJson": "[]",
+        "routeProvider": "geoapify",
+        "routeProviderConfigurationId": "10000000-0000-0000-0000-000000000201",
+        "routeProviderConfigurationVersion": 1,
+        "routeTransportProfileId": "10000000-0000-0000-0000-000000000200",
+        "routeGeneratedAt": "2026-11-01T10:00:00+00:00",
+        "routeAttribution": "Synthetic retained attribution",
+        "routeStorageMode": "persistent",
+        "title": "Coastal route",
+        "estimatedDurationTicks": 12345670,
+        "estimatedDurationSource": "Manual",
+        "routeMappingMode": "walk"
+      },
+      {
+        "id": "10000000-0000-0000-0000-000000000031",
+        "mode": "",
+        "estimatedDistanceKm": null,
+        "estimatedDurationMinutes": null,
+        "notes": null,
+        "displayOrder": 4,
+        "transportProfileId": null,
+        "fromPlaceId": null,
+        "toPlaceId": null,
+        "routeJson": null,
+        "waypoints": [],
+        "hasCustomRoute": false,
+        "routeInstructionsJson": null,
+        "routeProvider": null,
+        "routeProviderConfigurationId": null,
+        "routeProviderConfigurationVersion": null,
+        "routeTransportProfileId": null,
+        "routeGeneratedAt": null,
+        "routeAttribution": null,
+        "routeStorageMode": null,
+        "title": null,
+        "estimatedDurationTicks": null,
+        "estimatedDurationSource": "Automatic",
+        "routeMappingMode": null
+      }
+    ],
+    "tags": [
+      {
+        "id": "10000000-0000-0000-0000-000000000040",
+        "slug": "coastal",
+        "name": "Coastal"
+      }
+    ],
+    "contributionPolicy": "CC0-1.0",
+    "credits": [
+      {
+        "contributor": "Prior contributor",
+        "sourceTitle": "Offline source",
+        "licence": "CC-BY-4.0",
+        "licenceUrl": "https://creativecommons.org/licenses/by/4.0/",
+        "notices": "Keep supplied notice",
+        "modifications": "Selected content adapted",
+        "sourceUrl": "https://example.invalid/source"
+      }
+    ]
+  },
+  "mediaOmitted": false,
+  "regionOrder": [
+    "10000000-0000-0000-0000-000000000002"
+  ],
+  "placeOrder": {
+    "10000000-0000-0000-0000-000000000002": [
+      "10000000-0000-0000-0000-000000000010",
+      "10000000-0000-0000-0000-000000000011",
+      "10000000-0000-0000-0000-000000000012",
+      "10000000-0000-0000-0000-000000000013"
+    ]
+  },
+  "areaOrder": {
+    "10000000-0000-0000-0000-000000000002": [
+      "10000000-0000-0000-0000-000000000020"
+    ]
+  },
+  "planning": {
+    "trip": {
+      "format": 1,
+      "entries": [
+        {
+          "id": "10000000-0000-0000-0000-000000000100",
+          "when": {
+            "form": "period",
+            "end": {
+              "state": "known",
+              "value": {
+                "precision": "date",
+                "local": "2026-11-20"
+              }
+            }
+          },
+          "label": "End-only intention"
+        },
+        {
+          "id": "10000000-0000-0000-0000-000000000101",
+          "when": {
+            "form": "flexible"
+          },
+          "label": "Flexible zero allocation",
+          "kind": "presence",
+          "allocationMinutes": 0
+        }
+      ]
+    },
+    "regions": {
+      "10000000-0000-0000-0000-000000000002": {
+        "format": 1,
+        "entries": [
+          {
+            "id": "10000000-0000-0000-0000-000000000110",
+            "when": {
+              "form": "period",
+              "end": {
+                "state": "known",
+                "value": {
+                  "precision": "date",
+                  "local": "2026-11-20"
+                }
+              }
+            },
+            "label": "End-only intention"
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000111",
+            "when": {
+              "form": "flexible"
+            },
+            "label": "Flexible zero allocation",
+            "kind": "presence",
+            "allocationMinutes": 0
+          }
+        ]
+      }
+    },
+    "places": {
+      "10000000-0000-0000-0000-000000000010": {
+        "format": 1,
+        "entries": [
+          {
+            "id": "10000000-0000-0000-0000-000000000120",
+            "when": {
+              "form": "period",
+              "end": {
+                "state": "known",
+                "value": {
+                  "precision": "date",
+                  "local": "2026-11-20"
+                }
+              }
+            },
+            "label": "End-only intention"
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000121",
+            "when": {
+              "form": "flexible"
+            },
+            "label": "Flexible zero allocation",
+            "kind": "presence",
+            "allocationMinutes": 0
+          }
+        ]
+      },
+      "10000000-0000-0000-0000-000000000011": null,
+      "10000000-0000-0000-0000-000000000012": null,
+      "10000000-0000-0000-0000-000000000013": null
+    },
+    "areas": {
+      "10000000-0000-0000-0000-000000000020": {
+        "format": 1,
+        "entries": [
+          {
+            "id": "10000000-0000-0000-0000-000000000130",
+            "when": {
+              "form": "period",
+              "end": {
+                "state": "known",
+                "value": {
+                  "precision": "date",
+                  "local": "2026-11-20"
+                }
+              }
+            },
+            "label": "End-only intention"
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000131",
+            "when": {
+              "form": "flexible"
+            },
+            "label": "Flexible zero allocation",
+            "kind": "presence",
+            "allocationMinutes": 0
+          }
+        ]
+      }
+    },
+    "segments": {
+      "10000000-0000-0000-0000-000000000030": {
+        "format": 1,
+        "entries": [
+          {
+            "id": "10000000-0000-0000-0000-000000000140",
+            "when": {
+              "form": "period",
+              "end": {
+                "state": "known",
+                "value": {
+                  "precision": "date",
+                  "local": "2026-11-20"
+                }
+              }
+            },
+            "label": "End-only intention"
+          },
+          {
+            "id": "10000000-0000-0000-0000-000000000141",
+            "when": {
+              "form": "flexible"
+            },
+            "label": "Flexible zero allocation",
+            "kind": "travel",
+            "allocationMinutes": 0
+          }
+        ]
+      },
+      "10000000-0000-0000-0000-000000000031": null
+    },
+    "zoneRulesVersion": "TZDB: 2026e (mapping: 49)",
+    "diagnostics": {
+      "trip/10000000-0000-0000-0000-000000000001": [],
+      "region/10000000-0000-0000-0000-000000000002": [],
+      "place/10000000-0000-0000-0000-000000000010": [],
+      "place/10000000-0000-0000-0000-000000000011": [],
+      "place/10000000-0000-0000-0000-000000000012": [],
+      "place/10000000-0000-0000-0000-000000000013": [],
+      "area/10000000-0000-0000-0000-000000000020": [],
+      "segment/10000000-0000-0000-0000-000000000030": [],
+      "segment/10000000-0000-0000-0000-000000000031": []
+    }
+  }
+}

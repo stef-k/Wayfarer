@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- Add #911 lightweight Copy to existing Trip from My Trips, the editor and eligible
+  source viewers. Reuse shared copy/adoption, placement, lifecycle and route cores
+  for atomic selected content/dependencies/credits in an existing owned destination,
+  with live-source review originals, current cookie/bearer authority, explicit planning,
+  media omissions, public freshness and honest unconfirmed-save feedback. Preserve
+  newer drafts and provide the same destination editing link without a comparison
+  workspace. Add bearer native-v5 owner downloads and complete native import/review
+  transport through the existing codecs/importer; document field precision and
+  presence/Clear semantics. No database migration. Mobile implementation and both
+  final assembled-feature acceptance reviews remain separately owned.
+  Recheck native duplicate authority after account waits and retain known committed
+  success when current inspection or derived effects fail. Bind copy-pair replacement
+  consent to the confirmed choices, retaining newer input in its original context.
+  Expose selected fields and explicit own planning for nested Region children without
+  submitting a second top-level child choice.
+  Keep authored child choices across scope toggles/reselection and reconcile direct
+  and nested identities inside each local review/block, refusing conflicting drafts.
+  Show folded children's effective container and resolve incompatible After placement
+  explicitly. Log native post-commit failures using only type, phase and stable IDs.
+  Bound the real thumbnail-invalidation and warmup-scheduling warnings to operation,
+  Trip ID and exception type, preserving independent best-effort effects and saved truth.
+
 - Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
   ordinary independent versions, deliberately start/continue a source pair, review
   A/B hierarchies and complete geography on one shared map, select copies/reuse/fields,

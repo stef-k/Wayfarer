@@ -191,8 +191,15 @@ the same connection in every checkout and installer/test process that needs it:
 
 ~~~sh
 source ~/.config/wayfarer/test-postgres.env
+umask 022
 dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'Category!=RequiresSpatialite&Category!=RequiresPlaywright'
 ~~~
+
+Use `umask 022` for ordinary Linux checks: the release-bundle fixtures intentionally
+reject group-writable payload directories. A workstation shell inheriting `0002`
+otherwise creates unsafe fixture directories before product validation starts;
+retain that failure separately and rerun with the normal non-writable-group mode.
+Do not weaken the release validator or its assertions.
 
 The configured Linux workstation reuses the existing PostgreSQL 18 system cluster
 (`18/main`) on `127.0.0.1:5432`, with PostGIS, citext and pg_trgm. There is one
@@ -820,3 +827,34 @@ restoration owners; timelineDetailedStatistics covers actual endpoint clocks.
 The managed shared-layout selection private Timeline W2 owns one browser core journey
 with keyboard focus, Custom/filter/area, protected edit return and camera/reflow.
 See [calendar contract](timeline-calendar.md) for observation and acceptance limits.
+
+
+## Existing-Trip copy and cross-client contract
+
+`TripCompositionPostgresTests.Copy` covers populated existing destinations,
+selected fields/planning, nested/shared route dependencies, holes, exact saved
+measurements, fresh identities, atomic stale refusal and real lock waits.
+`TripCompositionHttpPostgresTests.Copy` exercises actual cookie/CSRF and bearer
+copy/native routes, redaction and freshness. Run the exhaustive
+`AntiforgeryDescriptorTests` and `StableIdentityCryptographyTests` alongside changes
+to these endpoints; copy originals are unsigned content hashes and add no protection
+purpose. The component/model cases in `tests/client/composition*.test.mjs` mount the
+actual lightweight owner across newer typing, selection, destination changes and
+refusals, including pair replacement during confirmation/preview and nested child
+copy/reuse/own-planning controls with one submitted identity. Native duplicate tests
+wait on the actual account fence before deactivation/credential revocation. The
+routed post-commit case independently observes a committed import and deletes it
+through ordinary lifecycle deletion before the adapter replies; saved remains saved.
+Private-marker regressions cover inspection, unexpected/expected cancellation and
+independent thumbnail/warmup failures, checking captured exceptions, formatted text
+and structured fields. Lost commit acknowledgement remains unconfirmed without replay.
+The real-effect regression uses the actual thumbnail generator and warmup scheduler:
+removing its owned thumbnail directory and failing Quartz through `IScheduler` proves
+that both internal warnings retain only the operation, Trip ID and failure type,
+while warmup is attempted and exactly one new Trip remains confirmed saved.
+Mounted scope/reselection, effective-placement resolution and shared Place/Area block
+cases assert actual submitted intent, retained independent drafts and truthful refusal
+of conflicting authored choices; own planning, foreign privacy and Notes owners remain covered.
+These changed interactions have mounted component/relational proof. The managed
+`--grep 'Batch 5 copy'` selection is one concise rendered
+copy-to-existing journey; it does not repeat Layout B/native zoom qualification.

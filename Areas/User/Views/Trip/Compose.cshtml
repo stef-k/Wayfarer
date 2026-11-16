@@ -10,7 +10,8 @@
 @* Only the caller's partition and workspace identity bootstrap the private API-backed surface. *@
 <form id="trip-editor-antiforgery" hidden>@Html.AntiForgeryToken()</form>
 <div id="trip-composition-app" data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
-     data-composition-id="@ViewData["CompositionId"]">
+     data-composition-id="@ViewData["CompositionId"]" data-copy="@ViewData["CopyMode"]"
+     data-source="@ViewData["CopySource"]" data-destination="@ViewData["CopyDestination"]">
     <p role="status">Loading Trip composition…</p>
 </div>
 @section Scripts {

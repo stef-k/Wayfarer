@@ -7,7 +7,7 @@ import { createTripEditorTileLayer } from '../map/tileRetryLayer';
 import { anchorIds, contents, find, isCoordinate, label, spatialContent } from './compositionModel';
 import type { Content, Kind, Selection, Snapshot, Workspace } from './compositionTypes';
 
-const props = defineProps<{ workspace: Workspace; selection: Selection | null; counterpart: string; visible: Record<string, boolean> }>();
+const props = defineProps<{ workspace: Workspace; selection: Selection | null; counterpart: string; visible: Record<string, boolean>; mapLabel?: string }>();
 const emit = defineEmits<{ select: [selection: Selection]; status: [message: string] }>();
 const host = ref<HTMLElement | null>(null);
 let map: L.Map | null = null;
@@ -100,6 +100,6 @@ defineExpose({ focus });
 </script>
 
 <template>
-  <div ref="host" class="composition-map" role="region" aria-label="Shared A B C Trip map" aria-describedby="composition-map-help" tabindex="0"></div>
+  <div ref="host" class="composition-map" role="region" :aria-label="mapLabel || 'Shared A B C Trip map'" aria-describedby="composition-map-help" tabindex="0"></div>
   <p id="composition-map-help" class="visually-hidden">Use the source trees and contextual inspector to select ideas. Arrow keys pan the map; plus and minus zoom.</p>
 </template>

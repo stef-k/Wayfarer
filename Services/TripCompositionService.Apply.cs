@@ -98,17 +98,21 @@ public sealed partial class TripCompositionService
     }
 
     /// <summary>Locks the discovered destination classes once, before any mutation or route staging; no late whole-Trip reconciliation.</summary>
-    private async Task LockDestinationAsync(Trip trip, Guid[] profiles, CancellationToken token)
+    private Task LockDestinationAsync(Trip trip, Guid[] profiles, CancellationToken token) => LockGraphsAsync([trip], profiles, token);
+
+    /// <summary>Acquires participating live graphs in the same domain-class order, including source capture.</summary>
+    private async Task LockGraphsAsync(IReadOnlyList<Trip> trips, Guid[] profiles, CancellationToken token)
     {
         await SegmentRouteReconciler.LockProfilesAsync(db, profiles, token);
-        foreach (var id in trip.Segments.Select(s => s.Id).Order()) await SegmentRouteReconciler.LockSegmentAsync(db, id, token);
-        foreach (var id in trip.Regions.SelectMany(r => r.Places).Select(p => p.Id).Order())
+        foreach (var id in trips.SelectMany(t => t.Segments).Select(s => s.Id).Distinct().Order()) await SegmentRouteReconciler.LockSegmentAsync(db, id, token);
+        foreach (var id in trips.SelectMany(t => t.Regions).SelectMany(r => r.Places).Select(p => p.Id).Distinct().Order())
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {id} FOR UPDATE", token);
-        foreach (var id in trip.Regions.SelectMany(r => r.Areas).Select(a => a.Id).Order())
+        foreach (var id in trips.SelectMany(t => t.Regions).SelectMany(r => r.Areas).Select(a => a.Id).Distinct().Order())
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Areas\" WHERE \"Id\" = {id} FOR UPDATE", token);
-        foreach (var id in trip.Regions.Select(r => r.Id).Order())
+        foreach (var id in trips.SelectMany(t => t.Regions).Select(r => r.Id).Distinct().Order())
             await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {id} FOR UPDATE", token);
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {trip.Id} FOR UPDATE", token);
+        foreach (var id in trips.Select(t => t.Id).Distinct().Order())
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {id} FOR UPDATE", token);
     }
 
     internal static HashSet<(string Kind, Guid Id)> Identities(Trip current) => current.Regions.Select(r => ("region", r.Id))

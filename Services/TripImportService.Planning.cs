@@ -9,6 +9,14 @@ public partial class TripImportService
 {
     /// <summary>Validates the exact file before showing current-content-bound owner replacement choices.</summary>
     public async Task<NativeImportReview> ReviewNativeAsync(Stream file, string owner, CancellationToken cancellationToken = default)
+        => await ReviewNativeCoreAsync(file, owner, null, cancellationToken);
+
+    /// <summary>Bearer review revalidates its incoming credential after all replacement waits.</summary>
+    public Task<NativeImportReview> ReviewNativeForBearerAsync(Stream file, string owner, Func<CancellationToken, Task<bool>> credential, CancellationToken token) =>
+        ReviewNativeCoreAsync(file, owner, credential, token);
+
+    /// <summary>Shares byte-bound current-content review, with bearer authority checked after replacement waits.</summary>
+    private async Task<NativeImportReview> ReviewNativeCoreAsync(Stream file, string owner, Func<CancellationToken, Task<bool>>? credential, CancellationToken cancellationToken)
     {
         var (classification, digest) = await ReadInputAsync(file, cancellationToken);
         var source = classification.Document ?? throw new TripImportValidationException("Only native KML supports update.");
@@ -16,6 +24,7 @@ public partial class TripImportService
             ? await _dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         try
         {
+            if (credential != null) await LocationDeletionFence.AcquireAsync(_dbContext, owner, cancellationToken);
             // Uploaded IDs cannot acquire foreign graph barriers; admission is rechecked after waits below.
             if (!await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == source.TripId && t.UserId == owner, cancellationToken))
                 throw new InvalidOperationException("Trip not found or not yours for upsert.");
@@ -26,6 +35,7 @@ public partial class TripImportService
             await ValidateReplacementIdentitiesAsync(incoming, cancellationToken);
             PreservePortableOmissions(source, current, incoming);
             TripImportTagReconciler.ValidateTokens(source.Tags);
+            if (credential != null && !await credential(cancellationToken)) throw new UnauthorizedAccessException("The incoming credential is no longer valid.");
             return _review.Preview(current, incoming, NativeImportReviewProtection.Binding(current, owner, digest));
         }
         finally { _dbContext.ChangeTracker.Clear(); }
@@ -37,7 +47,18 @@ public partial class TripImportService
     {
         var (classification, digest) = await ReadInputAsync(file, cancellationToken);
         var source = classification.Document ?? throw new TripImportValidationException("Only native KML supports update.");
-        return new(await ImportNativeAsync(source, owner, TripImportMode.Upsert, digest, approval, cancellationToken), []);
+        return await ImportNativeAsync(source, owner, TripImportMode.Upsert, digest, approval, cancellationToken);
+    }
+
+    /// <summary>Bearer native transport shares strict classification, complete mapping and atomic CreateNew/reviewed replacement.</summary>
+    public async Task<TripImportResult> ImportNativeForBearerAsync(Stream file, string owner, TripImportMode mode,
+        NativeImportApproval? approval, Func<CancellationToken, Task<bool>> credential, CancellationToken token)
+    {
+        if (!Enum.IsDefined(mode) || approval != null && mode != TripImportMode.Upsert)
+            throw new TripImportValidationException("The selected native import choices are invalid.");
+        var (classification, digest) = await ReadInputAsync(file, token);
+        var source = classification.Document ?? throw new TripImportValidationException("This endpoint requires native Wayfarer KML.");
+        return await ImportNativeAsync(source, owner, mode, digest, approval, token, credential);
     }
 
     /// <summary>Older envelopes omit portable intent; retain root and same-type Segment fields across reconstruction.</summary>

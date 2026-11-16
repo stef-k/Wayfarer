@@ -117,7 +117,8 @@ public class CacheWarmupScheduler : ICacheWarmupScheduler
         catch (Exception ex)
         {
             // Non-fatal — warm-up is best-effort; images will still be cached on first access
-            _logger.LogWarning(ex, "Failed to schedule cache warm-up for trip {TripId}.", tripId);
+            // Scheduler diagnostics can contain private content; match the thumbnail type-only convention.
+            _logger.LogWarning("Failed to schedule cache warm-up for trip {TripId} ({FailureType}).", tripId, ex.GetType().Name);
         }
     }
 }

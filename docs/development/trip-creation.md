@@ -162,3 +162,17 @@ pinned originals, acknowledgement adoption, newer intent and retired/lost replie
 No browser/platform/native Mobile/production acceptance is inferred. BD2-06/07
 remain pending independent exact-head review, CI and maintainer merge acceptance;
 other structural BD2 operations and final C1/C2/C5 reconciliation remain separate.
+
+
+## Selected copies into an existing Trip
+
+`TripCompositionService.PreviewCopyAsync` and `CopyAsync` join the existing account,
+workspace and ordered domain barriers for source/destination capture. The source
+projection is normalized/redacted before per-object originals; these are content
+comparisons, not authority or a request ledger. `TripCompositionApply` remains the
+single selected-copy/field/placement/route owner. Intermediate dependency saves
+stay inside the outer transaction. No composition header, snapshots, persistent
+mappings or origins are created by lightweight copy; response mappings identify
+fresh results for the current action only. Destination metadata and own-contribution
+policy cannot be adopted through this entry point. See [API](api.md#copy-selected-objects-into-an-existing-trip-911-batch-5)
+for wire examples, native bearer transport and the backend/mobile boundary.

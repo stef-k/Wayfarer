@@ -94,6 +94,26 @@ export const newChoice = (w: Workspace, side: Side, kind: Kind, id: string): Cho
   });
   return choice;
 };
+/** Reconciles direct and cached children inside this review only, before changing scope or installing a block.
+ * A default may yield to an authored choice; two different authored choices require an explicit resolution.
+ */
+export const regionChildren = (w: Workspace, review: ReviewDraft, region: Choice): Choice[] => {
+  const available = review.items.flatMap(c => [c, ...c.children]);
+  const originals = { ...w, current: review.baseline, mappings: review.mappings };
+  return (['place', 'area'] as const).flatMap(kind => ordered(sourceSnapshot(w, review.side), kind, region.sourceId).map(item => {
+    const fresh = newChoice(originals, review.side, kind, item.id);
+    const candidates = [...new Set(available.filter(c => c.kind === kind && c.sourceId === item.id))];
+    const authored = candidates.filter(c => JSON.stringify(c) !== JSON.stringify(fresh));
+    if (new Set(authored.map(c => JSON.stringify(c))).size > 1)
+      throw new Error(`Conflicting choices for ${label(item)}. Keep Region only or remove this identity from the local block/review before including Region children. Both drafts are retained.`);
+    return authored[0] ?? candidates[0] ?? fresh;
+  }));
+};
+/** The Region owns a selected child's submitted identity, while scope-off caches retain its editable owner. */
+export const foldChildren = (review: ReviewDraft, region: Choice, children: Choice[]): void => {
+  region.children = children;
+  review.items = review.items.filter(c => !children.some(child => child.kind === c.kind && child.sourceId === c.sourceId));
+};
 /** Travel order is preserved; shared endpoints/Via require one explicit approval per distinct identity. */
 export const anchorIds = (item: Content): string[] => [...new Set([item.fromPlaceId, ...[...item.waypoints ?? []]
   .sort((a, b) => a.position - b.position).map(w => w.placeId), item.toPlaceId].filter((id): id is string => Boolean(id)))];
@@ -170,9 +190,10 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
         }
         if (!a.approveCopy) throw new Error('Explicitly approve every missing From / To / Via Place.');
         if (copiedPlaces.has(a.sourceId)) {
-          if (effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
+          if (!a.useSelectedCopy && effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
           return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
         }
+        if (a.useSelectedCopy) throw new Error('Select the approved dependency Place in this block before applying.');
         const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
         dep.decision = 'copy'; dep.separate = true;
         dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));

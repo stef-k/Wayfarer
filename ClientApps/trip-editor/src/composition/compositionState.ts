@@ -11,7 +11,7 @@ export const viewKey = (selection: Selection): string => `${selection.side}/${se
 const completeSnapshot = (value: Snapshot | undefined): boolean => Boolean(value?.graph && typeof value.graph.id === 'string'
   && Array.isArray(value.graph.regions) && Array.isArray(value.graph.segments) && Array.isArray(value.graph.credits)
   && Array.isArray(value.regionOrder) && value.placeOrder && value.areaOrder);
-export const createCompositionState = (account: string, composition: string) => {
+export const createCompositionState = (account: string, composition: string, destination = 'C') => {
   let active = true;
   let readGeneration = 0;
   const state = reactive({ workspace: null as Workspace | null, pending: false, loading: false, error: '', status: '',
@@ -44,7 +44,7 @@ export const createCompositionState = (account: string, composition: string) => 
     },
     /** Captures submitted choices before previews/network; later input remains owned by its current draft. */
     submit: async (draft: ReviewDraft, action: Action, save: (frozen: Action) => Promise<Pick<Workspace, 'compositionId' | 'tripId' | 'current' | 'mappings'>>,
-      accepted: () => void): Promise<void> => {
+      accepted: () => void, ownsAttempt: () => boolean = () => true): Promise<void> => {
       if (!current() || state.pending || state.needsInspection || !state.workspace) return;
       const inspector = (): string | null => state.view.blockMode ? `block/${draft.side}` : state.view.selection && viewKey(state.view.selection);
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
@@ -56,9 +56,9 @@ export const createCompositionState = (account: string, composition: string) => 
         if (result?.compositionId !== composition || result.tripId !== workspace.tripId || !completeSnapshot(result.current)
           || result.current.graph.id !== workspace.tripId || !Array.isArray(result.mappings)) throw new Error('The reply does not match this comparison or is incomplete. Refresh saved C before another action.');
         state.workspace = { ...workspace, current: result.current, mappings: result.mappings };
-        const sameDraft = selected === inspector() && submitted === JSON.stringify(draft);
-        if (sameDraft) { accepted(); state.status = 'Saved to C.'; }
-        else state.status = 'Earlier action saved to C. Newer choices remain unsaved; review current C before applying.';
+        const sameDraft = ownsAttempt() && selected === inspector() && submitted === JSON.stringify(draft);
+        if (sameDraft) { accepted(); state.status = `Saved to ${destination}.`; }
+        else state.status = `Earlier action saved to ${destination}. Newer choices remain unsaved; review current ${destination} before applying.`;
       } catch (error) {
         if (!current()) return;
         state.error = error instanceof Error ? error.message : 'The save could not be confirmed. Inspect or refresh C.';

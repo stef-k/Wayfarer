@@ -67,6 +67,21 @@ public sealed class TripCompositionController(ApplicationDbContext db) : Control
         TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(db).ApplyAsync(owner, id, TripCompositionInput.Parse(request), lifecycle, routeTokens, routeConsent,
             TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), token: token), thumbnails, warmup));
 
+    /// <summary>Previews currently eligible source objects and an existing owned destination without creating a workspace.</summary>
+    [HttpGet("copy-preview")]
+    public Task<IActionResult> CopyPreview(Guid sourceTripId, Guid destinationTripId, CancellationToken token) => Execute(owner =>
+        new TripCompositionService(db).PreviewCopyAsync(owner, sourceTripId, destinationTripId, token: token));
+
+    /// <summary>Saves the reviewed live-source selection through the shared atomic apply operation.</summary>
+    [HttpPost("copy"), ValidateAntiForgeryToken, RequestSizeLimit(10485760)]
+    public Task<IActionResult> Copy([FromBody] System.Text.Json.JsonElement request,
+        [FromServices] PlaceRegionLifecycleService lifecycle, [FromServices] IWebHostEnvironment environment,
+        [FromServices] IIconColorProvider colors, [FromServices] SegmentAggregateTokenService routeTokens,
+        [FromServices] SegmentRouteClearConfirmation routeConsent, [FromServices] ITripMapThumbnailGenerator thumbnails,
+        [FromServices] ICacheWarmupScheduler warmup, CancellationToken token) => Execute(owner =>
+        TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(db).CopyAsync(owner, TripCompositionInput.ParseCopy(request), lifecycle, routeTokens, routeConsent,
+            TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), token: token), thumbnails, warmup));
+
     /// <summary>Closes comparison and removes its payload without altering C.</summary>
     [HttpPost("{id:guid}/finish"), ValidateAntiForgeryToken]
     public Task<IActionResult> Finish(Guid id, CancellationToken token) => Execute(async owner => await new TripCompositionService(db).FinishAsync(owner, id, token: token));
@@ -126,6 +141,20 @@ public partial class TripsController
         [FromServices] SegmentRouteClearConfirmation routeConsent, [FromServices] ITripMapThumbnailGenerator thumbnails,
         [FromServices] ICacheWarmupScheduler warmup, CancellationToken token) => CompositionRequest(
         (owner, check) => TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(_dbContext).ApplyAsync(owner, id, TripCompositionInput.Parse(request), _lifecycle, routeTokens, routeConsent,
+            TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), check, token), thumbnails, warmup), token);
+
+    /// <summary>Bearer preview shares live source authority and redaction with the Web operation.</summary>
+    [HttpGet("copy-preview")]
+    public Task<IActionResult> CopyPreview(Guid sourceTripId, Guid destinationTripId, CancellationToken token) => CompositionRequest(
+        (owner, check) => new TripCompositionService(_dbContext).PreviewCopyAsync(owner, sourceTripId, destinationTripId, check, token), token);
+
+    /// <summary>Bearer copy checks the incoming credential after waits and uses the same atomic reviewed apply core.</summary>
+    [HttpPost("copy"), RequestSizeLimit(10485760)]
+    public Task<IActionResult> CopyToExisting([FromBody] System.Text.Json.JsonElement request,
+        [FromServices] IWebHostEnvironment environment, [FromServices] IIconColorProvider colors, [FromServices] SegmentAggregateTokenService routeTokens,
+        [FromServices] SegmentRouteClearConfirmation routeConsent, [FromServices] ITripMapThumbnailGenerator thumbnails,
+        [FromServices] ICacheWarmupScheduler warmup, CancellationToken token) => CompositionRequest(
+        (owner, check) => TripCompositionInput.ApplyWithFreshnessAsync(new TripCompositionService(_dbContext).CopyAsync(owner, TripCompositionInput.ParseCopy(request), _lifecycle, routeTokens, routeConsent,
             TripCompositionInput.Icons(environment), TripCompositionInput.Colors(colors), check, token), thumbnails, warmup), token);
 
     /// <summary>Revalidates bearer authority and atomically finishes the owned comparison.</summary>

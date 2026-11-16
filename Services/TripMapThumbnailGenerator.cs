@@ -287,7 +287,8 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to invalidate thumbnails for trip {TripId}", tripId);
+            // Filesystem diagnostics can contain private paths; retain only the operation, trip and type.
+            _logger.LogWarning("Failed to invalidate thumbnails for trip {TripId} ({FailureType})", tripId, ex.GetType().Name);
         }
     }
 }

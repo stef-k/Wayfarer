@@ -21,11 +21,17 @@ const loadFailed = (element: HTMLElement): void => {
 
 if (compositionElement) {
   // The same entry/theme and shared editors serve the selected comparison layout.
-  void import('./composition/CompositionApp.vue').then(({ default: CompositionApp }) => {
-    const token = document.querySelector<HTMLInputElement>('#trip-editor-antiforgery input')?.value ?? '';
-    createApp(CompositionApp, { account: compositionElement.dataset.accountId ?? '',
-      compositionId: compositionElement.dataset.compositionId ?? '', token }).mount(compositionElement);
-  }).catch(() => loadFailed(compositionElement));
+  const token = document.querySelector<HTMLInputElement>('#trip-editor-antiforgery input')?.value ?? '';
+  const account = compositionElement.dataset.accountId ?? '';
+  if (compositionElement.dataset.copy) {
+    void import('./composition/CopyToTrip.vue').then(({ default: CopyToTrip }) => createApp(CopyToTrip,
+      { account, token, source: compositionElement.dataset.source ?? '', destination: compositionElement.dataset.destination ?? '' }).mount(compositionElement))
+      .catch(() => loadFailed(compositionElement));
+  } else {
+    void import('./composition/CompositionApp.vue').then(({ default: CompositionApp }) => createApp(CompositionApp,
+      { account, compositionId: compositionElement.dataset.compositionId ?? '', token }).mount(compositionElement))
+      .catch(() => loadFailed(compositionElement));
+  }
 } else if (!mountElement) {
   throw new Error('Trip Editor mount element was not found.');
 } else {

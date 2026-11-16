@@ -38,7 +38,7 @@ export interface Candidate { destinationId: string; name: string; distanceKm: nu
 export interface Selection { side: Side; kind: Kind; id: string }
 export type Decision = 'copy' | 'reuse' | 'skip' | 'remove';
 export interface FieldChoice { operation: 'keep' | 'useSource' | 'edit' | 'clear'; value: unknown }
-export interface AnchorChoice { sourceId: string; destinationId: string; regionId: string; approveCopy: boolean }
+export interface AnchorChoice { sourceId: string; destinationId: string; regionId: string; approveCopy: boolean; useSelectedCopy?: boolean }
 /** A local reviewed choice, never an operation record. Tokens are deliberately excluded from retained drafts. */
 export interface Choice {
   kind: Kind; sourceId: string; decision: Decision; destinationId: string; mappingId: string; customName: boolean; name: string;

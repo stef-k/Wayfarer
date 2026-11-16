@@ -424,6 +424,10 @@ sharing a destination list require the same placement and enter as one contiguou
 block; reused counterparts stay put. Mixed lists have independent placements.
 The item draft and its collected block draft are independent. Opening either one
 shows that draft's Notes; applying the block keeps the unapplied item choices.
+A directly selected Place/Area and the same Region child become one block choice.
+If both have different authored choices, adding the item is refused and both drafts
+stay intact. Keep Region only, or open the block and remove the conflicting choice
+before adding the Region with children again.
 
 Select only the fields to adopt: **Keep**, **Use source**, supported **Edit value**
 or explicit **Clear**. Notes use the shared rich editor and replace one complete
@@ -477,3 +481,49 @@ inspect or refresh saved C before deciding what to do next.
 **Delete C** uses normal permanent-deletion confirmation and removes its
 workspace with it; A, B and independent copies remain unchanged. There is no
 separate Abandon action or inactivity expiry.
+
+
+## Copy ideas into an existing Trip
+
+In **My Trips**, choose **Copy to existing Trip**. The ordinary editor also offers
+**Copy ideas into this Trip**, and eligible source viewers offer the source-bound
+copy entry. Choose an owned or publicly reusable source and a destination you own,
+then **Preview copy choices**. This does not create another Trip or require a
+comparison workspace.
+
+Select Regions, Places, Areas or Trip-level Segments from the source hierarchy.
+Review the source geography and destination on the preview map. Each selected item
+has an explicit copy/reuse choice, original/custom name, destination container,
+and **Append**, **At start** or **After selection** position. Select a counterpart
+to keep its identity and adopt only named fields; unselected fields Keep. A Region
+can include individually reviewed direct Places/Areas with their own Notes, style,
+address/location and applicable field controls, including explicit own planning.
+Selecting a child in that scope edits the same choice. A Segment requires approval
+for every missing From/To/Via Place; a Place already selected in the block can be
+shared in its reviewed container. Reused objects do not move. Mixed lists keep
+separate positions; new siblings form a block in displayed order.
+Turning children off retains their authored names, fields and decisions. Selecting
+a child independently reopens that choice; turning children on folds it back once.
+The child result line shows its effective Region and insertion position. If an
+earlier After reference belongs to another list, deliberately choose Append/At start
+or a compatible reference, or turn children off to cancel the fold. Fields stay
+retained; placement is never silently reset.
+
+Review Notes, selected fields, applicable source credits/notices and the proposed
+container/position before **Apply reviewed copy to destination**. Existing Trip
+identity, visibility, owner contribution policy and unrelated content stay.
+Source Trip metadata is not adopted. Own personal planning is copied only when
+explicitly selected; another owner's planning is never shown. Unqualified source
+media is omitted with feedback, and cannot be rehosted merely because it is viewable.
+
+A refusal keeps local choices. **Refresh and review current values** explicitly
+renews reviewed originals; it never silently changes a destination or placement.
+Changing the source/destination pair requires confirmation to replace its choices.
+If you edit, select or expand content during that confirmation or preview wait,
+the earlier review stays intact in its original context; preview again and confirm
+replacement when ready. Its destination originals never transfer to the new Trip.
+Later selections/typing remain unsaved when an earlier action succeeds. A connection
+failure means the save could not be confirmed: use **Edit / inspect destination
+Trip** before trying again. Do not blindly resubmit. Successful content changes are
+saved immediately, including on public Trips at their existing URL. The editing
+link opens the same destination. Destructive cross-Trip moves are separate work.

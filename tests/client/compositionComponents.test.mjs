@@ -7,7 +7,7 @@ import { createSSRApp, createRenderer, nextTick } from 'vue';
 import { renderToString } from '@vue/server-renderer';
 
 // Compile the actual hierarchy/choice components at the existing in-memory Vue seam.
-const bundle = await build({ stdin: { contents: `export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
+const bundle = await build({ stdin: { contents: `export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
   loader: 'ts', resolveDir: 'ClientApps/trip-editor/src/composition' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'vue', setup(builder) {
     builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
@@ -44,7 +44,7 @@ const bundle = await build({ stdin: { contents: `export { default as Composition
     });
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-const { SourceTree, ChoiceControls, CompositionStart, CompositionApp, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
+const { SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
 const source = { graph: { id: 'source', name: 'Source', regions: [
   { id: 'region', name: 'Segments', places: [{ id: 'tower', name: 'Taipei 101', location: [121, 25] }], areas: [] }
 ], segments: [{ id: 'route', mode: 'walk', fromPlaceId: 'tower', toPlaceId: null, waypoints: [] }], credits: [] },
@@ -103,9 +103,9 @@ const descendants = node => [node, ...(node.children ?? []).flatMap(descendants)
 const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].join('');
 
 // Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
-const withWorkspace = async action => {
+const withWorkspace = async (action, lightweight = false) => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
-  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' };
+  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
   globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
   globalThis.HTMLElement = class {};
@@ -113,6 +113,9 @@ const withWorkspace = async action => {
   globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
   globalThis.fetch = async (url, init) => {
     requests.push(url);
+    if (url.includes('/sources?')) return Response.json([]);
+    if (url.includes('/copy-preview?')) return previewReply ? await previewReply() : Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
+    if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
@@ -131,13 +134,13 @@ const withWorkspace = async action => {
     patchProp: (n, key, _old, value) => { n.props[key] = value; }, remove,
     insert(n, p, anchor) { remove(n); n.parent = p; const index = anchor ? p.children.indexOf(anchor) : -1; p.children.splice(index < 0 ? p.children.length : index, 0, n); },
     querySelector: () => body });
-  const host = node('root'); const app = renderer.createApp(CompositionApp, { account: 'owner', compositionId: 'S', token: 'csrf' });
+  const host = node('root'); const app = renderer.createApp(lightweight ? CopyToTrip : CompositionApp, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
   app.config.errorHandler = error => { errors.push(error.message); };
   app.mount(host);
   try {
     await flush();
     await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
-      readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
+      previewWith: fn => { previewReply = fn; }, copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
     assert.deepEqual(errors, [], 'component exceptions must fail the regression');
@@ -247,4 +250,302 @@ test('refresh/edit-return shows current C separately from retained originals and
   settleConfirmDialog(true); await reviewing;
   assert.equal(app.draft.value.baseline.graph.regions[0].places[0].notes, '<p>Saved elsewhere</p>');
   assert.equal(app.draft.value.items[0].fields.notes.value, '<p>Typed choice</p>');
+}));
+
+
+test('lightweight copy owns immutable submitted Notes while newer choices and selection survive the acknowledgement', () => withWorkspace(async ({ captured, sent, copyWith, saved, host }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const choice = app.draft.value.items[0]; choice.decision = 'reuse'; choice.destinationId = 'CP';
+  await flush(); captured.FieldChoices.select('notes', 'edit'); await flush();
+  globalThis.compositionNotes.visible = '<p>Submitted Notes</p>'; globalThis.compositionNotes.change(); await nextTick();
+  const wait = deferred(); copyWith(() => wait.promise); const apply = app.apply(); await flush();
+  globalThis.compositionNotes.visible = '<p>Later Notes</p>'; globalThis.compositionNotes.change();
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await nextTick();
+  wait.resolve(Response.json({ ...saved, status: 'copied' })); await apply; await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].sourceTripId, 'B'); assert.equal(sent[0].destinationTripId, 'C');
+  assert.equal(sent[0].items[0].fields.notes.value, '<p>Submitted Notes</p>');
+  assert.equal(app.draft.value.items[0].fields.notes.value, '<p>Later Notes</p>');
+  assert.equal(app.draft.value.items.length, 2); assert.equal(app.state.value.view.selection.id, 'BR');
+  assert.match(app.state.value.status, /Earlier action saved.*Newer choices remain unsaved/);
+  assert.equal(descendants(host).filter(n => n.tagName === 'BUTTON' && /^(Finish comparison|Start New|Trip details)/.test(textOf(n))).length, 0);
+}, true));
+
+test('lightweight refusal retains destination, placement and choices without replay; changed pair cannot save', () => withWorkspace(async ({ captured, sent, copyWith }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const choice = app.draft.value.items[0]; choice.regionId = 'CR'; choice.position = 'after'; choice.afterId = 'CP';
+  copyWith(async () => Response.json({ detail: 'Reviewed source changed.' }, { status: 409 }));
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(app.draft.value.items[0], choice); assert.equal(choice.afterId, 'CP');
+  assert.equal(app.destinationId.value, 'C'); assert.equal(app.state.value.needsInspection, true);
+  assert.match(app.state.value.error, /source changed/);
+  await app.apply(); assert.equal(sent.length, 1);
+  app.destinationId.value = 'Another Trip'; await app.apply(); assert.equal(sent.length, 1);
+  assert.equal(app.preview.value.tripId, 'C');
+}, true));
+
+
+test('changing the destination while copy waits keeps that newer context and never labels its choices saved', () => withWorkspace(async ({ captured, sent, copyWith, saved }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  app.draft.value.items[0].regionId = 'CR'; const retained = app.draft.value;
+  const wait = deferred(); copyWith(() => wait.promise); const apply = app.apply(); await flush();
+  app.destinationId.value = 'Later destination';
+  wait.resolve(Response.json({ ...saved, status: 'copied' })); await apply;
+  assert.equal(sent[0].destinationTripId, 'C'); assert.equal(app.destinationId.value, 'Later destination');
+  assert.equal(app.draft.value, retained); assert.equal(app.draft.value.items.length, 1);
+  assert.match(app.state.value.status, /Earlier action saved.*Newer choices remain unsaved/);
+}, true));
+
+
+test('explicit same-pair refresh retains newer selection, expansion and local choices while its preview waits', () => withWorkspace(async ({ captured, previewWith, saved }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const wait = deferred(); previewWith(() => wait.promise);
+  const read = app.load(); settleConfirmDialog(true); await flush();
+  app.draft.value.items[0].customName = true; app.draft.value.items[0].name = 'Later name';
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); app.expanded.value = ['b/segments'];
+  wait.resolve(Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'refreshed', originals: [] }));
+  await read; await flush();
+  assert.equal(app.state.value.view.selection.id, 'BR'); assert.equal(app.draft.value.items.length, 2);
+  assert.equal(app.draft.value.items[0].name, 'Later name'); assert.deepEqual([...app.expanded.value], ['b/segments']);
+}, true));
+
+
+// A changed pair may replace only the exact prior review the user agreed to discard.
+test('pair-changing preview retains post-confirmation names, fields, selection and expansion until renewed consent', () => withWorkspace(async ({ captured, previewWith, saved, sent }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const oldReview = app.draft.value; const choice = oldReview.items[0];
+  choice.decision = 'reuse'; choice.destinationId = 'CP';
+  const oldPreview = app.preview.value;
+  app.destinationId.value = 'D';
+  const wait = deferred(); previewWith(() => wait.promise);
+  const read = app.load(); settleConfirmDialog(true); await flush();
+  choice.customName = true; choice.name = 'Typed after pair confirmation';
+  choice.fields.notes = { operation: 'edit', value: '<p>Later Notes in C</p>' };
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); app.expanded.value = ['b/segments'];
+  const destination = snapshot('D');
+  const response = () => Response.json({ sourceTripId: 'B', tripId: 'D', source: saved.sourceB, current: destination, context: 'new-pair', originals: [] });
+  wait.resolve(response()); await read; await flush();
+  assert.equal(app.draft.value, oldReview); assert.equal(app.preview.value, oldPreview);
+  assert.equal(choice.name, 'Typed after pair confirmation'); assert.equal(choice.fields.notes.value, '<p>Later Notes in C</p>');
+  assert.equal(app.state.value.view.selection.id, 'BR'); assert.deepEqual([...app.expanded.value], ['b/segments']);
+  assert.equal(app.draft.value.baseline.graph.id, 'C'); assert.match(app.error.value, /Preview again to confirm replacement/);
+  await app.apply(); assert.equal(sent.length, 0);
+  const cancelled = app.load(); settleConfirmDialog(false); await cancelled;
+  assert.equal(app.draft.value, oldReview); assert.equal(app.preview.value, oldPreview);
+  previewWith(response);
+  const renewed = app.load(); settleConfirmDialog(true); await renewed; await flush();
+  assert.equal(app.preview.value.tripId, 'D'); assert.equal(app.draft.value.baseline.graph.id, 'D');
+  assert.equal(app.draft.value.items.length, 0); assert.equal(app.state.value.view.selection, null);
+  assert.equal(choice.destinationId, 'CP'); // The old object was never repurposed as D authority.
+}, true));
+
+test('pair and draft changes during confirmation and a refused pair preview retain the prior review', () => withWorkspace(async ({ captured, requests, previewWith }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const review = app.draft.value; const before = requests.length;
+  app.destinationId.value = 'D';
+  const moved = app.load(); app.destinationId.value = 'E'; settleConfirmDialog(true); await moved;
+  assert.equal(requests.length, before); assert.equal(app.preview.value.tripId, 'C');
+  const changed = app.load(); review.items[0].name = 'Changed during confirmation'; settleConfirmDialog(true); await changed;
+  assert.equal(requests.length, before); assert.equal(app.draft.value, review);
+  previewWith(async () => Response.json({ detail: 'Destination unavailable' }, { status: 409 }));
+  const refused = app.load(); settleConfirmDialog(true); await refused;
+  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /Destination unavailable/);
+}, true));
+
+for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} uses the same selected fields and one submitted child identity`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
+  const app = captured.CopyToTrip; const own = mode !== 'foreign';
+  const planning = label => ({ format: 1, entries: [{ id: 'entry', when: { form: 'unknown' }, label }] });
+  saved.sourceB.graph.regions[0].areas = [{ id: 'BA', name: 'Source Area', notes: '<p>Area source</p>', fillHex: '#abcdef', geometryGeoJson: '{"type":"Polygon","coordinates":[[[23,38],[24,38],[24,39],[23,38]]]}' }];
+  saved.sourceB.areaOrder.BR = ['BA'];
+  saved.current.graph.regions[0].areas = [{ ...saved.sourceB.graph.regions[0].areas[0], id: 'CA', name: 'Current Area', notes: '<p>Area current</p>' }];
+  saved.current.areaOrder.CR = ['CA'];
+  saved.current.graph.regions[0].places[0].notes = '<p>Current child</p>';
+  if (own) saved.sourceB.planning = { trip: null, regions: { BR: null }, places: { BP: planning('Source intention') }, areas: { BA: null }, segments: {} };
+  saved.current.planning = { trip: null, regions: { CR: null }, places: { CP: planning('Destination intention') }, areas: { CA: null }, segments: {} };
+  await app.load(); await flush();
+  // A child chosen first must become the same nested choice when its Region scope expands.
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const first = app.draft.value.items[0]; first.customName = true; first.name = 'Retained child name';
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  captured.ChoiceControls.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const child = region.children[0]; const area = region.children[1];
+  assert.equal(child, first); assert.equal(app.draft.value.items.length, 1);
+  if (mode === 'reuse') { child.decision = 'reuse'; child.destinationId = 'CP'; area.decision = 'reuse'; area.destinationId = 'CA'; }
+  await flush();
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, child); assert.equal(app.draft.value.items.length, 1);
+  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const action = (node, title, operation) => {
+    const select = descendants(node).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === `${title} action`);
+    assert.ok(select, `${title} must be reachable for the nested child`); select.props.onChange({ target: { value: operation } });
+  };
+  const placeNode = childNode('place'); const areaNode = childNode('area');
+  for (const title of ['Notes', 'Icon', 'Marker colour', 'Address & enrichment', 'Location'])
+    assert.ok(descendants(placeNode).some(n => n.props['aria-label'] === `${title} action`));
+  action(placeNode, 'Notes', 'edit'); await flush();
+  assert.equal(globalThis.compositionNotes.visible, mode === 'reuse' ? '<p>Current child</p>' : '<p>Original</p>');
+  globalThis.compositionNotes.visible = '<p>Authored nested Notes</p>'; globalThis.compositionNotes.change(); await nextTick();
+  action(placeNode, 'Icon', 'useSource'); action(placeNode, 'Address & enrichment', 'useSource');
+  action(areaNode, 'Notes', 'useSource'); action(areaNode, 'Area fill', 'useSource');
+  if (own) {
+    assert.equal(child.fields.planning.operation, 'keep');
+    action(placeNode, 'Personal planning', 'useSource'); action(areaNode, 'Personal planning', 'clear');
+    assert.match(textOf(placeNode), /Source intention/);
+  } else assert.doesNotMatch(textOf(placeNode) + textOf(areaNode), /Personal planning|Source intention|Destination intention|No personal planning|No planned/i);
+  if (mode === 'reuse') {
+    const note = descendants(placeNode).find(n => n.tagName === 'FIELDSET' && textOf(n).startsWith('Notes'));
+    assert.match(textOf(note), /Reviewed original destination.*Current destination/s);
+    assert.deepEqual(descendants(note).filter(n => n.props.innerHTML).map(n => n.props.innerHTML), ['<p>Original</p>', '<p>Current child</p>', '<p>Current child</p>']);
+  }
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1); assert.equal(sent[0].items[0].children.length, 2);
+  const item = sent[0].items[0].children[0];
+  assert.equal(item.sourceId, 'BP'); assert.equal(item.fields.notes.value, '<p>Authored nested Notes</p>');
+  assert.equal(item.fields.notes.expected, mode === 'reuse' ? '<p>Current child</p>' : null);
+  if (mode === 'reuse') {
+    assert.equal(item.destinationId, 'CP'); assert.equal(item.expectedParentId, 'CR');
+    assert.equal(item.placement, undefined); assert.equal(item.regionId, undefined);
+  }
+  if (own) { assert.equal(item.fields.planning.operation, 'useSource'); assert.equal(sent[0].items[0].children[1].fields.planning.operation, 'clear'); }
+  else assert.equal(item.fields.planning, undefined);
+}, true));
+
+// Scope changes keep the existing child owner; Apply must encode the retained authored intent.
+test('scope off, child reselection and scope on retain authored names, fields, Notes and decisions', () => withWorkspace(async ({ captured, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls;
+  owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const child = region.children[0];
+  child.customName = true; child.name = 'Authored nested name'; child.separate = true;
+  child.fields.notes = { operation: 'edit', value: '<p>Authored nested Notes</p>' };
+  child.fields.iconName.operation = 'useSource'; child.decision = 'skip';
+  owner.scope({ target: { checked: false } }); await flush();
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, child); assert.equal(app.selected.value.decision, 'skip');
+  child.decision = 'copy';
+  owner.scope({ target: { checked: true } }); await flush();
+  assert.equal(region.children[0], child); assert.equal(app.draft.value.items.length, 1);
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); const submitted = sent[0].items[0].children;
+  assert.equal(submitted.length, 1); assert.equal(submitted[0].name, 'Authored nested name');
+  assert.equal(submitted[0].separate, true); assert.equal(submitted[0].fields.iconName.operation, 'useSource');
+  assert.equal(submitted[0].fields.notes.value, '<p>Authored nested Notes</p>');
+}, true));
+
+// The production template must expose the effective parent and an actionable inherited After conflict.
+test('folded child shows effective placement and accepts deliberate resolution without losing fields', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const first = app.draft.value.items[0]; first.regionId = 'CR'; first.position = 'after'; first.afterId = 'CP';
+  first.fields.notes = { operation: 'edit', value: '<p>Retained placement Notes</p>' };
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls;
+  owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; region.customName = true; region.name = 'New container'; await flush();
+  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('place ·'));
+  assert.match(textOf(childNode()), /Result: New normal Region “New container”.*After C Place/s);
+  assert.match(textOf(childNode()), /Choose Append or At start.*turn off Region children/s);
+  await app.apply(); assert.equal(sent.length, 0); assert.equal(first.position, 'after'); assert.equal(first.afterId, 'CP');
+  // Cancelling the fold restores the authored standalone placement; refolding still requires explicit resolution.
+  owner.scope({ target: { checked: false } }); app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, first); assert.equal(first.afterId, 'CP');
+  owner.scope({ target: { checked: true } }); await flush();
+  const position = descendants(childNode()).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === 'Insertion position');
+  assert.ok(position); position.props['onUpdate:modelValue']('start'); await flush();
+  assert.match(textOf(childNode()), /Result: New normal Region “New container”.*At start/s);
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); const submitted = sent[0].items[0].children[0];
+  assert.deepEqual(submitted.placement, { expected: [], position: 'start' });
+  assert.equal(submitted.regionId, undefined); assert.equal(submitted.fields.notes.value, '<p>Retained placement Notes</p>');
+}, true));
+
+// A block reconciles only its own copies. Independent item drafts keep their names/Notes and owners.
+for (const kind of ['place', 'area']) test(`shared block folds one ${kind} identity and keeps independent item Notes`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
+  const app = captured.CompositionApp;
+  if (kind === 'area') {
+    saved.sourceB.graph.regions[0].areas = [{ id: 'BA', name: 'Source Area', notes: '<p>Area source</p>' }];
+    saved.sourceB.areaOrder.BR = ['BA']; await app.refresh();
+  }
+  const id = kind === 'place' ? 'BP' : 'BA';
+  await app.select({ side: 'b', kind, id }); await flush();
+  const itemDraft = app.draft.value; const first = itemDraft.items[0];
+  first.customName = true; first.name = 'Reviewed child'; first.fields.notes = { operation: 'edit', value: '<p>Block child Notes</p>' };
+  app.addToBlock(); first.fields.notes.value = '<p>Independent item Notes</p>';
+  await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  captured.ChoiceControls.scope({ target: { checked: true } }); await flush();
+  const regionDraft = app.draft.value; const defaultChild = regionDraft.items[0].children.find(c => c.sourceId === id);
+  app.addToBlock(); app.state.view.blockMode = true; await flush();
+  assert.equal(app.draft.value.items.length, 1);
+  const nested = app.draft.value.items[0].children.find(c => c.sourceId === id);
+  assert.equal(nested.name, 'Reviewed child'); assert.notEqual(nested, first); assert.notEqual(nested, defaultChild);
+  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  assert.ok(descendants(childNode).some(n => n.props['aria-label'] === 'Notes action'));
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);
+  const submitted = sent[0].items[0].children.filter(c => c.sourceId === id);
+  assert.equal(submitted.length, 1); assert.equal(submitted[0].name, 'Reviewed child');
+  assert.equal(submitted[0].fields.notes.value, '<p>Block child Notes</p>');
+  assert.equal(first.fields.notes.value, '<p>Independent item Notes</p>');
+  assert.equal(defaultChild.fields.notes.operation, 'keep');
+}));
+
+test('conflicting authored block and Region choices refuse addition and retain both drafts until deliberate resolution', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CompositionApp;
+  await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  app.draft.value.items[0].fields.notes = { operation: 'edit', value: '<p>Block choice</p>' }; app.addToBlock();
+  const block = app.state.view.block;
+  await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls; owner.scope({ target: { checked: true } }); await flush();
+  const item = app.draft.value; const child = item.items[0].children[0];
+  child.fields.notes = { operation: 'edit', value: '<p>Independent Region choice</p>' };
+  app.addToBlock(); await flush();
+  assert.equal(app.state.view.block, block); assert.equal(block.items.length, 1);
+  assert.equal(block.items[0].fields.notes.value, '<p>Block choice</p>');
+  assert.equal(child.fields.notes.value, '<p>Independent Region choice</p>');
+  assert.match(textOf(host), /Conflicting choices.*Keep Region only.*remove.*local block/s);
+  assert.equal(sent.length, 0);
+  owner.scope({ target: { checked: false } }); app.addToBlock(); app.state.view.blockMode = true; await flush();
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.filter(c => c.sourceId === 'BP').length, 1);
+  assert.equal(sent[0].items.find(c => c.sourceId === 'BP').fields.notes.value, '<p>Block choice</p>');
+  assert.equal(child.fields.notes.value, '<p>Independent Region choice</p>');
+}));
+
+test('scope refuses conflicting retained child choices without enabling scope or overwriting either owner', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls; owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const cached = region.children[0];
+  cached.fields.notes = { operation: 'edit', value: '<p>Retained nested choice</p>' };
+  owner.scope({ target: { checked: false } }); await flush();
+  // Previously retained reviews can contain a distinct direct choice for the cached child.
+  const standalone = JSON.parse(JSON.stringify(cached)); standalone.fields.notes.value = '<p>Retained direct choice</p>';
+  app.draft.value.items.push(standalone); await flush();
+  const input = { checked: true }; owner.scope({ target: input }); await flush();
+  assert.equal(input.checked, false); assert.equal(region.withChildren, false);
+  assert.equal(app.draft.value.items[1].fields.notes.value, '<p>Retained direct choice</p>');
+  assert.equal(cached.fields.notes.value, '<p>Retained nested choice</p>');
+  assert.match(textOf(host), /Conflicting choices.*remove.*local block\/review/s);
+  app.draft.value.items.splice(1, 1); owner.scope({ target: { checked: true } }); await flush();
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items[0].children.length, 1);
+  assert.equal(sent[0].items[0].children[0].fields.notes.value, '<p>Retained nested choice</p>');
+}, true));
+
+// Adding another reviewed item during Apply must retain the block owner used by submitted-draft comparison.
+test('block additions during Apply remain newer unsaved choices after the original acknowledgement', () => withWorkspace(async ({ captured, sent, saved, readWith }) => {
+  const app = captured.CompositionApp;
+  await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush(); app.addToBlock();
+  const block = app.state.view.block; const first = block.items[0];
+  app.state.view.blockMode = true;
+  const wait = deferred(); readWith(() => wait.promise);
+  const applying = app.apply(); await flush();
+  app.state.view.blockMode = false; await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush(); app.addToBlock();
+  app.state.view.blockMode = true;
+  assert.equal(app.state.view.block, block); assert.equal(block.items[0], first);
+  wait.resolve(Response.json(saved)); await applying; await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);
+  assert.equal(app.state.view.block, block); assert.equal(block.items.length, 2);
+  assert.match(app.state.status, /Earlier action saved.*Newer choices remain unsaved/);
 }));

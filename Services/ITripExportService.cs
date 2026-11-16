@@ -2,6 +2,10 @@ namespace Wayfarer.Parsers;
 
 public interface ITripExportService
 {
+    /// <summary>Complete native owner download with final incoming-bearer authority; personal planning defaults off at the endpoint.</summary>
+    Task<PersonalNativeExport> GeneratePersonalNativeForBearerAsync(Guid tripId, string owner, bool includePrivatePlanning,
+        Func<CancellationToken, Task<bool>> credential, CancellationToken token);
+
     /// <summary>Exports an authenticated owner's coherent native snapshot; inclusion is explicit and defaults off.</summary>
     Task<PersonalNativeExport> GeneratePersonalNativeAsync(Guid tripId, string owner,
         bool includePrivatePlanning, CancellationToken cancellationToken = default);

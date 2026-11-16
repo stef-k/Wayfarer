@@ -7,8 +7,9 @@ import { describePlanningTiming, type PlanningAggregate } from '../planning/plan
 import { copy, fieldKeys, fieldValue, find, sourceSnapshot } from './compositionModel';
 import type { Choice, FieldChoice, ReviewDraft, Workspace } from './compositionTypes';
 import type { EditorOptions } from '../types';
-const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; editorUrl: string; options: EditorOptions | null }>();
+const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; editorUrl: string; options: EditorOptions | null; existingTrip?: boolean }>();
 const adoption = ref(0);
+const destinationName = computed(() => props.existingTrip ? 'destination' : 'C');
 // A different choice owns different Notes (item/block/reset); edits within that choice remain local echoes.
 watch(() => props.choice, () => { adoption.value++; });
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
@@ -82,16 +83,16 @@ function comparison(key: string, value: unknown): string {
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(captured(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, captured(key)) }}</p>
         </div>
-        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Reviewed original C · {{ comparison(key, original(key)) }}</strong>
+        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Reviewed original {{ destinationName }} · {{ comparison(key, original(key)) }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(original(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, original(key)) }}</p>
         </div>
-        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current C · {{ hasCurrent ? comparison(key, currentValue(key)) : 'Counterpart unavailable' }}</strong>
+        <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current {{ destinationName }} · {{ hasCurrent ? comparison(key, currentValue(key)) : 'Counterpart unavailable' }}</strong>
           <template v-if="hasCurrent">
             <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(currentValue(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
             <p v-else>{{ describe(key, currentValue(key)) }}</p>
           </template>
-          <p v-if="changedSinceReview(key)">Current C changed since this review. Your choices and reviewed originals are retained. Use Review current C / refresh originals to review the change explicitly.</p>
+          <p v-if="changedSinceReview(key)">Current {{ destinationName }} changed since this review. Your choices and reviewed originals are retained. Use the refresh / review control to review the change explicitly.</p>
         </div>
       </div>
       <label class="composition-field">{{ titles[key] }} action
@@ -101,7 +102,7 @@ function comparison(key: string, value: unknown): string {
         </select>
       </label>
       <template v-if="choice.fields[key]?.operation === 'edit'">
-        <RichNotesEditor v-if="key === 'notes'" :editor-id="`composition-notes-${choice.sourceId}`" label="Edited Notes for C" v-model="notes" :adoption-revision="adoption" :validation-messages="[]" />
+        <RichNotesEditor v-if="key === 'notes'" :editor-id="`composition-notes-${choice.sourceId}`" :label="`Edited Notes for ${destinationName}`" v-model="notes" :adoption-revision="adoption" :validation-messages="[]" />
         <IconSelector v-else-if="key === 'iconName' || key === 'markerColor'" :icons="key === 'iconName' ? options?.iconNames ?? [] : options?.markerColorClasses ?? []"
           :kind="key === 'iconName' ? 'icon' : 'color'" :marker-color="markerColor" :model-value="String(choice.fields[key].value)" @update:model-value="choice.fields[key].value = $event" />
         <div v-else-if="key === 'location' || key === 'center'" class="composition-differences">
@@ -118,9 +119,9 @@ function comparison(key: string, value: unknown): string {
           <input v-model="choice.fields[key].value" :type="key === 'cover' ? 'url' : key === 'fillHex' ? 'color' : 'text'" :maxlength="key === 'cover' ? 2000 : key === 'tags' ? undefined : 200" :required="key === 'name'" />
         </label>
       </template>
-      <a v-if="ordinary(key) && choice.decision === 'reuse'" :href="editorUrl">Edit {{ titles[key].toLowerCase() }} in ordinary C editor, then return</a>
-      <p v-if="key === 'location' && captured(key) === null">The captured Place is unlocated. An independent copy retains that absence; adopting it cannot silently erase C’s required location.</p>
-      <p v-if="key === 'route'">Source routes require every anchor below. To clear or repair an incompatible route, use ordinary C route controls and their consequence review, then review again. Captured geometry is never snapped, cleared or regenerated by copying.</p>
+      <a v-if="ordinary(key) && choice.decision === 'reuse'" :href="editorUrl">Edit {{ titles[key].toLowerCase() }} in ordinary {{ destinationName }} editor, then return</a>
+      <p v-if="key === 'location' && captured(key) === null">The captured Place is unlocated. An independent copy retains that absence; adopting it cannot silently erase the {{ destinationName }}’s required location.</p>
+      <p v-if="key === 'route'">Source routes require every anchor below. To clear or repair an incompatible route, use ordinary {{ destinationName }} route controls and their consequence review, then review again. Captured geometry is never snapped, cleared or regenerated by copying.</p>
     </fieldset>
   </details>
 </template>
