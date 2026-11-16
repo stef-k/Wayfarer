@@ -17,6 +17,10 @@
   consent to the confirmed choices, retaining newer input in its original context.
   Expose selected fields and explicit own planning for nested Region children without
   submitting a second top-level child choice.
+  Keep authored child choices across scope toggles/reselection and reconcile direct
+  and nested identities inside each local review/block, refusing conflicting drafts.
+  Show folded children's effective container and resolve incompatible After placement
+  explicitly. Log native post-commit failures using only type, phase and stable IDs.
 
 - Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
   ordinary independent versions, deliberately start/continue a source pair, review

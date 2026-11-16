@@ -402,6 +402,10 @@ for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} use
   const item = sent[0].items[0].children[0];
   assert.equal(item.sourceId, 'BP'); assert.equal(item.fields.notes.value, '<p>Authored nested Notes</p>');
   assert.equal(item.fields.notes.expected, mode === 'reuse' ? '<p>Current child</p>' : null);
+  if (mode === 'reuse') {
+    assert.equal(item.destinationId, 'CP'); assert.equal(item.expectedParentId, 'CR');
+    assert.equal(item.placement, undefined); assert.equal(item.regionId, undefined);
+  }
   if (own) { assert.equal(item.fields.planning.operation, 'useSource'); assert.equal(sent[0].items[0].children[1].fields.planning.operation, 'clear'); }
   else assert.equal(item.fields.planning, undefined);
 }, true));
@@ -506,4 +510,42 @@ test('conflicting authored block and Region choices refuse addition and retain b
   assert.equal(sent.length, 1); assert.equal(sent[0].items.filter(c => c.sourceId === 'BP').length, 1);
   assert.equal(sent[0].items.find(c => c.sourceId === 'BP').fields.notes.value, '<p>Block choice</p>');
   assert.equal(child.fields.notes.value, '<p>Independent Region choice</p>');
+}));
+
+test('scope refuses conflicting retained child choices without enabling scope or overwriting either owner', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls; owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const cached = region.children[0];
+  cached.fields.notes = { operation: 'edit', value: '<p>Retained nested choice</p>' };
+  owner.scope({ target: { checked: false } }); await flush();
+  // Previously retained reviews can contain a distinct direct choice for the cached child.
+  const standalone = JSON.parse(JSON.stringify(cached)); standalone.fields.notes.value = '<p>Retained direct choice</p>';
+  app.draft.value.items.push(standalone); await flush();
+  const input = { checked: true }; owner.scope({ target: input }); await flush();
+  assert.equal(input.checked, false); assert.equal(region.withChildren, false);
+  assert.equal(app.draft.value.items[1].fields.notes.value, '<p>Retained direct choice</p>');
+  assert.equal(cached.fields.notes.value, '<p>Retained nested choice</p>');
+  assert.match(textOf(host), /Conflicting choices.*remove.*local block\/review/s);
+  app.draft.value.items.splice(1, 1); owner.scope({ target: { checked: true } }); await flush();
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items[0].children.length, 1);
+  assert.equal(sent[0].items[0].children[0].fields.notes.value, '<p>Retained nested choice</p>');
+}, true));
+
+// Adding another reviewed item during Apply must retain the block owner used by submitted-draft comparison.
+test('block additions during Apply remain newer unsaved choices after the original acknowledgement', () => withWorkspace(async ({ captured, sent, saved, readWith }) => {
+  const app = captured.CompositionApp;
+  await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush(); app.addToBlock();
+  const block = app.state.view.block; const first = block.items[0];
+  app.state.view.blockMode = true;
+  const wait = deferred(); readWith(() => wait.promise);
+  const applying = app.apply(); await flush();
+  app.state.view.blockMode = false; await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush(); app.addToBlock();
+  app.state.view.blockMode = true;
+  assert.equal(app.state.view.block, block); assert.equal(block.items[0], first);
+  wait.resolve(Response.json(saved)); await applying; await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);
+  assert.equal(app.state.view.block, block); assert.equal(block.items.length, 2);
+  assert.match(app.state.status, /Earlier action saved.*Newer choices remain unsaved/);
 }));

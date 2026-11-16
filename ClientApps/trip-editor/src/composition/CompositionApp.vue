@@ -116,14 +116,16 @@ function addToBlock(): void {
   if (state.view.block && state.view.block.side !== review.side) { state.error = 'One action block uses a single source. Apply or clear the existing block first.'; return; }
   const item = review.items[0];
   if (state.view.block?.items.some(c => c.kind === item.kind && c.sourceId === item.sourceId)) { state.error = 'This item is already in the block. Open the block to edit it.'; return; }
-  // Stage locally so a conflict cannot replace either the block or the independent item draft.
-  const block = state.view.block ? copy(state.view.block) : { ...copy(review), items: [] };
-  block.items.push(copy(item));
+  // Resolve every conflict before changing existing owners; only the incoming item is copied.
+  const block = { ...(state.view.block ?? copy(review)), items: [...(state.view.block?.items ?? []), copy(item)] };
   try {
-    for (const region of block.items.filter(c => c.kind === 'region' && c.withChildren))
-      foldChildren(block, region, regionChildren(state.workspace, block, region));
+    const scopes = block.items.filter(c => c.kind === 'region' && c.withChildren)
+      .map(region => ({ region, children: regionChildren(state.workspace!, block, region) }));
+    for (const { region, children } of scopes) foldChildren(block, region, children);
   } catch (error) { state.error = error instanceof Error ? error.message : 'Review the conflicting child choices.'; return; }
-  state.view.block = block; state.error = ''; state.status = 'Added to reviewed block. Open it to check destinations and position.';
+  // Keep the submitted draft reference so existing newer-input checks see additions made during a save.
+  if (state.view.block) state.view.block.items = block.items; else state.view.block = block;
+  state.error = ''; state.status = 'Added to reviewed block. Open it to check destinations and position.';
 }
 async function clearBlock(): Promise<void> {
   if (state.pending || !await confirm({ title: 'Clear local block?', message: 'Clear these unapplied block choices? Saved C and its comparison remain unchanged.', confirmLabel: 'Clear local block', cancelLabel: 'Keep block' })) return;

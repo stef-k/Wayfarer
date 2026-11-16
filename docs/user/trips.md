@@ -424,6 +424,10 @@ sharing a destination list require the same placement and enter as one contiguou
 block; reused counterparts stay put. Mixed lists have independent placements.
 The item draft and its collected block draft are independent. Opening either one
 shows that draft's Notes; applying the block keeps the unapplied item choices.
+A directly selected Place/Area and the same Region child become one block choice.
+If both have different authored choices, adding the item is refused and both drafts
+stay intact. Keep Region only, or open the block and remove the conflicting choice
+before adding the Region with children again.
 
 Select only the fields to adopt: **Keep**, **Use source**, supported **Edit value**
 or explicit **Clear**. Notes use the shared rich editor and replace one complete
@@ -498,6 +502,12 @@ Selecting a child in that scope edits the same choice. A Segment requires approv
 for every missing From/To/Via Place; a Place already selected in the block can be
 shared in its reviewed container. Reused objects do not move. Mixed lists keep
 separate positions; new siblings form a block in displayed order.
+Turning children off retains their authored names, fields and decisions. Selecting
+a child independently reopens that choice; turning children on folds it back once.
+The child result line shows its effective Region and insertion position. If an
+earlier After reference belongs to another list, deliberately choose Append/At start
+or a compatible reference, or turn children off to cancel the fold. Fields stay
+retained; placement is never silently reset.
 
 Review Notes, selected fields, applicable source credits/notices and the proposed
 container/position before **Apply reviewed copy to destination**. Existing Trip

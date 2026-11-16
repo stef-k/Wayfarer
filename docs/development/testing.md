@@ -845,6 +845,12 @@ copy/reuse/own-planning controls with one submitted identity. Native duplicate t
 wait on the actual account fence before deactivation/credential revocation. The
 routed post-commit case independently observes a committed import and deletes it
 through ordinary lifecycle deletion before the adapter replies; saved remains saved.
+Private-marker regressions cover inspection, unexpected/expected cancellation and
+independent thumbnail/warmup failures, checking captured exceptions, formatted text
+and structured fields. Lost commit acknowledgement remains unconfirmed without replay.
+Mounted scope/reselection, effective-placement resolution and shared Place/Area block
+cases assert actual submitted intent, retained independent drafts and truthful refusal
+of conflicting authored choices; own planning, foreign privacy and Notes owners remain covered.
 These changed interactions have mounted component/relational proof. The managed
 `--grep 'Batch 5 copy'` selection is one concise rendered
 copy-to-existing journey; it does not repeat Layout B/native zoom qualification.

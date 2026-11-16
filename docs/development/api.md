@@ -1783,6 +1783,9 @@ same file bytes and review token. Successful import returns `status: success`,
 the post-commit inspection: true for an available destination, false if it has
 already disappeared, null if inspection failed. Each preserves the known saved
 fact; later inspection/thumbnail/warmup failures never become validation refusals.
+These boundaries log only exception type, phase, Trip ID and owner ID, without raw
+exceptions, messages or payloads. Expected request cancellation after commit uses
+debug diagnostics and retains the saved/current-uninspectable result.
 Validation refusal before commit is atomic. A genuinely uncertain commit or lost
 response requires inspection, without automatic import retry.
 
