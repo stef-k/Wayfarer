@@ -211,15 +211,19 @@ test('Final 911 UX corrections route focus and full workspace block recovery', a
     await expect(regionNotesField.locator('.tiptap')).toHaveText('Independent Region Notes');
     const saved = await read(c); const copied = Object.values(saved.placesById).filter((p: any) => p.name === 'Reviewed lookout') as any[];
     expect(copied).toHaveLength(1); expect(copied[0].notesHtml).toContain('Applied block child Notes');
+    observations.block = { submitted: body, status: response.status(), result: await response.json(), copied: copied[0], independentRegion: 'Independent Region Notes' };
     await itemRow.click(); await expect(notes).toHaveText('Independent selected-item Notes');
     await expect(inspector.getByLabel('Custom name', { exact: true })).toHaveValue('Reviewed lookout');
+    // The independent item intentionally retains its old originals; explicitly review C before selecting a newly saved identity.
+    await inspector.getByRole('button', { name: 'Review current C / refresh originals', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Review current originals', exact: true }).click();
     await inspector.getByLabel('Action for C', { exact: true }).selectOption('reuse');
     await inspector.getByLabel('Current C counterpart', { exact: true }).selectOption(copied[0].id);
     const notesField = inspector.getByRole('group', { name: 'Notes', exact: true });
     await expect(notesField.locator('.composition-differences > div').nth(2)).toContainText('Applied block child Notes');
     await expect(notes).toHaveText('Independent selected-item Notes');
     await notesField.scrollIntoViewIfNeeded(); await capture('G1-saved-effect-and-independent-item-draft');
-    observations.block = { submitted: body, status: response.status(), result: await response.json(), copied: copied[0],
+    observations.block = { ...observations.block as object,
       displayed: await notesField.innerText(), independentItem: await notes.innerText(), independentRegion: 'Independent Region Notes' };
   } finally { await writeFile(`${evidence}/correction-observations.json`, JSON.stringify(observations, null, 2)); }
 });
