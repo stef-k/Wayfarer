@@ -405,3 +405,105 @@ for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} use
   if (own) { assert.equal(item.fields.planning.operation, 'useSource'); assert.equal(sent[0].items[0].children[1].fields.planning.operation, 'clear'); }
   else assert.equal(item.fields.planning, undefined);
 }, true));
+
+// Scope changes keep the existing child owner; Apply must encode the retained authored intent.
+test('scope off, child reselection and scope on retain authored names, fields, Notes and decisions', () => withWorkspace(async ({ captured, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls;
+  owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const child = region.children[0];
+  child.customName = true; child.name = 'Authored nested name'; child.separate = true;
+  child.fields.notes = { operation: 'edit', value: '<p>Authored nested Notes</p>' };
+  child.fields.iconName.operation = 'useSource'; child.decision = 'skip';
+  owner.scope({ target: { checked: false } }); await flush();
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, child); assert.equal(app.selected.value.decision, 'skip');
+  child.decision = 'copy';
+  owner.scope({ target: { checked: true } }); await flush();
+  assert.equal(region.children[0], child); assert.equal(app.draft.value.items.length, 1);
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); const submitted = sent[0].items[0].children;
+  assert.equal(submitted.length, 1); assert.equal(submitted[0].name, 'Authored nested name');
+  assert.equal(submitted[0].separate, true); assert.equal(submitted[0].fields.iconName.operation, 'useSource');
+  assert.equal(submitted[0].fields.notes.value, '<p>Authored nested Notes</p>');
+}, true));
+
+// The production template must expose the effective parent and an actionable inherited After conflict.
+test('folded child shows effective placement and accepts deliberate resolution without losing fields', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CopyToTrip;
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const first = app.draft.value.items[0]; first.regionId = 'CR'; first.position = 'after'; first.afterId = 'CP';
+  first.fields.notes = { operation: 'edit', value: '<p>Retained placement Notes</p>' };
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls;
+  owner.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; region.customName = true; region.name = 'New container'; await flush();
+  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('place ·'));
+  assert.match(textOf(childNode()), /Result: New normal Region “New container”.*After C Place/s);
+  assert.match(textOf(childNode()), /Choose Append or At start.*turn off Region children/s);
+  await app.apply(); assert.equal(sent.length, 0); assert.equal(first.position, 'after'); assert.equal(first.afterId, 'CP');
+  // Cancelling the fold restores the authored standalone placement; refolding still requires explicit resolution.
+  owner.scope({ target: { checked: false } }); app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, first); assert.equal(first.afterId, 'CP');
+  owner.scope({ target: { checked: true } }); await flush();
+  const position = descendants(childNode()).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === 'Insertion position');
+  assert.ok(position); position.props['onUpdate:modelValue']('start'); await flush();
+  assert.match(textOf(childNode()), /Result: New normal Region “New container”.*At start/s);
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); const submitted = sent[0].items[0].children[0];
+  assert.deepEqual(submitted.placement, { expected: [], position: 'start' });
+  assert.equal(submitted.regionId, undefined); assert.equal(submitted.fields.notes.value, '<p>Retained placement Notes</p>');
+}, true));
+
+// A block reconciles only its own copies. Independent item drafts keep their names/Notes and owners.
+for (const kind of ['place', 'area']) test(`shared block folds one ${kind} identity and keeps independent item Notes`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
+  const app = captured.CompositionApp;
+  if (kind === 'area') {
+    saved.sourceB.graph.regions[0].areas = [{ id: 'BA', name: 'Source Area', notes: '<p>Area source</p>' }];
+    saved.sourceB.areaOrder.BR = ['BA']; await app.refresh();
+  }
+  const id = kind === 'place' ? 'BP' : 'BA';
+  await app.select({ side: 'b', kind, id }); await flush();
+  const itemDraft = app.draft.value; const first = itemDraft.items[0];
+  first.customName = true; first.name = 'Reviewed child'; first.fields.notes = { operation: 'edit', value: '<p>Block child Notes</p>' };
+  app.addToBlock(); first.fields.notes.value = '<p>Independent item Notes</p>';
+  await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  captured.ChoiceControls.scope({ target: { checked: true } }); await flush();
+  const regionDraft = app.draft.value; const defaultChild = regionDraft.items[0].children.find(c => c.sourceId === id);
+  app.addToBlock(); app.state.view.blockMode = true; await flush();
+  assert.equal(app.draft.value.items.length, 1);
+  const nested = app.draft.value.items[0].children.find(c => c.sourceId === id);
+  assert.equal(nested.name, 'Reviewed child'); assert.notEqual(nested, first); assert.notEqual(nested, defaultChild);
+  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  assert.ok(descendants(childNode).some(n => n.props['aria-label'] === 'Notes action'));
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);
+  const submitted = sent[0].items[0].children.filter(c => c.sourceId === id);
+  assert.equal(submitted.length, 1); assert.equal(submitted[0].name, 'Reviewed child');
+  assert.equal(submitted[0].fields.notes.value, '<p>Block child Notes</p>');
+  assert.equal(first.fields.notes.value, '<p>Independent item Notes</p>');
+  assert.equal(defaultChild.fields.notes.operation, 'keep');
+}));
+
+test('conflicting authored block and Region choices refuse addition and retain both drafts until deliberate resolution', () => withWorkspace(async ({ captured, host, sent }) => {
+  const app = captured.CompositionApp;
+  await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  app.draft.value.items[0].fields.notes = { operation: 'edit', value: '<p>Block choice</p>' }; app.addToBlock();
+  const block = app.state.view.block;
+  await app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  const owner = captured.ChoiceControls; owner.scope({ target: { checked: true } }); await flush();
+  const item = app.draft.value; const child = item.items[0].children[0];
+  child.fields.notes = { operation: 'edit', value: '<p>Independent Region choice</p>' };
+  app.addToBlock(); await flush();
+  assert.equal(app.state.view.block, block); assert.equal(block.items.length, 1);
+  assert.equal(block.items[0].fields.notes.value, '<p>Block choice</p>');
+  assert.equal(child.fields.notes.value, '<p>Independent Region choice</p>');
+  assert.match(textOf(host), /Conflicting choices.*Keep Region only.*remove.*local block/s);
+  assert.equal(sent.length, 0);
+  owner.scope({ target: { checked: false } }); app.addToBlock(); app.state.view.blockMode = true; await flush();
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.filter(c => c.sourceId === 'BP').length, 1);
+  assert.equal(sent[0].items.find(c => c.sourceId === 'BP').fields.notes.value, '<p>Block choice</p>');
+  assert.equal(child.fields.notes.value, '<p>Independent Region choice</p>');
+}));

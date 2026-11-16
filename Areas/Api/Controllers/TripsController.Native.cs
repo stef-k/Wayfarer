@@ -44,9 +44,15 @@ public partial class TripsController
     private async Task<object> NativeImportSaved(TripImportResult saved, string owner,
         ITripMapThumbnailGenerator thumbnails, ICacheWarmupScheduler warmup, CancellationToken token)
     {
+        // Dependency diagnostics can contain private content. Expected request cancellation is diagnostic-only
+        // after commit; every other failure remains a warning with the same bounded structured fields.
+        void Report(Exception error, string phase) => _logger.Log(
+            error is OperationCanceledException && token.IsCancellationRequested ? LogLevel.Debug : LogLevel.Warning,
+            "Committed native import {TripId} for user {UserId}: {Phase} failed with {ExceptionType}",
+            saved.TripId, owner, phase, error.GetType().Name);
         bool? currentAvailable = null;
         try { currentAvailable = await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == saved.TripId && t.UserId == owner, token); }
-        catch (Exception error) { _logger.LogWarning(error, "Could not inspect committed native import {TripId}", saved.TripId); }
+        catch (Exception error) { Report(error, "inspection"); }
         var detail = currentAvailable switch
         {
             true => "The native import was saved.",
@@ -56,9 +62,9 @@ public partial class TripsController
         if (currentAvailable == true)
         {
             try { if (saved.UpdatedAt is { } updatedAt) thumbnails.InvalidateThumbnails(saved.TripId, updatedAt); }
-            catch (Exception error) { _logger.LogWarning(error, "Thumbnail invalidation failed for saved native import {TripId}", saved.TripId); }
+            catch (Exception error) { Report(error, "thumbnail"); }
             try { await warmup.ScheduleWarmupAsync(saved.TripId); }
-            catch (Exception error) { _logger.LogWarning(error, "Warmup failed for saved native import {TripId}", saved.TripId); }
+            catch (Exception error) { Report(error, "warmup"); }
         }
         return new { status = "success", saved.TripId, saved.Notices, currentAvailable, detail };
     }

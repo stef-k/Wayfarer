@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import FieldChoices from './FieldChoices.vue';
-import { contents, find, label, newChoice, ordered, parentId, sourceSnapshot } from './compositionModel';
+import { contents, find, foldChildren, label, ordered, parentId, regionChildren, sourceSnapshot } from './compositionModel';
 import type { Choice, Content, Kind, ReviewDraft, Workspace } from './compositionTypes';
 import type { EditorOptions } from '../types';
-const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string; existingTrip?: boolean; editorUrl?: string; options?: EditorOptions | null }>();
+const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string; destinationParentName?: string; existingTrip?: boolean; editorUrl?: string; options?: EditorOptions | null }>();
+const scopeError = ref('');
 const destinationName = computed(() => props.existingTrip ? 'destination' : 'C');
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
 const captured = computed(() => find(source.value, props.choice.kind, props.choice.sourceId)!);
@@ -15,6 +16,7 @@ const previous = computed(() => props.review.mappings.filter(m => m.source === p
 const positionItems = computed(() => ordered(current.value, props.choice.kind, props.destinationParent || props.choice.regionId
   || (props.choice.kind === 'place' ? current.value.graph.regions.find(r => r.name === 'Unassigned Places')?.id : undefined))
   .filter(r => props.choice.kind !== 'region' || r.name !== 'Unassigned Places'));
+const incompatibleAfter = computed(() => props.choice.position === 'after' && !positionItems.value.some(item => item.id === props.choice.afterId));
 const canonical = computed(() => props.choice.kind === 'region' && captured.value.name === 'Unassigned Places');
 const canRemove = computed(() => previous.value.some(m => m.destinationId === props.choice.destinationId && !['skip', 'destinationRemoved'].includes(m.decision)));
 const destinationLabel = (item: Content, kind: Kind): string => {
@@ -23,15 +25,17 @@ const destinationLabel = (item: Content, kind: Kind): string => {
 };
 /** Child decisions are explicit and retain source manual order. No implicit Segments enter this scope. */
 function scope(event: Event): void {
-  props.choice.withChildren = (event.target as HTMLInputElement).checked;
-  if (props.choice.withChildren) {
-    props.choice.children = (['place', 'area'] as const).flatMap(kind => ordered(source.value, kind, props.choice.sourceId).map(item =>
-      (props.existingTrip ? props.review.items.find(c => c.kind === kind && c.sourceId === item.id) : undefined)
-      ?? props.choice.children.find(c => c.kind === kind && c.sourceId === item.id)
-      ?? newChoice({ ...props.workspace, current: current.value, mappings: props.review.mappings }, props.review.side, kind, item.id)));
-    // Expanding a Region edits the existing child choices rather than submitting them twice.
-    if (props.existingTrip) props.review.items = props.review.items.filter(c => !props.choice.children.includes(c));
+  const input = event.target as HTMLInputElement;
+  scopeError.value = '';
+  if (input.checked) {
+    try { foldChildren(props.review, props.choice, regionChildren(props.workspace, props.review, props.choice)); }
+    catch (error) {
+      scopeError.value = error instanceof Error ? error.message : 'Review the conflicting child choices.';
+      input.checked = props.choice.withChildren;
+      return;
+    }
   }
+  props.choice.withChildren = input.checked;
 }
 const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 'From' : '',
   ...[...captured.value.waypoints ?? []].sort((a, b) => a.position - b.position).filter(w => w.placeId === id).map(w => `Via ${w.position + 1}${w.routeVertexIndex == null ? '' : ` · route vertex ${w.routeVertexIndex}`}`),
@@ -86,13 +90,15 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
         <label v-if="choice.kind === 'area'" class="composition-field">Or create a normal Region with this copy<input v-model="choice.newRegionName" maxlength="200" :disabled="Boolean(choice.regionId)" /></label>
       </template>
       <template v-if="!child || destinationParent">
+        <p v-if="child">Effective destination Region: {{ destinationParentName || find(current, 'region', destinationParent!)?.name || 'Select a current Region counterpart' }}. New children follow this Region; reused children keep their current container and position.</p>
         <label class="composition-field">{{ choice.kind === 'segment' ? 'Trip-level insertion position' : 'Insertion position (independent of Region)' }}
-          <select v-model="choice.position"><option value="append">Append</option><option value="start">At start</option><option value="after" :disabled="Boolean(choice.newRegionName)">After selection</option></select>
+          <select v-model="choice.position" aria-label="Insertion position"><option value="append">Append</option><option value="start">At start</option><option value="after" :disabled="Boolean(choice.newRegionName) || destinationParent === '__new__'">After selection</option></select>
         </label>
         <label v-if="choice.position === 'after'" class="composition-field">After this current {{ destinationName }} {{ choice.kind }}
-          <select v-model="choice.afterId" required><option value="" disabled>Select a compatible item</option><option v-for="item in positionItems" :key="item.id" :value="item.id">{{ label(item) }}</option></select>
+          <select v-model="choice.afterId" required><option value="" disabled>Select a compatible item</option><option v-if="incompatibleAfter && choice.afterId" :value="choice.afterId" disabled>Previous reference · {{ label(find(current, choice.kind, choice.afterId)) }} (outside this list)</option><option v-for="item in positionItems" :key="item.id" :value="item.id">{{ label(item) }}</option></select>
         </label>
-        <p class="composition-result">Result: {{ choice.kind === 'segment' ? `${destinationName} · Trip-level Segments` : choice.kind === 'region' ? `${destinationName} · Regions` : choice.newRegionName ? `New normal Region “${choice.newRegionName}” (created for this item)` : find(current, 'region', destinationParent || choice.regionId)?.name || 'Unassigned Places' }} · {{ choice.position === 'after' ? `After ${find(current, choice.kind, choice.afterId) ? label(find(current, choice.kind, choice.afterId)!) : '…'}` : choice.position === 'start' ? 'At start' : 'Append' }}</p>
+        <p v-if="incompatibleAfter" role="alert">The previous After reference is unavailable in this destination list. Choose Append or At start, select a compatible reference{{ child ? ', or turn off Region children to cancel folding' : '' }}. Your field choices are retained.</p>
+        <p class="composition-result">Result: {{ choice.kind === 'segment' ? `${destinationName} · Trip-level Segments` : choice.kind === 'region' ? `${destinationName} · Regions` : destinationParentName || (choice.newRegionName ? `New normal Region “${choice.newRegionName}” (created for this item)` : find(current, 'region', destinationParent || choice.regionId)?.name || 'Unassigned Places') }} · {{ choice.position === 'after' ? `After ${find(current, choice.kind, choice.afterId) ? label(find(current, choice.kind, choice.afterId)!) : '…'}` : choice.position === 'start' ? 'At start' : 'Append' }}</p>
       </template>
     </template>
     <template v-if="choice.decision === 'remove' && choice.kind === 'region'">
@@ -102,8 +108,9 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
     </template>
     <template v-if="choice.kind === 'region' && !canonical && ['copy', 'reuse'].includes(choice.decision)">
       <label class="composition-check"><input :checked="choice.withChildren" type="checkbox" @change="scope" /> Region and direct Places/Areas (otherwise Region only)</label>
+      <p v-if="scopeError" role="alert">{{ scopeError }}</p>
       <p>No sub-Regions or automatic Segments. Reused children keep their {{ destinationName }} container.</p>
-      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :existing-trip="existingTrip" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" :editor-url="editorUrl" :options="options" child />
+      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :existing-trip="existingTrip" :destination-parent="choice.decision === 'copy' ? '__new__' : choice.destinationId" :destination-parent-name="choice.decision === 'copy' ? `New normal Region “${choice.customName ? choice.name.trim() : label(captured)}”` : undefined" :editor-url="editorUrl" :options="options" child />
     </template>
     <fieldset v-if="choice.kind === 'segment' && (choice.decision === 'copy' || choice.fields.route?.operation === 'useSource')">
       <legend>Approve complete From / ordered Via / To dependencies</legend>

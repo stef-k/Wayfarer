@@ -92,8 +92,11 @@ async function load(): Promise<void> {
 function select(selection: Selection): void {
   if (!state.value.workspace || selection.kind === 'trip' || !draft.value) return;
   state.value.view.selection = selection;
-  if (!selected.value)
-    draft.value.items.push(newChoice(state.value.workspace, 'b', selection.kind, selection.id));
+  if (!selected.value) {
+    // A scope-off child remains the same owner when selected independently, then folds back without replacement.
+    const cached = draft.value.items.flatMap(c => c.children).find(c => c.kind === selection.kind && c.sourceId === selection.id);
+    draft.value.items.push(cached ?? newChoice(state.value.workspace, 'b', selection.kind, selection.id));
+  }
 }
 function expand(key: string, open: boolean): void {
   expanded.value = open ? [...new Set([...expanded.value, key])] : expanded.value.filter(x => x !== key);
