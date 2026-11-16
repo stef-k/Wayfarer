@@ -30,7 +30,8 @@ interface CopyPreview { sourceTripId: string; tripId: string; source: Workspace[
 const draft = computed(() => state.value.view.block);
 const editUrl = computed(() => preview.value ? `/User/Trip/Edit/${preview.value.tripId}` : '/User/Trip');
 const pairMatches = computed(() => preview.value?.sourceTripId === sourceId.value && preview.value?.tripId === destinationId.value);
-const selected = computed(() => draft.value?.items.find(c => c.kind === state.value.view.selection?.kind && c.sourceId === state.value.view.selection?.id));
+const selected = computed(() => draft.value?.items.flatMap(c => [c, ...c.withChildren ? c.children : []])
+  .find(c => c.kind === state.value.view.selection?.kind && c.sourceId === state.value.view.selection?.id));
 
 /** Source discovery and destination ownership use the existing bounded source catalogue. */
 async function search(owned: boolean): Promise<void> {
@@ -44,11 +45,20 @@ async function search(owned: boolean): Promise<void> {
 /** Explicit preview replacement renews source originals; neither refusal nor acknowledgement silently renews them. */
 async function load(): Promise<void> {
   if (state.value.pending || loading.value || !sourceId.value || !destinationId.value) return;
+  const source = sourceId.value; const destination = destinationId.value; const owner = store;
   const same = pairMatches.value;
+  // Replacement consent belongs to this pair and these choices, including selection and expansion.
+  const reviewState = () => JSON.stringify({ view: state.value.view, expanded: expanded.value });
+  const confirmed = reviewState();
   if (draft.value?.items.length && !await confirm({ title: same ? 'Review current source and destination?' : 'Change the copy context?',
     message: same ? 'Replace the reviewed originals with current source and destination values. Keep your choices for inspection; review changed values before applying.' : 'Clear these unapplied choices and preview the selected source and destination?',
     confirmLabel: 'Review current values', cancelLabel: 'Keep choices' })) return;
-  const source = sourceId.value; const destination = destinationId.value; const attempt = ++generation;
+  if (disposed || store !== owner || sourceId.value !== source || destinationId.value !== destination) return;
+  if (!same && reviewState() !== confirmed) {
+    error.value = 'Copy choices changed during confirmation. They remain in the previous context. Preview again to confirm replacement.';
+    return;
+  }
+  const attempt = ++generation;
   loading.value = true; error.value = '';
   try {
     const value = await api.request<CopyPreview>(`/api/trip-compositions/copy-preview?${new URLSearchParams({ sourceTripId: source, destinationTripId: destination })}`);
@@ -62,6 +72,11 @@ async function load(): Promise<void> {
     const next = createCompositionState(props.account, 'copy', 'destination Trip');
     const workspace: Workspace = { compositionId: 'copy', tripId: value.tripId, sourceA: value.source, sourceB: value.source, current: value.current, mappings: [] };
     if (!await next.read(async () => workspace)) throw new Error(next.state.error);
+    if (disposed || store !== owner || attempt !== generation || sourceId.value !== source || destinationId.value !== destination) { next.dispose(); return; }
+    if (!same && reviewState() !== confirmed) {
+      next.dispose();
+      throw new Error('Copy choices changed while the preview loaded. They remain in the previous context. Preview again to confirm replacement.');
+    }
     store.dispose(); store = next; state.value = store.state; preview.value = value;
     const review = newReview(workspace, 'b'); review.items = retained; state.value.view.block = review; state.value.view.blockMode = true;
     state.value.view.selection = selection;
@@ -77,7 +92,7 @@ async function load(): Promise<void> {
 function select(selection: Selection): void {
   if (!state.value.workspace || selection.kind === 'trip' || !draft.value) return;
   state.value.view.selection = selection;
-  if (!draft.value.items.some(c => c.kind === selection.kind && c.sourceId === selection.id))
+  if (!selected.value)
     draft.value.items.push(newChoice(state.value.workspace, 'b', selection.kind, selection.id));
 }
 function expand(key: string, open: boolean): void {
@@ -135,12 +150,12 @@ onUnmounted(() => { disposed = true; ++generation; store.dispose(); disposeConfi
           <h2>Review proposed effect · {{ draft.items.length }} selected</h2>
           <p>Each list receives a contiguous block in the displayed order. Reused objects keep their identity, container and position. Trip metadata is unchanged; own planning is copied only when explicitly selected.</p>
           <p v-if="!draft.items.length">Select a Region, Place, Area or Trip-level Segment from the source.</p>
-          <details v-for="(item, index) in draft.items" :key="`${item.kind}/${item.sourceId}`" :open="item === selected">
+          <details v-for="(item, index) in draft.items" :key="`${item.kind}/${item.sourceId}`" :open="item === selected || item.withChildren && item.children.includes(selected!)">
             <summary>{{ index + 1 }} · {{ item.kind }} · {{ label(find(preview.source, item.kind, item.sourceId)) }}</summary>
             <button type="button" :disabled="index === 0" @click="[draft.items[index - 1], draft.items[index]] = [draft.items[index], draft.items[index - 1]]">Move up</button>
             <button type="button" :disabled="index === draft.items.length - 1" @click="[draft.items[index], draft.items[index + 1]] = [draft.items[index + 1], draft.items[index]]">Move down</button>
             <button type="button" @click="draft.items.splice(index, 1)">Remove local choice</button>
-            <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" existing-trip />
+            <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" existing-trip />
             <FieldChoices v-if="item.decision === 'copy' || item.decision === 'reuse' && find(draft.baseline, item.kind, item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" existing-trip />
           </details>
           <details class="composition-credits"><summary>Applicable source credits &amp; notices</summary>

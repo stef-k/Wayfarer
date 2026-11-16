@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import FieldChoices from './FieldChoices.vue';
 import { contents, find, label, newChoice, ordered, parentId, sourceSnapshot } from './compositionModel';
 import type { Choice, Content, Kind, ReviewDraft, Workspace } from './compositionTypes';
-const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string; existingTrip?: boolean }>();
+import type { EditorOptions } from '../types';
+const props = defineProps<{ workspace: Workspace; review: ReviewDraft; choice: Choice; child?: boolean; destinationParent?: string; existingTrip?: boolean; editorUrl?: string; options?: EditorOptions | null }>();
 const destinationName = computed(() => props.existingTrip ? 'destination' : 'C');
 const source = computed(() => sourceSnapshot(props.workspace, props.review.side));
 const captured = computed(() => find(source.value, props.choice.kind, props.choice.sourceId)!);
@@ -22,8 +24,14 @@ const destinationLabel = (item: Content, kind: Kind): string => {
 /** Child decisions are explicit and retain source manual order. No implicit Segments enter this scope. */
 function scope(event: Event): void {
   props.choice.withChildren = (event.target as HTMLInputElement).checked;
-  if (props.choice.withChildren && !props.choice.children.length) props.choice.children = (['place', 'area'] as const)
-    .flatMap(kind => ordered(source.value, kind, props.choice.sourceId).map(item => newChoice({ ...props.workspace, current: current.value, mappings: props.review.mappings }, props.review.side, kind, item.id)));
+  if (props.choice.withChildren) {
+    props.choice.children = (['place', 'area'] as const).flatMap(kind => ordered(source.value, kind, props.choice.sourceId).map(item =>
+      (props.existingTrip ? props.review.items.find(c => c.kind === kind && c.sourceId === item.id) : undefined)
+      ?? props.choice.children.find(c => c.kind === kind && c.sourceId === item.id)
+      ?? newChoice({ ...props.workspace, current: current.value, mappings: props.review.mappings }, props.review.side, kind, item.id)));
+    // Expanding a Region edits the existing child choices rather than submitting them twice.
+    if (props.existingTrip) props.review.items = props.review.items.filter(c => !props.choice.children.includes(c));
+  }
 }
 const anchorRole = (id: string): string => [captured.value.fromPlaceId === id ? 'From' : '',
   ...[...captured.value.waypoints ?? []].sort((a, b) => a.position - b.position).filter(w => w.placeId === id).map(w => `Via ${w.position + 1}${w.routeVertexIndex == null ? '' : ` · route vertex ${w.routeVertexIndex}`}`),
@@ -95,7 +103,7 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
     <template v-if="choice.kind === 'region' && !canonical && ['copy', 'reuse'].includes(choice.decision)">
       <label class="composition-check"><input :checked="choice.withChildren" type="checkbox" @change="scope" /> Region and direct Places/Areas (otherwise Region only)</label>
       <p>No sub-Regions or automatic Segments. Reused children keep their {{ destinationName }} container.</p>
-      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :existing-trip="existingTrip" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" child />
+      <ChoiceControls v-for="entry in choice.withChildren ? choice.children : []" :key="`${entry.kind}/${entry.sourceId}`" :workspace="workspace" :review="review" :choice="entry" :existing-trip="existingTrip" :destination-parent="choice.decision === 'reuse' ? choice.destinationId : undefined" :editor-url="editorUrl" :options="options" child />
     </template>
     <fieldset v-if="choice.kind === 'segment' && (choice.decision === 'copy' || choice.fields.route?.operation === 'useSource')">
       <legend>Approve complete From / ordered Via / To dependencies</legend>
@@ -116,5 +124,7 @@ const excludedAnchor = (id: string): boolean => props.review.mappings.some(m => 
       <p>Close semantic matches can still be incompatible route anchors. No Places move, no captured geometry clears, and no route regenerates without ordinary review.</p>
       <p>Shared approved dependencies and a Place copied elsewhere in this block use one new {{ destinationName }} Place when their reviewed destinations agree.</p>
     </fieldset>
+    <FieldChoices v-if="child && (choice.decision === 'copy' || choice.decision === 'reuse' && find(current, choice.kind, choice.destinationId))"
+      :workspace="workspace" :review="review" :choice="choice" :editor-url="editorUrl || `/User/Trip/Edit/${workspace.tripId}`" :options="options ?? null" :existing-trip="existingTrip" />
   </fieldset>
 </template>

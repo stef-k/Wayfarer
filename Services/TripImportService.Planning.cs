@@ -47,7 +47,7 @@ public partial class TripImportService
     {
         var (classification, digest) = await ReadInputAsync(file, cancellationToken);
         var source = classification.Document ?? throw new TripImportValidationException("Only native KML supports update.");
-        return new(await ImportNativeAsync(source, owner, TripImportMode.Upsert, digest, approval, cancellationToken), []);
+        return await ImportNativeAsync(source, owner, TripImportMode.Upsert, digest, approval, cancellationToken);
     }
 
     /// <summary>Bearer native transport shares strict classification, complete mapping and atomic CreateNew/reviewed replacement.</summary>
@@ -58,7 +58,7 @@ public partial class TripImportService
             throw new TripImportValidationException("The selected native import choices are invalid.");
         var (classification, digest) = await ReadInputAsync(file, token);
         var source = classification.Document ?? throw new TripImportValidationException("This endpoint requires native Wayfarer KML.");
-        return new(await ImportNativeAsync(source, owner, mode, digest, approval, token, credential), []);
+        return await ImportNativeAsync(source, owner, mode, digest, approval, token, credential);
     }
 
     /// <summary>Older envelopes omit portable intent; retain root and same-type Segment fields across reconstruction.</summary>

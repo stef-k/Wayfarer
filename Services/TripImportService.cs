@@ -47,7 +47,7 @@ public partial class TripImportService : ITripImportService
         if (!Enum.IsDefined(mode)) throw new TripImportValidationException("Unsupported import mode.");
         var (classification, digest) = await ReadInputAsync(kmlStream, cancellationToken);
         if (classification.Document is not null)
-            return new(await ImportNativeAsync(classification.Document, userId, mode, digest, null, cancellationToken), []);
+            return await ImportNativeAsync(classification.Document, userId, mode, digest, null, cancellationToken);
         try
         {
             return await ImportGenericAsync(classification.Source, userId, mode, cancellationToken);
@@ -60,7 +60,7 @@ public partial class TripImportService : ITripImportService
     }
 
     /// <summary>Coordinates one complete native create or authoritative replacement transaction.</summary>
-    private async Task<Guid> ImportNativeAsync(
+    private async Task<TripImportResult> ImportNativeAsync(
         WayfarerKmlDocument source,
         string userId,
         TripImportMode mode,
@@ -80,7 +80,13 @@ public partial class TripImportService : ITripImportService
             var existing = await _dbContext.Trips.AsNoTracking()
                 .SingleOrDefaultAsync(trip => trip.Id == source.TripId, cancellationToken);
             var owned = existing?.UserId == userId;
-            if (mode == TripImportMode.Auto && owned) throw new TripDuplicateException(source.TripId);
+            if (mode == TripImportMode.Auto && owned)
+            {
+                // A duplicate response still requires current authority after the account wait.
+                await RequireActiveImportOwnerAsync(userId, cancellationToken);
+                if (credential != null && !await credential(cancellationToken)) throw new UnauthorizedAccessException("The incoming credential is no longer valid.");
+                throw new TripDuplicateException(source.TripId);
+            }
             if (mode == TripImportMode.Upsert && !owned)
                 throw new InvalidOperationException("Trip not found or not yours for upsert.");
 
@@ -142,13 +148,16 @@ public partial class TripImportService : ITripImportService
                 preserveSavedMeasurements: source.Version is 3 or 4 or 5);
             await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
             if (credential != null && !await credential(cancellationToken)) throw new UnauthorizedAccessException("The incoming credential is no longer valid.");
+            // Capture the persisted freshness inside this transaction, before ordinary deletion can win.
+            var savedAt = await _dbContext.Trips.AsNoTracking().Where(t => t.Id == mapped.Id)
+                .Select(t => t.UpdatedAt).SingleAsync(cancellationToken);
             if (transaction is not null)
             {
                 committing = true;
                 await transaction.CommitAsync(cancellationToken);
             }
             _dbContext.ChangeTracker.Clear();
-            return mapped.Id;
+            return new(mapped.Id, [], UpdatedAt: savedAt);
         }
         catch (Exception primary)
         {

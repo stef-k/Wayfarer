@@ -37,11 +37,31 @@ public partial class TripsController
     {
         var result = await imports.ImportNativeForBearerAsync(stream, owner, mode,
             reviewToken == null ? null : new(reviewToken, choices ?? []), check, token);
-        var updatedAt = await _dbContext.Trips.AsNoTracking().Where(t => t.Id == result.TripId).Select(t => t.UpdatedAt).SingleAsync(token);
-        thumbnails.InvalidateThumbnails(result.TripId, updatedAt);
-        await warmup.ScheduleWarmupAsync(result.TripId);
-        return new { status = "success", result.TripId, result.Notices };
+        return await NativeImportSaved(result, owner, thumbnails, warmup, token);
     }, token);
+
+    /// <summary>Current inspection and derived effects cannot turn an already committed import into a validation refusal.</summary>
+    private async Task<object> NativeImportSaved(TripImportResult saved, string owner,
+        ITripMapThumbnailGenerator thumbnails, ICacheWarmupScheduler warmup, CancellationToken token)
+    {
+        bool? currentAvailable = null;
+        try { currentAvailable = await _dbContext.Trips.AsNoTracking().AnyAsync(t => t.Id == saved.TripId && t.UserId == owner, token); }
+        catch (Exception error) { _logger.LogWarning(error, "Could not inspect committed native import {TripId}", saved.TripId); }
+        var detail = currentAvailable switch
+        {
+            true => "The native import was saved.",
+            false => "The native import was saved. The destination is currently unavailable. Inspect My Trips before starting another import.",
+            null => "The native import was saved. Its current state could not be inspected. Inspect My Trips before starting another import."
+        };
+        if (currentAvailable == true)
+        {
+            try { if (saved.UpdatedAt is { } updatedAt) thumbnails.InvalidateThumbnails(saved.TripId, updatedAt); }
+            catch (Exception error) { _logger.LogWarning(error, "Thumbnail invalidation failed for saved native import {TripId}", saved.TripId); }
+            try { await warmup.ScheduleWarmupAsync(saved.TripId); }
+            catch (Exception error) { _logger.LogWarning(error, "Warmup failed for saved native import {TripId}", saved.TripId); }
+        }
+        return new { status = "success", saved.TripId, saved.Notices, currentAvailable, detail };
+    }
 
     /// <summary>Previews native replacement with the same byte-bound permit and complete protected-field choices as Web.</summary>
     [HttpPost("native/review"), Wayfarer.Middleware.UserFileUpload]

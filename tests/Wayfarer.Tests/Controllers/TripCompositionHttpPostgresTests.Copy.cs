@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -5,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Wayfarer.Models;
@@ -120,6 +122,54 @@ public sealed partial class TripCompositionHttpPostgresTests
         using var malformed = await mobile.PostAsync("/api/trips/native/import", Upload("<kml><Document><name>Generic</name></Document></kml>", "CreateNew"));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, malformed.StatusCode);
         using var ownerRead = await mobile.GetAsync($"/api/trips/{source.Id}/planning"); Assert.Equal(HttpStatusCode.OK, ownerRead.StatusCode);
+    }
+
+
+    /// <summary>A real native commit remains a success when ordinary lifecycle deletion wins before the response.</summary>
+    [PostgresFact]
+    public async Task NativeCommittedThenDeletedReturnsSavedCurrentlyUnavailable()
+    {
+        var owner = await fixture.CreateUserAsync();
+        var source = Source(owner.Id, "Postcommit deletion", false, null, 24);
+        fixture.RegisterTrip(source.Id);
+        await using var db = fixture.CreateContext();
+        db.AddRange(source, new ApiToken { UserId = owner.Id, User = await db.Users.SingleAsync(u => u.Id == owner.Id), Token = owner.Id, Name = "native" });
+        await db.SaveChangesAsync();
+        var deletion = new DeleteCommittedNative(fixture, owner.Id, source.Id);
+        var thumbnails = new Mock<ITripMapThumbnailGenerator>(); var warmup = new Mock<ICacheWarmupScheduler>();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddScoped(_ => fixture.CreateContext(deletion));
+            services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new Factory(fixture));
+            services.AddSingleton(thumbnails.Object); services.AddSingleton(warmup.Object); services.AddSingleton(Mock.Of<IIconColorProvider>());
+        });
+        using var client = app.GetTestClient(); client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Id);
+        using var response = await client.PostAsync("/api/trips/native/import", Upload(Wayfarer.Parsers.TripWayfarerKmlExporter.BuildKml(source), "CreateNew"));
+        Assert.NotEqual(Guid.Empty, deletion.DeletedId);
+        Assert.False(await db.Trips.AsNoTracking().AnyAsync(t => t.Id == deletion.DeletedId));
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("success", body.GetProperty("status").GetString());
+        Assert.Equal(deletion.DeletedId, body.GetProperty("tripId").GetGuid());
+        Assert.False(body.GetProperty("currentAvailable").GetBoolean());
+        Assert.Contains("saved", body.GetProperty("detail").GetString());
+        Assert.Contains("Inspect", body.GetProperty("detail").GetString());
+        thumbnails.Verify(t => t.InvalidateThumbnails(It.IsAny<Guid>(), It.IsAny<DateTime>()), Times.Never);
+        warmup.Verify(t => t.ScheduleWarmupAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    /// <summary>Observes the independently visible committed row, then uses ordinary Trip deletion before adapter work.</summary>
+    private sealed class DeleteCommittedNative(PostgresImportTestFixture fixture, string owner, Guid source) : DbTransactionInterceptor
+    {
+        internal Guid DeletedId;
+        public override async Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData data, CancellationToken token = default)
+        {
+            if (DeletedId != Guid.Empty) return;
+            await using var db = fixture.CreateContext();
+            var id = await db.Trips.Where(t => t.UserId == owner && t.Id != source).Select(t => t.Id).SingleAsync(token);
+            DeletedId = id; fixture.RegisterTrip(id);
+            Assert.True(await TripCompositionLifecycle.DeleteAsync(db, id, owner, token));
+        }
     }
 
     private static MultipartFormDataContent Upload(string xml, string mode)

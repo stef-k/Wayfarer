@@ -222,4 +222,46 @@ public sealed partial class TripCompositionPostgresTests
     private Task<object> Copy(ApplicationDbContext db, string owner, TripCopyRequest request, Func<CancellationToken, Task<bool>>? authority = null) =>
         new TripCompositionService(db).CopyAsync(owner, request, new(db, new(selectionProtection)), new(selectionProtection),
             new(selectionProtection, TimeProvider.System), new HashSet<string>(), new HashSet<string>(), authority);
+    /// <summary>Auto duplicates recheck active owner and incoming authority after the real account wait.</summary>
+    [PostgresTheory]
+    [InlineData("active")]
+    [InlineData("deactivated")]
+    [InlineData("revoked")]
+    public async Task NativeDuplicateRechecksAuthorityAfterAccountWait(string authority)
+    {
+        var trip = await Seed();
+        await using var db = fixture.CreateContext();
+        var xml = TripWayfarerKmlExporter.BuildKml(await NativeTripGraph.Query(db).SingleAsync(t => t.Id == trip.Id));
+        await db.Database.OpenConnectionAsync();
+        var pid = ((Npgsql.NpgsqlConnection)db.Database.GetDbConnection()).ProcessID;
+        await using var writer = fixture.CreateContext();
+        await using var held = await LocationDeletionFence.BeginAsync(writer, trip.UserId, default);
+        var credentialValid = true; var checkedCredential = false;
+        using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
+        var attempt = new TripImportService(db, Microsoft.Extensions.Logging.Abstractions.NullLogger<TripImportService>.Instance)
+            .ImportNativeForBearerAsync(input, trip.UserId, TripImportMode.Auto, null,
+                _ => { checkedCredential = true; return Task.FromResult(credentialValid); }, default);
+        try
+        {
+            await AssertBlocked(writer, pid);
+            if (authority == "deactivated")
+                await writer.Users.Where(u => u.Id == trip.UserId).ExecuteUpdateAsync(s => s.SetProperty(u => u.IsActive, false));
+            if (authority == "revoked") credentialValid = false;
+        }
+        finally { await held!.CommitAsync(); }
+        var error = await Record.ExceptionAsync(() => attempt);
+        if (authority == "active")
+        {
+            Assert.Equal(trip.Id, Assert.IsType<TripDuplicateException>(error).TripId);
+            Assert.True(checkedCredential);
+        }
+        else if (authority == "revoked")
+        {
+            Assert.IsType<UnauthorizedAccessException>(error);
+            Assert.True(checkedCredential);
+        }
+        else Assert.IsType<InvalidOperationException>(error);
+        Assert.Single(await db.Trips.AsNoTracking().Where(t => t.UserId == trip.UserId).ToListAsync());
+    }
+
 }

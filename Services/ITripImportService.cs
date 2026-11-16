@@ -20,11 +20,12 @@ public sealed record TripImportNotice(
     double? MaximumDeviationMetres,
     int? AdditionalRouteCount = null);
 
-/// <summary>Bounded successful import result returned without source geometry.</summary>
+/// <summary>Known committed import without source geometry; native results include persisted freshness for post-commit effects.</summary>
 public sealed record TripImportResult(
     Guid TripId,
     IReadOnlyList<TripImportNotice> Notices,
-    bool IsGenericWithRoutes = false)
+    bool IsGenericWithRoutes = false,
+    DateTime? UpdatedAt = null)
 {
     /// <summary>Supports existing internal consumers that require only the imported identity.</summary>
     public static implicit operator Guid(TripImportResult result) => result.TripId;

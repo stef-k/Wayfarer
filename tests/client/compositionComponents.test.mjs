@@ -308,3 +308,100 @@ test('explicit same-pair refresh retains newer selection, expansion and local ch
   assert.equal(app.state.value.view.selection.id, 'BR'); assert.equal(app.draft.value.items.length, 2);
   assert.equal(app.draft.value.items[0].name, 'Later name'); assert.deepEqual([...app.expanded.value], ['b/segments']);
 }, true));
+
+
+// A changed pair may replace only the exact prior review the user agreed to discard.
+test('pair-changing preview retains post-confirmation names, fields, selection and expansion until renewed consent', () => withWorkspace(async ({ captured, previewWith, saved, sent }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const oldReview = app.draft.value; const choice = oldReview.items[0];
+  choice.decision = 'reuse'; choice.destinationId = 'CP';
+  const oldPreview = app.preview.value;
+  app.destinationId.value = 'D';
+  const wait = deferred(); previewWith(() => wait.promise);
+  const read = app.load(); settleConfirmDialog(true); await flush();
+  choice.customName = true; choice.name = 'Typed after pair confirmation';
+  choice.fields.notes = { operation: 'edit', value: '<p>Later Notes in C</p>' };
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); app.expanded.value = ['b/segments'];
+  const destination = snapshot('D');
+  const response = () => Response.json({ sourceTripId: 'B', tripId: 'D', source: saved.sourceB, current: destination, context: 'new-pair', originals: [] });
+  wait.resolve(response()); await read; await flush();
+  assert.equal(app.draft.value, oldReview); assert.equal(app.preview.value, oldPreview);
+  assert.equal(choice.name, 'Typed after pair confirmation'); assert.equal(choice.fields.notes.value, '<p>Later Notes in C</p>');
+  assert.equal(app.state.value.view.selection.id, 'BR'); assert.deepEqual([...app.expanded.value], ['b/segments']);
+  assert.equal(app.draft.value.baseline.graph.id, 'C'); assert.match(app.error.value, /Preview again to confirm replacement/);
+  await app.apply(); assert.equal(sent.length, 0);
+  const cancelled = app.load(); settleConfirmDialog(false); await cancelled;
+  assert.equal(app.draft.value, oldReview); assert.equal(app.preview.value, oldPreview);
+  previewWith(response);
+  const renewed = app.load(); settleConfirmDialog(true); await renewed; await flush();
+  assert.equal(app.preview.value.tripId, 'D'); assert.equal(app.draft.value.baseline.graph.id, 'D');
+  assert.equal(app.draft.value.items.length, 0); assert.equal(app.state.value.view.selection, null);
+  assert.equal(choice.destinationId, 'CP'); // The old object was never repurposed as D authority.
+}, true));
+
+test('pair and draft changes during confirmation and a refused pair preview retain the prior review', () => withWorkspace(async ({ captured, requests, previewWith }) => {
+  const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const review = app.draft.value; const before = requests.length;
+  app.destinationId.value = 'D';
+  const moved = app.load(); app.destinationId.value = 'E'; settleConfirmDialog(true); await moved;
+  assert.equal(requests.length, before); assert.equal(app.preview.value.tripId, 'C');
+  const changed = app.load(); review.items[0].name = 'Changed during confirmation'; settleConfirmDialog(true); await changed;
+  assert.equal(requests.length, before); assert.equal(app.draft.value, review);
+  previewWith(async () => Response.json({ detail: 'Destination unavailable' }, { status: 409 }));
+  const refused = app.load(); settleConfirmDialog(true); await refused;
+  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /Destination unavailable/);
+}, true));
+
+for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} uses the same selected fields and one submitted child identity`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
+  const app = captured.CopyToTrip; const own = mode !== 'foreign';
+  const planning = label => ({ format: 1, entries: [{ id: 'entry', when: { form: 'unknown' }, label }] });
+  saved.sourceB.graph.regions[0].areas = [{ id: 'BA', name: 'Source Area', notes: '<p>Area source</p>', fillHex: '#abcdef', geometryGeoJson: '{"type":"Polygon","coordinates":[[[23,38],[24,38],[24,39],[23,38]]]}' }];
+  saved.sourceB.areaOrder.BR = ['BA'];
+  saved.current.graph.regions[0].areas = [{ ...saved.sourceB.graph.regions[0].areas[0], id: 'CA', name: 'Current Area', notes: '<p>Area current</p>' }];
+  saved.current.areaOrder.CR = ['CA'];
+  saved.current.graph.regions[0].places[0].notes = '<p>Current child</p>';
+  if (own) saved.sourceB.planning = { trip: null, regions: { BR: null }, places: { BP: planning('Source intention') }, areas: { BA: null }, segments: {} };
+  saved.current.planning = { trip: null, regions: { CR: null }, places: { CP: planning('Destination intention') }, areas: { CA: null }, segments: {} };
+  await app.load(); await flush();
+  // A child chosen first must become the same nested choice when its Region scope expands.
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  const first = app.draft.value.items[0]; first.customName = true; first.name = 'Retained child name';
+  app.select({ side: 'b', kind: 'region', id: 'BR' }); await flush();
+  captured.ChoiceControls.scope({ target: { checked: true } }); await flush();
+  const region = app.draft.value.items[0]; const child = region.children[0]; const area = region.children[1];
+  assert.equal(child, first); assert.equal(app.draft.value.items.length, 1);
+  if (mode === 'reuse') { child.decision = 'reuse'; child.destinationId = 'CP'; area.decision = 'reuse'; area.destinationId = 'CA'; }
+  await flush();
+  app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+  assert.equal(app.selected.value, child); assert.equal(app.draft.value.items.length, 1);
+  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const action = (node, title, operation) => {
+    const select = descendants(node).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === `${title} action`);
+    assert.ok(select, `${title} must be reachable for the nested child`); select.props.onChange({ target: { value: operation } });
+  };
+  const placeNode = childNode('place'); const areaNode = childNode('area');
+  for (const title of ['Notes', 'Icon', 'Marker colour', 'Address & enrichment', 'Location'])
+    assert.ok(descendants(placeNode).some(n => n.props['aria-label'] === `${title} action`));
+  action(placeNode, 'Notes', 'edit'); await flush();
+  assert.equal(globalThis.compositionNotes.visible, mode === 'reuse' ? '<p>Current child</p>' : '<p>Original</p>');
+  globalThis.compositionNotes.visible = '<p>Authored nested Notes</p>'; globalThis.compositionNotes.change(); await nextTick();
+  action(placeNode, 'Icon', 'useSource'); action(placeNode, 'Address & enrichment', 'useSource');
+  action(areaNode, 'Notes', 'useSource'); action(areaNode, 'Area fill', 'useSource');
+  if (own) {
+    assert.equal(child.fields.planning.operation, 'keep');
+    action(placeNode, 'Personal planning', 'useSource'); action(areaNode, 'Personal planning', 'clear');
+    assert.match(textOf(placeNode), /Source intention/);
+  } else assert.doesNotMatch(textOf(placeNode) + textOf(areaNode), /Personal planning|Source intention|Destination intention|No personal planning|No planned/i);
+  if (mode === 'reuse') {
+    const note = descendants(placeNode).find(n => n.tagName === 'FIELDSET' && textOf(n).startsWith('Notes'));
+    assert.match(textOf(note), /Reviewed original destination.*Current destination/s);
+    assert.deepEqual(descendants(note).filter(n => n.props.innerHTML).map(n => n.props.innerHTML), ['<p>Original</p>', '<p>Current child</p>', '<p>Current child</p>']);
+  }
+  await app.apply(); await flush();
+  assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1); assert.equal(sent[0].items[0].children.length, 2);
+  const item = sent[0].items[0].children[0];
+  assert.equal(item.sourceId, 'BP'); assert.equal(item.fields.notes.value, '<p>Authored nested Notes</p>');
+  assert.equal(item.fields.notes.expected, mode === 'reuse' ? '<p>Current child</p>' : null);
+  if (own) { assert.equal(item.fields.planning.operation, 'useSource'); assert.equal(sent[0].items[0].children[1].fields.planning.operation, 'clear'); }
+  else assert.equal(item.fields.planning, undefined);
+}, true));
