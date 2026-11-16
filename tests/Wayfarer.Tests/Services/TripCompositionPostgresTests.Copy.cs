@@ -195,7 +195,8 @@ public sealed partial class TripCompositionPostgresTests
         Assert.Contains(trip.Credits, c => c.Licence == "CC0-1.0"); Assert.Contains(trip.Credits, c => c.Notices == "Keep supplied notice");
         var region = trip.Regions.Single(); Assert.NotNull(region.Planning); Assert.NotNull(region.CoverImageUrl);
         Assert.Single(region.Areas); Assert.Equal(1, region.Areas.Single().Geometry.NumInteriorRings);
-        Assert.Contains(region.Places, p => p.Location == null && p.DisplayOrder == null);
+        Assert.Contains(region.Places, p => p.Location == null);
+        Assert.Equal(Enumerable.Range(0, region.Places.Count).Select(i => (int?)i), region.Places.Select(p => p.DisplayOrder).Order());
         var enriched = region.Places.Single(p => p.Address == "1 Coastal road");
         Assert.Equal("Coastal museum", enriched.ResolvedFeatureName); Assert.Equal("geoapify", enriched.AddressEnrichmentProvider);
         Assert.NotNull(enriched.Planning); Assert.Equal(0, enriched.Planning.Entries[1].AllocationMinutes);

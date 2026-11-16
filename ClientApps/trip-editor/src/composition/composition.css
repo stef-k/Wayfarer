@@ -20,9 +20,12 @@
 .composition-feedback p { margin: .25rem 0; color: var(--trip-editor-warning-text); }
 .composition-map-frame { position: relative; min-width: 0; min-height: 0; }
 .composition-map { height: 100%; min-height: 220px; width: 100%; }
+/* Keep provider credit inside the map when its text wraps on a narrow viewport. */
+.composition-map .leaflet-bottom.leaflet-right { max-width: 100%; }
+.composition-map .leaflet-control-attribution { max-width: 100%; overflow-wrap: anywhere; }
 .composition-layers { position: absolute; right: .6rem; top: .6rem; z-index: 500; display: flex; flex-direction: column; padding: .45rem .65rem; background: var(--trip-editor-surface); border: 1px solid var(--trip-editor-border); border-radius: .4rem; font-size: .8rem; }
 .composition-layers legend { float: none; width: auto; font-size: .8rem; margin: 0; font-weight: 600; }
-.composition-map-status { position: absolute; bottom: 1.4rem; left: .6rem; z-index: 500; margin: 0; padding: .15rem .4rem; max-width: min(75%, 42rem); font-size: .75rem; background: var(--trip-editor-surface); pointer-events: none; }
+.composition-map-status { position: absolute; bottom: calc(var(--composition-attribution-height, 1rem) + .4rem); left: .6rem; z-index: 500; margin: 0; padding: .15rem .4rem; max-width: min(75%, 42rem); font-size: .75rem; background: var(--trip-editor-surface); pointer-events: none; }
 .composition-drawer-bar { display: flex; position: relative; align-items: center; justify-content: center; border-block: 1px solid var(--trip-editor-border); }
 .composition-drawer-bar button { font-size: .75rem; padding: .1rem .8rem; position: relative; }
 .composition-resize { position: absolute; inset: 0; cursor: row-resize; touch-action: none; }

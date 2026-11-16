@@ -2,8 +2,10 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -14,6 +16,7 @@ using IJobExecutionContext = Quartz.IJobExecutionContext;
 using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -22,9 +25,9 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class ApiTripSnapshotPostgresTests
 {
-    /// <summary>Editor and cache snapshots retain every child without joining independent collections into a product.</summary>
+    /// <summary>Editor, cache and public-viewer snapshots retain complete, coherent graphs without collection products.</summary>
     [PostgresFact]
-    public async Task EditorAndWarmup_PreserveMultiChildGraphWithSnapshotSplitQueries()
+    public async Task EditorWarmupAndPublicViewer_PreserveMultiChildGraphWithSnapshotSplitQueries()
     {
         var trip = await SeedAsync(false);
         var urls = new HashSet<string>();
@@ -106,11 +109,93 @@ public sealed partial class ApiTripSnapshotPostgresTests
         Assert.True(urls.SetEquals(fetched));
         Assert.Equal(4, cacheGate.Commands.Count(sql => sql.Contains("FROM \"Trips\"")));
 
+        // The public reader uses the same graph seam, including progress from that snapshot.
+        stored.IsPublic = true;
+        stored.ShareProgressEnabled = true;
+        var visit = new PlaceVisitEvent { Id = Guid.NewGuid(), UserId = trip.UserId, PlaceId = places[0].Id,
+            TripIdSnapshot = trip.Id, ArrivedAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow };
+        db.PlaceVisitEvents.Add(visit);
+        await db.SaveChangesAsync();
+        var viewerGate = new ReadGate();
+        await using var viewerDb = fixture.CreateContext((options, provider) => new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>(options)
+                .ConfigureWarnings(w => w.Throw(RelationalEventId.MultipleCollectionIncludeWarning)).Options, provider), viewerGate);
+        using var http = new HttpClient();
+        var viewer = PublicViewer(viewerDb, http);
+        ConfigureControllerWithUser(viewer, trip.UserId);
+        var viewing = viewer.View(trip.Id, embed: true);
+        try
+        {
+            await Task.WhenAny(viewerGate.Reached.Task, viewing).WaitAsync(TimeSpan.FromSeconds(15));
+            if (viewing.IsCompleted) await viewing; // Surface an early query failure instead of a gate timeout.
+            Assert.Equal(System.Data.IsolationLevel.RepeatableRead, viewerGate.Isolation);
+            await using var writer = fixture.CreateContext();
+            await using var change = await writer.Database.BeginTransactionAsync();
+            await writer.Trips.Where(t => t.Id == trip.Id).ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.IsPublic, false).SetProperty(t => t.ShareProgressEnabled, false));
+            await writer.Places.Where(p => p.Id == places[0].Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Name, "After viewer root"));
+            await writer.PlaceVisitEvents.Where(v => v.Id == visit.Id).ExecuteDeleteAsync();
+            await change.CommitAsync();
+        }
+        finally { viewerGate.Release.TrySetResult(); }
+        var view = Assert.IsType<ViewResult>(await viewing);
+        Assert.Null(viewerDb.Database.CurrentTransaction); // Rendering starts after snapshot disposal.
+        Assert.Equal("~/Views/Trip/Viewer.cshtml", view.ViewName);
+        Assert.True((bool)view.ViewData["IsEmbed"]!);
+        Assert.True((bool)view.ViewData["IsOwner"]!);
+        Assert.True((bool)view.ViewData["ShareProgressEnabled"]!);
+        Assert.Equal(1, (int)view.ViewData["VisitedPlaces"]!);
+        Assert.Equal(visit.Id, Assert.Single(Assert.IsType<List<PlaceVisitEvent>>(view.ViewData["VisitEvents"])).Id);
+        var graph = Assert.IsType<Trip>(view.Model);
+        Assert.True(graph.IsPublic);
+        Assert.Equal(2, graph.Tags.Count);
+        Assert.Equal(2, graph.Regions.Count);
+        Assert.Equal(5, graph.Regions.Sum(r => r.Places.Count));
+        Assert.Equal(4, graph.Regions.Sum(r => r.Areas.Count));
+        Assert.Equal(2, graph.Segments.Count);
+        Assert.Equal(places[0].Name, graph.Regions.SelectMany(r => r.Places).Single(p => p.Id == places[0].Id).Name);
+        var viewedRoute = graph.Segments.Single(s => s.Id == segment.Id);
+        Assert.Equal(places[0].Id, viewedRoute.FromPlace!.Id);
+        Assert.Equal(places[1].Id, viewedRoute.ToPlace!.Id);
+        Assert.Equal(new[] { places[2].Id, places[3].Id }, viewedRoute.Waypoints.Select(w => w.Place.Id));
+        Assert.Equal(7, viewerGate.Commands.Count(sql => sql.Contains("FROM \"Trips\"")));
+        await using var current = fixture.CreateContext();
+        Assert.IsType<NotFoundResult>(await PublicViewer(current, http).View(trip.Id));
+
         string Image(string key)
         {
             var url = $"https://example.invalid/{key}.png"; urls.Add(url);
             return $"<img src=\"{url}\">";
         }
+    }
+
+    /// <summary>Runs the public action without rendering or external work; the returned model is the real graph.</summary>
+    private Wayfarer.Areas.Public.Controllers.TripViewerController PublicViewer(ApplicationDbContext db, HttpClient http) => new(
+        NullLogger<Wayfarer.Areas.Public.Controllers.TripViewerController>.Instance, db, http,
+        Mock.Of<ITripThumbnailService>(), Mock.Of<ITripTagService>(), Mock.Of<IImageProxyService>(),
+        Mock.Of<IApplicationSettingsService>(), new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())))
+        { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+
+    /// <summary>Cancelling a split child read propagates and releases the viewer snapshot.</summary>
+    [PostgresFact]
+    public async Task PublicViewer_RequestAbort_ReleasesSnapshot()
+    {
+        var trip = await SeedAsync();
+        var gate = new ReadGate();
+        await using var db = fixture.CreateContext(gate);
+        using var http = new HttpClient();
+        var viewer = PublicViewer(db, http);
+        using var abort = new CancellationTokenSource();
+        viewer.HttpContext.RequestAborted = abort.Token;
+        var pending = viewer.View(trip.Id);
+        try
+        {
+            await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            abort.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+            Assert.Null(db.Database.CurrentTransaction);
+        }
+        finally { gate.Release.TrySetResult(); }
     }
 
     /// <summary>Freezes the existing public/private, bearer/cookie and absent-resource status boundaries.</summary>

@@ -95,6 +95,26 @@ it never hydrates another stored Trip's content by uploaded identities. Personal
 v4/v5 preserve the authored Trip name; legacy/native older-version naming retains
 its established Imported suffix. Server write timestamps are new mutation metadata.
 
+Native identities are scoped by entity type: a Trip, Region, Place, Area and
+Segment may share a UUID. Empty IDs, same-type duplicates (including across
+parents), invalid references and foreign same-type replacement targets still
+refuse before mutation. An existing row of another type provides no authority.
+CreateNew captures the source's visible per-container sequence before remapping
+IDs and assigns distinct nonnegative destination orders. Regions/Segments use
+order then identity; Places put explicit orders before nulls then identity;
+Areas use order, name then identity. Source objects/files retain their raw values.
+Reviewed replacement retains its ordinary raw orders and same-type identities.
+
+Native identity is `(kind, UUID)`: different entity types may share a UUID, while
+empty or duplicate same-type identities (including across parents) are invalid.
+Replacement checks stored ownership for the same type before planning remapping;
+an unrelated other-type row neither authorizes nor rejects an imported identity.
+CreateNew captures each source list's visible sequence before remapping IDs and
+assigns distinct nonnegative destination orders. Regions/Segments use order then
+ID; Places put explicit orders before nulls, then order and ID; Areas use order,
+name and ID. This changes destination order values, preserving the source file
+and graph. Reviewed replacement retains its supplied orders and same-type IDs.
+
 Every native Upsert requires review. Send the exact selected file to ReviewImport;
 success is `{ status: "review", review }`. The review contains `token`, `tripId`,
 `targetName`, `importedName` and `planning` rows. Each row has `key`, `kind`, `name`,

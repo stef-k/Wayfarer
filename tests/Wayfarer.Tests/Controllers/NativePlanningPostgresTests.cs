@@ -63,7 +63,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
             var before = source.Regions.Single(r => r.Name == region.Name);
             Assert.Equal(before.Name, region.Name);
             Assert.Equal(before.CoverImageUrl, region.CoverImageUrl);
-            Assert.Equal(before.DisplayOrder, region.DisplayOrder);
+            Assert.Equal(Array.IndexOf(source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray(), before.Id), region.DisplayOrder);
             Assert.Equal(before.Notes, region.Notes);
             Assert.Equal(before.Center, region.Center);
         }
@@ -89,6 +89,7 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
         Assert.Null(saved.ContributionPolicy);
         Assert.Equal(TripCreditCodec.Inherited(source), saved.Credits);
         var inheritedOriginal = XDocument.Parse(original);
+        NormalizeCreatedOrders(inheritedOriginal);
         XNamespace k = "http://www.opengis.net/kml/2.2";
         inheritedOriginal.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "ContentReuse").Element(k + "value")!.Value = "";
         inheritedOriginal.Descendants(k + "Data").Single(d => (string?)d.Attribute("name") == "Credits").Element(k + "value")!.Value = TripCreditCodec.Write(saved.Credits);
@@ -482,6 +483,25 @@ public sealed class NativePlanningPostgresTests(PostgresImportTestFixture fixtur
     private sealed class Factory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext> { public ApplicationDbContext CreateDbContext() => fixture.CreateContext(); }
     private static TripExportService Exporter(ApplicationDbContext db) => new(db, null!, null!, null!, null!, NullLogger<TripExportService>.Instance, new ConfigurationBuilder().Build(), null!, null!);
     private static MemoryStream File(string text) => new(Encoding.UTF8.GetBytes(text));
+
+    /// <summary>The expected new graph follows the writer's visible per-type sequences, with contiguous local orders.</summary>
+    private static void NormalizeCreatedOrders(XDocument xml)
+    {
+        XNamespace k = "http://www.opengis.net/kml/2.2";
+        var folders = xml.Descendants(k + "Document").Single().Elements(k + "Folder").ToArray();
+        var regions = folders.Where(f => f.Element(k + "ExtendedData")?.Elements(k + "Data").Any(d => (string?)d.Attribute("name") == "RegionId") == true).ToArray();
+        void SetOrders(IEnumerable<XElement> nodes)
+        {
+            var index = 0;
+            foreach (var node in nodes)
+                node.Element(k + "ExtendedData")!.Elements(k + "Data").Single(d => (string?)d.Attribute("name") == "DisplayOrder").Element(k + "value")!.Value = (index++).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        SetOrders(regions);
+        foreach (var region in regions)
+            foreach (var kind in new[] { "PlaceId", "AreaId" })
+                SetOrders(region.Elements(k + "Placemark").Where(p => p.Element(k + "ExtendedData")!.Elements(k + "Data").Any(d => (string?)d.Attribute("name") == kind)));
+        SetOrders(folders.Except(regions).SelectMany(f => f.Elements(k + "Placemark")));
+    }
 
     /// <summary>Only server write timestamps are excluded from the full identity-mapped XML content comparison.</summary>
     private static XDocument Normalize(string text)

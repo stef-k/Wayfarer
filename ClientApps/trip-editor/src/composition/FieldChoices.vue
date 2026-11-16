@@ -42,6 +42,30 @@ function select(key: string, operation: FieldChoice['operation']): void {
   }
   field.operation = operation;
 }
+/** Uses the established hr/min labels, retaining fractional seconds from saved ticks without estimating. */
+function savedDuration(ticks: unknown): string {
+  if (typeof ticks !== 'number' || !Number.isFinite(ticks)) return 'Duration unavailable';
+  if (ticks === 0) return '0 min';
+  const hours = Math.floor(ticks / 36000000000);
+  const minutes = Math.floor(ticks % 36000000000 / 600000000);
+  const seconds = ticks % 600000000 / 10000000;
+  return [hours ? `${hours} hr` : '', minutes ? `${minutes} min` : '', seconds ? `${seconds} sec` : ''].filter(Boolean).join(' ');
+}
+/** Complete saved facts stay readable; internal profile/configuration IDs are represented by presence and comparison labels. */
+function describeRoute(value: unknown): string {
+  const r = value as Record<string, unknown>;
+  const mode = props.options?.transportModes.find(m => m.value === r.mode)?.label ?? r.mode ?? 'No mode';
+  return `${mode} · ${r.routeJson ? 'Saved custom geometry' : 'Anchor fallback'} · ${r.estimatedDistanceKm == null ? 'Distance unavailable' : `${r.estimatedDistanceKm} km`} · ${savedDuration(r.estimatedDurationTicks)} · ${r.estimatedDurationSource || 'Unknown'} duration`;
+}
+/** Secondary retained evidence is available without crowding the measurement comparison. */
+function routeDetails(value: unknown): string {
+  const r = value as Record<string, unknown>;
+  return [`Transport profile: ${r.transportProfileId ? 'Saved profile' : 'Not set'}`,
+    `Provider: ${r.routeProvider || 'Not set'}; settings: ${r.routeProviderConfigurationId ? 'Recorded' : 'Not set'}; version: ${r.routeProviderConfigurationVersion ?? 'Not set'}`,
+    `Routed profile: ${r.routeTransportProfileId ? 'Recorded' : 'Not set'}; routing mode: ${r.routeMappingMode || 'Not set'}`,
+    `Generated: ${r.routeGeneratedAt || 'Not set'}; storage: ${r.routeStorageMode || 'Not set'}`,
+    `Instructions: ${r.routeInstructionsJson ? 'Saved' : 'Not set'}; Attribution: ${r.routeAttribution || 'Not set'}`].join('. ');
+}
 /** Human descriptions never expose protocol objects or foreign planning diagnostics. */
 function describe(key: string, value: unknown): string {
   if (key === 'planning') return value ? (value as PlanningAggregate).entries.map(e => `${e.label ? `${e.label}: ` : ''}${describePlanningTiming(e.when)}`).join('; ') : 'No personal planning';
@@ -49,7 +73,7 @@ function describe(key: string, value: unknown): string {
   if (key === 'location' || key === 'center') return `${(value as number[])[1]}° latitude, ${(value as number[])[0]}° longitude`;
   if (key === 'geometry') { try { const g = JSON.parse(String(value)); return `Full ${g.type}: outer shell and ${Math.max(0, g.coordinates.length - 1)} hole(s). View on map.`; } catch { return 'Historical geometry unavailable'; } }
   if (key === 'address') { const a = value as Record<string, string | null>; return [a.address, a.resolvedFeatureName, a.resolvedFeatureType, a.addressEnrichmentProvider].filter(Boolean).join(' · ') || 'Not set'; }
-  if (key === 'route') { const r = value as Record<string, unknown>; return `${r.mode || 'No mode'} · ${r.routeJson ? 'Saved custom geometry' : 'Anchor fallback'} · ${r.estimatedDistanceKm ?? 'Unknown'} km · ${r.estimatedDurationSource || 'Unknown'} duration. Review all From / Via / To dependencies below.`; }
+  if (key === 'route') return describeRoute(value);
   if (key === 'viewport') { const v = value as { centerLat: number | null; centerLon: number | null; zoom: number | null }; return `${v.centerLat ?? 'Unset'}°, ${v.centerLon ?? 'Unset'}° · Zoom ${v.zoom ?? 'unset'}`; }
   return Array.isArray(value) ? value.join(', ') || 'None' : String(value);
 }
@@ -63,9 +87,21 @@ const markerColor = computed(() => {
   if (field.operation === 'clear') return 'bg-blue';
   return String((field.operation === 'useSource' || props.choice.decision === 'copy' ? captured('markerColor') : original('markerColor')) || 'bg-blue');
 });
-/** Route dependencies need explicit review; fresh planning entry IDs alone do not make the intentions different. */
+/** Compare retained facts exactly, separately from remapped Place identities and their mandatory dependency review. */
+function routeComparison(value: unknown): string {
+  if (!value) return 'Route unavailable · Review From / Via / To dependencies';
+  const route = value as Record<string, unknown>; const sourceRoute = captured('route') as Record<string, unknown>;
+  const facts: Record<string, string> = { mode: 'mode', routeJson: 'saved geometry', estimatedDistanceKm: 'distance',
+    estimatedDurationTicks: 'duration', estimatedDurationSource: 'duration source', transportProfileId: 'transport profile',
+    routeInstructionsJson: 'instructions', routeProvider: 'provider', routeProviderConfigurationId: 'provider settings',
+    routeProviderConfigurationVersion: 'provider version', routeTransportProfileId: 'routed profile', routeGeneratedAt: 'generation time',
+    routeAttribution: 'attribution', routeStorageMode: 'storage', routeMappingMode: 'routing mode' };
+  const differences = Object.entries(facts).filter(([key]) => JSON.stringify(route[key]) !== JSON.stringify(sourceRoute[key])).map(([, title]) => title);
+  return `${differences.length ? `Different saved route facts: ${differences.join(', ')}` : 'Same saved route facts'} · Review From / Via / To dependencies`;
+}
+/** Fresh planning entry IDs alone do not make the intentions different. */
 function comparison(key: string, value: unknown): string {
-  if (key === 'route') return 'Review complete route and dependencies';
+  if (key === 'route') return routeComparison(value);
   const intentions = (value: unknown) => key === 'planning' && value
     ? (value as PlanningAggregate).entries.map(({ id: _id, ...entry }) => entry) : value;
   return JSON.stringify(intentions(value)) === JSON.stringify(intentions(captured(key))) ? 'Same value' : 'Different value';
@@ -82,15 +118,18 @@ function comparison(key: string, value: unknown): string {
         <div><strong>Source {{ review.side.toUpperCase() }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(captured(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, captured(key)) }}</p>
+          <details v-if="key === 'route'"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(captured(key)) }}</p></details>
         </div>
         <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Reviewed original {{ destinationName }} · {{ comparison(key, original(key)) }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(original(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, original(key)) }}</p>
+          <details v-if="key === 'route' && original(key)"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(original(key)) }}</p></details>
         </div>
         <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current {{ destinationName }} · {{ hasCurrent ? comparison(key, currentValue(key)) : 'Counterpart unavailable' }}</strong>
           <template v-if="hasCurrent">
             <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(currentValue(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
             <p v-else>{{ describe(key, currentValue(key)) }}</p>
+            <details v-if="key === 'route'"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(currentValue(key)) }}</p></details>
           </template>
           <p v-if="changedSinceReview(key)">Current {{ destinationName }} changed since this review. Your choices and reviewed originals are retained. Use the refresh / review control to review the change explicitly.</p>
         </div>

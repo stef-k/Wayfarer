@@ -18,7 +18,7 @@ const map = { setView() { return this; }, on(event, callback) { movements[event]
   getContainer: () => container,
   createPane(name) { return panes[name] = { style: {}, setAttribute() {}, remove() {} }; }, getPane(name) { return panes[name]; },
   fitBounds(bounds) { this.bounds = bounds.points; },
-  attributionControl: { setPrefix() {}, getContainer() { return null; } } };
+  attributionControl: { setPrefix(value) { this.prefix = value; }, getContainer() { return { setAttribute: (name, value) => { this[name] = value; } }; } } };
 globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
 globalThis.document = new EventTarget();
 // The viewport tests own resize notifications; this fixture exercises proposal rendering only.
@@ -39,10 +39,37 @@ const bundle = await build({ stdin: { contents: "export { resolvePersistedSegmen
       const { readFile } = await import('node:fs/promises');
       const source = await readFile(args.path, 'utf8');
       const exports = [...source.matchAll(/export const (create\w+)/g)].map(match => match[1]);
+      if (args.path.endsWith('tileRetryLayer.ts')) return { contents: 'export const createTripEditorTileLayer = (url, options) => { globalThis.previewTiles = { url, options }; return { addTo() {} }; };' };
       return { contents: exports.map(name => `export const ${name} = () => ({ addTo() { return this; }, isActive: () => false, dispose() {}, remove() {} });`).join('\n') };
     });
   } }] });
 const { resolvePersistedSegmentPresentation, createTripEditorMap, createSegmentRouteDraftPreviewLayer, createSegmentPresentationLayer } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+
+test('ordinary and comparison maps consume the shared base-map setup', async () => {
+  for (const path of ['map/leafletAdapter.ts', 'composition/CompositionMap.vue']) {
+    const source = await readFile(`ClientApps/trip-editor/src/${path}`, 'utf8');
+    assert.match(source, /map = createTripMap\(/);
+    assert.doesNotMatch(source, /L\.map\(|setPrefix\(|attribution:/);
+  }
+});
+
+test('shared editor setup retains project links, accessible labels and authoritative provider or empty attribution', () => {
+  const attribution = '&copy; <a href="https://example.test/copyright" target="_blank" rel="noopener noreferrer">Survey provider</a>';
+  try {
+    for (const configured of [attribution, '', undefined]) {
+      window.wayfarerTileConfig = configured === undefined ? undefined : { attribution: configured };
+      const adapter = createTripEditorMap({}, '/controlled-tiles');
+      assert.deepEqual(globalThis.previewTiles, { url: '/controlled-tiles', options: { attribution: configured, maxZoom: 19 } });
+      for (const url of ['https://wayfarer.stefk.me', 'https://stefk.me', 'https://leafletjs.com/'])
+        assert.ok(map.attributionControl.prefix.includes(`href="${url}"`));
+      assert.equal((map.attributionControl.prefix.match(/target="_blank" rel="noopener"/g) ?? []).length, 3);
+      assert.equal(map.attributionControl['aria-label'], 'Map attribution');
+      assert.equal(map.attributionControl.title, 'Map attribution');
+      assert.doesNotMatch(map.attributionControl.prefix, /OpenStreetMap/);
+      adapter.dispose();
+    }
+  } finally { delete window.wayfarerTileConfig; }
+});
 
 test('ordinary Segment hover prefers escaped authored titles and retains the derived fallback', () => {
   const layer = createSegmentPresentationLayer(map, () => true);

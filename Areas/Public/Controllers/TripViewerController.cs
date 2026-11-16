@@ -210,70 +210,78 @@ public class TripViewerController : BaseController
         return RedirectToRoute("PublicTripsIndex", new { tags = slug, view, sort, page });
     }
 
-    // GET: /Public/Trips/{id}?embed=true
+    /// <summary>Reads one public graph and permitted visit progress before rendering the viewer or embed.</summary>
     [HttpGet]
     [Route("/Public/Trips/{id}", Name = "PublicTripView", Order = 2)]
     public async Task<IActionResult> View(Guid id, bool embed = false)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var trip = await _dbContext.Trips
-            .Include(t => t.User)
-            .Include(t => t.Tags)
-            .Include(t => t.Regions!).ThenInclude(r => r.Places!)
-            .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-            .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
-            .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
-            .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        // Check if trip exists and is public before accessing properties
-        if (trip == null || !trip.IsPublic)
+        var ct = HttpContext.RequestAborted;
+        Trip? trip;
+        // Split independent collections within one snapshot, including authorized visit data.
+        await using (var snapshot = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct) : null)
         {
-            return NotFound();
-        }
+            trip = await _dbContext.Trips
+                .AsSplitQuery()
+                .Include(t => t.User)
+                .Include(t => t.Tags)
+                .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
+                .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
+                .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
+                .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+                .FirstOrDefaultAsync(t => t.Id == id, ct);
 
-        var owner = trip.UserId == userId;
+            // Check if trip exists and is public before accessing properties
+            if (trip == null || !trip.IsPublic)
+            {
+                return NotFound();
+            }
 
-        /* ---- layout flags ---- */
-        ViewData["LoadLeaflet"] = true;      // needs map
-        ViewData["BodyClass"]   = "container-fluid";  // full-width
+            var owner = trip.UserId == userId;
 
-        ViewBag.IsOwner = owner;
-        ViewBag.IsEmbed = embed;             // not an iframe here
-        ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
+            /* ---- layout flags ---- */
+            ViewData["LoadLeaflet"] = true;      // needs map
+            ViewData["BodyClass"]   = "container-fluid";  // full-width
 
-        // Get visit progress data
-        var allPlaceIds = trip.Regions?
-            .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
-            .Select(p => p.Id)
-            .ToList() ?? new List<Guid>();
+            ViewBag.IsOwner = owner;
+            ViewBag.IsEmbed = embed;             // not an iframe here
+            ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
 
-        ViewBag.TotalPlaces = allPlaceIds.Count;
-        ViewBag.VisitedPlaces = 0;
-        ViewBag.PlaceVisitCounts = new Dictionary<Guid, int>();
-        ViewBag.VisitEvents = new List<PlaceVisitEvent>(); // Default empty list
+            // Get visit progress data
+            var allPlaceIds = trip.Regions?
+                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                .Select(p => p.Id)
+                .ToList() ?? new List<Guid>();
 
-        // Owner always sees their visit data
-        // Non-owner sees visit progress only if ShareProgressEnabled is true
-        var showVisitData = owner || trip.ShareProgressEnabled;
+            ViewBag.TotalPlaces = allPlaceIds.Count;
+            ViewBag.VisitedPlaces = 0;
+            ViewBag.PlaceVisitCounts = new Dictionary<Guid, int>();
+            ViewBag.VisitEvents = new List<PlaceVisitEvent>(); // Default empty list
 
-        if (showVisitData && allPlaceIds.Count > 0)
-        {
-            // Get visit events per place (a place can be visited multiple times)
-            // Uses trip owner's userId, not the viewer's
-            var visitEvents = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == trip.UserId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .OrderByDescending(v => v.ArrivedAtUtc)
-                .ToListAsync();
+            // Owner always sees their visit data
+            // Non-owner sees visit progress only if ShareProgressEnabled is true
+            var showVisitData = owner || trip.ShareProgressEnabled;
 
-            var placeVisitCounts = visitEvents
-                .GroupBy(v => v.PlaceId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
+            if (showVisitData && allPlaceIds.Count > 0)
+            {
+                // Get visit events per place (a place can be visited multiple times)
+                // Uses trip owner's userId, not the viewer's
+                var visitEvents = await _dbContext.PlaceVisitEvents
+                    .Where(v => v.UserId == trip.UserId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                    .OrderByDescending(v => v.ArrivedAtUtc)
+                    .ToListAsync(ct);
 
-            ViewBag.VisitedPlaces = placeVisitCounts.Count;
-            ViewBag.PlaceVisitCounts = placeVisitCounts;
-            // Only pass visit events to owner (non-owner doesn't see dates/times)
-            ViewBag.VisitEvents = owner ? visitEvents : new List<PlaceVisitEvent>();
+                var placeVisitCounts = visitEvents
+                    .GroupBy(v => v.PlaceId!.Value)
+                    .ToDictionary(g => g.Key, g => g.Count());
+
+                ViewBag.VisitedPlaces = placeVisitCounts.Count;
+                ViewBag.PlaceVisitCounts = placeVisitCounts;
+                // Only pass visit events to owner (non-owner doesn't see dates/times)
+                ViewBag.VisitEvents = owner ? visitEvents : new List<PlaceVisitEvent>();
+            }
         }
 
         // Only the successfully resolved public embed opts into external framing.

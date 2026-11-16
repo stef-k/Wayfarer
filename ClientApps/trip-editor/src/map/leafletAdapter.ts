@@ -1,5 +1,5 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { createTripMap } from './tripMapSetup';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
@@ -14,7 +14,6 @@ import { createSearchPreviewLayer } from './searchPreviewLayer';
 import { createSegmentRouteDraftPreviewLayer, type SegmentDraftRoutePreview } from './segmentRouteDraftPreviewLayer';
 import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 import { createSegmentPresentationLayer } from './segmentPresentationLayer';
-import { createTripEditorTileLayer } from './tileRetryLayer';
 import { allGeometryBounds, applyInitialMapView, fitBounds, focusActiveEntity, focusSavedTripView,
   type FitAllGeometryResult, type FocusActiveEntityResult, type FocusSavedTripViewResult } from './mapNavigation';
 import { createMapViewport, type TripEditorMapView } from './mapViewport';
@@ -66,7 +65,7 @@ export interface SelectPlaceOptions {
 }
 
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, options: TripEditorMapOptions = {}): TripEditorMapAdapter => {
-  const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
+  const map = createTripMap(element, tilesUrl);
   const viewport = createMapViewport(map, {
     onCaptured: options.onMapViewCaptured,
     canCapture: () => options.canCaptureTripView?.() ?? true
@@ -90,14 +89,6 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   let initialViewApplied = false;
   const prepareMapWork = (): void => { searchPreview.clear(); mapUtilities.cancelMeasure(); };
 
-  // The shared layout supplies final provider-safe attribution for every map client.
-  createTripEditorTileLayer(tilesUrl, {
-    attribution: window.wayfarerTileConfig?.attribution,
-    maxZoom: 19
-  }).addTo(map);
-  map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
-  map.attributionControl.getContainer()?.setAttribute('aria-label', 'Map attribution');
-  map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
 
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid> = new Set(), nextSelectedPlaceId: Guid | null = selectedPlaceId): void => {
     lastRenderedState = state;
@@ -326,13 +317,3 @@ const escapeHtml = (value: string): string =>
     '"': '&quot;',
     "'": '&#39;'
   })[character] ?? character);
-
-declare global {
-  interface Window {
-    wayfarerTileConfig?: {
-      attribution?: string;
-      burstCapacity?: number;
-      retryAfterSeconds?: number;
-    };
-  }
-}

@@ -21,6 +21,8 @@ const state = store.state;
 const visible = ref({ a: true, b: true, c: true });
 const mapStatus = ref(''); const map = ref<InstanceType<typeof CompositionMap> | null>(null);
 const workspaceElement = ref<HTMLElement | null>(null);
+const inspectorElement = ref<HTMLElement | null>(null);
+const inspectorHeading = ref<HTMLElement | null>(null);
 const completionElement = ref<HTMLElement | null>(null);
 const options = ref<EditorOptions | null>(null);
 const candidates = ref<Candidate[]>([]); const candidateSearch = ref(''); const candidatePending = ref(false);
@@ -50,10 +52,24 @@ async function refresh(): Promise<boolean> {
 /** Selection reads current C before creating a new review; an existing draft keeps its own original baseline. */
 async function select(selection: Selection): Promise<void> {
   if (!state.workspace || finished.value) return;
+  const active = document.activeElement;
+  // Only a narrow section transition that hides its focused source control transfers focus.
+  const hiddenSourceFocus = state.view.tab !== 'inspector' && active instanceof HTMLElement
+    && active.closest('.composition-source') && window.matchMedia('(max-width: 900px)').matches;
   state.view.selection = selection; state.view.blockMode = false; state.view.tab = 'inspector';
   ++candidateGeneration; candidatePending.value = false;
   state.view.collapsed = false; candidateSearch.value = ''; candidates.value = [];
   const selected = viewKey(selection);
+  if (hiddenSourceFocus) {
+    await nextTick();
+    if (disposed || !state.view.selection || viewKey(state.view.selection) !== selected) return;
+    if (state.view.tab === 'inspector' && (document.activeElement === active || document.activeElement === document.body)) {
+      // Start at the selected context, independently of refresh/candidate latency and prior inspector scroll.
+      if (inspectorElement.value) inspectorElement.value.scrollTop = 0;
+      inspectorHeading.value?.focus({ preventScroll: true });
+      inspectorHeading.value?.scrollIntoView({ block: 'nearest' });
+    }
+  }
   if (!state.view.drafts[selected]) {
     if (!state.pending && !await refresh()) return;
     if (!state.workspace || !state.view.selection || viewKey(state.view.selection) !== selected) return;
@@ -255,8 +271,9 @@ watch(() => state.view.collapsed, cancelResize);
       <div v-show="!state.view.collapsed" id="comparison-drawer" class="composition-drawer" :inert="finishing">
         <nav class="composition-tabs" aria-label="Comparison drawer sections"><button v-for="tab in ['a', 'b', 'inspector']" :key="tab" type="button" :aria-pressed="state.view.tab === tab" @click="state.view.tab = tab">{{ tab === 'inspector' ? 'Inspector' : `Source ${tab.toUpperCase()}` }}</button></nav>
         <SourceTree v-for="side in (['a', 'b'] as const)" v-show="state.view.tab === side" :key="side" :class="`composition-tree-${side}`" :snapshot="sourceSnapshot(state.workspace, side)" :side="side" :selection="state.view.selection" :mappings="state.workspace.mappings" :expanded="state.view.expanded" :counterpart="state.view.selection && counterpart ? { kind: state.view.selection.kind, id: counterpart } : null" @select="select" @expand="expand" />
-        <section v-show="state.view.tab === 'inspector'" class="composition-inspector" aria-label="Contextual comparison inspector">
-          <h2>{{ state.view.blockMode ? 'Reviewed item block' : selectionTitle }}</h2>
+        <section v-show="state.view.tab === 'inspector'" ref="inspectorElement" class="composition-inspector" aria-label="Contextual comparison inspector">
+          <h2 ref="inspectorHeading" tabindex="-1" :aria-describedby="state.view.selection && !state.view.blockMode ? 'composition-selection-context' : undefined">{{ state.view.blockMode ? 'Reviewed item block' : selectionTitle }}</h2>
+          <p v-if="state.view.selection && !state.view.blockMode" id="composition-selection-context">Source {{ state.view.selection.side.toUpperCase() }} · {{ state.view.selection.kind }} · Read-only captured idea</p>
           <p v-if="source?.mediaOmitted" role="status">Some source media was omitted by its permissions/storage policy. Reselect eligible images explicitly in C’s ordinary editor; copying does not grant media permission.</p>
           <template v-if="choice && !state.view.blockMode && state.view.selection?.kind !== 'trip'">
             <form @submit.prevent="searchCandidates"><label class="composition-field">Manual counterpart search<input v-model="candidateSearch" type="search" maxlength="200" /></label><button :disabled="candidatePending">{{ candidatePending ? 'Searching…' : 'Find possible counterparts' }}</button></form>

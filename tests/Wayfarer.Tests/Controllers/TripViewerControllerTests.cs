@@ -104,6 +104,44 @@ public partial class TripViewerControllerTests : TestBase
         Assert.Equal(tripId, model.Id);
     }
 
+    /// <summary>Owners see visit dates; public sharing exposes only owner counts, never another user's visits.</summary>
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task View_PreservesVisitProgressPrivacy(bool owner, bool share)
+    {
+        using var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        var other = TestDataFixtures.CreateUser();
+        db.Users.AddRange(user, other);
+        var trip = TestDataFixtures.CreateTrip(user);
+        trip.IsPublic = true;
+        trip.ShareProgressEnabled = share;
+        var region = TestDataFixtures.CreateRegion(trip);
+        var place = TestDataFixtures.CreatePlace(region);
+        db.Places.Add(place);
+        var visit = new PlaceVisitEvent { Id = Guid.NewGuid(), UserId = user.Id, PlaceId = place.Id,
+            ArrivedAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow };
+        db.PlaceVisitEvents.AddRange(visit, new PlaceVisitEvent { Id = Guid.NewGuid(), UserId = other.Id,
+            PlaceId = place.Id, ArrivedAtUtc = DateTime.UtcNow, LastSeenAtUtc = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        if (owner) ConfigureControllerWithUser(controller, user.Id);
+        var view = Assert.IsType<ViewResult>(await controller.View(trip.Id, embed: true));
+        Assert.Equal("~/Views/Trip/Viewer.cshtml", view.ViewName);
+        Assert.Equal(owner, view.ViewData["IsOwner"]);
+        Assert.Equal(true, view.ViewData["IsEmbed"]);
+        Assert.Equal(1, view.ViewData["TotalPlaces"]);
+        Assert.Equal(owner || share ? 1 : 0, view.ViewData["VisitedPlaces"]);
+        var counts = Assert.IsType<Dictionary<Guid, int>>(view.ViewData["PlaceVisitCounts"]);
+        if (owner || share) Assert.Equal(1, counts[place.Id]);
+        else Assert.Empty(counts);
+        var events = Assert.IsType<List<PlaceVisitEvent>>(view.ViewData["VisitEvents"]);
+        if (owner) Assert.Equal(visit.Id, Assert.Single(events).Id);
+        else Assert.Empty(events);
+    }
+
     [Fact]
     public async Task Preview_ReturnsPartial_ForPublicTrip()
     {

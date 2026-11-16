@@ -7,7 +7,7 @@ import { createSSRApp, createRenderer, nextTick } from 'vue';
 import { renderToString } from '@vue/server-renderer';
 
 // Compile the actual hierarchy/choice components at the existing in-memory Vue seam.
-const bundle = await build({ stdin: { contents: `export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
+const bundle = await build({ stdin: { contents: `export { default as FieldChoices } from './FieldChoices.vue'; export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
   loader: 'ts', resolveDir: 'ClientApps/trip-editor/src/composition' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'vue', setup(builder) {
     builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
@@ -44,7 +44,7 @@ const bundle = await build({ stdin: { contents: `export { default as CopyToTrip 
     });
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-const { SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
+const { FieldChoices, SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
 const source = { graph: { id: 'source', name: 'Source', regions: [
   { id: 'region', name: 'Segments', places: [{ id: 'tower', name: 'Taipei 101', location: [121, 25] }], areas: [] }
 ], segments: [{ id: 'route', mode: 'walk', fromPlaceId: 'tower', toPlaceId: null, waypoints: [] }], credits: [] },
@@ -66,6 +66,50 @@ test('Segment copy shows complete anchor choices and Trip-level destination with
   assert.match(html, /C · Trip-level Segments/); assert.match(html, /From · Taipei 101/);
   assert.match(html, /Approve a separate Place with the captured location/); assert.match(html, /Missing Place destination Region/);
   assert.doesNotMatch(html, /Add to Region|>Destination Region|No planned date/);
+});
+
+// Render the shared field owner used by both full composition and lightweight Copy, with independently remapped anchors.
+const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFacts, existingTrip = false) => {
+  const { newChoice, newReview } = await import('../../ClientApps/trip-editor/src/composition/compositionModel.ts');
+  const sourceB = structuredClone(source); Object.assign(sourceB.graph.segments[0], sourceFacts);
+  const current = structuredClone(source); current.graph.id = 'C';
+  Object.assign(current.graph.segments[0], reviewedFacts, { fromPlaceId: 'copied-tower' });
+  const workspace = { tripId: 'C', sourceA: source, sourceB, current, mappings: [] };
+  const review = newReview(workspace, 'b');
+  Object.assign(current.graph.segments[0], currentFacts);
+  const choice = newChoice(workspace, 'b', 'segment', 'route'); choice.decision = 'reuse'; choice.destinationId = 'route';
+  return renderToString(createSSRApp(FieldChoices, { workspace, review, choice, options: null, editorUrl: '#', existingTrip }));
+};
+
+for (const existingTrip of [false, true]) test(`complete route exposes source 35 min versus original/current 5 min in ${existingTrip ? 'Copy' : 'composition'}`, async () => {
+  const facts = { estimatedDistanceKm: 1.5, estimatedDurationSource: 'Manual' };
+  const html = await renderRoute({ ...facts, estimatedDurationTicks: 21000000000 }, { ...facts, estimatedDurationTicks: 3000000000 }, undefined, existingTrip);
+  assert.equal((html.match(/35 min/g) ?? []).length, 1); assert.equal((html.match(/(?<!\d)5 min · Manual/g) ?? []).length, 2);
+  assert.match(html, /Source B/); assert.match(html, new RegExp(`Reviewed original ${existingTrip ? 'destination' : 'C'}`));
+  assert.match(html, new RegExp(`Current ${existingTrip ? 'destination' : 'C'}`));
+  assert.match(html, /Different saved route facts: duration/); assert.equal((html.match(/1.5 km/g) ?? []).length, 3);
+});
+
+test('route measurement absence remains distinct from zero and subminute precision is readable', async () => {
+  const html = await renderRoute({ estimatedDistanceKm: null, estimatedDurationTicks: null },
+    { estimatedDistanceKm: 0, estimatedDurationTicks: 0 }, { estimatedDistanceKm: 0.0001, estimatedDurationTicks: 1234567 });
+  assert.match(html, /Distance unavailable · Duration unavailable/);
+  assert.match(html, /0 km · 0 min/); assert.match(html, /0.0001 km · 0.1234567 sec/);
+  assert.doesNotMatch(html, /Unknown km|unavailable km|NaN|Infinity/);
+});
+
+test('route comparison distinguishes saved profile and provenance without treating remapped anchor IDs as different facts', async () => {
+  const facts = { estimatedDurationTicks: 3000000000, estimatedDurationSource: 'Manual', transportProfileId: 'profile-one',
+    routeProvider: 'geoapify', routeProviderConfigurationId: 'config-one', routeProviderConfigurationVersion: 1,
+    routeTransportProfileId: 'routed-profile-one', routeGeneratedAt: '2026-11-01T10:00:00Z', routeAttribution: 'Retain notice',
+    routeStorageMode: 'persistent', routeMappingMode: 'walk', routeInstructionsJson: '[]' };
+  const same = await renderRoute(facts, facts);
+  assert.equal((same.match(/Same saved route facts/g) ?? []).length, 2);
+  assert.match(same, /Review From \/ Via \/ To dependencies/);
+  const different = await renderRoute(facts, { ...facts, transportProfileId: 'profile-two', routeProviderConfigurationVersion: 2 });
+  assert.match(different, /Different saved route facts: transport profile, provider version/);
+  assert.match(different, /Provider: geoapify/); assert.match(different, /Attribution: Retain notice/);
+  assert.doesNotMatch(different, /profile-one|config-one|routed-profile-one/);
 });
 
 test('creation component freezes the submitted pair/name and leaves newer form choices open after success', async () => {
@@ -120,7 +164,7 @@ const withWorkspace = async (action, lightweight = false) => {
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
     if (url.includes('/candidates')) return Response.json({ candidates: [] });
-    if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [] } });
+    if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [], transportModes: [] } });
     assert.fail(`Unexpected request ${url}`);
   };
   const node = (tag, text = '') => ({ tagName: tag.toUpperCase(), text, children: [], style: {}, props: {},

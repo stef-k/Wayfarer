@@ -59,7 +59,7 @@ public static class TripWayfarerKmlExporter
         return result;
     }
 
-    /// <summary>Every v5 file preserves eligible Region covers independently of planning inclusion.</summary>
+    /// <summary>Preserves eligible Region covers and emits children in their established visible per-type order.</summary>
     private static XElement BuildRegion(Region region, Guid tripId, bool includePrivatePlanning)
     {
         var folder = new XElement(Kml + "Folder", new XElement(Kml + "name", region.Name));
@@ -69,9 +69,9 @@ public static class TripWayfarerKmlExporter
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
         if (region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
-        foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
+        foreach (var place in region.Places.OrderBy(place => place.DisplayOrder.HasValue ? 0 : 1).ThenBy(place => place.DisplayOrder).ThenBy(place => place.Id))
             folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));
-        foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Id))
+        foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Name).ThenBy(area => area.Id))
             folder.Add(BuildArea(area, region.Id, includePrivatePlanning));
         return folder;
     }

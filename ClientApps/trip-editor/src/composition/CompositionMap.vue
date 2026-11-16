@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import L from 'leaflet';
-// Composition loads independently of the ordinary editor's Leaflet adapter and its CSS.
-import 'leaflet/dist/leaflet.css';
-import { createTripEditorTileLayer } from '../map/tileRetryLayer';
+import { createTripMap } from '../map/tripMapSetup';
 import { anchorIds, contents, find, isCoordinate, label, spatialContent } from './compositionModel';
 import type { Content, Kind, Selection, Snapshot, Workspace } from './compositionTypes';
 
@@ -29,11 +27,14 @@ function focus(): void {
   if (size.x < 48 || size.y < 48) return;
   // Clamp both axes to leave a positive fitting area, even under a narrow viewport or a tall drawer.
   const pad = Math.min(32, Math.floor(Math.min(size.x, size.y) / 8));
-  const controls = host.value?.parentElement?.querySelector('.composition-layers')?.getBoundingClientRect();
+  const frame = host.value?.parentElement;
+  const controls = frame?.querySelector('.composition-layers')?.getBoundingClientRect();
+  const footerHeight = map.attributionControl.getContainer()?.getBoundingClientRect().height ?? 0;
+  const statusHeight = frame?.querySelector('.composition-map-status')?.getBoundingClientRect().height ?? 0;
   const right = Math.min(size.x * .45, Math.max(pad, (controls?.width ?? 0) + 20));
   // Reserve the actual layer controls, native zoom buttons and bottom status without exhausting either axis.
   map.fitBounds(L.latLngBounds(points.map(p => L.latLng(p[1], p[0]))), {
-    paddingTopLeft: [Math.min(48, size.x * .15), pad], paddingBottomRight: [right, Math.min(56, size.y / 4)], maxZoom: 16, animate: false });
+    paddingTopLeft: [Math.min(48, size.x * .15), pad], paddingBottomRight: [right, Math.min(size.y * .45, Math.max(56, footerHeight + statusHeight + 16))], maxZoom: 16, animate: false });
   emit('status', 'Map fitted to the selection’s complete available geography.');
 }
 
@@ -88,10 +89,17 @@ function render(): void {
   }
 }
 onMounted(() => {
-  map = L.map(host.value!, { zoomControl: true }).setView([20, 0], 2);
-  createTripEditorTileLayer('/Public/tiles/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map);
+  map = createTripMap(host.value!);
   render(); focus();
-  observer = new ResizeObserver(() => { map?.invalidateSize({ animate: false }); focus(); }); observer.observe(host.value!);
+  // Provider credit can wrap on narrow maps; keep status and fitted geography above its actual height.
+  observer = new ResizeObserver(() => {
+    const height = map?.attributionControl.getContainer()?.getBoundingClientRect().height ?? 0;
+    host.value?.parentElement?.style.setProperty('--composition-attribution-height', `${height}px`);
+    map?.invalidateSize({ animate: false }); focus();
+  });
+  observer.observe(host.value!);
+  const attribution = map.attributionControl.getContainer();
+  if (attribution) observer.observe(attribution);
 });
 watch(() => [props.workspace.current, props.visible.a, props.visible.b, props.visible.c], render, { deep: true });
 watch(() => [props.selection?.side, props.selection?.kind, props.selection?.id, props.counterpart], () => { render(); focus(); });

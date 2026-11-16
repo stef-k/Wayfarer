@@ -886,7 +886,11 @@ public partial class TripsController : BaseApiController
 
         try
         {
-            var clone = await _tripCloneCoordinator.CloneAsync(id, user.Id);
+            var authority = IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext);
+            var clone = await _tripCloneCoordinator.CloneAsync(id, user.Id, HttpContext.RequestAborted,
+                token => authority.RevalidateMutationAsync(HttpContext, user.Id, token));
+            if (clone.Status == TripCloneStatus.Unauthorized)
+                return Unauthorized("Missing or invalid API token.");
             if (clone.Status == TripCloneStatus.NotFound)
                 return NotFound(new { error = "Trip not found" });
             if (clone.Status == TripCloneStatus.NotPublic)

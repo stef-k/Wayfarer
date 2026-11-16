@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services.LocationProviders;
@@ -23,6 +24,8 @@ public enum TripCloneStatus
     NotPublic,
     /// <summary>The destination user already owns the source Trip.</summary>
     AlreadyOwned,
+    /// <summary>The incoming bearer credential is no longer valid at acquisition.</summary>
+    Unauthorized,
     /// <summary>The complete private clone committed successfully.</summary>
     Succeeded
 }
@@ -34,7 +37,8 @@ public sealed partial class TripCloneCoordinator(ApplicationDbContext dbContext)
     public async Task<TripCloneResult> CloneAsync(
         Guid sourceTripId,
         string destinationUserId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<CancellationToken, Task<bool>>? credential = null)
     {
         var sourceOwner = await dbContext.Trips.AsNoTracking().Where(t => t.Id == sourceTripId).Select(t => t.UserId).SingleOrDefaultAsync(cancellationToken);
         await using var transaction = dbContext.Database.IsRelational()
@@ -58,6 +62,19 @@ public sealed partial class TripCloneCoordinator(ApplicationDbContext dbContext)
             if (transaction != null)
                 await dbContext.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {sourceTripId} FOR SHARE")
                     .AsNoTracking().ToListAsync(cancellationToken);
+            if (credential != null)
+            {
+                try
+                {
+                    // The incoming token row stays locked through commit, just as in other acquisitions.
+                    if (!await credential(cancellationToken)) return new(TripCloneStatus.Unauthorized);
+                }
+                catch (Exception error) when (error.GetBaseException() is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure })
+                {
+                    // A token changed/deleted since this RepeatableRead snapshot cannot authorize capture.
+                    return new(TripCloneStatus.Unauthorized);
+                }
+            }
             var source = await LoadSourceAsync(sourceTripId, cancellationToken);
             if (source == null) return new(TripCloneStatus.NotFound);
             if (!source.IsPublic) return new(TripCloneStatus.NotPublic);

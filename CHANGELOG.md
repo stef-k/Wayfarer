@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+- Preserve host handling of aborted invitation reads without a synthetic warning or
+  validation error. Read public Trip graphs and permitted visit progress in one
+  bounded snapshot with split queries, retaining complete content and privacy
+  while avoiding independent collection joins. No database migration.
+
+- Share the Trip Editor base-map setup with full composition and lightweight Copy,
+  retaining project branding, accessible attribution labels, server-resolved provider
+  credit and tile retry/concurrency. Keep wrapped credit, comparison status and
+  fitted selection geography clear on narrow maps. No database migration.
+
+- Make #911 complete-route adoption readable in composition and Copy: show saved
+  duration beside distance/source, preserve unavailable versus zero and fractional
+  values, and identify changed profile/provenance facts with compact details.
+  Transfer narrow-screen source-selection focus to the visible selected inspector
+  context before candidate replies, retaining source navigation and independent drafts.
+
+- Correct #911 assembled Clone/native boundaries: revalidate the incoming bearer
+  credential after acquisition waits and retain its barrier through commit;
+  preserve type-scoped UUID identities through native parsing, mapping and reviewed
+  replacement ownership checks; normalize native CreateNew sibling orders from
+  the visible source sequence before fresh IDs replace tie-breakers. Keep source
+  graphs/files and ordinary replacement identities/order unchanged. No migration.
+
 - Add #911 lightweight Copy to existing Trip from My Trips, the editor and eligible
   source viewers. Reuse shared copy/adoption, placement, lifecycle and route cores
   for atomic selected content/dependencies/credits in an existing owned destination,
