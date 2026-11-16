@@ -89,10 +89,14 @@ public sealed partial class TripCompositionHttpPostgresTests
             FromPlaceId = place.Id, ToPlaceId = null, EstimatedDurationSource = EstimatedDurationSource.Manual, EstimatedDuration = TimeSpan.FromTicks(12345670), EstimatedDistanceKm = 1.23456789 };
         source.Segments.Add(route); fixture.RegisterTrip(source.Id);
         await using var db = fixture.CreateContext(); db.AddRange(source, new ApiToken { UserId = owner.Id, User = await db.Users.SingleAsync(u => u.Id == owner.Id), Token = owner.Id, Name = "native" }); await db.SaveChangesAsync();
+        // Both derived effects can fail after a known commit without changing the saved result.
+        var thumbnails = new Mock<ITripMapThumbnailGenerator>(); var warmup = new Mock<ICacheWarmupScheduler>();
+        thumbnails.Setup(t => t.InvalidateThumbnails(It.IsAny<Guid>(), It.IsAny<DateTime>())).Throws(new InvalidOperationException("Thumbnail unavailable"));
+        warmup.Setup(t => t.ScheduleWarmupAsync(It.IsAny<Guid>())).ThrowsAsync(new InvalidOperationException("Warmup unavailable"));
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
             services.AddScoped(_ => fixture.CreateContext()); services.AddSingleton<IDbContextFactory<ApplicationDbContext>>(new Factory(fixture)); services.AddSingleton(Mock.Of<IIconColorProvider>());
-            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>()); services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+            services.AddSingleton(thumbnails.Object); services.AddSingleton(warmup.Object);
         });
         using var cookie = app.GetTestClient(); UserConnectionTokenHttpTests.Cookie(cookie, app.Services, owner.Id);
         using var denied = await cookie.GetAsync($"/api/trips/{source.Id}/native?includePrivatePlanning=true"); Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
@@ -106,6 +110,9 @@ public sealed partial class TripCompositionHttpPostgresTests
         using var imported = await mobile.PostAsync("/api/trips/native/import", Upload(xml, "CreateNew"));
         Assert.True(imported.StatusCode == HttpStatusCode.OK, await imported.Content.ReadAsStringAsync());
         var result = await imported.Content.ReadFromJsonAsync<JsonElement>(); var id = result.GetProperty("tripId").GetGuid(); fixture.RegisterTrip(id);
+        Assert.True(result.GetProperty("currentAvailable").GetBoolean());
+        thumbnails.Verify(t => t.InvalidateThumbnails(id, It.IsAny<DateTime>()), Times.Once);
+        warmup.Verify(t => t.ScheduleWarmupAsync(id), Times.Once);
         Assert.NotEqual(source.Id, id);
         var saved = await db.Trips.AsNoTracking().Include(t => t.Regions).ThenInclude(r => r.Places).Include(t => t.Segments).SingleAsync(t => t.Id == id);
         Assert.False(saved.IsPublic); Assert.Null(saved.ContributionPolicy); Assert.Equal(source.Credits, saved.Credits);

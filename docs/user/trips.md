@@ -492,7 +492,9 @@ Review the source geography and destination on the preview map. Each selected it
 has an explicit copy/reuse choice, original/custom name, destination container,
 and **Append**, **At start** or **After selection** position. Select a counterpart
 to keep its identity and adopt only named fields; unselected fields Keep. A Region
-can include individually reviewed direct Places/Areas. A Segment requires approval
+can include individually reviewed direct Places/Areas with their own Notes, style,
+address/location and applicable field controls, including explicit own planning.
+Selecting a child in that scope edits the same choice. A Segment requires approval
 for every missing From/To/Via Place; a Place already selected in the block can be
 shared in its reviewed container. Reused objects do not move. Mixed lists keep
 separate positions; new siblings form a block in displayed order.
@@ -506,6 +508,10 @@ media is omitted with feedback, and cannot be rehosted merely because it is view
 
 A refusal keeps local choices. **Refresh and review current values** explicitly
 renews reviewed originals; it never silently changes a destination or placement.
+Changing the source/destination pair requires confirmation to replace its choices.
+If you edit, select or expand content during that confirmation or preview wait,
+the earlier review stays intact in its original context; preview again and confirm
+replacement when ready. Its destination originals never transfer to the new Trip.
 Later selections/typing remain unsaved when an earlier action succeeds. A connection
 failure means the save could not be confirmed: use **Edit / inspect destination
 Trip** before trying again. Do not blindly resubmit. Successful content changes are

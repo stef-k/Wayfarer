@@ -1773,12 +1773,18 @@ Native bearer transport shares strict version/classification, mapper, review pro
 and importer with Web. Generic KML is explicitly refused on the new native endpoint;
 the existing Web generic/Google importer remains supported. Native v1–v5 retain their
 established semantics; all new output is v5. Auto returns ordinary `status: duplicate`
-for an owned duplicate; CreateNew remaps graph/planning IDs into a private Trip;
+for an owned duplicate only after current active-owner and incoming-credential checks
+following the account wait; CreateNew remaps graph/planning IDs into a private Trip;
 Upsert requires current owned-target review. Review returns `review.token` and
 per-row choices; send the selected choice tokens in multipart `choices`. Empty
 choices retain protected fields by default, rather than consent to loss. Echo the
 same file bytes and review token. Successful import returns `status: success`,
-`tripId`, `notices`; refusal is atomic. A lost response requires inspection.
+`tripId`, `notices`, `currentAvailable` and `detail`. `currentAvailable` describes
+the post-commit inspection: true for an available destination, false if it has
+already disappeared, null if inspection failed. Each preserves the known saved
+fact; later inspection/thumbnail/warmup failures never become validation refusals.
+Validation refusal before commit is atomic. A genuinely uncertain commit or lost
+response requires inspection, without automatic import retry.
 
 Shared synthetic fixtures live in `tests/Wayfarer.Tests/Fixtures/Trips/`:
 `cross-client-owner.json` (the format-1 owned copy/composition projection, with

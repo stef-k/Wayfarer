@@ -269,7 +269,7 @@ watch(() => state.view.collapsed, cancelResize);
                 <button type="button" :disabled="index === 0" @click="[draft.items[index - 1], draft.items[index]] = [draft.items[index], draft.items[index - 1]]">Move up in block</button>
                 <button type="button" :disabled="index === draft.items.length - 1" @click="[draft.items[index], draft.items[index + 1]] = [draft.items[index + 1], draft.items[index]]">Move down in block</button>
               </p>
-              <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" />
+              <ChoiceControls :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" />
               <FieldChoices v-if="item.decision === 'copy' || item.decision === 'reuse' && find(draft.baseline, item.kind, item.destinationId)" :workspace="state.workspace" :review="draft" :choice="item" :editor-url="editUrl" :options="options" />
               <button v-if="state.view.blockMode" type="button" @click="draft.items.splice(index, 1)">Remove from local block</button>
             </template>

@@ -12,6 +12,11 @@
   transport through the existing codecs/importer; document field precision and
   presence/Clear semantics. No database migration. Mobile implementation and both
   final assembled-feature acceptance reviews remain separately owned.
+  Recheck native duplicate authority after account waits and retain known committed
+  success when current inspection or derived effects fail. Bind copy-pair replacement
+  consent to the confirmed choices, retaining newer input in its original context.
+  Expose selected fields and explicit own planning for nested Region children without
+  submitting a second top-level child choice.
 
 - Add #911 integrated Web Layout B and My Trips composition entry/resume. Create
   ordinary independent versions, deliberately start/continue a source pair, review

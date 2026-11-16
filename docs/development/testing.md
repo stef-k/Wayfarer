@@ -840,5 +840,11 @@ copy/native routes, redaction and freshness. Run the exhaustive
 to these endpoints; copy originals are unsigned content hashes and add no protection
 purpose. The component/model cases in `tests/client/composition*.test.mjs` mount the
 actual lightweight owner across newer typing, selection, destination changes and
-refusals. The managed `--grep 'Batch 5 copy'` selection is one concise rendered
+refusals, including pair replacement during confirmation/preview and nested child
+copy/reuse/own-planning controls with one submitted identity. Native duplicate tests
+wait on the actual account fence before deactivation/credential revocation. The
+routed post-commit case independently observes a committed import and deletes it
+through ordinary lifecycle deletion before the adapter replies; saved remains saved.
+These changed interactions have mounted component/relational proof. The managed
+`--grep 'Batch 5 copy'` selection is one concise rendered
 copy-to-existing journey; it does not repeat Layout B/native zoom qualification.
