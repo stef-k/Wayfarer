@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- Make #911 complete-route adoption readable in composition and Copy: show saved
+  duration beside distance/source, preserve unavailable versus zero and fractional
+  values, and identify changed profile/provenance facts with compact details.
+  Transfer narrow-screen source-selection focus to the visible selected inspector
+  context before candidate replies, retaining source navigation and independent drafts.
+
 - Correct #911 assembled Clone/native boundaries: revalidate the incoming bearer
   credential after acquisition waits and retain its barrier through commit;
   preserve type-scoped UUID identities through native parsing, mapping and reviewed

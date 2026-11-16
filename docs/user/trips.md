@@ -435,6 +435,17 @@ value. Location, names, Notes, styling, planning and route intent stay independe
 copying a child does not adopt unrelated Trip metadata. Own B planning is an
 explicit choice. Another person's planning is never shown or inferred.
 
+The complete-route comparison shows the saved distance, duration and duration
+source for the source idea, reviewed original C and current C. Missing estimates
+remain unavailable; zero is displayed as zero. Expand **Saved profile & provenance**
+for retained provider/profile evidence. Difference labels identify changed saved
+facts; From/Via/To dependencies still require their own explicit review, even when
+the saved measurements agree. Copying never recalculates an estimate.
+
+On a narrow screen, activating a source row opens the inspector at its selected
+heading with visible keyboard focus. **Source A** / **Source B** return to the
+retained source hierarchy; switching sections preserves selection and local drafts.
+
 For a Segment, approve every From/To/ordered Via dependency. Choose current C
 Places or explicitly approve separate source-coordinate Places and their Regions.
 To customise a new dependency's name or fields in the same atomic action, include

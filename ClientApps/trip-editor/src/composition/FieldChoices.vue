@@ -55,9 +55,12 @@ function savedDuration(ticks: unknown): string {
 function describeRoute(value: unknown): string {
   const r = value as Record<string, unknown>;
   const mode = props.options?.transportModes.find(m => m.value === r.mode)?.label ?? r.mode ?? 'No mode';
-  return [`${mode} · ${r.routeJson ? 'Saved custom geometry' : 'Anchor fallback'}`,
-    `${r.estimatedDistanceKm == null ? 'Distance unavailable' : `${r.estimatedDistanceKm} km`} · ${savedDuration(r.estimatedDurationTicks)} · ${r.estimatedDurationSource || 'Unknown'} duration`,
-    `Transport profile: ${r.transportProfileId ? 'Saved profile' : 'Not set'}`,
+  return `${mode} · ${r.routeJson ? 'Saved custom geometry' : 'Anchor fallback'} · ${r.estimatedDistanceKm == null ? 'Distance unavailable' : `${r.estimatedDistanceKm} km`} · ${savedDuration(r.estimatedDurationTicks)} · ${r.estimatedDurationSource || 'Unknown'} duration`;
+}
+/** Secondary retained evidence is available without crowding the measurement comparison. */
+function routeDetails(value: unknown): string {
+  const r = value as Record<string, unknown>;
+  return [`Transport profile: ${r.transportProfileId ? 'Saved profile' : 'Not set'}`,
     `Provider: ${r.routeProvider || 'Not set'}; settings: ${r.routeProviderConfigurationId ? 'Recorded' : 'Not set'}; version: ${r.routeProviderConfigurationVersion ?? 'Not set'}`,
     `Routed profile: ${r.routeTransportProfileId ? 'Recorded' : 'Not set'}; routing mode: ${r.routeMappingMode || 'Not set'}`,
     `Generated: ${r.routeGeneratedAt || 'Not set'}; storage: ${r.routeStorageMode || 'Not set'}`,
@@ -115,15 +118,18 @@ function comparison(key: string, value: unknown): string {
         <div><strong>Source {{ review.side.toUpperCase() }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(captured(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, captured(key)) }}</p>
+          <details v-if="key === 'route'"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(captured(key)) }}</p></details>
         </div>
         <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Reviewed original {{ destinationName }} · {{ comparison(key, original(key)) }}</strong>
           <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(original(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
           <p v-else>{{ describe(key, original(key)) }}</p>
+          <details v-if="key === 'route' && original(key)"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(original(key)) }}</p></details>
         </div>
         <div v-if="choice.decision === 'reuse' && choice.destinationId"><strong>Current {{ destinationName }} · {{ hasCurrent ? comparison(key, currentValue(key)) : 'Counterpart unavailable' }}</strong>
           <template v-if="hasCurrent">
             <div v-if="key === 'notes'" class="composition-note" v-html="placeNotesPreviewHtml(String(currentValue(key) ?? ''), Number.MAX_SAFE_INTEGER)"></div>
             <p v-else>{{ describe(key, currentValue(key)) }}</p>
+            <details v-if="key === 'route'"><summary>Saved profile &amp; provenance</summary><p>{{ routeDetails(currentValue(key)) }}</p></details>
           </template>
           <p v-if="changedSinceReview(key)">Current {{ destinationName }} changed since this review. Your choices and reviewed originals are retained. Use the refresh / review control to review the change explicitly.</p>
         </div>
