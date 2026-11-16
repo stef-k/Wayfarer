@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Correct #911 assembled Clone/native boundaries: revalidate the incoming bearer
+  credential after acquisition waits and retain its barrier through commit;
+  preserve type-scoped UUID identities through native parsing, mapping and reviewed
+  replacement ownership checks; normalize native CreateNew sibling orders from
+  the visible source sequence before fresh IDs replace tie-breakers. Keep source
+  graphs/files and ordinary replacement identities/order unchanged. No migration.
+
 - Add #911 lightweight Copy to existing Trip from My Trips, the editor and eligible
   source viewers. Reuse shared copy/adoption, placement, lifecycle and route cores
   for atomic selected content/dependencies/credits in an existing owned destination,

@@ -110,6 +110,7 @@ public static partial class WayfarerKmlParser
         var regions = owner.Elements(Kml + "Folder").Where(folder => !IsSegmentContainer(folder))
             .Select(folder => ParseRegion(folder, version, tripId)).ToArray();
         EnsureUnique(regions.Select(region => region.Id), "Region");
+        EnsureUnique(regions.SelectMany(region => region.Places).Select(place => place.Id), "Place");
         EnsureUnique(regions.SelectMany(region => region.Areas).Select(area => area.Id), "Area");
         var segmentsFolder = owner.Elements(Kml + "Folder").SingleOrDefault(IsSegmentContainer);
         var segments = segmentsFolder?.Elements(Kml + "Placemark")

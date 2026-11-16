@@ -67,7 +67,7 @@ public static partial class WayfarerKmlParser
             _ = RequiredScalar(document, "Credits");
             _ = RequiredScalar(document, "ContentReuse");
         }
-        HashSet<Guid> identities = [];
+        HashSet<(string Kind, Guid Id)> identities = [];
         foreach (var owner in document.DescendantsAndSelf().Where(e => e == document || e.Name == Kml + "Folder" || e.Name == Kml + "Placemark"))
         {
             var kind = NativeOwnerKind(owner, document);
@@ -81,7 +81,7 @@ public static partial class WayfarerKmlParser
             if (data.Keys.Any(key => key != "Planning" && !fields[kind].Contains(key)))
                 throw new FormatException("Unsupported native metadata field.");
             var idKey = char.ToUpperInvariant(kind[0]) + kind[1..] + "Id";
-            if (!identities.Add(RequiredGuid(owner, idKey))) throw new FormatException("Ambiguous native identity.");
+            if (!identities.Add((kind, RequiredGuid(owner, idKey)))) throw new FormatException("Ambiguous native identity.");
             if (owner.Elements(Kml + "name").Count() > 1 || owner.Elements().Count(e => e.Name == Kml + "Point"
                 || e.Name == Kml + "Polygon" || e.Name == Kml + "LineString") > 1)
                 throw new FormatException("Ambiguous native content.");

@@ -98,6 +98,22 @@ public sealed class NativeKmlV5Tests
         }
     }
 
+    /// <summary>The mapper independently respects typed keys even when its transport was already classified.</summary>
+    [Fact]
+    public void TypedIdentityTransportSurvivesDirectMapper()
+    {
+        var trip = new Trip { Id = Guid.NewGuid(), Name = "Typed mapper" };
+        var region = new Region { Id = Guid.NewGuid(), TripId = trip.Id, Name = "Region" };
+        region.Places.Add(new Place { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Place" });
+        trip.Regions.Add(region);
+        var parsed = WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(
+            TripWayfarerKmlExporter.BuildKml(trip)))).Document!;
+        var typed = parsed with { Regions = [parsed.Regions.Single() with { Id = parsed.TripId,
+            Places = [parsed.Regions.Single().Places.Single() with { Id = parsed.TripId }] }] };
+        var mapped = WayfarerKmlAggregateMapper.Map(typed, "reviewer", new Dictionary<string, TransportProfile>(), true);
+        Assert.Single(mapped.Regions.Single().Places);
+    }
+
     private static WayfarerKmlClassification Parse(string xml) =>
         WayfarerKmlParser.ClassifyAndParse(new MemoryStream(Encoding.UTF8.GetBytes(xml)));
 }

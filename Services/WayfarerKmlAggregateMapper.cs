@@ -15,17 +15,19 @@ internal static class WayfarerKmlAggregateMapper
         bool remapIdentities,
         Guid? targetTripId = null)
     {
-        var identities = new[] { source.TripId }.Concat(source.Regions.Select(r => r.Id))
-            .Concat(source.Regions.SelectMany(r => r.Places).Select(p => p.Id))
-            .Concat(source.Regions.SelectMany(r => r.Areas).Select(a => a.Id)).Concat(source.Segments.Select(s => s.Id)).ToArray();
-        if (identities.Any(id => id == Guid.Empty) || identities.Distinct().Count() != identities.Length
-            || source.Regions.Count(r => r.Name == "Unassigned Places") > 1)
+        if (source.TripId == Guid.Empty || source.Regions.Count(r => r.Name == "Unassigned Places") > 1)
             throw new TripImportValidationException("The native graph contains ambiguous identities or Regions.");
         var tripId = targetTripId ?? (remapIdentities ? Guid.NewGuid() : source.TripId);
         var regionIds = MapIds(source.Regions.Select(region => region.Id), remapIdentities, "Region");
         var sourcePlaces = source.Regions.SelectMany(region => region.Places).ToArray();
         var placeIds = MapIds(sourcePlaces.Select(place => place.Id), remapIdentities, "Place");
+        var areaIds = MapIds(source.Regions.SelectMany(r => r.Areas).Select(a => a.Id), remapIdentities, "Area");
         var segmentIds = MapIds(source.Segments.Select(segment => segment.Id), remapIdentities, "Segment");
+        // Capture source-visible tie breakers before independently remapping identities. Replacement keeps raw orders.
+        var regionOrder = source.Regions.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id)
+            .Select((r, i) => (r.Id, Order: i)).ToDictionary(r => r.Id, r => r.Order);
+        var segmentOrder = source.Segments.OrderBy(s => s.DisplayOrder).ThenBy(s => s.Id)
+            .Select((s, i) => (s.Id, Order: i)).ToDictionary(s => s.Id, s => s.Order);
         var trip = new Trip
         {
             Id = tripId,
@@ -49,17 +51,23 @@ internal static class WayfarerKmlAggregateMapper
             var region = new Region
             {
                 Id = regionIds[sourceRegion.Id], TripId = tripId, UserId = userId, Name = sourceRegion.Name,
-                DisplayOrder = sourceRegion.DisplayOrder, Notes = sourceRegion.Notes, Center = Copy(sourceRegion.Center),
+                DisplayOrder = remapIdentities ? regionOrder[sourceRegion.Id] : sourceRegion.DisplayOrder,
+                Notes = sourceRegion.Notes, Center = Copy(sourceRegion.Center),
                 CoverImageUrl = sourceRegion.CoverImageUrl,
                 Planning = CopyPlanning(sourceRegion.Planning, remapIdentities)
             };
             trip.Regions.Add(region);
+            var placeOrder = sourceRegion.Places.OrderBy(p => p.DisplayOrder.HasValue ? 0 : 1).ThenBy(p => p.DisplayOrder).ThenBy(p => p.Id)
+                .Select((p, i) => (p.Id, Order: i)).ToDictionary(p => p.Id, p => p.Order);
+            var areaOrder = sourceRegion.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).ThenBy(a => a.Id)
+                .Select((a, i) => (a.Id, Order: i)).ToDictionary(a => a.Id, a => a.Order);
             foreach (var sourcePlace in sourceRegion.Places)
             {
                 var place = new Place
                 {
                     Id = placeIds[sourcePlace.Id], RegionId = region.Id, Region = region, UserId = userId,
-                    Name = sourcePlace.Name, DisplayOrder = sourcePlace.DisplayOrder, Notes = sourcePlace.Notes,
+                    Name = sourcePlace.Name, DisplayOrder = remapIdentities ? placeOrder[sourcePlace.Id] : sourcePlace.DisplayOrder,
+                    Notes = sourcePlace.Notes,
                     IconName = sourcePlace.IconName, MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address,
                     ResolvedFeatureName = sourcePlace.ResolvedFeatureName, ResolvedFeatureType = sourcePlace.ResolvedFeatureType,
                     AddressEnrichmentProvider = sourcePlace.AddressEnrichmentProvider,
@@ -74,10 +82,10 @@ internal static class WayfarerKmlAggregateMapper
             foreach (var sourceArea in sourceRegion.Areas)
                 region.Areas.Add(new Area
                 {
-                    Id = remapIdentities ? Guid.NewGuid() : sourceArea.Id,
+                    Id = areaIds[sourceArea.Id],
                     RegionId = region.Id,
                     Name = sourceArea.Name,
-                    DisplayOrder = sourceArea.DisplayOrder,
+                    DisplayOrder = remapIdentities ? areaOrder[sourceArea.Id] : sourceArea.DisplayOrder,
                     Notes = sourceArea.Notes,
                     FillHex = sourceArea.FillHex,
                     Planning = CopyPlanning(sourceArea.Planning, remapIdentities),
@@ -112,7 +120,7 @@ internal static class WayfarerKmlAggregateMapper
                 EstimatedDuration = source.Version is 3 or 4 or 5 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
                     ? sourceSegment.Duration : null,
                 EstimatedDurationSource = sourceSegment.DurationSource,
-                DisplayOrder = sourceSegment.DisplayOrder,
+                DisplayOrder = remapIdentities ? segmentOrder[sourceSegment.Id] : sourceSegment.DisplayOrder,
                 Notes = sourceSegment.Notes,
                 Planning = CopyPlanning(sourceSegment.Planning, remapIdentities)
             };

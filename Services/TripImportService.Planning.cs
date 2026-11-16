@@ -92,14 +92,14 @@ public partial class TripImportService
     /// <summary>Uploaded identities may retain only same-type objects already belonging to this owned Trip.</summary>
     private async Task ValidateReplacementIdentitiesAsync(Trip incoming, CancellationToken token)
     {
-        var targets = NativeTripGraph.Targets(incoming).ToDictionary(t => t.Id, t => t.Kind);
-        var ids = targets.Keys.ToArray();
+        var targets = NativeTripGraph.Targets(incoming).Select(t => (t.Kind, t.Id)).ToHashSet();
+        var ids = targets.Select(t => t.Id).Distinct().ToArray();
         var stored = await _dbContext.Trips.Where(t => ids.Contains(t.Id)).Select(t => new { t.Id, TripId = t.Id, Kind = "trip" }).ToListAsync(token);
         stored.AddRange(await _dbContext.Regions.Where(r => ids.Contains(r.Id)).Select(r => new { r.Id, r.TripId, Kind = "region" }).ToListAsync(token));
         stored.AddRange(await _dbContext.Places.Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Region.TripId, Kind = "place" }).ToListAsync(token));
         stored.AddRange(await _dbContext.Areas.Where(a => ids.Contains(a.Id)).Select(a => new { a.Id, a.Region.TripId, Kind = "area" }).ToListAsync(token));
         stored.AddRange(await _dbContext.Segments.Where(s => ids.Contains(s.Id)).Select(s => new { s.Id, s.TripId, Kind = "segment" }).ToListAsync(token));
-        if (stored.Any(item => item.TripId != incoming.Id || item.Kind != targets[item.Id]))
+        if (stored.Any(item => targets.Contains((item.Kind, item.Id)) && item.TripId != incoming.Id))
             throw new TripImportValidationException("The imported identities cannot be applied to this Trip.");
     }
 

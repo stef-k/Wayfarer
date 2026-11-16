@@ -69,9 +69,9 @@ public static class TripWayfarerKmlExporter
             ("CenterLat", Number(region.Center?.Y)), ("CenterLon", Number(region.Center?.X)));
         if (region.CoverImageUrl != null) AddData(folder, ("CoverImageUrl", region.CoverImageUrl));
         AddPlanning(folder, region, "region", includePrivatePlanning);
-        foreach (var place in region.Places.OrderBy(place => place.DisplayOrder).ThenBy(place => place.Id))
+        foreach (var place in region.Places.OrderBy(place => place.DisplayOrder.HasValue ? 0 : 1).ThenBy(place => place.DisplayOrder).ThenBy(place => place.Id))
             folder.Add(BuildPlace(place, region.Id, includePrivatePlanning));
-        foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Id))
+        foreach (var area in region.Areas.OrderBy(area => area.DisplayOrder).ThenBy(area => area.Name).ThenBy(area => area.Id))
             folder.Add(BuildArea(area, region.Id, includePrivatePlanning));
         return folder;
     }
