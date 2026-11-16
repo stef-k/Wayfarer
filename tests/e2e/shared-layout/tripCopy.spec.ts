@@ -138,8 +138,8 @@ test('Final 911 map conformance and G1 saved effect with route focus', async ({ 
   }
   const started = await post('/api/trip-compositions', { sourceA: a, sourceB: b, name: 'Focused correction C' });
   const composition = started.compositionId; const c = started.tripId;
+  // The normal preselected-source/destination entry loads its preview on mount.
   await page.goto(`/User/Trip/Copy?source=${b}&destination=${a}`);
-  await page.getByRole('button', { name: 'Preview copy choices', exact: true }).click();
   const copyMap = page.getByRole('region', { name: 'Source and existing destination Trip map' });
   await expect(copyMap.locator('.leaflet-overlay-pane path').first()).toBeVisible();
   observations.copyMap = await observeMap(page, copyMap); await capture('M2-lightweight-copy-attribution');
@@ -257,7 +257,10 @@ test('Final 911 map conformance and G1 saved effect with route focus', async ({ 
     // The independent item intentionally retains its old originals; explicitly review C before selecting a newly saved identity.
     await inspector.getByRole('button', { name: 'Review current C / refresh originals', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Review current originals', exact: true }).click();
+    await expect(inspector.getByLabel('Custom name', { exact: true })).toHaveValue('Reviewed lookout');
+    await expect(notes).toHaveText('Independent selected-item Notes');
     await inspector.getByLabel('Action for C', { exact: true }).selectOption('reuse');
+    await expect(inspector.getByLabel('Current C counterpart', { exact: true }).locator(`option[value="${copied[0].id}"]`)).toHaveCount(1);
     await inspector.getByLabel('Current C counterpart', { exact: true }).selectOption(copied[0].id);
     const notesField = inspector.getByRole('group', { name: 'Notes', exact: true });
     await expect(notesField.locator('.composition-differences > div').nth(2)).toContainText('Applied block child Notes');
