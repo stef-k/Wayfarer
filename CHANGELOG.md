@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Preserve host handling of aborted invitation reads without a synthetic warning or
+  validation error. Read public Trip graphs and permitted visit progress in one
+  bounded snapshot with split queries, retaining complete content and privacy
+  while avoiding independent collection joins. No database migration.
+
 - Share the Trip Editor base-map setup with full composition and lightweight Copy,
   retaining project branding, accessible attribution labels, server-resolved provider
   credit and tile retry/concurrency. Keep wrapped credit, comparison status and

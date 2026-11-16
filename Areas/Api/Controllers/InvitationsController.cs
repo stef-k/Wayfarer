@@ -80,6 +80,11 @@ public class InvitationsController : ControllerBase
 
             return Ok(payload);
         }
+        // Only a disconnected request belongs to the host; internal cancellation remains a read failure.
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to list invitations for current user");
