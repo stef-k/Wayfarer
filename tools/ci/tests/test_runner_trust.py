@@ -25,13 +25,13 @@ CONSUMERS = {
 
 def job_body(workflow, job):
     """Read one job from the repository's ordinary two-space workflow layout."""
-    return re.split(r'\n  (?=\S)', workflow.split(f'\n  {job}:\n', 1)[1], 1)[0]
+    return re.split(r'\n  (?=\S)', workflow.split(f'\n  {job}:\n', 1)[1], maxsplit=1)[0]
 
 
 def step_script(body, name):
     """Extract a shipped multiline step, retaining its executable failure behavior."""
     step = body.split(f'      - name: {name}\n', 1)[1]
-    step = re.split(r'\n      - ', step, 1)[0] + '\n'
+    step = re.split(r'\n      - ', step, maxsplit=1)[0] + '\n'
     return textwrap.dedent(re.search(r'        run: \|\n((?: {10}[^\n]*\n|\n)+)', step)[1])
 
 
