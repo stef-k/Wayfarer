@@ -8,6 +8,7 @@ namespace Wayfarer.Services;
 
 public interface IGroupTimelineService
 {
+    /// <summary>Reads current Group policy and active memberships from the same statement snapshot.</summary>
     Task<GroupTimelineAccessContext?> BuildAccessContextAsync(Guid groupId, string callerUserId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PublicLocationDto>> GetLatestLocationsAsync(GroupTimelineAccessContext context, IEnumerable<string>? includeUserIds, CancellationToken cancellationToken = default);
     /// <summary>Normalizes Mobile subjects, selects history once, then globally orders and pages selected markers.</summary>

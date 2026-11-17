@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Models.Dtos;
@@ -10,6 +11,12 @@ public class PublicLocationDto
     public int? ClusterId { get; set; }
     public DateTime Timestamp { get; set; }
     public DateTime LocalTimestamp { get; set; }
+
+    /// <summary>The persisted UTC event instant, included only in Group location responses.</summary>
+    [JsonPropertyName("eventUtc")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DateTime? EventUtc { get; internal init; }
+
     public required string Timezone { get; set; }
     public required Point Coordinates { get; set; }
     public double? Accuracy { get; set; }

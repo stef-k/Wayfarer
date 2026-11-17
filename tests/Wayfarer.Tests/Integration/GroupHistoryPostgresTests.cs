@@ -28,11 +28,117 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
     /// <summary>Fixed date and distinct captures avoid unspecified latest ties in provider fixtures.</summary>
     private static readonly DateTime CaptureDay = new(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc);
 
-    /// <summary>One/eight authorized subjects keep the measured baseline's per-subject SQL slope.</summary>
+    /// <summary>A caller admitted after peer sharing turns off cannot acquire the former ON audience.</summary>
+    [PostgresFact]
+    public async Task AudienceCannotMixPolicyBeforeChangeWithMembershipAfterJoin()
+    {
+        var (groupId, users, _) = await SeedAsync(1);
+        var peer = users[0];
+        var caller = users[1];
+        Exception? primary = null;
+        try
+        {
+            await using var writer = fixture.CreateContext();
+            var group = await writer.Groups.SingleAsync(g => g.Id == groupId);
+            group.GroupType = "Organization";
+            group.OrgPeerVisibilityEnabled = true;
+            var peerMarker = Marker(peer.Id, 1);
+            var callerMarker = Marker(caller.Id, 2);
+            peerMarker.PresenceObservedAtUtc = peerMarker.LocalTimestamp;
+            callerMarker.PresenceObservedAtUtc = callerMarker.LocalTimestamp;
+            writer.Locations.AddRange(peerMarker, callerMarker);
+            await writer.SaveChangesAsync();
+
+            var boundary = new HistoryCommands(async () =>
+            {
+                group.OrgPeerVisibilityEnabled = false;
+                await writer.SaveChangesAsync();
+                writer.GroupMembers.Add(new GroupMember { GroupId = groupId, UserId = caller.Id });
+                await writer.SaveChangesAsync();
+            });
+            await using var reader = fixture.CreateContext(boundary);
+            var timeline = CreateTimeline(reader);
+            var inFlight = Assert.IsType<GroupTimelineAccessContext>(await timeline.BuildAccessContextAsync(groupId, caller.Id));
+            if (inFlight.IsMember)
+                Assert.Empty(await timeline.GetLatestLocationsAsync(inFlight, [peer.Id]));
+            Assert.False(inFlight.IsMember);
+            Assert.Empty(inFlight.AllowedUserIds);
+            Assert.Equal(new[] { "group-audience", "settings" }, boundary.Shapes);
+
+            await using var freshReader = fixture.CreateContext();
+            var freshTimeline = CreateTimeline(freshReader);
+            var fresh = Assert.IsType<GroupTimelineAccessContext>(await freshTimeline.BuildAccessContextAsync(groupId, caller.Id));
+            Assert.Equal(caller.Id, Assert.Single(fresh.AllowedUserIds));
+            var latest = await freshTimeline.GetLatestLocationsAsync(fresh, [caller.Id, peer.Id]);
+            Assert.Equal(callerMarker.Id, Assert.Single(latest).Id);
+            var request = Request();
+            request.UserIds = [caller.Id, peer.Id];
+            var dated = await freshTimeline.QueryLocationsAsync(fresh, request);
+            Assert.Equal(callerMarker.Id, Assert.Single(dated.Results).Id);
+            Assert.Equal(1, dated.TotalItems);
+            request.Year = null;
+            var viewport = await freshTimeline.QueryLocationsAsync(fresh, request);
+            var viewportRow = Assert.Single(viewport.Results);
+            Assert.Equal(callerMarker.Id, viewportRow.Id);
+            Assert.Equal(callerMarker.LocalTimestamp, viewportRow.EventUtc);
+            Assert.Equal(1, viewport.TotalItems);
+        }
+        catch (Exception exception) { primary = exception; throw; }
+        finally { await CleanupAsync(groupId, users, primary); }
+    }
+
+    /// <summary>Joining and rejoining reveal permitted history from before each admission.</summary>
+    [PostgresFact]
+    public async Task HistoryFollowsCurrentMembershipAcrossLeaveAndRejoin()
+    {
+        var (groupId, users, _) = await SeedAsync(1);
+        var peer = users[0];
+        var caller = users[1];
+        Exception? primary = null;
+        try
+        {
+            await using var writer = fixture.CreateContext();
+            await using var reader = fixture.CreateContext();
+            var timeline = CreateTimeline(reader);
+            var request = Request();
+            request.UserIds = [peer.Id];
+            var preJoin = Marker(peer.Id, 1);
+            var membership = new GroupMember { GroupId = groupId, UserId = caller.Id, JoinedAt = CaptureDay.AddSeconds(2) };
+            writer.Locations.Add(preJoin);
+            await writer.SaveChangesAsync();
+            writer.GroupMembers.Add(membership);
+            await writer.SaveChangesAsync();
+            var joined = Assert.IsType<GroupTimelineAccessContext>(await timeline.BuildAccessContextAsync(groupId, caller.Id));
+            Assert.Equal(preJoin.Id, Assert.Single((await timeline.QueryLocationsAsync(joined, request)).Results).Id);
+
+            membership.Status = GroupMember.MembershipStatuses.Left;
+            membership.LeftAt = CaptureDay.AddSeconds(3);
+            await writer.SaveChangesAsync();
+            var duringAbsence = Marker(peer.Id, 4);
+            writer.Locations.Add(duringAbsence);
+            await writer.SaveChangesAsync();
+            var left = Assert.IsType<GroupTimelineAccessContext>(await timeline.BuildAccessContextAsync(groupId, caller.Id));
+            Assert.False(left.IsMember);
+            Assert.Empty(left.AllowedUserIds);
+
+            membership.Status = GroupMember.MembershipStatuses.Active;
+            membership.JoinedAt = CaptureDay.AddSeconds(5);
+            membership.LeftAt = null;
+            await writer.SaveChangesAsync();
+            var rejoined = Assert.IsType<GroupTimelineAccessContext>(await timeline.BuildAccessContextAsync(groupId, caller.Id));
+            var history = await timeline.QueryLocationsAsync(rejoined, request);
+            Assert.Equal(new[] { duringAbsence.Id, preJoin.Id }, history.Results.Select(row => row.Id));
+            Assert.Equal(2, history.TotalItems);
+        }
+        catch (Exception exception) { primary = exception; throw; }
+        finally { await CleanupAsync(groupId, users, primary); }
+    }
+
+    /// <summary>One/eight authorized subjects retain the per-subject SQL slope after one audience read.</summary>
     [PostgresTheory]
     [InlineData(1)]
     [InlineData(8)]
-    public async Task DateHistoryCommandCountsStayAtBaseline(int subjectCount)
+    public async Task DateHistoryUsesOneAudienceStatementAndRetainsPerSubjectCounts(int subjectCount)
     {
         var (groupId, users, token) = await SeedAsync(subjectCount);
         Exception? primary = null;
@@ -96,6 +202,7 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
             await using var seed = fixture.CreateContext();
             var locations = Enumerable.Range(0, 3001).Select(index =>
                 Marker(users[0].Id, index, index >= 2999 ? 10.002 : 10.001)).ToArray();
+            locations[^1].LocalTimestamp = locations[^1].LocalTimestamp.AddTicks(1_234_560);
             seed.Locations.AddRange(locations);
             await seed.SaveChangesAsync();
             // Verify the spatial premise through PostGIS, outside any measured action.
@@ -117,6 +224,12 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
             Assert.Equal(3, first.GetProperty("returnedItems").GetInt32());
             Assert.True(first.GetProperty("hasMore").GetBoolean());
             Assert.True(first.GetProperty("isTruncated").GetBoolean());
+            foreach (var page in new[] { web, first })
+            {
+                var newest = Assert.Single(page.GetProperty("results").EnumerateArray(),
+                    row => row.GetProperty("id").GetInt32() == locations[^1].Id);
+                Assert.Equal("2026-01-15T00:50:00.123456Z", newest.GetProperty("eventUtc").GetString());
+            }
             request.ContinuationToken = first.GetProperty("nextPageToken").GetString();
             var last = await QueryAsync(groupId, users[0].Id, token, true, request);
             Assert.Equal(expected, Ids(first).Concat(Ids(last)).Order());
@@ -157,6 +270,7 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
             await using var seed = fixture.CreateContext();
             var locations = Enumerable.Range(0, 401).Select(index =>
                 Marker(users[0].Id, index, index == 400 ? 10.05 : 10.001)).ToArray();
+            locations[^1].LocalTimestamp = locations[^1].LocalTimestamp.AddTicks(1_234_560);
             seed.Locations.AddRange(locations);
             await seed.SaveChangesAsync();
             var request = Request();
@@ -170,6 +284,7 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
                 Assert.Equal(401, result.GetProperty("totalItems").GetInt32());
                 Assert.Equal(new[] { locations[^1].Id }, Ids(result));
                 var row = Assert.Single(result.GetProperty("results").EnumerateArray());
+                Assert.Equal("2026-01-15T00:06:40.123456Z", row.GetProperty("eventUtc").GetString());
                 Assert.True(row.GetProperty("coordinates").GetProperty("longitude").GetDouble() > request.MaxLng);
                 Assert.False(row.GetProperty("isLatestLocation").GetBoolean());
                 if (mobile)
@@ -191,7 +306,7 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
     {
         await using var db = recorder is null ? fixture.CreateContext() : fixture.CreateContext(recorder);
         var http = new DefaultHttpContext();
-        var timeline = new GroupTimelineService(db, new LocationService(db), new ConfigurationBuilder().Build());
+        var timeline = CreateTimeline(db);
         IActionResult response;
         if (mobile)
         {
@@ -214,16 +329,19 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, Converters = { new PointJsonConverter() } });
     }
 
-    /// <summary>Measured baseline counts cover access/settings, history and successful bearer identity reads.</summary>
+    /// <summary>Uses the production Group reader and default paging for each independent context.</summary>
+    private static GroupTimelineService CreateTimeline(ApplicationDbContext db) =>
+        new(db, new LocationService(db), new ConfigurationBuilder().Build());
+
+    /// <summary>Measures audience, settings, history and successful bearer identity statements.</summary>
     private void AssertCommands(HistoryCommands recorder, int subjects, bool mobile, string page)
     {
         output.WriteLine($"subjects={subjects} adapter={(mobile ? "Mobile" : "Web")} page={page} total={recorder.Shapes.Count} shapes={string.Join(",", recorder.Shapes.GroupBy(s => s).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}"))}");
-        Assert.Equal(3 + 3 * subjects + (mobile ? 2 : 0), recorder.Shapes.Count);
+        Assert.Equal(2 + 3 * subjects + (mobile ? 2 : 0), recorder.Shapes.Count);
         Assert.Equal(subjects, recorder.Shapes.Count(s => s == "location-count"));
         Assert.Equal(subjects, recorder.Shapes.Count(s => s == "location-select"));
         Assert.Equal(subjects + 1, recorder.Shapes.Count(s => s == "settings"));
-        Assert.Equal(1, recorder.Shapes.Count(s => s == "group"));
-        Assert.Equal(1, recorder.Shapes.Count(s => s == "members"));
+        Assert.Equal(1, recorder.Shapes.Count(s => s == "group-audience"));
         Assert.Equal(mobile ? 2 : 0, recorder.Shapes.Count(s => s == "identity"));
     }
 
@@ -281,9 +399,9 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
         .Select(row => row.GetProperty("id").GetInt32()).ToArray();
 
     /// <summary>Per-context EF command shapes omit SQL values and cover sync/async readers and scalars.</summary>
-    private sealed class HistoryCommands : DbCommandInterceptor
+    private sealed class HistoryCommands(Func<Task>? afterGroupRead = null) : DbCommandInterceptor
     {
-        /// <summary>Only date-history actions are counted; viewport direct ADO.NET counts are excluded.</summary>
+        /// <summary>Records EF statements, excluding the viewport's direct ADO.NET count.</summary>
         public List<string> Shapes { get; } = [];
 
         /// <summary>Records synchronous reader execution.</summary>
@@ -294,6 +412,15 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
             CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         { Record(command); return ValueTask.FromResult(result); }
+
+        /// <summary>Commits the writer changes after PostgreSQL has executed the first Group read.</summary>
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
+            DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (afterGroupRead is not null && command.CommandText.Contains("\"Groups\"", StringComparison.Ordinal))
+                await afterGroupRead();
+            return result;
+        }
 
         /// <summary>Records synchronous EF scalar execution.</summary>
         public override InterceptionResult<object> ScalarExecuting(DbCommand command, CommandEventData eventData,
@@ -310,8 +437,8 @@ public sealed class GroupHistoryPostgresTests(PostgresImportTestFixture fixture,
             var sql = command.CommandText;
             Shapes.Add(sql.Contains("\"Locations\"", StringComparison.Ordinal) ? (sql.Contains("count(*)", StringComparison.OrdinalIgnoreCase) ? "location-count" : "location-select")
                 : sql.Contains("\"ApplicationSettings\"", StringComparison.Ordinal) ? "settings"
+                : sql.Contains("\"Groups\"", StringComparison.Ordinal) ? (sql.Contains("\"GroupMembers\"", StringComparison.Ordinal) ? "group-audience" : "group")
                 : sql.Contains("\"GroupMembers\"", StringComparison.Ordinal) ? "members"
-                : sql.Contains("\"Groups\"", StringComparison.Ordinal) ? "group"
                 : sql.Contains("\"ApiTokens\"", StringComparison.Ordinal) ? "identity" : "other");
         }
     }

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Add `eventUtc` to Web and bearer Group location reads so history can open the
+  selected location's UTC day. Read Group policy and active memberships together
+  before selecting or counting locations (#981). No database migration.
+
 - Select the maintained stable .NET 10 SDK for ordinary builds, nested tools,
   temporary source clones and Docker restore, allowing newer minor, feature-band
   and servicing versions without selecting a different major (#986).

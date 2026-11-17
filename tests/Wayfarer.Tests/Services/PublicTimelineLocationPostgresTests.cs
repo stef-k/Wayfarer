@@ -41,6 +41,7 @@ public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixtur
         Assert.Equal(admitted, point.IsLive);
         var json = System.Text.Json.JsonSerializer.Serialize(point,
             new System.Text.Json.JsonSerializerOptions { Converters = { new PointJsonConverter() } });
+        Assert.DoesNotContain("eventUtc", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("CoordinateOrigin", json);
         Assert.DoesNotContain("ObservedAgeAtEventMs", json);
         Assert.DoesNotContain("IdempotencyKey", json);
