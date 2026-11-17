@@ -25,13 +25,13 @@ CONSUMERS = {
 
 def job_body(workflow, job):
     """Read one job from the repository's ordinary two-space workflow layout."""
-    return re.split(r'\n  (?=\S)', workflow.split(f'\n  {job}:\n', 1)[1], 1)[0]
+    return re.split(r'\n  (?=\S)', workflow.split(f'\n  {job}:\n', 1)[1], maxsplit=1)[0]
 
 
 def step_script(body, name):
     """Extract a shipped multiline step, retaining its executable failure behavior."""
     step = body.split(f'      - name: {name}\n', 1)[1]
-    step = re.split(r'\n      - ', step, 1)[0] + '\n'
+    step = re.split(r'\n      - ', step, maxsplit=1)[0] + '\n'
     return textwrap.dedent(re.search(r'        run: \|\n((?: {10}[^\n]*\n|\n)+)', step)[1])
 
 
@@ -187,6 +187,14 @@ class RunnerTrustTests(unittest.TestCase):
 
     def test_dotnet_consumers_select_stable_major_ten(self):
         """Host setup accepts stable servicing/minors without selecting another major or previews."""
+        self.assertEqual(json.loads((ROOT / 'global.json').read_text())['sdk'], {
+            'version': '10.0.100', 'rollForward': 'latestMinor', 'allowPrerelease': False,
+        })
+        # Docker restores before copying all sources, so selection must already be present.
+        dockerfile = (ROOT / 'Dockerfile').read_text()
+        self.assertIn('!global.json', (ROOT / '.dockerignore').read_text().splitlines())
+        self.assertLess(dockerfile.index('COPY Wayfarer.csproj Version.props global.json ./'),
+                        dockerfile.index('dotnet restore Wayfarer.csproj'))
         for filename in ['tests.yml', 'application-release.yml', 'public-lifecycle-acceptance.yml']:
             workflow = (WORKFLOW.parent / filename).read_text()
             setups = re.findall(r'uses: actions/setup-dotnet@[^\n]+\n(.*?)(?=\n      -|\Z)',

@@ -3,6 +3,7 @@
 !*.cs
 !*.csproj
 !*.props
+!global.json
 !appsettings.json
 !frontend.config.yaml
 !package.json

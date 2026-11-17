@@ -24,6 +24,16 @@ Mocked/InMemory/controller tests prove their own seam. They do not automatically
 
 ## Qualified host for ordinary CI
 
+The repository-root `global.json` selects the latest installed stable .NET 10 SDK
+at or above 10.0.100, including newer minor, feature-band and servicing versions.
+It excludes previews and other majors; installing .NET 10 with setup-dotnet alone
+does not constrain CLI selection on a host with multiple SDKs. Run `dotnet --version`
+and `dotnet --list-sdks` from the checkout to record effective selection and availability.
+Ordinary CLI invocation from nested tool directories inherits this selection.
+Temporary source clones retain the file. Docker admits it explicitly and copies it
+before restore. Application target frameworks, runtime requirements and image pins
+remain separate authorities.
+
 The ordinary test job and AMD64 application-image/operator host use `ubuntu-24.04`,
 matching the maintained Noble history globalization profile. Keep host execution
 explicit: `ubuntu-latest` can change its distribution and ICU independently of the
