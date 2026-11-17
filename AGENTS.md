@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+Global development rules apply. This file adds Wayfarer-specific commands,
+validation constraints, authority and deliberate exceptions.
+
 ## Project Structure & Module Organization
 
 - ASP.NET Core MVC (.NET 10) with PostgreSQL + PostGIS.
@@ -33,9 +36,7 @@
 
 ## Coding Style & Naming Conventions
 
-- Document all code you touch or add (XML docs C#, comments Razor/JS).
-- Never create files unless absolutely necessary; prefer editing existing ones.
-- Prefer minimal services/classes/methods/variables; keep scope tight.
+- Wayfarer exception to the global documentation scope: document all code you touch or add (XML docs C#, comments Razor/JS).
 - C#: 4 spaces; PascalCase for types/properties; camelCase for locals/params; file name = primary type.
 - JS: modern style, prefer arrow functions; keep modules area‑scoped when applicable.
 
@@ -43,15 +44,12 @@
 
 - Use the existing xUnit project under `tests/Wayfarer.Tests`; name focused tests `*Tests.cs`.
 - Follow the test pyramid: pure/unit tests own algorithms and state matrices; component tests own reactive UI transitions; focused PostgreSQL tests own persistence, locking, and recovery; Playwright owns only behavior that materially requires a mounted browser.
-- Keep browser evidence proportionate: normally one critical happy-path smoke and, only when the risk warrants it, one focused negative/race observation. Do not encode exhaustive lifecycle, role, viewport, provider, or failure matrices as one uninterrupted browser workflow.
-- Prove each requirement at the lowest reliable seam. Do not repeat a state-transition matrix in Playwright when deterministic client/component tests already exercise the production state owner, or repeat persistence matrices in the browser when focused relational tests cover them.
+- Browser evidence normally covers one critical happy-path smoke and, only when the risk warrants it, one focused negative/race observation. Apply these limits to issue acceptance criteria; do not encode exhaustive lifecycle, role, viewport, provider, or failure matrices as one uninterrupted browser workflow.
 - A browser fixture, locator, host, port, timing, or setup failure is test-infrastructure evidence, not a product defect. Diagnose and correct it once, then allow at most one full rerun of the same selection. Do not perform a third environment rebuild unless the preceding run exposed a concrete product failure.
 - A missing opt-in environment variable or browser-backend attachment is not proof that PostgreSQL or Chromium is unavailable. Before reporting infrastructure as unavailable, inspect the documented persistent `wayfarer_import_tests` database, `WAYFARER_TEST_POSTGRES_CONNECTION`, installed PostgreSQL tools/service, repository provisioning scripts, Playwright caches, and version-coupled installers. Provision or repair the established reusable prerequisite when it is safe and in scope; do not stop at the first missing variable.
 - An unavailable in-app browser connector is not evidence that Chromium is unavailable. Try the in-app browser once and follow its documented troubleshooting once; if it remains unavailable, use the repository's established bundled Playwright Chromium, authenticated test convention, version-matched installer, and configured browser cache. Do not report browser evidence unavailable until both supported paths have failed, and do not create a bespoke browser harness as a substitute.
 - When browser infrastructure remains unavailable or fails again without a product counterexample, report the browser evidence as unavailable/validation debt and make the readiness decision from the remaining risk and evidence. Missing browser evidence blocks readiness only when the changed user-visible behavior cannot be credibly exercised at a lower stable seam.
-- Do not let test-harness refinement displace the production fix. If the same setup gap recurs across issues, improve or document the shared harness in a dedicated slice instead of rebuilding bespoke infrastructure inside each product issue.
-- Design issue acceptance criteria with these limits from the outset. “One uninterrupted workflow” may cover the core journey, but must not become a cross-product of every transition and failure case.
-- Run focused selections first. Run wider suites only when the touched shared seam makes wider regression plausible.
+- Address recurring Wayfarer setup gaps by improving or documenting the shared harness in a dedicated slice.
 
 ## Validation & PR Readiness
 
@@ -59,17 +57,11 @@
 - Fix actionable warnings introduced or exposed by the change before readiness. “Existing” is not a disposition: inherited warnings require correction or a linked tracker assessment of affected behavior, risk, proposed correction and ownership. Actionable deferral requires explicit maintainer acceptance; untriaged warnings preclude an unqualified readiness/PASS claim.
 - Proven-safe analyzer limitations require specific evidence and narrowly documented handling at the code boundary. Do not disable analyzers, broaden `NoWarn`, add unexplained null-forgiving operators or rearrange code to evade detection.
 - PRs, independent reviews, completion reports and merge reconciliation must disclose warning dispositions or link their durable assessment, distinguishing fresh from reused evidence. Passing tests/builds/CI do not substitute for diagnostic assessment. See [#977](https://github.com/stef-k/Wayfarer/issues/977).
-- Use the installed Code Guard skill and repository configuration after meaningful supported source or Markdown edits: `code-guard . --changed-only --json --json-mode compact`.
-- Before completion, cover the complete branch change with `code-guard . --base-ref main --ci`; outside Git, pass the exact edited files. Full scans are deliberate audits.
-- PASS continues normally. REVIEW requires inspection and a concise design justification or a genuine improvement, not automatic refactoring. FAIL, INCOMPLETE, and tool/configuration errors block completion unless an applicable explicit exception covers the finding; retain completed evidence.
-- Load only the bundled policy guidance named in `requiredPolicies`. Report accepted reviews and the final result.
+- Before completion, cover the complete branch change with `code-guard . --base-ref main --ci` using the repository configuration.
 - All six guards retain shipped thresholds. LOC above 400 triggers review; above 600 fails unless covered by the committed non-increasing allowance. Exactly 400 passes and exactly 600 reviews.
 - `.agent-tools/code-guard.loc-baseline.json` records existing files above 400 LOC at adoption. Normal analysis never updates it; explicit updates may only lower/prune allowances. Growth beyond a recorded allowance fails.
-- Never game metrics with mechanical splitting, meaningless helpers, compressed formatting, added exclusions, changed thresholds, disabled guards, or baseline changes. See [Testing](docs/development/testing.md#code-guard) for installation, exclusions, and CI behavior.
-- When validation fails, classify each failure as either a current-branch regression or an out-of-scope pre-existing/cross-slice failure.
-- Also classify fixture/environment failures separately; never convert them into product blockers without a production counterexample.
-- Fix current-branch regressions before declaring a branch PR-ready.
-- For out-of-scope failures, open or link a follow-up issue before merge, then mention that issue in PR, review, and merge notes.
+- See [Testing](docs/development/testing.md#code-guard) for Code Guard installation, exclusions, and CI behavior.
+- Resolve current-branch regressions before PR readiness. For out-of-scope pre-existing/cross-slice failures, open or link a follow-up issue before merge, then mention that issue in PR, review, and merge notes.
 - Do not claim the full suite is green until the follow-up is fixed and the full suite has been rerun successfully.
 - A focused slice may proceed with explicitly reported validation debt when the product risk is already covered proportionately at stable lower seams; user approval is required only when the remaining untested risk is material, not merely because a disposable browser harness failed.
 
@@ -81,7 +73,7 @@
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
 - Configure protected integration branches with `ci-gate` as the required status check, replacing the legacy `test` requirement.
-- The GitHub Actions `ci-gate` check on the current PR head is necessary merge evidence; it verifies the one exact-diff classification and every selected evidence job. Green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
+- The GitHub Actions `ci-gate` check and every expected evidence job must succeed at the exact current PR head before merge; the gate verifies the one exact-diff classification and every selected evidence job. Observe CI under the global Remote CI observation policy, including its source/run binding, complete-check verification, bounded watcher/fallback and stricter task limits. Expiry leaves CI pending/unqualified and never waives the merge gate; observation grants no new dispatch, rerun, cancellation, merge or closure authority. Do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
 - The implementation agent must stop with the PR unmerged and the implementation issue open after reporting the exact PR head SHA, validation evidence, Code Guard result, and known debt. It must not merge its own PR or close its issue as completed.
 - The exact PR head must receive a recorded independent technical review separate from implementation before merge. When available, a fresh Codex instance performs this detailed review, with focused validation at the exact live GitHub head; Codex also owns investigation, implementation, fixes and technical verification. ChatGPT coordinates work and adjudicates findings at a high level; the maintainer retains final merge authority. If an independent Codex review is unavailable, the maintainer must explicitly authorize an alternative independent review. Implementation-time self-review, a subagent of the implementer or an unrecorded internal review cannot substitute for this gate.
 - Any commit after independent review invalidates that review. Re-run proportionate validation/CI and independently review the new exact head before merge.
