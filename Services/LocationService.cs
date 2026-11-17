@@ -16,12 +16,15 @@ namespace Wayfarer.Parsers
         public LocationService(ApplicationDbContext dbContext)
             => _dbContext = dbContext;
 
-        /// <summary>Applies optional public eligibility before the existing viewport and zoom sampling.</summary>
+        /// <summary>
+        /// Applies optional public eligibility before viewport and zoom sampling.
+        /// Group readers can opt into the persisted UTC event clock in each marker.
+        /// </summary>
         public async Task<(List<PublicLocationDto> Locations, int TotalItems)> GetLocationsAsync(
             double minLongitude, double minLatitude,
             double maxLongitude, double maxLatitude,
             double zoomLevel, string userId, CancellationToken cancellationToken,
-            PublicTimelineLocationProjection? publicProjection = null)
+            PublicTimelineLocationProjection? publicProjection = null, bool includeEventUtc = false)
         {
             var locationSource = publicProjection is null ? "\"public\".\"Locations\""
                 : PublicTimelineLocationProjection.SourceSql + " AS public_locations";
@@ -93,27 +96,7 @@ namespace Wayfarer.Parsers
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
 
-                var dtos = allLocations.Select(l => new PublicLocationDto
-                {
-                    Id = l.Id,
-                    Coordinates = l.Coordinates,
-                    Timestamp = l.Timestamp,
-                    LocalTimestamp = CoordinateTimeZoneConverter
-                        .ConvertUtcToLocal(
-                            l.Coordinates.Y,
-                            l.Coordinates.X,
-                            DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                    Timezone = l.TimeZoneId,
-                    Accuracy = l.Accuracy,
-                    Altitude = l.Altitude,
-                    Speed = l.Speed,
-                    LocationType = l.LocationType,
-                    ActivityType = l.ActivityType?.Name ?? "Unknown",
-                    ActivityTypeId = l.ActivityTypeId,
-                    Notes = RichNotes.Normalize(l.Notes),
-                    IsLatestLocation = false,
-                    LocationTimeThresholdMinutes = locationTimeThreshold
-                }.WithAddress(l)).ToList();
+                var dtos = allLocations.Select(l => MapLocation(l, locationTimeThreshold, false, includeEventUtc)).ToList();
 
                 return (dtos, totalItems);
             }
@@ -249,27 +232,7 @@ namespace Wayfarer.Parsers
                 locations = SampleLocationsByQuadrants(locations, quads, zoomLevel).ToList();
             }
 
-            var resultDtos = locations.Select(l => new PublicLocationDto
-            {
-                Id = l.Id,
-                Coordinates = l.Coordinates,
-                Timestamp = l.Timestamp,
-                LocalTimestamp = CoordinateTimeZoneConverter
-                    .ConvertUtcToLocal(
-                        l.Coordinates.Y,
-                        l.Coordinates.X,
-                        DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                Timezone = l.TimeZoneId,
-                Accuracy = l.Accuracy,
-                Altitude = l.Altitude,
-                Speed = l.Speed,
-                LocationType = l.LocationType,
-                ActivityType = l.ActivityType?.Name ?? "Unknown",
-                ActivityTypeId = l.ActivityTypeId,
-                Notes = RichNotes.Normalize(l.Notes),
-                IsLatestLocation = false,
-                LocationTimeThresholdMinutes = locationTimeThreshold
-            }.WithAddress(l)).ToList();
+            var resultDtos = locations.Select(l => MapLocation(l, locationTimeThreshold, false, includeEventUtc)).ToList();
 
             return (resultDtos, totalItems);
         }
@@ -381,10 +344,11 @@ namespace Wayfarer.Parsers
         /// <param name="month">Month to filter (1-12, required if dateType is "month" or "day")</param>
         /// <param name="day">Day to filter (1-31, required if dateType is "day")</param>
         /// <param name="cancellationToken">Cancellation token</param>
+        /// <param name="includeEventUtc">Include the persisted UTC event clock for Group markers.</param>
         /// <returns>List of locations and total count</returns>
         public async Task<(List<PublicLocationDto> Locations, int TotalItems)> GetLocationsByDateAsync(
             string userId, string dateType, int year, int? month = null, int? day = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default, bool includeEventUtc = false)
         {
             // Load settings
             var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync(cancellationToken);
@@ -441,27 +405,7 @@ namespace Wayfarer.Parsers
                     ? dayLocations.OrderByDescending(l => l.LocalTimestamp).First().Id
                     : null;
 
-                var dayDtos = dayLocations.Select(l => new PublicLocationDto
-                {
-                    Id = l.Id,
-                    Coordinates = l.Coordinates,
-                    Timestamp = l.Timestamp,
-                    LocalTimestamp = CoordinateTimeZoneConverter
-                        .ConvertUtcToLocal(
-                            l.Coordinates.Y,
-                            l.Coordinates.X,
-                            DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                    Timezone = l.TimeZoneId,
-                    Accuracy = l.Accuracy,
-                    Altitude = l.Altitude,
-                    Speed = l.Speed,
-                    LocationType = l.LocationType,
-                    ActivityType = l.ActivityType?.Name ?? "Unknown",
-                    ActivityTypeId = l.ActivityTypeId,
-                    Notes = RichNotes.Normalize(l.Notes),
-                    IsLatestLocation = dayLatestLocationId.HasValue && l.Id == dayLatestLocationId.Value,
-                    LocationTimeThresholdMinutes = locationTimeThreshold
-                }.WithAddress(l)).ToList();
+                var dayDtos = dayLocations.Select(l => MapLocation(l, locationTimeThreshold, l.Id == dayLatestLocationId, includeEventUtc)).ToList();
 
                 return (dayDtos, totalItems);
             }
@@ -523,29 +467,34 @@ namespace Wayfarer.Parsers
                 ? locations.OrderByDescending(l => l.LocalTimestamp).First().Id
                 : null;
 
-            var resultDtos = locations.Select(l => new PublicLocationDto
-            {
-                Id = l.Id,
-                Coordinates = l.Coordinates,
-                Timestamp = l.Timestamp,
-                LocalTimestamp = CoordinateTimeZoneConverter
-                    .ConvertUtcToLocal(
-                        l.Coordinates.Y,
-                        l.Coordinates.X,
-                        DateTime.SpecifyKind(l.LocalTimestamp, DateTimeKind.Utc)),
-                Timezone = l.TimeZoneId,
-                Accuracy = l.Accuracy,
-                Altitude = l.Altitude,
-                Speed = l.Speed,
-                LocationType = l.LocationType,
-                ActivityType = l.ActivityType?.Name ?? "Unknown",
-                ActivityTypeId = l.ActivityTypeId,
-                Notes = RichNotes.Normalize(l.Notes),
-                IsLatestLocation = latestLocationId.HasValue && l.Id == latestLocationId.Value,
-                LocationTimeThresholdMinutes = locationTimeThreshold
-            }.WithAddress(l)).ToList();
+            var resultDtos = locations.Select(l => MapLocation(l, locationTimeThreshold, l.Id == latestLocationId, includeEventUtc)).ToList();
 
             return (resultDtos, totalItems);
+        }
+
+        /// <summary>Projects a selected marker while retaining the event clock for Group reads that request it.</summary>
+        private static PublicLocationDto MapLocation(Location location, int threshold, bool isLatest, bool includeEventUtc)
+        {
+            var eventUtc = DateTime.SpecifyKind(location.LocalTimestamp, DateTimeKind.Utc);
+            return new PublicLocationDto
+            {
+                Id = location.Id,
+                Coordinates = location.Coordinates,
+                Timestamp = location.Timestamp,
+                EventUtc = includeEventUtc ? eventUtc : null,
+                LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(
+                    location.Coordinates.Y, location.Coordinates.X, eventUtc),
+                Timezone = location.TimeZoneId,
+                Accuracy = location.Accuracy,
+                Altitude = location.Altitude,
+                Speed = location.Speed,
+                LocationType = location.LocationType,
+                ActivityType = location.ActivityType?.Name ?? "Unknown",
+                ActivityTypeId = location.ActivityTypeId,
+                Notes = RichNotes.Normalize(location.Notes),
+                IsLatestLocation = isLatest,
+                LocationTimeThresholdMinutes = threshold
+            }.WithAddress(location);
         }
 
         /// <summary>

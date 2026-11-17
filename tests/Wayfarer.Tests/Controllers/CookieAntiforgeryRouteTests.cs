@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,7 +19,7 @@ namespace Wayfarer.Tests.Controllers;
 [Collection("API token singleton admission")]
 public sealed class CookieAntiforgeryRouteTests : TestBase
 {
-    /// <summary>History uses production binding/JSON and each family's own credential authority.</summary>
+    /// <summary>Group latest and history expose the same Athens observation under each credential family.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -29,31 +30,59 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         var group = new Group { Id = Guid.NewGuid(), Name = "History", GroupType = "Family", OwnerUserId = userId };
         db.Groups.Add(group);
         db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = userId, Role = GroupMember.Roles.Owner });
+        var observation = db.Locations.Single(location => location.UserId == userId);
+        var eventUtc = new DateTime(2026, 11, 13, 23, 30, 0, DateTimeKind.Utc).AddTicks(1_234_560);
+        observation.LocalTimestamp = eventUtc;
+        observation.Timestamp = eventUtc.AddDays(2);
+        observation.PresenceObservedAtUtc = eventUtc.AddSeconds(-2);
+        observation.Coordinates = new Point(23.7275, 37.9838) { SRID = 4326 };
+        observation.TimeZoneId = "Europe/Athens";
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         using var client = app.GetTestClient();
         if (mobile) client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
         else Cookie(client, app.Services, "active");
-        var path = $"/api/{(mobile ? "mobile/" : "")}groups/{group.Id}/locations/query";
-        using var response = await client.PostAsJsonAsync(path, new { minLng = -180, minLat = -90, maxLng = 180, maxLat = 90 });
+        var locationsPath = $"/api/{(mobile ? "mobile/" : "")}groups/{group.Id}/locations";
+        var path = locationsPath + "/query";
+        var utcDay = new
+        {
+            minLng = 23, minLat = 37, maxLng = 24, maxLat = 39, dateType = "day", year = 2026, month = 11, day = 13
+        };
+        using var response = await client.PostAsJsonAsync(path, utcDay);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var payload = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(mobile ? new[] { "hasMore", "isTruncated", "nextPageToken", "pageSize", "results", "returnedItems", "totalItems" }
             : new[] { "results", "totalItems" }, payload.EnumerateObject().Select(p => p.Name).Order());
         var row = Assert.Single(payload.GetProperty("results").EnumerateArray());
-        Assert.Equal(new[] { "accuracy", "activityType", "activityTypeId", "address", "addressNumber", "altitude",
+        string[] ownerFields = ["accuracy", "activityType", "activityTypeId", "address", "addressNumber", "altitude",
             "clusterId", "coordinates", "country", "fullAddress", "id", "isGeoapifyAddress", "isLatestLocation", "isLive",
             "localTimestamp", "locationTimeThresholdMinutes", "locationType", "notes", "place", "postCode", "presenceObservedAtUtc",
             "providerAddressLine1", "region", "resolvedFeatureName", "resolvedFeatureType", "speed", "streetName",
-            "timestamp", "timezone", "userId" }, row.EnumerateObject().Select(p => p.Name).Order());
-        Assert.Equal(userId, row.GetProperty("userId").GetString());
+            "timestamp", "timezone", "userId"];
+        Assert.Equal(ownerFields.Append("eventUtc").Order(), row.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(new[] { "latitude", "longitude" }, row.GetProperty("coordinates").EnumerateObject().Select(p => p.Name).Order());
-        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("activityTypeId").ValueKind);
-        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("clusterId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("activityTypeId").ValueKind);
+        Assert.Equal(JsonValueKind.Null, row.GetProperty("clusterId").ValueKind);
         Assert.Equal("Unknown", row.GetProperty("activityType").GetString());
-        Assert.False(row.GetProperty("isLive").GetBoolean());
-        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("presenceObservedAtUtc").ValueKind);
         Assert.DoesNotContain("idempotencyKey", row.ToString());
+        using var latest = await client.PostAsJsonAsync(locationsPath + "/latest", new { });
+        Assert.Equal(HttpStatusCode.OK, latest.StatusCode);
+        var latestRow = Assert.Single((await latest.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray());
+        AssertAthensObservation(row, observation);
+        AssertAthensObservation(latestRow, observation);
+
+        using var localDay = await client.PostAsJsonAsync(path, utcDay with { day = 14 });
+        localDay.EnsureSuccessStatusCode();
+        Assert.Empty((await localDay.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("results").EnumerateArray());
+
+        if (!mobile)
+        {
+            var owner = await client.GetFromJsonAsync<JsonElement>("/User/Timeline/GetChronologicalData?dateType=day&year=2026&month=11&day=13");
+            var ownerRow = Assert.Single(owner.GetProperty("data").EnumerateArray());
+            Assert.Equal(ownerFields.Order(), ownerRow.EnumerateObject().Select(p => p.Name).Order());
+            Assert.Equal(observation.Id, ownerRow.GetProperty("id").GetInt32());
+        }
+
         using var noBody = await client.PostAsync(path, new StringContent("null", System.Text.Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, noBody.StatusCode);
 
@@ -63,6 +92,19 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         else client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
         using var wrongCredential = await client.PostAsJsonAsync(path, new { });
         Assert.Equal(HttpStatusCode.Unauthorized, wrongCredential.StatusCode);
+    }
+
+    /// <summary>The event clock preserves the UTC query day across midnight in the display zone.</summary>
+    private static void AssertAthensObservation(JsonElement row, Location observation)
+    {
+        Assert.Equal(observation.Id, row.GetProperty("id").GetInt32());
+        Assert.Equal(observation.UserId, row.GetProperty("userId").GetString());
+        Assert.Equal("2026-11-13T23:30:00.123456Z", row.GetProperty("eventUtc").GetString());
+        Assert.Equal("2026-11-14T01:30:00.123456", row.GetProperty("localTimestamp").GetString());
+        Assert.Equal(observation.Timestamp, row.GetProperty("timestamp").GetDateTime());
+        Assert.Equal(observation.PresenceObservedAtUtc, row.GetProperty("presenceObservedAtUtc").GetDateTime());
+        Assert.True(row.GetProperty("isLatestLocation").GetBoolean());
+        Assert.False(row.GetProperty("isLive").GetBoolean());
     }
 
     /// <summary>Cookie authority wins every header shape; only resolved bearer authority is token-free.</summary>

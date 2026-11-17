@@ -57,6 +57,10 @@ Every Group requires active membership to view or share locations:
 | **Organization, sharing off** | Only you. This is the default. |
 | **Organization, sharing on** | Other active members while your personal sharing switch is on. |
 
+Active members can see shared history recorded before they joined or during a
+previous absence. Leaving or removal ends Group access. Rejoining restores
+access under the current sharing settings.
+
 On the Group **Map**, use **Allow peers to see my locations** to hide your own
 latest and historical locations in Friends or an Organization with sharing on.
 You can still see your own records and other members who share. Group Owners and
@@ -73,9 +77,9 @@ self-only access; ask your Group's Owner or Manager about enabling sharing.
 
 WayfarerMobile 1.3.0 offers the personal Organization sharing toggle when Group
 sharing is on. Reload the Group after its policy changes to refresh that control.
-Already viewed or downloaded locations may remain on an older or disconnected
-client; changes prevent future authorized queries and live deliveries after they
-are saved, and cannot remove copies someone already has.
+New requests and live deliveries use the current sharing settings. A request
+already authorized can finish after a change. Already viewed or downloaded
+locations may remain on someone else's device.
 
 Your public Timeline's private/public switch, delay and Hidden Areas do not govern
 Group access. A Group can reveal locations that are absent from your public

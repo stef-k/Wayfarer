@@ -46,16 +46,15 @@ public class GroupTimelineService : IGroupTimelineService
     /// <inheritdoc />
     public async Task<GroupTimelineAccessContext?> BuildAccessContextAsync(Guid groupId, string callerUserId, CancellationToken cancellationToken = default)
     {
+        // Load policy and membership in one statement so they share a PostgreSQL snapshot.
         var group = await _dbContext.Groups
             .AsNoTracking()
+            .AsSingleQuery()
+            .Include(g => g.Members.Where(m => m.Status == GroupMember.MembershipStatuses.Active))
             .FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived, cancellationToken);
         if (group == null) return null;
 
-        var activeMembers = await _dbContext.GroupMembers
-            .Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
+        var activeMembers = group.Members.ToList();
         var callerMembership = activeMembers.FirstOrDefault(m => string.Equals(m.UserId, callerUserId, StringComparison.Ordinal));
         var isFriends = string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase);
 
@@ -199,7 +198,8 @@ public class GroupTimelineService : IGroupTimelineService
                     year.Value,
                     month,
                     day,
-                    cancellationToken);
+                    cancellationToken,
+                    includeEventUtc: true);
 
                 // Sampling and latest flags belong to LocationService and precede the literal bbox.
                 var filtered = locations.Where(dto =>
@@ -220,7 +220,8 @@ public class GroupTimelineService : IGroupTimelineService
                     request.MaxLat,
                     request.ZoomLevel,
                     uid,
-                    cancellationToken);
+                    cancellationToken,
+                    includeEventUtc: true);
 
                 foreach (var dto in locations) dto.UserId = uid;
                 combined.AddRange(locations);
@@ -231,17 +232,20 @@ public class GroupTimelineService : IGroupTimelineService
         return (combined, totalItems);
     }
 
+    /// <summary>Projects the admitted-presence winner with its independent event and display clocks.</summary>
     private static PublicLocationDto MapLatest(LocationEntity location, string userId, int threshold)
     {
+        var eventUtc = DateTime.SpecifyKind(location.LocalTimestamp, DateTimeKind.Utc);
         return new PublicLocationDto
         {
             Id = location.Id,
             UserId = userId,
             Timestamp = location.Timestamp,
+            EventUtc = eventUtc,
             LocalTimestamp = CoordinateTimeZoneConverter.ConvertUtcToLocal(
                 location.Coordinates.Y,
                 location.Coordinates.X,
-                DateTime.SpecifyKind(location.LocalTimestamp, DateTimeKind.Utc)),
+                eventUtc),
             Timezone = location.TimeZoneId ?? string.Empty,
             Coordinates = location.Coordinates,
             Accuracy = location.Accuracy,

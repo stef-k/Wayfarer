@@ -896,6 +896,24 @@ order. Mobile retains blank removal/ID trimming and global server timestamp/ID
 ordering before paging.
 For either adapter, multiple authorized subjects restrict history to a day.
 
+Each location returned by the cookie and bearer Group latest and history routes,
+including viewport history, includes `eventUtc`. It is the stored effective event
+instant as an ISO 8601 UTC string ending in `Z`, with all stored fractional-second
+precision. Use it for event chronology and the UTC day of a selected location.
+For example, an Athens location displayed as 14 November at 01:30 with
+`eventUtc: "2026-11-13T23:30:00Z"` opens UTC 13 November and keeps the same Group,
+source and location ID. If the field is missing or unusable, keep the selection
+and disable the day shortcut. `localTimestamp` remains coordinate-local display
+time. `timestamp` and ID still govern bearer history ordering and continuation.
+
+Each Group latest or history request reads the unarchived Group policy and
+active memberships in one PostgreSQL SELECT. Current sharing rules determine
+which sources participate in selection, sampling, counts and paging. Permitted
+members can see pre-join and absence-period records. Leaving or removal ends
+access, and rejoining restores it under current sharing. An authorized HTTP
+response can finish after a later membership or policy change. Protected SSE
+location and deletion frames still check authorization at delivery.
+
 For example, the [Phase C PostgreSQL same-cell month witness](https://github.com/stef-k/Wayfarer/issues/825#issuecomment-6089538971)
 stored **3,001 rows**: owner chronology returned **five markers** with owner total
 **3,001**; Group history returned **five markers**, `totalItems=5`, `hasMore=false`
