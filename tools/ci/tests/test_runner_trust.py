@@ -187,6 +187,14 @@ class RunnerTrustTests(unittest.TestCase):
 
     def test_dotnet_consumers_select_stable_major_ten(self):
         """Host setup accepts stable servicing/minors without selecting another major or previews."""
+        self.assertEqual(json.loads((ROOT / 'global.json').read_text())['sdk'], {
+            'version': '10.0.100', 'rollForward': 'latestMinor', 'allowPrerelease': False,
+        })
+        # Docker restores before copying all sources, so selection must already be present.
+        dockerfile = (ROOT / 'Dockerfile').read_text()
+        self.assertIn('!global.json', (ROOT / '.dockerignore').read_text().splitlines())
+        self.assertLess(dockerfile.index('COPY Wayfarer.csproj Version.props global.json ./'),
+                        dockerfile.index('dotnet restore Wayfarer.csproj'))
         for filename in ['tests.yml', 'application-release.yml', 'public-lifecycle-acceptance.yml']:
             workflow = (WORKFLOW.parent / filename).read_text()
             setups = re.findall(r'uses: actions/setup-dotnet@[^\n]+\n(.*?)(?=\n      -|\Z)',

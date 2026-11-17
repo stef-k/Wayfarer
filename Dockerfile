@@ -17,7 +17,7 @@ COPY --from=node /usr/local/ /usr/local/
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates=20260816ubuntu0.24.04.1 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY Wayfarer.csproj Version.props ./
+COPY Wayfarer.csproj Version.props global.json ./
 RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) exit 1 ;; esac \
     && dotnet restore Wayfarer.csproj -r "$rid"
 COPY . .

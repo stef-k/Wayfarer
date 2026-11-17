@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Select the maintained stable .NET 10 SDK for ordinary builds, nested tools,
+  temporary source clones and Docker restore, allowing newer minor, feature-band
+  and servicing versions without selecting a different major (#986).
+
 - Preserve host handling of aborted invitation reads without a synthetic warning or
   validation error. Read public Trip graphs and permitted visit progress in one
   bounded snapshot with split queries, retaining complete content and privacy
