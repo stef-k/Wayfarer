@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -82,12 +81,11 @@ public sealed class MobileGroupManagementController(ApplicationDbContext db, Gro
 
     /// <summary>Revokes the live invitation only in the exact route Group.</summary>
     [HttpPost("{groupId}/invitations/{id}/revoke")]
-    public Task<IActionResult> Revoke(Guid groupId, Guid id, CancellationToken ct)
+    public async Task<IActionResult> Revoke(Guid groupId, Guid id, CancellationToken ct)
     {
-        if (HttpContext.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true)
-            return Task.FromResult<IActionResult>(BadRequest());
+        if (await HasPayloadAsync(ct)) return BadRequest();
 
-        return WithBearerAsync(async (actor, bearer) =>
+        return await WithBearerAsync(async (actor, bearer) =>
         {
             var revoked = await invitations.RevokeAsync(groupId, id, actor, legacyCleanup: false, ct, bearer);
             await sse.BroadcastInvitationRevocationAsync(groupId, revoked.InviteeUserId,

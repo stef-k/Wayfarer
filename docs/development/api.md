@@ -873,11 +873,13 @@ presence/Visit, queue, ingestion or persistent read effects are introduced.
 
 Issue [#982](https://github.com/stef-k/Wayfarer/issues/982) specifies the Group
 creation, invitation, Leave and My sharing requests. The new routes use the
-same single `Authorization: Bearer …` header as `GET /api/mobile/me`. The
-released scalar sharing request still accepts `{}` as `disabled: false`.
+same single `Authorization: Bearer …` header as `GET /api/mobile/me`. Decline
+and Revoke require an empty payload. The My sharing POST returns `404` for a
+non-GUID Group path before binding the body. The released scalar request still
+accepts `{}` as `disabled: false` and checks Group policy before membership.
 Presence of `membershipRef` selects the reviewed sharing contract, which
-requires an explicit boolean. Leave and My sharing use the same membership
-reference. A rejoin changes it.
+requires a nonblank reference and an explicit boolean. Leave and My sharing
+use the same membership reference. A rejoin changes it.
 
 After a confirmed write or an ambiguous reply, Refresh rebuilds the view with
 the documented current-state GETs. Restart affected lists on their first page.

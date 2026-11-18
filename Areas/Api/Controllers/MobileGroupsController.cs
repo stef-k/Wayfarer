@@ -152,12 +152,11 @@ public class MobileGroupsController : MobileApiController
     }
 
     /// <summary>Dispatches observed episode writes and preserves released scalar binding and failures.</summary>
-    [HttpPost("{groupId}/peer-visibility")]
-    public async Task<IActionResult> SetPeerVisibility(string groupId, [FromBody] OrgPeerVisibilityAccessRequest request,
+    [HttpPost("{groupId:guid}/peer-visibility")]
+    public async Task<IActionResult> SetPeerVisibility(Guid groupId, [FromBody] OrgPeerVisibilityAccessRequest request,
         CancellationToken cancellationToken)
     {
         var reviewed = request.MembershipRef.ValueKind != JsonValueKind.Undefined;
-        if (!Guid.TryParse(groupId, out var id)) return reviewed ? BadRequest() : NotFound();
 
         string? reference = null;
         if (reviewed)
@@ -176,7 +175,7 @@ public class MobileGroupsController : MobileApiController
 
         try
         {
-            await GroupPersonalSharingWrite.SetAsync(DbContext, id, user.Id, request.Disabled, reference, audit: false,
+            await GroupPersonalSharingWrite.SetAsync(DbContext, groupId, user.Id, request.Disabled, reference, audit: false,
                 cancellationToken, token => IncomingApiTokenResolver.ForRequest(HttpContext, DbContext)
                     .RevalidateMutationAsync(HttpContext, user.Id, token));
         }
@@ -190,9 +189,9 @@ public class MobileGroupsController : MobileApiController
         }
 
         Logger.LogInformation("User {UserId} set peer visibility in group {GroupId}: disabled={Disabled}",
-            user.Id, id, request.Disabled);
+            user.Id, groupId, request.Disabled);
         var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();
-        await sseService.BroadcastGroupHintAsync(id,
+        await sseService.BroadcastGroupHintAsync(groupId,
             JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(user.Id, request.Disabled)));
         return Ok(new { disabled = request.Disabled });
     }

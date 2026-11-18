@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
@@ -12,6 +13,16 @@ public abstract class MobileGroupWorkflowController(ApplicationDbContext db) : C
 {
     /// <summary>The request context shared with the Group services and incoming token resolver.</summary>
     protected ApplicationDbContext Db { get; } = db;
+
+    /// <summary>Checks for payload bytes on commands that require an empty request.</summary>
+    protected async ValueTask<bool> HasPayloadAsync(CancellationToken ct)
+    {
+        if (Request.ContentLength > 0) return true;
+        if (HttpContext.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == false) return false;
+
+        // An open HTTP/2 stream can still end with an empty DATA frame.
+        return await Request.Body.ReadAsync(new byte[1], ct) != 0;
+    }
 
     /// <summary>Resolves the bearer in the same snapshot as every protected read.</summary>
     protected async Task<IActionResult> ReadAsync(Func<string, Task<IActionResult>> read, CancellationToken ct)

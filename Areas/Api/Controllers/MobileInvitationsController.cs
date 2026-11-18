@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -76,12 +75,11 @@ public sealed class MobileInvitationsController(ApplicationDbContext db, Invitat
 
     /// <summary>Declines even when an admission disclosure is unavailable.</summary>
     [HttpPost("{id}/decline")]
-    public Task<IActionResult> Decline(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Decline(Guid id, CancellationToken ct)
     {
-        if (HttpContext.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true)
-            return Task.FromResult<IActionResult>(BadRequest());
+        if (await HasPayloadAsync(ct)) return BadRequest();
 
-        return WithBearerAsync(async (actor, bearer) =>
+        return await WithBearerAsync(async (actor, bearer) =>
         {
             var groupId = await invitations.DeclineAsync(id, actor, ct, bearer);
             await sse.BroadcastGroupNotificationAsync(actor, SseService.InvitationStateHint);

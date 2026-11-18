@@ -11,19 +11,34 @@ export const formatInviteRows = root => {
     });
 };
 
-/** Refreshes pending rows through the authorized Members view after Invite is confirmed. */
+const inviteRowsSelector = '#invitesTable tbody';
+let latestRead;
+
+/** Refreshes pending rows after a confirmed Invite and publishes only to the current Members view. */
 export const refreshInviteRows = async attachConfirmHandler => {
+    const current = document.querySelector(inviteRowsSelector);
+    if (!current) return;
+
+    const url = window.location.href;
+    const read = Symbol();
+    latestRead = read;
+    const isCurrent = () => latestRead === read && window.location.href === url
+        && document.querySelector(inviteRowsSelector) === current;
+
     try {
-        const response = await fetch(window.location.href);
+        const response = await fetch(url);
         if (!response.ok) throw new Error('Unable to read invitations');
-        const page = new DOMParser().parseFromString(await response.text(), 'text/html');
-        const incoming = page.querySelector('#invitesTable tbody');
-        const current = document.querySelector('#invitesTable tbody');
-        if (!incoming || !current) throw new Error('Missing pending invitations');
+        const html = await response.text();
+        if (!isCurrent()) return;
+
+        const page = new DOMParser().parseFromString(html, 'text/html');
+        const incoming = page.querySelector(inviteRowsSelector);
+        if (!incoming) throw new Error('Missing pending invitations');
         formatInviteRows(incoming);
         incoming.querySelectorAll('form.js-confirm').forEach(attachConfirmHandler);
         current.replaceChildren(...incoming.children);
     } catch {
-        wayfarer.showAlert?.('warning', 'Invitation sent. Refresh this page to update pending invitations.');
+        if (isCurrent())
+            wayfarer.showAlert?.('warning', 'Invitation sent. Refresh this page to update pending invitations.');
     }
 };
