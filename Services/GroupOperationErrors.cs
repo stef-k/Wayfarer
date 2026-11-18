@@ -23,7 +23,7 @@ public static class GroupOperationErrors
             "accept" => exception is InvalidOperationException && message is
                 "Invitation expired" or "Invitation is not pending" or "User already an active member" or
                 "Invitation predates departure or membership history is unavailable",
-            "decline" => exception is InvalidOperationException && message == "Invitation is not pending",
+            "decline" => exception is InvalidOperationException && message is "Invitation is not pending" or "Invitation expired",
             _ => false
         };
         return allowed ? message : "The operation could not be completed. Please try again.";
