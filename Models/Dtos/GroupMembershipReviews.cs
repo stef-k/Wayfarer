@@ -25,7 +25,14 @@ public sealed record GroupLeaveReview(
     [property: JsonRequired] string? BlockedReason);
 
 /// <summary>Leave review with contextual labels excluded from the comparison.</summary>
-public sealed record GroupLeavePreview(string GroupName, GroupLeaveReview Review, string? SuccessorDisplayName);
+public sealed record GroupLeavePreview(string GroupName, GroupLeaveReview Review, string? SuccessorDisplayName,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<GroupLeaveSuccessor>? SuccessorCandidates = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? SelectedSuccessorUserId = null);
+
+/// <summary>An active account to whom the owner can choose to transfer ownership before leaving.</summary>
+public sealed record GroupLeaveSuccessor(string UserId, string? DisplayName);
 
 /// <summary>Committed effects of a confirmed departure.</summary>
 public sealed record GroupLeaveResult(Guid GroupId, string Impact, string? SuccessorUserId);

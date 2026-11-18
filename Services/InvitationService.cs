@@ -12,7 +12,9 @@ public partial class InvitationService(ApplicationDbContext db) : IInvitationSer
     internal async Task<GroupInvitation> IssueAsync(Guid groupId, string actor, string invitee, DateTime? expiresAt,
         CancellationToken ct, Func<CancellationToken, Task<bool>>? bearer = null)
     {
-        await using var transaction = await GroupWrite.BeginAsync(db, groupId, actor, ct, bearer, invitee);
+        await using var transaction = await GroupWrite.BeginAsync(db, groupId, actor, ct, bearer, invitee,
+            () => db.GroupInvitations.Where(i => i.GroupId == groupId && i.InviteeUserId == invitee
+                && i.Status == GroupInvitation.InvitationStatuses.Pending).Select(i => i.InviterUserId).ToArrayAsync(ct));
         await GroupRead.ScopeAsync(db, groupId, actor, manage: true, ct);
         if (!await db.Users.AnyAsync(u => u.Id == invitee && u.IsActive, ct))
             throw new GroupRefusal(404, "invitee_unavailable");
@@ -117,9 +119,7 @@ public partial class InvitationService(ApplicationDbContext db) : IInvitationSer
         CancellationToken ct, Func<CancellationToken, Task<bool>>? bearer = null)
     {
         await using var transaction = await GroupWrite.BeginAsync(db, groupId, actor, ct, bearer,
-            participants: () => db.GroupInvitations.Where(i => i.Id == id && i.GroupId == groupId)
-                .SelectMany(i => db.Users.Where(u => u.Id == i.InviterUserId || u.Id == i.InviteeUserId).Select(u => u.Id))
-                .ToArrayAsync(ct));
+            participants: () => RevocationParticipantsAsync(groupId, id, ct));
         await GroupRead.ScopeAsync(db, groupId, actor, manage: true, ct);
         var invitation = await GroupWrite.FreshAsync(db,
             db.GroupInvitations.Where(i => i.Id == id && i.GroupId == groupId), ct)
@@ -142,6 +142,14 @@ public partial class InvitationService(ApplicationDbContext db) : IInvitationSer
         await db.SaveChangesAsync(ct);
         if (transaction is not null) await transaction.CommitAsync(ct);
         return new(invitation.GroupId, invitation.InviteeUserId);
+    }
+
+    /// <summary>Protects both accounts whose deletion could update or remove the invitation.</summary>
+    private Task<string[]> RevocationParticipantsAsync(Guid groupId, Guid id, CancellationToken ct)
+    {
+        var scoped = db.GroupInvitations.Where(i => i.Id == id && i.GroupId == groupId);
+        return scoped.Select(i => i.InviterUserId)
+            .Union(scoped.Where(i => i.InviteeUserId != null).Select(i => i.InviteeUserId!)).ToArrayAsync(ct);
     }
 
     /// <summary>Resolves immutable routing only. Transactions reread authority and invitation state.</summary>

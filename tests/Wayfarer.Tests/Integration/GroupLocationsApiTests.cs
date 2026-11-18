@@ -391,7 +391,7 @@ public class GroupLocationsApiTests
         var web = MakeController(db, user.Id);
         var mobile = MakeMobileController(db, user.Id);
         var responses = new[] { await web.SetMemberOrgPeerVisibilityAccess(group.Id, user.Id, request, default),
-            await mobile.SetPeerVisibility(group.Id, request, default) };
+            await mobile.SetPeerVisibility(group.Id.ToString(), request, default) };
         foreach (var response in responses)
         {
             if (accepts) Assert.IsType<OkObjectResult>(response);

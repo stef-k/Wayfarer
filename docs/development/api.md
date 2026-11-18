@@ -164,7 +164,8 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 | `/api/visit`, `/api/backfill` | visit queries/mutations and visit backfill | authenticated/owned browser API |
 | `/api/groups`, `/api/invitations` | group membership, visibility, location sharing and invitations | authenticated membership/role; browser mutations antiforgery |
 | `GET /api/mobile/me` | minimal stable current-account proof, no writes | active bearer/API token only |
-| `/api/mobile/groups` | mobile group/member/location/visibility operations | bearer/API token |
+| `/api/mobile/groups` | mobile Group and membership workflows, scoped invitations and locations | bearer/API token |
+| `/api/mobile/invitations` | addressed invitation inbox, sharing disclosure and responses | bearer/API token |
 | `/api/mobile/visits` | mobile recent-visit recovery | bearer/API token |
 | `/api/mobile/routing` | routing profiles, capability and route requests | bearer/API token |
 | `/api/sse`, `/api/mobile/sse` | live/reload-hint streams | public eligibility, cookie Identity or bearer according to stream family |
@@ -867,6 +868,50 @@ are `historyPreparationRequired`, `historyQualificationRequired`, `historyBudget
 Errors use fixed messages, without SQL, credentials or private query content;
 unexpected failures retain the generic API 500 path. No provider/media acquisition,
 presence/Visit, queue, ingestion or persistent read effects are introduced.
+
+## Mobile Group membership
+
+Issue [#982](https://github.com/stef-k/Wayfarer/issues/982) specifies the Group
+creation, invitation, Leave and My sharing requests. The new routes use the
+same single `Authorization: Bearer …` header as `GET /api/mobile/me`. The
+released scalar sharing request still accepts `{}` as `disabled: false`.
+Presence of `membershipRef` selects the reviewed sharing contract, which
+requires an explicit boolean. Leave and My sharing use the same membership
+reference. A rejoin changes it.
+
+After a confirmed write or an ambiguous reply, Refresh rebuilds the view with
+the documented current-state GETs. Restart affected lists on their first page.
+A successful write stays confirmed if readback fails. Accept and Leave compare
+the reviewed consequences in the write transaction. Show a fresh preview and
+require deliberate confirmation after a changed-review response. Opening
+Groups with a new credential requires verification of the active account and
+server. Family, Friends and Organization disclosure reflects the current
+sharing audience, including access to eligible pre-join and absence-period
+locations.
+
+### Family and Friends Leave choices
+
+An actual Family or Friends owner with eligible successors receives
+`successorCandidates` in the Leave preview. The list includes `userId` and
+nullable `displayName` for each active member with an active account. It is
+ordered by join time and membership ID. Request
+`GET /api/mobile/groups/{groupId}/leave?successorUserId={userId}` to preview a
+selected member's effect. The preview echoes `selectedSuccessorUserId`.
+Send the optional top-level `successorUserId` together with `expected` on
+the Leave POST to confirm that selection. A changed candidate or impact
+returns `409 leave_changed`. A matching blocked preview uses its blocked
+reason. Without an explicit selection the first eligible member supplies the
+default preview, which is recomputed on confirmation. Organization continues
+to use its Manager successor and last-management-role rules.
+
+If the actual Family or Friends owner is the only active account and other
+Active membership rows remain for deactivated accounts, the preview offers
+`DisbandGroup`. Cancel by returning without sending a request. Confirm by
+posting the returned review. The server rechecks account and membership state
+before deleting the Group and its membership and invitation rows. Members'
+original locations remain. An actual owner alone in the Group still sees
+`DeleteEmptyGroup`. The cookie Leave route retains its existing departure
+workflow.
 
 ## Owned location history and corrections
 

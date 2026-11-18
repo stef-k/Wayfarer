@@ -77,6 +77,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.MobileLocationImports.Put Api.MobileLocationImports.Start Api.MobileLocationImports.Stop Api.MobileLocationImports.Delete
         Api.MobileLocationImports.Control
         Api.Location.CheckIn Api.Location.LogLocation Api.Location.Delete Api.MobileGroups.Latest Api.MobileGroups.Query
+        Api.MobileGroupManagement.Create Api.MobileGroupManagement.Invite Api.MobileGroupManagement.Revoke Api.MobileGroupManagement.Leave
+        Api.MobileInvitations.Accept Api.MobileInvitations.Decline
         Api.MobileGroups.SetPeerVisibility Api.MobileRouting.Route Api.Trips.CreateConditionalPlace Api.Trips.UpdatePlace
         Api.Trips.DeletePlace Api.Trips.CreateConditionalRegion Api.Trips.UpdateTrip Api.Trips.UpdateSegmentNotes
         Api.Trips.RejectUnconditionalRegionCreation Api.Trips.RejectUnconditionalPlaceCreation

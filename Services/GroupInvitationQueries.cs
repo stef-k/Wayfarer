@@ -11,6 +11,11 @@ internal static class GroupInvitationQueries
         db.GroupInvitations.AsNoTracking().Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending
             && (i.ExpiresAt == null || i.ExpiresAt > now) && i.Group != null && !i.Group.IsArchived);
 
+    /// <summary>Includes unresolved Pending history in the existing Web cleanup view.</summary>
+    internal static IQueryable<GroupInvitation> ForWebMembers(ApplicationDbContext db, Guid groupId, DateTime now) =>
+        db.GroupInvitations.AsNoTracking().Where(i => i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending
+            && (i.InviteeUserId == null || i.InviteeUserId == "" || i.ExpiresAt == null || i.ExpiresAt > now));
+
     /// <summary>Projects elapsed pending invitations without mutating storage.</summary>
     internal static string Status(GroupInvitation invitation, DateTime now) =>
         invitation.Status == GroupInvitation.InvitationStatuses.Pending && invitation.ExpiresAt <= now

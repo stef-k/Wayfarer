@@ -128,11 +128,12 @@ public class UsersController : ControllerBase
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
         if (sinceHours <= 0 || sinceHours > 168) sinceHours = 24;
 
-        var since = DateTime.UtcNow.AddHours(-sinceHours);
+        var now = DateTime.UtcNow;
+        var since = now.AddHours(-sinceHours);
 
         // Pending invites for this user (recent first)
-        var pendingInvites = await _dbContext.GroupInvitations
-            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId == userId)
+        var pendingInvites = await GroupInvitationQueries.Live(_dbContext, now)
+            .Where(i => i.InviteeUserId == userId)
             .OrderByDescending(i => i.CreatedAt)
             .Take(50)
             .Join(_dbContext.Groups, i => i.GroupId, g => g.Id, (i, g) => new { i.Id, i.GroupId, GroupName = g.Name, i.CreatedAt })
@@ -174,24 +175,23 @@ public class UsersController : ControllerBase
     [Authorize(Roles = "Manager,User")]
     public async Task<IActionResult> Search([FromQuery] string? query, [FromQuery] Guid? groupId, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
-            return Ok(Array.Empty<object>());
+        query = query?.Trim();
+        if (groupId is { } id)
+        {
+            await using var snapshot = await GroupRead.BeginAsync(_dbContext, ct);
+            var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (actor is null) return Unauthorized();
+            try { await GroupRead.ScopeAsync(_dbContext, id, actor, manage: true, ct); }
+            catch (GroupRefusal refusal) { return StatusCode(refusal.Status); }
 
-        query = query.Trim();
+            if (query is null || query.Length < 2) return Ok(Array.Empty<object>());
+            var candidates = await GroupInvitationQueries.CandidatesAsync(_dbContext, id, query, DateTime.UtcNow, ct);
+            return Ok(candidates.Select(u => new { id = u.UserId, u.UserName, u.DisplayName }));
+        }
+
+        if (query is null || query.Length < 2) return Ok(Array.Empty<object>());
         var users = _dbContext.Users
             .Where(u => EF.Functions.ILike(u.UserName ?? "", $"%{query}%") || EF.Functions.ILike(u.DisplayName, $"%{query}%"));
-
-        if (groupId.HasValue)
-        {
-            var gid = groupId.Value;
-            var pendingInviteUserIds = _dbContext.GroupInvitations
-                .Where(i => i.GroupId == gid && i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId != null)
-                .Select(i => i.InviteeUserId!);
-            var activeMemberUserIds = _dbContext.GroupMembers
-                .Where(m => m.GroupId == gid && m.Status == GroupMember.MembershipStatuses.Active)
-                .Select(m => m.UserId);
-            users = users.Where(u => !pendingInviteUserIds.Contains(u.Id) && !activeMemberUserIds.Contains(u.Id));
-        }
 
         var results = await users
             .OrderBy(u => u.UserName)

@@ -79,6 +79,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
+        // Keep the authorized Group and the durable rows in a single snapshot.
+        await using var snapshot = await GroupRead.BeginAsync(_dbContext, HttpContext.RequestAborted);
         var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
@@ -90,8 +92,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
                              join u in _dbContext.Users on m.UserId equals u.Id
                              select new { m, u }).AsNoTracking().ToListAsync();
 
-        var invites = await (from i in _dbContext.GroupInvitations
-                             where i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending
+        var invites = await (from i in GroupInvitationQueries.ForWebMembers(_dbContext, groupId, DateTime.UtcNow)
                              join u in _dbContext.Users on i.InviteeUserId equals u.Id into iu
                              from u in iu.DefaultIfEmpty()
                              select new
@@ -153,7 +154,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
+            await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
             await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             SetAlert("Member removed.");
         }
@@ -243,7 +244,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
             {
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
+            await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
         }
         catch (UnauthorizedAccessException)
@@ -265,7 +266,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
+            await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
             await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             return Ok(new { success = true, userId });
         }
@@ -332,18 +333,12 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
         try
         {
-            var group = await _groupService.CreateGroupAsync(userId, name.Trim(), description);
-            // canonicalize value
-            group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
-                ? "Organization"
-                : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
-                    ? "Family"
-                    : "Friends";
-            await _dbContext.SaveChangesAsync();
+            await _groupService.CreateGroupAsync(userId, name.Trim(), description, GroupSharingPolicy.CanonicalType(groupType));
 
             LogAudit("GroupCreate", $"Created group {name}", "Manager UI");
             return RedirectWithAlert("Index", "Groups", "Group created", "success", area: "Manager");
         }
+        catch (UnauthorizedAccessException) { return Unauthorized(); }
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
@@ -401,18 +396,22 @@ namespace Wayfarer.Areas.Manager.Controllers;
             return View(group);
         }
 
-        var previousType = group.GroupType;
-        group = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty);
-        // Canonicalize the type on the authorized Group returned by the service.
-        group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
-            ? "Organization"
-            : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
-                ? "Family"
-                : "Friends";
-        await _dbContext.SaveChangesAsync();
+        bool typeChanged;
+        try
+        {
+            (group, typeChanged) = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty,
+                GroupSharingPolicy.CanonicalType(groupType));
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (GroupRefusal refusal) when (refusal.Code == "group_name_taken")
+        {
+            ModelState.AddModelError("name", "Group with the same name already exists for owner");
+            return View(group);
+        }
         // The durable policy transition finishes before notifying existing map subscribers.
-        if (!string.Equals(previousType, group.GroupType, StringComparison.OrdinalIgnoreCase))
-            await _sse.BroadcastAsync($"group-{id}", JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
+        if (typeChanged)
+            await _sse.BroadcastGroupHintAsync(id, JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
         LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
 
         return RedirectWithAlert("Index", "Groups", "Group updated", "success", area: "Manager");

@@ -16,11 +16,7 @@ internal static class GroupWrite
         string actor, CancellationToken ct, Func<CancellationToken, Task<bool>>? bearer = null,
         string? target = null, Func<Task<string[]>>? participants = null)
     {
-        if (!db.Database.IsRelational())
-        {
-            await RequireActorAsync(db, actor, ct, bearer);
-            return null;
-        }
+        if (!db.Database.IsRelational()) return null;
 
         while (true)
         {
@@ -28,14 +24,17 @@ internal static class GroupWrite
             try
             {
                 var accounts = await AccountsAsync();
-                if (db.Database.IsNpgsql())
-                    await db.Database.ExecuteSqlInterpolatedAsync($"""
-                        SELECT 1 FROM "AspNetUsers" WHERE "Id" = ANY ({accounts}) ORDER BY "Id" FOR SHARE
-                        """, ct);
+                var locked = db.Database.IsNpgsql()
+                    ? await db.Database.SqlQuery<string>($"""
+                        SELECT "Id" AS "Value" FROM "AspNetUsers" WHERE "Id" = ANY ({accounts}) ORDER BY "Id" FOR SHARE
+                        """).ToListAsync(ct)
+                    : accounts.ToList();
                 if (groupId is { } id) await GroupService.LockMembershipAsync(db, id, ct);
 
                 // A Group writer may have committed a new owner or participant while we waited.
-                if ((await AccountsAsync()).All(accounts.Contains))
+                var currentAccounts = await AccountsAsync();
+                if (currentAccounts.All(accounts.Contains) && !await db.Users.AnyAsync(
+                    u => currentAccounts.Contains(u.Id) && !locked.Contains(u.Id), ct))
                 {
                     await RequireActorAsync(db, actor, ct, bearer);
                     return transaction;

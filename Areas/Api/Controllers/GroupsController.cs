@@ -58,6 +58,7 @@ public class GroupsController : ControllerBase
             return CreatedAtAction(nameof(Get), new { id = group.Id },
                 new { id = group.Id, name = group.Name, description = group.Description });
         }
+        catch (UnauthorizedAccessException) { return Unauthorized(); }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning("Group create failed");
@@ -121,24 +122,32 @@ public class GroupsController : ControllerBase
         [FromBody] OrgPeerVisibilityToggleRequest req, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
-        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
-        if (group == null) return NotFound();
-        if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { message = "Not an Organization group" });
+        try
+        {
+            await using (var transaction = await GroupWrite.BeginAsync(_db, id, CurrentUserId, ct))
+            {
+                var group = await GroupWrite.FreshAsync(_db, _db.Groups.Where(g => g.Id == id), ct);
+                if (group == null) return NotFound();
+                if (!string.Equals(group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
+                    return BadRequest(new { message = "Not an Organization group" });
 
-        var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(
-            m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
-        if (group.IsArchived || !GroupLocationVisibility.CanManage(membership)) return StatusCode(403);
+                var membership = await _db.GroupMembers.AsNoTracking().SingleOrDefaultAsync(
+                    m => m.GroupId == id && m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+                if (group.IsArchived || !GroupLocationVisibility.CanManage(membership)) return StatusCode(403);
 
-        group.OrgPeerVisibilityEnabled = req.Enabled;
-        group.UpdatedAt = DateTime.UtcNow;
-        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityToggle",
-            $"Group {group.Id} set Enabled={group.OrgPeerVisibilityEnabled}", ct);
-        await _db.SaveChangesAsync(ct);
+                group.OrgPeerVisibilityEnabled = req.Enabled;
+                group.UpdatedAt = DateTime.UtcNow;
+                await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityToggle",
+                    $"Group {group.Id} set Enabled={req.Enabled}", ct);
+                await _db.SaveChangesAsync(ct);
+                if (transaction is not null) await transaction.CommitAsync(ct);
+            }
+        }
+        catch (GroupRefusal refusal) when (refusal.Status == 401) { return Unauthorized(); }
         // Content-free invalidation makes open Web maps reread persisted policy.
         // Published Mobile clients keep their existing wire format and delivery-time protection.
-        await _sse.BroadcastAsync($"group-{id}", JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
-        return Ok(new { enabled = group.OrgPeerVisibilityEnabled });
+        await _sse.BroadcastGroupHintAsync(id, JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
+        return Ok(new { enabled = req.Enabled });
     }
 
     /// <summary>Sets the caller's own source-sharing preference when the policy supports it.</summary>
@@ -150,25 +159,22 @@ public class GroupsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         if (!string.Equals(CurrentUserId, userId, StringComparison.Ordinal)) return StatusCode(403);
 
-        var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == id, ct);
-        if (group == null) return NotFound();
-        if (!GroupLocationVisibility.CanSetPersonalSharing(group))
-            return BadRequest(new { message = "Personal sharing is unavailable for this group policy" });
-
-        var member = await _db.GroupMembers.FirstOrDefaultAsync(
-            m => m.GroupId == id && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active, ct);
-        if (member == null) return StatusCode(403);
-
-        member.OrgPeerVisibilityAccessDisabled = req.Disabled;
-        await AddAuditAsync(CurrentUserId, "OrgPeerVisibilityAccessSet",
-            $"Group {group.Id}, User {userId}, Disabled={member.OrgPeerVisibilityAccessDisabled}", ct);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await GroupPersonalSharingWrite.SetAsync(_db, id, userId, req.Disabled, membershipRef: null, audit: true, ct);
+        }
+        catch (GroupRefusal refusal)
+        {
+            return refusal.Status == 400
+                ? BadRequest(new { message = "Personal sharing is unavailable for this group policy" })
+                : StatusCode(refusal.Status);
+        }
 
         // Broadcast visibility change to all group members via SSE (consolidated group channel)
-        await _sse.BroadcastAsync($"group-{id}",
-            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(userId, member.OrgPeerVisibilityAccessDisabled)));
+        await _sse.BroadcastGroupHintAsync(id,
+            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(userId, req.Disabled)));
 
-        return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
+        return Ok(new { disabled = req.Disabled });
     }
 
     // GET /api/groups?scope=managed|joined
@@ -277,7 +283,7 @@ public class GroupsController : ControllerBase
         {
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
             // Consolidated group channel
-            await _sse.BroadcastAsync($"group-{groupId}",
+            await _sse.BroadcastGroupHintAsync(groupId,
                 JsonSerializer.Serialize(GroupSseEventDto.MemberLeft(CurrentUserId)));
             await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.MembershipStateHint);
             return Ok(new { message = "Left group" });
@@ -307,7 +313,7 @@ public class GroupsController : ControllerBase
         {
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
             // Consolidated group channel
-            await _sse.BroadcastAsync($"group-{groupId}",
+            await _sse.BroadcastGroupHintAsync(groupId,
                 JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
             await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             return Ok(new { message = "Member removed" });
