@@ -18,6 +18,25 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed partial class MobileGroupWorkflowPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
+    private readonly List<string> _actors = [];
+
+    /// <summary>Removes audit rows for this test's pinned accounts, which have no deleting foreign key.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        try
+        {
+            if (disposing && _actors.Count > 0)
+            {
+                using var db = fixture.CreateContext();
+                db.AuditLogs.Where(entry => _actors.Contains(entry.UserId)).ExecuteDelete();
+            }
+        }
+        finally
+        {
+            base.Dispose(disposing);
+        }
+    }
+
     /// <summary>Verifies current membership, older history and confirmation across multiple episodes.</summary>
     [PostgresFact]
     public async Task CreateInviteAcceptShareLeaveAndRejoin_UsesCurrentMembership()
@@ -89,6 +108,7 @@ public sealed partial class MobileGroupWorkflowPostgresTests(PostgresImportTestF
     private async Task<string> SeedBearerAsync(ApplicationDbContext db)
     {
         var user = await fixture.CreateUserAsync();
+        _actors.Add(user.Id);
         db.Attach(user);
         db.ApiTokens.Add(new() { Name = "group-workflow", Token = user.Id, UserId = user.Id, User = user });
         await db.SaveChangesAsync();

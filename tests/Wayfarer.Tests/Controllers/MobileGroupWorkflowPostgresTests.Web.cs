@@ -77,6 +77,11 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         var mobile = await InviteAsync(manager, group, target);
         var live = await JsonAsync(await manager.GetAsync(group + "/invitations"), HttpStatusCode.OK);
         Assert.EndsWith(Assert.Single(live.GetProperty("items").EnumerateArray()).GetProperty("id").GetGuid().ToString(), mobile);
+        await db.Users.Where(u => u.Id == target).ExecuteUpdateAsync(set => set.SetProperty(u => u.IsActive, false));
+        var addressed = await JsonAsync(await manager.GetAsync(group + "/invitations"), HttpStatusCode.OK);
+        Assert.Equal(target, Assert.Single(addressed.GetProperty("items").EnumerateArray()).GetProperty("inviteeUserId").GetString());
+        await CodeAsync(await manager.PostAsJsonAsync(group + "/invitations", new { inviteeUserId = target }),
+            HttpStatusCode.NotFound, "invitee_unavailable");
         await CodeAsync(await manager.PostAsync(group + $"/invitations/{legacy.Id}/revoke", null),
             HttpStatusCode.NotFound, "invitation_unavailable");
         using var revoke = await ownerWeb.PostAsync("/User/Groups/RevokeInviteAjax",
