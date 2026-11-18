@@ -1,4 +1,4 @@
-import { formatInviteRows, refreshInviteRows } from '../../../util/group-invitation-rows.js';
+import { formatInviteRows, refreshInviteRows, removeInviteRow } from '../../../util/group-invitation-rows.js';
 
 (() => {
   formatInviteRows(document);
@@ -127,10 +127,10 @@ import { formatInviteRows, refreshInviteRows } from '../../../util/group-invitat
         ev.preventDefault();
         const title = f.dataset.confirmTitle || 'Confirm';
         const message = f.dataset.confirmMessage || 'Are you sure?';
-        if (wayfarer.showConfirmationModal) {
-          wayfarer.showConfirmationModal({
-            title: title,
-            message: message,
+        // Both confirmation paths apply the same server response.
+        const confirmation = {
+            title,
+            message,
             confirmText: 'Yes',
             onConfirm: function() {
               if (f.classList.contains('js-ajax')) {
@@ -148,8 +148,7 @@ import { formatInviteRows, refreshInviteRows } from '../../../util/group-invitat
                         if (tr) tr.remove();
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Member removed.');
                       } else if (f.action.endsWith('RevokeInvite')) {
-                        const tr = document.querySelector('tr[data-invite-id="' + fd.get('inviteId') + '"]');
-                        if (tr) tr.remove();
+                        removeInviteRow(fd.get('inviteId'));
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation canceled.');
                       } else if (f.action.endsWith('Invite')) {
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation sent.');
@@ -164,17 +163,11 @@ import { formatInviteRows, refreshInviteRows } from '../../../util/group-invitat
                 f.submit();
               }
             }
-          });
-        } else {
-          // Fallback if modal helper missing
-          if (confirm(message)) {
-            if (f.classList.contains('js-ajax')) {
-              const fd = new FormData(f);
-              fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/,'$1Ajax'), { method: 'POST', body: fd });
-            } else {
-              f.submit();
-            }
-          }
+        };
+        if (wayfarer.showConfirmationModal) {
+          wayfarer.showConfirmationModal(confirmation);
+        } else if (confirm(message)) {
+          confirmation.onConfirm();
         }
       });
   }
@@ -189,10 +182,6 @@ import { formatInviteRows, refreshInviteRows } from '../../../util/group-invitat
   }
   function removeRosterRow(userId) {
     const tr = document.querySelector('tr[data-user-id="' + userId + '"]');
-    if (tr) tr.remove();
-  }
-  function removeInviteRow(inviteId) {
-    const tr = document.querySelector('tr[data-invite-id="' + inviteId + '"]');
     if (tr) tr.remove();
   }
   async function addRosterRow(userId) {

@@ -12,7 +12,15 @@ export const formatInviteRows = root => {
 };
 
 const inviteRowsSelector = '#invitesTable tbody';
+// A replacement invitation gets a new ID. Keep settled IDs for the life of the Members page.
+const removedInviteIds = new Set();
 let latestRead;
+
+/** Records a confirmed removal even when the pending row is absent. */
+export const removeInviteRow = inviteId => {
+    removedInviteIds.add(inviteId);
+    document.querySelector(inviteRowsSelector)?.querySelector(`tr[data-invite-id="${inviteId}"]`)?.remove();
+};
 
 /** Refreshes pending rows after a confirmed Invite and publishes only to the current Members view. */
 export const refreshInviteRows = async attachConfirmHandler => {
@@ -34,6 +42,9 @@ export const refreshInviteRows = async attachConfirmHandler => {
         const page = new DOMParser().parseFromString(html, 'text/html');
         const incoming = page.querySelector(inviteRowsSelector);
         if (!incoming) throw new Error('Missing pending invitations');
+        incoming.querySelectorAll('tr[data-invite-id]').forEach(row => {
+            if (removedInviteIds.has(row.dataset.inviteId)) row.remove();
+        });
         formatInviteRows(incoming);
         incoming.querySelectorAll('form.js-confirm').forEach(attachConfirmHandler);
         current.replaceChildren(...incoming.children);
