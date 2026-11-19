@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref } from 'vue';
 import type { EditorPlace, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState } from '../types';
 import { preserveWaypointRouteChange, type WaypointRouteChangeResult } from '../segments/segmentWaypointRoutePreservation';
@@ -149,17 +150,17 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
 
 <template>
   <fieldset class="segment-waypoints" data-segment-waypoint-group tabindex="-1" :disabled="isSaving" :aria-invalid="aggregateErrors.length > 0 ? 'true' : undefined" :aria-errormessage="aggregateErrors.length > 0 ? 'segment-waypoint-errors' : undefined">
-    <legend ref="legend" tabindex="-1">Intermediate places</legend>
-    <p v-if="draft.waypointRows.length === 0" class="trip-editor-empty-state">No intermediate saved Place selected.</p>
+    <legend ref="legend" tabindex="-1">{{ localize("Editor.IntermediatePlaces", "Intermediate places") }}</legend>
+    <p v-if="draft.waypointRows.length === 0" class="trip-editor-empty-state">{{ localize("Editor.NoIntermediateSavedPlaceSelected", "No intermediate saved Place selected.") }}</p>
     <div class="segment-waypoints__add">
       <label class="trip-editor-field">
-        <span>Place to add</span>
+        <span>{{ localize("Editor.PlaceToAdd", "Place to add") }}</span>
         <select ref="addSelect" v-model="placeToAdd">
-          <option value="">Select a saved Place</option>
+          <option value="">{{ localize("Editor.SelectASavedPlace", "Select a saved Place") }}</option>
           <option v-for="place in choices(null)" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </select>
       </label>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="!placeToAdd || isSaving" @click="addWaypoint">Add intermediate place</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="!placeToAdd || isSaving" @click="addWaypoint">{{ localize("Editor.AddIntermediatePlace", "Add intermediate place") }}</button>
     </div>
     <div v-for="(row, index) in draft.waypointRows" :key="row.clientId" class="segment-waypoints__row">
       <label class="trip-editor-field segment-waypoints__select">
@@ -173,16 +174,16 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
         </div>
       </label>
       <div class="segment-waypoints__actions">
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === 0 || isSaving" :aria-label="`Move ${placeName(row.placeId)} up`" @click="move(row, -1)">Move up</button>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === draft.waypointRows.length - 1 || isSaving" :aria-label="`Move ${placeName(row.placeId)} down`" @click="move(row, 1)">Move down</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" :aria-label="`Remove ${placeName(row.placeId)}`" @click="remove(row)">Remove</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === 0 || isSaving" :aria-label="`Move ${placeName(row.placeId)} up`" @click="move(row, -1)">{{ localize("Editor.MoveUp", "Move up") }}</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === draft.waypointRows.length - 1 || isSaving" :aria-label="`Move ${placeName(row.placeId)} down`" @click="move(row, 1)">{{ localize("Editor.MoveDown", "Move down") }}</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" :aria-label="`Remove ${placeName(row.placeId)}`" @click="remove(row)">{{ localize("Editor.Remove", "Remove") }}</button>
       </div>
     </div>
     <div v-if="aggregateErrors.length > 0" id="segment-waypoint-errors">
       <small v-for="message in aggregateErrors" :key="message">{{ message }}</small>
     </div>
     <p v-if="preservationMessage" class="trip-editor-help" role="status">{{ preservationMessage }}</p>
-    <p><strong>Journey order:</strong> {{ journeyOrder }}</p>
+    <p><strong>{{ localize("Editor.JourneyOrder", "Journey order:") }}</strong> {{ journeyOrder }}</p>
     <span class="visually-hidden" aria-live="polite">{{ announcement }}</span>
   </fieldset>
 </template>

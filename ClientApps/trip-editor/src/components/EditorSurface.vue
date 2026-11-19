@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { planningWorkspaceKey } from '../planning/planningState';
 import PlanningEditor from '../planning/PlanningEditor.vue';
 import { computed, inject, nextTick, ref, watch } from 'vue';
@@ -47,8 +48,8 @@ watch(isExpanded, async expanded => {
       </div>
       <div class="trip-editor-surface__controls">
         <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">Expand Editor</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">Close</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">{{ localize("Editor.ExpandEditor", "Expand Editor") }}</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">{{ localize("Shell.Close", "Close") }}</button>
       </div>
     </header>
     <div class="trip-editor-surface__body">
@@ -71,7 +72,7 @@ watch(isExpanded, async expanded => {
       class="btn btn-outline-light btn-sm"
       @click="controller.dock(target)"
     >
-      Dock to sidebar
+      {{ localize("Editor.DockToSidebar", "Dock to sidebar") }}
     </button>
   </section>
 
@@ -87,8 +88,8 @@ watch(isExpanded, async expanded => {
           </div>
           <div class="trip-editor-surface__controls">
             <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
-            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">Dock to sidebar</button>
-            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
+            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">{{ localize("Editor.DockToSidebar", "Dock to sidebar") }}</button>
+            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">{{ localize("Shell.Close", "Close") }}</button>
           </div>
         </header>
         <div class="trip-editor-expanded__body">

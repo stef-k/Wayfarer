@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { message as localize } from '../../../wwwroot/js/localization/messages.js';
+import { registerLanguageDraft } from '../../../wwwroot/js/localization/languageNavigation.js';
+import { describeMapWork } from './map/mapWorkDescription';
+import { date } from '../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
-import { loadEditorState } from './api/tripEditorApi';
+import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
@@ -34,6 +38,9 @@ const activePlaceDraftPreview = ref<PlaceDraftMarkerPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const completedSearchAddRequestId = ref<number | null>(null);
 const editorSurface = useEditorSurface();
+// Query the map owner before any close workflow can restore or clear its snapshot.
+const unregisterLanguageDraft = registerLanguageDraft(() =>
+  editorSurface.isMapWorkActive.value || editorSurface.isActiveTargetDirty() || pendingSearchAdd.value !== null);
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 let mobileDrawerQuery: MediaQueryList | null = null;
 const coordinatePicker = {
@@ -49,22 +56,10 @@ const routeEditor = {
 };
 
 const updatedLabel = computed(() =>
-  state.value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.value.metadata.updatedAt)) : ''
+  state.value ? date(new Date(state.value.metadata.updatedAt), { dateStyle: 'medium', timeStyle: 'short' }) : ''
 );
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
-// Projects the authoritative map-work owner into the map landmark's exact instruction.
-const mapAccessibleDescription = computed(() => {
-  switch (editorSurface.mapWork.value?.target.kind) {
-    case 'place':
-      return 'Select the Place location. Click the map or drag the marker; Done updates the draft.';
-    case 'area':
-      return 'Edit the Area geometry. Click the map to place polygon vertices; Done updates the draft.';
-    case 'segment':
-      return 'Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.';
-    default:
-      return 'View and navigate trip geography.';
-  }
-});
+const mapAccessibleDescription = computed(() => describeMapWork(editorSurface.mapWork.value?.target.kind));
 const selectedPlace = computed(() => selectedPlaceId.value && state.value ? state.value.placesById[selectedPlaceId.value] ?? null : null);
 const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
 const toolbarEyebrow = computed(() => {
@@ -148,12 +143,15 @@ onMounted(async () => {
     });
     mapAdapter.render(loadedState, hiddenSegmentIds.value, selectedPlaceId.value);
   } catch (loadError) {
-    error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
+    error.value = loadError instanceof EditorMutationHttpError && [401, 403].includes(loadError.status)
+      ? localize('Editor.LoadUnauthorized', 'Your session ended or you no longer have access. Sign in again or return to My Trips.')
+      : localize('Editor.LoadError', 'Trip Editor failed to load.');
     isLoading.value = false;
   }
 });
 
 onUnmounted(() => {
+  unregisterLanguageDraft();
   disposeConfirmDialogHost();
   setConfirmDialogFocusFallback(null);
   mobileDrawerQuery?.removeEventListener('change', updateMobileDrawerState);
@@ -537,12 +535,12 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
 <template>
   <div ref="workspaceElement" class="trip-editor-workspace" tabindex="-1">
     <div v-if="isLoading" class="trip-editor-state trip-editor-state--loading">
-      <div class="spinner-border" role="status" aria-label="Loading"></div>
-      <span>Loading trip editor...</span>
+      <div class="spinner-border" role="status" :aria-label="localize('Editor.Loading', 'Loading')"></div>
+      <span>{{ localize("Editor.LoadingEditor", "Loading trip editor...") }}</span>
     </div>
 
     <div v-else-if="error" class="trip-editor-state trip-editor-state--error">
-      <strong>Trip Editor unavailable</strong>
+      <strong>{{ localize("Editor.TripEditorUnavailable", "Trip Editor unavailable") }}</strong>
       <span>{{ error }}</span>
     </div>
 
@@ -588,12 +586,12 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           </div>
           <div class="trip-editor-toolbar__actions">
             <template v-if="!isMapWorkActive">
-              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFitAllGeometry" @click="fitAllGeometry">Fit All</button>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFitAllGeometry" @click="fitAllGeometry">{{ localize("Editor.FitAll", "Fit All") }}</button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canRecenterSavedView" @click="recenterSavedTripView">
-                Recenter Saved Trip View
+                {{ localize("Editor.RecenterSavedTripView", "Recenter Saved Trip View") }}
               </button>
-              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
-              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">Clear Selection</button>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">{{ localize("Editor.FocusActiveEntity", "Focus Active Entity") }}</button>
+              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">{{ localize("Editor.ClearSelection", "Clear Selection") }}</button>
             </template>
           </div>
         </header>
@@ -613,7 +611,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           ref="mapElement"
           class="trip-editor-map"
           role="region"
-          aria-label="Trip map"
+          :aria-label="localize('Editor.TripMap', 'Trip map')"
           aria-describedby="trip-editor-map-description"
         ></div>
         <p id="trip-editor-map-description" class="visually-hidden">{{ mapAccessibleDescription }}</p>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, inject, ref, shallowRef, watch } from 'vue';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import { confirm } from '../composables/useConfirmDialog';
@@ -53,55 +54,55 @@ watch(() => props.target.identity, () => { reviewError.value = null; });
 </script>
 
 <template>
-  <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" aria-label="Deleted target Planning recovery">
+  <section v-for="draft in workspace?.deletedDrafts.value" :key="`${draft.kind}/${draft.id}`" class="trip-editor-panel" :aria-label="localize('Editor.DeletedTargetPlanningRecovery', 'Deleted target Planning recovery')">
     <p role="status">This {{ draft.kind }} was deleted. Its Planning draft is retained below for copying. {{ draft.pending || draft.uncertain ? 'The earlier save may still finish; its outcome remains unconfirmed.' : draft.confirmed ? 'The earlier Planning save succeeded; this target remains deleted. Discard this recovery when you no longer need it.' : 'Discard it when you no longer need it.' }}</p>
     <label>Retained Planning ({{ draft.kind }} {{ draft.id }})
       <textarea readonly :value="JSON.stringify(draft.entries, null, 2)"></textarea>
     </label>
-    <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="draft.pending || draft.uncertain" @click="discardDeletedPlanning(draft)">Discard this Planning draft</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="draft.pending || draft.uncertain" @click="discardDeletedPlanning(draft)">{{ localize("Editor.DiscardThisPlanningDraft", "Discard this Planning draft") }}</button>
   </section>
 
   <details v-if="draft" class="trip-editor-panel" data-planning>
-    <summary>Planning <span v-if="summary">· {{ summary }}</span></summary>
-    <p>Save Planning saves only this object’s Planning. Trip settings, Notes and routes use their own save actions.</p>
-    <p v-for="message in workspace?.diagnostics(target)" :key="message" role="status">{{ message }} Stored planning is retained; review explicitly before changing it.</p>
+    <summary>{{ localize("Editor.Planning", "Planning") }} <span v-if="summary">· {{ summary }}</span></summary>
+    <p>{{ localize("Editor.SavePlanningSavesOnlyThisObjectS", "Save Planning saves only this object’s Planning. Trip settings, Notes and routes use their own save actions.") }}</p>
+    <p v-for="message in workspace?.diagnostics(target)" :key="message" role="status">{{ message }} {{ localize("Editor.StoredPlanningIsRetainedReviewExplicitlyBefore", "Stored planning is retained; review explicitly before changing it.") }}</p>
     <p v-if="draft.error" role="alert">{{ draft.error }}</p>
     <p v-if="reviewError" role="alert">{{ reviewError }}</p>
     <p v-for="loss in zoneLosses" :key="loss" role="status">{{ loss }}</p>
     <p v-if="draft.confirmed" role="status">{{ draft.deleted ? 'The earlier Planning save succeeded; this target remains deleted.' : workspace?.dirty(draft) ? 'Earlier planning saved; newer changes remain unsaved.' : 'Planning saved.' }}</p>
     <fieldset v-for="(entry, index) in draft.entries" :key="entry.id" class="trip-editor-settings-group">
       <legend>{{ entry.label || `Date ${index + 1}` }}</legend>
-      <PlanningValueInput v-if="entry.when.form === 'at' && entry.when.value" :value="entry.when.value" label="At" />
+      <PlanningValueInput v-if="entry.when.form === 'at' && entry.when.value" :value="entry.when.value" :label="localize('Editor.At', 'At')" />
       <template v-if="entry.when.form === 'period'">
         <template v-for="bound in ['start', 'end'] as const" :key="bound">
           <PlanningValueInput v-if="entry.when[bound]?.value" :value="entry.when[bound]!.value!" :label="bound === 'end' && entry.kind === 'stay' ? 'Checkout' : bound === 'start' ? 'Start' : 'End'" />
           <button v-else type="button" class="btn btn-outline-light btn-sm" @click="entry.when[bound] = { state: 'known', value: { precision: 'date', local: '' } }">{{ bound === 'start' ? 'Add start date' : 'Add end date' }}</button>
-          <label class="trip-editor-field"><span>{{ bound }} information</span>
+          <label class="trip-editor-field"><span>{{ bound }} {{ localize("Editor.Information", "information") }}</span>
             <select :value="entry.when[bound]?.state ?? 'unspecified'" @change="entry.when[bound] = ($event.target as HTMLSelectElement).value === 'known' ? { state: 'known', value: entry.when[bound]?.value ?? { precision: 'date', local: '' } } : { state: ($event.target as HTMLSelectElement).value as 'unknown' | 'flexible' | 'unspecified' }">
-              <option value="unspecified">Unspecified</option><option value="known">Known</option><option value="unknown">Explicitly unknown</option><option value="flexible">Deliberately flexible</option>
+              <option value="unspecified">{{ localize("Editor.Unspecified", "Unspecified") }}</option><option value="known">{{ localize("Editor.Known", "Known") }}</option><option value="unknown">{{ localize("Editor.ExplicitlyUnknown", "Explicitly unknown") }}</option><option value="flexible">{{ localize("Editor.DeliberatelyFlexible", "Deliberately flexible") }}</option>
             </select>
           </label>
         </template>
-        <small>End is an endpoint, not a latest deadline.</small>
+        <small>{{ localize("Editor.EndIsAnEndpointNotALatest", "End is an endpoint, not a latest deadline.") }}</small>
       </template>
-      <button v-if="entry.when.form === 'at'" type="button" class="btn btn-outline-light btn-sm" @click="period(entry)">Add end date</button>
-      <details><summary>More</summary>
-        <label class="trip-editor-field"><span>Label (optional)</span><input v-model="entry.label" maxlength="200" @change="() => { if (!entry.label) delete entry.label }" /></label>
-        <label class="trip-editor-field"><span>Meaning (optional)</span><select v-model="entry.kind" @change="() => { if (!entry.kind) delete entry.kind }">
-          <option :value="undefined">Unspecified</option><option value="window">Planning window</option>
-          <option v-if="draft.kind !== 'segment'" value="presence">Activity requiring presence</option><option v-if="draft.kind !== 'segment'" value="stay">Stay/base availability</option>
-          <option v-if="draft.kind === 'trip' || draft.kind === 'segment'" value="travel">Journey</option>
+      <button v-if="entry.when.form === 'at'" type="button" class="btn btn-outline-light btn-sm" @click="period(entry)">{{ localize("Editor.AddEndDate", "Add end date") }}</button>
+      <details><summary>{{ localize("Editor.More", "More") }}</summary>
+        <label class="trip-editor-field"><span>{{ localize("Editor.LabelOptional", "Label (optional)") }}</span><input v-model="entry.label" maxlength="200" @change="() => { if (!entry.label) delete entry.label }" /></label>
+        <label class="trip-editor-field"><span>{{ localize("Editor.MeaningOptional", "Meaning (optional)") }}</span><select v-model="entry.kind" @change="() => { if (!entry.kind) delete entry.kind }">
+          <option :value="undefined">{{ localize("Editor.Unspecified", "Unspecified") }}</option><option value="window">{{ localize("Editor.PlanningWindow", "Planning window") }}</option>
+          <option v-if="draft.kind !== 'segment'" value="presence">{{ localize("Editor.ActivityRequiringPresence", "Activity requiring presence") }}</option><option v-if="draft.kind !== 'segment'" value="stay">{{ localize("Editor.StayBaseAvailability", "Stay/base availability") }}</option>
+          <option v-if="draft.kind === 'trip' || draft.kind === 'segment'" value="travel">{{ localize("Editor.Journey", "Journey") }}</option>
         </select></label>
-        <label class="trip-editor-field"><span>Elapsed allocation in minutes (optional)</span><input v-model.number="entry.allocationMinutes" type="number" min="0" step="1" @change="() => { if (String(entry.allocationMinutes) === '') delete entry.allocationMinutes }" /></label>
-        <small v-if="entry.allocationMinutes !== undefined">Allocation is allowed on At or undated, unclassified/presence/journey entries. Remove it explicitly before choosing a window, stay or period.</small>
-        <label class="trip-editor-field"><span>Timing</span><select :value="entry.when.form" @change="setForm(entry, ($event.target as HTMLSelectElement).value as PlanningTiming['form'])">
-          <option value="at">At</option><option v-if="entry.when.form === 'period'" value="period">Period</option><option value="unspecified">Undated, unspecified</option><option value="unknown">Explicitly unknown</option><option value="flexible">Deliberately flexible</option>
+        <label class="trip-editor-field"><span>{{ localize("Editor.ElapsedAllocationInMinutesOptional", "Elapsed allocation in minutes (optional)") }}</span><input v-model.number="entry.allocationMinutes" type="number" min="0" step="1" @change="() => { if (String(entry.allocationMinutes) === '') delete entry.allocationMinutes }" /></label>
+        <small v-if="entry.allocationMinutes !== undefined">{{ localize("Editor.AllocationIsAllowedOnAtOrUndated", "Allocation is allowed on At or undated, unclassified/presence/journey entries. Remove it explicitly before choosing a window, stay or period.") }}</small>
+        <label class="trip-editor-field"><span>{{ localize("Editor.Timing", "Timing") }}</span><select :value="entry.when.form" @change="setForm(entry, ($event.target as HTMLSelectElement).value as PlanningTiming['form'])">
+          <option value="at">{{ localize("Editor.At", "At") }}</option><option v-if="entry.when.form === 'period'" value="period">{{ localize("Editor.Period", "Period") }}</option><option value="unspecified">{{ localize("Editor.UndatedUnspecified", "Undated, unspecified") }}</option><option value="unknown">{{ localize("Editor.ExplicitlyUnknown", "Explicitly unknown") }}</option><option value="flexible">{{ localize("Editor.DeliberatelyFlexible", "Deliberately flexible") }}</option>
         </select></label>
       </details>
-      <button type="button" class="btn btn-outline-danger btn-sm" @click="draft.entries.splice(index, 1)">Remove entry</button>
+      <button type="button" class="btn btn-outline-danger btn-sm" @click="draft.entries.splice(index, 1)">{{ localize("Editor.RemoveEntry", "Remove entry") }}</button>
     </fieldset>
     <button type="button" class="btn btn-outline-light btn-sm" :disabled="draft.entries.length >= 128" @click="add">{{ draft.entries.length ? 'Add another date' : 'Add date' }}</button>
-    <button type="button" class="btn btn-primary btn-sm" :disabled="draft.pending || draft.uncertain || !workspace?.dirty(draft)" @click="workspace?.save(draft)">Save planning</button>
-    <button v-if="draft.error && !draft.uncertain" type="button" class="btn btn-outline-secondary btn-sm" @click="review">Review current comparison</button>
+    <button type="button" class="btn btn-primary btn-sm" :disabled="draft.pending || draft.uncertain || !workspace?.dirty(draft)" @click="workspace?.save(draft)">{{ localize("Editor.SavePlanning", "Save planning") }}</button>
+    <button v-if="draft.error && !draft.uncertain" type="button" class="btn btn-outline-secondary btn-sm" @click="review">{{ localize("Editor.ReviewCurrentComparison", "Review current comparison") }}</button>
   </details>
 </template>

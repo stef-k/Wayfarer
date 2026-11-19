@@ -98,6 +98,7 @@
     <ItemGroup>
         <None Remove="Scripts\tables_postgres.sql" />
         <EmbeddedResource Include="Scripts\tables_postgres.sql" />
+        <EmbeddedResource Include="Resources/WebLocales.json" />
     </ItemGroup>
 
     <!-- Include native payload after the general tools/source exclusions above. -->

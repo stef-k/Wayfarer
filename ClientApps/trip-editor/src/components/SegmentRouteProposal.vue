@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { EditorMutationHttpError, ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
 import type { EditorSegment, ExternalRouteProposal, Guid } from '../types';
@@ -106,7 +107,7 @@ onUnmounted(() => {
 
 <template>
   <section v-if="capability?.available" class="border rounded p-2 mt-3" aria-labelledby="external-route-heading">
-    <h3 id="external-route-heading" class="fs-6">External routed path</h3>
+    <h3 id="external-route-heading" class="fs-6">{{ localize("Editor.ExternalRoutedPath", "External routed path") }}</h3>
     <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong></p>
     <p class="small mb-1">{{ capability.disclosure }}</p>
     <p v-if="capability.attribution?.includes('Powered by Geoapify')" class="small text-muted mb-2">
@@ -114,29 +115,29 @@ onUnmounted(() => {
       <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>
     </p>
     <p v-else-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
-    <p v-if="profileChanged" class="small text-warning">Save the transport-profile change before generating a new proposal.</p>
-    <label :for="`provider-mode-${segment.id}`" class="form-label small">Directions mode</label>
+    <p v-if="profileChanged" class="small text-warning">{{ localize("Editor.SaveTheTransportProfileChangeBeforeGenerating", "Save the transport-profile change before generating a new proposal.") }}</p>
+    <label :for="`provider-mode-${segment.id}`" class="form-label small">{{ localize("Editor.DirectionsMode", "Directions mode") }}</label>
     <select :id="`provider-mode-${segment.id}`" v-model="selectedProviderMode" :disabled="isSaving" class="form-select form-select-sm mb-2">
-      <option value="">Choose a mode</option>
+      <option value="">{{ localize("Editor.ChooseAMode", "Choose a mode") }}</option>
       <option v-for="mode in capability.modes" :key="mode.key" :value="mode.key">{{ mode.label }}</option>
     </select>
-    <p class="small text-muted">Used only to calculate this route. The Segment's transport profile stays unchanged.</p>
+    <p class="small text-muted">{{ localize("Editor.UsedOnlyToCalculateThisRouteThe", "Used only to calculate this route. The Segment's transport profile stays unchanged.") }}</p>
     <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="isSaving || state.generating || profileChanged || !selectedProviderMode" @click="generate">
       {{ state.generating ? 'Generating…' : 'Generate routed path' }}
     </button>
-    <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>
+    <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">{{ localize("Editor.CancelGeneration", "Cancel generation") }}</button>
     <div v-if="state.proposal" role="status" class="mt-2">
-      <p class="small mb-2">Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.</p>
+      <p class="small mb-2">{{ localize("Editor.ReviewTheProposedRouteAndEstimatesSave", "Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.") }}</p>
       <!-- Estimates stay separate from the ordinary fields until canonical Save succeeds. -->
       <dl class="small mb-2 proposal-estimates">
         <!-- Round only displayed estimates; proposal values retain their original precision. -->
-        <dt>Proposed distance</dt>
+        <dt>{{ localize("Editor.ProposedDistance", "Proposed distance") }}</dt>
         <dd><strong>{{ state.proposal.distanceMetres == null ? 'Unavailable' : `${Number((state.proposal.distanceMetres / 1000).toFixed(2))} km` }}</strong></dd>
-        <dt>Estimated travel time</dt>
+        <dt>{{ localize("Editor.EstimatedTravelTime", "Estimated travel time") }}</dt>
         <dd><strong>{{ state.proposal.durationSeconds == null ? 'Unavailable' : `${Number((state.proposal.durationSeconds / 60).toFixed(2))} minutes` }}</strong></dd>
       </dl>
-      <p v-if="manualDurationOverride" class="small">Save keeps your manual duration instead of the proposed duration estimate.</p>
-      <button type="button" class="btn btn-outline-secondary btn-sm ms-2" :disabled="isSaving" @click="discard">Discard proposal</button>
+      <p v-if="manualDurationOverride" class="small">{{ localize("Editor.SaveKeepsYourManualDurationInsteadOf", "Save keeps your manual duration instead of the proposed duration estimate.") }}</p>
+      <button type="button" class="btn btn-outline-secondary btn-sm ms-2" :disabled="isSaving" @click="discard">{{ localize("Editor.DiscardProposal", "Discard proposal") }}</button>
     </div>
     <p v-if="state.error" class="trip-editor-form-error mt-2 mb-0" role="alert" tabindex="-1">{{ state.error }}</p>
   </section>

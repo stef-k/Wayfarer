@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { deleteSegment, orderSegments } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
@@ -623,33 +624,33 @@ function modeText(segment: EditorSegment): string {
 <template>
   <section class="trip-editor-panel">
     <div class="trip-editor-panel__line">
-      <h2>Segments</h2>
+      <h2>{{ localize("Editor.Segments", "Segments") }}</h2>
       <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
     <div v-if="saveError" id="segment-route-work-error" class="trip-editor-form-error" role="alert" tabindex="-1">{{ saveError }}</div>
     <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">
-      <h3 id="segment-conflict-heading" tabindex="-1">Current saved Segment</h3>
+      <h3 id="segment-conflict-heading" tabindex="-1">{{ localize("Editor.CurrentSavedSegment", "Current saved Segment") }}</h3>
       <p>{{ conflictJourney(segmentConflict.currentSegment) }}</p>
-      <p>{{ modeText(segmentConflict.currentSegment) }} · {{ segmentConflict.currentSegment.estimatedDistanceKm ?? 'Distance unavailable' }} km · {{ segmentConflict.currentSegment.estimatedDurationMinutes ?? 'Duration unavailable' }} minutes · {{ segmentConflict.currentSegment.estimatedDurationSource }}</p>
-      <button type="button" class="btn btn-outline-light btn-sm" @click="reloadCurrentSegment">Reload current saved Segment</button>
+      <p>{{ modeText(segmentConflict.currentSegment) }} · {{ segmentConflict.currentSegment.estimatedDistanceKm ?? 'Distance unavailable' }} {{ localize("Editor.Km", "km ·") }} {{ segmentConflict.currentSegment.estimatedDurationMinutes ?? 'Duration unavailable' }} {{ localize("Editor.Minutes", "minutes ·") }} {{ segmentConflict.currentSegment.estimatedDurationSource }}</p>
+      <button type="button" class="btn btn-outline-light btn-sm" @click="reloadCurrentSegment">{{ localize("Editor.ReloadCurrentSavedSegment", "Reload current saved Segment") }}</button>
     </section>
-    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
+    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">{{ localize("Editor.AddSegment", "Add Segment") }}</button>
 
     <SegmentEditorSurface :notes-adoption="notes.notesAdoption.value" :notes-session="notes.session.value" v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :baseline-draft="persistedBaseline" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :is-generating="isGenerating" :manual-duration-override="routeProposalDraft.manualOverride.value" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :semantic-edits-safe="semanticTaint.isSafe.value" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-generating-changed="isGenerating = $event" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" @semantic-edits-unsafe="semanticTaint.markUnsafe" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
-        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" title="Drag to reorder segment" aria-label="Drag to reorder segment" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
+        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" :title="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" :aria-label="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
         <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" :aria-label="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
         <button type="button" class="trip-editor-list-button" :aria-current="isActiveSegment(segment) ? 'true' : undefined" :aria-label="segmentJourney(segment).accessible" @click="openEdit(segment)">
           <span>{{ segmentJourney(segment).compact }}</span>
           <small>{{ modeText(segment) }}</small>
         </button>
-        <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
+        <button type="button" class="trip-editor-icon-button" :title="localize('Editor.DeleteSegment', 'Delete segment')" :aria-label="localize('Editor.DeleteSegment', 'Delete segment')" @click="deleteSegmentFromRow(segment)">×</button>
 
         <SegmentEditorSurface :notes-adoption="notes.notesAdoption.value" :notes-session="notes.session.value" v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :baseline-draft="persistedBaseline" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :is-generating="isGenerating" :manual-duration-override="routeProposalDraft.manualOverride.value" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :semantic-edits-safe="semanticTaint.isSafe.value" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-generating-changed="isGenerating = $event" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" @semantic-edits-unsafe="semanticTaint.markUnsafe" />
       </li>
     </ul>
-    <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>
+    <p v-else class="trip-editor-empty-state">{{ localize("Editor.NoTravelSegmentsAddedYet", "No travel segments added yet.") }}</p>
   </section>
 </template>

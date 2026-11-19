@@ -87,7 +87,7 @@ internal sealed class BrowserWorkflow : IAsyncDisposable
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
             ViewportSize = new ViewportSize { Width = width, Height = height },
-            ServiceWorkers = ServiceWorkerPolicy.Block, AcceptDownloads = false
+            ServiceWorkers = ServiceWorkerPolicy.Block, AcceptDownloads = false, Locale = Localization.WebLocales.English
         });
         try
         {

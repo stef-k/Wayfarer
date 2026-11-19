@@ -1,3 +1,4 @@
+import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, onMounted, onUnmounted, provide, reactive, type InjectionKey, type Ref } from 'vue';
 import type { EditorTripState } from '../types';
 import { observeMutationDispatch } from '../api/tripEditorApi';
@@ -214,10 +215,11 @@ export const providePlanningWorkspace = (state: Ref<EditorTripState | null>, end
   const workspace = createPlanningWorkspace(state, endpoint, token);
   provide(planningWorkspaceKey, workspace);
   const stopObserving = observeMutationDispatch(endpoint, workspace.capturePublication);
+  const unregisterLanguageDraft = registerLanguageDraft(() => workspace.hasChanges.value);
   const beforeUnload = (event: BeforeUnloadEvent): void => {
-    if (workspace.hasChanges.value) { event.preventDefault(); event.returnValue = ''; }
+    if (!isLanguageUnload(event) && workspace.hasChanges.value) { event.preventDefault(); event.returnValue = ''; }
   };
   onMounted(() => window.addEventListener?.('beforeunload', beforeUnload));
-  onUnmounted(() => { stopObserving(); window.removeEventListener?.('beforeunload', beforeUnload); });
+  onUnmounted(() => { stopObserving(); unregisterLanguageDraft(); window.removeEventListener?.('beforeunload', beforeUnload); });
   return workspace;
 };

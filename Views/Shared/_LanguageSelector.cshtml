@@ -1,0 +1,36 @@
+@using Wayfarer.Localization
+@inject WebLocales Locales
+@inject WebMessages T
+@{
+    var destination = LanguageNavigation.GetDestination(Context, ViewData["LanguageSafeGet"] as string);
+}
+@if (destination != null)
+{
+    @* The modal holds the current document while applying a preference. The form has no ordinary POST fallback. *@
+    <button type="button" id="language-open" class="btn btn-outline-secondary" aria-haspopup="dialog" hidden>@T["Shell.Language"]</button>
+    <dialog id="language-dialog" class="language-dialog border rounded p-3 bg-body text-body" aria-labelledby="language-title" data-safe-get="@destination">
+        <h2 id="language-title" class="h5">@T["Shell.Language"]</h2>
+        <form method="dialog" id="language-form" data-url="@Url.Action("Set", "Language", new { area = "" })">
+            @Html.AntiForgeryToken()
+            <fieldset id="language-options">
+                @foreach (var locale in Locales.All)
+                {
+                    <label class="form-check mb-2">
+                        <input type="radio" class="form-check-input" name="locale" value="@locale.Tag" checked="@(locale.Tag == T.Locale.Tag)" />
+                        <span lang="@locale.Tag">@locale.NativeName</span>
+                        <span>(@locale.Tag)</span>
+                    </label>
+                }
+            </fieldset>
+            <p id="language-discard" tabindex="-1" hidden>@T["Shell.LanguageDiscard"]</p>
+            <p id="language-error" class="text-danger" role="alert" hidden>@T["Shell.LanguageFailed"]</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button id="language-cancel" type="button" class="btn btn-outline-secondary">@T["Shell.Cancel"]</button>
+                <button id="language-keep" type="button" class="btn btn-outline-secondary" hidden>@T["Shell.KeepEditing"]</button>
+                <button id="language-apply" type="submit" class="btn btn-primary">@T["Shell.Apply"]</button>
+                <button id="language-confirm" type="submit" class="btn btn-primary" hidden>@T["Shell.DiscardAndSwitch"]</button>
+            </div>
+        </form>
+    </dialog>
+    <script type="module" src="~/js/localization/languageSelector.js" asp-append-version="true"></script>
+}

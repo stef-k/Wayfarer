@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { ref } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { EditorSegment, EditorSegmentDraft, EditorTripState, ExternalRouteProposal } from '../types';
@@ -67,8 +68,8 @@ defineEmits<{
 <template>
   <EditorSurface :controller="controller" :target="target" :status-text="statusText">
     <template #body>
-      <p v-if="routeOrientation === 'reversed'" class="trip-editor-form-warning" role="status">The custom route is stored in reverse semantic order. Use Reverse route to update this unsaved draft before saving.</p>
-      <p v-else-if="routeOrientation === 'ambiguous'" class="trip-editor-form-warning" role="status">Route direction unavailable. Correct or clear the custom route before relying on direction cues.</p>
+      <p v-if="routeOrientation === 'reversed'" class="trip-editor-form-warning" role="status">{{ localize("Editor.TheCustomRouteIsStoredInReverse", "The custom route is stored in reverse semantic order. Use Reverse route to update this unsaved draft before saving.") }}</p>
+      <p v-else-if="routeOrientation === 'ambiguous'" class="trip-editor-form-warning" role="status">{{ localize("Editor.RouteDirectionUnavailableCorrectOrClearThe", "Route direction unavailable. Correct or clear the custom route before relying on direction cues.") }}</p>
       <SegmentEditorForm
         ref="editorForm"
         :baseline-draft="baselineDraft"
@@ -102,13 +103,13 @@ defineEmits<{
     </template>
 
     <template #footer>
-      <button v-if="activeSegment?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">Delete</button>
-      <button ref="routeAction" data-segment-route-action type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawRoute')">Draw/Edit Route</button>
-      <button v-if="routeOrientation === 'reversed'" type="button" class="btn btn-outline-info btn-sm" :disabled="isSaving || routeMapWorkActive" @click="$emit('reverseRoute')">Reverse route</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || draft.route === null" @click="$emit('clearRoute')">Clear Route</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
-      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving || isGenerating">Save Segment</button>
+      <button v-if="activeSegment?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">{{ localize("Editor.Delete", "Delete") }}</button>
+      <button ref="routeAction" data-segment-route-action type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawRoute')">{{ localize("Editor.DrawEditRoute", "Draw/Edit Route") }}</button>
+      <button v-if="routeOrientation === 'reversed'" type="button" class="btn btn-outline-info btn-sm" :disabled="isSaving || routeMapWorkActive" @click="$emit('reverseRoute')">{{ localize("Editor.ReverseRoute", "Reverse route") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || draft.route === null" @click="$emit('clearRoute')">{{ localize("Editor.ClearRoute", "Clear Route") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">{{ localize("Shell.Cancel", "Cancel") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">{{ localize("Editor.Reset", "Reset") }}</button>
+      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving || isGenerating">{{ localize("Editor.SaveSegment", "Save Segment") }}</button>
     </template>
   </EditorSurface>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { bindSidebarResize, readSidebarPreference, sidebarWidth, SIDEBAR_MIN, SIDEBAR_DESKTOP, writeSidebarPreference, type SidebarPreference } from '../../../../wwwroot/js/Trip/sidebarWidth.js';
 import type { EditorSurfaceMode } from '../composables/useEditorSurface';
@@ -65,21 +66,21 @@ onUnmounted(() => { resizer?.dispose(); observer?.disconnect(); media?.removeEve
     :style="{ '--sidebar-width': `${width}px` }" :data-sidebar-mode="preference.mode">
     <div class="trip-sidebar-dock" :inert="hiddenDock" :aria-hidden="hiddenDock || undefined">
       <div v-show="docked" class="trip-sidebar-controls">
-        <label>Sidebar width
+        <label>{{ localize("Shell.SidebarWidth", "Sidebar width") }}
           <select ref="selector" :value="preference.mode" @change="choose">
-            <option value="standard">Standard</option><option value="half">Half</option><option value="full">Full</option>
-            <option value="custom" disabled>Custom</option>
+            <option value="standard">{{ localize("Shell.Standard", "Standard") }}</option><option value="half">{{ localize("Shell.Half", "Half") }}</option><option value="full">{{ localize("Shell.Full", "Full") }}</option>
+            <option value="custom" disabled>{{ localize("Shell.Custom", "Custom") }}</option>
           </select>
         </label>
-        <button type="button" class="btn btn-outline-light btn-sm" aria-label="Hide sidebar" aria-expanded="true" aria-controls="editor-sidebar-content" @click="hide">Hide</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :aria-label="localize('Shell.HideSidebar', 'Hide sidebar')" aria-expanded="true" aria-controls="editor-sidebar-content" @click="hide">{{ localize("Shell.Hide", "Hide") }}</button>
       </div>
       <div id="editor-sidebar-content" class="trip-sidebar-content"><slot /></div>
-      <div v-show="docked" ref="handle" class="trip-sidebar-resizer" role="separator" tabindex="0" aria-label="Resize sidebar" aria-orientation="vertical"
+      <div v-show="docked" ref="handle" class="trip-sidebar-resizer" role="separator" tabindex="0" :aria-label="localize('Shell.ResizeSidebar', 'Resize sidebar')" aria-orientation="vertical"
         :aria-valuemin="SIDEBAR_MIN" :aria-valuemax="workspaceWidth" :aria-valuenow="Math.round(width)"
         :aria-valuetext="`${preference.mode}, ${Math.round(width)} pixels`" aria-controls="editor-sidebar-content"
-        title="Resize sidebar: arrows 20px, Shift arrows 100px, Home minimum, End full width, Escape cancels drag"></div>
+        :title="localize('Shell.ResizeSidebarInstructions', 'Resize sidebar: arrows 20px, Shift arrows 100px, Home minimum, End full width, Escape cancels drag')"></div>
     </div>
-    <button v-if="hiddenDock" ref="showButton" type="button" class="trip-sidebar-show btn btn-light border shadow" aria-label="Show sidebar" aria-expanded="false" aria-controls="editor-sidebar-content" @click="show">Show sidebar</button>
+    <button v-if="hiddenDock" ref="showButton" type="button" class="trip-sidebar-show btn btn-light border shadow" :aria-label="localize('Shell.ShowSidebar', 'Show sidebar')" aria-expanded="false" aria-controls="editor-sidebar-content" @click="show">{{ localize("Shell.ShowSidebar", "Show sidebar") }}</button>
     <slot name="map" />
   </div>
 </template>

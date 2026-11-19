@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { SegmentRoutePointEditorController } from './segmentRouteMapWork';
 import type { SegmentRouteWorkNode } from './segmentRouteWorkState';
@@ -118,19 +119,19 @@ watch(
 
 <template>
   <section class="segment-route-point-editor" aria-labelledby="segment-route-point-heading">
-    <h3 id="segment-route-point-heading" tabindex="-1">Route points</h3>
-    <p>Start, Via, and End anchors follow their saved Places and cannot be moved or removed here.</p>
+    <h3 id="segment-route-point-heading" tabindex="-1">{{ localize("Editor.RoutePoints", "Route points") }}</h3>
+    <p>{{ localize("Editor.StartViaAndEndAnchorsFollowTheir", "Start, Via, and End anchors follow their saved Places and cannot be moved or removed here.") }}</p>
     <ol class="segment-route-point-list">
       <li v-for="(node, index) in nodes" :key="node.key" :data-route-point-index="index" :data-route-point-key="node.key">
         <strong>{{ nodeLabel(node, index) }}</strong>
         <template v-if="node.kind === 'anonymous'">
-          <label>Longitude <input type="number" min="-180" max="180" step="any" :value="fieldValue(node, 0)" :aria-invalid="isInvalid(node.key, 0) ? 'true' : undefined" :aria-describedby="isInvalid(node.key, 0) ? errorId(node.key, 0) : undefined" @input="move(node, 0, $event)" /></label>
-          <small v-if="isInvalid(node.key, 0)" :id="errorId(node.key, 0)">Longitude must be between -180 and 180.</small>
-          <label>Latitude <input type="number" min="-90" max="90" step="any" :value="fieldValue(node, 1)" :aria-invalid="isInvalid(node.key, 1) ? 'true' : undefined" :aria-describedby="isInvalid(node.key, 1) ? errorId(node.key, 1) : undefined" @input="move(node, 1, $event)" /></label>
-          <small v-if="isInvalid(node.key, 1)" :id="errorId(node.key, 1)">Latitude must be between -90 and 90.</small>
-          <button type="button" class="btn btn-outline-danger btn-sm" :aria-label="`Remove ${nodeLabel(node, index)}`" @click="remove(node, index)">Remove</button>
+          <label>{{ localize("Editor.Longitude", "Longitude") }} <input type="number" min="-180" max="180" step="any" :value="fieldValue(node, 0)" :aria-invalid="isInvalid(node.key, 0) ? 'true' : undefined" :aria-describedby="isInvalid(node.key, 0) ? errorId(node.key, 0) : undefined" @input="move(node, 0, $event)" /></label>
+          <small v-if="isInvalid(node.key, 0)" :id="errorId(node.key, 0)">{{ localize("Editor.LongitudeMustBeBetween180And180", "Longitude must be between -180 and 180.") }}</small>
+          <label>{{ localize("Editor.Latitude", "Latitude") }} <input type="number" min="-90" max="90" step="any" :value="fieldValue(node, 1)" :aria-invalid="isInvalid(node.key, 1) ? 'true' : undefined" :aria-describedby="isInvalid(node.key, 1) ? errorId(node.key, 1) : undefined" @input="move(node, 1, $event)" /></label>
+          <small v-if="isInvalid(node.key, 1)" :id="errorId(node.key, 1)">{{ localize("Editor.LatitudeMustBeBetween90And90", "Latitude must be between -90 and 90.") }}</small>
+          <button type="button" class="btn btn-outline-danger btn-sm" :aria-label="`Remove ${nodeLabel(node, index)}`" @click="remove(node, index)">{{ localize("Editor.Remove", "Remove") }}</button>
         </template>
-        <span v-else class="small">Fixed saved-Place anchor</span>
+        <span v-else class="small">{{ localize("Editor.FixedSavedPlaceAnchor", "Fixed saved-Place anchor") }}</span>
         <button
           v-if="index < nodes.length - 1"
           type="button"
@@ -138,7 +139,7 @@ watch(
           data-route-insert-action
           :aria-label="`Insert route point after ${nodeLabel(node, index)}`"
           @click="insertAfter(node, index)"
-        >Insert route point after</button>
+        >{{ localize("Editor.InsertRoutePointAfter", "Insert route point after") }}</button>
       </li>
     </ol>
     <p class="visually-hidden" aria-live="polite">{{ status }}</p>

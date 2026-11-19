@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, ref } from 'vue';
 import type { EditorSegmentDraft, EditorTripState, Guid } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
@@ -67,14 +68,14 @@ function unavailableEndpoint(id: Guid | null): boolean {
     </div>
 
     <label class="trip-editor-field">
-      <span>Segment title (optional)</span>
-      <input v-model="draft.title" data-segment-field="title" maxlength="200" placeholder="Use derived journey label" />
+      <span>{{ localize("Editor.SegmentTitleOptional", "Segment title (optional)") }}</span>
+      <input v-model="draft.title" data-segment-field="title" maxlength="200" :placeholder="localize('Editor.UseDerivedJourneyLabel', 'Use derived journey label')" />
       <small v-for="message in fieldErrors('title')" :key="message">{{ message }}</small>
     </label>
     <label class="trip-editor-field">
-      <span>From place</span>
+      <span>{{ localize("Editor.FromPlace", "From place") }}</span>
       <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId'); $emit('semanticEditsUnsafe')">
-        <option :value="null">Unlinked</option>
+        <option :value="null">{{ localize("Editor.Unlinked", "Unlinked") }}</option>
         <option v-if="draft.fromPlaceId && unavailableEndpoint(draft.fromPlaceId)" :value="draft.fromPlaceId" disabled>{{ segmentPlaceUnavailableLabel(state, draft.fromPlaceId) }}</option>
         <optgroup v-for="group in placeGroups" :key="group.id" :label="group.label">
           <option v-for="place in group.places" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
@@ -86,9 +87,9 @@ function unavailableEndpoint(id: Guid | null): boolean {
     <SegmentWaypointEditor :baseline-draft="baselineDraft" :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :semantic-edits-safe="semanticEditsSafe" :state="state" @clear-error="$emit('clearError', $event)" @semantic-edits-unsafe="$emit('semanticEditsUnsafe')" />
 
     <label class="trip-editor-field">
-      <span>To place</span>
+      <span>{{ localize("Editor.ToPlace", "To place") }}</span>
       <select v-model="draft.toPlaceId" data-segment-field="toPlaceId" @change="$emit('clearError', 'toPlaceId'); $emit('semanticEditsUnsafe')">
-        <option :value="null">Unlinked</option>
+        <option :value="null">{{ localize("Editor.Unlinked", "Unlinked") }}</option>
         <option v-if="draft.toPlaceId && unavailableEndpoint(draft.toPlaceId)" :value="draft.toPlaceId" disabled>{{ segmentPlaceUnavailableLabel(state, draft.toPlaceId) }}</option>
         <optgroup v-for="group in placeGroups" :key="group.id" :label="group.label">
           <option v-for="place in group.places" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
@@ -98,9 +99,9 @@ function unavailableEndpoint(id: Guid | null): boolean {
     </label>
 
     <label class="trip-editor-field">
-      <span>Transport mode</span>
+      <span>{{ localize("Editor.TransportMode", "Transport mode") }}</span>
       <select v-model="draft.mode" data-segment-field="mode">
-        <option value="">Unset</option>
+        <option value="">{{ localize("Editor.Unset", "Unset") }}</option>
         <option v-for="mode in transportModes" :key="mode.value" :value="mode.value" :disabled="'inactive' in mode && mode.inactive">{{ mode.label }}</option>
       </select>
       <small v-for="message in fieldErrors('mode')" :key="message">{{ message }}</small>
@@ -108,20 +109,20 @@ function unavailableEndpoint(id: Guid | null): boolean {
 
     <div class="trip-editor-field-grid">
       <label class="trip-editor-field">
-        <span>Estimated distance km</span>
+        <span>{{ localize("Editor.EstimatedDistanceKm", "Estimated distance km") }}</span>
         <input :value="draft.estimatedDistanceKm" type="number" readonly aria-readonly="true" />
         <small v-for="message in fieldErrors('estimatedDistanceKm')" :key="message">{{ message }}</small>
       </label>
 
       <div class="trip-editor-field">
-        <span>Duration estimate</span>
-        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Automatic" /> Use automatic estimate</label>
-        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Manual" /> Enter manually</label>
+        <span>{{ localize("Editor.DurationEstimate", "Duration estimate") }}</span>
+        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Automatic" /> {{ localize("Editor.UseAutomaticEstimate", "Use automatic estimate") }}</label>
+        <label><input v-model="draft.estimatedDurationSource" data-segment-field="estimatedDurationSource" type="radio" value="Manual" /> {{ localize("Editor.EnterManually", "Enter manually") }}</label>
         <small v-for="message in fieldErrors('estimatedDurationSource')" :key="message">{{ message }}</small>
       </div>
 
       <label class="trip-editor-field">
-        <span>Estimated duration minutes</span>
+        <span>{{ localize("Editor.EstimatedDurationMinutes", "Estimated duration minutes") }}</span>
         <input v-if="draft.estimatedDurationSource === 'Manual'" v-model="draft.estimatedDurationMinutes" data-segment-field="estimatedDurationMinutes" type="number" min="0" step="any" />
         <input v-else :value="draft.estimatedDurationMinutes" type="number" disabled readonly aria-readonly="true" :placeholder="draft.estimatedDurationMinutes === '' ? 'Unavailable until route and speed are available' : undefined" />
         <small v-for="message in fieldErrors('estimatedDurationMinutes')" :key="message">{{ message }}</small>
@@ -129,11 +130,11 @@ function unavailableEndpoint(id: Guid | null): boolean {
     </div>
 
     <div data-segment-field="notesHtml" tabindex="-1">
-      <RichNotesEditor :adoption-revision="notesAdoption" :key="notesSession" ref="notesEditor" :editor-id="`${formId}-notes`" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+      <RichNotesEditor :adoption-revision="notesAdoption" :key="notesSession" ref="notesEditor" :editor-id="`${formId}-notes`" v-model="draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="fieldErrors('notesHtml')" />
     </div>
 
     <div class="trip-editor-field" data-segment-field="route" tabindex="-1">
-      <span>Route</span>
+      <span>{{ localize("Editor.Route", "Route") }}</span>
       <p class="trip-editor-empty-state">{{ routeSummary }}</p>
       <small v-for="message in [...fieldErrors('route'), ...fieldErrors('route.coordinates')]" :key="message">{{ message }}</small>
     </div>

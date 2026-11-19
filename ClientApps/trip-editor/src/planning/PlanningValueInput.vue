@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
 import { confirm } from '../composables/useConfirmDialog';
 import type { PlanningValue } from './planningTypes';
@@ -28,18 +29,18 @@ const precision = async (next: PlanningValue['precision']): Promise<void> => {
     <label class="trip-editor-field"><span>{{ value.precision === 'month' ? 'Month' : 'Date' }}</span>
       <input v-model="datePart" :type="value.precision === 'month' ? 'month' : 'date'" min="0001-01-01" max="9999-12-31" />
     </label>
-    <button v-if="value.precision !== 'month'" type="button" class="btn btn-outline-secondary btn-sm" @click="precision('month')">Month only</button>
-    <button v-else type="button" class="btn btn-outline-secondary btn-sm" @click="precision('date')">Choose exact date</button>
-    <button v-if="value.precision === 'date'" type="button" class="btn btn-outline-secondary btn-sm" @click="precision('dateTime')">Add time</button>
+    <button v-if="value.precision !== 'month'" type="button" class="btn btn-outline-secondary btn-sm" @click="precision('month')">{{ localize("Editor.MonthOnly", "Month only") }}</button>
+    <button v-else type="button" class="btn btn-outline-secondary btn-sm" @click="precision('date')">{{ localize("Editor.ChooseExactDate", "Choose exact date") }}</button>
+    <button v-if="value.precision === 'date'" type="button" class="btn btn-outline-secondary btn-sm" @click="precision('dateTime')">{{ localize("Editor.AddTime", "Add time") }}</button>
     <template v-if="value.precision === 'dateTime'">
-      <label class="trip-editor-field"><span>Time</span><input v-model="timePart" type="time" step="60" /></label>
-      <details><summary>Zone and occurrence (optional)</summary>
-        <label class="trip-editor-field"><span>UTC or IANA zone</span><input :value="value.zone ?? ''" placeholder="Unspecified" @input="value.zone = ($event.target as HTMLInputElement).value || undefined; if (!value.zone) delete value.selectedOffsetSeconds" /></label>
-        <label class="trip-editor-field"><span>Occurrence UTC offset in seconds (optional)</span><input v-model.number="value.selectedOffsetSeconds" type="number" step="1" @change="() => { if (String(value.selectedOffsetSeconds) === '') delete value.selectedOffsetSeconds }" /></label>
-        <small>Leave occurrence unresolved, or supply the zone's offset for the intended occurrence of a repeated clock. No zone is inferred.</small>
+      <label class="trip-editor-field"><span>{{ localize("Editor.Time", "Time") }}</span><input v-model="timePart" type="time" step="60" /></label>
+      <details><summary>{{ localize("Editor.ZoneAndOccurrenceOptional", "Zone and occurrence (optional)") }}</summary>
+        <label class="trip-editor-field"><span>{{ localize("Editor.UtcOrIANAZone", "UTC or IANA zone") }}</span><input :value="value.zone ?? ''" :placeholder="localize('Editor.Unspecified', 'Unspecified')" @input="value.zone = ($event.target as HTMLInputElement).value || undefined; if (!value.zone) delete value.selectedOffsetSeconds" /></label>
+        <label class="trip-editor-field"><span>{{ localize("Editor.OccurrenceUTCOffsetInSecondsOptional", "Occurrence UTC offset in seconds (optional)") }}</span><input v-model.number="value.selectedOffsetSeconds" type="number" step="1" @change="() => { if (String(value.selectedOffsetSeconds) === '') delete value.selectedOffsetSeconds }" /></label>
+        <small>{{ localize("Editor.LeaveOccurrenceUnresolvedOrSupplyTheZone", "Leave occurrence unresolved, or supply the zone's offset for the intended occurrence of a repeated clock. No zone is inferred.") }}</small>
       </details>
-      <button type="button" class="btn btn-outline-secondary btn-sm" @click="precision('date')">Remove time</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" @click="precision('date')">{{ localize("Editor.RemoveTime", "Remove time") }}</button>
     </template>
-    <small>{{ value.precision }} precision<span v-if="value.precision === 'dateTime'"> · {{ value.zone || 'zone unspecified' }}</span></small>
+    <small>{{ value.precision }} {{ localize("Editor.Precision", "precision") }}<span v-if="value.precision === 'dateTime'"> · {{ value.zone || 'zone unspecified' }}</span></small>
   </fieldset>
 </template>

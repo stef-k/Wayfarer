@@ -49,17 +49,17 @@ public partial class TripExportService
     private async Task<Stream> GeneratePdfCoreAsync(Guid tripId, string? progressChannel = null, CancellationToken cancellationToken = default)
     {
         // Helper to send progress updates if channel is provided
-        async Task ReportProgress(string message)
+        async Task ReportProgress(string message, string presentation, params object[] arguments)
         {
             await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
             if (!string.IsNullOrEmpty(progressChannel))
             {
                 await _sseService.BroadcastAsync(progressChannel,
-                    System.Text.Json.JsonSerializer.Serialize(new { message })).WaitAsync(cancellationToken);
+                    System.Text.Json.JsonSerializer.Serialize(new { message, presentation, arguments })).WaitAsync(cancellationToken);
             }
         }
 
-        await ReportProgress("🗺️ Loading trip data...");
+        await ReportProgress("🗺️ Loading trip data...", "Viewer.PdfLoad");
         cancellationToken.ThrowIfCancellationRequested();
 
         /* 1 ── load trip + related data ------------------------------------ */
@@ -81,7 +81,7 @@ public partial class TripExportService
         if (TripReusePolicy.Caller(_ctx) != trip.UserId) TripCopyMedia.OmitUnqualified(trip);
         acquisition?.Dispose(); // Graph capture is complete; no database barrier is held over browser/media work.
         await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
-        await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments");
+        await ReportProgress($"📊 Found {regions.Count} regions, {places.Count} places, {segments.Count} segments", "Viewer.PdfInventory", regions.Count, places.Count, segments.Count);
         cancellationToken.ThrowIfCancellationRequested();
 
         var policy = BrowserCapturePolicy.Resolve(_configuration)
@@ -98,14 +98,14 @@ public partial class TripExportService
             if (budgetReported) return;
             budgetReported = true;
             _logger.LogInformation("PDF map-image budget reached for trip {TripId}", tripId);
-            await ReportProgress("Map-image limit reached (64); the complete itinerary will be exported.");
+            await ReportProgress("Map-image limit reached (64); the complete itinerary will be exported.", "Viewer.PdfMapLimit");
         }
 
 
         // cover photo (download once)
         if (!string.IsNullOrWhiteSpace(trip.CoverImageUrl))
         {
-            await ReportProgress("📷 Downloading cover photo...");
+            await ReportProgress("📷 Downloading cover photo...", "Viewer.PdfCover");
             coverDataUri = await TripExportCoverSnapshotBuilder.BuildDataUriAsync(_imageProxyService, trip.CoverImageUrl, cancellationToken);
         }
         cancellationToken.ThrowIfCancellationRequested();
@@ -118,7 +118,7 @@ public partial class TripExportService
         var cookie = isPub ? null : authCookie;
 
         // trip overview
-        await ReportProgress("📸 Capturing trip overview map...");
+        await ReportProgress("📸 Capturing trip overview map...", "Viewer.PdfOverview");
         snap["trip"] = await _snap.CaptureMapAsync(workflow,
             BuildMapUrl(lat, lon, zoom, isPub, trip.Id),
             800, 800, cookie, cancellationToken);
@@ -126,7 +126,7 @@ public partial class TripExportService
         // regions
         if (regions.Count > 0)
         {
-            await ReportProgress($"🗺️ Capturing {regions.Count} region maps...");
+            await ReportProgress($"🗺️ Capturing {regions.Count} region maps...", "Viewer.PdfRegions", regions.Count);
             var regionIndex = 0;
             foreach (var r in regions)
             {
@@ -134,7 +134,7 @@ public partial class TripExportService
                 if (r.Center == null) continue;
                 if (snap.Count >= 64) { await ReportMapBudget(); break; }
                 regionIndex++;
-                await ReportProgress($"  📍 Region {regionIndex}/{regions.Count}: {r.Name}");
+                await ReportProgress($"  📍 Region {regionIndex}/{regions.Count}: {r.Name}", "Viewer.PdfRegion", regionIndex, regions.Count, r.Name);
                 snap[$"region_{r.Id}"] = await _snap.CaptureMapAsync(workflow,
                     BuildMapUrl(r.Center.Y, r.Center.X, 10, isPub, trip.Id),
                     600, 600, cookie, cancellationToken);
@@ -144,7 +144,7 @@ public partial class TripExportService
         // places
         if (places.Count > 0)
         {
-            await ReportProgress($"📌 Capturing {places.Count} place maps...");
+            await ReportProgress($"📌 Capturing {places.Count} place maps...", "Viewer.PdfPlaces", places.Count);
             var placeIndex = 0;
             var placesWithLocation = places.Where(p => p.Location != null).ToList();
 
@@ -154,7 +154,7 @@ public partial class TripExportService
                 if (snap.Count >= 64) { await ReportMapBudget(); break; }
                 placeIndex++;
                 var placeName = !string.IsNullOrWhiteSpace(p.Name) ? $" - {p.Name}" : "";
-                await ReportProgress($"  📍 Place {placeIndex}/{placesWithLocation.Count}{placeName}");
+                await ReportProgress($"  📍 Place {placeIndex}/{placesWithLocation.Count}{placeName}", "Viewer.PdfPlace", placeIndex, placesWithLocation.Count, placeName);
 
                 snap[$"place_{p.Id}"] = await _snap.CaptureMapAsync(workflow,
                     BuildMapUrl(p.Location!.Y, p.Location.X, 15, isPub, trip.Id),
@@ -165,7 +165,7 @@ public partial class TripExportService
         // segments (mid-points)
         if (segments.Count > 0)
         {
-            await ReportProgress($"🛣️ Capturing {segments.Count} route segments...");
+            await ReportProgress($"🛣️ Capturing {segments.Count} route segments...", "Viewer.PdfSegments", segments.Count);
             var segmentIndex = 0;
             var validSegments = segments.Where(s =>
             {
@@ -183,7 +183,7 @@ public partial class TripExportService
 
                 segmentIndex++;
                 var routeName = $"{from.Name} → {to.Name}";
-                await ReportProgress($"  🚗 Segment {segmentIndex}/{validSegments.Count}: {routeName}");
+                await ReportProgress($"  🚗 Segment {segmentIndex}/{validSegments.Count}: {routeName}", "Viewer.PdfSegment", segmentIndex, validSegments.Count, routeName);
 
                 double midLat = (from.Location!.Y + to.Location!.Y) / 2;
                 double midLon = (from.Location.X + to.Location.X) / 2;
@@ -216,7 +216,7 @@ public partial class TripExportService
         };
 
         // Razor ➜ HTML
-        await ReportProgress("📝 Rendering PDF template...");
+        await ReportProgress("📝 Rendering PDF template...", "Viewer.PdfTemplate");
         var html = await _razor.RenderViewToStringAsync(
             "~/Views/Trip/Print.cshtml", vm).WaitAsync(cancellationToken);
 
@@ -237,13 +237,13 @@ public partial class TripExportService
         html = document.ToHtml();
 
         // Playwright ➜ PDF
-        await ReportProgress("🌐 Starting PDF generator...");
+        await ReportProgress("🌐 Starting PDF generator...", "Viewer.PdfStart");
 
         cancellationToken.ThrowIfCancellationRequested();
 
         await using var pdfContext = await workflow.NewContextAsync(800, 800, cookie);
         var page = await pdfContext.Context.NewPageAsync();
-        await ReportProgress("📄 Generating PDF document...");
+        await ReportProgress("📄 Generating PDF document...", "Viewer.PdfRender");
         await page.SetContentAsync(html, new PageSetContentOptions
         {
             WaitUntil = WaitUntilState.NetworkIdle
@@ -272,7 +272,7 @@ public partial class TripExportService
 </div>"
         }).WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
 
-        await ReportProgress("✅ PDF ready! Starting download...");
+        await ReportProgress("✅ PDF ready! Starting download...", "Viewer.PdfReady");
         cancellationToken.ThrowIfCancellationRequested();
         await TripReusePolicy.RequireAsync(_db, tripId, TripReusePolicy.Caller(_ctx), cancellationToken);
         return new MemoryStream(pdfBytes);

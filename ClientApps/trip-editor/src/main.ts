@@ -1,3 +1,4 @@
+import { message as localize } from '../../../wwwroot/js/localization/messages.js';
 import { createApp } from 'vue';
 import type { BootstrapConfig } from './types';
 import './theme.css';
@@ -14,8 +15,8 @@ const compositionElement = document.getElementById('trip-composition-app');
 /** Failed chunk loading leaves a normal recovery link and never retries a construction/mutation. */
 const loadFailed = (element: HTMLElement): void => {
   const message = document.createElement('p'); message.setAttribute('role', 'alert');
-  message.textContent = 'The Trip workspace could not load. Refresh this page or return to My Trips.';
-  const link = document.createElement('a'); link.href = '/User/Trip'; link.textContent = 'My Trips';
+  message.textContent = localize('Editor.LoadFailed', 'The Trip workspace could not load. Refresh this page or return to My Trips.');
+  const link = document.createElement('a'); link.href = '/User/Trip'; link.textContent = localize('Editor.MyTrips', 'My Trips');
   element.replaceChildren(message, link);
 };
 

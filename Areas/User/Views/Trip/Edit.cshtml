@@ -1,11 +1,13 @@
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.TripEditorShellViewModel
 @inject IWebHostEnvironment Environment
 @using System.Text.Json
 @using System.Security.Claims
 
 @{
+    ViewData["WebCatalog"] = "Editor";
     Layout = "~/Views/Shared/_Layout.cshtml";
-    ViewData["Title"] = "Trip Editor";
+    ViewData["Title"] = T["Editor.Title"];
     var entryScript = "ClientApps/trip-editor/src/main.ts";
 }
 
@@ -31,7 +33,7 @@
 }
 
 @* Copy opens a lightweight destination-bound flow; no comparison workspace is required. *@
-<p><a asp-area="User" asp-controller="Trip" asp-action="Copy" asp-route-destination="@Model.TripId">Copy ideas into this Trip</a></p>
+<p><a asp-area="User" asp-controller="Trip" asp-action="Copy" asp-route-destination="@Model.TripId">@T["Editor.CopyIdeas"]</a></p>
 
 <form id="trip-editor-antiforgery" class="d-none">
     @Html.AntiForgeryToken()
@@ -39,7 +41,7 @@
 
 @if (ViewData["CompositionReturnUrl"] is string comparisonUrl)
 {
-    <nav class="trip-editor-comparison-return" aria-label="Comparison return"><a href="@comparisonUrl">Return to saved comparison</a> · Every successful edit is already saved to C.</nav>
+    <nav class="trip-editor-comparison-return" aria-label="@T["Editor.ComparisonReturn"]"><a href="@comparisonUrl">@T["Editor.ReturnToComparison"]</a> · @T["Editor.ComparisonSaved"]</nav>
 }
 
 <div id="trip-editor-app"
@@ -51,7 +53,7 @@
      data-tiles-url="@Model.TilesUrl">
     <div class="trip-editor-shell-loading">
         <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-        Loading trip editor...
+        @T["Editor.LoadingEditor"]
     </div>
 </div>
 

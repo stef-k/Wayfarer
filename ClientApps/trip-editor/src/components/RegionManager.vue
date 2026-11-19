@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
@@ -533,14 +534,14 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
 <template>
   <section class="trip-editor-panel trip-editor-regions">
     <div class="trip-editor-panel__line">
-      <h2>Regions &amp; Places</h2>
+      <h2>{{ localize("Editor.RegionsPlaces", "Regions & Places") }}</h2>
       <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
     <div v-if="saveWarning" class="trip-editor-form-warning" role="status">{{ saveWarning }}</div>
 
-    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Region</button>
+    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">{{ localize("Editor.AddRegion", "Add Region") }}</button>
 
     <RegionEditorSurface :notes-adoption="regionDraftState.notesAdoption.value" :notes-session="regionDraftState.session()" v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 

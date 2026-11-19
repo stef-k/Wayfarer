@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { DeepReadonly } from 'vue';
 import type { Disposition, RegionDeletionController } from './regionDeletionState';
 import { unknownRegionDeletionMessage } from './regionDeletionState';
@@ -20,22 +21,20 @@ const choices: Disposition[] = ['keep', 'delete'];
     </fieldset>
   </div>
   <div role="status" aria-live="polite" aria-atomic="true">
-    <p v-if="controller.state.loading">Loading current consequences…</p>
+    <p v-if="controller.state.loading">{{ localize("Editor.LoadingCurrentConsequences", "Loading current consequences…") }}</p>
     <div v-if="controller.state.preview">
-      <p>Places: {{ controller.state.preview.consequences.movedPlaces.count }} kept, {{ controller.state.preview.consequences.deletedPlaces.count }} deleted.
-        Areas: {{ controller.state.preview.consequences.movedAreas.count }} kept, {{ controller.state.preview.consequences.deletedAreas.count }} deleted.</p>
-      <p v-if="controller.state.preview.destination.mode !== 'not-required'">{{ controller.state.preview.destination.mode === 'create' ? 'Creates' : 'Appends to existing' }} Unassigned Places.</p>
-      <p>The Region’s private planning is removed. Kept children retain their own planning; deleted children and Segments lose theirs.</p>
-      <p>Segments deleted: {{ controller.state.preview.consequences.deletedSegments.count }}.</p>
-      <p>Surviving waypoint routes changed: {{ controller.state.preview.consequences.updatedSegments.count }};
-        saved waypoint associations removed: {{ controller.state.preview.consequences.detachedWaypoints.count }}.</p>
-      <p v-if="controller.state.places === 'delete'">Deletion is permanent. Visit history retains snapshots and is unlinked from deleted Places. Kept Areas do not preserve deleted Places or routes.</p>
+      <p>{{ localize("Editor.Places", "Places:") }} {{ controller.state.preview.consequences.movedPlaces.count }} {{ localize("Editor.Kept", "kept,") }} {{ controller.state.preview.consequences.deletedPlaces.count }} {{ localize("Editor.DeletedAreas", "deleted. Areas:") }} {{ controller.state.preview.consequences.movedAreas.count }} {{ localize("Editor.Kept", "kept,") }} {{ controller.state.preview.consequences.deletedAreas.count }} {{ localize("Editor.Deleted", "deleted.") }}</p>
+      <p v-if="controller.state.preview.destination.mode !== 'not-required'">{{ controller.state.preview.destination.mode === 'create' ? 'Creates' : 'Appends to existing' }} {{ localize("Editor.UnassignedPlacesDestination", "Unassigned Places.") }}</p>
+      <p>{{ localize("Editor.TheRegionSPrivatePlanningIsRemoved", "The Region’s private planning is removed. Kept children retain their own planning; deleted children and Segments lose theirs.") }}</p>
+      <p>{{ localize("Editor.SegmentsDeleted", "Segments deleted:") }} {{ controller.state.preview.consequences.deletedSegments.count }}.</p>
+      <p>{{ localize("Editor.SurvivingWaypointRoutesChanged", "Surviving waypoint routes changed:") }} {{ controller.state.preview.consequences.updatedSegments.count }}{{ localize("Editor.SavedWaypointAssociationsRemoved", "; saved waypoint associations removed:") }} {{ controller.state.preview.consequences.detachedWaypoints.count }}.</p>
+      <p v-if="controller.state.places === 'delete'">{{ localize("Editor.DeletionIsPermanentVisitHistoryRetainsSnapshots", "Deletion is permanent. Visit history retains snapshots and is unlinked from deleted Places. Kept Areas do not preserve deleted Places or routes.") }}</p>
     </div>
-    <p v-if="controller.state.submitting">Deleting Region. Waiting for the server result…</p>
+    <p v-if="controller.state.submitting">{{ localize("Editor.DeletingRegionWaitingForTheServerResult", "Deleting Region. Waiting for the server result…") }}</p>
   </div>
   <div v-if="controller.state.error" role="alert" class="alert alert-warning">{{ controller.state.error }}</div>
   <div v-if="controller.state.held" role="alert" class="alert alert-warning">
-    {{ unknownRegionDeletionMessage }} The earlier request remains unresolved. Another Region deletion is held until its terminal outcome is explicitly reconciled.
+    {{ unknownRegionDeletionMessage }} {{ localize("Editor.TheEarlierRequestRemainsUnresolvedAnotherRegion", "The earlier request remains unresolved. Another Region deletion is held until its terminal outcome is explicitly reconciled.") }}
   </div>
-  <button v-if="!controller.state.held && !controller.state.submitting" type="button" class="btn btn-outline-secondary btn-sm" :disabled="controller.state.loading" @click="controller.refresh()">Refresh preview</button>
+  <button v-if="!controller.state.held && !controller.state.submitting" type="button" class="btn btn-outline-secondary btn-sm" :disabled="controller.state.loading" @click="controller.refresh()">{{ localize("Editor.RefreshPreview", "Refresh preview") }}</button>
 </template>

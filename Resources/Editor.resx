@@ -1,0 +1,1011 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Editor.Loading" xml:space="preserve">
+    <value>Loading</value>
+  </data>
+  <data name="Editor.LoadingEditor" xml:space="preserve">
+    <value>Loading trip editor...</value>
+  </data>
+  <data name="Editor.TripEditorUnavailable" xml:space="preserve">
+    <value>Trip Editor unavailable</value>
+  </data>
+  <data name="Editor.FitAll" xml:space="preserve">
+    <value>Fit All</value>
+  </data>
+  <data name="Editor.RecenterSavedTripView" xml:space="preserve">
+    <value>Recenter Saved Trip View</value>
+  </data>
+  <data name="Editor.FocusActiveEntity" xml:space="preserve">
+    <value>Focus Active Entity</value>
+  </data>
+  <data name="Editor.ClearSelection" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="Editor.TripMap" xml:space="preserve">
+    <value>Trip map</value>
+  </data>
+  <data name="Editor.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Editor.FillColor" xml:space="preserve">
+    <value>Fill Color</value>
+  </data>
+  <data name="Editor.FillHex" xml:space="preserve">
+    <value>Fill Hex</value>
+  </data>
+  <data name="Editor.Geometry" xml:space="preserve">
+    <value>Geometry</value>
+  </data>
+  <data name="Editor.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Editor.DrawEditArea" xml:space="preserve">
+    <value>Draw/Edit Area</value>
+  </data>
+  <data name="Editor.Reset" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Editor.SaveArea" xml:space="preserve">
+    <value>Save Area</value>
+  </data>
+  <data name="Editor.ExpandEditor" xml:space="preserve">
+    <value>Expand Editor</value>
+  </data>
+  <data name="Editor.DockToSidebar" xml:space="preserve">
+    <value>Dock to sidebar</value>
+  </data>
+  <data name="Editor.NoMatchingIcons" xml:space="preserve">
+    <value>No matching icons.</value>
+  </data>
+  <data name="Editor.MapSearch" xml:space="preserve">
+    <value>Map search</value>
+  </data>
+  <data name="Editor.SearchAddressOrPlace" xml:space="preserve">
+    <value>Search address or place</value>
+  </data>
+  <data name="Editor.Search" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Editor.SearchBy" xml:space="preserve">
+    <value>Search by</value>
+  </data>
+  <data name="Editor.TargetRegion" xml:space="preserve">
+    <value>Target region</value>
+  </data>
+  <data name="Editor.SelectRegion" xml:space="preserve">
+    <value>Select region</value>
+  </data>
+  <data name="Editor.AddAsPlace" xml:space="preserve">
+    <value>Add as place</value>
+  </data>
+  <data name="Editor.Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Editor.ClearRoute" xml:space="preserve">
+    <value>Clear Route</value>
+  </data>
+  <data name="Editor.MapWork" xml:space="preserve">
+    <value>Map work</value>
+  </data>
+  <data name="Editor.TripSettings" xml:space="preserve">
+    <value>Trip Settings</value>
+  </data>
+  <data name="Editor.ShareProgressLabel" xml:space="preserve">
+    <value>Share progress:</value>
+  </data>
+  <data name="Editor.OpenPublicTrip" xml:space="preserve">
+    <value>Open public trip</value>
+  </data>
+  <data name="Editor.OpenProgressURL" xml:space="preserve">
+    <value>Open progress URL</value>
+  </data>
+  <data name="Editor.EditTrip" xml:space="preserve">
+    <value>Edit Trip</value>
+  </data>
+  <data name="Editor.PublicTrip" xml:space="preserve">
+    <value>Public trip</value>
+  </data>
+  <data name="Editor.PrivateTrip" xml:space="preserve">
+    <value>Private trip</value>
+  </data>
+  <data name="Editor.ShareProgress" xml:space="preserve">
+    <value>Share Progress</value>
+  </data>
+  <data name="Editor.ShowVisitProgressOnPublicTrip" xml:space="preserve">
+    <value>Show visit progress on public trip</value>
+  </data>
+  <data name="Editor.Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="Editor.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Editor.AddTag" xml:space="preserve">
+    <value>Add tag</value>
+  </data>
+  <data name="Editor.Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Editor.CoverImageURL" xml:space="preserve">
+    <value>Cover Image URL</value>
+  </data>
+  <data name="Editor.CenterLatitude" xml:space="preserve">
+    <value>Center Latitude</value>
+  </data>
+  <data name="Editor.CenterLongitude" xml:space="preserve">
+    <value>Center Longitude</value>
+  </data>
+  <data name="Editor.Zoom" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="Editor.SaveSettingsContinue" xml:space="preserve">
+    <value>Save settings &amp; Continue</value>
+  </data>
+  <data name="Editor.SaveSettingsExit" xml:space="preserve">
+    <value>Save settings &amp; Exit</value>
+  </data>
+  <data name="Editor.CancelReset" xml:space="preserve">
+    <value>Cancel / Reset</value>
+  </data>
+  <data name="Editor.Region" xml:space="preserve">
+    <value>Region</value>
+  </data>
+  <data name="Editor.NameRequired" xml:space="preserve">
+    <value>Name is required.</value>
+  </data>
+  <data name="Editor.NameLength" xml:space="preserve">
+    <value>Name must contain 1 through 200 characters.</value>
+  </data>
+  <data name="Editor.FieldRequired" xml:space="preserve">
+    <value>The field is required.</value>
+  </data>
+  <data name="Editor.Address" xml:space="preserve">
+    <value>Address</value>
+  </data>
+  <data name="Editor.Latitude" xml:space="preserve">
+    <value>Latitude</value>
+  </data>
+  <data name="Editor.Longitude" xml:space="preserve">
+    <value>Longitude</value>
+  </data>
+  <data name="Editor.Icon" xml:space="preserve">
+    <value>Icon</value>
+  </data>
+  <data name="Editor.MarkerColor" xml:space="preserve">
+    <value>Marker Color</value>
+  </data>
+  <data name="Editor.ReverseGeocodeThisLocationOnSave" xml:space="preserve">
+    <value>Reverse geocode this location on save</value>
+  </data>
+  <data name="Editor.PickOnMap" xml:space="preserve">
+    <value>Pick on map</value>
+  </data>
+  <data name="Editor.ClickTheMapOrDragTheMarker" xml:space="preserve">
+    <value>Click the map or drag the marker. Done updates the draft; Save Place persists it.</value>
+  </data>
+  <data name="Editor.PickThisPlaceSLatitudeAndLongitude" xml:space="preserve">
+    <value>Pick this place's latitude and longitude on the map</value>
+  </data>
+  <data name="Editor.SavePlace" xml:space="preserve">
+    <value>Save Place</value>
+  </data>
+  <data name="Editor.LoadingCurrentConsequences" xml:space="preserve">
+    <value>Loading current consequences…</value>
+  </data>
+  <data name="Editor.Places" xml:space="preserve">
+    <value>Places:</value>
+  </data>
+  <data name="Editor.Kept" xml:space="preserve">
+    <value>kept,</value>
+  </data>
+  <data name="Editor.DeletedAreas" xml:space="preserve">
+    <value>deleted. Areas:</value>
+  </data>
+  <data name="Editor.Deleted" xml:space="preserve">
+    <value>deleted.</value>
+  </data>
+  <data name="Editor.UnassignedPlacesDestination" xml:space="preserve">
+    <value>Unassigned Places.</value>
+  </data>
+  <data name="Editor.TheRegionSPrivatePlanningIsRemoved" xml:space="preserve">
+    <value>The Region’s private planning is removed. Kept children retain their own planning; deleted children and Segments lose theirs.</value>
+  </data>
+  <data name="Editor.SegmentsDeleted" xml:space="preserve">
+    <value>Segments deleted:</value>
+  </data>
+  <data name="Editor.SurvivingWaypointRoutesChanged" xml:space="preserve">
+    <value>Surviving waypoint routes changed:</value>
+  </data>
+  <data name="Editor.SavedWaypointAssociationsRemoved" xml:space="preserve">
+    <value>; saved waypoint associations removed:</value>
+  </data>
+  <data name="Editor.DeletionIsPermanentVisitHistoryRetainsSnapshots" xml:space="preserve">
+    <value>Deletion is permanent. Visit history retains snapshots and is unlinked from deleted Places. Kept Areas do not preserve deleted Places or routes.</value>
+  </data>
+  <data name="Editor.DeletingRegionWaitingForTheServerResult" xml:space="preserve">
+    <value>Deleting Region. Waiting for the server result…</value>
+  </data>
+  <data name="Editor.TheEarlierRequestRemainsUnresolvedAnotherRegion" xml:space="preserve">
+    <value>The earlier request remains unresolved. Another Region deletion is held until its terminal outcome is explicitly reconciled.</value>
+  </data>
+  <data name="Editor.RefreshPreview" xml:space="preserve">
+    <value>Refresh preview</value>
+  </data>
+  <data name="Editor.RegionDeletionRemainsHeldUntilTheEarlier" xml:space="preserve">
+    <value>Region deletion remains held until the earlier request's terminal outcome is explicitly reconciled.</value>
+  </data>
+  <data name="Editor.SaveRegion" xml:space="preserve">
+    <value>Save Region</value>
+  </data>
+  <data name="Editor.RegionsPlaces" xml:space="preserve">
+    <value>Regions &amp; Places</value>
+  </data>
+  <data name="Editor.AddRegion" xml:space="preserve">
+    <value>Add Region</value>
+  </data>
+  <data name="Editor.DragToReorderRegion" xml:space="preserve">
+    <value>Drag to reorder region</value>
+  </data>
+  <data name="Editor.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Editor.DragToReorderPlace" xml:space="preserve">
+    <value>Drag to reorder place</value>
+  </data>
+  <data name="Editor.Areas" xml:space="preserve">
+    <value>Areas</value>
+  </data>
+  <data name="Editor.DragToReorderArea" xml:space="preserve">
+    <value>Drag to reorder area</value>
+  </data>
+  <data name="Editor.Area" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="Editor.AddPlace" xml:space="preserve">
+    <value>Add Place</value>
+  </data>
+  <data name="Editor.AddArea" xml:space="preserve">
+    <value>Add Area</value>
+  </data>
+  <data name="Editor.SegmentTitleOptional" xml:space="preserve">
+    <value>Segment title (optional)</value>
+  </data>
+  <data name="Editor.UseDerivedJourneyLabel" xml:space="preserve">
+    <value>Use derived journey label</value>
+  </data>
+  <data name="Editor.FromPlace" xml:space="preserve">
+    <value>From place</value>
+  </data>
+  <data name="Editor.Unlinked" xml:space="preserve">
+    <value>Unlinked</value>
+  </data>
+  <data name="Editor.ToPlace" xml:space="preserve">
+    <value>To place</value>
+  </data>
+  <data name="Editor.TransportMode" xml:space="preserve">
+    <value>Transport mode</value>
+  </data>
+  <data name="Editor.Unset" xml:space="preserve">
+    <value>Unset</value>
+  </data>
+  <data name="Editor.EstimatedDistanceKm" xml:space="preserve">
+    <value>Estimated distance km</value>
+  </data>
+  <data name="Editor.DurationEstimate" xml:space="preserve">
+    <value>Duration estimate</value>
+  </data>
+  <data name="Editor.UseAutomaticEstimate" xml:space="preserve">
+    <value>Use automatic estimate</value>
+  </data>
+  <data name="Editor.EnterManually" xml:space="preserve">
+    <value>Enter manually</value>
+  </data>
+  <data name="Editor.EstimatedDurationMinutes" xml:space="preserve">
+    <value>Estimated duration minutes</value>
+  </data>
+  <data name="Editor.Route" xml:space="preserve">
+    <value>Route</value>
+  </data>
+  <data name="Editor.TheCustomRouteIsStoredInReverse" xml:space="preserve">
+    <value>The custom route is stored in reverse semantic order. Use Reverse route to update this unsaved draft before saving.</value>
+  </data>
+  <data name="Editor.RouteDirectionUnavailableCorrectOrClearThe" xml:space="preserve">
+    <value>Route direction unavailable. Correct or clear the custom route before relying on direction cues.</value>
+  </data>
+  <data name="Editor.DrawEditRoute" xml:space="preserve">
+    <value>Draw/Edit Route</value>
+  </data>
+  <data name="Editor.ReverseRoute" xml:space="preserve">
+    <value>Reverse route</value>
+  </data>
+  <data name="Editor.SaveSegment" xml:space="preserve">
+    <value>Save Segment</value>
+  </data>
+  <data name="Editor.Segments" xml:space="preserve">
+    <value>Segments</value>
+  </data>
+  <data name="Editor.CurrentSavedSegment" xml:space="preserve">
+    <value>Current saved Segment</value>
+  </data>
+  <data name="Editor.Km" xml:space="preserve">
+    <value>km ·</value>
+  </data>
+  <data name="Editor.Minutes" xml:space="preserve">
+    <value>minutes ·</value>
+  </data>
+  <data name="Editor.ReloadCurrentSavedSegment" xml:space="preserve">
+    <value>Reload current saved Segment</value>
+  </data>
+  <data name="Editor.AddSegment" xml:space="preserve">
+    <value>Add Segment</value>
+  </data>
+  <data name="Editor.DragToReorderSegment" xml:space="preserve">
+    <value>Drag to reorder segment</value>
+  </data>
+  <data name="Editor.DeleteSegment" xml:space="preserve">
+    <value>Delete segment</value>
+  </data>
+  <data name="Editor.NoTravelSegmentsAddedYet" xml:space="preserve">
+    <value>No travel segments added yet.</value>
+  </data>
+  <data name="Editor.RoutePoints" xml:space="preserve">
+    <value>Route points</value>
+  </data>
+  <data name="Editor.StartViaAndEndAnchorsFollowTheir" xml:space="preserve">
+    <value>Start, Via, and End anchors follow their saved Places and cannot be moved or removed here.</value>
+  </data>
+  <data name="Editor.LongitudeMustBeBetween180And180" xml:space="preserve">
+    <value>Longitude must be between -180 and 180.</value>
+  </data>
+  <data name="Editor.LatitudeMustBeBetween90And90" xml:space="preserve">
+    <value>Latitude must be between -90 and 90.</value>
+  </data>
+  <data name="Editor.FixedSavedPlaceAnchor" xml:space="preserve">
+    <value>Fixed saved-Place anchor</value>
+  </data>
+  <data name="Editor.InsertRoutePointAfter" xml:space="preserve">
+    <value>Insert route point after</value>
+  </data>
+  <data name="Editor.ExternalRoutedPath" xml:space="preserve">
+    <value>External routed path</value>
+  </data>
+  <data name="Editor.SaveTheTransportProfileChangeBeforeGenerating" xml:space="preserve">
+    <value>Save the transport-profile change before generating a new proposal.</value>
+  </data>
+  <data name="Editor.DirectionsMode" xml:space="preserve">
+    <value>Directions mode</value>
+  </data>
+  <data name="Editor.ChooseAMode" xml:space="preserve">
+    <value>Choose a mode</value>
+  </data>
+  <data name="Editor.UsedOnlyToCalculateThisRouteThe" xml:space="preserve">
+    <value>Used only to calculate this route. The Segment's transport profile stays unchanged.</value>
+  </data>
+  <data name="Editor.CancelGeneration" xml:space="preserve">
+    <value>Cancel generation</value>
+  </data>
+  <data name="Editor.ReviewTheProposedRouteAndEstimatesSave" xml:space="preserve">
+    <value>Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.</value>
+  </data>
+  <data name="Editor.ProposedDistance" xml:space="preserve">
+    <value>Proposed distance</value>
+  </data>
+  <data name="Editor.EstimatedTravelTime" xml:space="preserve">
+    <value>Estimated travel time</value>
+  </data>
+  <data name="Editor.SaveKeepsYourManualDurationInsteadOf" xml:space="preserve">
+    <value>Save keeps your manual duration instead of the proposed duration estimate.</value>
+  </data>
+  <data name="Editor.DiscardProposal" xml:space="preserve">
+    <value>Discard proposal</value>
+  </data>
+  <data name="Editor.IntermediatePlaces" xml:space="preserve">
+    <value>Intermediate places</value>
+  </data>
+  <data name="Editor.NoIntermediateSavedPlaceSelected" xml:space="preserve">
+    <value>No intermediate saved Place selected.</value>
+  </data>
+  <data name="Editor.PlaceToAdd" xml:space="preserve">
+    <value>Place to add</value>
+  </data>
+  <data name="Editor.SelectASavedPlace" xml:space="preserve">
+    <value>Select a saved Place</value>
+  </data>
+  <data name="Editor.AddIntermediatePlace" xml:space="preserve">
+    <value>Add intermediate place</value>
+  </data>
+  <data name="Editor.MoveUp" xml:space="preserve">
+    <value>Move up</value>
+  </data>
+  <data name="Editor.MoveDown" xml:space="preserve">
+    <value>Move down</value>
+  </data>
+  <data name="Editor.JourneyOrder" xml:space="preserve">
+    <value>Journey order:</value>
+  </data>
+  <data name="Editor.OwnerSContributionsPublicationPolicy" xml:space="preserve">
+    <value>Owner's contributions — publication policy</value>
+  </data>
+  <data name="Editor.UnlicensedEffectivelyViewOnly" xml:space="preserve">
+    <value>Unlicensed — effectively view-only</value>
+  </data>
+  <data name="Editor.PublicViewOnly" xml:space="preserve">
+    <value>Public view-only</value>
+  </data>
+  <data name="Editor.PublicationPolicy" xml:space="preserve">
+    <value>Publication policy</value>
+  </data>
+  <data name="Editor.InheritedTermsStaySeparateViewOnlyDoes" xml:space="preserve">
+    <value>Inherited terms stay separate. View-only does not prevent manual copying or revoke inherited rights.</value>
+  </data>
+  <data name="Editor.SourcesCredits" xml:space="preserve">
+    <value>Sources &amp; credits</value>
+  </data>
+  <data name="Editor.PolicyCoversYourContributionsOnlyInheritedTerms" xml:space="preserve">
+    <value>Policy covers your contributions only. Inherited terms stay separate. Credits are descriptive, not verified ownership. Keep all still-applicable notices.</value>
+  </data>
+  <data name="Editor.OwnerSContributions" xml:space="preserve">
+    <value>Owner's contributions</value>
+  </data>
+  <data name="Editor.SelectedPublicationPolicy" xml:space="preserve">
+    <value>Selected publication policy:</value>
+  </data>
+  <data name="Editor.InheritedLicensedRightsAreRetained" xml:space="preserve">
+    <value>. Inherited licensed rights are retained.</value>
+  </data>
+  <data name="Editor.Credit" xml:space="preserve">
+    <value>Credit</value>
+  </data>
+  <data name="Editor.Contributor" xml:space="preserve">
+    <value>Contributor</value>
+  </data>
+  <data name="Editor.SourceDescription" xml:space="preserve">
+    <value>Source description</value>
+  </data>
+  <data name="Editor.InheritedLicenceTerms" xml:space="preserve">
+    <value>Inherited licence / terms</value>
+  </data>
+  <data name="Editor.LicenceURL" xml:space="preserve">
+    <value>Licence URL</value>
+  </data>
+  <data name="Editor.Notices" xml:space="preserve">
+    <value>Notices</value>
+  </data>
+  <data name="Editor.Modifications" xml:space="preserve">
+    <value>Modifications</value>
+  </data>
+  <data name="Editor.PublicSourceURL" xml:space="preserve">
+    <value>Public source URL</value>
+  </data>
+  <data name="Editor.RemoveCorrectedInapplicableCredit" xml:space="preserve">
+    <value>Remove corrected / inapplicable credit</value>
+  </data>
+  <data name="Editor.AddCredit" xml:space="preserve">
+    <value>Add credit</value>
+  </data>
+  <data name="Editor.Title" xml:space="preserve">
+    <value>Trip Editor</value>
+  </data>
+  <data name="Editor.SidebarSearch" xml:space="preserve">
+    <value>Sidebar search</value>
+  </data>
+  <data name="Editor.NoMatchingRegionsPlacesAreasOrSegments" xml:space="preserve">
+    <value>No matching regions, places, areas, or segments.</value>
+  </data>
+  <data name="Editor.Collapse" xml:space="preserve">
+    <value>Collapse</value>
+  </data>
+  <data name="Editor.Peek" xml:space="preserve">
+    <value>Peek</value>
+  </data>
+  <data name="Editor.Expand" xml:space="preserve">
+    <value>Expand</value>
+  </data>
+  <data name="Editor.DrawerSize" xml:space="preserve">
+    <value>Drawer size</value>
+  </data>
+  <data name="Editor.Trip" xml:space="preserve">
+    <value>Trip</value>
+  </data>
+  <data name="Editor.Regions" xml:space="preserve">
+    <value>Regions</value>
+  </data>
+  <data name="Editor.TripEditorSections" xml:space="preserve">
+    <value>Trip editor sections</value>
+  </data>
+  <data name="Editor.VisitProgress" xml:space="preserve">
+    <value>Visit progress</value>
+  </data>
+  <data name="Editor.PlacesVisited" xml:space="preserve">
+    <value>places visited</value>
+  </data>
+  <data name="Editor.Visits" xml:space="preserve">
+    <value>Visits</value>
+  </data>
+  <data name="Editor.TripTab" xml:space="preserve">
+    <value>Trip tab</value>
+  </data>
+  <data name="Editor.RegionsTab" xml:space="preserve">
+    <value>Regions tab</value>
+  </data>
+  <data name="Editor.SegmentsTab" xml:space="preserve">
+    <value>Segments tab</value>
+  </data>
+  <data name="Editor.TripEditorMobileDrawer" xml:space="preserve">
+    <value>Trip editor mobile drawer</value>
+  </data>
+  <data name="Editor.ReadOnlyVisits" xml:space="preserve">
+    <value>Read-only visits</value>
+  </data>
+  <data name="Editor.VisitProgressAndHistory" xml:space="preserve">
+    <value>Visit progress and history</value>
+  </data>
+  <data name="Editor.YourOverallTripProgress" xml:space="preserve">
+    <value>Your overall trip progress</value>
+  </data>
+  <data name="Editor.OverallVisitProgress" xml:space="preserve">
+    <value>Overall visit progress</value>
+  </data>
+  <data name="Editor.NoVisitHistoryYet" xml:space="preserve">
+    <value>No visit history yet.</value>
+  </data>
+  <data name="Editor.TripVisitProgressSummary" xml:space="preserve">
+    <value>Trip visit progress summary</value>
+  </data>
+  <data name="Editor.FilterPlaces" xml:space="preserve">
+    <value>Filter places</value>
+  </data>
+  <data name="Editor.AllPlaces" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Editor.Visited" xml:space="preserve">
+    <value>Visited</value>
+  </data>
+  <data name="Editor.NotVisited" xml:space="preserve">
+    <value>Not visited</value>
+  </data>
+  <data name="Editor.VisitFilters" xml:space="preserve">
+    <value>Visit filters</value>
+  </data>
+  <data name="Editor.VisitedHelp" xml:space="preserve">
+    <value>visited</value>
+  </data>
+  <data name="Editor.Visit" xml:space="preserve">
+    <value>visit</value>
+  </data>
+  <data name="Editor.FirstVisit" xml:space="preserve">
+    <value>First visit</value>
+  </data>
+  <data name="Editor.LastVisit" xml:space="preserve">
+    <value>Last visit</value>
+  </data>
+  <data name="Editor.NoVisitHistoryRowsAvailableForThis" xml:space="preserve">
+    <value>No visit history rows available for this place.</value>
+  </data>
+  <data name="Editor.Start" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Editor.End" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Editor.Duration" xml:space="preserve">
+    <value>Duration</value>
+  </data>
+  <data name="Editor.ManageVisit" xml:space="preserve">
+    <value>Manage visit</value>
+  </data>
+  <data name="Editor.MovementAndTiming" xml:space="preserve">
+    <value>Movement and timing</value>
+  </data>
+  <data name="Editor.ChooseTheReleaseDestinationPairIntendedArrival" xml:space="preserve">
+    <value>Choose the release → destination pair. Intended arrival uses saved Start/At; an optional Arrive by deadline is assessed separately for this check. No saved Segment or provider call is needed.</value>
+  </data>
+  <data name="Editor.ReleaseFromEntry" xml:space="preserve">
+    <value>Release from entry</value>
+  </data>
+  <data name="Editor.LeaveUnresolved" xml:space="preserve">
+    <value>Leave unresolved</value>
+  </data>
+  <data name="Editor.DestinationEntryIntendedArrivalOrCheckOnly" xml:space="preserve">
+    <value>Destination entry · intended arrival or check-only deadline</value>
+  </data>
+  <data name="Editor.AssessThisMovement" xml:space="preserve">
+    <value>Assess this movement</value>
+  </data>
+  <data name="Editor.IntendedArrivalSavedStartAtStoredEnd" xml:space="preserve">
+    <value>Intended arrival: saved Start/At. Stored End remains an endpoint and supplies no arrival deadline.</value>
+  </data>
+  <data name="Editor.AddArriveByDeadlineForThisCheck" xml:space="preserve">
+    <value>Add Arrive by deadline for this check</value>
+  </data>
+  <data name="Editor.ArriveByCheckOnly" xml:space="preserve">
+    <value>Arrive by · check only</value>
+  </data>
+  <data name="Editor.ThisPrivateCheckInputChangesNoSaved" xml:space="preserve">
+    <value>This private check input changes no saved intention. Elapsed assessment needs minute precision and a resolved zone.</value>
+  </data>
+  <data name="Editor.RemoveCheckOnlyDeadline" xml:space="preserve">
+    <value>Remove check-only deadline</value>
+  </data>
+  <data name="Editor.EstimateSource" xml:space="preserve">
+    <value>Estimate source</value>
+  </data>
+  <data name="Editor.MyEstimateForThisCheck" xml:space="preserve">
+    <value>My estimate for this check</value>
+  </data>
+  <data name="Editor.TravelEstimateInMinutes" xml:space="preserve">
+    <value>Travel estimate in minutes</value>
+  </data>
+  <data name="Editor.SourceShownForConfirmation" xml:space="preserve">
+    <value>Source shown for confirmation:</value>
+  </data>
+  <data name="Editor.CheckSavedVersionToLoadThisSource" xml:space="preserve">
+    <value>Check saved version to load this source before confirming relevance.</value>
+  </data>
+  <data name="Editor.ThisEstimateIsRelevantToThisDirection" xml:space="preserve">
+    <value>This estimate is relevant to this direction, locations and travel mode</value>
+  </data>
+  <data name="Editor.UnknownSkip" xml:space="preserve">
+    <value>Unknown / Skip</value>
+  </data>
+  <data name="Editor.NoneNeededForThisCheck" xml:space="preserve">
+    <value>None needed for this check</value>
+  </data>
+  <data name="Editor.AlreadyIncludedInTheSelectedEstimate" xml:space="preserve">
+    <value>Already included in the selected estimate</value>
+  </data>
+  <data name="Editor.AdditionalMinutesCountedOnce" xml:space="preserve">
+    <value>Additional minutes, counted once</value>
+  </data>
+  <data name="Editor.Additional" xml:space="preserve">
+    <value>Additional</value>
+  </data>
+  <data name="Editor.MinutesNotAlreadyCountedInEstimateOr" xml:space="preserve">
+    <value>minutes (not already counted in estimate or gap)</value>
+  </data>
+  <data name="Editor.WhatIfTheReleaseIsDifferent" xml:space="preserve">
+    <value>What if the release is different?</value>
+  </data>
+  <data name="Editor.ACurrentReleaseAssumptionLastsAtMost" xml:space="preserve">
+    <value>A current-release assumption lasts at most 30 minutes on this UTC day and changes no intention, estimate or observed history.</value>
+  </data>
+  <data name="Editor.WhatIfReleaseClock" xml:space="preserve">
+    <value>What-if release clock</value>
+  </data>
+  <data name="Editor.WhatIfReleaseZone" xml:space="preserve">
+    <value>What-if release zone</value>
+  </data>
+  <data name="Editor.UtcOrIANAZoneNoDeviceDefault" xml:space="preserve">
+    <value>UTC or IANA zone; no device default</value>
+  </data>
+  <data name="Editor.RemoveThisMovementCheck" xml:space="preserve">
+    <value>Remove this movement check</value>
+  </data>
+  <data name="Editor.OtherSavedActivitiesAreNotAutomaticallyDeducted" xml:space="preserve">
+    <value>Other saved activities are not automatically deducted from this pair's gap. Select the relevant release/arrival entries and account for each rest once.</value>
+  </data>
+  <data name="Editor.OptionalPlanningChecks" xml:space="preserve">
+    <value>Optional planning checks</value>
+  </data>
+  <data name="Editor.CheckPlan" xml:space="preserve">
+    <value>Check plan</value>
+  </data>
+  <data name="Editor.CheckThisEntityOnly" xml:space="preserve">
+    <value>Check this entity only</value>
+  </data>
+  <data name="Editor.EditingAndSavingNeedNoAssessmentOr" xml:space="preserve">
+    <value>Editing and saving need no assessment or warning acknowledgement.</value>
+  </data>
+  <data name="Editor.ChecksUseAFreshSavedOwnerSnapshot" xml:space="preserve">
+    <value>. Checks use a fresh saved owner snapshot.</value>
+  </data>
+  <data name="Editor.UnsavedOrUnconfirmedDraftsAreSeparateAnd" xml:space="preserve">
+    <value>Unsaved or unconfirmed drafts are separate and are not assessed as saved facts.</value>
+  </data>
+  <data name="Editor.YourDraftsHaveNotBeenSavedBy" xml:space="preserve">
+    <value>Your drafts have not been saved by Check plan.</value>
+  </data>
+  <data name="Editor.SaveAndCheck" xml:space="preserve">
+    <value>Save and check</value>
+  </data>
+  <data name="Editor.CheckSavedVersion" xml:space="preserve">
+    <value>Check saved version</value>
+  </data>
+  <data name="Editor.ReturnToEditing" xml:space="preserve">
+    <value>Return to editing</value>
+  </data>
+  <data name="Editor.ChooseVersionToCheck" xml:space="preserve">
+    <value>Choose version to check</value>
+  </data>
+  <data name="Editor.CheckingSavedInformation" xml:space="preserve">
+    <value>Checking saved information…</value>
+  </data>
+  <data name="Editor.ThisReviewIsStaleSavedFactsDrafts" xml:space="preserve">
+    <value>This review is stale: saved facts, drafts or check inputs changed. Check again for current results.</value>
+  </data>
+  <data name="Editor.Findings" xml:space="preserve">
+    <value>findings ·</value>
+  </data>
+  <data name="Editor.CompletedChecks" xml:space="preserve">
+    <value>completed checks ·</value>
+  </data>
+  <data name="Editor.Unknown" xml:space="preserve">
+    <value>Unknown ·</value>
+  </data>
+  <data name="Editor.EntriesExplicitlyUnassessed" xml:space="preserve">
+    <value>entries explicitly unassessed</value>
+  </data>
+  <data name="Editor.ResultsApplyOnlyToTheListedEntries" xml:space="preserve">
+    <value>Results apply only to the listed entries and assumptions. They do not certify whole-Trip consistency, arrival or attention compatibility.</value>
+  </data>
+  <data name="Editor.UsingLastInputsReviewChange" xml:space="preserve">
+    <value>Using last inputs · review/change</value>
+  </data>
+  <data name="Editor.Reused" xml:space="preserve">
+    <value>Reused:</value>
+  </data>
+  <data name="Editor.Reopened" xml:space="preserve">
+    <value>Reopened:</value>
+  </data>
+  <data name="Editor.DismissForThisReview" xml:space="preserve">
+    <value>Dismiss for this review</value>
+  </data>
+  <data name="Editor.TheseLocationsRequireSeparatePresence" xml:space="preserve">
+    <value>These locations require separate presence</value>
+  </data>
+  <data name="Editor.PlanningResults" xml:space="preserve">
+    <value>Planning results</value>
+  </data>
+  <data name="Editor.CollapsedFindingsCountsRetained" xml:space="preserve">
+    <value>collapsed findings; counts retained.</value>
+  </data>
+  <data name="Editor.CoverageAndTargetedCheckInputs" xml:space="preserve">
+    <value>Coverage and targeted check inputs ·</value>
+  </data>
+  <data name="Editor.SavedEntries" xml:space="preserve">
+    <value>saved entries</value>
+  </data>
+  <data name="Editor.UseSavedFactsFirstSupplyOnlyFacts" xml:space="preserve">
+    <value>Use saved facts first. Supply only facts an Unknown result needs. Leave unresolved/Skip retains Unknown. Inputs here stay private on this device and never change planning or exports.</value>
+  </data>
+  <data name="Editor.OneTravellerForThisSelectedScope" xml:space="preserve">
+    <value>One traveller for this selected scope</value>
+  </data>
+  <data name="Editor.LocationsRequireSeparatePresence" xml:space="preserve">
+    <value>: locations require separate presence</value>
+  </data>
+  <data name="Editor.NoSavedPlanningEntriesInThisTrip" xml:space="preserve">
+    <value>No saved planning entries in this Trip.</value>
+  </data>
+  <data name="Editor.Saved" xml:space="preserve">
+    <value>Saved:</value>
+  </data>
+  <data name="Editor.AssessThisEntryForThisCheck" xml:space="preserve">
+    <value>Assess this entry for this check</value>
+  </data>
+  <data name="Editor.MeaningForThisCheckOnly" xml:space="preserve">
+    <value>Meaning for this check only</value>
+  </data>
+  <data name="Editor.LeaveUnresolvedSkip" xml:space="preserve">
+    <value>Leave unresolved/Skip</value>
+  </data>
+  <data name="Editor.PlanningWindow" xml:space="preserve">
+    <value>Planning window</value>
+  </data>
+  <data name="Editor.ActivityRequiringPresence" xml:space="preserve">
+    <value>Activity requiring presence</value>
+  </data>
+  <data name="Editor.StayBaseAvailability" xml:space="preserve">
+    <value>Stay/base availability</value>
+  </data>
+  <data name="Editor.Journey" xml:space="preserve">
+    <value>Journey</value>
+  </data>
+  <data name="Editor.NeededZoneCivilWindowInterpretationForThis" xml:space="preserve">
+    <value>Needed zone / civil-window interpretation for this check</value>
+  </data>
+  <data name="Editor.LeaveUnresolvedOrUTCIANAZone" xml:space="preserve">
+    <value>Leave unresolved, or UTC / IANA zone</value>
+  </data>
+  <data name="Editor.AppliesOnlyWhereAZoneIsAbsent" xml:space="preserve">
+    <value>Applies only where a zone is absent, or to civil-window edges. Saved zones and fold choices stay authoritative.</value>
+  </data>
+  <data name="Editor.OccurrenceUTCOffsetInSecondsForThis" xml:space="preserve">
+    <value>occurrence UTC offset in seconds for this check ·</value>
+  </data>
+  <data name="Editor.NeededElapsedDwellForThisCheckMinutes" xml:space="preserve">
+    <value>Needed elapsed dwell for this check (minutes)</value>
+  </data>
+  <data name="Editor.ChooseExplicitlyRelevantParentWindowUnion" xml:space="preserve">
+    <value>Choose explicitly relevant parent-window union</value>
+  </data>
+  <data name="Editor.MissingMeaningsCanBeClarifiedInThe" xml:space="preserve">
+    <value>Missing meanings can be clarified in the corresponding entry above. Unselected ownership imposes no temporal constraint; union gaps remain.</value>
+  </data>
+  <data name="Editor.UseForThisCheckCheckSavedVersion" xml:space="preserve">
+    <value>Use for this check · check saved version</value>
+  </data>
+  <data name="Editor.CheckAgain" xml:space="preserve">
+    <value>Check again</value>
+  </data>
+  <data name="Editor.ClearLatestPrivateInputs" xml:space="preserve">
+    <value>Clear latest private inputs</value>
+  </data>
+  <data name="Editor.DiscardThisPlanningDraft" xml:space="preserve">
+    <value>Discard this Planning draft</value>
+  </data>
+  <data name="Editor.DeletedTargetPlanningRecovery" xml:space="preserve">
+    <value>Deleted target Planning recovery</value>
+  </data>
+  <data name="Editor.Planning" xml:space="preserve">
+    <value>Planning</value>
+  </data>
+  <data name="Editor.SavePlanningSavesOnlyThisObjectS" xml:space="preserve">
+    <value>Save Planning saves only this object’s Planning. Trip settings, Notes and routes use their own save actions.</value>
+  </data>
+  <data name="Editor.StoredPlanningIsRetainedReviewExplicitlyBefore" xml:space="preserve">
+    <value>Stored planning is retained; review explicitly before changing it.</value>
+  </data>
+  <data name="Editor.At" xml:space="preserve">
+    <value>At</value>
+  </data>
+  <data name="Editor.Information" xml:space="preserve">
+    <value>information</value>
+  </data>
+  <data name="Editor.Unspecified" xml:space="preserve">
+    <value>Unspecified</value>
+  </data>
+  <data name="Editor.Known" xml:space="preserve">
+    <value>Known</value>
+  </data>
+  <data name="Editor.ExplicitlyUnknown" xml:space="preserve">
+    <value>Explicitly unknown</value>
+  </data>
+  <data name="Editor.DeliberatelyFlexible" xml:space="preserve">
+    <value>Deliberately flexible</value>
+  </data>
+  <data name="Editor.EndIsAnEndpointNotALatest" xml:space="preserve">
+    <value>End is an endpoint, not a latest deadline.</value>
+  </data>
+  <data name="Editor.AddEndDate" xml:space="preserve">
+    <value>Add end date</value>
+  </data>
+  <data name="Editor.More" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="Editor.LabelOptional" xml:space="preserve">
+    <value>Label (optional)</value>
+  </data>
+  <data name="Editor.MeaningOptional" xml:space="preserve">
+    <value>Meaning (optional)</value>
+  </data>
+  <data name="Editor.ElapsedAllocationInMinutesOptional" xml:space="preserve">
+    <value>Elapsed allocation in minutes (optional)</value>
+  </data>
+  <data name="Editor.AllocationIsAllowedOnAtOrUndated" xml:space="preserve">
+    <value>Allocation is allowed on At or undated, unclassified/presence/journey entries. Remove it explicitly before choosing a window, stay or period.</value>
+  </data>
+  <data name="Editor.Timing" xml:space="preserve">
+    <value>Timing</value>
+  </data>
+  <data name="Editor.Period" xml:space="preserve">
+    <value>Period</value>
+  </data>
+  <data name="Editor.UndatedUnspecified" xml:space="preserve">
+    <value>Undated, unspecified</value>
+  </data>
+  <data name="Editor.RemoveEntry" xml:space="preserve">
+    <value>Remove entry</value>
+  </data>
+  <data name="Editor.SavePlanning" xml:space="preserve">
+    <value>Save planning</value>
+  </data>
+  <data name="Editor.ReviewCurrentComparison" xml:space="preserve">
+    <value>Review current comparison</value>
+  </data>
+  <data name="Editor.MonthOnly" xml:space="preserve">
+    <value>Month only</value>
+  </data>
+  <data name="Editor.ChooseExactDate" xml:space="preserve">
+    <value>Choose exact date</value>
+  </data>
+  <data name="Editor.AddTime" xml:space="preserve">
+    <value>Add time</value>
+  </data>
+  <data name="Editor.Time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="Editor.ZoneAndOccurrenceOptional" xml:space="preserve">
+    <value>Zone and occurrence (optional)</value>
+  </data>
+  <data name="Editor.UtcOrIANAZone" xml:space="preserve">
+    <value>UTC or IANA zone</value>
+  </data>
+  <data name="Editor.OccurrenceUTCOffsetInSecondsOptional" xml:space="preserve">
+    <value>Occurrence UTC offset in seconds (optional)</value>
+  </data>
+  <data name="Editor.LeaveOccurrenceUnresolvedOrSupplyTheZone" xml:space="preserve">
+    <value>Leave occurrence unresolved, or supply the zone's offset for the intended occurrence of a repeated clock. No zone is inferred.</value>
+  </data>
+  <data name="Editor.RemoveTime" xml:space="preserve">
+    <value>Remove time</value>
+  </data>
+  <data name="Editor.Precision" xml:space="preserve">
+    <value>precision</value>
+  </data>
+  <data name="Editor.MapPickPlace" xml:space="preserve">
+    <value>Select the Place location. Click the map or drag the marker; Done updates the draft.</value>
+  </data>
+  <data name="Editor.MapDrawArea" xml:space="preserve">
+    <value>Edit the Area geometry. Click the map to place polygon vertices; Done updates the draft.</value>
+  </data>
+  <data name="Editor.MapDrawRoute" xml:space="preserve">
+    <value>Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.</value>
+  </data>
+  <data name="Editor.MapDescription" xml:space="preserve">
+    <value>View and navigate trip geography.</value>
+  </data>
+  <data name="Editor.LeaveWithoutSavingQuestion" xml:space="preserve">
+    <value>Leave without saving?</value>
+  </data>
+  <data name="Editor.LeaveWithoutSaving" xml:space="preserve">
+    <value>Leave without saving</value>
+  </data>
+  <data name="Editor.DiscardQuestion" xml:space="preserve">
+    <value>Discard changes?</value>
+  </data>
+  <data name="Editor.MetadataExitDraft" xml:space="preserve">
+    <value>Leave unsaved editor changes and return to Trips? Planning is saved separately with Save Planning; Trip settings actions do not save it. Leaving loses retained drafts and does not undo pending or unconfirmed attempts.</value>
+  </data>
+  <data name="Editor.Discard" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Editor.Stay" xml:space="preserve">
+    <value>Stay</value>
+  </data>
+  <data name="Editor.CopyIdeas" xml:space="preserve">
+    <value>Copy ideas into this Trip</value>
+  </data>
+  <data name="Editor.ComparisonReturn" xml:space="preserve">
+    <value>Comparison return</value>
+  </data>
+  <data name="Editor.ReturnToComparison" xml:space="preserve">
+    <value>Return to saved comparison</value>
+  </data>
+  <data name="Editor.ComparisonSaved" xml:space="preserve">
+    <value>Every successful edit is already saved to C.</value>
+  </data>
+  <data name="Editor.LoadFailed" xml:space="preserve">
+    <value>The Trip workspace could not load. Refresh this page or return to My Trips.</value>
+  </data>
+  <data name="Editor.MyTrips" xml:space="preserve">
+    <value>My Trips</value>
+  </data>
+  <data name="Editor.InvalidField" xml:space="preserve">
+    <value>Review the value in this field.</value>
+  </data>
+  <data name="Editor.InvalidForm" xml:space="preserve">
+    <value>Review the highlighted fields before saving.</value>
+  </data>
+  <data name="Editor.LoadUnauthorized" xml:space="preserve">
+    <value>Your session ended or you no longer have access. Sign in again or return to My Trips.</value>
+  </data>
+  <data name="Editor.LoadError" xml:space="preserve">
+    <value>Trip Editor failed to load.</value>
+  </data>
+  <data name="Editor.SaveError" xml:space="preserve">
+    <value>Trip settings save failed.</value>
+  </data>
+</root>

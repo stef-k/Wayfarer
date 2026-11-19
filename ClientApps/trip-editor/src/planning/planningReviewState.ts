@@ -1,3 +1,4 @@
+import { registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, ref, watch } from 'vue';
 import type { EditorTripState } from '../types';
 import type { EditorTarget } from '../composables/useEditorSurface';
@@ -35,6 +36,7 @@ export const createPlanningReview = (options: {
   const showDismissed = ref(false);
   let position = 0;
   let partition = '';
+  let retainedSetup = '';
   let disposed = false;
   let assigning = false;
   let storage = options.storage;
@@ -57,6 +59,8 @@ export const createPlanningReview = (options: {
     stale.value = false;
     error.value = null;
   };
+  // Only the most recent successfully retained setup can survive a reload.
+  const unregisterLanguageDraft = registerLanguageDraft(() => busy.value || JSON.stringify(setup.value) !== retainedSetup);
   const stopIdentity = watch(identity, next => {
     reset();
     partition = next;
@@ -68,6 +72,7 @@ export const createPlanningReview = (options: {
         setup.value = copy(saved.setup);
       else clearStorage();
     } catch { clearStorage(); }
+    retainedSetup = JSON.stringify(setup.value);
   }, { immediate: true, flush: 'sync' });
   /** A later edit or newer request makes outstanding work ineligible to publish. No snapshot is used to rebase saves. */
   const invalidate = (): void => { position++; busy.value = false; if (result.value) stale.value = true; };
@@ -110,7 +115,10 @@ export const createPlanningReview = (options: {
       try {
         const wire = JSON.stringify({ ownerId, tripId: reply.tripId, setup: reply.setup });
         if (wire.length > 262144) { clearStorage(); storageNotice.value = 'This setup exceeds device retention; it lasts only in this editor.'; }
-        else storage?.setItem(storageKey, wire);
+        else if (storage) {
+          storage.setItem(storageKey, wire);
+          retainedSetup = JSON.stringify(reply.setup);
+        }
       } catch { storageNotice.value = 'Device storage is unavailable; inputs last only in this open editor.'; }
     } catch (failure) {
       if (!disposed && scope === identity() && request === position) error.value = failure instanceof Error ? failure.message : 'Review unavailable.';
@@ -161,7 +169,7 @@ export const createPlanningReview = (options: {
     await run();
   };
   const clear = (): void => { reset(); clearStorage(); };
-  const dispose = (): void => { disposed = true; position++; stopIdentity(); stopFacts(); stopDrafts(); stopInputs(); };
+  const dispose = (): void => { disposed = true; position++; unregisterLanguageDraft(); stopIdentity(); stopFacts(); stopDrafts(); stopInputs(); };
   const summary = computed(() => {
     const findings = result.value?.findings ?? [];
     return {

@@ -1,3 +1,4 @@
+@inject Wayfarer.Localization.WebMessages T
 @using System.Text.Json
 @using Wayfarer.Models
 @using Wayfarer.Services
@@ -9,7 +10,7 @@
     bool embed = ViewBag.IsEmbed as bool? ?? false;
 }
 <!DOCTYPE html>
-<html lang="en">
+<html lang="@T.Locale.Tag">
 
     <head>
         <meta charset="utf-8" />
@@ -72,32 +73,33 @@
                         <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Wayfarer</a>
                         <button class="navbar-toggler collapsed" type="button" data-bs-toggle="collapse"
                             data-bs-target="#mainNavbarCollapse" aria-controls="mainNavbarCollapse" aria-expanded="false"
-                            aria-label="Toggle navigation">
+                            aria-label="@T["Shell.ToggleNavigation"]">
                             <span class="navbar-toggler-icon"></span>
                         </button>
                         @* This single stable owner lets Bootstrap control standard-navbar collapse state below lg. *@
                         <div id="mainNavbarCollapse" class="navbar-collapse collapse justify-content-between">
                             <ul class="navbar-nav flex-grow-1">
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="" title="Navigate to Home page (/)" asp-controller="Home"
-                                        asp-action="Index">Home</a>
+                                    <a class="nav-link" asp-area="" title="@T["Shell.HomeLink"]" asp-controller="Home"
+                                        asp-action="Index">@T["Shell.Home"]</a>
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="" asp-route="PublicTripsIndex"
-                                        title="See public trips made by users">Trips</a>
+                                        title="@T["Shell.PublicTripsLink"]">@T["Shell.Trips"]</a>
                                 </li>
                                 <li class="nav-item">
                                     @* Documentation is published on GitHub Pages. *@
-                                    <a class="nav-link" href="https://stef-k.github.io/Wayfarer/" target="_blank" title="Read the documentation">Docs</a>
+                                    <a class="nav-link" href="https://stef-k.github.io/Wayfarer/" target="_blank" title="@T["Shell.ReadDocs"]">@T["Shell.Docs"]</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" href="https://stef-k.github.io/WayfarerMobile/" target="_blank" title="Mobile app documentation">Mobile</a>
+                                    <a class="nav-link" href="https://stef-k.github.io/WayfarerMobile/" target="_blank" title="@T["Shell.MobileDocs"]">@T["Shell.Mobile"]</a>
                                 </li>
                                 <li class="nav-item">
-                                    <a class="nav-link" asp-area="" title="Check the privacy policy" asp-controller="Home"
-                                        asp-action="Privacy">Privacy</a>
+                                    <a class="nav-link" asp-area="" title="@T["Shell.PrivacyLink"]" asp-controller="Home"
+                                        asp-action="Privacy">@T["Shell.Privacy"]</a>
                                 </li>
                             </ul>
+                            <partial name="_LanguageSelector" />
                             <partial name="_LoginPartial" />
                         </div>
                     </div>
@@ -109,12 +111,12 @@
             {
                 <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
                     @TempData["AlertMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T["Shell.Close"]"></button>
                 </div>
             }
             <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
-                <span id="alertMessage">This is a placeholder message.</span>
-                <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="Close"></button>
+                <span id="alertMessage"></span>
+                <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="@T["Shell.Close"]"></button>
             </div>
 
             <!-- Toast Container (for non-intrusive notifications) -->
@@ -124,12 +126,13 @@
                     <div class="d-flex">
                         <div class="toast-body"></div>
                         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"
-                            aria-label="Close"></button>
+                            aria-label="@T["Shell.Close"]"></button>
                     </div>
                 </div>
             </div>
 
-            <main role="main" class="flex-fill d-flex flex-column p-0">
+            <main role="main" lang="@(ViewData["WebCatalog"] == null ? "en" : null)" class="flex-fill d-flex flex-column p-0">
+                <partial name="_WebLocale" />
                 @RenderBody()
             </main>
         </div>
@@ -139,9 +142,9 @@
             <!-- Back to Top Button -->
             <button id="backToTopBtn" type="button"
                 class="btn btn-secondary back-to-top-btn"
-                aria-label="Back to top"
+                aria-label="@T["Shell.BackToTop"]"
                 aria-hidden="true"
-                title="Back to top">
+                title="@T["Shell.BackToTop"]">
                 <i class="bi bi-arrow-up"></i>
             </button>
 
@@ -149,17 +152,17 @@
                 <div class="container">
                     &copy; @DateTime.UtcNow.Year - @AppVersionDisplay.FooterText(AppVersionProvider) by <a href="https://stefk.me"
                         class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover"
-                        target="_blank" title="Hi, I am Stef check out my blog!">Stef</a> -
+                        target="_blank" title="@T["Shell.AuthorSite"]">Stef</a> -
                     @* Keep footer navigation on the canonical documentation site. *@
                     <a href="https://stef-k.github.io/Wayfarer/" target="_blank"
-                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Docs</a> -
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">@T["Shell.Docs"]</a> -
                     <a href="https://stef-k.github.io/WayfarerMobile/" target="_blank"
-                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Mobile</a> -
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">@T["Shell.Mobile"]</a> -
                     <a href="https://github.com/stef-k/Wayfarer" target="_blank" rel="noopener noreferrer"
-                        aria-label="Wayfarer source code on GitHub" title="Wayfarer source code on GitHub"
+                        aria-label="@T["Shell.SourceLink"]" title="@T["Shell.SourceLink"]"
                         class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">GitHub</a> -
                     <a asp-area="" asp-controller="Home" asp-action="Privacy"
-                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">Privacy</a>
+                        class="site-footer__link link-offset-2 link-offset-3-hover link-underline link-underline-opacity-0 link-underline-opacity-75-hover">@T["Shell.Privacy"]</a>
                 </div>
             </footer>
 
@@ -169,15 +172,15 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="deleteConfirmationModalLabel">Confirm Action</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <h5 class="modal-title" id="deleteConfirmationModalLabel">@T["Shell.ConfirmAction"]</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
                         </div>
                         <div class="modal-body">
-                            Are you sure you want to proceed?
+                            @T["Shell.ConfirmMessage"]
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-danger">Confirm</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@T["Shell.Cancel"]</button>
+                            <button type="button" class="btn btn-danger">@T["Shell.Confirm"]</button>
                         </div>
                     </div>
                 </div>

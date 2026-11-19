@@ -41,7 +41,7 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
         const generation = ++initializationGeneration;
         const registeredLine = requestedSegmentId ? getSegmentPolyline(requestedSegmentId) : null;
         if (!options.isPrint) {
-            select(registeredLine ? requestedSegmentId : null, Boolean(registeredLine));
+            select(registeredLine ? requestedSegmentId : null, Boolean(registeredLine) && !options.preserveCamera);
             return true;
         }
 

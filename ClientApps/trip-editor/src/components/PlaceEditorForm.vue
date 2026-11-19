@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
 import IconSelector from './IconSelector.vue';
@@ -36,7 +37,7 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
     </div>
 
     <label class="trip-editor-field">
-      <span>Region</span>
+      <span>{{ localize("Editor.Region", "Region") }}</span>
       <select v-model="props.draft.regionId">
         <option v-for="region in props.normalRegions" :key="region.id" :value="region.id">{{ region.name }}</option>
       </select>
@@ -44,27 +45,27 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
     </label>
 
     <label class="trip-editor-field">
-      <span>Name</span>
+      <span>{{ localize("Editor.Name", "Name") }}</span>
       <input v-model="props.draft.name" type="text" autocomplete="off" />
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
+    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <label class="trip-editor-field">
-      <span>Address</span>
+      <span>{{ localize("Editor.Address", "Address") }}</span>
       <input v-model="props.draft.address" type="text" autocomplete="off" />
       <small v-for="message in props.fieldErrors('address')" :key="message">{{ message }}</small>
     </label>
 
     <div class="trip-editor-grid">
       <label class="trip-editor-field">
-        <span>Latitude</span>
+        <span>{{ localize("Editor.Latitude", "Latitude") }}</span>
         <input v-model="props.draft.latitude" type="number" step="any" :readonly="props.coordinateReadOnly" />
         <small v-for="message in props.fieldErrors('location.latitude')" :key="message">{{ message }}</small>
       </label>
       <label class="trip-editor-field">
-        <span>Longitude</span>
+        <span>{{ localize("Editor.Longitude", "Longitude") }}</span>
         <input v-model="props.draft.longitude" type="number" step="any" :readonly="props.coordinateReadOnly" />
         <small v-for="message in props.fieldErrors('location.longitude')" :key="message">{{ message }}</small>
       </label>
@@ -72,12 +73,12 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
 
     <div class="trip-editor-selector-grid">
       <fieldset class="trip-editor-field trip-editor-place-icon-field">
-        <legend>Icon</legend>
+        <legend>{{ localize("Editor.Icon", "Icon") }}</legend>
         <IconSelector v-model="props.draft.iconName" :icons="props.state.options.iconNames" :marker-color="props.draft.markerColor || 'bg-blue'" />
         <small v-for="message in props.fieldErrors('iconName')" :key="message">{{ message }}</small>
       </fieldset>
       <fieldset class="trip-editor-field trip-editor-marker-color-field">
-        <legend>Marker Color</legend>
+        <legend>{{ localize("Editor.MarkerColor", "Marker Color") }}</legend>
         <IconSelector v-model="props.draft.markerColor" kind="color" :icons="markerColorOptions" marker-color="bg-blue" />
         <small v-for="message in props.fieldErrors('markerColor')" :key="message">{{ message }}</small>
       </fieldset>
@@ -85,7 +86,7 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
 
     <label class="trip-editor-check">
       <input v-model="props.draft.reverseGeocode" type="checkbox" />
-      <span>Reverse geocode this location on save</span>
+      <span>{{ localize("Editor.ReverseGeocodeThisLocationOnSave", "Reverse geocode this location on save") }}</span>
     </label>
     <small v-for="message in props.fieldErrors('reverseGeocode')" :key="message">{{ message }}</small>
   </form>

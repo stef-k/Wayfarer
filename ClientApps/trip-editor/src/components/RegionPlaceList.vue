@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { regionOrderOriginals, type RegionOrderOriginals } from './regionOrdering';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { placeMarkerIconUrl, placeMarkerLabel } from '../displayHelpers';
@@ -382,8 +383,8 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
           v-if="!region.isShadow"
           type="button"
           class="trip-editor-icon-button trip-editor-drag-handle"
-          title="Drag to reorder region"
-          aria-label="Drag to reorder region"
+          :title="localize('Editor.DragToReorderRegion', 'Drag to reorder region')"
+          :aria-label="localize('Editor.DragToReorderRegion', 'Drag to reorder region')"
           :disabled="props.searchActive || props.isOrdering"
         >
           <span aria-hidden="true">::</span>
@@ -406,7 +407,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
           <span v-if="forcedExpansionExplanation(region.id)" :id="`trip-editor-region-collapse-explanation-${region.id}`" class="visually-hidden">
             {{ forcedExpansionExplanation(region.id) }}
           </span>
-          <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
+          <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">{{ localize("Editor.Edit", "Edit") }}</button>
         </div>
       </header>
 
@@ -427,8 +428,8 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               v-if="!region.isShadow"
               type="button"
               class="trip-editor-icon-button trip-editor-place-drag-handle"
-              title="Drag to reorder place"
-              aria-label="Drag to reorder place"
+              :title="localize('Editor.DragToReorderPlace', 'Drag to reorder place')"
+              :aria-label="localize('Editor.DragToReorderPlace', 'Drag to reorder place')"
               :disabled="props.searchActive || props.isOrdering"
             >
               <span aria-hidden="true">::</span>
@@ -441,14 +442,14 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               <span class="trip-editor-place-row__name itinerary-place-label">{{ placeLabel(place) }}</span>
               <small v-if="place.visitSummary.isVisited">{{ placeMarkerLabel(place) }}</small>
             </span>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">Edit</button>
+            <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click.stop="emit('editPlace', place)">{{ localize("Editor.Edit", "Edit") }}</button>
           </li>
           <li v-if="props.activePlaceEditorId === place.id" class="trip-editor-place-editor-row" aria-live="polite">
             <slot name="place-editor" :place="place"></slot>
           </li>
         </template>
         <li v-if="orderedAreas(region.id).length > 0" class="trip-editor-child-section">
-          <span>Areas</span>
+          <span>{{ localize("Editor.Areas", "Areas") }}</span>
         </li>
         <li v-if="orderedAreas(region.id).length > 0" v-show="!isCollapsed(region.id)" :data-area-list-region-id="region.id" class="trip-editor-area-list">
           <template v-for="area in orderedAreas(region.id)" :key="area.id">
@@ -461,8 +462,8 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
                 v-if="props.state.permissions.canEditAreas"
                 type="button"
                 class="trip-editor-icon-button trip-editor-area-drag-handle"
-                title="Drag to reorder area"
-                aria-label="Drag to reorder area"
+                :title="localize('Editor.DragToReorderArea', 'Drag to reorder area')"
+                :aria-label="localize('Editor.DragToReorderArea', 'Drag to reorder area')"
                 :disabled="props.searchActive || props.isOrdering"
                 @keydown.arrow-up.prevent="moveAreaByKeyboard(region.id, area.id, -1)"
                 @keydown.arrow-down.prevent="moveAreaByKeyboard(region.id, area.id, 1)"
@@ -470,8 +471,8 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
                 <span aria-hidden="true">::</span>
               </button>
               <span>{{ area.name }}</span>
-              <small>Area</small>
-              <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editArea', area)">Edit</button>
+              <small>{{ localize("Editor.Area", "Area") }}</small>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('editArea', area)">{{ localize("Editor.Edit", "Edit") }}</button>
             </div>
             <div v-if="props.activeAreaId === area.id" class="trip-editor-place-editor-row" aria-live="polite">
               <slot name="area-editor" :area="area"></slot>
@@ -481,10 +482,10 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
       </ul>
       <div v-if="!region.isShadow || canAddArea(region)" class="trip-editor-region-card__add-actions">
         <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addPlace', region)">
-          Add Place
+          {{ localize("Editor.AddPlace", "Add Place") }}
         </button>
         <button v-if="canAddArea(region)" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving || props.isOrdering" @click="emit('addArea', region)">
-          Add Area
+          {{ localize("Editor.AddArea", "Add Area") }}
         </button>
       </div>
       <slot name="add-place-editor" :region="region"></slot>

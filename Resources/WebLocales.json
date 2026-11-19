@@ -1,0 +1,6 @@
+{
+  "WebLocales": [
+    { "Tag": "en-US", "NativeName": "English", "PrimaryDefault": true, "PluralCategories": ["one", "other"], "IntegerPluralRules": { "one": "^1$" } },
+    { "Tag": "el-GR", "NativeName": "Ελληνικά", "PrimaryDefault": true, "PluralCategories": ["one", "other"], "IntegerPluralRules": { "one": "^1$" } }
+  ]
+}

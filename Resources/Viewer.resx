@@ -1,0 +1,366 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Viewer.Actions" xml:space="preserve">
+    <value>Map controls &amp; actions</value>
+  </data>
+  <data name="Viewer.MoreActions" xml:space="preserve">
+    <value>More actions</value>
+  </data>
+  <data name="Viewer.EditTrip" xml:space="preserve">
+    <value>Edit Trip</value>
+  </data>
+  <data name="Viewer.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Viewer.CopyPublicUrl" xml:space="preserve">
+    <value>Copy public URL to clipboard</value>
+  </data>
+  <data name="Viewer.Share" xml:space="preserve">
+    <value>Share (Copy URL)</value>
+  </data>
+  <data name="Viewer.CopyCover" xml:space="preserve">
+    <value>Copy Cover Image URL</value>
+  </data>
+  <data name="Viewer.CopyCoverTip" xml:space="preserve">
+    <value>Copy cover image URL to clipboard</value>
+  </data>
+  <data name="Viewer.CopyMap" xml:space="preserve">
+    <value>Copy Map Snapshot URL</value>
+  </data>
+  <data name="Viewer.CopyMapTip" xml:space="preserve">
+    <value>Copy map snapshot URL to clipboard</value>
+  </data>
+  <data name="Viewer.CopyToTrip" xml:space="preserve">
+    <value>Copy selected objects to existing Trip</value>
+  </data>
+  <data name="Viewer.CloneTrip" xml:space="preserve">
+    <value>Clone this trip to your account</value>
+  </data>
+  <data name="Viewer.Clone" xml:space="preserve">
+    <value>Clone to My Trips</value>
+  </data>
+  <data name="Viewer.LoginToCloneTip" xml:space="preserve">
+    <value>Login to clone this trip</value>
+  </data>
+  <data name="Viewer.LoginToClone" xml:space="preserve">
+    <value>Login to Clone</value>
+  </data>
+  <data name="Viewer.Recenter" xml:space="preserve">
+    <value>Recenter the map</value>
+  </data>
+  <data name="Viewer.Readable" xml:space="preserve">
+    <value>Expand to readable view</value>
+  </data>
+  <data name="Viewer.TripBy" xml:space="preserve">
+    <value>Trip by:</value>
+  </data>
+  <data name="Viewer.Updated" xml:space="preserve">
+    <value>Updated:</value>
+  </data>
+  <data name="Viewer.Search" xml:space="preserve">
+    <value>Search regions, places, areas, segments</value>
+  </data>
+  <data name="Viewer.DetailedHistory" xml:space="preserve">
+    <value>View detailed visit history</value>
+  </data>
+  <data name="Viewer.ViewProgress" xml:space="preserve">
+    <value>View trip progress</value>
+  </data>
+  <data name="Viewer.Details" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="Viewer.PreparingExport" xml:space="preserve">
+    <value>Preparing export...</value>
+  </data>
+  <data name="Viewer.GeneratingPdf" xml:space="preserve">
+    <value>Generating PDF Export</value>
+  </data>
+  <data name="Viewer.PrintPdf" xml:space="preserve">
+    <value>Print or Save as PDF</value>
+  </data>
+  <data name="Viewer.Print" xml:space="preserve">
+    <value>Print</value>
+  </data>
+  <data name="Viewer.Notes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="Viewer.RegionsPlaces" xml:space="preserve">
+    <value>Regions &amp; Places</value>
+  </data>
+  <data name="Viewer.VisitHistory" xml:space="preserve">
+    <value>- Visit History</value>
+  </data>
+  <data name="Viewer.OverallProgress" xml:space="preserve">
+    <value>Your Overall Trip Progress</value>
+  </data>
+  <data name="Viewer.FilterPlaces" xml:space="preserve">
+    <value>Filter places</value>
+  </data>
+  <data name="Viewer.ShowAll" xml:space="preserve">
+    <value>Show All</value>
+  </data>
+  <data name="Viewer.Visited" xml:space="preserve">
+    <value>Visited</value>
+  </data>
+  <data name="Viewer.NotVisited" xml:space="preserve">
+    <value>Not Visited</value>
+  </data>
+  <data name="Viewer.ShareProgress" xml:space="preserve">
+    <value>Share Progress</value>
+  </data>
+  <data name="Viewer.Public" xml:space="preserve">
+    <value>Visible to public</value>
+  </data>
+  <data name="Viewer.Private" xml:space="preserve">
+    <value>Private</value>
+  </data>
+  <data name="Viewer.CopyShareLink" xml:space="preserve">
+    <value>Copy shareable link to clipboard</value>
+  </data>
+  <data name="Viewer.CopyLink" xml:space="preserve">
+    <value>Copy Link</value>
+  </data>
+  <data name="Viewer.MakePublic" xml:space="preserve">
+    <value>Make trip public to share progress</value>
+  </data>
+  <data name="Viewer.ByRegion" xml:space="preserve">
+    <value>Progress by Region</value>
+  </data>
+  <data name="Viewer.TripProgress" xml:space="preserve">
+    <value>Trip Progress</value>
+  </data>
+  <data name="Viewer.OwnerTripProgress" xml:space="preserve">
+    <value>{0}'s {1} - Trip Progress</value>
+  </data>
+  <data name="Viewer.TripProgressTitle" xml:space="preserve">
+    <value>{0} - Trip Progress</value>
+  </data>
+  <data name="Viewer.VisitedBy" xml:space="preserve">
+    <value>{0} visited</value>
+  </data>
+  <data name="Viewer.PlaceCount.one" xml:space="preserve">
+    <value>{0} place</value>
+  </data>
+  <data name="Viewer.PlaceCount.other" xml:space="preserve">
+    <value>{0} places</value>
+  </data>
+  <data name="Viewer.VisitedTotal" xml:space="preserve">
+    <value>{0} of {1} visited</value>
+  </data>
+  <data name="Viewer.HoursMinutes" xml:space="preserve">
+    <value>{0}h {1}min</value>
+  </data>
+  <data name="Viewer.Minutes" xml:space="preserve">
+    <value>{0}min</value>
+  </data>
+  <data name="Viewer.Ongoing" xml:space="preserve">
+    <value>ongoing</value>
+  </data>
+  <data name="Viewer.CoverFor" xml:space="preserve">
+    <value>Cover for {0}</value>
+  </data>
+  <data name="Viewer.MapOf" xml:space="preserve">
+    <value>Map of {0}</value>
+  </data>
+  <data name="Viewer.FilterBy" xml:space="preserve">
+    <value>Filter by {0}</value>
+  </data>
+  <data name="Viewer.WayfarerKml" xml:space="preserve">
+    <value>Wayfarer KML…</value>
+  </data>
+  <data name="Viewer.ExportKml" xml:space="preserve">
+    <value>Export Wayfarer KML</value>
+  </data>
+  <data name="Viewer.IncludePlanning" xml:space="preserve">
+    <value>Include private planning</value>
+  </data>
+  <data name="Viewer.ExportPrivacy" xml:space="preserve">
+    <value>This file includes private dates, times and planning details. Anyone you share it with can read them. Server access controls cannot revoke an already downloaded file.</value>
+  </data>
+  <data name="Viewer.DownloadKml" xml:space="preserve">
+    <value>Download KML</value>
+  </data>
+  <data name="Viewer.ExportPdf" xml:space="preserve">
+    <value>Export PDF</value>
+  </data>
+  <data name="Viewer.ExportExcludesPlanning" xml:space="preserve">
+    <value>Private planning is excluded in Google My Maps KML, PDF and other formats.</value>
+  </data>
+  <data name="Viewer.ShowRegion" xml:space="preserve">
+    <value>Show/Hide this region on map</value>
+  </data>
+  <data name="Viewer.PlaceDetails" xml:space="preserve">
+    <value>Click to view details</value>
+  </data>
+  <data name="Viewer.VisitedCount.one" xml:space="preserve">
+    <value>Visited {0} time</value>
+  </data>
+  <data name="Viewer.VisitedCount.other" xml:space="preserve">
+    <value>Visited {0} times</value>
+  </data>
+  <data name="Viewer.DetectedPlace" xml:space="preserve">
+    <value>Detected place: {0}</value>
+  </data>
+  <data name="Viewer.Areas" xml:space="preserve">
+    <value>Areas</value>
+  </data>
+  <data name="Viewer.ShowArea" xml:space="preserve">
+    <value>Show/Hide this area</value>
+  </data>
+  <data name="Viewer.Journeys" xml:space="preserve">
+    <value>Journeys</value>
+  </data>
+  <data name="Viewer.JourneyUnavailable" xml:space="preserve">
+    <value>Journey unavailable</value>
+  </data>
+  <data name="Viewer.PlaceUnavailable" xml:space="preserve">
+    <value>Unavailable place</value>
+  </data>
+  <data name="Viewer.ViewRoute" xml:space="preserve">
+    <value>Click to view the route</value>
+  </data>
+  <data name="Viewer.EstimatedTime" xml:space="preserve">
+    <value>Estimated time</value>
+  </data>
+  <data name="Viewer.EstimatedDistance" xml:space="preserve">
+    <value>Estimated distance</value>
+  </data>
+  <data name="Viewer.From" xml:space="preserve">
+    <value>From:</value>
+  </data>
+  <data name="Viewer.To" xml:space="preserve">
+    <value>To:</value>
+  </data>
+  <data name="Viewer.Waypoint" xml:space="preserve">
+    <value>Waypoint</value>
+  </data>
+  <data name="Viewer.Endpoint" xml:space="preserve">
+    <value>Endpoint</value>
+  </data>
+  <data name="Viewer.ShowSegment" xml:space="preserve">
+    <value>Show/Hide this segment on map</value>
+  </data>
+  <data name="Viewer.UnassignedPlaces" xml:space="preserve">
+    <value>Unassigned Places</value>
+  </data>
+  <data name="Viewer.Credits" xml:space="preserve">
+    <value>Credits</value>
+  </data>
+  <data name="Viewer.CreditsPolicy" xml:space="preserve">
+    <value>Policy covers the owner's contributions. Inherited terms and notices remain separate. View-only does not revoke inherited rights or prevent manual copying.</value>
+  </data>
+  <data name="Viewer.LicenceInformation" xml:space="preserve">
+    <value>Licence information</value>
+  </data>
+  <data name="Viewer.Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Viewer.Map" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="Viewer.Legend" xml:space="preserve">
+    <value>Legend</value>
+  </data>
+  <data name="Viewer.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Viewer.BackToLegend" xml:space="preserve">
+    <value>Back to legend</value>
+  </data>
+  <data name="Viewer.OpenGoogleMaps" xml:space="preserve">
+    <value>View in Google Maps</value>
+  </data>
+  <data name="Viewer.GoogleMaps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="Viewer.SegmentLabel" xml:space="preserve">
+    <value>From {0} to {1}, {2} by {3} in {4}</value>
+  </data>
+  <data name="Viewer.Kilometres" xml:space="preserve">
+    <value>{0} km</value>
+  </data>
+  <data name="Viewer.Connecting" xml:space="preserve">
+    <value>Connecting...</value>
+  </data>
+  <data name="Viewer.ExportCancelled" xml:space="preserve">
+    <value>PDF export cancelled.</value>
+  </data>
+  <data name="Viewer.ExportFailed" xml:space="preserve">
+    <value>PDF export failed.</value>
+  </data>
+  <data name="Viewer.GeneratingFile" xml:space="preserve">
+    <value>Generating file…</value>
+  </data>
+  <data name="Viewer.DownloadFailed" xml:space="preserve">
+    <value>Download failed.</value>
+  </data>
+  <data name="Viewer.DownloadUnavailable" xml:space="preserve">
+    <value>The Trip is unavailable or you no longer have access.</value>
+  </data>
+  <data name="Viewer.DownloadConflict" xml:space="preserve">
+    <value>The Trip changed. Review its current state before trying again.</value>
+  </data>
+  <data name="Viewer.DownloadRetry" xml:space="preserve">
+    <value>PDF generation is temporarily unavailable. Retry shortly.</value>
+  </data>
+  <data name="Viewer.ExportUnknown" xml:space="preserve">
+    <value>Export is still running…</value>
+  </data>
+  <data name="Viewer.PdfLoad" xml:space="preserve">
+    <value>Loading trip data…</value>
+  </data>
+  <data name="Viewer.PdfInventory" xml:space="preserve">
+    <value>Regions: {0} · Places: {1} · Segments: {2}</value>
+  </data>
+  <data name="Viewer.PdfMapLimit" xml:space="preserve">
+    <value>Map-image limit reached (64); the complete itinerary will be exported.</value>
+  </data>
+  <data name="Viewer.PdfCover" xml:space="preserve">
+    <value>Downloading cover photo…</value>
+  </data>
+  <data name="Viewer.PdfOverview" xml:space="preserve">
+    <value>Capturing trip overview map…</value>
+  </data>
+  <data name="Viewer.PdfRegions" xml:space="preserve">
+    <value>Capturing region maps ({0})…</value>
+  </data>
+  <data name="Viewer.PdfRegion" xml:space="preserve">
+    <value>Region {0}/{1}: {2}</value>
+  </data>
+  <data name="Viewer.PdfPlaces" xml:space="preserve">
+    <value>Capturing place maps ({0})…</value>
+  </data>
+  <data name="Viewer.PdfPlace" xml:space="preserve">
+    <value>Place {0}/{1}{2}</value>
+  </data>
+  <data name="Viewer.PdfSegments" xml:space="preserve">
+    <value>Capturing route segments ({0})…</value>
+  </data>
+  <data name="Viewer.PdfSegment" xml:space="preserve">
+    <value>Segment {0}/{1}: {2}</value>
+  </data>
+  <data name="Viewer.PdfTemplate" xml:space="preserve">
+    <value>Rendering PDF template…</value>
+  </data>
+  <data name="Viewer.PdfStart" xml:space="preserve">
+    <value>Starting PDF generator…</value>
+  </data>
+  <data name="Viewer.PdfRender" xml:space="preserve">
+    <value>Generating PDF document…</value>
+  </data>
+  <data name="Viewer.PdfReady" xml:space="preserve">
+    <value>PDF ready. Starting download…</value>
+  </data>
+</root>

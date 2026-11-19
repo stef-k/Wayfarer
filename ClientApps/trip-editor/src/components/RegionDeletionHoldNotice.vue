@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { heldRegionDeletionKey, unknownRegionDeletionMessage } from './regionDeletionState';
 const held = ref(false);
@@ -14,6 +15,6 @@ onUnmounted(() => { window.removeEventListener('storage', update); window.remove
 </script>
 <template>
   <div v-if="held" role="alert" class="alert alert-warning position-fixed bottom-0 start-0 m-3" style="z-index: 1040; max-width: 32rem">
-    {{ unknownRegionDeletionMessage }} Region deletion remains held until the earlier request's terminal outcome is explicitly reconciled.
+    {{ unknownRegionDeletionMessage }} {{ localize("Editor.RegionDeletionRemainsHeldUntilTheEarlier", "Region deletion remains held until the earlier request's terminal outcome is explicitly reconciled.") }}
   </div>
 </template>

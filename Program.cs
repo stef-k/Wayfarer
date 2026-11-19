@@ -13,6 +13,7 @@ using Quartz.Spi;
 using Serilog;
 using Wayfarer.CommandLine;
 using Wayfarer.Jobs;
+using Wayfarer.Localization;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
@@ -488,9 +489,13 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Import Location Data service
     builder.Services.AddScoped<ILocationImportService, LocationImportService>();
 
+    builder.Services.AddWebLocalization(builder.Configuration);
+
     // Add controllers with views for MVC routing & ingore JSON property-name case
     builder.Services
         .AddControllersWithViews(options => options.Filters.Add<ApiTokenAdmissionFilter>())
+        .AddViewLocalization()
+        .AddDataAnnotationsLocalization()
         .AddJsonOptions(o =>
         {
             o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
@@ -651,6 +656,8 @@ static void ConfigureMiddleware(WebApplication app)
 
     app.UseMiddleware<RequestIdLoggingMiddleware>(); // Enriches Serilog LogContext with HttpContext.TraceIdentifier
     app.UseMiddleware<PerformanceMonitoringMiddleware>(); // Custom middleware for monitoring performance
+
+    app.UseWebLocalization();
 
     // Use specific middlewares based on the environment
     if (app.Environment.IsDevelopment())

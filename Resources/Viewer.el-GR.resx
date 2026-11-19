@@ -1,0 +1,366 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Viewer.Actions" xml:space="preserve">
+    <value>Χειριστήρια χάρτη και ενέργειες</value>
+  </data>
+  <data name="Viewer.MoreActions" xml:space="preserve">
+    <value>Περισσότερες ενέργειες</value>
+  </data>
+  <data name="Viewer.EditTrip" xml:space="preserve">
+    <value>Επεξεργασία ταξιδιού</value>
+  </data>
+  <data name="Viewer.Edit" xml:space="preserve">
+    <value>Επεξεργασία</value>
+  </data>
+  <data name="Viewer.CopyPublicUrl" xml:space="preserve">
+    <value>Αντιγραφή δημόσιου συνδέσμου στο πρόχειρο</value>
+  </data>
+  <data name="Viewer.Share" xml:space="preserve">
+    <value>Κοινοποίηση (αντιγραφή συνδέσμου)</value>
+  </data>
+  <data name="Viewer.CopyCover" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου εξωφύλλου</value>
+  </data>
+  <data name="Viewer.CopyCoverTip" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου εξωφύλλου στο πρόχειρο</value>
+  </data>
+  <data name="Viewer.CopyMap" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου στιγμιοτύπου χάρτη</value>
+  </data>
+  <data name="Viewer.CopyMapTip" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου στιγμιοτύπου χάρτη στο πρόχειρο</value>
+  </data>
+  <data name="Viewer.CopyToTrip" xml:space="preserve">
+    <value>Αντιγραφή επιλεγμένων στοιχείων σε υπάρχον ταξίδι</value>
+  </data>
+  <data name="Viewer.CloneTrip" xml:space="preserve">
+    <value>Δημιουργία αντιγράφου του ταξιδιού στον λογαριασμό σας</value>
+  </data>
+  <data name="Viewer.Clone" xml:space="preserve">
+    <value>Αντιγραφή στα ταξίδια μου</value>
+  </data>
+  <data name="Viewer.LoginToCloneTip" xml:space="preserve">
+    <value>Συνδεθείτε για να αντιγράψετε το ταξίδι</value>
+  </data>
+  <data name="Viewer.LoginToClone" xml:space="preserve">
+    <value>Σύνδεση για αντιγραφή</value>
+  </data>
+  <data name="Viewer.Recenter" xml:space="preserve">
+    <value>Επαναφορά κέντρου χάρτη</value>
+  </data>
+  <data name="Viewer.Readable" xml:space="preserve">
+    <value>Άνοιγμα προβολής ανάγνωσης</value>
+  </data>
+  <data name="Viewer.TripBy" xml:space="preserve">
+    <value>Δημιουργός ταξιδιού:</value>
+  </data>
+  <data name="Viewer.Updated" xml:space="preserve">
+    <value>Ενημερώθηκε:</value>
+  </data>
+  <data name="Viewer.Search" xml:space="preserve">
+    <value>Αναζήτηση περιοχών, τοποθεσιών, ζωνών, τμημάτων διαδρομής</value>
+  </data>
+  <data name="Viewer.DetailedHistory" xml:space="preserve">
+    <value>Προβολή αναλυτικού ιστορικού επισκέψεων</value>
+  </data>
+  <data name="Viewer.ViewProgress" xml:space="preserve">
+    <value>Προβολή προόδου ταξιδιού</value>
+  </data>
+  <data name="Viewer.Details" xml:space="preserve">
+    <value>Λεπτομέρειες</value>
+  </data>
+  <data name="Viewer.PreparingExport" xml:space="preserve">
+    <value>Προετοιμασία εξαγωγής…</value>
+  </data>
+  <data name="Viewer.GeneratingPdf" xml:space="preserve">
+    <value>Δημιουργία αρχείου PDF</value>
+  </data>
+  <data name="Viewer.PrintPdf" xml:space="preserve">
+    <value>Εκτύπωση ή αποθήκευση ως PDF</value>
+  </data>
+  <data name="Viewer.Print" xml:space="preserve">
+    <value>Εκτύπωση</value>
+  </data>
+  <data name="Viewer.Notes" xml:space="preserve">
+    <value>Σημειώσεις</value>
+  </data>
+  <data name="Viewer.RegionsPlaces" xml:space="preserve">
+    <value>Περιοχές και τοποθεσίες</value>
+  </data>
+  <data name="Viewer.VisitHistory" xml:space="preserve">
+    <value>– Ιστορικό επισκέψεων</value>
+  </data>
+  <data name="Viewer.OverallProgress" xml:space="preserve">
+    <value>Συνολική πρόοδος ταξιδιού</value>
+  </data>
+  <data name="Viewer.FilterPlaces" xml:space="preserve">
+    <value>Φιλτράρισμα τοποθεσιών</value>
+  </data>
+  <data name="Viewer.ShowAll" xml:space="preserve">
+    <value>Προβολή όλων</value>
+  </data>
+  <data name="Viewer.Visited" xml:space="preserve">
+    <value>Επίσκεψη</value>
+  </data>
+  <data name="Viewer.NotVisited" xml:space="preserve">
+    <value>Χωρίς επίσκεψη</value>
+  </data>
+  <data name="Viewer.ShareProgress" xml:space="preserve">
+    <value>Κοινοποίηση προόδου</value>
+  </data>
+  <data name="Viewer.Public" xml:space="preserve">
+    <value>Δημόσια ορατό</value>
+  </data>
+  <data name="Viewer.Private" xml:space="preserve">
+    <value>Ιδιωτικό</value>
+  </data>
+  <data name="Viewer.CopyShareLink" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου κοινοποίησης στο πρόχειρο</value>
+  </data>
+  <data name="Viewer.CopyLink" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου</value>
+  </data>
+  <data name="Viewer.MakePublic" xml:space="preserve">
+    <value>Δημοσιεύστε το ταξίδι για να κοινοποιήσετε την πρόοδο</value>
+  </data>
+  <data name="Viewer.ByRegion" xml:space="preserve">
+    <value>Πρόοδος ανά περιοχή</value>
+  </data>
+  <data name="Viewer.TripProgress" xml:space="preserve">
+    <value>Πρόοδος ταξιδιού</value>
+  </data>
+  <data name="Viewer.OwnerTripProgress" xml:space="preserve">
+    <value>Πρόοδος ταξιδιού «{1}» · {0}</value>
+  </data>
+  <data name="Viewer.TripProgressTitle" xml:space="preserve">
+    <value>{0} · Πρόοδος ταξιδιού</value>
+  </data>
+  <data name="Viewer.VisitedBy" xml:space="preserve">
+    <value>Επισκέψεις από {0}</value>
+  </data>
+  <data name="Viewer.PlaceCount.one" xml:space="preserve">
+    <value>{0} τοποθεσία</value>
+  </data>
+  <data name="Viewer.PlaceCount.other" xml:space="preserve">
+    <value>{0} τοποθεσίες</value>
+  </data>
+  <data name="Viewer.VisitedTotal" xml:space="preserve">
+    <value>Επισκέψεις σε {0} από {1}</value>
+  </data>
+  <data name="Viewer.HoursMinutes" xml:space="preserve">
+    <value>{0} ώρ. {1} λεπ.</value>
+  </data>
+  <data name="Viewer.Minutes" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Viewer.Ongoing" xml:space="preserve">
+    <value>σε εξέλιξη</value>
+  </data>
+  <data name="Viewer.CoverFor" xml:space="preserve">
+    <value>Εξώφυλλο για το ταξίδι «{0}»</value>
+  </data>
+  <data name="Viewer.MapOf" xml:space="preserve">
+    <value>Χάρτης για το ταξίδι «{0}»</value>
+  </data>
+  <data name="Viewer.FilterBy" xml:space="preserve">
+    <value>Φίλτρο κατά {0}</value>
+  </data>
+  <data name="Viewer.WayfarerKml" xml:space="preserve">
+    <value>Wayfarer KML…</value>
+  </data>
+  <data name="Viewer.ExportKml" xml:space="preserve">
+    <value>Εξαγωγή Wayfarer KML</value>
+  </data>
+  <data name="Viewer.IncludePlanning" xml:space="preserve">
+    <value>Συμπερίληψη ιδιωτικού σχεδιασμού</value>
+  </data>
+  <data name="Viewer.ExportPrivacy" xml:space="preserve">
+    <value>Αυτό το αρχείο περιέχει ιδιωτικές ημερομηνίες, ώρες και λεπτομέρειες σχεδιασμού. Όποιος λάβει το αρχείο μπορεί να τις διαβάσει. Οι ρυθμίσεις πρόσβασης του διακομιστή δεν μπορούν να ανακαλέσουν ένα αρχείο που έχει ήδη ληφθεί.</value>
+  </data>
+  <data name="Viewer.DownloadKml" xml:space="preserve">
+    <value>Λήψη KML</value>
+  </data>
+  <data name="Viewer.ExportPdf" xml:space="preserve">
+    <value>Εξαγωγή PDF</value>
+  </data>
+  <data name="Viewer.ExportExcludesPlanning" xml:space="preserve">
+    <value>Ο ιδιωτικός σχεδιασμός εξαιρείται από τα αρχεία Google My Maps KML, PDF και άλλων μορφών.</value>
+  </data>
+  <data name="Viewer.ShowRegion" xml:space="preserve">
+    <value>Εμφάνιση ή απόκρυψη περιοχής στον χάρτη</value>
+  </data>
+  <data name="Viewer.PlaceDetails" xml:space="preserve">
+    <value>Προβολή λεπτομερειών</value>
+  </data>
+  <data name="Viewer.VisitedCount.one" xml:space="preserve">
+    <value>Έγινε {0} επίσκεψη</value>
+  </data>
+  <data name="Viewer.VisitedCount.other" xml:space="preserve">
+    <value>Έγιναν {0} επισκέψεις</value>
+  </data>
+  <data name="Viewer.DetectedPlace" xml:space="preserve">
+    <value>Εντοπισμένη τοποθεσία: {0}</value>
+  </data>
+  <data name="Viewer.Areas" xml:space="preserve">
+    <value>Ζώνες</value>
+  </data>
+  <data name="Viewer.ShowArea" xml:space="preserve">
+    <value>Εμφάνιση ή απόκρυψη ζώνης</value>
+  </data>
+  <data name="Viewer.Journeys" xml:space="preserve">
+    <value>Διαδρομές</value>
+  </data>
+  <data name="Viewer.JourneyUnavailable" xml:space="preserve">
+    <value>Η διαδρομή δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Viewer.PlaceUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη τοποθεσία</value>
+  </data>
+  <data name="Viewer.ViewRoute" xml:space="preserve">
+    <value>Προβολή διαδρομής</value>
+  </data>
+  <data name="Viewer.EstimatedTime" xml:space="preserve">
+    <value>Εκτιμώμενος χρόνος</value>
+  </data>
+  <data name="Viewer.EstimatedDistance" xml:space="preserve">
+    <value>Εκτιμώμενη απόσταση</value>
+  </data>
+  <data name="Viewer.From" xml:space="preserve">
+    <value>Από:</value>
+  </data>
+  <data name="Viewer.To" xml:space="preserve">
+    <value>Προς:</value>
+  </data>
+  <data name="Viewer.Waypoint" xml:space="preserve">
+    <value>Ενδιάμεσο σημείο</value>
+  </data>
+  <data name="Viewer.Endpoint" xml:space="preserve">
+    <value>Τελικό σημείο</value>
+  </data>
+  <data name="Viewer.ShowSegment" xml:space="preserve">
+    <value>Εμφάνιση ή απόκρυψη τμήματος στον χάρτη</value>
+  </data>
+  <data name="Viewer.UnassignedPlaces" xml:space="preserve">
+    <value>Τοποθεσίες χωρίς περιοχή</value>
+  </data>
+  <data name="Viewer.Credits" xml:space="preserve">
+    <value>Αναφορές δημιουργών</value>
+  </data>
+  <data name="Viewer.CreditsPolicy" xml:space="preserve">
+    <value>Η πολιτική καλύπτει τις συνεισφορές του ιδιοκτήτη. Οι κληρονομημένοι όροι και σημειώσεις ισχύουν χωριστά. Η προβολή μόνο δεν ανακαλεί κληρονομημένα δικαιώματα ούτε εμποδίζει τη χειροκίνητη αντιγραφή.</value>
+  </data>
+  <data name="Viewer.LicenceInformation" xml:space="preserve">
+    <value>Πληροφορίες άδειας</value>
+  </data>
+  <data name="Viewer.Source" xml:space="preserve">
+    <value>Πηγή</value>
+  </data>
+  <data name="Viewer.Map" xml:space="preserve">
+    <value>Χάρτης</value>
+  </data>
+  <data name="Viewer.Legend" xml:space="preserve">
+    <value>Υπόμνημα</value>
+  </data>
+  <data name="Viewer.Back" xml:space="preserve">
+    <value>Πίσω</value>
+  </data>
+  <data name="Viewer.BackToLegend" xml:space="preserve">
+    <value>Πίσω στο υπόμνημα</value>
+  </data>
+  <data name="Viewer.OpenGoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="Viewer.GoogleMaps" xml:space="preserve">
+    <value>Χάρτες</value>
+  </data>
+  <data name="Viewer.SegmentLabel" xml:space="preserve">
+    <value>Από {0} προς {1}, {2} με {3} σε {4}</value>
+  </data>
+  <data name="Viewer.Kilometres" xml:space="preserve">
+    <value>{0} χλμ.</value>
+  </data>
+  <data name="Viewer.Connecting" xml:space="preserve">
+    <value>Σύνδεση…</value>
+  </data>
+  <data name="Viewer.ExportCancelled" xml:space="preserve">
+    <value>Η εξαγωγή PDF ακυρώθηκε.</value>
+  </data>
+  <data name="Viewer.ExportFailed" xml:space="preserve">
+    <value>Η εξαγωγή PDF απέτυχε.</value>
+  </data>
+  <data name="Viewer.GeneratingFile" xml:space="preserve">
+    <value>Δημιουργία αρχείου…</value>
+  </data>
+  <data name="Viewer.DownloadFailed" xml:space="preserve">
+    <value>Η λήψη απέτυχε.</value>
+  </data>
+  <data name="Viewer.DownloadUnavailable" xml:space="preserve">
+    <value>Το ταξίδι δεν είναι διαθέσιμο ή δεν έχετε πλέον πρόσβαση.</value>
+  </data>
+  <data name="Viewer.DownloadConflict" xml:space="preserve">
+    <value>Το ταξίδι άλλαξε. Ελέγξτε την τρέχουσα κατάστασή του πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Viewer.DownloadRetry" xml:space="preserve">
+    <value>Η δημιουργία PDF δεν είναι προσωρινά διαθέσιμη. Δοκιμάστε ξανά σε λίγο.</value>
+  </data>
+  <data name="Viewer.ExportUnknown" xml:space="preserve">
+    <value>Η εξαγωγή βρίσκεται σε εξέλιξη…</value>
+  </data>
+  <data name="Viewer.PdfLoad" xml:space="preserve">
+    <value>Φόρτωση δεδομένων ταξιδιού…</value>
+  </data>
+  <data name="Viewer.PdfInventory" xml:space="preserve">
+    <value>Περιοχές: {0} · Τοποθεσίες: {1} · Τμήματα διαδρομής: {2}</value>
+  </data>
+  <data name="Viewer.PdfMapLimit" xml:space="preserve">
+    <value>Έφτασε το όριο εικόνων χάρτη (64). Θα εξαχθεί ολόκληρο το δρομολόγιο.</value>
+  </data>
+  <data name="Viewer.PdfCover" xml:space="preserve">
+    <value>Λήψη εικόνας εξωφύλλου…</value>
+  </data>
+  <data name="Viewer.PdfOverview" xml:space="preserve">
+    <value>Λήψη γενικού χάρτη ταξιδιού…</value>
+  </data>
+  <data name="Viewer.PdfRegions" xml:space="preserve">
+    <value>Λήψη χαρτών περιοχών ({0})…</value>
+  </data>
+  <data name="Viewer.PdfRegion" xml:space="preserve">
+    <value>Περιοχή {0}/{1}: {2}</value>
+  </data>
+  <data name="Viewer.PdfPlaces" xml:space="preserve">
+    <value>Λήψη χαρτών τοποθεσιών ({0})…</value>
+  </data>
+  <data name="Viewer.PdfPlace" xml:space="preserve">
+    <value>Τοποθεσία {0}/{1}{2}</value>
+  </data>
+  <data name="Viewer.PdfSegments" xml:space="preserve">
+    <value>Λήψη τμημάτων διαδρομής ({0})…</value>
+  </data>
+  <data name="Viewer.PdfSegment" xml:space="preserve">
+    <value>Τμήμα διαδρομής {0}/{1}: {2}</value>
+  </data>
+  <data name="Viewer.PdfTemplate" xml:space="preserve">
+    <value>Προετοιμασία προτύπου PDF…</value>
+  </data>
+  <data name="Viewer.PdfStart" xml:space="preserve">
+    <value>Εκκίνηση δημιουργίας PDF…</value>
+  </data>
+  <data name="Viewer.PdfRender" xml:space="preserve">
+    <value>Δημιουργία εγγράφου PDF…</value>
+  </data>
+  <data name="Viewer.PdfReady" xml:space="preserve">
+    <value>Το PDF είναι έτοιμο. Έναρξη λήψης…</value>
+  </data>
+</root>

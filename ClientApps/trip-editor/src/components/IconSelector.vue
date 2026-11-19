@@ -3,6 +3,7 @@ let nextSelectorId = 0;
 </script>
 
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { placeMarkerIconUrl } from '../displayHelpers';
 
@@ -247,7 +248,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
           <span v-else class="trip-editor-icon-selector__swatch" :class="icon" aria-hidden="true" data-color-selector-option-swatch></span>
           <span data-icon-selector-option-name>{{ optionLabel(icon) }}</span>
         </li>
-        <li v-if="filteredIcons.length === 0" class="trip-editor-icon-selector__empty">No matching icons.</li>
+        <li v-if="filteredIcons.length === 0" class="trip-editor-icon-selector__empty">{{ localize("Editor.NoMatchingIcons", "No matching icons.") }}</li>
       </ul>
     </div>
   </div>

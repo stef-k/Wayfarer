@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { EditorValidationError, searchGeocode } from '../api/tripEditorApi';
 import type { EditorTarget } from '../composables/useEditorSurface';
@@ -218,17 +219,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="trip-editor-map-search" aria-label="Map search">
+  <section class="trip-editor-map-search" :aria-label="localize('Editor.MapSearch', 'Map search')">
     <form class="trip-editor-map-search__form" @submit.prevent="onSubmit">
-      <label class="trip-editor-map-search__label" for="trip-editor-map-search-input">Map search</label>
+      <label class="trip-editor-map-search__label" for="trip-editor-map-search-input">{{ localize("Editor.MapSearch", "Map search") }}</label>
       <input
         id="trip-editor-map-search-input"
         v-model="query"
         type="search"
         autocomplete="off"
-        placeholder="Search address or place"
+        :placeholder="localize('Editor.SearchAddressOrPlace', 'Search address or place')"
       />
-      <button type="submit" class="btn btn-primary btn-sm" :disabled="!canSearch">Search</button>
+      <button type="submit" class="btn btn-primary btn-sm" :disabled="!canSearch">{{ localize("Editor.Search", "Search") }}</button>
     </form>
 
     <p v-if="statusText" class="trip-editor-map-search__status" :role="status === 'loading' ? 'status' : 'alert'">{{ statusText }}</p>
@@ -252,7 +253,7 @@ onUnmounted(() => {
           data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.
         </template>
         <template v-else>
-          Search by <a href="https://nominatim.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>;
+          {{ localize("Editor.SearchBy", "Search by") }} <a href="https://nominatim.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>;
           data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.
         </template>
       </small>
@@ -260,14 +261,14 @@ onUnmounted(() => {
 
     <div v-if="selectedResult" class="trip-editor-map-search__add-panel">
       <label>
-        <span>Target region</span>
+        <span>{{ localize("Editor.TargetRegion", "Target region") }}</span>
         <select v-model="selectedRegionId" :disabled="eligibleRegions.length <= 1">
-          <option v-if="eligibleRegions.length !== 1" value="">Select region</option>
+          <option v-if="eligibleRegions.length !== 1" value="">{{ localize("Editor.SelectRegion", "Select region") }}</option>
           <option v-for="region in eligibleRegions" :key="region.id" :value="region.id">{{ region.name }}</option>
         </select>
       </label>
       <p v-if="helperText" class="trip-editor-map-search__helper">{{ helperText }}</p>
-      <button type="button" class="btn btn-success btn-sm" :disabled="!canAdd" @click="addAsPlace">Add as place</button>
+      <button type="button" class="btn btn-success btn-sm" :disabled="!canAdd" @click="addAsPlace">{{ localize("Editor.AddAsPlace", "Add as place") }}</button>
     </div>
   </section>
 </template>
