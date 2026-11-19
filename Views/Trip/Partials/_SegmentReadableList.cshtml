@@ -1,3 +1,4 @@
+@inject Wayfarer.Localization.WebMessages T
 @using Wayfarer.Models.ViewModels
 @using Wayfarer.Util
 @model Wayfarer.Models.Trip
@@ -6,7 +7,7 @@
 @if (Model.Segments?.Any() == true)
 {
     <div class="segments-readable mt-4">
-        <h6 class="text-muted mb-3">Journeys</h6>
+        <h6 class="text-muted mb-3">@(ViewData["WebCatalog"] as string == "Viewer" ? T["Viewer.Journeys"] : "Journeys")</h6>
         @foreach (var segment in Model.Segments.OrderBy(item => item.DisplayOrder))
         {
             var journey = ViewerSegmentJourneyResolver.Resolve(segment, Model.Id, waypointsLoaded: true);

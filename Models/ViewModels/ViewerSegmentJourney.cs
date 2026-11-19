@@ -11,7 +11,8 @@ public sealed record ViewerJourneyAnchor(
     string DisplayName,
     string? RegionName,
     Point? Location,
-    int? RouteVertexIndex);
+    int? RouteVertexIndex,
+    bool IsPlaceholder = false);
 
 /// <summary>Contains presentation-only Segment anchors, safe route geometry, and neutral degradation.</summary>
 public sealed record ViewerSegmentJourney(
@@ -107,7 +108,8 @@ public static class ViewerSegmentJourneyResolver
             ? role == "Start" ? "Unlinked start" : role == "End" ? "Unlinked end" : "Unnamed waypoint"
             : string.IsNullOrWhiteSpace(authorizedPlace.Name) ? role.StartsWith("Via", StringComparison.Ordinal) ? "Unnamed waypoint" : $"Unlinked {role.ToLowerInvariant()}" : authorizedPlace.Name.Trim();
         return new(position, AlphabeticLabel(position), role, authorizedPlace?.Id, displayName, authorizedPlace?.Region?.Name,
-            IsValidLocation(authorizedPlace?.Location) ? authorizedPlace!.Location : null, routeVertexIndex);
+            IsValidLocation(authorizedPlace?.Location) ? authorizedPlace!.Location : null, routeVertexIndex,
+            string.IsNullOrWhiteSpace(authorizedPlace?.Name));
     }
 
     /// <summary>Accepts custom geometry only when every semantic anchor mapping remains authoritative.</summary>

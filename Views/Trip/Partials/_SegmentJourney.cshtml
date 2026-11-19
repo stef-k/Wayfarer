@@ -1,5 +1,8 @@
+@using Wayfarer.Localization
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.ViewerSegmentJourney
 @{
+    var live = ViewData["WebCatalog"] as string == "Viewer";
     var interactive = ViewData["Interactive"] as bool? ?? false;
 }
 
@@ -11,30 +14,30 @@
             @foreach (var anchor in Model.Anchors)
             {
                 <li class="segment-journey-role text-break">
-                    <strong>@anchor.Label — @anchor.Role —</strong>
+                    <strong>@anchor.Label — @(live ? ViewerJourneyText.Role(anchor, T) : anchor.Role) —</strong>
                     @if (interactive && anchor.PlaceId.HasValue && anchor.Location != null)
                     {
                         <button type="button" class="btn btn-link p-0 align-baseline text-wrap text-start segment-journey-place" data-place-id="@anchor.PlaceId">
-                            @anchor.DisplayName
+                            @(live ? ViewerJourneyText.Name(anchor, T) : anchor.DisplayName)
                         </button>
                     }
                     else
                     {
-                        <span>@anchor.DisplayName</span>
+                        <span>@(live ? ViewerJourneyText.Name(anchor, T) : anchor.DisplayName)</span>
                     }
                 </li>
             }
         </ol>
-        <div class="segment-journey-trail text-break" aria-label="@Model.AccessibleName">
-            @Model.CompactTrail
+        <div class="segment-journey-trail text-break" aria-label="@(live ? ViewerJourneyText.AccessibleName(Model, T) : Model.AccessibleName)">
+            @(live ? ViewerJourneyText.Trail(Model, T, true) : Model.CompactTrail)
         </div>
         <div class="small text-muted">
-            @Model.WaypointCount @(Model.WaypointCount == 1 ? "waypoint" : "waypoints") ·
-            @Model.RoutePointCount @(Model.RoutePointCount == 1 ? "route point" : "route points")
+            @(live ? T.Count("Viewer.WaypointCount", Model.WaypointCount) : $"{Model.WaypointCount} {(Model.WaypointCount == 1 ? "waypoint" : "waypoints")}") ·
+            @(live ? T.Count("Viewer.RoutePointCount", Model.RoutePointCount) : $"{Model.RoutePointCount} {(Model.RoutePointCount == 1 ? "route point" : "route points")}")
         </div>
     }
     @if (!string.IsNullOrWhiteSpace(Model.DegradationMessage))
     {
-        <div class="small text-muted segment-journey-status">@Model.DegradationMessage</div>
+        <div class="small text-muted segment-journey-status">@(live ? ViewerJourneyText.Degradation(Model.DegradationMessage, T) : Model.DegradationMessage)</div>
     }
 </div>

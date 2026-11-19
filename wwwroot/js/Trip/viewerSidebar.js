@@ -52,7 +52,7 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const showButton = document.createElement('button');
     showButton.id = 'btn-show-sidebar';
     showButton.className = 'btn btn-light border fw-semibold shadow-lg';
-    showButton.textContent = 'MAP LEGEND';
+    showButton.textContent = message('Viewer.MapLegend', 'MAP LEGEND');
     showButton.setAttribute('aria-label', message('Shell.ShowSidebar', 'Show sidebar'));
     showButton.setAttribute('aria-expanded', 'false');
     showButton.setAttribute('aria-controls', 'sidebar-primary sidebar-secondary');

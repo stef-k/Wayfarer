@@ -134,8 +134,8 @@ for (const name of ['SegmentEditorForm', 'SegmentWaypointEditor']) {
 
 test('the Segment editor exposes visible intermediate-place controls', async () => {
   const source = await sourceOrEmpty(componentPath);
-  assert.match(source, /<legend[^>]*>\s*Intermediate places\s*<\/legend>/i);
-  assert.match(source, />\s*Add intermediate place\s*</i);
+  assert.match(source, /<legend[^>]*>.*Editor\.IntermediatePlaces.*<\/legend>/i);
+  assert.match(source, /<button[^>]*>.*Editor\.AddIntermediatePlace.*<\/button>/i);
 });
 
 test('waypoint order can be changed with accessible move controls', async () => {

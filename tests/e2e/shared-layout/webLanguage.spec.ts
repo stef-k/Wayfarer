@@ -26,7 +26,7 @@ const addSegment = async (page: Page, tripId: string) => {
   });
   return (await post('/segments', { title: 'Coastal <walk> & lookout', fromPlaceId: from, toPlaceId: to.id,
     waypointPlaceIds: [], waypointRouteVertexIndices: [], mode: state.options.transportModes[0].value,
-    estimatedDistanceKm: null, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic', notesHtml: '',
+    estimatedDistanceKm: null, estimatedDurationMinutes: 42, estimatedDurationSource: 'Manual', notesHtml: '',
     aggregateConcurrencyToken: null, route: { type: 'LineString', coordinates: [[23.73, 37.98], [24, 38.05]] }
   })).id as string;
 };
@@ -88,7 +88,7 @@ test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   await editor.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' }).click();
   await expect(editor.getByText(/Το όνομα (είναι υποχρεωτικό|πρέπει να έχει)/)).toBeVisible();
   await name.fill('Shared layout browser Trip');
-  await editor.locator('#themeToggle').click();
+  if (await editor.locator('body').getAttribute('data-bs-theme') !== 'dark') await editor.locator('#themeToggle').click();
   await expect(editor.locator('body')).toHaveAttribute('data-bs-theme', 'dark');
   await editor.screenshot({ path: `${folder}/greek-dark.png` });
   await editor.setViewportSize({ width: 390, height: 900 });

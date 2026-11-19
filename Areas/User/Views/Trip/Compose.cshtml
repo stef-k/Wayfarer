@@ -1,6 +1,9 @@
 @inject IWebHostEnvironment Environment
 @using System.Security.Claims
 @{
+    // Compose shares Vue bootstrapping and retains its English content until Area 9.
+    ViewData["WebCatalog"] = "Editor";
+    ViewData["WebContentLanguage"] = "en";
     Layout = "~/Views/Shared/_Layout.cshtml";
     var assets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/trip-editor/src/main.ts");
 }

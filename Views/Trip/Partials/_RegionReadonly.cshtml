@@ -1,14 +1,16 @@
+@inject Wayfarer.Localization.WebMessages T
 @using NetTopologySuite.IO
 @using Wayfarer.Util
 @model Wayfarer.Models.Region
 @{
-    double? lat = Model.Center?.Y; // Y = latitude
-    double? lon = Model.Center?.X; // X = longitude
+    // Coordinates stay in the map's invariant wire format.
+    var lat = Model.Center?.Y.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var lon = Model.Center?.X.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    var regionName = ItineraryPresentation.IsShadowRegion(Model) ? T["Viewer.UnassignedPlaces"] : Model.Name;
 
     /* helpers for Wayfarer marker PNG */
     string SafeIcon(string? icon) => string.IsNullOrWhiteSpace(icon) ? "marker" : icon.Trim();
     string SafeBg(string? color) => string.IsNullOrWhiteSpace(color) ? "bg-blue" : color.Trim();
-    string Png(string ic, string bg) => $"/icons/wayfarer-map-icons/dist/png/marker/{bg}/{ic}.png";
 
     /* visit counts per place - privacy: only owner OR ShareProgressEnabled sees visit status */
     var placeVisitCounts = ViewBag.PlaceVisitCounts as Dictionary<Guid, int> ?? new Dictionary<Guid, int>();
@@ -22,9 +24,9 @@
 <div class="accordion-item"
      id="region-@Model.Id"
      data-region-id="@Model.Id"
-     data-region-name="@Model.Name"
-     @(lat is not null ? $"data-center-lat=\"{lat}\"" : "")
-     @(lon is not null ? $"data-center-lon=\"{lon}\"" : "")>
+     data-region-name="@regionName"
+     data-center-lat="@lat"
+     data-center-lon="@lon">
 
     <!-- header: button (expand/collapse) + separate checkbox -->
     <h2 class="accordion-header d-flex align-items-center text-bg-light ">
@@ -35,7 +37,7 @@
                 data-bs-toggle="collapse"
                 data-bs-target="#reg-body-@Model.Id">
             <span class="fw-semibold itinerary-region-label">
-                @ItineraryPresentation.Label(regionOrdinal, Model.Name)
+                @ItineraryPresentation.Label(regionOrdinal, regionName)
             </span>
         </button>
 
@@ -43,7 +45,7 @@
         <input type="checkbox"
                class="form-check-input ms-2 region-toggle fs-6 mx-1"
                checked
-               title="Show/Hide this region on map"/>
+               title="@T["Viewer.ShowRegion"]"/>
     </h2>
 
     <div id="reg-body-@Model.Id" class="accordion-collapse show">
@@ -52,7 +54,7 @@
             @if (!string.IsNullOrWhiteSpace(Model.CoverImageUrl))
             {
                 <div class="region-cover-image px-2 py-1 border-bottom">
-                    <img src="@ImageProxyHelper.ToProxyUrl(Model.CoverImageUrl)" alt="@Model.Name" class="img-fluid rounded" style="max-height: 150px; object-fit: cover; width: 100%;" />
+                    <img src="@ImageProxyHelper.ToProxyUrl(Model.CoverImageUrl)" alt="@regionName" class="img-fluid rounded" style="max-height: 150px; object-fit: cover; width: 100%;" />
                 </div>
             }
             @* Region notes - shown if present, scrollable like trip notes *@
@@ -69,16 +71,15 @@
                     var p = orderedPlaces[placeIndex];
                     var iconName = SafeIcon(p.IconName);
                     var bgClass = SafeBg(p.MarkerColor);
-                    var iconUrl = Png(iconName, bgClass);
 
-                    var pLat = p.Location?.Y;
-                    var pLon = p.Location?.X;
+                    var pLat = p.Location?.Y.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var pLon = p.Location?.X.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     var precisionNotice = (p.ResolvedFeatureType ?? "").Trim().ToLowerInvariant() switch
                     {
-                        "postcode" => "Approximate address — resolved to postcode level.",
-                        "city" => "Approximate address — resolved to city level.",
-                        "suburb" or "district" => "Approximate address — resolved to local-area level.",
-                        "county" or "state" or "country" => "Approximate address — resolved only to a regional level.",
+                        "postcode" => T["Viewer.ApproximatePostcode"],
+                        "city" => T["Viewer.ApproximateCity"],
+                        "suburb" or "district" => T["Viewer.ApproximateLocalArea"],
+                        "county" or "state" or "country" => T["Viewer.ApproximateRegion"],
                         _ => null
                     };
                     placeVisitCounts.TryGetValue(p.Id, out var vc);
@@ -93,7 +94,7 @@
                             data-place-icon="@iconName"
                             data-place-color="@bgClass"
                             data-region-id="@Model.Id"
-                            data-region-name="@Model.Name"
+                            data-region-name="@regionName"
                             @if (visitCount > 0)
                             {
                             <text> data-place-visit-count="@visitCount" </text>
@@ -106,21 +107,21 @@
                             {
                             <text> data-place-lon="@pLon" </text>
                             }
-                            title="Click to view details">
+                            title="@T["Viewer.PlaceDetails"]">
 
                             <span class="sidebar-place-icon">
                                 @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml",
                                     (iconName, bgClass))
                                 @if (visitCount > 0)
                                 {
-                                    <span class="sidebar-visit-badge" title="@(visitCount == 1 ? "Visited" : $"Visited {visitCount} times")">@(visitCount == 1 ? "✓" : visitCount)</span>
+                                    <span class="sidebar-visit-badge" title="@(visitCount == 1 ? T["Viewer.Visited"] : T.Count("Viewer.VisitedCount", visitCount))">@(visitCount == 1 ? "✓" : T.DisplayNumber(visitCount))</span>
                                 }
                             </span>
                             <span class="flex-grow-1 itinerary-place-label">
                                 @ItineraryPresentation.Label(placeIndex + 1, p.Name)
                                 @if (!string.IsNullOrWhiteSpace(p.ResolvedFeatureName))
                                 {
-                                    <small class="d-block text-muted">Detected place: @p.ResolvedFeatureName</small>
+                                    <small class="d-block text-muted">@T["Viewer.DetectedPlace", p.ResolvedFeatureName]</small>
                                 }
                                 @if (precisionNotice is not null)
                                 {
@@ -142,7 +143,7 @@
             @if (Model.Areas?.Any() == true)
             {
                 <div class="mt-3">
-                    <h6>Areas</h6>
+                    <h6>@T["Viewer.Areas"]</h6>
                     <ul class="list-group list-group-flush">
                         @foreach (var area in Model.Areas.OrderBy(a => a.DisplayOrder))
                         {
@@ -178,7 +179,7 @@
                                        class="form-check-input area-toggle"
                                        checked
                                        data-area-id="@area.Id"
-                                       title="Show/Hide this area"/>
+                                       title="@T["Viewer.ShowArea"]"/>
                             </li>
                         }
                     </ul>

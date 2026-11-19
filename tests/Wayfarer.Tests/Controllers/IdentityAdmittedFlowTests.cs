@@ -116,8 +116,12 @@ public sealed class IdentityAdmittedFlowTests : TestBase
         Assert.Equal("/Identity/Account/ResetPasswordConfirmation", reset.Headers.Location!.OriginalString);
         Assert.True(await manager.CheckPasswordAsync(user, "Changed-Password2!"));
         var confirmation = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await manager.GenerateEmailConfirmationTokenAsync(user)));
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el");
         using var confirmed = await client.GetAsync($"/Identity/Account/ConfirmEmail?userId={user.Id}&code={confirmation}");
         Assert.True(confirmed.StatusCode == HttpStatusCode.OK, await confirmed.Content.ReadAsStringAsync());
+        var confirmationHtml = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(await confirmed.Content.ReadAsStringAsync());
+        Assert.Equal("el-GR", confirmationHtml.DocumentElement.GetAttribute("lang"));
+        Assert.Null(confirmationHtml.QuerySelector("#language-open"));
         Assert.True(await manager.IsEmailConfirmedAsync(user));
         using var missing = await client.GetAsync("/Identity/Account/ResetPassword");
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);

@@ -363,4 +363,100 @@
   <data name="Viewer.PdfReady" xml:space="preserve">
     <value>Το PDF είναι έτοιμο. Έναρξη λήψης…</value>
   </data>
+  <data name="Viewer.Segments" xml:space="preserve">
+    <value>Τμήματα διαδρομής</value>
+  </data>
+  <data name="Viewer.MapLegend" xml:space="preserve">
+    <value>ΥΠΟΜΝΗΜΑ ΧΑΡΤΗ</value>
+  </data>
+  <data name="Viewer.Start" xml:space="preserve">
+    <value>Αφετηρία</value>
+  </data>
+  <data name="Viewer.End" xml:space="preserve">
+    <value>Άφιξη</value>
+  </data>
+  <data name="Viewer.Via" xml:space="preserve">
+    <value>Μέσω {0}</value>
+  </data>
+  <data name="Viewer.UnlinkedStart" xml:space="preserve">
+    <value>Ασύνδετη αφετηρία</value>
+  </data>
+  <data name="Viewer.UnlinkedEnd" xml:space="preserve">
+    <value>Ασύνδετη άφιξη</value>
+  </data>
+  <data name="Viewer.UnnamedWaypoint" xml:space="preserve">
+    <value>Ανώνυμο ενδιάμεσο σημείο</value>
+  </data>
+  <data name="Viewer.SegmentFromTo" xml:space="preserve">
+    <value>Τμήμα από {0} προς {1}</value>
+  </data>
+  <data name="Viewer.SegmentVia" xml:space="preserve">
+    <value>Τμήμα από {0} μέσω {1} προς {2}</value>
+  </data>
+  <data name="Viewer.Then" xml:space="preserve">
+    <value>, έπειτα </value>
+  </data>
+  <data name="Viewer.WaypointCount.one" xml:space="preserve">
+    <value>{0} ενδιάμεσο σημείο</value>
+  </data>
+  <data name="Viewer.WaypointCount.other" xml:space="preserve">
+    <value>{0} ενδιάμεσα σημεία</value>
+  </data>
+  <data name="Viewer.RoutePointCount.one" xml:space="preserve">
+    <value>{0} σημείο διαδρομής</value>
+  </data>
+  <data name="Viewer.RoutePointCount.other" xml:space="preserve">
+    <value>{0} σημεία διαδρομής</value>
+  </data>
+  <data name="Viewer.JourneyDetailsUnavailable" xml:space="preserve">
+    <value>Οι λεπτομέρειες της διαδρομής δεν είναι διαθέσιμες.</value>
+  </data>
+  <data name="Viewer.JourneyOrderUnavailable" xml:space="preserve">
+    <value>Η σειρά των σημείων της διαδρομής δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Viewer.RouteDirectionUnavailable" xml:space="preserve">
+    <value>Η κατεύθυνση διαδρομής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Viewer.RouteLineUnavailable" xml:space="preserve">
+    <value>Η γραμμή της διαδρομής δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Viewer.MinutesUnit" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Viewer.HoursUnit" xml:space="preserve">
+    <value>{0} ώρ.</value>
+  </data>
+  <data name="Viewer.ApproximatePostcode" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ταχυδρομικού κώδικα.</value>
+  </data>
+  <data name="Viewer.ApproximateCity" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο πόλης.</value>
+  </data>
+  <data name="Viewer.ApproximateLocalArea" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο συνοικίας.</value>
+  </data>
+  <data name="Viewer.ApproximateRegion" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ευρύτερης περιοχής.</value>
+  </data>
+  <data name="Viewer.Unlicensed" xml:space="preserve">
+    <value>Χωρίς άδεια / μόνο προβολή</value>
+  </data>
+  <data name="Viewer.OwnerContributions" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη: {0}</value>
+  </data>
+  <data name="Viewer.InheritedTerms" xml:space="preserve">
+    <value>Περιλαμβάνει κληρονομημένους όρους</value>
+  </data>
+  <data name="Viewer.ShareSaving" xml:space="preserve">
+    <value>Αποθήκευση…</value>
+  </data>
+  <data name="Viewer.ShareSessionEnded" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε ή ο λογαριασμός σας είναι απενεργοποιημένος. Συνδεθείτε ξανά. Διατηρήστε τις μη αποθηκευμένες αλλαγές πριν φύγετε από τη σελίδα.</value>
+  </data>
+  <data name="Viewer.ShareSaveFailed" xml:space="preserve">
+    <value>Η ρύθμιση κοινοποίησης προόδου δεν αποθηκεύτηκε.</value>
+  </data>
+  <data name="Viewer.DownloadChoicesRetained" xml:space="preserve">
+    <value>Η πλήρης λήψη δεν είναι διαθέσιμη. Οι επιλογές εξαγωγής διατηρήθηκαν.</value>
+  </data>
 </root>

@@ -1,3 +1,5 @@
+@using Wayfarer.Localization
+@inject Wayfarer.Localization.WebMessages T
 @using Wayfarer.Util
 @using Wayfarer.Models.ViewModels
 @using System.Text.Json
@@ -15,7 +17,7 @@
 {
     <div class="border-top pt-2 text-bg-light ">
         <h6 class="text-muted fw-semibold px-2 mb-1">
-            <i class="bi bi-signpost-2 me-1"></i> Segments
+            <i class="bi bi-signpost-2 me-1"></i> @T["Viewer.Segments"]
         </h6>
 
         <ul class="list-group list-group-flush">
@@ -38,11 +40,11 @@
                 // Trip.Segments contains non-null Segments; nullable endpoints and historical routes are resolved below.
                 // Controller readers explicitly load waypoint Places, making this collection authoritative.
                 var journey = ViewerSegmentJourneyResolver.Resolve(seg, Model.Id, waypointsLoaded: true);
-                var fromName = journey.Anchors.FirstOrDefault()?.DisplayName ?? "Unavailable place";
-                var toName = journey.Anchors.LastOrDefault()?.DisplayName ?? "Unavailable place";
+                var fromName = ViewerJourneyText.Name(journey.Anchors.FirstOrDefault(), T);
+                var toName = ViewerJourneyText.Name(journey.Anchors.LastOrDefault(), T);
                 var fromRegion = journey.Anchors.FirstOrDefault()?.RegionName ?? "";
                 var toRegion = journey.Anchors.LastOrDefault()?.RegionName ?? "";
-                var label = seg.Title ?? journey.TrailText ?? "Journey unavailable";
+                var label = seg.Title ?? ViewerJourneyText.Trail(journey, T, false) ?? T["Viewer.JourneyUnavailable"];
                 var presentationAnchors = JsonSerializer.Serialize(journey.Anchors.Select(anchor => new
                 {
                     position = anchor.Position,
@@ -55,7 +57,7 @@
 
                 // A saved duration can exceed one day; unavailable values remain distinct from zero.
                 var durTxt = seg.EstimatedDuration.FormatHoursMinutes() ?? "—";
-                var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
+                var distTxt = seg.EstimatedDistanceKm?.ToString("0.##", T.DisplayCulture) ?? "—";
 
                 var wkt = journey.RouteWkt;
                 // Only resolver-approved geometry makes the Segment row itself route-interactive.
@@ -68,7 +70,7 @@
                     <li class="@segmentClasses"
                         @if (!string.IsNullOrEmpty(wkt))
                         {
-                        <text> title="Click to view the route" </text>
+                        <text> title="@T["Viewer.ViewRoute"]" </text>
                         }
                         data-segment-id="@seg.Id"
                         data-from-place-name="@fromName"
@@ -79,30 +81,30 @@
                         data-segment-anchors="@presentationAnchors"
                         data-route-orientation="@journey.RouteOrientation"
                         data-transport-mode="@seg.Mode"
-                        data-estimated-distance="@seg.EstimatedDistanceKm"
-                        data-estimated-duration="@seg.EstimatedDuration.FormatDuration()"
+                        data-estimated-distance="@FormattableString.Invariant($"{seg.EstimatedDistanceKm}")"
+                        data-estimated-duration="@ViewerJourneyText.Duration(seg.EstimatedDuration, T)"
                         @if (!string.IsNullOrEmpty(wkt))
                         {
                         <text> data-route-wkt="@wkt" </text>
                         }
                         data-segment-notes="@(Wayfarer.Util.RichNotes.Normalize(seg.Notes) ?? "")">
 
-                        <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@(seg.Title ?? journey.AccessibleName)">
-                            @(seg.Title ?? journey.CompactTrail)
+                        <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@(seg.Title ?? ViewerJourneyText.AccessibleName(journey, T))">
+                            @(seg.Title ?? ViewerJourneyText.Trail(journey, T, true))
                         </button>
                         <div class="d-flex align-items-start gap-2 small">
                             <span class="fs-5" aria-hidden="true">@emojiIcon</span>
                             <div>
                                 <div><strong>@seg.Mode</strong></div>
                                 <div>
-                                    (<span title="Estimated time">⏱️ @durTxt&nbsp;min</span> /
-                                    <span title="Estimated distance">📏 @distTxt&nbsp;km</span>)
+                                    (<span title="@T["Viewer.EstimatedTime"]">⏱️ @T["Viewer.MinutesUnit", durTxt]</span> /
+                                    <span title="@T["Viewer.EstimatedDistance"]">📏 @T["Viewer.Kilometres", distTxt]</span>)
                                 </div>
-                                <div title="From: @fromName (@fromRegion)">
-                                    <strong>From:</strong> @fromName (@fromRegion)
+                                <div title="@T["Viewer.From"] @fromName (@fromRegion)">
+                                    <strong>@T["Viewer.From"]</strong> @fromName (@fromRegion)
                                 </div>
-                                <div title="To: @toName (@toRegion)">
-                                    <strong>To:</strong> @toName (@toRegion)
+                                <div title="@T["Viewer.To"] @toName (@toRegion)">
+                                    <strong>@T["Viewer.To"]</strong> @toName (@toRegion)
                                 </div>
                                 @await Html.PartialAsync("~/Views/Trip/Partials/_SegmentJourney.cshtml", journey,
                                     new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["Interactive"] = true })
@@ -120,7 +122,7 @@
                             <input type="checkbox"
                                    class="form-check-input segment-toggle ms-2"
                                    checked
-                                   title="Show/Hide this segment on map"/>
+                                   title="@T["Viewer.ShowSegment"]"/>
                         }
                     </li>
                 </text>

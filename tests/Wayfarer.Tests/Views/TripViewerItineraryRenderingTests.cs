@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MvcFrontendKit.Extensions;
 using NetTopologySuite.Geometries;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -49,7 +50,7 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Equal(consent ? 2 : 0, photos.Length);
             Assert.All(photos, photo => Assert.Equal($"/Public/Trips/{trip.Id}/owner-photo/{version:N}", photo.GetAttribute("src")));
             Assert.DoesNotContain("private-photo-state", html);
-            Assert.Contains("modalContent.querySelectorAll('.profile-photo').forEach(photo => photo.remove())", html);
+            Assert.NotNull(viewer.QuerySelector("script[src*=viewerPrint]"));
             var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(),
                 Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
             var print = new HtmlParser().ParseDocument(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
@@ -433,9 +434,10 @@ public sealed class TripViewerItineraryRenderingTests
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseWebRoot(webRoot)
                 .UseSetting(WebHostDefaults.ApplicationKey, typeof(Trip).Assembly.GetName().Name)
-                .ConfigureServices(services =>
+                .ConfigureServices((context, services) =>
                 {
                     services.AddLogging();
+                    services.AddWebLocalization(context.Configuration);
                     services.AddHttpContextAccessor();
                     services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly);
                     services.AddMvcFrontendKit();

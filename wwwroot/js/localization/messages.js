@@ -1,5 +1,5 @@
 const fallback = 'en-US';
-const element = globalThis.document?.getElementById('wayfarer-locale');
+const element = globalThis.document?.getElementById?.('wayfarer-locale');
 const catalog = element ? JSON.parse(element.textContent) : { locale: fallback, fallback, messages: {}, english: {} };
 
 /** The locale snapshot of this document, including any subsequent asynchronous feedback. */

@@ -131,7 +131,7 @@
                 </div>
             </div>
 
-            <main role="main" lang="@(ViewData["WebCatalog"] == null ? "en" : null)" class="flex-fill d-flex flex-column p-0">
+            <main role="main" lang="@(ViewData["WebContentLanguage"] as string ?? (ViewData["WebCatalog"] == null ? "en" : null))" class="flex-fill d-flex flex-column p-0">
                 <partial name="_WebLocale" />
                 @RenderBody()
             </main>

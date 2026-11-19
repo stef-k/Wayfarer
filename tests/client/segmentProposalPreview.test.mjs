@@ -23,7 +23,7 @@ globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: ()
 globalThis.document = new EventTarget();
 // The viewport tests own resize notifications; this fixture exercises proposal rendering only.
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
-globalThis.previewLeaflet = { map: () => map, layerGroup: group, latLng: (lat, lng) => [lat, lng],
+globalThis.previewLeaflet = { map: () => map, control: { zoom: () => ({ addTo() {} }) }, layerGroup: group, latLng: (lat, lng) => [lat, lng],
   latLngBounds: () => ({ points: [], extend(point) { this.points.push(point); return this; }, isValid() { return this.points.length > 0; } }),
   polyline: (coordinates, style) => ({ coordinates, style, options: style, attributes: {},
     addTo(owner) { paths.push(this); owner.owned.push(this); return this; },
