@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,10 +48,11 @@ internal static class IdentityRouteHost
         return options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
     }
 
-    /// <summary>Starts production MVC/Identity parts; Kestrel supplies enforceable body limits for upload tests.</summary>
+    /// <summary>Starts production MVC/Identity parts with optional Kestrel transport for request boundaries.</summary>
     public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
         Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null,
-        Action<WebApplication>? configureAuthorized = null, bool useKestrel = false)
+        Action<WebApplication>? configureAuthorized = null, bool useKestrel = false,
+        HttpProtocols kestrelProtocols = HttpProtocols.Http1)
     {
         var assembly = typeof(ApplicationUser).Assembly;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -60,7 +62,9 @@ internal static class IdentityRouteHost
         });
         // The host intentionally omits startup-only job/database services.
         builder.Host.UseDefaultServiceProvider(options => options.ValidateOnBuild = false);
-        if (useKestrel) builder.WebHost.UseKestrel().UseUrls("http://127.0.0.1:0");
+        if (useKestrel)
+            builder.WebHost.UseKestrel(options => options.ConfigureEndpointDefaults(endpoint => endpoint.Protocols = kestrelProtocols))
+                .UseUrls("http://127.0.0.1:0");
         else builder.WebHost.UseTestServer();
         builder.Configuration.Sources.Clear();
         builder.Logging.ClearProviders();

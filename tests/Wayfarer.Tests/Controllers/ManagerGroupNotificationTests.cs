@@ -116,13 +116,16 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.IsType<ForbidResult>(await BuildController(db, "outsider", groups, sse)
             .Edit(group.Id, "Updated", null, "Organization"));
         var failingService = new Mock<IGroupService>();
-        failingService.Setup(service => service.UpdateGroupAsync(group.Id, owner.Id, "Updated", "", CancellationToken.None))
-            .ThrowsAsync(new InvalidOperationException("persistence failure"));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var failure = new InvalidOperationException("persistence failure");
+        failingService.Setup(service => service.UpdateGroupAsync(
+                group.Id, owner.Id, "Updated", "", "Organization", CancellationToken.None))
+            .ThrowsAsync(failure);
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             BuildController(db, owner.Id, failingService.Object, sse).Edit(group.Id, "Updated", null, "Organization"));
 
+        Assert.Same(failure, thrown);
         Assert.Empty(sse.Messages);
-        Assert.Equal("Family", group.GroupType);
+        Assert.Equal("Family", (await db.Groups.AsNoTracking().SingleAsync()).GroupType);
     }
 
     /// <summary>A failing type save leaves the persisted policy unchanged and emits no invalidation.</summary>

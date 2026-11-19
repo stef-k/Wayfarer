@@ -46,8 +46,8 @@ public class InvitationsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         try
         {
-            var invites = await _db.GroupInvitations
-                .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId == CurrentUserId)
+            var invites = await GroupInvitationQueries.Live(_db, DateTime.UtcNow)
+                .Where(i => i.InviteeUserId == CurrentUserId)
                 .AsNoTracking()
                 .ToListAsync(ct);
 
@@ -111,7 +111,7 @@ public class InvitationsController : ControllerBase
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
             // Inform managers of new pending invite (consolidated group channel)
-            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
+            await _sse.BroadcastGroupHintAsync(inv.GroupId, JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId });
         }
         catch (UnauthorizedAccessException)
@@ -149,7 +149,7 @@ public class InvitationsController : ControllerBase
             await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.InvitationStateHint);
             await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.MembershipStateHint);
             // Consolidated group channel
-            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberJoined(CurrentUserId, id)));
+            await _sse.BroadcastGroupHintAsync(inv.GroupId, JsonSerializer.Serialize(GroupSseEventDto.MemberJoined(CurrentUserId, id)));
             return Ok(new { message = "Accepted" });
         }
         catch (KeyNotFoundException)
@@ -185,7 +185,7 @@ public class InvitationsController : ControllerBase
             await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
             await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.InvitationStateHint);
             // Consolidated group channel
-            await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteDeclined(CurrentUserId, id)));
+            await _sse.BroadcastGroupHintAsync(inv.GroupId, JsonSerializer.Serialize(GroupSseEventDto.InviteDeclined(CurrentUserId, id)));
             return Ok(new { message = "Declined" });
         }
         catch (KeyNotFoundException)

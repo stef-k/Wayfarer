@@ -52,7 +52,8 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
     internal async Task<bool> RevalidateMutationAsync(HttpContext context, string userId, CancellationToken token)
     {
         // Initial admission/resolution is still required. This fresh row cannot reuse a cached positive lookup.
-        var credential = context.Request.Headers.Authorization.FirstOrDefault()?.Split(' ').Last();
+        // The initial lookup used the endpoint's Authorization syntax.
+        var credential = _token;
         if (!_resolved || string.IsNullOrEmpty(credential) || _db.Database.CurrentTransaction == null) return false;
         var hash = ApiTokenService.HashToken(credential);
         var rows = await _db.ApiTokens.FromSqlInterpolated($"""
@@ -107,7 +108,7 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
         var row = await _db.ApiTokens.AsNoTracking().FirstOrDefaultAsync(t => t.TokenHash == hash
             || t.Token == token && t.Name.Trim().ToLower() != "mapbox", cancellationToken).ConfigureAwait(false);
         if (row?.UserId == null) return null;
-        var user = await _db.Users.Include(u => u.ApiTokens)
+        var user = await _db.Users.AsNoTracking().Include(u => u.ApiTokens)
             .FirstOrDefaultAsync(u => u.Id == row.UserId, cancellationToken).ConfigureAwait(false);
         return user is { IsActive: true } ? user : null;
     }

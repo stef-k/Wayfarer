@@ -1,18 +1,7 @@
-import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
+import { formatInviteRows, refreshInviteRows, removeInviteRow } from '../../../util/group-invitation-rows.js';
 
 (() => {
-  const viewerTimeZone = getViewerTimeZone();
-  document.querySelectorAll('.js-invite-created').forEach(el => {
-    const iso = el?.getAttribute('data-created-at');
-    if (!iso) return;
-    const formatted = formatDateTime({ iso, displayTimeZone: viewerTimeZone, includeOffset: true });
-    if (formatted) el.textContent = formatted;
-  });
-
-  const renderInviteCreatedCell = iso => {
-    const formatted = formatDateTime({ iso, displayTimeZone: viewerTimeZone, includeOffset: true });
-    return `<time class="js-invite-created" data-created-at="${iso}">${formatted}</time>`;
-  };
+  formatInviteRows(document);
 
   const form = document.getElementById('inviteForm');
   const searchBtn = document.getElementById('userSearchBtn');
@@ -116,40 +105,12 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
         }).then(function(resp){ return resp.json(); })
           .then(function(data){
             if (data && data.success) {
-              const invitesTable = document.getElementById('invitesTable').querySelector('tbody');
-              if (invitesTable && data.invite) {
-                const row = document.createElement('tr');
-                row.setAttribute('data-invite-id', data.invite.id);
-                var inviteeLabel = '';
-                if (results && results.selectedOptions && results.selectedOptions.length) {
-                  inviteeLabel = results.selectedOptions[0].textContent;
-                } else {
-                  inviteeLabel = (fd.get('inviteeUserId') || '');
-                }
-                const tokenEl = form.querySelector('input[name="__RequestVerificationToken"]');
-                const tokenVal = tokenEl ? tokenEl.value : '';
-                const revokeAction = form.action.replace(/Invite(?:Ajax)?$/, 'RevokeInviteAjax');
-                const createdIso = new Date().toISOString();
-                row.innerHTML = `
-                  <td>${inviteeLabel}</td>
-                  <td>${renderInviteCreatedCell(createdIso)}</td>
-                  <td>
-                    <form class="d-inline js-confirm js-ajax" method="post" action="${revokeAction}" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
-                      <input type="hidden" name="groupId" value="${fd.get('groupId') || ''}" />
-                      <input type="hidden" name="inviteId" value="${data.invite.id}" />
-                      ${tokenVal ? (`<input type="hidden" name="__RequestVerificationToken" value="${tokenVal}" />`) : ''}
-                      <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
-                    </form>
-                  </td>`;
-                invitesTable.appendChild(row);
-                // Attach confirm handler to the new form
-                attachConfirmHandler(row.querySelector('form.js-confirm'));
-              }
               if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation sent.');
               // clear search fields
               if (searchInput) searchInput.value = '';
-              results.innerHTML = '';
+              if (results) results.replaceChildren();
               uid.value = '';
+              void refreshInviteRows(attachConfirmHandler);
             } else {
               if (wayfarer.showAlert) wayfarer.showAlert('danger', (data && data.message) || 'Failed to send invite.');
             }
@@ -166,10 +127,10 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
         ev.preventDefault();
         const title = f.dataset.confirmTitle || 'Confirm';
         const message = f.dataset.confirmMessage || 'Are you sure?';
-        if (wayfarer.showConfirmationModal) {
-          wayfarer.showConfirmationModal({
-            title: title,
-            message: message,
+        // Both confirmation paths apply the same server response.
+        const confirmation = {
+            title,
+            message,
             confirmText: 'Yes',
             onConfirm: function() {
               if (f.classList.contains('js-ajax')) {
@@ -187,28 +148,11 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
                         if (tr) tr.remove();
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Member removed.');
                       } else if (f.action.endsWith('RevokeInvite')) {
-                        const tr = document.querySelector('tr[data-invite-id="' + fd.get('inviteId') + '"]');
-                        if (tr) tr.remove();
+                        removeInviteRow(fd.get('inviteId'));
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation canceled.');
                       } else if (f.action.endsWith('Invite')) {
-                        const invitesTable = document.getElementById('invitesTable').querySelector('tbody');
-                        if (invitesTable && data.invite) {
-                          const row = document.createElement('tr');
-                          row.setAttribute('data-invite-id', data.invite.id);
-                          var inviteeLabel = '';
-                          if (results && results.selectedOptions && results.selectedOptions.length) {
-                            inviteeLabel = results.selectedOptions[0].textContent;
-                          } else {
-                            inviteeLabel = (fd.get('inviteeUserId') || '');
-                          }
-                          const createdIso = new Date().toISOString();
-                          row.innerHTML = `
-                            <td>${inviteeLabel}</td>
-                            <td>${renderInviteCreatedCell(createdIso)}</td>
-                            <td></td>`;
-                          invitesTable.appendChild(row);
-                        }
                         if (wayfarer.showAlert) wayfarer.showAlert('success', 'Invitation sent.');
+                        void refreshInviteRows(attachConfirmHandler);
                       }
                     } else {
                       if (wayfarer.showAlert) wayfarer.showAlert('danger', (data && data.message) || 'Action failed.');
@@ -219,17 +163,11 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
                 f.submit();
               }
             }
-          });
-        } else {
-          // Fallback if modal helper missing
-          if (confirm(message)) {
-            if (f.classList.contains('js-ajax')) {
-              const fd = new FormData(f);
-              fetch(f.action.replace(/(Invite|RemoveMember|RevokeInvite)$/,'$1Ajax'), { method: 'POST', body: fd });
-            } else {
-              f.submit();
-            }
-          }
+        };
+        if (wayfarer.showConfirmationModal) {
+          wayfarer.showConfirmationModal(confirmation);
+        } else if (confirm(message)) {
+          confirmation.onConfirm();
         }
       });
   }
@@ -244,10 +182,6 @@ import { formatDateTime, getViewerTimeZone } from '../../../util/datetime.js';
   }
   function removeRosterRow(userId) {
     const tr = document.querySelector('tr[data-user-id="' + userId + '"]');
-    if (tr) tr.remove();
-  }
-  function removeInviteRow(inviteId) {
-    const tr = document.querySelector('tr[data-invite-id="' + inviteId + '"]');
     if (tr) tr.remove();
   }
   async function addRosterRow(userId) {

@@ -16,14 +16,15 @@ public static class GroupOperationErrors
                 "Cannot remove the last manager from an Organization group.",
             "leave" => exception is InvalidOperationException && message is
                 "You are the owner of this Organization group and there is no eligible Manager successor. Promote a member to Manager first or delete the group." or
-                "You are the last manager of this Organization group. Transfer or add another manager before leaving.",
+                "You are the last manager of this Organization group. Transfer or add another manager before leaving." or
+                "The successor already owns a group with the same name.",
             "invite" => (exception is InvalidOperationException &&
                 message is "A pending invitation already exists for this user in the specified group" or "User already an active member") ||
                 (exception is ArgumentException && message is "InviteeUserId required" or "InviteeUserId must identify an existing user"),
             "accept" => exception is InvalidOperationException && message is
                 "Invitation expired" or "Invitation is not pending" or "User already an active member" or
                 "Invitation predates departure or membership history is unavailable",
-            "decline" => exception is InvalidOperationException && message == "Invitation is not pending",
+            "decline" => exception is InvalidOperationException && message is "Invitation is not pending" or "Invitation expired",
             _ => false
         };
         return allowed ? message : "The operation could not be completed. Please try again.";

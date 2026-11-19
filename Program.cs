@@ -583,8 +583,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<ITripImportService, TripImportService>();
 
     // Groups and invitations
-    builder.Services.AddScoped<IGroupService, GroupService>();
-    builder.Services.AddScoped<IInvitationService, InvitationService>();
+    builder.Services.AddScoped<GroupService>();
+    builder.Services.AddScoped<IGroupService>(services => services.GetRequiredService<GroupService>());
+    builder.Services.AddScoped<InvitationService>();
+    builder.Services.AddScoped<IInvitationService>(services => services.GetRequiredService<InvitationService>());
     builder.Services.AddScoped<IGroupTimelineService, GroupTimelineService>();
     builder.Services.AddScoped<IMobileCurrentUserAccessor, MobileCurrentUserAccessor>();
     builder.Services.AddScoped<ITripTagService, TripTagService>();

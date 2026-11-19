@@ -151,6 +151,8 @@ public sealed class StableIdentityCryptographyTests
         {
             "Wayfarer.DataProtection.StartupProbe.v1",
             "Wayfarer.ExternalRouting.ProposalContext.v1",
+            // Transient invitation cursors bind the actor and the inbox or managed Group.
+            "Wayfarer.GroupInvitations.Continuation.v1",
             // Transient owner/scope-bound history cursors are separate from durable provider credentials.
             "Wayfarer.LocationHistory.Continuation.v1",
             "Wayfarer.LocationProviders.PersonalCredentials.v1",

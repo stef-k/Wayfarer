@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
@@ -30,103 +31,57 @@ public class MobileGroupsController : MobileApiController
         _timelineService = timelineService;
     }
 
+    /// <summary>Returns the released collection shape from one authority and Group snapshot.</summary>
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] string? scope, CancellationToken cancellationToken)
     {
+        BrowserResponsePolicyMiddleware.RequirePrivateResponse(HttpContext);
+        await using var snapshot = await GroupRead.BeginAsync(DbContext, cancellationToken);
         var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
         if (error != null) return error;
 
         var normalizedScope = (scope ?? string.Empty).Trim().ToLowerInvariant();
-        var userId = user!.Id;
-
-        var userMemberships = await DbContext.GroupMembers
-            .Where(m => m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active)
-            .Select(m => new
-            {
-                m.GroupId,
-                m.Role,
-                m.OrgPeerVisibilityAccessDisabled
-            })
-            .ToListAsync(cancellationToken);
-
-        var candidateGroupIds = new HashSet<Guid>();
+        var memberships = DbContext.GroupMembers.Where(m => m.UserId == user!.Id
+            && m.Status == GroupMember.MembershipStatuses.Active);
 
         switch (normalizedScope)
         {
             case "managed":
-                foreach (var membership in userMemberships)
-                    if (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager)
-                        candidateGroupIds.Add(membership.GroupId);
-
+                memberships = memberships.Where(m => m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager);
                 break;
             case "joined":
-                foreach (var membership in userMemberships.Where(m => m.Role == GroupMember.Roles.Member))
-                    candidateGroupIds.Add(membership.GroupId);
+                memberships = memberships.Where(m => m.Role == GroupMember.Roles.Member);
                 break;
             case "all":
             case "":
-                foreach (var membership in userMemberships) candidateGroupIds.Add(membership.GroupId);
                 break;
             default:
                 return BadRequest(new { message = "Unsupported scope value." });
         }
 
-        if (candidateGroupIds.Count == 0) return Ok(Array.Empty<MobileGroupSummaryDto>());
-
-        var groups = await DbContext.Groups
-            .Where(g => candidateGroupIds.Contains(g.Id) && !g.IsArchived)
-            .AsNoTracking()
-            .Select(g => new
+        var rows = await (from m in memberships
+            join g in DbContext.Groups on m.GroupId equals g.Id
+            where !g.IsArchived
+            select new
             {
-                g.Id,
-                g.Name,
-                g.Description,
-                g.GroupType,
-                g.OrgPeerVisibilityEnabled,
-                g.OwnerUserId
-            })
-            .ToListAsync(cancellationToken);
-
-        var memberCounts = await DbContext.GroupMembers
-            .Where(m => candidateGroupIds.Contains(m.GroupId) && m.Status == GroupMember.MembershipStatuses.Active)
-            .GroupBy(m => m.GroupId)
-            .Select(g => new { GroupId = g.Key, Count = g.Count() })
-            .ToListAsync(cancellationToken);
-
-        var memberCountLookup = memberCounts.ToDictionary(x => x.GroupId, x => x.Count);
-        var membershipLookup = userMemberships
-            .GroupBy(x => x.GroupId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(m => m.Role).First());
-
-        var payload = groups
-            .Select(g =>
+                g.Id, g.Name, g.Description, g.GroupType, g.OrgPeerVisibilityEnabled, m.Role,
+                MemberCount = DbContext.GroupMembers.Count(peer => peer.GroupId == g.Id
+                    && peer.Status == GroupMember.MembershipStatuses.Active)
+            }).ToListAsync(cancellationToken);
+        var payload = rows.Select(g =>
+        {
+            var isOrg = string.Equals(g.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
+            return new MobileGroupSummaryDto
             {
-                membershipLookup.TryGetValue(g.Id, out var membership);
-                var isOwner = membership?.Role == GroupMember.Roles.Owner;
-                var isManager = membership?.Role == GroupMember.Roles.Manager;
-                var isMember = membership?.Role == GroupMember.Roles.Member;
-                var isOrg = string.Equals(g.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
-                // Own opt-out is reported by the member DTO, not as loss of access to willing peers.
-                var hasOrgPeerVisibilityAccess = !isOrg || g.OrgPeerVisibilityEnabled;
-
-                return new MobileGroupSummaryDto
-                {
-                    Id = g.Id,
-                    Name = g.Name,
-                    Description = g.Description,
-                    GroupType = g.GroupType,
-                    // Published Mobile uses this bit to show its Organization-only sharing control.
-                    OrgPeerVisibilityEnabled = isOrg && g.OrgPeerVisibilityEnabled,
-                    MemberCount = memberCountLookup.TryGetValue(g.Id, out var count) ? count : 0,
-                    IsOwner = isOwner,
-                    IsManager = isOwner || isManager,
-                    IsMember = isMember,
-                    HasOrgPeerVisibilityAccess = hasOrgPeerVisibilityAccess
-                };
-            })
-            .OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
+                Id = g.Id, Name = g.Name, Description = g.Description, GroupType = g.GroupType, MemberCount = g.MemberCount,
+                IsOwner = g.Role == GroupMember.Roles.Owner,
+                IsManager = g.Role is GroupMember.Roles.Owner or GroupMember.Roles.Manager,
+                IsMember = g.Role == GroupMember.Roles.Member,
+                OrgPeerVisibilityEnabled = isOrg && g.OrgPeerVisibilityEnabled,
+                // Own opt-out does not disable access to willing peers.
+                HasOrgPeerVisibilityAccess = !isOrg || g.OrgPeerVisibilityEnabled
+            };
+        }).OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
         return Ok(payload);
     }
 
@@ -196,39 +151,48 @@ public class MobileGroupsController : MobileApiController
         return Ok(response);
     }
 
-    /// <summary>
-    ///     Set the current member's own sharing preference for Friends or an enabled Organization
-    ///     POST /api/mobile/groups/{groupId}/peer-visibility
-    /// </summary>
+    /// <summary>Dispatches observed episode writes and preserves released scalar binding and failures.</summary>
     [HttpPost("{groupId:guid}/peer-visibility")]
     public async Task<IActionResult> SetPeerVisibility(Guid groupId, [FromBody] OrgPeerVisibilityAccessRequest request,
         CancellationToken cancellationToken)
     {
-        var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
-        if (error != null) return error;
+        var reviewed = request.MembershipRef.ValueKind != JsonValueKind.Undefined;
 
-        var group = await DbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
-        if (group == null) return NotFound();
-        if (!GroupLocationVisibility.CanSetPersonalSharing(group))
-            return BadRequest(new { message = "Personal sharing is unavailable for this group policy" });
+        string? reference = null;
+        if (reviewed)
+        {
+            if (request.MembershipRef.ValueKind != JsonValueKind.String || !request.HasDisabled)
+                return BadRequest();
+            reference = request.MembershipRef.GetString();
+            if (string.IsNullOrWhiteSpace(reference)) return BadRequest();
+        }
 
-        var member = await DbContext.GroupMembers.FirstOrDefaultAsync(
-            m => m.GroupId == groupId && m.UserId == user!.Id && m.Status == GroupMember.MembershipStatuses.Active,
-            cancellationToken);
+        var user = reviewed
+            ? await MobileBearer.ResolveAsync(HttpContext, DbContext, cancellationToken)
+            : await GetCurrentUserAsync(cancellationToken);
+        if (user is not { IsActive: true })
+            return Unauthorized(new { message = "Invalid or missing API token." });
 
-        if (member == null) return StatusCode(StatusCodes.Status403Forbidden);
+        try
+        {
+            await GroupPersonalSharingWrite.SetAsync(DbContext, groupId, user.Id, request.Disabled, reference, audit: false,
+                cancellationToken, token => IncomingApiTokenResolver.ForRequest(HttpContext, DbContext)
+                    .RevalidateMutationAsync(HttpContext, user.Id, token));
+        }
+        catch (GroupRefusal refusal)
+        {
+            if (refusal.Status == 401) return Unauthorized(new { message = "Invalid or missing API token." });
+            if (reviewed) return StatusCode(refusal.Status, new { code = refusal.Code });
+            return refusal.Status == 400
+                ? BadRequest(new { message = "Personal sharing is unavailable for this group policy" })
+                : StatusCode(refusal.Status);
+        }
 
-        member.OrgPeerVisibilityAccessDisabled = request.Disabled;
-        await DbContext.SaveChangesAsync(cancellationToken);
-
-        Logger.LogInformation($"User {user?.Id} set peer visibility in group {groupId}: disabled={request.Disabled}");
-
-        // Broadcast visibility change to all group members via SSE (consolidated group channel)
+        Logger.LogInformation("User {UserId} set peer visibility in group {GroupId}: disabled={Disabled}",
+            user.Id, groupId, request.Disabled);
         var sseService = HttpContext.RequestServices.GetRequiredService<SseService>();
-        await sseService.BroadcastAsync(
-            $"group-{groupId}",
-            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(user!.Id, member.OrgPeerVisibilityAccessDisabled)));
-
-        return Ok(new { disabled = member.OrgPeerVisibilityAccessDisabled });
+        await sseService.BroadcastGroupHintAsync(groupId,
+            JsonSerializer.Serialize(GroupSseEventDto.VisibilityChanged(user.Id, request.Disabled)));
+        return Ok(new { disabled = request.Disabled });
     }
 }

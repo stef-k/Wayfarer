@@ -106,12 +106,11 @@ public class GroupsController : BaseController
 
         try
         {
-            var group = await _groupService.CreateGroupAsync(userId, name.Trim(), description);
-            group.GroupType = groupType.Equals("family", StringComparison.OrdinalIgnoreCase) ? "Family" : "Friends";
-            await _dbContext.SaveChangesAsync();
+            await _groupService.CreateGroupAsync(userId, name.Trim(), description, GroupSharingPolicy.CanonicalType(groupType));
             LogAudit("GroupCreate", $"Created group {name}", "User UI");
             return RedirectWithAlert("Index", "Groups", "Group created", "success", area: "User");
         }
+        catch (UnauthorizedAccessException) { return Unauthorized(); }
         catch (InvalidOperationException ex)
         {
             ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
@@ -128,6 +127,8 @@ public class GroupsController : BaseController
         var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
+        // Keep the authorized Group and the durable rows in a single snapshot.
+        await using var snapshot = await GroupRead.BeginAsync(_dbContext, HttpContext.RequestAborted);
         var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
@@ -141,8 +142,7 @@ public class GroupsController : BaseController
                              join u in _dbContext.Users on m.UserId equals u.Id
                              select new { m, u }).AsNoTracking().ToListAsync();
 
-        var invites = await (from i in _dbContext.GroupInvitations
-                             where i.GroupId == groupId && i.Status == GroupInvitation.InvitationStatuses.Pending
+        var invites = await (from i in GroupInvitationQueries.ForWebMembers(_dbContext, groupId, DateTime.UtcNow)
                              join u in _dbContext.Users on i.InviteeUserId equals u.Id into iu
                              from u in iu.DefaultIfEmpty()
                              select new
@@ -186,7 +186,7 @@ public class GroupsController : BaseController
             {
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
+            await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
         }
         catch (KeyNotFoundException)
@@ -196,6 +196,10 @@ public class GroupsController : BaseController
         catch (UnauthorizedAccessException)
         {
             return StatusCode(403, new { success = false, message = "You do not have permission to invite users to this group" });
+        }
+        catch (ArgumentException ex) when (ex.InnerException is GroupRefusal { Code: "invitee_unavailable" })
+        {
+            return BadRequest(new { success = false, message = "This account is no longer available. Select another account." });
         }
         catch (InvalidOperationException ex)
         {
@@ -221,7 +225,7 @@ public class GroupsController : BaseController
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             await _groupService.RemoveMemberAsync(groupId, actorId!, userIdNonNull);
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userIdNonNull)));
+            await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userIdNonNull)));
             await _sse.BroadcastGroupNotificationAsync(userIdNonNull, SseService.MembershipStateHint);
             return Ok(new { success = true, userId = userIdNonNull });
         }

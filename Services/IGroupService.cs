@@ -8,6 +8,11 @@ namespace Wayfarer.Services;
 public interface IGroupService
 {
     Task<Group> CreateGroupAsync(string ownerUserId, string name, string? description, CancellationToken ct = default);
+    /// <summary>Creates a typed Group in the same transaction as ownership and audit.</summary>
+    Task<Group> CreateGroupAsync(string ownerUserId, string name, string? description, string? groupType, CancellationToken ct = default);
+    /// <summary>Applies a Group type and text edit atomically.</summary>
+    Task<(Group Group, bool TypeChanged)> UpdateGroupAsync(Guid groupId, string actorUserId, string name,
+        string? description, string? groupType, CancellationToken ct = default);
     Task<Group> UpdateGroupAsync(Guid groupId, string actorUserId, string name, string? description, CancellationToken ct = default);
     Task DeleteGroupAsync(Guid groupId, string actorUserId, CancellationToken ct = default);
 

@@ -125,29 +125,27 @@ public class SseService
 
     /// <summary>Publishes a content-free reload hint to the affected user's server-owned channel.</summary>
     public Task BroadcastGroupNotificationAsync(string userId, string hint) =>
-        BroadcastAsync($"group-notifications-{userId}", hint);
+        BroadcastHintAsync($"group-notifications-{userId}", hint);
+
+    /// <summary>Publishes a Group refresh hint after the durable state change has committed.</summary>
+    public Task BroadcastGroupHintAsync(Guid groupId, string hint) => BroadcastHintAsync($"group-{groupId}", hint);
+
+    /// <summary>Keeps presentation transport failures independent of the durable response.</summary>
+    private async Task BroadcastHintAsync(string channel, string hint)
+    {
+        try { await BroadcastAsync(channel, hint); }
+        catch
+        {
+            // Durable Group state remains authoritative when presentation transport fails.
+        }
+    }
 
     /// <summary>Publishes independent best-effort group and optional private revocation hints.</summary>
     public async Task BroadcastInvitationRevocationAsync(Guid groupId, string? inviteeUserId, string groupEvent)
     {
-        try
-        {
-            await BroadcastAsync($"group-{groupId}", groupEvent);
-        }
-        catch
-        {
-            // Durable revocation remains authoritative when presentation transport fails.
-        }
-
-        if (string.IsNullOrEmpty(inviteeUserId)) return;
-        try
-        {
+        await BroadcastGroupHintAsync(groupId, groupEvent);
+        if (!string.IsNullOrEmpty(inviteeUserId))
             await BroadcastGroupNotificationAsync(inviteeUserId, InvitationStateHint);
-        }
-        catch
-        {
-            // Attempted independently so one transport cannot suppress the other.
-        }
     }
 
     /// <summary>The monitor and collection share the dictionary entry's exact lifetime identity.</summary>
