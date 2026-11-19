@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -23,8 +25,7 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         var target = await SeedBearerAsync(db);
         var literal = $@"%_\{Guid.NewGuid():N}";
         await db.Users.Where(u => u.Id == target).ExecuteUpdateAsync(set => set.SetProperty(u => u.DisplayName, literal));
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
-            services => services.AddScoped(_ => fixture.CreateContext()));
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), ConfigureWebServices);
         using var manager = Mobile(app.GetTestClient(), owner);
         using var recipient = Mobile(app.GetTestClient(), target);
         using var ownerWeb = app.GetTestClient();
@@ -101,8 +102,8 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         var inactive = await SeedBearerAsync(db);
         var deleted = await SeedBearerAsync(db);
         var group = await new GroupService(db).CreateGroupAsync(owner, $"Invite-{Guid.NewGuid():N}", null);
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
-            services => services.AddScoped(_ => fixture.CreateContext()), configureApp: host =>
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), ConfigureWebServices,
+            configureApp: host =>
             {
                 host.UseExceptionHandler("/Home/Error");
                 host.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
@@ -127,7 +128,15 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         using var blank = await web.PostAsync(path, InviteForm(group.Id, string.Empty));
         Assert.Equal(HttpStatusCode.InternalServerError, blank.StatusCode);
         Assert.Equal("text/html", blank.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("An error occurred while processing your request.", await blank.Content.ReadAsStringAsync());
         Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
+    }
+
+    /// <summary>Supplies the shared Razor layout's startup settings while keeping request data in PostgreSQL.</summary>
+    private void ConfigureWebServices(IServiceCollection services)
+    {
+        services.AddScoped(_ => fixture.CreateContext());
+        services.AddSingleton(Mock.Of<IApplicationSettingsService>(settings => settings.GetSettings() == new ApplicationSettings()));
     }
 
     /// <summary>Posts the Web application's existing exact-account form contract.</summary>

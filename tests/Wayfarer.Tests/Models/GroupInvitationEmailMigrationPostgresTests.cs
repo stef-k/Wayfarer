@@ -47,25 +47,29 @@ public sealed class GroupInvitationEmailMigrationPostgresTests(PostgresMigration
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync(PreviousMigration);
         Assert.Equal(1, await EmailColumnCountAsync(db));
-        var group = await new GroupService(db).CreateGroupAsync(owner.Id, $"Upgrade-{Guid.NewGuid()}", null);
+        var groupId = Guid.NewGuid();
         var ordinaryId = Guid.NewGuid();
         var unresolvedId = Guid.NewGuid();
         var declinedId = Guid.NewGuid();
         var created = DateTime.UtcNow.AddDays(-1);
         var expiry = created.AddDays(7);
+        // Seed the historical schema inside the migration fixture's rollback transaction.
         await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "Groups" ("Id", "OwnerUserId", "Name", "IsArchived")
+            VALUES ({groupId}, {owner.Id}, 'Upgrade', FALSE);
+
             INSERT INTO "GroupInvitations"
                 ("Id", "GroupId", "InviterUserId", "InviteeUserId", "InviteeEmail", "Token", "Status", "CreatedAt", "ExpiresAt", "RespondedAt")
             VALUES
-                ({ordinaryId}, {group.Id}, {owner.Id}, {target.Id}, 'ordinary@example.test', 'ordinary-upgrade', 'Pending', {created}, {expiry}, NULL),
-                ({unresolvedId}, {group.Id}, {owner.Id}, NULL, 'unresolved@example.test', 'unresolved-upgrade', 'Pending', {created}, {expiry}, NULL),
-                ({declinedId}, {group.Id}, {owner.Id}, NULL, 'declined@example.test', 'declined-upgrade', 'Declined', {created}, {expiry}, {created});
+                ({ordinaryId}, {groupId}, {owner.Id}, {target.Id}, 'ordinary@example.test', 'ordinary-upgrade', 'Pending', {created}, {expiry}, NULL),
+                ({unresolvedId}, {groupId}, {owner.Id}, NULL, 'unresolved@example.test', 'unresolved-upgrade', 'Pending', {created}, {expiry}, NULL),
+                ({declinedId}, {groupId}, {owner.Id}, NULL, 'declined@example.test', 'declined-upgrade', 'Declined', {created}, {expiry}, {created});
             """);
 
         await migrator.MigrateAsync();
 
         Assert.Equal(0, await EmailColumnCountAsync(db));
-        var rows = await db.GroupInvitations.AsNoTracking().Where(i => i.GroupId == group.Id).ToDictionaryAsync(i => i.Id);
+        var rows = await db.GroupInvitations.AsNoTracking().Where(i => i.GroupId == groupId).ToDictionaryAsync(i => i.Id);
         Assert.Equal(3, rows.Count);
         Assert.Equal(GroupInvitation.InvitationStatuses.Pending, rows[ordinaryId].Status);
         Assert.Equal(target.Id, rows[ordinaryId].InviteeUserId);
@@ -77,7 +81,7 @@ public sealed class GroupInvitationEmailMigrationPostgresTests(PostgresMigration
         Assert.Equal(created.Ticks / 10, rows[declinedId].RespondedAt!.Value.Ticks / 10);
         foreach (var row in rows.Values)
         {
-            Assert.Equal(group.Id, row.GroupId);
+            Assert.Equal(groupId, row.GroupId);
             Assert.Equal(owner.Id, row.InviterUserId);
             Assert.Equal(created.Ticks / 10, row.CreatedAt.Ticks / 10);
             Assert.Equal(expiry.Ticks / 10, row.ExpiresAt!.Value.Ticks / 10);
@@ -86,7 +90,7 @@ public sealed class GroupInvitationEmailMigrationPostgresTests(PostgresMigration
         Assert.Equal(1, await EmailColumnCountAsync(db));
         Assert.Equal(0, await db.Database.SqlQuery<int>($"""
             SELECT COUNT(*)::int AS "Value" FROM "GroupInvitations"
-            WHERE "GroupId" = {group.Id} AND "InviteeEmail" IS NOT NULL
+            WHERE "GroupId" = {groupId} AND "InviteeEmail" IS NOT NULL
             """).SingleAsync());
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked,
             (await db.GroupInvitations.AsNoTracking().SingleAsync(i => i.Id == unresolvedId)).Status);
