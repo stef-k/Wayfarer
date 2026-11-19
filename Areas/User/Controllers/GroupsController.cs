@@ -197,6 +197,10 @@ public class GroupsController : BaseController
         {
             return StatusCode(403, new { success = false, message = "You do not have permission to invite users to this group" });
         }
+        catch (ArgumentException ex) when (ex.InnerException is GroupRefusal { Code: "invitee_unavailable" })
+        {
+            return BadRequest(new { success = false, message = "This account is no longer available. Select another account." });
+        }
         catch (ArgumentException ex)
         {
             return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "invite") });

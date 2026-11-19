@@ -69,6 +69,89 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         Assert.True(await db.Locations.AnyAsync(row => row.Id == original.Id));
     }
 
+    /// <summary>A deleting former inviter and recipient finishes its cascades before disband takes the Group lock.</summary>
+    [PostgresFact]
+    public async Task DisbandWaitsForFormerParticipantsAccountDeletion()
+    {
+        await using var db = fixture.CreateContext();
+        var owner = await SeedBearerAsync(db);
+        var former = await SeedBearerAsync(db);
+        var inactive = await SeedBearerAsync(db);
+        var groups = new GroupService(db);
+        var group = await groups.CreateGroupAsync(owner, $"Disband-{Guid.NewGuid():N}", null, "Friends");
+        await groups.AddMemberAsync(group.Id, owner, former, GroupMember.Roles.Manager);
+        var invites = new InvitationService(db);
+        var sent = await invites.InviteUserAsync(group.Id, former, inactive, null);
+        await invites.AcceptAsync(sent.Token, inactive);
+        await groups.LeaveGroupAsync(group.Id, former);
+        await invites.InviteUserAsync(group.Id, owner, former, null);
+        await db.Users.Where(u => u.Id == inactive).ExecuteUpdateAsync(set => set.SetProperty(u => u.IsActive, false));
+        var original = await StoreOlderLocationAsync(db, inactive);
+
+        var waiting = new ObserveWriteLock("AspNetUsers", "FOR SHARE");
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
+            services => services.AddScoped(_ => fixture.CreateContext(waiting)));
+        using var client = Mobile(app.GetTestClient(), owner);
+        var path = $"/api/mobile/groups/{group.Id}";
+        var review = await LeaveReviewAsync(client, path);
+        Assert.Equal("DisbandGroup", review.GetProperty("impact").GetString());
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        await using var writer = fixture.CreateContext();
+        await using var deletion = await writer.Database.BeginTransactionAsync(deadline.Token);
+        await writer.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {former} FOR UPDATE""", deadline.Token);
+        var leave = client.PostAsJsonAsync(path + "/leave", new { expected = review }, deadline.Token);
+        await WaitForWriteLockAsync(db, waiting, deadline.Token);
+        await writer.Users.Where(u => u.Id == former).ExecuteDeleteAsync(deadline.Token);
+        await deletion.CommitAsync(deadline.Token);
+
+        var result = await JsonAsync(await leave, HttpStatusCode.OK);
+        Assert.Equal("DisbandGroup", result.GetProperty("impact").GetString());
+        Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
+        Assert.False(await db.GroupMembers.AnyAsync(m => m.GroupId == group.Id));
+        Assert.False(await db.Groups.AnyAsync(g => g.Id == group.Id));
+        Assert.True(await db.Locations.AnyAsync(l => l.Id == original.Id));
+    }
+
+    /// <summary>Explicit and last-member deletion also protect accounts referenced solely by invitation history.</summary>
+    [PostgresTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WebGroupDeletionWaitsForInvitationAccount(bool removeLastMember)
+    {
+        await using var db = fixture.CreateContext();
+        var owner = await SeedBearerAsync(db);
+        var participant = await SeedBearerAsync(db);
+        var group = await new GroupService(db).CreateGroupAsync(owner, $"Cascade-{Guid.NewGuid():N}", null);
+        db.GroupInvitations.Add(new GroupInvitation
+        {
+            Id = Guid.NewGuid(), GroupId = group.Id, Token = Guid.NewGuid().ToString(),
+            InviterUserId = removeLastMember ? owner : participant,
+            InviteeUserId = removeLastMember ? participant : owner,
+            Status = GroupInvitation.InvitationStatuses.Revoked
+        });
+        await db.SaveChangesAsync();
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        await using var writer = fixture.CreateContext();
+        await using var account = await writer.Database.BeginTransactionAsync(deadline.Token);
+        await writer.Database.ExecuteSqlInterpolatedAsync(
+            $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {participant} FOR UPDATE""", deadline.Token);
+        var waiting = new ObserveWriteLock("AspNetUsers", "FOR SHARE");
+        await using var deleting = fixture.CreateContext(waiting);
+        var groups = new GroupService(deleting);
+        var delete = removeLastMember
+            ? groups.RemoveMemberAsync(group.Id, owner, owner, deadline.Token)
+            : groups.DeleteGroupAsync(group.Id, owner, deadline.Token);
+        await WaitForWriteLockAsync(db, waiting, deadline.Token);
+        await writer.Users.Where(u => u.Id == participant).ExecuteDeleteAsync(deadline.Token);
+        await account.CommitAsync(deadline.Token);
+        await delete;
+        Assert.False(await db.Groups.AnyAsync(g => g.Id == group.Id));
+        Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
+    }
+
     /// <summary>Interleaves a real account cascade with Leave before the current decision is evaluated.</summary>
     private async Task DeleteSuccessorDuringLeaveAsync(HttpClient client, string group, string successor,
         JsonElement expected, ObserveWriteLock waiting)

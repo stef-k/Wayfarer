@@ -49,7 +49,7 @@ public partial class InvitationService
     /// <summary>Preserves the Web adapters' existing exception and message contracts.</summary>
     private static Exception WebError(GroupRefusal refusal) => refusal.Code switch
     {
-        "invitee_unavailable" => new ArgumentException("InviteeUserId must identify an existing user"),
+        "invitee_unavailable" => new ArgumentException("InviteeUserId must identify an existing user", refusal),
         "already_member" => new InvalidOperationException("User already an active member"),
         "pending_exists" => new InvalidOperationException("A pending invitation already exists for this user in the specified group"),
         "invitation_expired" => new InvalidOperationException("Invitation expired"),

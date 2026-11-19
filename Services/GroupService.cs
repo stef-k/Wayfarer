@@ -90,7 +90,8 @@ public partial class GroupService : IGroupService
     /// <summary>Deletes a Group under current Owner membership and the shared write ordering.</summary>
     public async Task DeleteGroupAsync(Guid groupId, string actorUserId, CancellationToken ct = default)
     {
-        await using var transaction = await BeginWebWriteAsync(groupId, actorUserId, ct);
+        await using var transaction = await BeginWebWriteAsync(groupId, actorUserId, ct,
+            participants: () => CascadeParticipantsAsync(groupId, ct));
         await EnsureOwnerOrManagerAsync(groupId, actorUserId, requireOwner: true, ct);
         var group = await GroupWrite.FreshAsync(_db, _db.Groups.Where(g => g.Id == groupId), ct)
             ?? throw new KeyNotFoundException("Group not found");
@@ -238,7 +239,7 @@ public partial class GroupService : IGroupService
     public async Task RemoveMemberAsync(Guid groupId, string actorUserId, string targetUserId, CancellationToken ct = default)
     {
         await using var transaction = await BeginWebWriteAsync(groupId, actorUserId, ct,
-            target: targetUserId, participants: () => DepartureParticipantsAsync(groupId, targetUserId, ct));
+            target: targetUserId, participants: () => CascadeParticipantsAsync(groupId, ct));
         await EnsureOwnerOrManagerAsync(groupId, actorUserId, requireOwner: false, ct);
 
         var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == targetUserId, ct)

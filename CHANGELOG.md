@@ -6,7 +6,10 @@
   disclosure and responses, reviewed Leave and My sharing readback (#982).
   Family/Friends owners can review a chosen successor or confirm disband when
   every remaining member account is deactivated. Web and bearer share the
-  live-pending invitation rules. No database migration.
+  live-pending invitation rules. The User Members page asks the sender to select
+  another account if the invitee disappears or becomes inactive. Group deletion
+  coordinates with account deletion across membership and invitation history.
+  No database migration.
 
 - Add `eventUtc` to Web and bearer Group location reads so history can open the
   selected location's UTC day. Read Group policy and active memberships together

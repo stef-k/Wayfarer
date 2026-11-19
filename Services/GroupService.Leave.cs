@@ -38,7 +38,7 @@ public partial class GroupService
         string? selectedSuccessor, CancellationToken ct, Func<CancellationToken, Task<bool>>? bearer = null)
     {
         await using var transaction = await GroupWrite.BeginAsync(_db, groupId, userId, ct, bearer,
-            participants: () => DepartureParticipantsAsync(groupId, userId, ct));
+            participants: () => CascadeParticipantsAsync(groupId, ct));
         var (scopedGroup, scopedMember) = await GroupRead.ScopeAsync(_db, groupId, userId, manage: false, ct);
         if (expected is not null)
         {
@@ -132,11 +132,13 @@ public partial class GroupService
                 successorId, reason), label, choices, selectedSuccessor);
     }
 
-    /// <summary>Protects successor candidates and incoming invitations against independent account cascades.</summary>
-    private Task<string[]> DepartureParticipantsAsync(Guid groupId, string userId, CancellationToken ct) =>
-        _db.GroupMembers.Where(m => m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active)
-            .Select(m => m.UserId)
-            .Union(_db.GroupInvitations.Where(i => i.GroupId == groupId && i.InviteeUserId == userId
-                && i.Status == GroupInvitation.InvitationStatuses.Pending).Select(i => i.InviterUserId))
+    /// <summary>Group deletion cascades through every membership and invitation, including historical rows.</summary>
+    private Task<string[]> CascadeParticipantsAsync(Guid groupId, CancellationToken ct)
+    {
+        var invitations = _db.GroupInvitations.Where(i => i.GroupId == groupId);
+        return _db.GroupMembers.Where(m => m.GroupId == groupId).Select(m => m.UserId)
+            .Union(invitations.Select(i => i.InviterUserId))
+            .Union(invitations.Where(i => i.InviteeUserId != null).Select(i => i.InviteeUserId!))
             .ToArrayAsync(ct);
+    }
 }

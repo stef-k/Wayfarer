@@ -91,6 +91,30 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         Assert.Equal(GroupInvitation.InvitationStatuses.Expired, await db.GroupInvitations.Where(i => i.Id == replacementId).Select(i => i.Status).SingleAsync());
     }
 
+    /// <summary>A selected account may disappear or deactivate between the picker and the authorized POST.</summary>
+    [PostgresFact]
+    public async Task InviteAjax_RefusesUnavailableSelectionWithoutCreatingAnInvitation()
+    {
+        await using var db = fixture.CreateContext();
+        var owner = await SeedBearerAsync(db);
+        var target = await SeedBearerAsync(db);
+        var group = await new GroupService(db).CreateGroupAsync(owner, $"Invite-{Guid.NewGuid():N}", null);
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
+            services => services.AddScoped(_ => fixture.CreateContext()));
+        using var web = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(web, app.Services, owner);
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
+        await db.Users.Where(u => u.Id == target).ExecuteUpdateAsync(set => set.SetProperty(u => u.IsActive, false));
+        foreach (var unavailable in new[] { target, Guid.NewGuid().ToString() })
+        {
+            var response = await JsonAsync(await web.PostAsync("/User/Groups/InviteAjax", InviteForm(group.Id, unavailable)),
+                HttpStatusCode.BadRequest);
+            Assert.False(response.GetProperty("success").GetBoolean());
+            Assert.Equal("This account is no longer available. Select another account.", response.GetProperty("message").GetString());
+        }
+        Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
+    }
+
     /// <summary>Posts the Web application's existing exact-account form contract.</summary>
     private static FormUrlEncodedContent InviteForm(Guid groupId, string target) =>
         new(new Dictionary<string, string> { ["groupId"] = groupId.ToString(), ["inviteeUserId"] = target });
