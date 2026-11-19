@@ -105,8 +105,8 @@
                                     class="btn btn-outline-primary btn-sm dropdown-toggle"
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
-                                    title="@T["Viewer.MoreActions"]">
-                                <i class="bi bi-three-dots-vertical"></i>
+                                    title="@T["Viewer.MoreActions"]" aria-label="@T["Viewer.MoreActions"]">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="btn-more-actions">
                                 @if ((bool)(ViewBag.IsOwner ?? false))
@@ -119,7 +119,7 @@
                                            asp-route-id="@Model.Id"
                                            title="@T["Viewer.EditTrip"]"
                                            target="_blank">
-                                            <i class="bi bi-pencil-square me-1"></i>@T["Viewer.Edit"]
+                                            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>@T["Viewer.Edit"]
                                         </a>
                                     </li>
                                     <li>
@@ -133,7 +133,7 @@
                                            href="#"
                                            data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}")"
                                            title="@T["Viewer.CopyPublicUrl"]">
-                                            <i class="bi bi-share me-1"></i>@T["Viewer.Share"]
+                                            <i class="bi bi-share me-1" aria-hidden="true"></i>@T["Viewer.Share"]
                                         </a>
                                     </li>
                                     @if ((bool)(ViewBag.IsOwner ?? false))
@@ -149,7 +149,7 @@
                                                    href="#"
                                                    data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/CoverImage?v={Model.UpdatedAt.Ticks}")"
                                                    title="@T["Viewer.CopyCoverTip"]">
-                                                    <i class="bi bi-image me-1"></i>@T["Viewer.CopyCover"]
+                                                    <i class="bi bi-image me-1" aria-hidden="true"></i>@T["Viewer.CopyCover"]
                                                 </a>
                                             </li>
                                         }
@@ -160,7 +160,7 @@
                                                    href="#"
                                                    data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{Model.Id}/MapSnapshot")"
                                                    title="@T["Viewer.CopyMapTip"]">
-                                                    <i class="bi bi-card-image me-1"></i>@T["Viewer.CopyMap"]
+                                                    <i class="bi bi-card-image me-1" aria-hidden="true"></i>@T["Viewer.CopyMap"]
                                                 </a>
                                             </li>
                                         }
@@ -192,7 +192,7 @@
                                                     <button type="submit"
                                                             class="dropdown-item"
                                                             title="@T["Viewer.CloneTrip"]">
-                                                        <i class="bi bi-files me-1"></i>@T["Viewer.Clone"]
+                                                        <i class="bi bi-files me-1" aria-hidden="true"></i>@T["Viewer.Clone"]
                                                     </button>
                                                 </form>
                                             </li>
@@ -206,7 +206,7 @@
                                                asp-page="/Account/Login"
                                                asp-route-returnUrl="@Context.Request.Path"
                                                title="@T["Viewer.LoginToCloneTip"]">
-                                                <i class="bi bi-box-arrow-in-right me-1"></i>@T["Viewer.LoginToClone"]
+                                                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>@T["Viewer.LoginToClone"]
                                             </a>
                                         </li>
                                     }
@@ -226,8 +226,8 @@
                         <button id="btn-trip-center"
                                 type="button"
                                 class="btn btn-outline-dark btn-sm"
-                                title="@T["Viewer.Recenter"]">
-                            <i class="bi bi-crosshair"></i>
+                                title="@T["Viewer.Recenter"]" aria-label="@T["Viewer.Recenter"]">
+                            <i class="bi bi-crosshair" aria-hidden="true"></i>
                         </button>
 
                         <!-- Expand to readable view -->
@@ -236,8 +236,8 @@
                                 class="btn btn-outline-secondary btn-sm"
                                 data-bs-toggle="modal"
                                 data-bs-target="#readableViewModal"
-                                title="@T["Viewer.Readable"]">
-                            <i class="bi bi-arrows-fullscreen"></i>
+                                title="@T["Viewer.Readable"]" aria-label="@T["Viewer.Readable"]">
+                            <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
                         </button>
 
                     </div>
@@ -267,7 +267,7 @@
                                class="badge rounded-pill text-bg-secondary text-decoration-none"
                                style="font-size: 0.75rem;"
                                title="@T["Viewer.FilterBy", tag.Name]">
-                                <i class="bi bi-tag-fill"></i> @tag.Name
+                                <i class="bi bi-tag-fill" aria-hidden="true"></i> @tag.Name
                             </a>
                         }
                     </div>
@@ -285,7 +285,7 @@
                 <div class="px-2 pb-2">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <small class="text-muted">
-                            <i class="bi bi-check2-circle"></i>
+                            <i class="bi bi-check2-circle" aria-hidden="true"></i>
                             @if (!owner && !string.IsNullOrEmpty(Model.User?.DisplayName))
                             {
                                 <span><partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@T["Viewer.VisitedBy", Model.User.DisplayName]</span>
@@ -297,7 +297,7 @@
                                     data-bs-toggle="modal"
                                     data-bs-target="@(owner ? "#visitHistoryModal" : "#publicProgressModal")"
                                     title="@(owner ? T["Viewer.DetailedHistory"] : T["Viewer.ViewProgress"])">
-                                <i class="bi bi-bar-chart me-1"></i>@T["Viewer.Details"]
+                                <i class="bi bi-bar-chart me-1" aria-hidden="true"></i>@T["Viewer.Details"]
                             </button>
                             <span class="badge @(progressPercent == 100 ? "bg-success" : "bg-primary") badge-sm">@progressPercent%</span>
                         </div>
@@ -364,7 +364,7 @@
             </div>
             <div class="modal-footer">
                 <button id="export-cancel-btn" type="button" class="btn btn-danger btn-sm" style="display: none;">
-                    <i class="bi bi-x-circle"></i> @T["Shell.Cancel"]
+                    <i class="bi bi-x-circle" aria-hidden="true"></i> @T["Shell.Cancel"]
                 </button>
             </div>
         </div>
@@ -380,7 +380,7 @@
             <div class="modal-header">
                 <h5 class="modal-title text-center flex-grow-1" id="readableViewModalLabel">@Model.Name</h5>
                 <button type="button" id="btn-print-modal" class="btn btn-outline-primary btn-sm me-2" title="@T["Viewer.PrintPdf"]">
-                    <i class="bi bi-printer"></i> @T["Viewer.Print"]
+                    <i class="bi bi-printer" aria-hidden="true"></i> @T["Viewer.Print"]
                 </button>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
             </div>
@@ -438,7 +438,7 @@
                                 <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
                                    class="badge rounded-pill text-bg-secondary text-decoration-none"
                                    style="font-size: 0.875rem; padding: 0.5em 0.75em;">
-                                    <i class="bi bi-tag-fill"></i> @tag.Name
+                                    <i class="bi bi-tag-fill" aria-hidden="true"></i> @tag.Name
                                 </a>
                             }
                         </div>
@@ -516,7 +516,7 @@
                         class="btn btn-primary rounded-circle position-fixed"
                         style="bottom: 2rem; right: 2rem; width: 50px; height: 50px; display: none; z-index: 1000;"
                         title="@T["Shell.BackToTop"]">
-                    <i class="bi bi-arrow-up"></i>
+                    <i class="bi bi-arrow-up" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
@@ -537,7 +537,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title text-wrap" id="visitHistoryModalLabel">
-                        <i class="bi bi-clock-history me-2"></i>@Model.Name <span class="text-muted fw-normal">@T["Viewer.VisitHistory"]</span>
+                        <i class="bi bi-clock-history me-2" aria-hidden="true"></i>@Model.Name <span class="text-muted fw-normal">@T["Viewer.VisitHistory"]</span>
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
                 </div>
@@ -552,20 +552,20 @@
                             <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")" style="width: @progressPercent%;"></div>
                         </div>
                         <div class="text-muted mt-2">
-                            <i class="bi bi-check2-circle"></i> @T["Viewer.VisitedTotal", T.DisplayNumber(visitedPlaces), T.Count("Viewer.PlaceCount", totalPlaces)]
+                            <i class="bi bi-check2-circle" aria-hidden="true"></i> @T["Viewer.VisitedTotal", T.DisplayNumber(visitedPlaces), T.Count("Viewer.PlaceCount", totalPlaces)]
                         </div>
                     </div>
 
                     <!-- Filter Buttons -->
                     <div class="mb-3 btn-group" role="group" aria-label="@T["Viewer.FilterPlaces"]">
                         <button type="button" class="btn btn-outline-secondary btn-sm active" data-filter="all">
-                            <i class="bi bi-list-ul me-1"></i>@T["Viewer.ShowAll"]
+                            <i class="bi bi-list-ul me-1" aria-hidden="true"></i>@T["Viewer.ShowAll"]
                         </button>
                         <button type="button" class="btn btn-outline-success btn-sm" data-filter="visited">
-                            <i class="bi bi-check-circle-fill me-1"></i>@T["Viewer.Visited"]
+                            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>@T["Viewer.Visited"]
                         </button>
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-filter="not-visited">
-                            <i class="bi bi-circle me-1"></i>@T["Viewer.NotVisited"]
+                            <i class="bi bi-circle me-1" aria-hidden="true"></i>@T["Viewer.NotVisited"]
                         </button>
                     </div>
 
@@ -594,11 +594,11 @@
                                             <div class="d-flex align-items-start">
                                                 @if (isVisited)
                                                 {
-                                                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                                    <i class="bi bi-check-circle-fill text-success me-2" aria-hidden="true"></i>
                                                 }
                                                 else
                                                 {
-                                                    <i class="bi bi-circle text-muted me-2"></i>
+                                                    <i class="bi bi-circle text-muted me-2" aria-hidden="true"></i>
                                                 }
                                                 <div class="flex-grow-1">
                                                     <div class="fw-medium">@place.Name</div>
@@ -616,8 +616,8 @@
                                                                         : T["Viewer.Minutes", (int)duration.Value.TotalMinutes])
                                                                     : T["Viewer.Ongoing"];
                                                                 <div>
-                                                                    <i class="bi bi-calendar3 me-1"></i>@visit.ArrivedAtUtc.ToString("d", T.DisplayCulture)
-                                                                    <span class="ms-2"><i class="bi bi-stopwatch me-1"></i>@durationStr</span>
+                                                                    <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>@visit.ArrivedAtUtc.ToString("d", T.DisplayCulture)
+                                                                    <span class="ms-2"><i class="bi bi-stopwatch me-1" aria-hidden="true"></i>@durationStr</span>
                                                                 </div>
                                                             }
                                                         </div>
@@ -644,7 +644,7 @@
                                        data-trip-id="@Model.Id"
                                        @Html.Raw(shareProgressEnabled ? "checked=\"checked\"" : "")>
                                 <label class="form-check-label" for="modalShareProgressSwitch">
-                                    <i class="bi bi-broadcast me-1"></i>@T["Viewer.ShareProgress"]
+                                    <i class="bi bi-broadcast me-1" aria-hidden="true"></i>@T["Viewer.ShareProgress"]
                                 </label>
                             </div>
                             <span id="modalShareStatus" class="badge @(shareProgressEnabled ? "bg-success" : "bg-secondary") small">
@@ -654,12 +654,12 @@
                                     class="btn btn-outline-success btn-sm @(shareProgressEnabled ? "" : "d-none")"
                                     data-public-url="/Public/Trips/@Model.Id"
                                     title="@T["Viewer.CopyShareLink"]">
-                                <i class="bi bi-link-45deg me-1"></i>@T["Viewer.CopyLink"]
+                                <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>@T["Viewer.CopyLink"]
                             </button>
                         }
                         else
                         {
-                            <small class="text-muted"><i class="bi bi-lock me-1"></i>@T["Viewer.MakePublic"]</small>
+                            <small class="text-muted"><i class="bi bi-lock me-1" aria-hidden="true"></i>@T["Viewer.MakePublic"]</small>
                         }
                     </div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">@T["Shell.Close"]</button>
@@ -677,7 +677,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title text-wrap" id="publicProgressModalLabel">
-                        <i class="bi bi-trophy me-2 text-warning"></i>
+                        <i class="bi bi-trophy me-2 text-warning" aria-hidden="true"></i>
                         @if (!string.IsNullOrEmpty(Model.User?.DisplayName))
                         {
                             <span><partial name="_PublicOwnerPhoto" model="@ownerPhoto" />@T["Viewer.OwnerTripProgress", Model.User.DisplayName, Model.Name]</span>
@@ -694,7 +694,7 @@
                     <div class="mb-4 p-3 bg-body-secondary rounded text-center">
                         <div class="display-4 fw-bold @(progressPercent == 100 ? "text-success" : "text-primary")">@progressPercent%</div>
                         <div class="text-muted">
-                            <i class="bi bi-check2-circle"></i> @T["Viewer.VisitedTotal", T.DisplayNumber(visitedPlaces), T.Count("Viewer.PlaceCount", totalPlaces)]
+                            <i class="bi bi-check2-circle" aria-hidden="true"></i> @T["Viewer.VisitedTotal", T.DisplayNumber(visitedPlaces), T.Count("Viewer.PlaceCount", totalPlaces)]
                         </div>
                         <div class="progress mt-3" style="height: 12px;">
                             <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "")" style="width: @progressPercent%;"></div>
@@ -748,7 +748,7 @@
                     // Show loading state
                     if (btn) {
                         btn.disabled = true;
-                        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Cloning...';
+                        btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Cloning...';
                     }
                     form.submit();
                 }

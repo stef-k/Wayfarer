@@ -1,4 +1,5 @@
-import { message } from '../localization/messages.js';
+import { encodeFeatureText } from '../util/feature-metadata.js';
+import { message, number, plural } from '../localization/messages.js';
 /* tripViewerHelpers.js – read-only viewer helpers
  * -----------------------------------------------
  *  • Leaflet bootstrap
@@ -130,7 +131,7 @@ export const addRegionMarker = (map, id, [lat, lon], name = '') => {
     });
 
     const m = L.marker([lat, lon], {icon: leafletIcon})
-        .bindTooltip(name, {direction: 'right'})
+        .bindTooltip(encodeFeatureText(name), {direction: 'right'})
         .addTo(map);
 
     _regions[id] = m;
@@ -157,13 +158,14 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
     const visitCount = opts.visitCount || 0;
     if (visitCount > 0) {
         // Show checkmark for 1 visit, show count for multiple visits
-        const badgeContent = visitCount === 1 ? '✓' : visitCount;
-        const badgeTitle = visitCount === 1 ? 'Visited' : `Visited ${visitCount} times`;
+        const badgeContent = visitCount === 1 ? '✓' : number(visitCount);
+        const badgeTitle = visitCount === 1 ? message('Viewer.Visited', 'Visited')
+            : plural('Viewer.VisitedCount', visitCount, 'Visited {0} time', 'Visited {0} times');
         leafletIcon = L.divIcon({
             className: 'place-marker-wrapper',
             html: `<div class="place-marker visited">
                      <img src="${iconUrl}" width="${WF_WIDTH}" height="${WF_HEIGHT}" alt="">
-                     <span class="visit-badge" title="${badgeTitle}">${badgeContent}</span>
+                     <span class="visit-badge" title="${encodeFeatureText(badgeTitle)}">${badgeContent}</span>
                    </div>`,
             iconSize: [WF_WIDTH, WF_HEIGHT],
             iconAnchor: WF_ANCHOR
@@ -254,12 +256,12 @@ export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
         });
     } else {
         // Fallback to simple label tooltip
-        pl.bindTooltip(label, {sticky: true, direction: 'top'});
+        pl.bindTooltip(encodeFeatureText(label), {sticky: true, direction: 'top'});
     }
 
     pl.addTo(group);
     const hit = isPrint ? null : L.polyline(presentedCoords, {opacity: 0, weight: 16, className: 'segment-route-hit'})
-        .bindTooltip(orientation === 'ambiguous' ? 'Route direction unavailable' : presentation.tooltip,
+        .bindTooltip(orientation === 'ambiguous' ? message('Viewer.RouteDirectionUnavailable', 'Route direction unavailable') : presentation.tooltip,
             {sticky: true, direction: 'top', className: 'trip-rich-tooltip'})
         .on('click', () => window.wayfarer?.selectSegment?.(id))
         .addTo(group);

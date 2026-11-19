@@ -18,7 +18,7 @@ public static class LanguageNavigation
         var values = context.Request.RouteValues;
         if (context.Features.Get<IStatusCodeReExecuteFeature>() is not null
             || context.Features.Get<IExceptionHandlerFeature>() is not null)
-            return HttpMethods.IsGet(context.Request.Method) ? "" : null;
+            return null;
 
         var area = values["area"] as string;
         var controller = values["controller"] as string;

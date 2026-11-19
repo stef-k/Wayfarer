@@ -384,4 +384,34 @@
   <data name="Shell.ShowSidebar" xml:space="preserve">
     <value>Show sidebar</value>
   </data>
+  <data name="Shell.LatitudeShort" xml:space="preserve">
+    <value>Lat:</value>
+  </data>
+  <data name="Shell.LongitudeShort" xml:space="preserve">
+    <value>Lon:</value>
+  </data>
+  <data name="Shell.AddressLabel" xml:space="preserve">
+    <value>Address:</value>
+  </data>
+  <data name="Shell.NotesLabel" xml:space="preserve">
+    <value>Notes:</value>
+  </data>
+  <data name="Shell.ContainsMedia" xml:space="preserve">
+    <value>[Contains media]</value>
+  </data>
+  <data name="Shell.MediaPrefix" xml:space="preserve">
+    <value>[Media] </value>
+  </data>
+  <data name="Shell.MapZoomLevel" xml:space="preserve">
+    <value>Zoom: {0}</value>
+  </data>
+  <data name="Shell.FullMap" xml:space="preserve">
+    <value>Open full view</value>
+  </data>
+  <data name="Shell.FullMapNewTab" xml:space="preserve">
+    <value>Open full view in a new tab</value>
+  </data>
+  <data name="Shell.MapInteraction" xml:space="preserve">
+    <value>Use two fingers to move the map</value>
+  </data>
 </root>

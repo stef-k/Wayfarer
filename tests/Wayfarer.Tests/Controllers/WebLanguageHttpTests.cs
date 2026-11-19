@@ -1,4 +1,8 @@
 using System.Net;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.TestHost;
@@ -105,6 +109,42 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.DoesNotContain(new string('x', 81), await clean.Content.ReadAsStringAsync());
         using var workspace = await client.GetAsync("/User/Timeline/Index");
         Assert.Null((await ParseAsync(workspace)).QuerySelector("#language-open"));
+    }
+
+    /// <summary>Test-only registrations and resources take the same routing and Razor bootstrap path.</summary>
+    [Fact]
+    public async Task AdditionalLocaleResolvesRazorAndPluralBootstrapWithEnglishFallback()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings());
+        await db.SaveChangesAsync();
+        var probe = new ConfigurationBuilder().AddJsonFile(Path.Combine(AppContext.BaseDirectory, "Resources", "WebLocaleProbe.json"))
+            .Build().GetSection("WebLocales").Get<WebLocale[]>() ?? [];
+        var builtIn = WebLocalization.ReadLocales(new ConfigurationBuilder().Build());
+        var locales = new WebLocales(builtIn.All.Concat(probe));
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddSingleton(locales);
+            services.AddSingleton(provider => new WebMessages(locales, provider.GetRequiredService<ILogger<WebMessages>>(),
+                typeof(WebLanguageHttpTests).Assembly));
+        });
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("pl;q=1, el;q=0.5");
+        using var response = await client.GetAsync("/Identity/Account/Login");
+        var page = await ParseAsync(response);
+        Assert.Equal("pl-PL", page.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("Język", page.QuerySelector("#language-open")?.TextContent);
+        Assert.Equal("Cancel", page.QuerySelector("#language-cancel")?.TextContent);
+        using var bootstrap = JsonDocument.Parse(page.QuerySelector("#wayfarer-locale")!.TextContent);
+        var active = bootstrap.RootElement.GetProperty("messages");
+        Assert.Equal("Masz {0} oczekujące zaproszenia.", active.GetProperty("Shell.InvitationsPending.few").GetString());
+        Assert.False(active.TryGetProperty("Shell.Cancel", out _));
+        Assert.Equal("Cancel", bootstrap.RootElement.GetProperty("english").GetProperty("Shell.Cancel").GetString());
+        var polish = Assert.Single(probe);
+        Assert.Equal("few", polish.PluralCategory(3));
+        Assert.Equal("many", polish.PluralCategory(12));
+        Assert.Equal("many", polish.PluralCategory(0));
+        Assert.Equal("one", polish.PluralCategory(1));
     }
 
     private static FormUrlEncodedContent Form(string token, params (string Name, string Value)[] fields) =>

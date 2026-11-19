@@ -459,4 +459,25 @@
   <data name="Viewer.DownloadChoicesRetained" xml:space="preserve">
     <value>The complete download is unavailable. Your export choices are retained.</value>
   </data>
+  <data name="Viewer.PopupFromTo" xml:space="preserve">
+    <value>From {0} to {1}</value>
+  </data>
+  <data name="Viewer.UnnamedPlace" xml:space="preserve">
+    <value>Unnamed Place</value>
+  </data>
+  <data name="Viewer.UnnamedArea" xml:space="preserve">
+    <value>Unnamed Area</value>
+  </data>
+  <data name="Viewer.PopupTransport" xml:space="preserve">
+    <value>By:</value>
+  </data>
+  <data name="Viewer.PopupDistance" xml:space="preserve">
+    <value>Distance:</value>
+  </data>
+  <data name="Viewer.PopupTime" xml:space="preserve">
+    <value>Est. time:</value>
+  </data>
+  <data name="Viewer.UnknownMode" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
 </root>

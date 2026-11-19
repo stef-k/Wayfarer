@@ -52,6 +52,7 @@ const nativeKeyboard = () => {
 
 test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   test.setTimeout(120_000);
+  page.setDefaultTimeout(15_000);
   const credentials = loadSharedLayoutConfig();
   const folder = process.env.WAYFARER_LANGUAGE_EVIDENCE ?? info.outputPath('captures');
   await mkdir(folder, { recursive: true });
@@ -83,6 +84,7 @@ test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Περισσότερες ενέργειες' }).click();
   const [editor] = await Promise.all([page.context().waitForEvent('page'), page.getByRole('link', { name: 'Επεξεργασία', exact: true }).click()]);
   await expect(editor.locator('html')).toHaveAttribute('lang', 'el-GR');
+  editor.setDefaultTimeout(15_000);
   const name = editor.locator('#trip-editor-metadata-form input').first();
   await name.fill(' ');
   await editor.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' }).click();

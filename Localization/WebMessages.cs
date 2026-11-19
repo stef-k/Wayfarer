@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Reflection;
 using System.Resources;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -7,13 +8,28 @@ using System.Text.RegularExpressions;
 namespace Wayfarer.Localization;
 
 /// <summary>Reads Web presentation catalogs with explicit English fallback and bounded diagnostics.</summary>
-public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages> logger)
+public sealed partial class WebMessages
 {
-    private static readonly ConcurrentDictionary<string, ResourceManager> Resources = new(StringComparer.Ordinal);
+    private static readonly Assembly ApplicationAssembly = typeof(WebMessages).Assembly;
+    private static readonly ConcurrentDictionary<(Assembly, string), ResourceManager> Resources = new();
+    private readonly WebLocales _locales;
+    private readonly ILogger<WebMessages> _logger;
+    private readonly Assembly _localizedResources;
+
+    /// <summary>Uses the application assembly's catalogs and language registration.</summary>
+    public WebMessages(WebLocales locales, ILogger<WebMessages> logger) : this(locales, logger, ApplicationAssembly) { }
+
+    /// <summary>Allows the test host to load its own translation satellite alongside built-in English.</summary>
+    internal WebMessages(WebLocales locales, ILogger<WebMessages> logger, Assembly localizedResources)
+    {
+        _locales = locales;
+        _logger = logger;
+        _localizedResources = localizedResources;
+    }
     private readonly ConcurrentDictionary<(string Locale, string Key), byte> _reported = new();
 
     /// <summary>The active document locale used for lookups and display formatting.</summary>
-    public WebLocale Locale => locales.Find(CultureInfo.CurrentUICulture.Name) ?? locales.Find(WebLocales.English)
+    public WebLocale Locale => _locales.Find(CultureInfo.CurrentUICulture.Name) ?? _locales.Find(WebLocales.English)
         ?? throw new InvalidOperationException("English locale registration is missing.");
 
     /// <summary>Reads one translated phrase and substitutes positional display arguments.</summary>
@@ -38,7 +54,7 @@ public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages>
         var (text, translated) = Resolve(Locale.Tag, $"{key}.{Locale.PluralCategory(count)}");
         if (!translated)
         {
-            var english = locales.Find(WebLocales.English)
+            var english = _locales.Find(WebLocales.English)
                 ?? throw new InvalidOperationException("English locale registration is missing.");
             (text, _) = Resolve(english.Tag, $"{key}.{english.PluralCategory(count)}");
         }
@@ -62,7 +78,7 @@ public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages>
     {
         var catalog = Catalog(owner);
         var neutral = catalog.GetResourceSet(CultureInfo.InvariantCulture, true, false);
-        var localized = catalog.GetResourceSet(DisplayCulture, true, false);
+        var localized = Catalog(owner, _localizedResources).GetResourceSet(DisplayCulture, true, false);
         if (neutral is null)
             return;
 
@@ -97,7 +113,7 @@ public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages>
         var neutral = resources.GetResourceSet(CultureInfo.InvariantCulture, true, false);
         var english = neutral?.GetString(key);
         var dot = key.LastIndexOf('.');
-        if (english is null && dot >= 0 && locales.Find(locale)?.PluralCategories.Contains(key[(dot + 1)..]) == true)
+        if (english is null && dot >= 0 && _locales.Find(locale)?.PluralCategories.Contains(key[(dot + 1)..]) == true)
             english = neutral?.GetString(key[..dot] + ".other");
         if (english is null)
         {
@@ -107,7 +123,7 @@ public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages>
         if (locale == WebLocales.English)
             return (english, true);
 
-        var value = resources.GetResourceSet(CultureInfo.GetCultureInfo(locale), true, false)?.GetString(key);
+        var value = Catalog(owner, _localizedResources).GetResourceSet(CultureInfo.GetCultureInfo(locale), true, false)?.GetString(key);
         if (!string.IsNullOrWhiteSpace(value) && HasSameArguments(english, value))
             return (value, true);
 
@@ -120,12 +136,13 @@ public sealed partial class WebMessages(WebLocales locales, ILogger<WebMessages>
         lock (_reported)
         {
             if (_reported.Count < 200 && _reported.TryAdd((locale, key), 0))
-                logger.LogWarning("Missing or invalid Web message {MessageKey} for locale {Locale}", key, locale);
+                _logger.LogWarning("Missing or invalid Web message {MessageKey} for locale {Locale}", key, locale);
         }
     }
 
-    private static ResourceManager Catalog(string owner) => Resources.GetOrAdd(owner,
-        name => new ResourceManager($"Wayfarer.Resources.{name}", typeof(WebMessages).Assembly));
+    private static ResourceManager Catalog(string owner, Assembly? assembly = null) =>
+        Resources.GetOrAdd((assembly ?? ApplicationAssembly, owner),
+            entry => new ResourceManager($"{entry.Item1.GetName().Name}.Resources.{entry.Item2}", entry.Item1));
 
     /// <summary>Checks positional argument parity and rejects unsupported brace expressions.</summary>
     internal static bool HasSameArguments(string english, string translation)

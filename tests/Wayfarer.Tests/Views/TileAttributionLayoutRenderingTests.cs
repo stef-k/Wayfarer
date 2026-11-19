@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Playwright;
 using MvcFrontendKit.Extensions;
-using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -243,7 +242,7 @@ public sealed class TileAttributionLayoutRenderingTests
                 .ConfigureServices((context, services) =>
                 {
                     services.AddLogging();
-                    services.AddWebLocalization(context.Configuration);
+                    Wayfarer.Localization.WebLocalization.AddWebLocalization(services, context.Configuration);
                     services.AddHttpContextAccessor();
                     services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly);
                     services.AddMvcFrontendKit();

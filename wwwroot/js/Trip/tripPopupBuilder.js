@@ -1,3 +1,4 @@
+import { message, number } from '../localization/messages.js';
 import { encodeFeatureText as encodeText, featurePrecisionNotice } from '../util/feature-metadata.js';
 
 /**
@@ -34,14 +35,15 @@ const truncateNotes = (html) => {
     let preview = '';
     if (hasMedia && text.length === 0) {
         // Only media, no text
-        preview = '[Contains media]';
+        preview = message('Shell.ContainsMedia', '[Contains media]');
     } else if (hasMedia && text.length > 0) {
         // Media + text: show indicator and text preview
-        const availableLength = MAX_NOTES_LENGTH - 10; // Reserve space for indicator
+        const prefix = message('Shell.MediaPrefix', '[Media] ');
+        const availableLength = MAX_NOTES_LENGTH - prefix.length;
         if (text.length <= availableLength) {
-            preview = '[Media] ' + text;
+            preview = prefix + text;
         } else {
-            preview = '[Media] ' + text.substring(0, availableLength).trim() + '…';
+            preview = prefix + text.substring(0, availableLength).trim() + '…';
         }
     } else if (text.length > 0) {
         // Text only
@@ -59,7 +61,7 @@ const truncateNotes = (html) => {
 /**
  * Footer hint for tooltips prompting users to click for more details
  */
-const TOOLTIP_FOOTER = `<div class="popup-footer"><i class="bi bi-hand-index"></i> Click for details</div>`;
+const TOOLTIP_FOOTER = `<div class="popup-footer"><i class="bi bi-hand-index"></i> ${encodeText(message('Viewer.PlaceDetails', 'Click to view details'))}</div>`;
 
 /**
  * Builds tooltip HTML content for a Place marker
@@ -79,33 +81,33 @@ export const buildPlacePopup = ({ name, lat, lon, address, notes, regionName, re
     let html = `<div class="trip-popup place-popup">`;
 
     // Name (bold) and region
-    html += `<div class="popup-header"><strong>${name || 'Unnamed Place'}</strong>`;
+    html += `<div class="popup-header"><strong>${encodeText(name || message('Viewer.UnnamedPlace', 'Unnamed Place'))}</strong>`;
     if (regionName) {
-        html += `<span class="popup-region text-muted"> (${regionName})</span>`;
+        html += `<span class="popup-region text-muted"> (${encodeText(regionName)})</span>`;
     }
     html += `</div>`;
 
     // Coordinates
     if (Number.isFinite(+lat) && Number.isFinite(+lon)) {
         html += `<div class="popup-coords">
-            <span class="text-muted">Lat:</span> ${(+lat).toFixed(5)},
-            <span class="text-muted">Lon:</span> ${(+lon).toFixed(5)}
+            <span class="text-muted">${encodeText(message('Shell.LatitudeShort', 'Lat:'))}</span> ${number(+lat, { minimumFractionDigits: 5, maximumFractionDigits: 5 })},
+            <span class="text-muted">${encodeText(message('Shell.LongitudeShort', 'Lon:'))}</span> ${number(+lon, { minimumFractionDigits: 5, maximumFractionDigits: 5 })}
         </div>`;
     }
 
     // Address if available
     if (address) {
-        html += `<div class="popup-address"><span class="text-muted">Address:</span> ${address}</div>`;
+        html += `<div class="popup-address"><span class="text-muted">${encodeText(message('Shell.AddressLabel', 'Address:'))}</span> ${encodeText(address)}</div>`;
     }
     if (resolvedFeatureName) {
-        html += `<div><span class="text-muted">Detected place:</span> ${encodeText(resolvedFeatureName)}</div>`;
+        html += `<div><span class="text-muted">${encodeText(message('Viewer.DetectedPlace', 'Detected place: {0}', resolvedFeatureName))}</span></div>`;
     }
     const precision = featurePrecisionNotice(resolvedFeatureType);
     if (precision) html += `<div role="note">${precision}</div>`;
 
     // Notes preview if available
     if (hasNotes) {
-        html += `<div class="popup-notes"><span class="text-muted">Notes:</span> ${notesPreview}</div>`;
+        html += `<div class="popup-notes"><span class="text-muted">${encodeText(message('Shell.NotesLabel', 'Notes:'))}</span> ${notesPreview}</div>`;
     }
 
     // Footer hint
@@ -136,31 +138,30 @@ export const buildSegmentPopup = ({
     const hasNotes = notesPreview.length > 0;
 
     // Format from/to with region in parentheses
-    const fromDisplay = fromRegion ? `<strong>${fromPlace}</strong> (${fromRegion})` : `<strong>${fromPlace}</strong>`;
-    const toDisplay = toRegion ? `<strong>${toPlace}</strong> (${toRegion})` : `<strong>${toPlace}</strong>`;
+    const fromDisplay = fromRegion ? `${fromPlace} (${fromRegion})` : fromPlace;
+    const toDisplay = toRegion ? `${toPlace} (${toRegion})` : toPlace;
 
-    // Capitalize mode
-    const modeDisplay = mode ? mode.charAt(0).toUpperCase() + mode.slice(1) : 'Unknown';
+    const modeDisplay = encodeText(mode || message('Viewer.UnknownMode', 'Unknown'));
 
     let html = `<div class="trip-popup segment-popup">`;
 
     // From → To line
-    html += `<div class="popup-header">From ${fromDisplay} to ${toDisplay}</div>`;
+    html += `<div class="popup-header"><strong>${encodeText(message('Viewer.PopupFromTo', 'From {0} to {1}', fromDisplay, toDisplay))}</strong></div>`;
 
     // Mode and estimates
     html += `<div class="popup-details">`;
-    html += `<span class="text-muted">By:</span> ${modeDisplay}`;
+    html += `<span class="text-muted">${encodeText(message('Viewer.PopupTransport', 'By:'))}</span> ${modeDisplay}`;
     if (distance) {
-        html += ` · <span class="text-muted">Distance:</span> ${distance}`;
+        html += ` · <span class="text-muted">${encodeText(message('Viewer.PopupDistance', 'Distance:'))}</span> ${encodeText(distance)}`;
     }
     if (duration) {
-        html += ` · <span class="text-muted">Est. time:</span> ${duration}`;
+        html += ` · <span class="text-muted">${encodeText(message('Viewer.PopupTime', 'Est. time:'))}</span> ${encodeText(duration)}`;
     }
     html += `</div>`;
 
     // Notes preview if available
     if (hasNotes) {
-        html += `<div class="popup-notes"><span class="text-muted">Notes:</span> ${notesPreview}</div>`;
+        html += `<div class="popup-notes"><span class="text-muted">${encodeText(message('Shell.NotesLabel', 'Notes:'))}</span> ${notesPreview}</div>`;
     }
 
     // Footer hint
@@ -184,11 +185,11 @@ export const buildAreaPopup = ({ name, notes }) => {
     let html = `<div class="trip-popup area-popup">`;
 
     // Name (bold)
-    html += `<div class="popup-header"><strong>${name || 'Unnamed Area'}</strong></div>`;
+    html += `<div class="popup-header"><strong>${encodeText(name || message('Viewer.UnnamedArea', 'Unnamed Area'))}</strong></div>`;
 
     // Notes preview if available
     if (hasNotes) {
-        html += `<div class="popup-notes"><span class="text-muted">Notes:</span> ${notesPreview}</div>`;
+        html += `<div class="popup-notes"><span class="text-muted">${encodeText(message('Shell.NotesLabel', 'Notes:'))}</span> ${notesPreview}</div>`;
     }
 
     // Footer hint

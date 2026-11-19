@@ -384,4 +384,34 @@
   <data name="Shell.ShowSidebar" xml:space="preserve">
     <value>Εμφάνιση πλαϊνής στήλης</value>
   </data>
+  <data name="Shell.LatitudeShort" xml:space="preserve">
+    <value>Πλάτος:</value>
+  </data>
+  <data name="Shell.LongitudeShort" xml:space="preserve">
+    <value>Μήκος:</value>
+  </data>
+  <data name="Shell.AddressLabel" xml:space="preserve">
+    <value>Διεύθυνση:</value>
+  </data>
+  <data name="Shell.NotesLabel" xml:space="preserve">
+    <value>Σημειώσεις:</value>
+  </data>
+  <data name="Shell.ContainsMedia" xml:space="preserve">
+    <value>[Περιέχει πολυμέσα]</value>
+  </data>
+  <data name="Shell.MediaPrefix" xml:space="preserve">
+    <value>[Πολυμέσα] </value>
+  </data>
+  <data name="Shell.MapZoomLevel" xml:space="preserve">
+    <value>Εστίαση: {0}</value>
+  </data>
+  <data name="Shell.FullMap" xml:space="preserve">
+    <value>Άνοιγμα πλήρους προβολής</value>
+  </data>
+  <data name="Shell.FullMapNewTab" xml:space="preserve">
+    <value>Άνοιγμα πλήρους προβολής σε νέα καρτέλα</value>
+  </data>
+  <data name="Shell.MapInteraction" xml:space="preserve">
+    <value>Χρησιμοποιήστε δύο δάχτυλα για να μετακινήσετε τον χάρτη</value>
+  </data>
 </root>

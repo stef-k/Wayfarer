@@ -287,7 +287,6 @@ const init = () => {
     const pane = $('#sidebar-secondary');
     const detailsHtml = li => {
         const d = li.dataset;
-        const firstImg = (d.placeNotes || '').match(/<img[^>]+src="([^"]+)"/i)?.[1] || '';
         const iconUrl = `/icons/wayfarer-map-icons/dist/png/marker/${d.placeColor}/${d.placeIcon}.png`;
         const notesDiv = li.querySelector('.place-notes');
         const notesHtml = notesDiv?.innerHTML || '';
@@ -296,18 +295,17 @@ const init = () => {
   <div class="d-flex align-items-center gap-2 border-bottom px-2 py-2 bg-body-tertiary">
     <button class="btn btn-outline-secondary btn-sm btn-back" title="${encodeFeatureText(message('Viewer.Back', 'Back'))}" aria-label="${encodeFeatureText(message('Viewer.BackToLegend', 'Back to legend'))}">
       <i class="bi bi-arrow-left"></i></button>
-          <img src="${iconUrl}" width="24" height="38" alt="">
-      <div><strong>${d.placeName}</strong><br>
-           <small class="text-muted">${d.regionName}</small></div>
+          <img src="${encodeFeatureText(iconUrl)}" width="24" height="38" alt="">
+      <div><strong>${encodeFeatureText(d.placeName)}</strong><br>
+           <small class="text-muted">${encodeFeatureText(d.regionName)}</small></div>
   </div>
 
   <div class="p-3">
-<!--    ${firstImg ? `<img src="${firstImg}" class="img-fluid w-100 mb-2" alt="">` : ''}-->
 
-    <p class="mb-1"><strong>Lat:</strong> ${(+d.placeLat).toFixed(5)}
-       &nbsp;<strong>Lon:</strong> ${(+d.placeLon).toFixed(5)}</p>
-    ${d.placeAddress ? `<p class="mb-1"><strong>Address:</strong> ${d.placeAddress}</p>` : ''}
-    ${d.placeResolvedFeatureName ? `<p class="mb-1"><strong>Detected place:</strong> ${encodeFeatureText(d.placeResolvedFeatureName)}</p>` : ''}${featurePrecisionNotice(d.placeResolvedFeatureType) ? `<p class="mb-1" role="note">${featurePrecisionNotice(d.placeResolvedFeatureType)}</p>` : ''}
+    <p class="mb-1"><strong>${encodeFeatureText(message('Shell.LatitudeShort', 'Lat:'))}</strong> ${number(+d.placeLat, { maximumFractionDigits: 5 })}
+       &nbsp;<strong>${encodeFeatureText(message('Shell.LongitudeShort', 'Lon:'))}</strong> ${number(+d.placeLon, { maximumFractionDigits: 5 })}</p>
+    ${d.placeAddress ? `<p class="mb-1"><strong>${encodeFeatureText(message('Shell.AddressLabel', 'Address:'))}</strong> ${encodeFeatureText(d.placeAddress)}</p>` : ''}
+    ${d.placeResolvedFeatureName ? `<p class="mb-1">${encodeFeatureText(message('Viewer.DetectedPlace', 'Detected place: {0}', d.placeResolvedFeatureName))}</p>` : ''}${featurePrecisionNotice(d.placeResolvedFeatureType) ? `<p class="mb-1" role="note">${featurePrecisionNotice(d.placeResolvedFeatureType)}</p>` : ''}
 
     ${!isHtmlEmpty(notesHtml) ? `
        <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes rich-notes-content" >
