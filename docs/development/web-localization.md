@@ -75,6 +75,11 @@ for unsaved work.
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
+Area 1 verification covers language negotiation, preference writes, core draft
+guards, the live map lifecycle and selected Editor/Viewer presentation. Review
+remaining runtime messages, including server-owned Plan Check findings and
+rare Editor mutation and routing outcomes, before accepting Area 1 coverage.
+
 Use the current [#960 contract](https://github.com/stef-k/Wayfarer/issues/960)
 for the route, role and message-owner inventory. Keep untranslated destination
 content marked as English where practical. Record evidence when a delivery is

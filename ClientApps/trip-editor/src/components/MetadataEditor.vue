@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { editorErrorText } from './editorFeedbackText';
 import { editorFieldError } from '../editorValidation';
 import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
@@ -67,7 +68,7 @@ const metadataUnconfirmed = computed(() => draftState.metadataAttempt.value?.out
 const saveUnconfirmed = computed(() => metadataUnconfirmed.value || sharingUnconfirmed.value);
 /// Explain the held choice and explicit abandonment without promising remote rollback or settlement.
 const sharingHoldMessage = computed(() =>
-  `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? 'Enabled' : 'Disabled'}) is retained in this editor. ` +
+  `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled')}) is retained in this editor. ` +
   'Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. ' +
   'Leaving or reloading loses the retained choice and does not undo the earlier change.');
 const metadataHoldMessage = 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.';
@@ -85,12 +86,12 @@ const visibleShareProgressEnabled = computed({
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 /// Reports persisted share-progress state for read-only Trip summaries.
 const shareProgressSummary = computed(() => {
-  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
+  if (sharingUnconfirmed.value) return localize('Editor.ConfirmedStatus', 'Sharing change not confirmed');
   if (!props.metadata.isPublic) {
-    return 'Unavailable until trip is public';
+    return localize('Editor.ProgressNeedsPublic', 'Unavailable until trip is public');
   }
 
-  return props.metadata.shareProgressEnabled ? 'Enabled' : 'Disabled';
+  return props.metadata.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled');
 });
 const summaryProgressUrl = computed(() => (props.metadata.isPublic && props.metadata.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 const target = computed<EditorTarget>(() => ({
@@ -98,8 +99,8 @@ const target = computed<EditorTarget>(() => ({
   identity: 'metadata',
   kind: 'metadata',
   mode: 'edit',
-  title: `Edit Trip - ${props.metadata.name}`,
-  subtitle: props.metadata.isPublic ? 'Public trip' : 'Private trip'
+  title: localize('Editor.EditNamedTrip', 'Edit Trip - {0}', props.metadata.name),
+  subtitle: props.metadata.isPublic ? localize('Editor.PublicTrip', 'Public trip') : localize('Editor.PrivateTrip', 'Private trip')
 }));
 const isActive = computed(() => props.editorSurface.isTargetActive(target.value));
 
@@ -108,8 +109,8 @@ const statusText = computed(() => {
     return 'Saving...';
   }
 
-  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
-  if (metadataUnconfirmed.value) return 'Trip settings change not confirmed';
+  if (sharingUnconfirmed.value) return localize('Editor.ConfirmedStatus', 'Sharing change not confirmed');
+  if (metadataUnconfirmed.value) return localize('Editor.MetadataUnconfirmedStatus', 'Trip settings change not confirmed');
 
   if (saveError.value) {
     return 'Save failed';
@@ -260,7 +261,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
       validationErrors.value = error.errors;
       saveError.value = localize('Editor.InvalidForm', 'Review the highlighted fields before saving.');
     } else {
-      saveError.value = error instanceof Error ? error.message : 'Trip settings save failed.';
+      saveError.value = editorErrorText(error, 'Trip settings save failed.');
     }
   } finally {
     isSaving.value = false;
@@ -363,7 +364,7 @@ const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? [
   <section v-if="!isActive" class="trip-editor-panel trip-editor-editor-summary">
     <div>
       <h2>{{ localize("Editor.TripSettings", "Trip Settings") }}</h2>
-      <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
+      <p>{{ metadata.isPublic ? localize('Editor.PublicTrip', 'Public trip') : localize('Editor.PrivateTrip', 'Private trip') }}</p>
       <p>{{ localize("Editor.ShareProgressLabel", "Share progress:") }} {{ shareProgressSummary }}</p>
       <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
       <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
@@ -414,7 +415,7 @@ const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? [
           <div class="trip-editor-tags trip-editor-tags--editable">
             <span v-for="(tag, index) in draft.tags" :key="`${normalizeTagNameKey(tag)}-${index}`">
               {{ tag }}
-              <button type="button" :aria-label="`Remove tag ${tag}`" @click="removeTag(index)">{{ localize("Editor.Remove", "Remove") }}</button>
+              <button type="button" :aria-label="localize('Editor.RemoveTag', 'Remove tag {0}', tag)" @click="removeTag(index)">{{ localize("Editor.Remove", "Remove") }}</button>
             </span>
           </div>
           <div class="trip-editor-tag-entry">
@@ -477,7 +478,7 @@ const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? [
       <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">{{ localize("Editor.SaveSettingsContinue", "Save settings & Continue") }}</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">{{ localize("Editor.SaveSettingsExit", "Save settings & Exit") }}</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">{{ localize("Editor.CancelReset", "Cancel / Reset") }}</button>
-      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
+      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? localize('Editor.LeaveWithoutSaving', 'Leave without saving') : localize('Editor.BackToTrips', 'Back to Trips') }}</button>
     </template>
   </EditorSurface>
 </template>

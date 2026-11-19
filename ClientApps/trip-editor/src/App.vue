@@ -6,6 +6,7 @@ import { date } from '../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
 import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
+import { editorModeText } from './components/editorFeedbackText';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
@@ -64,25 +65,25 @@ const selectedPlace = computed(() => selectedPlaceId.value && state.value ? stat
 const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
 const toolbarEyebrow = computed(() => {
   if (editorSurface.mapWork.value) {
-    return 'Map work';
+    return localize('Editor.MapWork', 'Map work');
   }
 
   if (selectedPlace.value) {
-    return 'Selected place';
+    return localize('Editor.SelectedPlace', 'Selected place');
   }
 
   if (editorSurface.activeTarget.value) {
-    return `${editorSurface.activeTarget.value.mode === 'add' ? 'New' : 'Editing'} ${editorSurface.activeTarget.value.kind}`;
+    return editorModeText(editorSurface.activeTarget.value.kind, editorSurface.activeTarget.value.mode);
   }
 
-  return 'Map status';
+  return localize('Editor.MapStatus', 'Map status');
 });
 const toolbarTitle = computed(() => {
   if (editorSurface.mapWork.value) {
     return editorSurface.mapWork.value.modeName;
   }
 
-  return selectedPlace.value?.name ?? editorSurface.activeTarget.value?.title ?? 'Trip map';
+  return selectedPlace.value?.name ?? editorSurface.activeTarget.value?.title ?? localize('Editor.TripMap', 'Trip map');
 });
 const toolbarDetail = computed(() => {
   if (editorSurface.mapWork.value) {
@@ -95,14 +96,14 @@ const toolbarDetail = computed(() => {
   }
 
   if (selectedPlace.value) {
-    return selectedPlaceRegionName.value ? `In ${selectedPlaceRegionName.value}` : 'Selected on the map and sidebar';
+    return selectedPlaceRegionName.value ? localize('Editor.InsideRegion', 'In {0}', selectedPlaceRegionName.value) : localize('Editor.SelectedOnMap', 'Selected on the map and sidebar');
   }
 
   if (editorSurface.activeTarget.value?.subtitle) {
     return editorSurface.activeTarget.value.subtitle;
   }
 
-  return `Updated ${updatedLabel.value}`;
+  return localize('Editor.UpdatedAt', 'Updated {0}', updatedLabel.value);
 });
 const canFitAllGeometry = computed(() => Boolean(state.value && hasAnyGeometry(state.value)));
 const canRecenterSavedView = computed(() => Boolean(state.value && hasSavedTripView(state.value.metadata)));
@@ -194,7 +195,7 @@ const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPop
   activeSegmentDraft.value = null;
   mapAdapter?.setSegmentPresentation(state.value, null, null);
   mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
-  navigationStatus.value = `Selected place: ${state.value.placesById[placeId].name}`;
+  navigationStatus.value = localize('Editor.SelectedPlaceName', 'Selected place: {0}', state.value.placesById[placeId].name);
   return true;
 };
 

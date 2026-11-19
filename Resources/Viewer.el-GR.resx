@@ -252,9 +252,6 @@
   <data name="Viewer.ShowSegment" xml:space="preserve">
     <value>Εμφάνιση ή απόκρυψη τμήματος στον χάρτη</value>
   </data>
-  <data name="Viewer.UnassignedPlaces" xml:space="preserve">
-    <value>Τοποθεσίες χωρίς περιοχή</value>
-  </data>
   <data name="Viewer.Credits" xml:space="preserve">
     <value>Αναφορές δημιουργών</value>
   </data>
@@ -479,5 +476,35 @@
   </data>
   <data name="Viewer.UnknownMode" xml:space="preserve">
     <value>Άγνωστο</value>
+  </data>
+  <data name="Viewer.CloneTitle" xml:space="preserve">
+    <value>Αντιγραφή ταξιδιού</value>
+  </data>
+  <data name="Viewer.CloneQuestion" xml:space="preserve">
+    <value>Θέλετε να αντιγράψετε αυτό το ταξίδι στον λογαριασμό σας; Θα μπορείτε να επεξεργαστείτε το αντίγραφό σας.</value>
+  </data>
+  <data name="Viewer.Cloning" xml:space="preserve">
+    <value>Αντιγραφή…</value>
+  </data>
+  <data name="Viewer.CloneSignIn" xml:space="preserve">
+    <value>Συνδεθείτε για να αντιγράψετε το ταξίδι.</value>
+  </data>
+  <data name="Viewer.CloneFailed" xml:space="preserve">
+    <value>Η αντιγραφή του ταξιδιού απέτυχε. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Viewer.CloneMissing" xml:space="preserve">
+    <value>Το ταξίδι δεν βρέθηκε.</value>
+  </data>
+  <data name="Viewer.ClonePrivate" xml:space="preserve">
+    <value>Η αντιγραφή δεν είναι διαθέσιμη για αυτό το ιδιωτικό ταξίδι.</value>
+  </data>
+  <data name="Viewer.CloneOwned" xml:space="preserve">
+    <value>Το ταξίδι σάς ανήκει ήδη. Χρησιμοποιήστε τη δημιουργία αντιγράφου.</value>
+  </data>
+  <data name="Viewer.CloneSucceeded" xml:space="preserve">
+    <value>Το ταξίδι «{0}» αντιγράφηκε στον λογαριασμό σας.</value>
+  </data>
+  <data name="Viewer.ClonePartial" xml:space="preserve">
+    <value>Το ταξίδι «{0}» αντιγράφηκε στον λογαριασμό σας. Τα εξώφυλλα και οι ενσωματωμένες εικόνες παραλείφθηκαν επειδή δεν υπήρχε άδεια μεταβίβασης. Επιλέξτε εικόνες με άδεια για το αντίγραφό σας.</value>
   </data>
 </root>

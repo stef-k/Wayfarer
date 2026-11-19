@@ -62,8 +62,8 @@ const segment = { id: 'segment', tripId: 'trip', fromPlaceId: 'place', toPlaceId
   estimatedDurationSource: 'Manual', notesHtml: original, route, effectiveRoute: route, originalRouteToken: 'route',
   aggregateConcurrencyToken: 'aggregate', displayOrder: 1, capabilities, originalValues: { notesHtml: original } };
 const metadata = { id: 'trip', name: 'Trip', notesHtml: original, isPublic: false, shareProgressEnabled: false, coverImage: null,
-  center: null, zoom: null, updatedAt: '2026-11-03T00:00:00Z',
-  originalValues: { name: 'Trip', notesHtml: original, isPublic: false, coverImage: null, center: null, zoom: null } };
+  center: null, zoom: null, updatedAt: '2026-11-03T00:00:00Z', contributionPolicy: null, credits: [],
+  originalValues: { name: 'Trip', notesHtml: original, isPublic: false, coverImage: null, center: null, zoom: null, contributionPolicy: null, credits: [] } };
 const state = { tripId: 'trip', metadata, regionsById: { region }, regionOrder: ['region'], placesById: { place }, placeOrderByRegionId: { region: ['place'] },
   areasById: { area }, areaOrderByRegionId: { region: ['area'] }, segmentsById: { segment }, segmentOrder: ['segment'], tagsBySlug: {}, tagOrder: [],
   options: { transportModes: [{ value: 'walk', label: 'Walk' }], iconNames: ['marker'], markerColorClasses: ['bg-blue'],
@@ -278,16 +278,28 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           // A prop echo must leave the native document, range and undo stack live.
           const afterEcho = handle.editor.state.selection.eq(selection);
           let settle;
+          let dispatched;
+          const dispatch = new Promise(resolve => { dispatched = resolve; });
           const calls = [];
-          window.fetch = async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return new Promise(resolve => { settle = resolve; }); };
+          window.fetch = async (url, init) => {
+            calls.push({ url, method: init.method, body: JSON.parse(init.body) });
+            return new Promise(resolve => { settle = resolve; dispatched(); });
+          };
           const saving = owner[save](false);
-          handle.editor.commands.insertContent(' newer');
-          await Probe.nextTick();
-          parent.applyMutation(refreshedEnvelope);
-          await Probe.nextTick();
-          const duringRefresh = owner[draft].notesHtml;
-          const newerSelection = handle.editor.state.selection;
-          settle(new Response(JSON.stringify(savedEnvelope)));
+          // Metadata can await its publication decision before the request captures the draft.
+          await Promise.race([dispatch, saving.then(() => { throw new Error('Save completed without dispatching'); })]);
+          let duringRefresh;
+          let newerSelection;
+          try {
+            handle.editor.commands.insertContent(' newer');
+            await Probe.nextTick();
+            parent.applyMutation(refreshedEnvelope);
+            await Probe.nextTick();
+            duringRefresh = owner[draft].notesHtml;
+            newerSelection = handle.editor.state.selection;
+          } finally {
+            settle(new Response(JSON.stringify(savedEnvelope)));
+          }
           await saving;
           await Probe.nextTick();
           const afterSave = owner[draft].notesHtml;

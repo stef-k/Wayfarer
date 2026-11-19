@@ -71,3 +71,68 @@ test('browser print assigns authored title and active language through DOM text 
   assert.equal(target.title, title);
   assert.deepEqual(attributes.children, [{ tag: 'h5', textContent: title }, ...clone.childNodes]);
 });
+
+test('changed ordinary form guards preference writes and keeps the current document on cancel or failure', async () => {
+  const original = Object.fromEntries(['document', 'fetch', 'FormData', 'HTMLSelectElement', 'location', 'window'].map(name => [name, globalThis[name]]));
+  const handlers = new Map();
+  let focused;
+  const control = id => ({
+    hidden: false, dataset: {},
+    addEventListener: (event, callback) => handlers.set(`${id}:${event}`, callback),
+    setAttribute() {}, focus: () => { focused = id; }
+  });
+  const ids = ['language-dialog', 'language-form', 'language-open', 'language-cancel', 'language-keep',
+    'language-apply', 'language-confirm', 'language-options', 'language-discard', 'language-error'];
+  const controls = Object.fromEntries(ids.map(id => [id, control(id)]));
+  const form = controls['language-form'];
+  const dialog = controls['language-dialog'];
+  const input = { form: {}, type: 'text', value: 'saved title' };
+  const submits = [];
+  let reloads = 0;
+  let result = 500;
+  form.dataset.url = '/Language/Set';
+  form.reset = () => {};
+  dialog.dataset.safeGet = '';
+  dialog.showModal = () => { dialog.open = true; };
+  dialog.close = () => { dialog.open = false; handlers.get('language-dialog:close')(); };
+  globalThis.document = { getElementById: id => controls[id], querySelectorAll: () => [input], addEventListener() {} };
+  globalThis.location = { href: 'https://wayfarer.test/Account?returnUrl=%2Felsewhere#title', reload: () => { reloads++; } };
+  globalThis.window = { location: globalThis.location };
+  globalThis.HTMLSelectElement = class {};
+  globalThis.FormData = class { get(name) { assert.equal(name, 'locale'); return 'el-GR'; } };
+  globalThis.fetch = async (url, options) => {
+    submits.push({ url, method: options.method, busy: controls['language-apply'].disabled });
+    return { status: result };
+  };
+  try {
+    await import('../../wwwroot/js/localization/languageSelector.js');
+    const open = () => handlers.get('language-open:click')();
+    const submit = () => handlers.get('language-form:submit')({ preventDefault() {} });
+    input.value = 'draft <text>';
+    open();
+    await submit();
+    assert.equal(controls['language-confirm'].hidden, false);
+    assert.equal(focused, 'language-keep');
+    handlers.get('language-keep:click')();
+    assert.equal(focused, 'language-open');
+    assert.deepEqual(submits, []);
+    open();
+    await submit();
+    await submit();
+    assert.equal(dialog.open, true);
+    assert.equal(reloads, 0);
+    assert.equal(controls['language-error'].hidden, false);
+    assert.equal(input.value, 'draft <text>');
+    result = 204;
+    await submit();
+    assert.deepEqual(submits, Array(2).fill({ url: '/Language/Set', method: 'POST', busy: true }));
+    assert.equal(reloads, 1);
+    assert.equal(isLanguageUnload({}), true);
+    assert.equal(isLanguageUnload({}), false);
+  } finally {
+    for (const [key, value] of Object.entries(original)) {
+      if (value === undefined) Reflect.deleteProperty(globalThis, key);
+      else globalThis[key] = value;
+    }
+  }
+});

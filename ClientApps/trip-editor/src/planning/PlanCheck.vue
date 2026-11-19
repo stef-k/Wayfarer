@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { message as localize, number } from '../../../../wwwroot/js/localization/messages.js';
+import { planningFindingText } from './planningFindingText';
 import { computed, inject, onUnmounted } from 'vue';
 import type { EditorTripState } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
@@ -18,10 +19,10 @@ const { setup, result, busy, stale, choices, opened, error, storageNotice, dismi
 onUnmounted(review.dispose);
 const items = computed(() => result.value?.inventory ?? []);
 const byKey = computed(() => Object.fromEntries(items.value.map(i => [i.key, i])));
-const scope = computed(() => setup.value.selection === null ? 'Whole Trip · every current saved entry' : 'Explicit selection · remainder unassessed');
+const scope = computed(() => setup.value.selection === null ? localize('Editor.WholeTripScope', 'Whole Trip · every current saved entry') : localize('Editor.ExplicitScope', 'Explicit selection · remainder unassessed'));
 const findings = computed(() => (result.value?.findings ?? []).filter(f => showDismissed.value || !dismissed.value.includes(f.id)));
 const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || describePlanningTiming(item.entry.when)}`;
-const names = (keys: string[]): string => keys.map(key => byKey.value[key] ? label(byKey.value[key]!) : 'Removed entry').join(' → ');
+const names = (keys: string[]): string => keys.map(key => byKey.value[key] ? label(byKey.value[key]!) : localize('Editor.RemovedEntry', 'Removed entry')).join(' → ');
 /** Local refinement creates no planning aggregate and cannot become a protected save original. */
 const input = (key: string): CheckEntryInput => setup.value.entries[key] ??= {};
 const interpret = (key: string, field: keyof CheckEntryInput, value: unknown): void => {
@@ -91,7 +92,9 @@ const skip = (event: Event): void => {
       <p v-if="busy" role="status">{{ localize("Editor.CheckingSavedInformation", "Checking saved information…") }}</p>
       <p v-if="stale" role="status">{{ localize("Editor.ThisReviewIsStaleSavedFactsDrafts", "This review is stale: saved facts, drafts or check inputs changed. Check again for current results.") }}</p>
       <template v-if="result">
-        <p class="plan-check__summary" role="status">{{ summary.attention }} {{ localize("Editor.Findings", "findings ·") }} {{ summary.completed }} {{ localize("Editor.CompletedChecks", "completed checks ·") }} {{ summary.unknown }} {{ localize("Editor.Unknown", "Unknown ·") }} {{ summary.excluded }} {{ localize("Editor.EntriesExplicitlyUnassessed", "entries explicitly unassessed") }}</p>
+        <p class="plan-check__summary" role="status">{{ localize('Editor.CheckResultsSummary',
+          '{0} findings · {1} completed checks · {2} Unknown · {3} entries explicitly unassessed',
+          number(summary.attention), number(summary.completed), number(summary.unknown), number(summary.excluded)) }}</p>
         <p>{{ localize("Editor.ResultsApplyOnlyToTheListedEntries", "Results apply only to the listed entries and assumptions. They do not certify whole-Trip consistency, arrival or attention compatibility.") }}</p>
         <details v-if="result.reused.length || result.invalidated.length">
           <summary>{{ localize("Editor.UsingLastInputsReviewChange", "Using last inputs · review/change") }}</summary>
@@ -100,9 +103,9 @@ const skip = (event: Event): void => {
         </details>
         <div class="plan-check__results" :aria-label="localize('Editor.PlanningResults', 'Planning results')" aria-live="polite">
           <article v-for="finding in findings" :key="finding.id" class="plan-check__finding" :data-status="finding.result.status">
-            <strong>{{ finding.result.status === 'unknown' ? 'Unknown' : finding.result.status }} · {{ finding.check }}</strong>
+            <strong>{{ localize(`Editor.CheckStatus.${finding.result.status}`, finding.result.status === 'unknown' ? 'Unknown' : finding.result.status) }} · {{ finding.check }}</strong>
             <small>{{ names(finding.entries) }}</small>
-            <p>{{ finding.result.message }}</p>
+            <p>{{ planningFindingText(finding.result.message) }}</p>
             <button v-if="!dismissed.includes(finding.id) && !['completed', 'excluded'].includes(finding.result.status)" type="button" class="btn btn-outline-secondary btn-sm" @click="dismissed.push(finding.id)">{{ localize("Editor.DismissForThisReview", "Dismiss for this review") }}</button>
             <button v-if="finding.check === 'physical' && finding.result.status === 'unknown' && finding.result.message.includes('incompatible locations') && finding.entries.length === 2" type="button" class="btn btn-outline-light btn-sm" @click="incompatible(finding.entries)">{{ localize("Editor.TheseLocationsRequireSeparatePresence", "These locations require separate presence") }}</button>
           </article>

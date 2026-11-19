@@ -147,6 +147,30 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Equal("one", polish.PluralCategory(1));
     }
 
+    /// <summary>Navigation uses the same locale in each authenticated role without widening menu authority.</summary>
+    [Theory]
+    [InlineData("User", "Chronological", "Users")]
+    [InlineData("Manager", "Manager/Users", "Admin/Jobs")]
+    [InlineData("Admin", "Admin/Jobs", "Manager/Users")]
+    public async Task RoleNavigationSharesLocale(string role, string expected, string unrelated)
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings());
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, user.Id, role));
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
+        using var reply = await client.GetAsync("/Identity/Account/Login");
+        var page = await ParseAsync(reply);
+        Assert.Equal("Γλώσσα", page.QuerySelector("#language-open")?.TextContent);
+        var links = page.QuerySelectorAll("#mainNavbar a").Select(anchor => anchor.GetAttribute("href")).OfType<string>().ToArray();
+        Assert.Contains(links, href => href.Contains(expected, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(links, href => href.Contains(unrelated, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static FormUrlEncodedContent Form(string token, params (string Name, string Value)[] fields) =>
         new(fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value))
             .Append(new("__RequestVerificationToken", token)));

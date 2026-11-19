@@ -1,0 +1,13 @@
+@inject Wayfarer.Localization.WebMessages T
+@{
+    // Localized redirects carry a presentation identity instead of their initiating language.
+    var key = TempData["WebAlertKey"] as string;
+    var text = key is null ? TempData["AlertMessage"] as string : T[key, TempData["WebAlertArgument"]];
+}
+@if (text != null)
+{
+    <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
+        <span lang="@(key is null ? "en" : null)">@text</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T["Shell.Close"]"></button>
+    </div>
+}

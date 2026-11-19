@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { regionDisplayName } from '../regionDisplayName.js';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { EditorValidationError, searchGeocode } from '../api/tripEditorApi';
@@ -264,7 +265,7 @@ onUnmounted(() => {
         <span>{{ localize("Editor.TargetRegion", "Target region") }}</span>
         <select v-model="selectedRegionId" :disabled="eligibleRegions.length <= 1">
           <option v-if="eligibleRegions.length !== 1" value="">{{ localize("Editor.SelectRegion", "Select region") }}</option>
-          <option v-for="region in eligibleRegions" :key="region.id" :value="region.id">{{ region.name }}</option>
+          <option v-for="region in eligibleRegions" :key="region.id" :value="region.id">{{ regionDisplayName(region) }}</option>
         </select>
       </label>
       <p v-if="helperText" class="trip-editor-map-search__helper">{{ helperText }}</p>

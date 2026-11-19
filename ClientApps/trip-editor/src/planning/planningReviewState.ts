@@ -1,3 +1,4 @@
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, ref, watch } from 'vue';
 import type { EditorTripState } from '../types';
@@ -41,12 +42,12 @@ export const createPlanningReview = (options: {
   let assigning = false;
   let storage = options.storage;
   try { storage ??= globalThis.localStorage; }
-  catch { storageNotice.value = 'Device storage is unavailable; inputs last only in this open editor.'; }
+  catch { storageNotice.value = message('Editor.PlannerStorageUnavailable', 'Device storage is unavailable; inputs last only in this open editor.'); }
   const identity = (): string => `${options.state().ownerId ?? ''}/${options.state().tripId}`;
   const dirty = (): boolean => options.ordinaryDirty() || Boolean(options.workspace?.hasChanges.value);
   const held = computed(() => Object.values(options.workspace?.drafts ?? {}).some(d => d.pending || d.uncertain || d.deleted));
   const clearStorage = (): void => {
-    try { storage?.removeItem(storageKey); } catch { storageNotice.value = 'Device storage is unavailable; inputs last only in this open editor.'; }
+    try { storage?.removeItem(storageKey); } catch { storageNotice.value = message('Editor.PlannerStorageUnavailable', 'Device storage is unavailable; inputs last only in this open editor.'); }
   };
   /** Owner/Trip changes fence old replies and remove all private presentation before reading a new partition. */
   const reset = (): void => {
@@ -87,7 +88,7 @@ export const createPlanningReview = (options: {
     const request = ++position;
     const scope = identity();
     const ownerId = options.state().ownerId;
-    if (!ownerId) { error.value = 'Refresh the owner editor before checking.'; return; }
+    if (!ownerId) { error.value = message('Editor.PlannerRefreshOwner', 'Refresh the owner editor before checking.'); return; }
     busy.value = true;
     if (result.value) stale.value = true;
     error.value = null;
@@ -96,15 +97,15 @@ export const createPlanningReview = (options: {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json', RequestVerificationToken: options.antiforgery }, body: JSON.stringify(copy(setup.value)) });
       if (disposed || request !== position || scope !== identity() || scope !== partition) return;
       if (response.status === 401 || response.status === 403) {
-        reset(); clearStorage(); error.value = 'Owner access changed. Private check setup cleared; reload the editor.'; return;
+        reset(); clearStorage(); error.value = message('Editor.PlannerOwnerAccessChanged', 'Owner access changed. Private check setup cleared; reload the editor.'); return;
       }
-      if (!response.ok || response.redirected) throw new Error('Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.');
+      if (!response.ok || response.redirected) throw new PlanningCheckPresentationError(message('Editor.PlannerCheckFailed', 'Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.'));
       const reply = await response.json() as CheckResult;
       if (disposed || request !== position || scope !== identity()) return;
-      if (reply.ownerId !== ownerId) { reset(); clearStorage(); error.value = 'Owner changed. Private check setup cleared; reload the editor.'; return; }
+      if (reply.ownerId !== ownerId) { reset(); clearStorage(); error.value = message('Editor.PlannerOwnerChanged', 'Owner changed. Private check setup cleared; reload the editor.'); return; }
       if (reply.contract !== 'planning-check-1' || reply.tripId !== options.state().tripId || !Array.isArray(reply.inventory) || !Array.isArray(reply.findings)
         || !reply.setup || !Array.isArray(reply.reused) || !Array.isArray(reply.invalidated)
-        || !Array.isArray(reply.estimateSources) || !Array.isArray(reply.movementEvidence)) throw new Error('Check result is incomplete. Saved planning is unchanged.');
+        || !Array.isArray(reply.estimateSources) || !Array.isArray(reply.movementEvidence)) throw new PlanningCheckPresentationError(message('Editor.PlannerIncomplete', 'Check result is incomplete. Saved planning is unchanged.'));
       assigning = true;
       setup.value = copy(reply.setup);
       assigning = false;
@@ -114,14 +115,14 @@ export const createPlanningReview = (options: {
       stale.value = false;
       try {
         const wire = JSON.stringify({ ownerId, tripId: reply.tripId, setup: reply.setup });
-        if (wire.length > 262144) { clearStorage(); storageNotice.value = 'This setup exceeds device retention; it lasts only in this editor.'; }
+        if (wire.length > 262144) { clearStorage(); storageNotice.value = message('Editor.PlannerSize', 'This setup exceeds device retention; it lasts only in this editor.'); }
         else if (storage) {
           storage.setItem(storageKey, wire);
           retainedSetup = JSON.stringify(reply.setup);
         }
-      } catch { storageNotice.value = 'Device storage is unavailable; inputs last only in this open editor.'; }
+      } catch { storageNotice.value = message('Editor.PlannerStorageUnavailable', 'Device storage is unavailable; inputs last only in this open editor.'); }
     } catch (failure) {
-      if (!disposed && scope === identity() && request === position) error.value = failure instanceof Error ? failure.message : 'Review unavailable.';
+      if (!disposed && scope === identity() && request === position) error.value = failure instanceof PlanningCheckPresentationError ? failure.message : message('Editor.PlannerCheckFailed', 'Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.');
     } finally { if (request === position) busy.value = false; }
   };
 
@@ -148,11 +149,11 @@ export const createPlanningReview = (options: {
       && intended.every(saved => options.workspace?.drafts[saved.key] === saved.draft && samePlanning(version(saved.draft), saved.version));
     const retainChoice = (): void => {
       choices.value = true;
-      error.value = 'Changes remain unsaved or unconfirmed. Use their existing save controls, check the saved version, or return to editing.';
+      error.value = message('Editor.PlannerDrafts', 'Changes remain unsaved or unconfirmed. Use their existing save controls, check the saved version, or return to editing.');
     };
     try { await options.saveOrdinary(); }
     catch {
-      if (scope === identity() && !disposed) error.value = 'The ordinary save did not complete. Drafts remain separate; use their save controls or check the saved version.';
+      if (scope === identity() && !disposed) error.value = message('Editor.PlannerOrdinaryFailed', 'The ordinary save did not complete. Drafts remain separate; use their save controls or check the saved version.');
       return;
     }
     if (scope !== identity() || disposed) return;
@@ -168,7 +169,7 @@ export const createPlanningReview = (options: {
     if (!applicable() || dirty()) { retainChoice(); return; }
     await run();
   };
-  const clear = (): void => { reset(); clearStorage(); };
+  const clear = (): void => { reset(); clearStorage(); retainedSetup = JSON.stringify(setup.value); };
   const dispose = (): void => { disposed = true; position++; unregisterLanguageDraft(); stopIdentity(); stopFacts(); stopDrafts(); stopInputs(); };
   const summary = computed(() => {
     const findings = result.value?.findings ?? [];
@@ -182,3 +183,6 @@ export const createPlanningReview = (options: {
   return { setup, result, busy, stale, choices, opened, error, storageNotice, dismissed, showDismissed, held, summary,
     request, run, saveAndCheck, clear, dispose, hasDrafts: computed(dirty) };
 };
+
+/** A checked, localized explanation that is safe to display. */
+class PlanningCheckPresentationError extends Error {}

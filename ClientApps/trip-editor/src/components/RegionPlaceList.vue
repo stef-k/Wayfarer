@@ -269,7 +269,7 @@ function reorderLocked(): boolean {
 /// Resolves a visible region label from the complete authoritative or transient normal-region order.
 function regionLabel(region: EditorRegion): string {
   if (region.isShadow) {
-    return `0-${region.name}`;
+    return `0-${localize('Shell.UnassignedPlaces', 'Unassigned Places')}`;
   }
 
   const ids = optimisticRegionIds.value

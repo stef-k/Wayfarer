@@ -6,7 +6,7 @@
     // Coordinates stay in the map's invariant wire format.
     var lat = Model.Center?.Y.ToString(System.Globalization.CultureInfo.InvariantCulture);
     var lon = Model.Center?.X.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    var regionName = ItineraryPresentation.IsShadowRegion(Model) ? T["Viewer.UnassignedPlaces"] : Model.Name;
+    var regionName = ItineraryPresentation.IsShadowRegion(Model) ? T["Shell.UnassignedPlaces"] : Model.Name;
 
     /* helpers for Wayfarer marker PNG */
     string SafeIcon(string? icon) => string.IsNullOrWhiteSpace(icon) ? "marker" : icon.Trim();

@@ -188,7 +188,10 @@
                                                       asp-route-id="@Model.Id"
                                                       method="post"
                                                       class="d-inline"
-                                                      id="clone-trip-form">
+                                                      id="clone-trip-form"
+                                                      data-confirm-title="@T["Viewer.CloneTitle"]"
+                                                      data-confirm-message="@T["Viewer.CloneQuestion"]"
+                                                      data-cloning="@T["Viewer.Cloning"]">
                                                     <button type="submit"
                                                             class="dropdown-item"
                                                             title="@T["Viewer.CloneTrip"]">
@@ -465,7 +468,7 @@
                             continue;
                         }
                         <div class="region-readable mb-4 pb-3 border-bottom">
-                            <h5 class="mb-2 itinerary-region-label">@ItineraryPresentation.Label(ItineraryPresentation.RegionOrdinal(region, itineraryRegions), ItineraryPresentation.IsShadowRegion(region) ? T["Viewer.UnassignedPlaces"] : region.Name)</h5>
+                            <h5 class="mb-2 itinerary-region-label">@ItineraryPresentation.Label(ItineraryPresentation.RegionOrdinal(region, itineraryRegions), ItineraryPresentation.IsShadowRegion(region) ? T["Shell.UnassignedPlaces"] : region.Name)</h5>
 
                             @if (!string.IsNullOrWhiteSpace(region.CoverImageUrl))
                             {
@@ -579,7 +582,7 @@
 
                             <div class="mb-3 visit-region-block">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="fw-semibold">@(ItineraryPresentation.IsShadowRegion(region) ? T["Viewer.UnassignedPlaces"] : region.Name)</span>
+                                    <span class="fw-semibold">@(ItineraryPresentation.IsShadowRegion(region) ? T["Shell.UnassignedPlaces"] : region.Name)</span>
                                     <span class="text-muted small">@T.DisplayNumber(regionVisitedCount) / @T.DisplayNumber(regionPlaces.Count)</span>
                                 </div>
                                 <div class="progress mb-2" style="height: 6px;">
@@ -713,7 +716,7 @@
 
                         <div class="mb-3">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="fw-semibold">@(ItineraryPresentation.IsShadowRegion(region) ? T["Viewer.UnassignedPlaces"] : region.Name)</span>
+                                <span class="fw-semibold">@(ItineraryPresentation.IsShadowRegion(region) ? T["Shell.UnassignedPlaces"] : region.Name)</span>
                                 <span class="text-muted small">@T.DisplayNumber(regionVisitedCount) / @T.DisplayNumber(regionPlaces.Count)</span>
                             </div>
                             <div class="progress" style="height: 8px;">
@@ -741,14 +744,14 @@
             const btn = form.querySelector('button[type="submit"]');
 
             wayfarer.showConfirmationModal({
-                title: 'Clone Trip',
-                message: 'Clone this trip to your account? You will be able to edit and customize your copy.',
-                confirmText: 'Clone Trip',
+                title: form.dataset.confirmTitle,
+                message: form.dataset.confirmMessage,
+                confirmText: form.dataset.confirmTitle,
                 onConfirm: function() {
                     // Show loading state
                     if (btn) {
                         btn.disabled = true;
-                        btn.innerHTML = '<i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Cloning...';
+                        btn.textContent = form.dataset.cloning;
                     }
                     form.submit();
                 }

@@ -107,13 +107,7 @@
             </header>
         }
         <div class="site-content @(ViewData["BodyClass"] as string ?? "container")">
-            @if (TempData["AlertMessage"] != null)
-            {
-                <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
-                    @TempData["AlertMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T["Shell.Close"]"></button>
-                </div>
-            }
+            <partial name="_SiteAlert" />
             <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
                 <span id="alertMessage"></span>
                 <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="@T["Shell.Close"]"></button>

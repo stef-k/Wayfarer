@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { editorStatusText } from './editorFeedbackText';
+import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { deleteSegment, orderSegments } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
@@ -606,7 +607,7 @@ function conflictJourney(segment: EditorSegment): string {
 }
 
 function markSaved(): void {
-  lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+  lastSavedAt.value = date(new Date(), { timeStyle: 'short' });
   saveError.value = null;
 }
 
@@ -625,7 +626,7 @@ function modeText(segment: EditorSegment): string {
   <section class="trip-editor-panel">
     <div class="trip-editor-panel__line">
       <h2>{{ localize("Editor.Segments", "Segments") }}</h2>
-      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ editorStatusText(statusText) }}</span>
     </div>
     <div v-if="saveError" id="segment-route-work-error" class="trip-editor-form-error" role="alert" tabindex="-1">{{ saveError }}</div>
     <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">

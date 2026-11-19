@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { regionDisplayName } from '../regionDisplayName.js';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, inject, ref, watch } from 'vue';
 import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
@@ -90,7 +91,7 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
   };
 
   for (const region of orderedVisibleRegions(props.state)) {
-    const regionMatches = includesSearch(region.name, normalizedSearchQuery.value);
+    const regionMatches = includesSearch(regionDisplayName(region), normalizedSearchQuery.value);
     const places = orderedPlaces(props.state, region.id);
     const areas = orderedAreas(props.state, region.id);
     const matchingPlaces = regionMatches ? places : places.filter(place => matchesPlace(place, normalizedSearchQuery.value));
@@ -277,14 +278,14 @@ function normalize(value: string): string {
         <p class="trip-editor-sidebar__eyebrow">{{ localize("Editor.Title", "Trip Editor") }}</p>
         <h1>{{ state.metadata.name }}</h1>
       </div>
-      <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>
+      <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? localize('Editor.TripPublic', 'Public') : localize('Editor.TripPrivate', 'Private') }}</span>
     </header>
 
     <template v-if="!mobileDrawerActive">
       <section class="trip-editor-panel trip-editor-sidebar-search">
         <label class="trip-editor-field">
           <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
-          <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+          <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
         </label>
         <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
       </section>
@@ -360,7 +361,7 @@ function normalize(value: string): string {
           <section v-if="mobileDrawerActive" class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
               <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
-              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
             </label>
             <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
           </section>
@@ -391,7 +392,7 @@ function normalize(value: string): string {
           <section v-if="mobileDrawerActive" class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
               <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
-              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
             </label>
             <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
           </section>

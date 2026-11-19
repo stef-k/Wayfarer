@@ -127,13 +127,13 @@ function applyUrl(): void {
   if (!handle) return;
   const value = url.value.trim();
   if (!value || dialogKind.value === 'link' && !isSafeNotesLink(value)) {
-    dialogError.value = 'Enter a safe link or HTTP(S) image URL.';
+    dialogError.value = localize('Shell.NoteSafeLink', 'Enter a safe link or HTTP(S) image URL.');
     return;
   }
   handle.restoreSelection();
   const success = dialogKind.value === 'image' ? handle.insertImage(value)
     : handle.editor.chain().focus().extendMarkRange('link').setLink({ href: value }).run();
-  if (!success) { dialogError.value = 'Enter an absolute HTTP(S) image URL.'; return; }
+  if (!success) { dialogError.value = localize('Shell.NoteAbsoluteImage', 'Enter an absolute HTTP(S) image URL.'); return; }
   handle.saveSelection();
   dialog.value?.close();
 }
@@ -149,14 +149,14 @@ function unlink(): void {
 function followLink(): void {
   const value = url.value.trim();
   if (value && isSafeNotesLink(value)) window.open(value, '_blank', 'noopener,noreferrer');
-  else dialogError.value = 'Enter a safe link before following it.';
+  else dialogError.value = localize('Shell.NoteFollowSafeLink', 'Enter a safe link before following it.');
 }
 </script>
 
 <template>
   <div class="trip-editor-field trip-editor-rich-notes" :data-rich-notes-editor="props.editorId">
     <span :id="labelId">{{ props.label }}</span>
-    <div class="rich-notes-toolbar" role="toolbar" :aria-label="`${props.label} formatting`" @pointerdown="keepSelection">
+    <div class="rich-notes-toolbar" role="toolbar" :aria-label="localize('Shell.NoteFormatting', '{0} formatting', props.label)" @pointerdown="keepSelection">
       <select :aria-label="localize('Shell.Heading', 'Heading')" :value="controls.heading" @change="choose('heading', $event)">
         <option value="0">{{ localize("Shell.Paragraph", "Paragraph") }}</option><option v-for="level in 6" :key="level" :value="level">{{ localize("Shell.Heading", "Heading") }} {{ level }}</option>
       </select>
@@ -185,14 +185,14 @@ function followLink(): void {
     <Teleport to="body">
       <dialog ref="dialog" class="trip-editor-rich-notes-dialog" :aria-labelledby="`${instanceId}-dialog-title`" @close="closeDialog">
         <form class="trip-editor-rich-notes-dialog__panel" novalidate @submit.prevent="applyUrl">
-          <h2 :id="`${instanceId}-dialog-title`">{{ dialogKind === 'image' ? 'Insert image URL' : 'Edit link' }}</h2>
+          <h2 :id="`${instanceId}-dialog-title`">{{ dialogKind === 'image' ? localize('Shell.NoteInsertImageUrl', 'Insert image URL') : localize('Shell.NoteEditLink', 'Edit link') }}</h2>
           <label class="trip-editor-field">
-            <span>{{ dialogKind === 'image' ? 'Image URL' : 'Link URL' }}</span>
+            <span>{{ dialogKind === 'image' ? localize('Shell.NoteImageUrl', 'Image URL') : localize('Shell.NoteLinkUrl', 'Link URL') }}</span>
             <input ref="urlInput" v-model="url" type="text" autocomplete="off" :aria-describedby="dialogError ? `${instanceId}-dialog-error` : undefined" />
           </label>
           <p v-if="dialogError" :id="`${instanceId}-dialog-error`" role="alert">{{ dialogError }}</p>
           <div class="trip-editor-rich-notes-dialog__actions">
-            <button type="submit" class="btn btn-primary btn-sm">{{ dialogKind === 'image' ? 'Insert Image' : 'Apply' }}</button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ dialogKind === 'image' ? localize('Shell.NoteInsertImage', 'Insert Image') : localize('Shell.Apply', 'Apply') }}</button>
             <button v-if="dialogKind === 'link'" type="button" class="btn btn-outline-secondary btn-sm" @click="unlink">{{ localize("Shell.Unlink", "Unlink") }}</button>
             <button v-if="dialogKind === 'link'" type="button" class="btn btn-outline-secondary btn-sm" @click="followLink">{{ localize("Shell.FollowLink", "Follow link") }}</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" @click="dialog?.close()">{{ localize("Shell.Cancel", "Cancel") }}</button>

@@ -75,7 +75,7 @@ public sealed class TripPdfBrowserTests : TestBase
         Assert.DoesNotContain("region_" + rendered.Regions.Last().Id, rendered.Snap.Keys);
         runtime.Chromium.Verify(c => c.LaunchAsync(It.IsAny<BrowserTypeLaunchOptions>()), Times.Once);
         runtime.Browser.Verify(b => b.NewContextAsync(It.Is<BrowserNewContextOptions>(o =>
-            o.ServiceWorkers == ServiceWorkerPolicy.Block && o.AcceptDownloads == false)), Times.Exactly(65));
+            o.ServiceWorkers == ServiceWorkerPolicy.Block && o.AcceptDownloads == false && o.Locale == "en-US")), Times.Exactly(65));
         runtime.Page.Verify(p => p.EvaluateAsync<string>(It.IsAny<string>(), It.IsAny<object>()), Times.Exactly(64));
         runtime.Page.Verify(p => p.PdfAsync(It.IsAny<PagePdfOptions>()), Times.Once);
         runtime.Browser.Verify(b => b.CloseAsync(It.IsAny<BrowserCloseOptions>()), Times.Once);

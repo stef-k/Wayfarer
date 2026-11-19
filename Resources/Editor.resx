@@ -790,7 +790,7 @@
     <value>No saved planning entries in this Trip.</value>
   </data>
   <data name="Editor.Saved" xml:space="preserve">
-    <value>Saved:</value>
+    <value>Saved</value>
   </data>
   <data name="Editor.AssessThisEntryForThisCheck" xml:space="preserve">
     <value>Assess this entry for this check</value>
@@ -1007,5 +1007,308 @@
   </data>
   <data name="Editor.SaveError" xml:space="preserve">
     <value>Trip settings save failed.</value>
+  </data>
+  <data name="Editor.SelectedPlace" xml:space="preserve">
+    <value>Selected place</value>
+  </data>
+  <data name="Editor.MapStatus" xml:space="preserve">
+    <value>Map status</value>
+  </data>
+  <data name="Editor.SelectedOnMap" xml:space="preserve">
+    <value>Selected on the map and sidebar</value>
+  </data>
+  <data name="Editor.InsideRegion" xml:space="preserve">
+    <value>In {0}</value>
+  </data>
+  <data name="Editor.UpdatedAt" xml:space="preserve">
+    <value>Updated {0}</value>
+  </data>
+  <data name="Editor.SelectedPlaceName" xml:space="preserve">
+    <value>Selected place: {0}</value>
+  </data>
+  <data name="Editor.MapWorkActive" xml:space="preserve">
+    <value>Map work active</value>
+  </data>
+  <data name="Editor.ExpandedActive" xml:space="preserve">
+    <value>Expanded editor active</value>
+  </data>
+  <data name="Editor.Saving" xml:space="preserve">
+    <value>Saving...</value>
+  </data>
+  <data name="Editor.SavingOrder" xml:space="preserve">
+    <value>Saving order...</value>
+  </data>
+  <data name="Editor.SaveFailed" xml:space="preserve">
+    <value>Save failed</value>
+  </data>
+  <data name="Editor.UnsavedChanges" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="Editor.SavedAt" xml:space="preserve">
+    <value>Saved {0}</value>
+  </data>
+  <data name="Editor.SavedWithWarning" xml:space="preserve">
+    <value>{0} with warning</value>
+  </data>
+  <data name="Editor.PlanningPending" xml:space="preserve">
+    <value>Planning save pending</value>
+  </data>
+  <data name="Editor.PlanningUnconfirmed" xml:space="preserve">
+    <value>Planning save not confirmed</value>
+  </data>
+  <data name="Editor.PlanningDeleted" xml:space="preserve">
+    <value>Deleted target Planning retained</value>
+  </data>
+  <data name="Editor.PlanningUnsaved" xml:space="preserve">
+    <value>Planning unsaved</value>
+  </data>
+  <data name="Editor.PlanningAndOtherStatus" xml:space="preserve">
+    <value>{0}; other changes: {1}</value>
+  </data>
+  <data name="Editor.ConfirmedStatus" xml:space="preserve">
+    <value>Sharing change not confirmed</value>
+  </data>
+  <data name="Editor.MetadataUnconfirmedStatus" xml:space="preserve">
+    <value>Trip settings change not confirmed</value>
+  </data>
+  <data name="Editor.ProgressNeedsPublic" xml:space="preserve">
+    <value>Unavailable until trip is public</value>
+  </data>
+  <data name="Editor.Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Editor.Disabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="Editor.RemoveTag" xml:space="preserve">
+    <value>Remove tag {0}</value>
+  </data>
+  <data name="Editor.EmptyTripPlaces" xml:space="preserve">
+    <value>No places in this trip yet.</value>
+  </data>
+  <data name="Editor.EmptyVisitedPlaces" xml:space="preserve">
+    <value>No visited places yet.</value>
+  </data>
+  <data name="Editor.AllPlacesVisited" xml:space="preserve">
+    <value>All places have visits.</value>
+  </data>
+  <data name="Editor.UnknownRegion" xml:space="preserve">
+    <value>Unknown region</value>
+  </data>
+  <data name="Editor.Unavailable" xml:space="preserve">
+    <value>Not available</value>
+  </data>
+  <data name="Editor.VisitOpen" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Editor.DurationUnavailable" xml:space="preserve">
+    <value>Duration unavailable</value>
+  </data>
+  <data name="Editor.VisitDurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="Editor.VisitDurationHours" xml:space="preserve">
+    <value>{0} hr</value>
+  </data>
+  <data name="Editor.VisitDurationHoursMinutes" xml:space="preserve">
+    <value>{0} hr {1} min</value>
+  </data>
+  <data name="Editor.DiscardBeforeManagingVisit" xml:space="preserve">
+    <value>Discard unsaved editor changes before managing this visit?</value>
+  </data>
+  <data name="Editor.RegionVisitProgress" xml:space="preserve">
+    <value>{0} visit progress</value>
+  </data>
+  <data name="Editor.VisitCount.one" xml:space="preserve">
+    <value>{0} visit</value>
+  </data>
+  <data name="Editor.VisitCount.other" xml:space="preserve">
+    <value>{0} visits</value>
+  </data>
+  <data name="Editor.NewEntity" xml:space="preserve">
+    <value>New {0}</value>
+  </data>
+  <data name="Editor.EditingEntity" xml:space="preserve">
+    <value>Editing {0}</value>
+  </data>
+  <data name="Editor.EntityMetadata" xml:space="preserve">
+    <value>metadata</value>
+  </data>
+  <data name="Editor.EntityRegion" xml:space="preserve">
+    <value>region</value>
+  </data>
+  <data name="Editor.EntityPlace" xml:space="preserve">
+    <value>place</value>
+  </data>
+  <data name="Editor.EntityArea" xml:space="preserve">
+    <value>area</value>
+  </data>
+  <data name="Editor.EntitySegment" xml:space="preserve">
+    <value>segment</value>
+  </data>
+  <data name="Editor.InvalidCenter" xml:space="preserve">
+    <value>Latitude and longitude must be supplied together.</value>
+  </data>
+  <data name="Editor.SessionEnded" xml:space="preserve">
+    <value>Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.</value>
+  </data>
+  <data name="Editor.Conflict" xml:space="preserve">
+    <value>Your changes could not be saved because the Trip changed. Review the current version before trying again.</value>
+  </data>
+  <data name="Editor.ChangeUnavailable" xml:space="preserve">
+    <value>This Trip or item is no longer available.</value>
+  </data>
+  <data name="Editor.ChangeUnconfirmed" xml:space="preserve">
+    <value>The change could not be confirmed. Keep your draft and review the current state before trying again.</value>
+  </data>
+  <data name="Editor.SavedWarning" xml:space="preserve">
+    <value>Saved with a warning. Review the saved item before continuing.</value>
+  </data>
+  <data name="Editor.SearchTripEntities" xml:space="preserve">
+    <value>Search regions, places, areas, segments</value>
+  </data>
+  <data name="Editor.TripPublic" xml:space="preserve">
+    <value>Public</value>
+  </data>
+  <data name="Editor.TripPrivate" xml:space="preserve">
+    <value>Private</value>
+  </data>
+  <data name="Editor.EditNamedTrip" xml:space="preserve">
+    <value>Edit Trip - {0}</value>
+  </data>
+  <data name="Editor.BackToTrips" xml:space="preserve">
+    <value>Back to Trips</value>
+  </data>
+  <data name="Editor.PlannerStorageUnavailable" xml:space="preserve">
+    <value>Device storage is unavailable; inputs last only in this open editor.</value>
+  </data>
+  <data name="Editor.PlannerRefreshOwner" xml:space="preserve">
+    <value>Refresh the owner editor before checking.</value>
+  </data>
+  <data name="Editor.PlannerOwnerAccessChanged" xml:space="preserve">
+    <value>Owner access changed. Private check setup cleared; reload the editor.</value>
+  </data>
+  <data name="Editor.PlannerOwnerChanged" xml:space="preserve">
+    <value>Owner changed. Private check setup cleared; reload the editor.</value>
+  </data>
+  <data name="Editor.PlannerCheckFailed" xml:space="preserve">
+    <value>Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.</value>
+  </data>
+  <data name="Editor.PlannerIncomplete" xml:space="preserve">
+    <value>Check result is incomplete. Saved planning is unchanged.</value>
+  </data>
+  <data name="Editor.PlannerSize" xml:space="preserve">
+    <value>This setup exceeds device retention; it lasts only in this editor.</value>
+  </data>
+  <data name="Editor.PlannerUnavailable" xml:space="preserve">
+    <value>Review unavailable.</value>
+  </data>
+  <data name="Editor.PlannerDrafts" xml:space="preserve">
+    <value>Changes remain unsaved or unconfirmed. Use their existing save controls, check the saved version, or return to editing.</value>
+  </data>
+  <data name="Editor.PlannerOrdinaryFailed" xml:space="preserve">
+    <value>The ordinary save did not complete. Drafts remain separate; use their save controls or check the saved version.</value>
+  </data>
+  <data name="Editor.WholeTripScope" xml:space="preserve">
+    <value>Whole Trip · every current saved entry</value>
+  </data>
+  <data name="Editor.ExplicitScope" xml:space="preserve">
+    <value>Explicit selection · remainder unassessed</value>
+  </data>
+  <data name="Editor.RemovedEntry" xml:space="preserve">
+    <value>Removed entry</value>
+  </data>
+  <data name="Editor.CheckResultsSummary" xml:space="preserve">
+    <value>{0} findings · {1} completed checks · {2} Unknown · {3} entries explicitly unassessed</value>
+  </data>
+  <data name="Editor.CheckStatus.completed" xml:space="preserve">
+    <value>completed</value>
+  </data>
+  <data name="Editor.CheckStatus.unknown" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Editor.CheckStatus.inconsistent" xml:space="preserve">
+    <value>inconsistent</value>
+  </data>
+  <data name="Editor.CheckStatus.possible" xml:space="preserve">
+    <value>possible</value>
+  </data>
+  <data name="Editor.CheckStatus.mismatch" xml:space="preserve">
+    <value>mismatch</value>
+  </data>
+  <data name="Editor.CheckStatus.contradiction" xml:space="preserve">
+    <value>contradiction</value>
+  </data>
+  <data name="Editor.CheckStatus.risk" xml:space="preserve">
+    <value>risk</value>
+  </data>
+  <data name="Editor.CheckStatus.excluded" xml:space="preserve">
+    <value>excluded</value>
+  </data>
+  <data name="Editor.ParentWindowSelect" xml:space="preserve">
+    <value>Choose explicitly relevant parent windows; ownership alone imposes no constraint.</value>
+  </data>
+  <data name="Editor.ParentWindowPlacements" xml:space="preserve">
+    <value>More than 256 admissible placements; refine the selected windows or folds.</value>
+  </data>
+  <data name="Editor.ParentWindowFrame" xml:space="preserve">
+    <value>Child and selected windows need the same explicit instant or interpreted civil frame.</value>
+  </data>
+  <data name="Editor.ParentWindowInside" xml:space="preserve">
+    <value>Complete child coverage is inside the selected parent-window union.</value>
+  </data>
+  <data name="Editor.ParentWindowPossible" xml:space="preserve">
+    <value>Some supported placements exceed the selected union; others are contained. Resolve the fold for certainty.</value>
+  </data>
+  <data name="Editor.PhysicalFrame" xml:space="preserve">
+    <value>Occupation needs a common comparable frame.</value>
+  </data>
+  <data name="Editor.PhysicalNoOverlap" xml:space="preserve">
+    <value>No occupied overlap in these placements. Adjacency establishes no transfer time.</value>
+  </data>
+  <data name="Editor.PhysicalPremises" xml:space="preserve">
+    <value>Occupied overlap needs an explicit single-traveller premise and assessed incompatible locations.</value>
+  </data>
+  <data name="Editor.PhysicalContradiction" xml:space="preserve">
+    <value>One traveller requires simultaneous presence at assessed incompatible locations.</value>
+  </data>
+  <data name="Editor.PhysicalPossible" xml:space="preserve">
+    <value>Some supported placements require simultaneous presence at incompatible locations.</value>
+  </data>
+  <data name="Editor.TravelZones" xml:space="preserve">
+    <value>Elapsed travel needs resolved zones.</value>
+  </data>
+  <data name="Editor.TravelAllNegative" xml:space="preserve">
+    <value>Every supported gap is negative.</value>
+  </data>
+  <data name="Editor.TravelFold" xml:space="preserve">
+    <value>Travel gap depends on an unresolved fold; choose the occurrence.</value>
+  </data>
+  <data name="Editor.TravelAllowanceUnknown" xml:space="preserve">
+    <value>Allowance or necessary connection information remains unknown; known estimate risk is retained.</value>
+  </data>
+  <data name="Editor.CheckPlacementsUnavailable" xml:space="preserve">
+    <value>No supported placements.</value>
+  </data>
+  <data name="Editor.CheckMeaningUnknown" xml:space="preserve">
+    <value>Meaning is unspecified. Clarify only for this check, or leave unresolved.</value>
+  </data>
+  <data name="Editor.CheckStayOverlap" xml:space="preserve">
+    <value>Stay availability/planning windows do not imply continuous physical presence; overlaps are legitimate.</value>
+  </data>
+  <data name="Editor.CheckJourneySelect" xml:space="preserve">
+    <value>Journey intention is retained; choose related movement entries to assess travel. Via Places are not timed stops.</value>
+  </data>
+  <data name="Editor.CheckPairSelect" xml:space="preserve">
+    <value>Movement has no selected pair. Choose release → arrival entries; display order does not establish travel.</value>
+  </data>
+  <data name="Editor.CheckOutsideSelection" xml:space="preserve">
+    <value>Explicitly outside this temporary selection; remains saved and unassessed.</value>
+  </data>
+  <data name="Editor.CheckPairOutside" xml:space="preserve">
+    <value>Movement pair is outside this selection.</value>
+  </data>
+  <data name="Editor.CheckDetailFallback" xml:space="preserve">
+    <value>Review the listed entries and check assumptions for this result.</value>
   </data>
 </root>

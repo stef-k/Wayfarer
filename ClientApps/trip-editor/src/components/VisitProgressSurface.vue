@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { date as displayDate, locale, message as localize, number, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { EditorPlace, EditorRegion, EditorTripState, EditorVisitHistoryRow, EditorPlaceVisitSummary, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
@@ -71,15 +71,15 @@ const regionGroups = computed<VisitRegionGroup[]>(() => {
 
 const emptyState = computed(() => {
   if (totalPlaces.value === 0) {
-    return 'No places in this trip yet.';
+    return localize('Editor.EmptyTripPlaces', 'No places in this trip yet.');
   }
 
   if (filter.value === 'visited' && regionGroups.value.length === 0) {
-    return 'No visited places yet.';
+    return localize('Editor.EmptyVisitedPlaces', 'No visited places yet.');
   }
 
   if (filter.value === 'not-visited' && regionGroups.value.length === 0) {
-    return 'All places have visits.';
+    return localize('Editor.AllPlacesVisited', 'All places have visits.');
   }
 
   return null;
@@ -128,7 +128,7 @@ function filterMatches(summary: EditorPlaceVisitSummary): boolean {
 }
 
 function regionName(regionId: Guid): string {
-  return props.state.regionsById[regionId]?.name || 'Unknown region';
+  return props.state.regionsById[regionId]?.name || localize('Editor.UnknownRegion', 'Unknown region');
 }
 
 function percentVisited(visitedCount: number, totalCount: number): number {
@@ -136,7 +136,7 @@ function percentVisited(visitedCount: number, totalCount: number): number {
 }
 
 function historyRegionName(row: EditorVisitHistoryRow, fallbackRegionId: Guid): string {
-  return props.state.regionsById[row.regionId]?.name || props.state.regionsById[fallbackRegionId]?.name || 'Unknown region';
+  return props.state.regionsById[row.regionId]?.name || props.state.regionsById[fallbackRegionId]?.name || localize('Editor.UnknownRegion', 'Unknown region');
 }
 
 function compareHistoryRows(left: EditorVisitHistoryRow, right: EditorVisitHistoryRow): number {
@@ -150,33 +150,34 @@ function compareHistoryRows(left: EditorVisitHistoryRow, right: EditorVisitHisto
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
-    return 'Not available';
+    return localize('Editor.Unavailable', 'Not available');
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return 'Not available';
+    return localize('Editor.Unavailable', 'Not available');
   }
 
-  return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  return locale === 'en-US' ? `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+    : `${displayDate(date, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`;
 }
 
 function formatEndedAt(value: string | null): string {
-  return value ? formatTimestamp(value) : 'Open';
+  return value ? formatTimestamp(value) : localize('Editor.VisitOpen', 'Open');
 }
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) {
-    return 'Duration unavailable';
+    return localize('Editor.DurationUnavailable', 'Duration unavailable');
   }
 
   if (minutes < 60) {
-    return `${minutes} min`;
+    return localize('Editor.VisitDurationMinutes', '{0} min', number(minutes));
   }
 
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return remainingMinutes === 0 ? `${hours} hr` : `${hours} hr ${remainingMinutes} min`;
+  return remainingMinutes === 0 ? localize('Editor.VisitDurationHours', '{0} hr', number(hours)) : localize('Editor.VisitDurationHoursMinutes', '{0} hr {1} min', number(hours), number(remainingMinutes));
 }
 
 function manageVisitHref(visitId: Guid): string {
@@ -185,7 +186,7 @@ function manageVisitHref(visitId: Guid): string {
 
 async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
   event.preventDefault();
-  const canNavigate = await props.editorSurface.closeActiveTarget('Discard unsaved editor changes before managing this visit?');
+  const canNavigate = await props.editorSurface.closeActiveTarget(localize('Editor.DiscardBeforeManagingVisit', 'Discard unsaved editor changes before managing this visit?'));
   if (!canNavigate) {
     return;
   }
@@ -265,7 +266,7 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
                 v-if="group.totalCount > 0"
                 class="trip-editor-progress trip-editor-visit-region__bar"
                 role="progressbar"
-                :aria-label="`${group.regionName} visit progress`"
+                :aria-label="localize('Editor.RegionVisitProgress', '{0} visit progress', group.regionName)"
                 :aria-valuenow="group.percentVisited"
                 aria-valuemin="0"
                 aria-valuemax="100"
@@ -278,17 +279,17 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
                     <span
                       class="trip-editor-visit-status"
                       :class="row.summary.isVisited ? 'trip-editor-visit-status--visited' : 'trip-editor-visit-status--pending'"
-                      :aria-label="row.summary.isVisited ? 'Visited' : 'Not visited'"
+                      :aria-label="localize(row.summary.isVisited ? 'Editor.Visited' : 'Editor.NotVisited', row.summary.isVisited ? 'Visited' : 'Not visited')"
                       role="img"
                     >
                       <span v-if="row.summary.isVisited" aria-hidden="true">&check;</span>
                     </span>
                     <div>
                       <h4>{{ row.placeName }}</h4>
-                      <small>{{ row.summary.isVisited ? 'Visited' : 'Not visited' }}</small>
+                      <small>{{ localize(row.summary.isVisited ? 'Editor.Visited' : 'Editor.NotVisited', row.summary.isVisited ? 'Visited' : 'Not visited') }}</small>
                     </div>
                   </div>
-                  <strong class="trip-editor-visit-count-pill">{{ row.summary.visitCount }} {{ localize("Editor.Visit", "visit") }}{{ row.summary.visitCount === 1 ? '' : 's' }}</strong>
+                  <strong class="trip-editor-visit-count-pill">{{ plural('Editor.VisitCount', row.summary.visitCount, '{0} visit', '{0} visits') }}</strong>
                 </header>
                 <dl class="trip-editor-visit-place-row__summary">
                   <div>

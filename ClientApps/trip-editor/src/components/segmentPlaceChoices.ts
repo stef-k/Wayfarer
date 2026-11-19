@@ -1,3 +1,4 @@
+import { regionDisplayName } from '../regionDisplayName.js';
 import type { EditorPlace, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
 
 /** Uses authoritative membership/order, including the protected Region, without granting Region edit capabilities. */
@@ -7,7 +8,7 @@ export function segmentPlaceGroups(state: EditorTripState): Array<{ id: Guid; la
     if (!region || region.tripId !== state.tripId) return [];
     const places = (state.placeOrderByRegionId[id] ?? []).map(placeId => state.placesById[placeId])
       .filter(place => place && place.tripId === state.tripId && place.regionId === id);
-    return [{ id, label: region.isShadow ? 'Unassigned Places' : region.name, places }];
+    return [{ id, label: regionDisplayName(region), places }];
   });
 }
 

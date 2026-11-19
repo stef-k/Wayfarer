@@ -414,4 +414,52 @@
   <data name="Shell.MapInteraction" xml:space="preserve">
     <value>Use two fingers to move the map</value>
   </data>
+  <data name="Shell.MeasureDistance" xml:space="preserve">
+    <value>Measure distance</value>
+  </data>
+  <data name="Shell.CopyMapLink" xml:space="preserve">
+    <value>Copy map link</value>
+  </data>
+  <data name="Shell.MapLinkCopied" xml:space="preserve">
+    <value>Map link copied</value>
+  </data>
+  <data name="Shell.MapLinkCopiedClipboard" xml:space="preserve">
+    <value>Map link copied to clipboard</value>
+  </data>
+  <data name="Shell.NoteSafeLink" xml:space="preserve">
+    <value>Enter a safe link or HTTP(S) image URL.</value>
+  </data>
+  <data name="Shell.NoteAbsoluteImage" xml:space="preserve">
+    <value>Enter an absolute HTTP(S) image URL.</value>
+  </data>
+  <data name="Shell.NoteFollowSafeLink" xml:space="preserve">
+    <value>Enter a safe link before following it.</value>
+  </data>
+  <data name="Shell.NoteFormatting" xml:space="preserve">
+    <value>{0} formatting</value>
+  </data>
+  <data name="Shell.NoteInsertImageUrl" xml:space="preserve">
+    <value>Insert image URL</value>
+  </data>
+  <data name="Shell.NoteEditLink" xml:space="preserve">
+    <value>Edit link</value>
+  </data>
+  <data name="Shell.NoteImageUrl" xml:space="preserve">
+    <value>Image URL</value>
+  </data>
+  <data name="Shell.NoteLinkUrl" xml:space="preserve">
+    <value>Link URL</value>
+  </data>
+  <data name="Shell.NoteInsertImage" xml:space="preserve">
+    <value>Insert Image</value>
+  </data>
+  <data name="Shell.StartMeasure" xml:space="preserve">
+    <value>Click the map to measure distance. Double-click to finish. Press Esc to cancel.</value>
+  </data>
+  <data name="Shell.DisplayKilometres" xml:space="preserve">
+    <value>{0} km</value>
+  </data>
+  <data name="Shell.UnassignedPlaces" xml:space="preserve">
+    <value>Unassigned Places</value>
+  </data>
 </root>

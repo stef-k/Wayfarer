@@ -328,7 +328,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetCloneAlert("Viewer.CloneSignIn", "danger");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -337,23 +337,23 @@ namespace Wayfarer.Areas.User.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to clone trip {TripId}", id);
-                SetAlert("Failed to clone trip. Please try again.", "danger");
+                SetCloneAlert("Viewer.CloneFailed", "danger");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
 
             if (clone.Status == TripCloneStatus.NotFound)
             {
-                SetAlert("Trip not found.", "warning");
+                SetCloneAlert("Viewer.CloneMissing", "warning");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
             if (clone.Status == TripCloneStatus.NotPublic)
             {
-                SetAlert("This trip is not public and cannot be cloned.", "danger");
+                SetCloneAlert("Viewer.ClonePrivate", "danger");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
             if (clone.Status == TripCloneStatus.AlreadyOwned)
             {
-                SetAlert("You already own this trip. Use the duplicate feature instead.", "info");
+                SetCloneAlert("Viewer.CloneOwned", "info");
                 return RedirectToAction("Edit", new { id });
             }
 
@@ -365,9 +365,16 @@ namespace Wayfarer.Areas.User.Controllers
                     _logger.LogWarning(ex, "Trip clone {ClonedTripId} committed but cache warmup scheduling failed", clone.ClonedTripId);
                 }
             }
-            SetAlert($"Trip '{clone.SourceTripName}' has been cloned to your account!" +
-                (clone.MediaOmitted ? " Covers and embedded images were omitted because transferable permission is unavailable. Select permitted images in your copy." : ""), "success");
+            SetCloneAlert(clone.MediaOmitted ? "Viewer.ClonePartial" : "Viewer.CloneSucceeded", "success", clone.SourceTripName);
             return RedirectToAction("Edit", new { id = clone.ClonedTripId });
+        }
+
+        /// <summary>Defers clone feedback formatting until the destination resolves its request locale.</summary>
+        private void SetCloneAlert(string key, string type, string? argument = null)
+        {
+            TempData["WebAlertKey"] = key;
+            TempData["WebAlertArgument"] = argument;
+            TempData["AlertType"] = type;
         }
     }
 }
