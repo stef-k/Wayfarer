@@ -201,10 +201,6 @@ public class GroupsController : BaseController
         {
             return BadRequest(new { success = false, message = "This account is no longer available. Select another account." });
         }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "invite") });
-        }
         catch (InvalidOperationException ex)
         {
             return Conflict(new { success = false, message = GroupOperationErrors.Message(ex, "invite") });

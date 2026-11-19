@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -91,27 +92,41 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         Assert.Equal(GroupInvitation.InvitationStatuses.Expired, await db.GroupInvitations.Where(i => i.Id == replacementId).Select(i => i.Status).SingleAsync());
     }
 
-    /// <summary>A selected account may disappear or deactivate between the picker and the authorized POST.</summary>
+    /// <summary>Blank IDs reach the application error page and unavailable selections receive the picker message.</summary>
     [PostgresFact]
-    public async Task InviteAjax_RefusesUnavailableSelectionWithoutCreatingAnInvitation()
+    public async Task InviteAjax_PreservesBlankIdErrorAndExplainsUnavailableSelections()
     {
         await using var db = fixture.CreateContext();
         var owner = await SeedBearerAsync(db);
-        var target = await SeedBearerAsync(db);
+        var inactive = await SeedBearerAsync(db);
+        var deleted = await SeedBearerAsync(db);
         var group = await new GroupService(db).CreateGroupAsync(owner, $"Invite-{Guid.NewGuid():N}", null);
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
-            services => services.AddScoped(_ => fixture.CreateContext()));
+            services => services.AddScoped(_ => fixture.CreateContext()), configureApp: host =>
+            {
+                host.UseExceptionHandler("/Home/Error");
+                host.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+            });
         using var web = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(web, app.Services, owner);
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(web);
-        await db.Users.Where(u => u.Id == target).ExecuteUpdateAsync(set => set.SetProperty(u => u.IsActive, false));
-        foreach (var unavailable in new[] { target, Guid.NewGuid().ToString() })
+        await db.Users.Where(u => u.Id == inactive).ExecuteUpdateAsync(set => set.SetProperty(u => u.IsActive, false));
+        await db.Users.Where(u => u.Id == deleted).ExecuteDeleteAsync();
+
+        const string path = "/User/Groups/InviteAjax";
+        foreach (var unavailable in new[] { inactive, deleted })
         {
-            var response = await JsonAsync(await web.PostAsync("/User/Groups/InviteAjax", InviteForm(group.Id, unavailable)),
-                HttpStatusCode.BadRequest);
-            Assert.False(response.GetProperty("success").GetBoolean());
-            Assert.Equal("This account is no longer available. Select another account.", response.GetProperty("message").GetString());
+            using var response = await web.PostAsync(path, InviteForm(group.Id, unavailable));
+            Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+            var json = await JsonAsync(response, HttpStatusCode.BadRequest);
+            Assert.False(json.GetProperty("success").GetBoolean());
+            Assert.Equal("This account is no longer available. Select another account.", json.GetProperty("message").GetString());
+            Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
         }
+
+        using var blank = await web.PostAsync(path, InviteForm(group.Id, string.Empty));
+        Assert.Equal(HttpStatusCode.InternalServerError, blank.StatusCode);
+        Assert.Equal("text/html", blank.Content.Headers.ContentType?.MediaType);
         Assert.False(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id));
     }
 
