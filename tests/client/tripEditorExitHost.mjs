@@ -60,4 +60,3 @@ export const mountDraft = (withPlanning = false) => {
     await nextTick();
   } };
 };
-
