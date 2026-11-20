@@ -30,7 +30,7 @@ public sealed class LocationEditViewContractTests
 
         Assert.Contains("href=\"https://github.com/stef-k/Wayfarer\"", source);
         Assert.Contains("target=\"_blank\" rel=\"noopener noreferrer\"", source);
-        Assert.Contains("aria-label=\"Wayfarer source code on GitHub\"", source);
+        Assert.Contains("aria-label=\"@T[\"Shell.SourceLink\"]\"", source);
     }
 
     private static string Read(params string[] parts) => File.ReadAllText(Path.GetFullPath(

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Localization;
-using Microsoft.Net.Http.Headers;
 
 namespace Wayfarer.Localization;
 
@@ -29,6 +28,11 @@ public sealed class WebLocales : RequestCultureProvider
 
     /// <summary>The application preference cookie used by the framework.</summary>
     public static readonly string CookieName = CookieRequestCultureProvider.DefaultCookieName;
+
+    // RFC 9110 §12.4.2 permits at most three fractional digits and only zeros after 1.
+    private static readonly Regex LanguageRange = new(
+        @"\A[ \t]*([a-zA-Z]{1,8}(?:-[a-zA-Z0-9]{1,8})*)(?:[ \t]*;[ \t]*[qQ]=(0(?:\.[0-9]{0,3})?|1(?:\.0{0,3})?))?[ \t]*\z",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
 
     private readonly CultureInfo _bindingCulture = CultureInfo.CurrentCulture;
     private readonly Dictionary<string, WebLocale> _registered;
@@ -73,11 +77,14 @@ public sealed class WebLocales : RequestCultureProvider
             && Find(parsed.UICultures[0].ToString()) == cookieLocale)
             return Result(cookieLocale);
 
-        var ranges = StringWithQualityHeaderValue.ParseList(request.Headers.AcceptLanguage);
-        foreach (var range in ranges.OrderByDescending(range => range.Quality ?? 1))
+        // Evaluate each comma-separated member independently, including across multiple header lines.
+        var ranges = request.Headers.AcceptLanguage.SelectMany(value => (value ?? "").Split(','))
+            .Select(value => LanguageRange.Match(value)).Where(range => range.Success)
+            .Select(range => (Tag: range.Groups[1].Value,
+                Quality: range.Groups[2].Success ? decimal.Parse(range.Groups[2].Value, CultureInfo.InvariantCulture) : 1m));
+        foreach (var (tag, quality) in ranges.OrderByDescending(range => range.Quality))
         {
-            var tag = range.Value.ToString();
-            if (range.Quality is 0 || !IsLanguageRange(tag))
+            if (quality is 0)
                 continue;
             if ((Find(tag) ?? _defaults.GetValueOrDefault(Primary(tag))) is { } locale)
                 return Result(locale);
@@ -90,11 +97,4 @@ public sealed class WebLocales : RequestCultureProvider
         Task.FromResult<ProviderCultureResult?>(new(_bindingCulture.Name, locale.Tag));
 
     private static string Primary(string tag) => tag.Split('-', 2)[0];
-
-    private static bool IsLanguageRange(string tag)
-    {
-        var parts = tag.Split('-');
-        return parts[0] is { Length: >= 1 and <= 8 } primary && primary.All(char.IsAsciiLetter)
-            && parts.Skip(1).All(part => part is { Length: >= 1 and <= 8 } && part.All(char.IsAsciiLetterOrDigit));
-    }
 }

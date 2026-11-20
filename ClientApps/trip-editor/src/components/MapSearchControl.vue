@@ -46,33 +46,19 @@ const eligibleRegions = computed(() => props.state.regionOrder
 const unassignedPlacesRegion = computed(() => eligibleRegions.value.find(isUnassignedPlacesRegion) ?? null);
 const selectedResult = computed(() => results.value.find(result => result.id === selectedResultId.value) ?? null);
 const canAdd = computed(() => Boolean(selectedResult.value && selectedRegionId.value));
-const helperText = computed(() => eligibleRegions.value.length === 0 ? 'No editable region is available for this search result.' : null);
+/** Localizes search feedback while preserving the server's outcome and retry behavior. */
+const helperText = computed(() => eligibleRegions.value.length === 0
+  ? localize('Editor.MapSearchNoRegion', 'No editable region is available for this search result.') : null);
 const statusText = computed(() => {
-  if (status.value === 'loading') {
-    return 'Searching map...';
+  switch (status.value) {
+    case 'loading': return localize('Editor.MapSearchWorking', 'Searching map...');
+    case 'no-results': return localize('Editor.MapSearchEmpty', 'No map search results.');
+    case 'validation': return errorText.value ?? localize('Editor.ValidationSearchMinimum', 'Search query must be at least 3 characters.');
+    case 'provider-unavailable': return localize('Editor.MapSearchUnavailable', 'Map search provider is unavailable.');
+    case 'rate-limit': return localize('Editor.MapSearchRateLimit', 'Map search is rate limited. Try again shortly.');
+    case 'error': return localize('Editor.MapSearchFailed', 'Map search failed.');
+    default: return null;
   }
-
-  if (status.value === 'no-results') {
-    return 'No map search results.';
-  }
-
-  if (status.value === 'validation') {
-    return errorText.value ?? 'Search query must be at least 3 characters.';
-  }
-
-  if (status.value === 'provider-unavailable') {
-    return 'Map search provider is unavailable.';
-  }
-
-  if (status.value === 'rate-limit') {
-    return 'Map search is rate limited. Try again shortly.';
-  }
-
-  if (status.value === 'error') {
-    return 'Map search failed.';
-  }
-
-  return null;
 });
 
 watch(query, value => {
@@ -247,7 +233,7 @@ onUnmounted(() => {
       >
         <strong>{{ result.name }}</strong>
         <span>{{ result.address || result.displayName }}</span>
-        <small>{{ resultMeta(result) || 'geocode result' }} · {{ roundedCoordinate(result.latitude) }}, {{ roundedCoordinate(result.longitude) }}</small>
+        <small>{{ resultMeta(result) || localize('Editor.MapSearchResult', 'geocode result') }} · {{ roundedCoordinate(result.latitude) }}, {{ roundedCoordinate(result.longitude) }}</small>
       </button>
       <small v-if="attribution" class="trip-editor-map-search__attribution">
         <template v-if="results[0]?.provider === 'geoapify'">

@@ -237,17 +237,27 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         while (!File.Exists(Path.Combine(root.FullName, "Wayfarer.csproj"))) root = root.Parent!;
         var leaflet = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/lib/leaflet/leaflet-1.9.4.js"));
         var styles = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/lib/leaflet/leaflet-1.9.4.css"));
-        var embed = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/js/embeddedMap.js"));
         var html = "<style>body{margin:0}#map{width:800px;height:450px}" + styles + "</style>" +
-            "<div id='map'></div><script>" + leaflet + "</script><script type='module'>" + embed +
-            ";window.map=L.map('map').setView([10,20],4);installEmbeddedMap(map,'/full');</script>";
+            "<div id='map'></div><script>" + leaflet + "</script><script type='module'>" +
+            "import { installEmbeddedMap } from '/js/embeddedMap.js';" +
+            "window.map=L.map('map').setView([10,20],4);installEmbeddedMap(map,'/full');</script>";
         using var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
         var page = await browser.NewPageAsync(new BrowserNewPageOptions
         {
             ViewportSize = new ViewportSize { Width = 800, Height = 450 }
         });
-        const string url = "http://wayfarer.example.com/capture";
+        // Preserve the module URLs so the relative localization import resolves as it does in production.
+        const string origin = "http://wayfarer.example.com";
+        foreach (var path in new[] { "/js/embeddedMap.js", "/js/localization/messages.js" })
+        {
+            var source = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot", path.TrimStart('/')));
+            await page.RouteAsync(origin + path, route => route.FulfillAsync(new RouteFulfillOptions
+            {
+                ContentType = "text/javascript", Body = source
+            }));
+        }
+        const string url = origin + "/capture";
         await page.RouteAsync(url, route => route.FulfillAsync(new RouteFulfillOptions
         {
             ContentType = "text/html", Body = html

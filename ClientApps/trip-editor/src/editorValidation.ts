@@ -36,6 +36,7 @@ const validationDetails = new Map<string, string>([
   ["Every polygon ring must contain at least four positions.", "Editor.ValidationAreaSize"],
   ["Share progress can only be enabled for public trips.", "Editor.ValidationSharingPublic"],
   ["One or more tags are invalid.", "Editor.ValidationTags"],
+  ["Check the contribution policy and complete readable credits.", "Editor.ValidationCredits"],
   ["The route proposal cannot be saved. Discard it or explicitly generate a new proposal.", "Editor.ProposalRegenerate"],
   ["The pending proposal is malformed. Discard or regenerate it before saving.", "Editor.ProposalMalformed"],
   ["Waypoint place is not in this Trip or is unavailable.", "Editor.ValidationWaypointOwner"],

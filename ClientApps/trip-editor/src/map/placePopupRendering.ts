@@ -1,3 +1,4 @@
+import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { placeNotesPreviewHtml } from '../displayHelpers';
 import type { EditorPlace } from '../types';
 
@@ -8,42 +9,42 @@ export function placePopupHtml(place: EditorPlace, regionName: string | null | u
   return [
     '<div class="trip-editor-place-popup__content">',
     '<div class="trip-editor-place-popup__header">',
-    `<strong>${escapeHtml(place.name || 'Unnamed Place')}</strong>`,
+    `<strong>${escapeHtml(place.name || message('Editor.UnnamedPlace', 'Unnamed Place'))}</strong>`,
     regionName ? `<span>${escapeHtml(regionName)}</span>` : '',
     '</div>',
     '<div class="trip-editor-place-popup__body">',
-    place.location ? `<div class="trip-editor-place-popup__meta"><span>Lat:</span> ${formatCoordinate(place.location.latitude)} <span>Lon:</span> ${formatCoordinate(place.location.longitude)}</div>` : '',
-    place.address ? `<div class="trip-editor-place-popup__meta"><span>Address:</span> ${escapeHtml(place.address)}</div>` : '',
-    place.resolvedFeatureName ? `<div class="trip-editor-place-popup__meta"><span>Detected place:</span> ${escapeHtml(place.resolvedFeatureName)}</div>` : '',
-    precision ? `<div class="trip-editor-place-popup__meta" role="note">${precision}</div>` : '',
+    place.location ? `<div class="trip-editor-place-popup__meta"><span>${escapeHtml(message('Shell.LatitudeShort', 'Lat:'))}</span> ${formatCoordinate(place.location.latitude)} <span>${escapeHtml(message('Shell.LongitudeShort', 'Lon:'))}</span> ${formatCoordinate(place.location.longitude)}</div>` : '',
+    place.address ? `<div class="trip-editor-place-popup__meta"><span>${escapeHtml(message('Shell.AddressLabel', 'Address:'))}</span> ${escapeHtml(place.address)}</div>` : '',
+    place.resolvedFeatureName ? `<div class="trip-editor-place-popup__meta">${escapeHtml(message('Editor.PlacePopupDetected', 'Detected place: {0}', place.resolvedFeatureName))}</div>` : '',
+    precision ? `<div class="trip-editor-place-popup__meta" role="note">${escapeHtml(precision)}</div>` : '',
     visitSummaryHtml(place),
-    notesHtml ? `<div class="trip-editor-place-popup__notes"><span>Notes:</span><div>${notesHtml}</div></div>` : '',
+    notesHtml ? `<div class="trip-editor-place-popup__notes"><span>${escapeHtml(message('Shell.NotesLabel', 'Notes:'))}</span><div>${notesHtml}</div></div>` : '',
     '</div>',
-    '<div class="trip-editor-place-popup__footer">Click marker to select this place</div>',
+    `<div class="trip-editor-place-popup__footer">${escapeHtml(message('Editor.PlacePopupSelectMarker', 'Click marker to select this place'))}</div>`,
     '</div>'
   ].join('');
 }
 
+/** Translates the precision category while preserving the provider's name and address. */
 function precisionNotice(value: string | null | undefined): string {
   switch ((value || '').trim().toLowerCase()) {
-    case 'postcode': return 'Approximate address — resolved to postcode level.';
-    case 'city': return 'Approximate address — resolved to city level.';
+    case 'postcode': return message('Editor.PlacePopupPostcode', 'Approximate address — resolved to postcode level.');
+    case 'city': return message('Editor.PlacePopupCity', 'Approximate address — resolved to city level.');
     case 'suburb':
-    case 'district': return 'Approximate address — resolved to local-area level.';
+    case 'district': return message('Editor.PlacePopupLocalArea', 'Approximate address — resolved to local-area level.');
     case 'county':
     case 'state':
-    case 'country': return 'Approximate address — resolved only to a regional level.';
+    case 'country': return message('Editor.PlacePopupRegion', 'Approximate address — resolved only to a regional level.');
     default: return '';
   }
 }
 
+/** Uses the same cardinal phrase as the Editor visit progress controls. */
 function visitSummaryHtml(place: EditorPlace): string {
-  if (!place.visitSummary.isVisited) {
-    return '<div class="trip-editor-place-popup__meta"><span>Visits:</span> Not visited yet</div>';
-  }
-
-  const count = place.visitSummary.visitCount;
-  return `<div class="trip-editor-place-popup__meta"><span>Visits:</span> ${escapeHtml(count === 1 ? '1 visit' : `${count} visits`)}</div>`;
+  const summary = place.visitSummary.isVisited
+    ? plural('Editor.VisitCount', place.visitSummary.visitCount, '{0} visit', '{0} visits')
+    : message('Editor.PlacePopupNotVisited', 'Not visited yet');
+  return `<div class="trip-editor-place-popup__meta"><span>${escapeHtml(message('Editor.PlacePopupVisits', 'Visits:'))}</span> ${escapeHtml(summary)}</div>`;
 }
 
 function formatCoordinate(value: number): string {

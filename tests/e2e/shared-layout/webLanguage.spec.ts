@@ -182,3 +182,40 @@ test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   await name.fill('Shared layout browser Trip');
   await captureDarkLayouts(editor, folder);
 });
+
+/** Waits for the actual Place details to mount before checking the camera retained by the Viewer. */
+test('Area 1 delayed Place focus retains the linked camera and Segment', async ({ page }) => {
+  const { username, password } = loadSharedLayoutConfig();
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password').fill(password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const segment = await addSegment(page, tripId);
+  const viewer = `/User/Trip/View/${tripId}`;
+  await page.goto(viewer);
+  const place = await page.locator('.place-list-item').first().getAttribute('data-place-id');
+  expect(place).toBeTruthy();
+
+  const details = page.locator('#sidebar-secondary [data-details-content]');
+  await page.goto(`${viewer}?lat=37.5&lon=23.1&zoom=9&seg=${segment}&placeId=${place}#guide`);
+  await expect(details.locator('.btn-back')).toBeVisible();
+  await expect(page.locator('.selected-marker')).toHaveCount(1);
+  await expect(page.locator('#trip-view')).toHaveAttribute('data-active-segment-id', segment);
+  await expect(page).toHaveURL(url => Number(url.searchParams.get('lat')) === 37.5
+    && Number(url.searchParams.get('lon')) === 23.1 && url.searchParams.get('zoom') === '9'
+    && url.searchParams.get('placeId') === place && url.hash === '#guide', { timeout: 2000 });
+
+  await details.locator('.btn-back').click();
+  await page.locator(`.place-list-item[data-place-id="${place}"]`).click();
+  await expect(details.locator('.btn-back')).toBeVisible();
+  await expect(page).toHaveURL(url => Number(url.searchParams.get('zoom')) >= 12);
+
+  await page.goto(`${viewer}?placeId=${place}`);
+  await expect(details.locator('.btn-back')).toBeVisible();
+  await expect(page).toHaveURL(url => Number(url.searchParams.get('zoom')) >= 12);
+});

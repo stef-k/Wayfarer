@@ -75,7 +75,7 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const navigation = () => viewerNavigation(map.getSize(), visible() && !phone.matches ? width() : 0);
 
     /** Delta-only synchronous offsets cannot leave obsolete transition callbacks behind. */
-    const render = () => {
+    const render = ({ preserveCamera = false } = {}) => {
         root.style.setProperty('--legend-w', `${width()}px`);
         root.dataset.sidebarMode = preference.mode;
         legend.dataset.collapsed = String(hidden || collapsed);
@@ -96,8 +96,10 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         const nextOffset = navigation().offsetX;
         const delta = nextOffset - appliedOffset;
         appliedOffset = nextOffset;
-        if (delta) map.stop();
-        if (delta) map.panBy([-delta, 0], { animate: false });
+        if (delta && !preserveCamera) {
+            map.stop();
+            map.panBy([-delta, 0], { animate: false });
+        }
     };
     /** Hiding retains details content and selection; focus moves to the reachable Show action. */
     function hide() {
@@ -134,12 +136,13 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         fitOptions: () => navigation().fitOptions,
         /** Offset the destination itself; navigation needs no delayed pan callback. */
         centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([navigation().offsetX, 0]), zoom),
-        openDetails: html => {
+        /** URL-driven details may open over the existing camera without applying a sidebar offset. */
+        openDetails: (html, { preserveCamera = false } = {}) => {
             resizer.cancel();
             content.innerHTML = html;
             detailsActive = true;
             hidden = false;
-            render();
+            render({ preserveCamera });
         },
         closeDetails: () => {
             resizer.cancel();

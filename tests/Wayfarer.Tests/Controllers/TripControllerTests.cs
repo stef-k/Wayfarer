@@ -601,7 +601,9 @@ public class TripControllerTests : TestBase
         var clone = await db.Trips.SingleAsync(t => t.UserId == cloner.Id);
         Assert.Null(clone.CoverImageUrl);
         Assert.DoesNotContain("<img", clone.Notes);
-        Assert.Contains("omitted", controller.TempData["AlertMessage"]?.ToString());
+        // The redirect carries the partial-success message identity and Trip name to the destination locale.
+        Assert.Equal("Viewer.ClonePartial", controller.TempData["WebAlertKey"]);
+        Assert.Equal(sourceTrip.Name, controller.TempData["WebAlertArgument"]);
         warmupMock.Verify(w => w.ScheduleWarmupAsync(It.IsAny<Guid>(), It.IsAny<bool>()), Times.Never);
     }
 

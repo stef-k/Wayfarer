@@ -1,4 +1,5 @@
 import { computed, readonly, ref, type Ref } from 'vue';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
 import type { SegmentRoutePointEditorController } from '../components/segmentRouteMapWork';
@@ -331,6 +332,7 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
   };
 }
 
+/** Asks before rolling back temporary map work and keeps the snapshot while editing continues. */
 async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<boolean> }): Promise<boolean> {
   if (!mapWork.value) {
     return true;
@@ -339,10 +341,10 @@ async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<bool
   const work = mapWork.value;
   if (work.isDirty()) {
     const confirmed = await (options?.confirmDirty?.() ?? confirm({
-      title: 'Discard map editing changes?',
-      message: 'Your temporary map edits will be discarded.',
-      confirmLabel: 'Discard',
-      cancelLabel: 'Keep editing',
+      title: message('Editor.DiscardMapWorkQuestion', 'Discard map editing changes?'),
+      message: message('Editor.DiscardMapWorkDetail', 'Your temporary map edits will be discarded.'),
+      confirmLabel: message('Editor.Discard', 'Discard'),
+      cancelLabel: message('Shell.KeepEditing', 'Keep editing'),
       variant: 'warning'
     }));
     if (!confirmed) {

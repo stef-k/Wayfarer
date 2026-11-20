@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
 
@@ -84,4 +85,76 @@ test('ordinary Razor entries retain Notes, validation inputs and bulk operation 
       } finally { await page.close(); }
     });
   }
+});
+
+// Load the Vite Visit entry and the shell selector as separate scripts, as the real document does.
+test('Visit Notes alone require language consent and survive cancellation and a rejected write', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const bundle = await build({ entryPoints: ['ClientApps/rich-notes/visit-edit.js'], bundle: true,
+    write: false, format: 'iife', loader: { '.css': 'empty' }, plugins: [{ name: 'map-boundary', setup(builder) {
+      builder.onLoad({ filter: /retryTileLayer\.js$/ }, () => ({ contents: 'export const createTileLayer = () => ({});' }));
+    } }] });
+  const page = await browser.newPage();
+  page.setDefaultTimeout(3000);
+  page.on('pageerror', error => t.diagnostic(error.message));
+  const traffic = [];
+  let preferenceStatus = 500;
+  const html = `<form id="visitForm" method="post" action="/User/Visit/Edit/1">
+    <label id="notes-label">Notes</label><div id="notes-toolbar"><select data-heading><option value="0">Paragraph</option></select></div>
+    <div id="notes" data-notes-content="&lt;p&gt;Saved Notes&lt;/p&gt;"></div>
+    <input type="hidden" id="hiddenNotes" name="NotesHtml" value="&lt;p&gt;Saved Notes&lt;/p&gt;">
+    <p id="notes-feedback"></p></form>
+    <dialog id="notes-dialog"><h2 id="notes-dialog-title"></h2><input id="notes-url"><p id="notes-dialog-error"></p>
+    <button id="notes-dialog-cancel"></button><button id="notes-dialog-apply"></button>
+    <button id="notes-dialog-unlink"></button><button id="notes-dialog-follow"></button></dialog>
+    <button id="language-open" hidden>Language</button><dialog id="language-dialog" data-safe-get="">
+    <form id="language-form" data-url="/Language/Set"><fieldset id="language-options">
+      <label><input type="radio" name="locale" value="en-US" checked>English</label>
+      <label><input type="radio" name="locale" value="el-GR">Greek</label>
+    </fieldset><button id="language-apply">Apply</button><button type="button" id="language-cancel">Cancel</button>
+    <p id="language-discard" hidden>Discard unsaved changes?</p>
+    <button type="button" id="language-keep" hidden>Keep editing</button><button id="language-confirm" hidden>Discard and switch</button>
+    <p id="language-error" hidden>Language write failed</p></form></dialog>
+    <script src="/assets/visit-edit.js"></script>
+    <script type="module" src="/js/localization/languageSelector.js"></script>`;
+  await page.route('http://wayfarer.test/**', async route => {
+    const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (path.startsWith('/js/localization/')) {
+      return route.fulfill({ contentType: 'text/javascript', body: await readFile(`wwwroot${path}`, 'utf8') });
+    }
+    if (path === '/assets/visit-edit.js') {
+      return route.fulfill({ contentType: 'text/javascript', body: bundle.outputFiles[0].text });
+    }
+    traffic.push([method, path]);
+    if (path === '/Language/Set') return route.fulfill({ status: preferenceStatus });
+    return route.fulfill({ contentType: 'text/html', body: html });
+  });
+  const link = 'http://wayfarer.test/User/Visit/Edit/1?returnUrl=%2FUser%2FVisit#notes';
+  await page.goto(link);
+  const notes = page.locator('#notes [contenteditable]');
+  await notes.fill('Unsaved Notes only');
+  const apply = async () => {
+    await page.locator('#language-open').click();
+    await page.locator('input[value=el-GR]').check();
+    await page.locator('#language-apply').click();
+    assert.deepEqual(traffic, [['GET', '/User/Visit/Edit/1']], 'Notes require consent before a preference write');
+    await page.locator('#language-discard').waitFor();
+  };
+  await apply();
+  await page.locator('#language-keep').click();
+  assert.equal(await notes.textContent(), 'Unsaved Notes only');
+  await apply();
+  await page.locator('#language-confirm').click();
+  await page.locator('#language-error').waitFor();
+  assert.equal(await notes.textContent(), 'Unsaved Notes only');
+  assert.deepEqual(traffic, [['GET', '/User/Visit/Edit/1'], ['POST', '/Language/Set']]);
+
+  preferenceStatus = 204;
+  await Promise.all([page.waitForEvent('load'), page.locator('#language-confirm').click()]);
+  assert.equal(page.url(), link);
+  assert.equal(await notes.textContent(), 'Saved Notes');
+  assert.deepEqual(traffic, [['GET', '/User/Visit/Edit/1'], ['POST', '/Language/Set'],
+    ['POST', '/Language/Set'], ['GET', '/User/Visit/Edit/1']]);
 });

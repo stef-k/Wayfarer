@@ -6,22 +6,27 @@ import { build } from 'esbuild';
 import { chromium } from '@playwright/test';
 
 // Use the established SFC compiler seam in a native DOM. All forms, Notes, draft owners,
-// normalization and parent scheduling are production code; only geography/confirmation/HTTP are substituted.
+// normalization and parent scheduling are production code; geography and HTTP use fixture data.
 const bundle = await build({ stdin: { contents: `
   import App from './App.vue';
   import RichNotesEditor from './components/RichNotesEditor.vue';
-  import { createApp, h, nextTick, proxyRefs, reactive } from 'vue';
+  import { createApp, h, nextTick, proxyRefs, reactive, watch } from 'vue';
+  import { confirmDialogState, settleConfirmDialog } from './composables/useConfirmDialog';
+  export { placePopupHtml } from './map/placePopupRendering';
   export { createApp, h, nextTick, reactive, RichNotesEditor };
   export function mountApp(state) {
     window.captured = {};
     window.capture = (name, bindings) => (captured[name] ??= []).push(proxyRefs(bindings));
     window.fetch = async () => new Response(JSON.stringify(state));
+    // Notes tests approve incidental transitions. Feedback tests exercise the rendered confirmation.
+    watch(confirmDialogState, dialog => {
+      if (dialog && !window.useMountedConfirmation) settleConfirmDialog(true);
+    });
     window.app = createApp(App, { config: { editorEndpoint: '/api/trips/trip/editor', antiforgeryToken: 'anti', tripIndexUrl: '/User/Trip' } });
     app.mount('#app');
   }`, loader: 'ts', resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'iife', globalName: 'Probe',
   plugins: [{ name: 'actual-notes-owners', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, async args => {
-      if (/ConfirmDialog\.vue$/.test(args.path)) return { contents: 'export default { render: () => null };' };
       const { descriptor } = parse(await readFile(args.path, 'utf8'), { filename: args.path });
       const script = compileScript(descriptor, { id: args.path, genDefaultAs: '__component' });
       const template = compileTemplate({ source: descriptor.template.content, filename: args.path, id: args.path,
@@ -41,8 +46,6 @@ const bundle = await build({ stdin: { contents: `
       getMapView: () => ({ center: { latitude: 10, longitude: 20 }, zoom: 5 }) });
       export const hasAnyGeometry = () => true; export const hasSavedTripView = () => false;
       export const canFocusActiveEntity = () => true;` }));
-    builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: `export const confirm = async () => true;
-      export const disposeConfirmDialogHost = () => {}; export const setConfirmDialogFocusFallback = () => {};` }));
   } }] });
 const script = bundle.outputFiles.find(file => !file.path.endsWith('.css')).text;
 const original = '<p class="ql-align-center">Original</p>';
@@ -466,7 +469,9 @@ test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft 
   await page.evaluate(async () => {
     const manager = captured['SegmentManager.vue'][0];
     window.fetch = async () => Response.json({ code: 'segment-route-stale',
-      currentSegment: captured['App.vue'][0].state.segmentsById.segment, warning: 'The Segment changed.' }, { status: 409 });
+      currentSegment: { ...captured['App.vue'][0].state.segmentsById.segment, mode: 'Historic mode',
+        estimatedDistanceKm: 12.5, estimatedDurationMinutes: null, estimatedDurationSource: 'Automatic' },
+      warning: 'The Segment changed.' }, { status: 409 });
     await manager.saveDraft();
   });
   await page.getByText(/Το αποθηκευμένο τμήμα ή η διαδρομή του άλλαξε/).waitFor();
@@ -475,6 +480,114 @@ test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft 
   assert.ok(await reload.isEnabled());
   assert.equal(await page.locator('#segment-conflict-heading').evaluate(node => node === document.activeElement), true);
   assert.equal(await page.evaluate(() => captured['SegmentManager.vue'][0].draft.estimatedDurationMinutes), '12');
+  const conflict = page.locator('.segment-conflict');
+  assert.match(await conflict.textContent(), /Historic mode.*12,5 χλμ\..*Η διάρκεια δεν είναι διαθέσιμη.*Αυτόματη/s);
+  await reload.click();
+  await conflict.waitFor({ state: 'hidden' });
+  assert.match(await page.locator('[data-segment-field=mode] option:checked').textContent(), /Historic mode \(ανενεργό\)/);
+});
+
+test('Greek Map Search and Place popup localize feedback without changing authored text', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, { ...state, options: { ...state.options, limits: { nominatimSearchLimit: 5 } } });
+  const search = page.locator('.trip-editor-map-search').first();
+  await search.getByRole('searchbox').fill('Athens');
+  await page.evaluate(() => {
+    window.fetch = () => new Promise(resolve => { window.completeSearch = resolve; });
+  });
+  await search.getByRole('button', { name: 'Αναζήτηση' }).click();
+  assert.match(await search.getByRole('status').textContent(), /Αναζήτηση στον χάρτη/);
+  await page.evaluate(() => completeSearch(new Response(null, { status: 429 })));
+  const status = search.getByRole('alert');
+  assert.match(await status.textContent(), /Δοκιμάστε ξανά σε λίγο/);
+  await page.evaluate(() => { window.fetch = async () => Response.json({ query: 'Athens', results: [] }); });
+  await search.getByRole('button', { name: 'Αναζήτηση' }).click();
+  await page.getByText('Δεν βρέθηκαν αποτελέσματα στον χάρτη.', { exact: true }).waitFor();
+
+  const popup = await page.evaluate(() => {
+    const place = captured['App.vue'][0].state.placesById.place;
+    document.body.insertAdjacentHTML('beforeend', Probe.placePopupHtml({
+      ...place, name: 'Authored <stop> & name', address: 'Author <road>',
+      resolvedFeatureName: 'Provider <name>', resolvedFeatureType: 'city',
+      visitSummary: { isVisited: true, visitCount: 2 }
+    }, 'Authored Region'));
+    const element = document.querySelector('.trip-editor-place-popup__content');
+    return { text: element.textContent, parsedAuthoredTag: Boolean(element.querySelector('stop, road, name')) };
+  });
+  assert.match(popup.text, /Πλάτος:.*Μήκος:.*Διεύθυνση: Author <road>.*Εντοπισμένη τοποθεσία: Provider <name>/s);
+  assert.match(popup.text, /κατά προσέγγιση.*2 επισκέψεις.*Σημειώσεις:.*Επιλέξτε τον δείκτη/s);
+  assert.match(popup.text, /Authored <stop> & name/);
+  assert.equal(popup.parsedAuthoredTag, false);
+});
+
+test('Greek map-work confirmation keeps or rolls back its temporary snapshot', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, state);
+  await page.evaluate(() => {
+    window.useMountedConfirmation = true;
+    window.pendingPoint = [10, 20];
+    captured['App.vue'][0].editorSurface.enterMapWork({
+      modeName: 'Temporary map work', instruction: 'fixture geometry',
+      snapshot: () => [11, 21], rollback: point => { window.pendingPoint = point; }, done: () => {}
+    });
+  });
+  const work = page.locator('.trip-editor-map-work-toolbar');
+  const cancel = work.getByRole('button', { name: 'Ακύρωση' });
+  await cancel.click();
+  const dialog = page.getByRole('dialog', { name: 'Απόρριψη αλλαγών στον χάρτη;' });
+  await dialog.waitFor({ timeout: 3000 });
+  assert.match(await dialog.textContent(), /Οι προσωρινές αλλαγές στον χάρτη θα απορριφθούν/);
+  await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).click();
+  assert.ok(await work.isVisible());
+  assert.deepEqual(await page.evaluate(() => pendingPoint), [10, 20]);
+
+  await cancel.click();
+  await dialog.getByRole('button', { name: 'Απόρριψη', exact: true }).click();
+  await work.waitFor({ state: 'hidden' });
+  assert.deepEqual(await page.evaluate(() => pendingPoint), [11, 21]);
+});
+
+test('Greek credit validation opens the controls and associates the server error before retry', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, state);
+  const credits = page.locator('details').filter({ hasText: 'Πηγές και αναφορές' }).filter({
+    has: page.getByRole('button', { name: 'Προσθήκη αναφοράς', includeHidden: true })
+  });
+  const summary = credits.locator('summary').first();
+  await summary.click();
+  await credits.getByRole('button', { name: 'Προσθήκη αναφοράς' }).click();
+  await summary.click();
+  await page.evaluate(() => {
+    window.fetch = async () => Response.json({
+      errors: { credits: ['Check the contribution policy and complete readable credits.'] }
+    }, { status: 400 });
+  });
+  const form = page.locator('#trip-editor-metadata-form');
+  await form.evaluate(node => node.requestSubmit());
+  await form.getByRole('alert').filter({ hasText: /Ελέγξτε τα επισημασμένα πεδία/ }).waitFor();
+  assert.ok(await credits.evaluate(node => node.open));
+  const group = credits.locator('[aria-invalid=true]');
+  const errorId = await group.getAttribute('aria-describedby');
+  assert.ok(errorId);
+  assert.match(await credits.locator(`[id="${errorId}"]`).textContent(), /Ελέγξτε την πολιτική συνεισφοράς και συμπληρώστε ευανάγνωστες αναφορές/);
+
+  await credits.getByRole('textbox', { name: 'Συντελεστής', exact: true }).fill('Author');
+  await page.evaluate(reply => {
+    window.fetch = async (_url, request) => {
+      const credits = JSON.parse(request.body).changes.credits;
+      window.retriedCredits = credits;
+      const current = captured['App.vue'][0].state.metadata;
+      const metadata = { ...current, credits, originalValues: { ...current.originalValues, credits } };
+      return Response.json({ ...reply, data: metadata, affected: { ...reply.affected, metadata } });
+    };
+  }, envelope('metadata', metadata));
+  await form.evaluate(node => node.requestSubmit());
+  await page.waitForFunction(() => window.retriedCredits?.[0]?.contributor === 'Author');
+  await page.waitForFunction(() => captured['MetadataEditor.vue'][0].isMetadataDirty === false, null, { timeout: 3000 });
+  await group.waitFor({ state: 'detached' });
 });
 
 test('Greek Planning keeps uncertain drafts held and renders actionable Check findings', async t => {
@@ -534,11 +647,11 @@ async function mountGreekEditor(browser, graph) {
   const page = await browser.newPage();
   await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
   await page.goto('http://localhost/');
-  const greek = await readFile('Resources/Editor.el-GR.resx', 'utf8');
-  const english = await readFile('Resources/Editor.resx', 'utf8');
+  const catalogs = suffix => Promise.all(['Editor', 'Shell'].map(name => readFile(`Resources/${name}${suffix}.resx`, 'utf8')));
+  const [greek, english] = await Promise.all([catalogs('.el-GR'), catalogs('')]);
   await page.evaluate(({ greek, english }) => {
-    const catalog = source => Object.fromEntries(Array.from(new DOMParser().parseFromString(source, 'application/xml')
-      .querySelectorAll('data'), item => [item.getAttribute('name'), item.querySelector('value').textContent]));
+    const catalog = sources => Object.fromEntries(sources.flatMap(source => Array.from(new DOMParser().parseFromString(source, 'application/xml')
+      .querySelectorAll('data'), item => [item.getAttribute('name'), item.querySelector('value').textContent])));
     const element = document.createElement('script');
     element.type = 'application/json';
     element.id = 'wayfarer-locale';

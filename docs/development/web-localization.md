@@ -6,7 +6,8 @@ title: Web localization
 
 The browser preference applies to the web interface. The server resolves a
 valid `.AspNetCore.Culture` cookie first, then supported `Accept-Language` ranges
-by quality and header order, then `en-US`. The current document keeps its
+by quality and header order, then `en-US`. A malformed weight excludes its
+range and negotiation continues with the other ranges. The current document keeps its
 language for its lifetime. A server fragment resolves language from its own
 request. Use the document language for browser-rendered feedback.
 
@@ -71,21 +72,25 @@ for unsaved work.
 | 1 | Standard shell, collapsed navigation, guest/User/Manager/Admin menus, shared error and notification chrome. The authenticated Trip Editor Vue mount and the authenticated, public and embedded live Trip Viewer use the shared locale, their feature catalogs and the shared map/notes chrome. Viewer owns browser print and on-screen export feedback. Capture contexts explicitly request English. |
 | 2 | Public landing, discovery, public Timeline, privacy interface, registration-closed screen and public location. The public Timeline embed layout uses the shared preference. |
 | 3 | Identity and account pages, including packaged pages. Shared layout participates and one-time routes withhold the selector. |
-| 4–8 | Private Timeline, group and invitation workflows, account/app connection and settings, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Timeline Settings supplies its safe GET. Unintegrated protected workspace and connection routes withhold switching. |
+| 4–8 | Private Timeline, group and invitation workflows, account/app connection and settings, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Timeline Settings supplies its safe GET. Unintegrated protected workspace, Location, and connection routes withhold switching. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
 Area 1 verification covers language negotiation, preference writes, core draft
 guards, the live map lifecycle and Editor/Viewer presentation. The mounted
 Editor tests cover Greek indexed waypoint validation, an expired route
-proposal, a stale Segment with its reload action, and an unconfirmed Planning
-save with its draft and save hold intact. Plan Check presents scoped findings,
+proposal, a stale Segment with its reload action, map search and discard
+feedback, the Place popup, credit validation and retry, and an unconfirmed
+Planning save with its draft and save hold intact. Plan Check presents scoped findings,
 dependency changes and structured estimate evidence. Follow-up controls use
 the original finding values and retained check inputs.
 
 The headed Viewer-to-Editor journey checks the camera and active Segment
 through the preference switch, Greek Editor validation, and contrast in dark
-desktop, narrow and native 200% zoom layouts. The PostgreSQL private Viewer
+desktop, narrow and native 200% zoom layouts. The delayed Place focus journey
+checks that Place details open with a linked camera and Segment retained, and
+that a Place-only link and deliberate Place selection still move the map.
+The PostgreSQL private Viewer
 test checks a coherent split-query snapshot with ordered waypoints and
 owner-filtered visits. See [#960](https://github.com/stef-k/Wayfarer/issues/960)
 for the remaining areas and review gates.

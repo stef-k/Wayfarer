@@ -318,15 +318,15 @@ const init = () => {
   </div>`;
     };
 
-    /* open details */
-    window.wayfarer.openPlaceDetails = pid => {
+    /** Opens the Place panel and marker, preserving a camera owned by a permalink or print. */
+    const openPlaceDetails = (pid, preserveCamera = false) => {
         const li = $(`.place-list-item[data-place-id="${pid}"]`);
         if (!li) return;
         // The hidden Razor notes already contain display proxies before either DOM insertion.
-        sidebar.openDetails(detailsHtml(li));
+        sidebar.openDetails(detailsHtml(li), { preserveCamera });
         highlightMarker(pid);
         const m = getPlaceMarker(pid);
-        if (m) {
+        if (m && !preserveCamera) {
             const tgt = m.getLatLng();
             // pick a zoom level that is at least 12 or keeps the current one if closer
             const z = Math.max(map.getZoom(), 12);
@@ -336,6 +336,7 @@ const init = () => {
         }
         initWikipediaPopovers(pane);
     };
+    window.wayfarer.openPlaceDetails = openPlaceDetails;
 
     /* close details */
     document.addEventListener('click', e => {
@@ -419,15 +420,8 @@ const init = () => {
                         bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
                     } catch {}
                 }
-                // Wait for accordion animation, then highlight the place and open details
-                setTimeout(() => {
-                    // Highlight marker on map
-                    highlightMarker(focusPlaceId);
-                    // Open the place details pane
-                    if (window.wayfarer?.openPlaceDetails) {
-                        window.wayfarer.openPlaceDetails(focusPlaceId);
-                    }
-                }, 350);
+                // Evaluate preservation from the original link, before camera changes rewrite the URL.
+                setTimeout(() => openPlaceDetails(focusPlaceId, camera.complete || isPrint), 350);
             }
         }
     }

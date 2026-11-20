@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Wayfarer.Localization;
 using Wayfarer.Models;
@@ -25,6 +26,12 @@ public sealed class WebLanguageHttpTests : TestBase
     [InlineData("el;q=0.8, en;q=0.8", null, "el-GR")]
     [InlineData("el;q=0, *;q=1", null, "en-US")]
     [InlineData("el;q=broken, en;q=0.5", null, "en-US")]
+    [InlineData("el;q=0.9999, en-US;q=0.5", null, "en-US")]
+    [InlineData("en-US;q=0.9999, el-CY;q=0.5", null, "el-GR")]
+    [InlineData("el;q=1.0000, en-US;q=0.5", null, "en-US")]
+    [InlineData("el;q=0.999, en-US;q=0.500", null, "el-GR")]
+    [InlineData("el;q=0.999, en-US;q=1.000", null, "en-US")]
+    [InlineData("el; Q=1., en-US;q=0.9", null, "el-GR")]
     [InlineData("el", "c=en-US%7Cuic=en-US", "en-US")]
     [InlineData("el", "c=en-US%7Cuic=el-GR", "el-GR")]
     [InlineData("el", "c=en-US", "el-GR")]
@@ -35,19 +42,28 @@ public sealed class WebLanguageHttpTests : TestBase
         db.ApplicationSettings.Add(new ApplicationSettings());
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
-        using var client = app.GetTestClient();
-        client.BaseAddress = new Uri("https://wayfarer.test");
-        client.DefaultRequestHeaders.TryAddWithoutValidation("Accept-Language", header);
-        if (cookie != null)
-            client.DefaultRequestHeaders.Add("Cookie", WebLocales.CookieName + "=" + cookie);
-
-        using var response = await client.GetAsync("/Identity/Account/Login?culture=fr-FR&ui-culture=fr-FR");
-        var page = await ParseAsync(response);
+        // Set the raw header at the request boundary so HttpClient cannot round malformed quality values.
+        var context = await app.GetTestServer().SendAsync(http =>
+        {
+            var request = http.Request;
+            request.Method = HttpMethods.Get;
+            request.Scheme = "https";
+            request.Host = new HostString("wayfarer.test");
+            request.Path = "/Identity/Account/Login";
+            request.QueryString = new QueryString("?culture=fr-FR&ui-culture=fr-FR");
+            request.Headers.AcceptLanguage = header;
+            if (cookie != null) request.Headers.Cookie = WebLocales.CookieName + "=" + cookie;
+        });
+        var response = context.Response;
+        Assert.Equal(StatusCodes.Status200OK, response.StatusCode);
+        using var body = response.Body;
+        var page = await new HtmlParser().ParseDocumentAsync(body);
         Assert.Equal(locale, page.DocumentElement.GetAttribute("lang"));
-        Assert.Equal(locale, response.Content.Headers.ContentLanguage.Single());
-        Assert.True(response.Headers.CacheControl?.Private);
-        Assert.Contains("Accept-Language", response.Headers.Vary);
-        Assert.Contains("Cookie", response.Headers.Vary);
+        Assert.Equal(locale, response.Headers.ContentLanguage.Single());
+        Assert.Contains("private", response.Headers.GetCommaSeparatedValues("Cache-Control"));
+        var vary = response.Headers.GetCommaSeparatedValues("Vary");
+        Assert.Contains("Accept-Language", vary);
+        Assert.Contains("Cookie", vary);
         Assert.Equal(locale, page.QuerySelector("#language-options input[checked]")?.GetAttribute("value"));
         Assert.Contains($"\"locale\":\"{locale}\"", page.QuerySelector("#wayfarer-locale")!.TextContent);
     }

@@ -40,10 +40,11 @@ defineExpose({ focusNotes });
 
 const placeGroups = computed(() => segmentPlaceGroups(props.state));
 // Preserve the current inactive or legacy value as a disabled option; changing away removes it from the selectable list.
+/** Retains the stored mode value when its profile is inactive. */
 const transportModes = computed(() => {
   const active = props.state.options.transportModes;
   if (!props.draft.mode || active.some(mode => mode.value === props.draft.mode)) return active;
-  return [{ value: props.draft.mode, label: `${props.draft.mode} (inactive)`, speedKmh: null, inactive: true }, ...active];
+  return [{ value: props.draft.mode, label: localize('Editor.InactiveMode', '{0} (inactive)', props.draft.mode), speedKmh: null, inactive: true }, ...active];
 });
 const routeSummary = computed(() => {
   if (props.draft.route) {
@@ -124,7 +125,7 @@ function unavailableEndpoint(id: Guid | null): boolean {
       <label class="trip-editor-field">
         <span>{{ localize("Editor.EstimatedDurationMinutes", "Estimated duration minutes") }}</span>
         <input v-if="draft.estimatedDurationSource === 'Manual'" v-model="draft.estimatedDurationMinutes" data-segment-field="estimatedDurationMinutes" type="number" min="0" step="any" />
-        <input v-else :value="draft.estimatedDurationMinutes" type="number" disabled readonly aria-readonly="true" :placeholder="draft.estimatedDurationMinutes === '' ? 'Unavailable until route and speed are available' : undefined" />
+        <input v-else :value="draft.estimatedDurationMinutes" type="number" disabled readonly aria-readonly="true" :placeholder="draft.estimatedDurationMinutes === '' ? localize('Editor.EstimateNeedsRouteSpeed', 'Unavailable until route and speed are available') : undefined" />
         <small v-for="message in fieldErrors('estimatedDurationMinutes')" :key="message">{{ message }}</small>
       </label>
     </div>

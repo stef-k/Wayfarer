@@ -11,6 +11,7 @@ import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, Editor
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
 import { buildSegmentRequest, emptySegmentDraft, mapWaypointErrors, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
+import SegmentConflictNotice from './SegmentConflictNotice.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkLifecycleState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
@@ -608,11 +609,6 @@ function cloneDraft(value: EditorSegmentDraft): EditorSegmentDraft {
   return JSON.parse(JSON.stringify(value)) as EditorSegmentDraft;
 }
 
-function conflictJourney(segment: EditorSegment): string {
-  return [segment.fromPlaceId, ...segment.waypointPlaceIds, segment.toPlaceId]
-    .map(id => id ? props.state.placesById[id]?.name ?? 'Unavailable place' : 'Not selected').join(' → ');
-}
-
 function markSaved(): void {
   lastSavedAt.value = date(new Date(), { timeStyle: 'short' });
   saveError.value = null;
@@ -624,9 +620,12 @@ function segmentLabel(segment: EditorSegment): string {
   return segment.title || [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
 }
 
+/** Catalog labels and stored mode names retain their authored values. */
 function modeText(segment: EditorSegment): string {
-  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label ?? (segment.mode || 'mode unset');
+  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label
+    ?? (segment.mode || localize('Editor.ModeUnset', 'Mode unset'));
 }
+
 </script>
 
 <template>
@@ -636,12 +635,8 @@ function modeText(segment: EditorSegment): string {
       <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ editorStatusText(statusText) }}</span>
     </div>
     <div v-if="saveError" id="segment-route-work-error" class="trip-editor-form-error" role="alert" tabindex="-1">{{ saveError }}</div>
-    <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">
-      <h3 id="segment-conflict-heading" tabindex="-1">{{ localize("Editor.CurrentSavedSegment", "Current saved Segment") }}</h3>
-      <p>{{ conflictJourney(segmentConflict.currentSegment) }}</p>
-      <p>{{ modeText(segmentConflict.currentSegment) }} · {{ segmentConflict.currentSegment.estimatedDistanceKm ?? 'Distance unavailable' }} {{ localize("Editor.Km", "km ·") }} {{ segmentConflict.currentSegment.estimatedDurationMinutes ?? 'Duration unavailable' }} {{ localize("Editor.Minutes", "minutes ·") }} {{ segmentConflict.currentSegment.estimatedDurationSource }}</p>
-      <button type="button" class="btn btn-outline-light btn-sm" @click="reloadCurrentSegment">{{ localize("Editor.ReloadCurrentSavedSegment", "Reload current saved Segment") }}</button>
-    </section>
+    <SegmentConflictNotice v-if="segmentConflict" :segment="segmentConflict.currentSegment"
+      :places="state.placesById" :mode-label="modeText(segmentConflict.currentSegment)" @reload="reloadCurrentSegment" />
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">{{ localize("Editor.AddSegment", "Add Segment") }}</button>
 
     <SegmentEditorSurface :notes-adoption="notes.notesAdoption.value" :notes-session="notes.session.value" v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :baseline-draft="persistedBaseline" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :is-generating="isGenerating" :manual-duration-override="routeProposalDraft.manualOverride.value" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :semantic-edits-safe="semanticTaint.isSafe.value" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-generating-changed="isGenerating = $event" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" @semantic-edits-unsafe="semanticTaint.markUnsafe" />

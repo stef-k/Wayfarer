@@ -358,6 +358,8 @@ function normalizeShareProgress(value: MetadataDraft): boolean {
 }
 
 const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? []).map(editorFieldError);
+/** Keeps the collection-level error attached to the credit controls across unrelated draft edits. */
+const creditErrors = computed(() => fieldErrors('credits'));
 </script>
 
 <template>
@@ -396,7 +398,7 @@ const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? [
           <input v-model="draft.isPublic" type="checkbox" />
           <span>{{ localize("Editor.PublicTrip", "Public trip") }}</span>
         </label>
-        <TripCreditsEditor :draft="draft" />
+        <TripCreditsEditor :draft="draft" :errors="creditErrors" />
 
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-share-progress-heading">
           <h3 id="trip-editor-share-progress-heading">{{ localize("Editor.ShareProgress", "Share Progress") }}</h3>

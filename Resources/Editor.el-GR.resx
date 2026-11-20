@@ -2241,4 +2241,79 @@
   <data name="Editor.RouteWorkMissingLocation" xml:space="preserve">
     <value>Μια στάση δεν έχει αποθηκευμένες συντεταγμένες. Ορίστε τις πριν επεξεργαστείτε τη διαδρομή.</value>
   </data>
+  <data name="Editor.MapSearchNoRegion" xml:space="preserve">
+    <value>Δεν υπάρχει διαθέσιμη επεξεργάσιμη περιοχή για αυτό το αποτέλεσμα.</value>
+  </data>
+  <data name="Editor.MapSearchWorking" xml:space="preserve">
+    <value>Αναζήτηση στον χάρτη…</value>
+  </data>
+  <data name="Editor.MapSearchEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν αποτελέσματα στον χάρτη.</value>
+  </data>
+  <data name="Editor.MapSearchUnavailable" xml:space="preserve">
+    <value>Ο πάροχος αναζήτησης στον χάρτη δεν είναι διαθέσιμος.</value>
+  </data>
+  <data name="Editor.MapSearchRateLimit" xml:space="preserve">
+    <value>Έγιναν πολλές αναζητήσεις στον χάρτη. Δοκιμάστε ξανά σε λίγο.</value>
+  </data>
+  <data name="Editor.MapSearchFailed" xml:space="preserve">
+    <value>Η αναζήτηση στον χάρτη απέτυχε.</value>
+  </data>
+  <data name="Editor.MapSearchResult" xml:space="preserve">
+    <value>Αποτέλεσμα γεωκωδικοποίησης</value>
+  </data>
+  <data name="Editor.DiscardMapWorkQuestion" xml:space="preserve">
+    <value>Απόρριψη αλλαγών στον χάρτη;</value>
+  </data>
+  <data name="Editor.DiscardMapWorkDetail" xml:space="preserve">
+    <value>Οι προσωρινές αλλαγές στον χάρτη θα απορριφθούν.</value>
+  </data>
+  <data name="Editor.ValidationCredits" xml:space="preserve">
+    <value>Ελέγξτε την πολιτική συνεισφοράς και συμπληρώστε ευανάγνωστες αναφορές.</value>
+  </data>
+  <data name="Editor.ModeUnset" xml:space="preserve">
+    <value>Δεν έχει οριστεί μέσο μετακίνησης</value>
+  </data>
+  <data name="Editor.DistanceUnavailable" xml:space="preserve">
+    <value>Η απόσταση δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.InactiveMode" xml:space="preserve">
+    <value>{0} (ανενεργό)</value>
+  </data>
+  <data name="Editor.EstimateNeedsRouteSpeed" xml:space="preserve">
+    <value>Απαιτούνται διαδρομή και ταχύτητα για τον υπολογισμό</value>
+  </data>
+  <data name="Editor.UnnamedPlace" xml:space="preserve">
+    <value>Τοποθεσία χωρίς όνομα</value>
+  </data>
+  <data name="Editor.PlacePopupDetected" xml:space="preserve">
+    <value>Εντοπισμένη τοποθεσία: {0}</value>
+  </data>
+  <data name="Editor.PlacePopupSelectMarker" xml:space="preserve">
+    <value>Επιλέξτε τον δείκτη για να επιλέξετε αυτήν την τοποθεσία</value>
+  </data>
+  <data name="Editor.PlacePopupPostcode" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο ταχυδρομικού κώδικα.</value>
+  </data>
+  <data name="Editor.PlacePopupCity" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο πόλης.</value>
+  </data>
+  <data name="Editor.PlacePopupLocalArea" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο τοπικής περιοχής.</value>
+  </data>
+  <data name="Editor.PlacePopupRegion" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, μόνο σε επίπεδο περιφέρειας.</value>
+  </data>
+  <data name="Editor.PlacePopupNotVisited" xml:space="preserve">
+    <value>Καμία επίσκεψη έως τώρα</value>
+  </data>
+  <data name="Editor.PlacePopupVisits" xml:space="preserve">
+    <value>Επισκέψεις:</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη τοποθεσία</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnset" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί τοποθεσία</value>
+  </data>
 </root>

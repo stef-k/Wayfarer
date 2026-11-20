@@ -2241,4 +2241,79 @@
   <data name="Editor.RouteWorkMissingLocation" xml:space="preserve">
     <value>A route anchor is missing its saved Place location.</value>
   </data>
+  <data name="Editor.MapSearchNoRegion" xml:space="preserve">
+    <value>No editable region is available for this search result.</value>
+  </data>
+  <data name="Editor.MapSearchWorking" xml:space="preserve">
+    <value>Searching map...</value>
+  </data>
+  <data name="Editor.MapSearchEmpty" xml:space="preserve">
+    <value>No map search results.</value>
+  </data>
+  <data name="Editor.MapSearchUnavailable" xml:space="preserve">
+    <value>Map search provider is unavailable.</value>
+  </data>
+  <data name="Editor.MapSearchRateLimit" xml:space="preserve">
+    <value>Map search is rate limited. Try again shortly.</value>
+  </data>
+  <data name="Editor.MapSearchFailed" xml:space="preserve">
+    <value>Map search failed.</value>
+  </data>
+  <data name="Editor.MapSearchResult" xml:space="preserve">
+    <value>geocode result</value>
+  </data>
+  <data name="Editor.DiscardMapWorkQuestion" xml:space="preserve">
+    <value>Discard map editing changes?</value>
+  </data>
+  <data name="Editor.DiscardMapWorkDetail" xml:space="preserve">
+    <value>Your temporary map edits will be discarded.</value>
+  </data>
+  <data name="Editor.ValidationCredits" xml:space="preserve">
+    <value>Check the contribution policy and complete readable credits.</value>
+  </data>
+  <data name="Editor.ModeUnset" xml:space="preserve">
+    <value>Mode unset</value>
+  </data>
+  <data name="Editor.DistanceUnavailable" xml:space="preserve">
+    <value>Distance unavailable</value>
+  </data>
+  <data name="Editor.InactiveMode" xml:space="preserve">
+    <value>{0} (inactive)</value>
+  </data>
+  <data name="Editor.EstimateNeedsRouteSpeed" xml:space="preserve">
+    <value>Unavailable until route and speed are available</value>
+  </data>
+  <data name="Editor.UnnamedPlace" xml:space="preserve">
+    <value>Unnamed Place</value>
+  </data>
+  <data name="Editor.PlacePopupDetected" xml:space="preserve">
+    <value>Detected place: {0}</value>
+  </data>
+  <data name="Editor.PlacePopupSelectMarker" xml:space="preserve">
+    <value>Click marker to select this place</value>
+  </data>
+  <data name="Editor.PlacePopupPostcode" xml:space="preserve">
+    <value>Approximate address — resolved to postcode level.</value>
+  </data>
+  <data name="Editor.PlacePopupCity" xml:space="preserve">
+    <value>Approximate address — resolved to city level.</value>
+  </data>
+  <data name="Editor.PlacePopupLocalArea" xml:space="preserve">
+    <value>Approximate address — resolved to local-area level.</value>
+  </data>
+  <data name="Editor.PlacePopupRegion" xml:space="preserve">
+    <value>Approximate address — resolved only to a regional level.</value>
+  </data>
+  <data name="Editor.PlacePopupNotVisited" xml:space="preserve">
+    <value>Not visited yet</value>
+  </data>
+  <data name="Editor.PlacePopupVisits" xml:space="preserve">
+    <value>Visits:</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnavailable" xml:space="preserve">
+    <value>Unavailable place</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnset" xml:space="preserve">
+    <value>Not selected</value>
+  </data>
 </root>
