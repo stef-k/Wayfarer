@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { message as localize, number } from '../../../../wwwroot/js/localization/messages.js';
 import { regionOrderOriginals, type RegionOrderOriginals } from './regionOrdering';
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { placeMarkerIconUrl, placeMarkerLabel } from '../displayHelpers';
@@ -315,13 +315,13 @@ function isCollapsed(regionId: Guid): boolean {
 function forcedExpansionExplanation(regionId: Guid): string | null {
   const reason = props.forcedExpansionReasonByRegionId[regionId];
   if (reason === 'search') {
-    return 'Collapse is unavailable while sidebar search is active. Clear the search to restore your previous Region layout.';
+    return localize('Editor.CollapseHeldBySearch', 'Collapse is unavailable while sidebar search is active. Clear the search to restore your previous Region layout.');
   }
   if (reason === 'editor') {
-    return 'Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.';
+    return localize('Editor.CollapseHeldByEditor', 'Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.');
   }
   if (reason === 'selection') {
-    return 'Collapse is unavailable while a Place in this Region is selected. Clear the selected Place first.';
+    return localize('Editor.CollapseHeldBySelection', 'Collapse is unavailable while a Place in this Region is selected. Clear the selected Place first.');
   }
 
   return null;
@@ -402,7 +402,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
             :disabled="props.forceExpandedRegionIds.has(region.id)"
             @click="toggleRegion(region.id)"
           >
-            {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
+            {{ isCollapsed(region.id) ? localize('Editor.Expand', 'Expand') : localize('Editor.Collapse', 'Collapse') }}
           </button>
           <span v-if="forcedExpansionExplanation(region.id)" :id="`trip-editor-region-collapse-explanation-${region.id}`" class="visually-hidden">
             {{ forcedExpansionExplanation(region.id) }}
@@ -436,7 +436,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
             </button>
             <span class="trip-editor-place-row__icon" aria-hidden="true">
               <img :src="placeMarkerIconUrl(displayPlace(place).iconName, displayPlace(place).markerColor)" width="24" height="39" alt="" data-sidebar-place-icon />
-              <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : place.visitSummary.visitCount }}</span>
+              <span v-if="place.visitSummary.isVisited" class="trip-editor-place-row__visit-badge">{{ place.visitSummary.visitCount === 1 ? '✓' : number(place.visitSummary.visitCount) }}</span>
             </span>
             <span class="trip-editor-place-row__content">
               <span class="trip-editor-place-row__name itinerary-place-label">{{ placeLabel(place) }}</span>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { message as localize, number } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { SegmentRoutePointEditorController } from './segmentRouteMapWork';
 import type { SegmentRouteWorkNode } from './segmentRouteWorkState';
@@ -18,22 +18,22 @@ defineExpose({
 
 /** Names semantic anchors and anonymous route points independently of mutable indices. */
 function nodeLabel(node: SegmentRouteWorkNode, index: number): string {
-  if (node.kind === 'anonymous') return `Route point ${anonymousOrdinal(index)}`;
-  if (node.role === 'from') return `Start — ${node.placeName} — fixed`;
-  if (node.role === 'to') return `End — ${node.placeName} — fixed`;
-  const via = nodes.value.slice(0, index + 1).filter(candidate => candidate.kind === 'anchor' && candidate.role === 'waypoint').length;
-  return `Via ${via} — ${node.placeName} — fixed`;
-}
-
-function anonymousOrdinal(index: number): number {
-  return nodes.value.slice(0, index + 1).filter(node => node.kind === 'anonymous').length;
+  const preceding = nodes.value.slice(0, index + 1);
+  if (node.kind === 'anonymous') {
+    const ordinal = preceding.filter(candidate => candidate.kind === 'anonymous').length;
+    return localize('Editor.RoutePointLabel', 'Route point {0}', number(ordinal));
+  }
+  const role = node.role === 'from' ? localize('Editor.RouteStart', 'Start')
+    : node.role === 'to' ? localize('Editor.RouteEnd', 'End')
+    : localize('Editor.RouteVia', 'Via {0}', number(preceding.filter(candidate => candidate.kind === 'anchor' && candidate.role === 'waypoint').length));
+  return localize('Editor.FixedRouteAnchorLabel', '{0} — {1} — fixed', role, node.placeName);
 }
 
 /** Inserts deterministically at the selected semantic interval and focuses the new controls. */
 async function insertAfter(node: SegmentRouteWorkNode, index: number): Promise<void> {
   const key = props.controller.insertAfter(node.key);
   if (!key) return;
-  status.value = `Inserted route point between ${nodeLabel(node, index)} and ${nodeLabel(nodes.value[index + 2], index + 2)}.`;
+  status.value = localize('Editor.RoutePointInserted', 'Inserted route point between {0} and {1}.', nodeLabel(node, index), nodeLabel(nodes.value[index + 2], index + 2));
   await nextTick();
   document.querySelector<HTMLInputElement>(`[data-route-point-key="${CSS.escape(key)}"] input`)?.focus();
 }
@@ -57,7 +57,7 @@ function move(node: SegmentRouteWorkNode, axis: 0 | 1, event: Event): void {
   }
   setInvalidText(node.key, axis, null);
   setInvalid(node.key, axis, false);
-  status.value = `${nodeLabel(node, nodes.value.indexOf(node))} moved.`;
+  status.value = localize('Editor.NamedItemMoved', '{0} moved.', nodeLabel(node, nodes.value.indexOf(node)));
 }
 
 /** Tracks each anonymous coordinate field independently. */
@@ -99,7 +99,7 @@ async function remove(node: SegmentRouteWorkNode, index: number): Promise<void> 
   setInvalid(node.key, 1, false);
   setInvalidText(node.key, 0, null);
   setInvalidText(node.key, 1, null);
-  status.value = `${nodeLabel(node, index)} removed.`;
+  status.value = localize('Editor.NamedItemRemoved', '{0} removed.', nodeLabel(node, index));
   await nextTick();
   const target = document.querySelector<HTMLElement>(`[data-route-point-index="${Math.min(index, nodes.value.length - 1)}"] button, [data-route-point-index="${Math.min(index, nodes.value.length - 1)}"] input`)
     ?? document.querySelector<HTMLElement>('[data-route-insert-action]');
@@ -129,7 +129,7 @@ watch(
           <small v-if="isInvalid(node.key, 0)" :id="errorId(node.key, 0)">{{ localize("Editor.LongitudeMustBeBetween180And180", "Longitude must be between -180 and 180.") }}</small>
           <label>{{ localize("Editor.Latitude", "Latitude") }} <input type="number" min="-90" max="90" step="any" :value="fieldValue(node, 1)" :aria-invalid="isInvalid(node.key, 1) ? 'true' : undefined" :aria-describedby="isInvalid(node.key, 1) ? errorId(node.key, 1) : undefined" @input="move(node, 1, $event)" /></label>
           <small v-if="isInvalid(node.key, 1)" :id="errorId(node.key, 1)">{{ localize("Editor.LatitudeMustBeBetween90And90", "Latitude must be between -90 and 90.") }}</small>
-          <button type="button" class="btn btn-outline-danger btn-sm" :aria-label="`Remove ${nodeLabel(node, index)}`" @click="remove(node, index)">{{ localize("Editor.Remove", "Remove") }}</button>
+          <button type="button" class="btn btn-outline-danger btn-sm" :aria-label="localize('Editor.RemoveNamedItem', 'Remove {0}', nodeLabel(node, index))" @click="remove(node, index)">{{ localize("Editor.Remove", "Remove") }}</button>
         </template>
         <span v-else class="small">{{ localize("Editor.FixedSavedPlaceAnchor", "Fixed saved-Place anchor") }}</span>
         <button
@@ -137,7 +137,7 @@ watch(
           type="button"
           class="btn btn-outline-light btn-sm"
           data-route-insert-action
-          :aria-label="`Insert route point after ${nodeLabel(node, index)}`"
+          :aria-label="localize('Editor.InsertRoutePointAfterLabel', 'Insert route point after {0}', nodeLabel(node, index))"
           @click="insertAfter(node, index)"
         >{{ localize("Editor.InsertRoutePointAfter", "Insert route point after") }}</button>
       </li>

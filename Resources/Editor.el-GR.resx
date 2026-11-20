@@ -204,32 +204,11 @@
   <data name="Editor.LoadingCurrentConsequences" xml:space="preserve">
     <value>Φόρτωση συνεπειών της διαγραφής…</value>
   </data>
-  <data name="Editor.Places" xml:space="preserve">
-    <value>Τοποθεσίες:</value>
-  </data>
-  <data name="Editor.Kept" xml:space="preserve">
-    <value>διατηρούνται,</value>
-  </data>
-  <data name="Editor.DeletedAreas" xml:space="preserve">
-    <value>διαγράφονται. Ζώνες:</value>
-  </data>
-  <data name="Editor.Deleted" xml:space="preserve">
-    <value>διαγράφονται.</value>
-  </data>
-  <data name="Editor.UnassignedPlacesDestination" xml:space="preserve">
-    <value>Τοποθεσίες χωρίς περιοχή.</value>
-  </data>
   <data name="Editor.TheRegionSPrivatePlanningIsRemoved" xml:space="preserve">
     <value>Ο ιδιωτικός σχεδιασμός της περιοχής αφαιρείται. Τα στοιχεία που διατηρούνται διατηρούν τον σχεδιασμό τους. Ο σχεδιασμός των διαγραμμένων στοιχείων και τμημάτων αφαιρείται.</value>
   </data>
   <data name="Editor.SegmentsDeleted" xml:space="preserve">
-    <value>Τμήματα που διαγράφονται:</value>
-  </data>
-  <data name="Editor.SurvivingWaypointRoutesChanged" xml:space="preserve">
-    <value>Διαδρομές με ενδιάμεσα σημεία που αλλάζουν:</value>
-  </data>
-  <data name="Editor.SavedWaypointAssociationsRemoved" xml:space="preserve">
-    <value>· Συνδέσεις με ενδιάμεσα σημεία που αφαιρούνται:</value>
+    <value>Τμήματα διαδρομής που διαγράφονται: {0}.</value>
   </data>
   <data name="Editor.DeletionIsPermanentVisitHistoryRetainsSnapshots" xml:space="preserve">
     <value>Η διαγραφή είναι οριστική. Το ιστορικό επισκέψεων διατηρεί τα στιγμιότυπα και αποσυνδέεται από τις διαγραμμένες τοποθεσίες. Η διατήρηση ζωνών δεν διατηρεί τις διαγραμμένες τοποθεσίες ή διαδρομές.</value>
@@ -2315,5 +2294,257 @@
   </data>
   <data name="Editor.SegmentPlaceUnset" xml:space="preserve">
     <value>Δεν έχει επιλεγεί τοποθεσία</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Αποθηκευμένη διαδρομή · {0} προσαρμοσμένο σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Αποθηκευμένη διαδρομή · {0} προσαρμοσμένα σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Μη αποθηκευμένη διαδρομή · {0} προσαρμοσμένο σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Μη αποθηκευμένη διαδρομή · {0} προσαρμοσμένα σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.OrderedAnchorFallback" xml:space="preserve">
+    <value>Διαθέσιμη εναλλακτική διαδρομή μέσω των σημείων με τη σειρά τους</value>
+  </data>
+  <data name="Editor.UnsavedOrderedAnchorFallback" xml:space="preserve">
+    <value>Διαθέσιμη εναλλακτική διαδρομή μέσω των σημείων με τη σειρά τους · μη αποθηκευμένη</value>
+  </data>
+  <data name="Editor.NoRoute" xml:space="preserve">
+    <value>Χωρίς διαδρομή</value>
+  </data>
+  <data name="Editor.RegionCenterMarker" xml:space="preserve">
+    <value>Κέντρο περιοχής: {0}</value>
+  </data>
+  <data name="Editor.PlaceWithVisitCount" xml:space="preserve">
+    <value>{0}, {1}</value>
+  </data>
+  <data name="Editor.CollapseHeldBySearch" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο είναι ενεργή η αναζήτηση στην πλαϊνή στήλη. Καθαρίστε την αναζήτηση για να επαναφέρετε την προηγούμενη διάταξη των περιοχών.</value>
+  </data>
+  <data name="Editor.CollapseHeldByEditor" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο είναι ανοιχτή η φόρμα επεξεργασίας περιοχής, τοποθεσίας ή ζώνης σε αυτήν την περιοχή. Κλείστε πρώτα τη φόρμα.</value>
+  </data>
+  <data name="Editor.CollapseHeldBySelection" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο υπάρχει επιλεγμένη τοποθεσία σε αυτήν την περιοχή. Καταργήστε πρώτα την επιλογή.</value>
+  </data>
+  <data name="Editor.PlaceGroup" xml:space="preserve">
+    <value>Τοποθεσίες</value>
+  </data>
+  <data name="Editor.RegionDeleteCreatesDestination" xml:space="preserve">
+    <value>Δημιουργείται η περιοχή «{0}».</value>
+  </data>
+  <data name="Editor.RegionDeleteUsesDestination" xml:space="preserve">
+    <value>Μεταφορά στην υπάρχουσα περιοχή «{0}».</value>
+  </data>
+  <data name="Editor.KeepRecommended" xml:space="preserve">
+    <value>Διατήρηση (προτείνεται)</value>
+  </data>
+  <data name="Editor.DeletePermanently" xml:space="preserve">
+    <value>Οριστική διαγραφή</value>
+  </data>
+  <data name="Editor.MoveToRegion" xml:space="preserve">
+    <value>Μεταφορά στην περιοχή «{0}»</value>
+  </data>
+  <data name="Editor.DeleteIrreversible" xml:space="preserve">
+    <value>Δεν μπορεί να αναιρεθεί</value>
+  </data>
+  <data name="Editor.RegionDeleteChildrenSummary" xml:space="preserve">
+    <value>Τοποθεσίες: {0} διατηρούνται, {1} διαγράφονται. Ζώνες: {2} διατηρούνται, {3} διαγράφονται.</value>
+  </data>
+  <data name="Editor.RegionDeleteAffectedRoutes" xml:space="preserve">
+    <value>Διαδρομές με ενδιάμεσες στάσεις που διατηρούνται και αλλάζουν: {0}. Συσχετίσεις αποθηκευμένων στάσεων που αφαιρούνται: {1}.</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepBoth" xml:space="preserve">
+    <value>Διαγραφή περιοχής · διατήρηση τοποθεσιών και ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepPlaces" xml:space="preserve">
+    <value>Διαγραφή περιοχής και ζωνών · διατήρηση τοποθεσιών</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepAreas" xml:space="preserve">
+    <value>Διαγραφή περιοχής και τοποθεσιών · διατήρηση ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionDeleteBoth" xml:space="preserve">
+    <value>Διαγραφή περιοχής, τοποθεσιών και ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionTitle" xml:space="preserve">
+    <value>Διαγραφή περιοχής «{0}»;</value>
+  </data>
+  <data name="Editor.DeleteRegionDescription" xml:space="preserve">
+    <value>Η περιοχή, το όνομά της, οι σημειώσεις, το εξώφυλλο και το κέντρο της στον χάρτη θα χαθούν. Επιλέξτε χωριστά τι θα γίνει με τις τοποθεσίες και τις ζώνες.</value>
+  </data>
+  <data name="Editor.ReviewRegionOrder" xml:space="preserve">
+    <value>Έλεγχος σειράς περιοχών</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.one" xml:space="preserve">
+    <value>Εφαρμογή αυτής της σειράς σε {0} περιοχή με βάση το περιεχόμενο που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.other" xml:space="preserve">
+    <value>Εφαρμογή της πλήρους σειράς σε {0} περιοχές με βάση το περιεχόμενο που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ApplyReviewedOrder" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης σειράς</value>
+  </data>
+  <data name="Editor.KeepCurrentOrder" xml:space="preserve">
+    <value>Διατήρηση τρέχουσας σειράς</value>
+  </data>
+  <data name="Editor.SegmentPlaceGone" xml:space="preserve">
+    <value>Η τοποθεσία δεν είναι πλέον διαθέσιμη</value>
+  </data>
+  <data name="Editor.SegmentRegionGone" xml:space="preserve">
+    <value>{0} — η περιοχή δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.SegmentPlaceOutsideRegion" xml:space="preserve">
+    <value>{0} — μη διαθέσιμη σε αυτήν την περιοχή</value>
+  </data>
+  <data name="Editor.SegmentPlaceInvalidLocation" xml:space="preserve">
+    <value>{0} — μη έγκυρες συντεταγμένες</value>
+  </data>
+  <data name="Editor.SegmentPlaceNeedsLocation" xml:space="preserve">
+    <value>{0} — απαιτούνται συντεταγμένες</value>
+  </data>
+  <data name="Editor.WaypointGeometryPreserved" xml:space="preserve">
+    <value>Η υπάρχουσα γεωμετρία διατηρήθηκε. Η νέα σύνδεση με την τοποθεσία είναι ευθεία. Αν χρειάζεται, επεξεργαστείτε τη διαδρομή ή ζητήστε διαδρομή από εξωτερική υπηρεσία.</value>
+  </data>
+  <data name="Editor.WaypointAdded" xml:space="preserve">
+    <value>Προστέθηκε η τοποθεσία «{0}» ως ενδιάμεση στάση {1}.</value>
+  </data>
+  <data name="Editor.WaypointMoved" xml:space="preserve">
+    <value>Η τοποθεσία «{0}» μετακινήθηκε στη θέση {1}.</value>
+  </data>
+  <data name="Editor.NamedItemRemoved" xml:space="preserve">
+    <value>Αφαιρέθηκε: {0}.</value>
+  </data>
+  <data name="Editor.WaypointUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη τοποθεσία {0}</value>
+  </data>
+  <data name="Editor.SegmentFromNotSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί αφετηρία</value>
+  </data>
+  <data name="Editor.SegmentToNotSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί προορισμός</value>
+  </data>
+  <data name="Editor.WaypointLabel" xml:space="preserve">
+    <value>Ενδιάμεση στάση {0}: {1}</value>
+  </data>
+  <data name="Editor.MoveNamedItemUp" xml:space="preserve">
+    <value>Μετακίνηση προς τα πάνω: {0}</value>
+  </data>
+  <data name="Editor.MoveNamedItemDown" xml:space="preserve">
+    <value>Μετακίνηση προς τα κάτω: {0}</value>
+  </data>
+  <data name="Editor.RemoveNamedItem" xml:space="preserve">
+    <value>Αφαίρεση: {0}</value>
+  </data>
+  <data name="Editor.RouteStart" xml:space="preserve">
+    <value>Αφετηρία</value>
+  </data>
+  <data name="Editor.RouteEnd" xml:space="preserve">
+    <value>Άφιξη</value>
+  </data>
+  <data name="Editor.RouteVia" xml:space="preserve">
+    <value>Μέσω {0}</value>
+  </data>
+  <data name="Editor.RouteUnlinkedStart" xml:space="preserve">
+    <value>Ασύνδετη αφετηρία</value>
+  </data>
+  <data name="Editor.RouteUnlinkedEnd" xml:space="preserve">
+    <value>Ασύνδετη άφιξη</value>
+  </data>
+  <data name="Editor.RouteUnnamedWaypoint" xml:space="preserve">
+    <value>Ανώνυμο ενδιάμεσο σημείο</value>
+  </data>
+  <data name="Editor.SegmentJourneyVia" xml:space="preserve">
+    <value>Τμήμα από {0} μέσω {1} προς {2}</value>
+  </data>
+  <data name="Editor.SegmentJourney" xml:space="preserve">
+    <value>Τμήμα από {0} προς {1}</value>
+  </data>
+  <data name="Editor.JourneyThen" xml:space="preserve">
+    <value>, έπειτα </value>
+  </data>
+  <data name="Editor.RouteDirectionUnavailable" xml:space="preserve">
+    <value>Η κατεύθυνση διαδρομής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.RoutePointLabel" xml:space="preserve">
+    <value>Σημείο διαδρομής {0}</value>
+  </data>
+  <data name="Editor.FixedRouteAnchorLabel" xml:space="preserve">
+    <value>{0} — {1} — σταθερό σημείο</value>
+  </data>
+  <data name="Editor.RoutePointInserted" xml:space="preserve">
+    <value>Προστέθηκε σημείο διαδρομής ανάμεσα στα «{0}» και «{1}».</value>
+  </data>
+  <data name="Editor.NamedItemMoved" xml:space="preserve">
+    <value>Μετακινήθηκε: {0}.</value>
+  </data>
+  <data name="Editor.InsertRoutePointAfterLabel" xml:space="preserve">
+    <value>Εισαγωγή σημείου διαδρομής μετά το «{0}»</value>
+  </data>
+  <data name="Editor.NewPlace" xml:space="preserve">
+    <value>Νέα τοποθεσία</value>
+  </data>
+  <data name="Editor.PendingPlaceMarker" xml:space="preserve">
+    <value>Εκκρεμής θέση τοποθεσίας: {0}</value>
+  </data>
+  <data name="Editor.SearchPreviewMarker" xml:space="preserve">
+    <value>Προεπισκόπηση αποτελέσματος αναζήτησης: {0}</value>
+  </data>
+  <data name="Editor.EditNamedRegion" xml:space="preserve">
+    <value>Επεξεργασία περιοχής — {0}</value>
+  </data>
+  <data name="Editor.RegionDetails" xml:space="preserve">
+    <value>Στοιχεία περιοχής</value>
+  </data>
+  <data name="Editor.NewRegion" xml:space="preserve">
+    <value>Νέα περιοχή</value>
+  </data>
+  <data name="Editor.EditNamedPlace" xml:space="preserve">
+    <value>Επεξεργασία τοποθεσίας — {0}</value>
+  </data>
+  <data name="Editor.EditNamedArea" xml:space="preserve">
+    <value>Επεξεργασία ζώνης — {0}</value>
+  </data>
+  <data name="Editor.EditNamedSegment" xml:space="preserve">
+    <value>Επεξεργασία τμήματος διαδρομής — {0}</value>
+  </data>
+  <data name="Editor.NewSegment" xml:space="preserve">
+    <value>Νέο τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.TripSegment" xml:space="preserve">
+    <value>Τμήμα διαδρομής ταξιδιού</value>
+  </data>
+  <data name="Editor.DiscardSegmentDraft" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeDelete" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής πριν από τη διαγραφή;</value>
+  </data>
+  <data name="Editor.DeleteSegmentQuestion" xml:space="preserve">
+    <value>Διαγραφή τμήματος διαδρομής;</value>
+  </data>
+  <data name="Editor.DeleteSegmentDescription" xml:space="preserve">
+    <value>Διαγραφή αυτού του τμήματος διαδρομής και του ιδιωτικού σχεδιασμού του;</value>
+  </data>
+  <data name="Editor.KeepSegment" xml:space="preserve">
+    <value>Διατήρηση τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeReorder" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής πριν από την αλλαγή σειράς;</value>
+  </data>
+  <data name="Editor.ShowSegment" xml:space="preserve">
+    <value>Εμφάνιση τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.HideSegment" xml:space="preserve">
+    <value>Απόκρυψη τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.DiscardRegionDraft" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών της περιοχής;</value>
+  </data>
+  <data name="Editor.DiscardBeforeRegionReorder" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών πριν από την αλλαγή σειράς των περιοχών;</value>
   </data>
 </root>

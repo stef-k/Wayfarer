@@ -1,3 +1,5 @@
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
+
 /** Semantic role supplied by the authoritative ordered Segment aggregate. */
 export type SegmentAnchorRole = 'start' | 'via' | 'end';
 
@@ -186,7 +188,8 @@ export function resolveSegmentAnchors(inputs: readonly SegmentAnchorInput[]): Re
     return {
       ...input,
       label: alphabeticAnchorLabel(input.position),
-      roleText: input.role === 'start' ? 'Start' : input.role === 'end' ? 'End' : `Via ${viaNumber}`,
+      roleText: input.role === 'start' ? message('Editor.RouteStart', 'Start')
+        : input.role === 'end' ? message('Editor.RouteEnd', 'End') : message('Editor.RouteVia', 'Via {0}', number(viaNumber)),
       displayName: resolvedAnchorName(input)
     };
   });
@@ -337,16 +340,18 @@ function haversineKm(left: readonly [number, number], right: readonly [number, n
 function resolvedAnchorName(anchor: SegmentAnchorInput): string {
   const name = anchor.name?.trim();
   if (name) return name;
-  if (anchor.role === 'start') return 'Unlinked start';
-  if (anchor.role === 'end') return 'Unlinked end';
-  return 'Unnamed waypoint';
+  if (anchor.role === 'start') return message('Editor.RouteUnlinkedStart', 'Unlinked start');
+  if (anchor.role === 'end') return message('Editor.RouteUnlinkedEnd', 'Unlinked end');
+  return message('Editor.RouteUnnamedWaypoint', 'Unnamed waypoint');
 }
 
 /** Produces the keyboard-authoritative Segment name from the derived semantic order. */
 function accessibleJourneyName(anchors: readonly ResolvedSegmentAnchor[]): string {
-  const start = anchors.find(anchor => anchor.role === 'start')?.displayName ?? 'Unlinked start';
-  const end = [...anchors].reverse().find(anchor => anchor.role === 'end')?.displayName ?? 'Unlinked end';
+  const start = anchors.find(anchor => anchor.role === 'start')?.displayName ?? message('Editor.RouteUnlinkedStart', 'Unlinked start');
+  const end = [...anchors].reverse().find(anchor => anchor.role === 'end')?.displayName ?? message('Editor.RouteUnlinkedEnd', 'Unlinked end');
   const vias = anchors.filter(anchor => anchor.role === 'via').map(anchor => anchor.displayName);
-  return `Segment from ${start}${vias.length ? ` via ${vias.join(', then ')}` : ''} to ${end}`;
+  return vias.length
+    ? message('Editor.SegmentJourneyVia', 'Segment from {0} via {1} to {2}', start, vias.join(message('Editor.JourneyThen', ', then ')), end)
+    : message('Editor.SegmentJourney', 'Segment from {0} to {1}', start, end);
 }
 import type { EditorSegmentDraft } from '../types';

@@ -1,5 +1,6 @@
 import L from 'leaflet';
-import { placeMarkerIconUrl, placeMarkerLabel } from '../displayHelpers';
+import { number } from '../../../../wwwroot/js/localization/messages.js';
+import { placeMarkerIconUrl, placeMarkerLabel, placeVisitCount } from '../displayHelpers';
 import type { EditorPlace, EditorRegion } from '../types';
 
 const markerWidth = 28;
@@ -8,7 +9,7 @@ const markerHeight = 45;
 /// Builds app marker icons from static Wayfarer PNGs so Leaflet default image paths are never used.
 export function placeMarkerIcon(place: EditorPlace): L.DivIcon {
   const visitBadge = place.visitSummary.isVisited
-    ? `<span class="trip-editor-map-marker__badge" title="${escapeHtml(place.visitSummary.visitCount === 1 ? 'Visited' : `Visited ${place.visitSummary.visitCount} times`)}">${escapeHtml(place.visitSummary.visitCount === 1 ? '✓' : String(place.visitSummary.visitCount))}</span>`
+    ? `<span class="trip-editor-map-marker__badge" title="${escapeHtml(placeVisitCount(place.visitSummary.visitCount))}">${escapeHtml(place.visitSummary.visitCount === 1 ? '✓' : number(place.visitSummary.visitCount))}</span>`
     : '';
 
   return appMarkerIcon({
@@ -26,12 +27,12 @@ export function placeMarkerIcon(place: EditorPlace): L.DivIcon {
 }
 
 /// Builds the legacy-equivalent red map marker used for region centers.
-export function regionMarkerIcon(region: EditorRegion): L.DivIcon {
+export function regionMarkerIcon(region: EditorRegion, label: string): L.DivIcon {
   return appMarkerIcon({
     className: 'trip-editor-map-marker trip-editor-map-marker--region',
     imageClassName: 'trip-editor-map-marker__image',
     src: placeMarkerIconUrl('map', 'bg-red'),
-    alt: `${region.name} region center`,
+    alt: label,
     dataAttribute: `data-region-marker-icon="${escapeHtml(region.id)}"`,
     iconSize: [markerWidth, markerHeight],
     iconAnchor: [14, 45],

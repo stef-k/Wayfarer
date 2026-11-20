@@ -1,4 +1,6 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
+import { regionDisplayName } from '../regionDisplayName.js';
 import { createTripMap } from './tripMapSetup';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
@@ -222,20 +224,24 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
 };
 
+/** Supplies one center label for the marker title and its accessible image. */
 const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
   if (!region.center) {
     return;
   }
 
+  const name = regionDisplayName(region);
+  const label = message('Editor.RegionCenterMarker', '{0} region center', name);
   L.marker([region.center.latitude, region.center.longitude], {
-    icon: regionMarkerIcon(region),
+    icon: regionMarkerIcon(region, label),
     interactive: !region.isShadow,
     keyboard: !region.isShadow,
-    title: `${region.name} region center`,
-    alt: `${region.name} region center`
-  }).bindTooltip(escapeHtml(region.name)).addTo(layers);
+    title: label,
+    alt: label
+  }).bindTooltip(escapeHtml(name)).addTo(layers);
 };
 
+/** Renders the Place popup using the parent Region's display name. */
 const renderPlace = (
   place: EditorPlace,
   state: EditorTripState,
@@ -263,7 +269,8 @@ const renderPlace = (
       marker.openPopup();
     }
   });
-  marker.bindPopup(placePopupHtml(place, state.regionsById[place.regionId]?.name), { className: 'trip-editor-place-popup' });
+  const region = state.regionsById[place.regionId];
+  marker.bindPopup(placePopupHtml(place, region && regionDisplayName(region)), { className: 'trip-editor-place-popup' });
   // Leaflet auto-opens bound popups on marker click; selection must finish first so dirty-discard cancel keeps the old popup/halo.
   const popupMarker = marker as L.Marker & { _openPopup?: (event: LeafletMouseEvent) => void };
   if (popupMarker._openPopup) {

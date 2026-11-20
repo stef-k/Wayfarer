@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { confirmDialogState, settleConfirmDialog } from '../composables/useConfirmDialog';
 
 import RegionDeletionHoldNotice from './RegionDeletionHoldNotice.vue';
@@ -18,7 +19,7 @@ const dialog = computed(() => confirmDialogState.value);
 /// A renewed preview supplies the current label if another writer renamed the selected Region.
 const displayedTitle = computed(() => {
   const preview = dialog.value?.regionDeletion?.state.preview;
-  return preview ? `Delete Region ‘${preview.sourceRegionName}’?` : dialog.value?.title;
+  return preview ? message('Editor.DeleteRegionTitle', 'Delete Region ‘{0}’?', preview.sourceRegionName) : dialog.value?.title;
 });
 const titleId = computed(() => (dialog.value ? `trip-editor-confirm-title-${dialog.value.id}` : undefined));
 const bodyId = computed(() => (dialog.value ? `trip-editor-confirm-body-${dialog.value.id}` : undefined));

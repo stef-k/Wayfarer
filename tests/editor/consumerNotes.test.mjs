@@ -12,7 +12,7 @@ const bundle = await build({ stdin: { contents: `
   import RichNotesEditor from './components/RichNotesEditor.vue';
   import { createApp, h, nextTick, proxyRefs, reactive, watch } from 'vue';
   import { confirmDialogState, settleConfirmDialog } from './composables/useConfirmDialog';
-  export { placePopupHtml } from './map/placePopupRendering';
+  export { createTripEditorMap } from './map/leafletAdapter';
   export { createApp, h, nextTick, reactive, RichNotesEditor };
   export function mountApp(state) {
     window.captured = {};
@@ -40,7 +40,12 @@ const bundle = await build({ stdin: { contents: `
         }; export default __component;` };
     });
     builder.onLoad({ filter: /\.css$/ }, () => ({ contents: '', loader: 'js' }));
-    builder.onLoad({ filter: /leafletAdapter\.ts$/ }, () => ({ contents: `export const createTripEditorMap = () => ({
+    // Match Vite's raw import for the production adapter's vendored drawing plugin.
+    builder.onLoad({ filter: /leaflet\.draw\.js$/ }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
+    // Keep geography stubbed for App tests. The map-label case mounts the real adapter directly.
+    builder.onResolve({ filter: /^\.\/map\/leafletAdapter$/ }, args =>
+      args.importer.endsWith('/App.vue') ? { path: 'app-map', namespace: 'test' } : undefined);
+    builder.onLoad({ filter: /^app-map$/, namespace: 'test' }, () => ({ contents: `export const createTripEditorMap = () => ({
       render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {},
       setSegmentDraftPreview() {}, setPlaceDraftPreview() {}, setSegmentRouteWorkState() {},
       getMapView: () => ({ center: { latitude: 10, longitude: 20 }, zoom: 5 }) });
@@ -428,6 +433,10 @@ test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft 
       modes: [{ key: 'walk', label: 'Walk' }] }
   } }, placesById: { place, stop: { ...place, id: 'stop', name: 'Authored <stop> & name' } },
   placeOrderByRegionId: { region: ['place', 'stop'] } });
+  const hide = page.getByRole('button', { name: 'Απόκρυψη τμήματος διαδρομής' });
+  assert.equal(await hide.getAttribute('title'), 'Απόκρυψη τμήματος διαδρομής');
+  await hide.click();
+  await page.getByRole('button', { name: 'Εμφάνιση τμήματος διαδρομής' }).click();
   await page.evaluate(async () => {
     const manager = captured['SegmentManager.vue'][0];
     await manager.openEdit(captured['App.vue'][0].state.segmentsById.segment);
@@ -444,6 +453,10 @@ test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft 
   assert.match(await page.locator(`[id="${boundId}"]`).textContent(), /Ορίστε συντεταγμένες για αυτήν την ενδιάμεση στάση/);
   assert.equal(await row.evaluate(node => node === document.activeElement), true);
   assert.equal(await row.locator('option:checked').textContent(), 'Authored <stop> & name');
+  await page.getByText('Ενδιάμεση στάση 1: Authored <stop> & name', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Αφαίρεση: Authored <stop> & name', exact: true }).waitFor();
+  const summary = page.locator('[data-segment-field="route"] p');
+  assert.equal(await summary.textContent(), 'Μη αποθηκευμένη διαδρομή · 2 προσαρμοσμένα σημεία διαδρομής');
 
   const proposal = { proposalId: 'proposal', segmentId: 'segment', protectedContext: 'original-proof',
     geometry: [{ longitude: 20, latitude: 10 }, { longitude: 22, latitude: 11 }],
@@ -485,6 +498,17 @@ test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft 
   await reload.click();
   await conflict.waitFor({ state: 'hidden' });
   assert.match(await page.locator('[data-segment-field=mode] option:checked').textContent(), /Historic mode \(ανενεργό\)/);
+  assert.equal(await summary.textContent(), 'Αποθηκευμένη διαδρομή · 2 προσαρμοσμένα σημεία διαδρομής');
+
+  await page.evaluate(() => {
+    captured['SegmentManager.vue'][0].draft.route.coordinates.splice(1);
+  });
+  assert.equal(await summary.textContent(), 'Μη αποθηκευμένη διαδρομή · 1 προσαρμοσμένο σημείο διαδρομής');
+  await page.evaluate(() => { captured['SegmentManager.vue'][0].draft.route = null; });
+  assert.equal(await summary.textContent(), 'Διαθέσιμη εναλλακτική διαδρομή μέσω των σημείων με τη σειρά τους · μη αποθηκευμένη');
+  await page.locator('[data-segment-field="toPlaceId"]').selectOption({ index: 0 });
+  assert.equal(await summary.textContent(), 'Χωρίς διαδρομή');
+  await page.getByText(/Δεν έχει επιλεγεί προορισμός/).waitFor();
 });
 
 test('Greek Map Search and Place popup localize feedback without changing authored text', async t => {
@@ -506,19 +530,106 @@ test('Greek Map Search and Place popup localize feedback without changing author
   await page.getByText('Δεν βρέθηκαν αποτελέσματα στον χάρτη.', { exact: true }).waitFor();
 
   const popup = await page.evaluate(() => {
-    const place = captured['App.vue'][0].state.placesById.place;
-    document.body.insertAdjacentHTML('beforeend', Probe.placePopupHtml({
-      ...place, name: 'Authored <stop> & name', address: 'Author <road>',
-      resolvedFeatureName: 'Provider <name>', resolvedFeatureType: 'city',
-      visitSummary: { isVisited: true, visitCount: 2 }
-    }, 'Authored Region'));
-    const element = document.querySelector('.trip-editor-place-popup__content');
-    return { text: element.textContent, parsedAuthoredTag: Boolean(element.querySelector('stop, road, name')) };
+    const graph = captured['App.vue'][0].state;
+    const authored = { ...graph.regionsById.region, name: 'Authored <region-name> & name', center: { latitude: 11, longitude: 21 } };
+    const shadow = { ...authored, id: 'shadow', name: 'Unassigned Places', isShadow: true, center: null };
+    const place = { ...graph.placesById.place, regionId: shadow.id, name: 'Authored <stop> & name', address: 'Author <road>',
+      resolvedFeatureName: 'Provider <name>', resolvedFeatureType: 'city', visitSummary: { isVisited: true, visitCount: 2 } };
+    const mapRoot = document.createElement('div');
+    mapRoot.style.cssText = 'width: 500px; height: 400px';
+    document.body.append(mapRoot);
+    const map = Probe.createTripEditorMap(mapRoot, '/tiles/{z}/{x}/{y}.png');
+    const snapshot = { ...graph, regionsById: { region: authored, shadow }, placesById: { place }, areasById: {}, segmentsById: {} };
+    try {
+      map.render(snapshot);
+      const marker = mapRoot.querySelector('[data-place-marker-icon="place"]');
+      const regionMarker = mapRoot.querySelector('[data-region-marker-icon="region"]');
+      regionMarker.parentElement.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      const tooltip = mapRoot.querySelector('.leaflet-tooltip')?.textContent;
+      map.selectPlace(snapshot, place.id, { openPopup: true });
+      const element = mapRoot.querySelector('.trip-editor-place-popup__content');
+      const text = element.textContent;
+      const parsedAuthoredTag = Boolean(element.querySelector('stop, road, name'));
+      const badge = marker.parentElement.querySelector('.trip-editor-map-marker__badge').title;
+      map.render({ ...snapshot, placesById: { place: { ...place, regionId: authored.id } } });
+      map.selectPlace(snapshot, place.id, { openPopup: true });
+      return { text, parsedAuthoredTag, badge, name: marker.alt, title: marker.parentElement.title,
+        regionName: regionMarker.alt, regionTitle: regionMarker.parentElement.title, tooltip,
+        authored: [...mapRoot.querySelectorAll('.trip-editor-place-popup__header span')].at(-1).textContent, stored: shadow.name };
+    } finally {
+      map.dispose();
+      mapRoot.remove();
+    }
   });
-  assert.match(popup.text, /Πλάτος:.*Μήκος:.*Διεύθυνση: Author <road>.*Εντοπισμένη τοποθεσία: Provider <name>/s);
+  assert.match(popup.text, /Πλάτος: 10,00000 Μήκος: 20,00000.*Διεύθυνση: Author <road>.*Εντοπισμένη τοποθεσία: Provider <name>/s);
   assert.match(popup.text, /κατά προσέγγιση.*2 επισκέψεις.*Σημειώσεις:.*Επιλέξτε τον δείκτη/s);
   assert.match(popup.text, /Authored <stop> & name/);
   assert.equal(popup.parsedAuthoredTag, false);
+  assert.match(popup.text, /Τοποθεσίες χωρίς περιοχή/);
+  assert.equal(popup.stored, 'Unassigned Places');
+  assert.equal(popup.authored, 'Authored <region-name> & name');
+  assert.equal(popup.title, 'Authored <stop> & name');
+  assert.equal(popup.name, 'Authored <stop> & name, 2 επισκέψεις');
+  assert.equal(popup.badge, '2 επισκέψεις');
+  assert.equal(popup.regionTitle, 'Κέντρο περιοχής: Authored <region-name> & name');
+  assert.equal(popup.regionName, popup.regionTitle);
+  assert.equal(popup.tooltip, 'Authored <region-name> & name');
+});
+
+test('Greek Region controls preserve collapse, selection and independent deletion choices', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, state);
+  const card = page.locator('[data-region-id="region"]');
+  const collapse = card.locator('button[aria-expanded][aria-controls]');
+  const description = () => collapse.evaluate(button => document.getElementById(button.getAttribute('aria-describedby')).textContent.trim());
+  const search = page.locator('input[type="search"][placeholder^="Αναζήτηση περιοχών"]').first();
+  assert.equal(await collapse.textContent().then(text => text.trim()), 'Σύμπτυξη');
+  await collapse.click();
+  assert.equal(await collapse.textContent().then(text => text.trim()), 'Ανάπτυξη');
+  await search.fill('Region');
+  await card.getByRole('button', { name: 'Σύμπτυξη' }).waitFor();
+  assert.equal(await collapse.isDisabled(), true);
+  assert.match(await description(), /αναζήτηση/);
+  await search.clear();
+  await card.getByRole('button', { name: 'Ανάπτυξη' }).waitFor();
+  await collapse.click();
+  await card.locator('[data-place-id="place"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-region-id="region"] button[aria-describedby]')?.disabled);
+  assert.match(await description(), /επιλεγμένη τοποθεσία/);
+  await card.getByRole('button', { name: 'Επεξεργασία', exact: true }).first().click();
+  assert.match(await description(), /επεξεργασίας/);
+
+  await page.evaluate(() => {
+    window.useMountedConfirmation = true;
+    window.previewRequests = [];
+    window.fetch = async (url, request) => {
+      const { places, areas } = JSON.parse(request.body);
+      const sample = count => ({ count, ids: count ? ['child'] : [], hasMore: false });
+      previewRequests.push({ url, places, areas });
+      return Response.json({ contractVersion: 1, tripId: 'trip', sourceRegionId: 'region', sourceRegionName: 'Authored <region-name>',
+        places, areas, destination: { mode: places === 'keep' ? 'create' : 'existing', regionId: null, name: 'Unassigned Places' },
+        consequences: { movedPlaces: sample(Number(places === 'keep')), deletedPlaces: sample(Number(places === 'delete')),
+          movedAreas: sample(1), deletedAreas: sample(0), deletedSegments: sample(0), updatedSegments: sample(0), detachedWaypoints: sample(0) },
+        confirmation: { token: 'preview', expiresAt: new Date(Date.now() + 60_000).toISOString() } });
+    };
+  });
+  await card.getByRole('button', { name: 'Διαγραφή', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Διαγραφή περιοχής «Authored <region-name>»;' });
+  const places = dialog.getByRole('group', { name: 'Τοποθεσίες (1)' });
+  const areas = dialog.getByRole('group', { name: 'Ζώνες (1)' });
+  await dialog.getByText('Δημιουργείται η περιοχή «Τοποθεσίες χωρίς περιοχή».').waitFor();
+  assert.equal(await places.getByRole('radio', { name: /Διατήρηση \(προτείνεται\).*Μεταφορά/ }).isChecked(), true);
+  await places.getByRole('radio', { name: /Οριστική διαγραφή.*Δεν μπορεί να αναιρεθεί/ }).check();
+  await dialog.getByText('Μεταφορά στην υπάρχουσα περιοχή «Τοποθεσίες χωρίς περιοχή».').waitFor();
+  assert.equal(await areas.getByRole('radio', { name: /Διατήρηση/ }).isChecked(), true);
+  assert.equal(await dialog.getByRole('button', { name: 'Διαγραφή περιοχής και τοποθεσιών · διατήρηση ζωνών' }).isEnabled(), true);
+  await dialog.getByRole('button', { name: 'Ακύρωση' }).click();
+  assert.deepEqual(await page.evaluate(() => previewRequests), [
+    { url: '/api/trips/trip/editor/regions/region/deletion-preview', places: 'keep', areas: 'keep' },
+    { url: '/api/trips/trip/editor/regions/region/deletion-preview', places: 'delete', areas: 'keep' }
+  ]);
+  assert.deepEqual(await page.evaluate(() => captured['App.vue'][0].state.regionOrder), ['region']);
 });
 
 test('Greek map-work confirmation keeps or rolls back its temporary snapshot', async t => {

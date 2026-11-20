@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { message as localize, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, ref } from 'vue';
 import type { EditorSegmentDraft, EditorTripState, Guid } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
@@ -46,14 +46,19 @@ const transportModes = computed(() => {
   if (!props.draft.mode || active.some(mode => mode.value === props.draft.mode)) return active;
   return [{ value: props.draft.mode, label: localize('Editor.InactiveMode', '{0} (inactive)', props.draft.mode), speedKmh: null, inactive: true }, ...active];
 });
+/** Describes the current draft route without changing its saved or dirty state. */
 const routeSummary = computed(() => {
   if (props.draft.route) {
-    return `${props.isDirty ? 'Unsaved' : 'Saved'} route · ${props.draft.route.coordinates.length} custom route points`;
+    const count = props.draft.route.coordinates.length;
+    return props.isDirty
+      ? plural('Editor.UnsavedCustomRouteSummary', count, 'Unsaved route · {0} custom route point', 'Unsaved route · {0} custom route points')
+      : plural('Editor.SavedCustomRouteSummary', count, 'Saved route · {0} custom route point', 'Saved route · {0} custom route points');
   }
 
-  return fallbackRoute(props.draft, props.state)
-    ? `Ordered anchor fallback available${props.isDirty ? ' · unsaved' : ''}`
-    : 'No route';
+  if (!fallbackRoute(props.draft, props.state)) return localize('Editor.NoRoute', 'No route');
+  return props.isDirty
+    ? localize('Editor.UnsavedOrderedAnchorFallback', 'Ordered anchor fallback available · unsaved')
+    : localize('Editor.OrderedAnchorFallback', 'Ordered anchor fallback available');
 });
 
 /** Keeps a stale endpoint visible without silently changing the saved draft. */

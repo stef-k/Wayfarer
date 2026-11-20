@@ -191,7 +191,7 @@ function resetDraft(): void {
 }
 
 async function cancelDraft(): Promise<void> {
-  await props.editorSurface.closeActiveTarget('Discard unsaved segment changes?');
+  await props.editorSurface.closeActiveTarget(localize('Editor.DiscardSegmentDraft', 'Discard unsaved segment changes?'));
 }
 
 async function saveDraft(): Promise<void> {
@@ -270,15 +270,15 @@ function installAuthoritativeSegment(segment: EditorSegment): void {
 }
 
 async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarget: EditorTarget): Promise<void> {
-  if (!(await confirmDiscard('Discard unsaved segment draft changes before deleting?'))) {
+  if (!(await confirmDiscard(localize('Editor.DiscardSegmentBeforeDelete', 'Discard unsaved segment draft changes before deleting?')))) {
     return;
   }
 
   if (!(await confirm({
-    title: 'Delete segment?',
-    message: 'Delete this segment and its private planning?',
-    confirmLabel: 'Delete',
-    cancelLabel: 'Keep segment',
+    title: localize('Editor.DeleteSegmentQuestion', 'Delete segment?'),
+    message: localize('Editor.DeleteSegmentDescription', 'Delete this segment and its private planning?'),
+    confirmLabel: localize('Editor.Delete', 'Delete'),
+    cancelLabel: localize('Editor.KeepSegment', 'Keep segment'),
     variant: 'danger'
   }))) {
     return;
@@ -352,7 +352,7 @@ function toggleVisibility(segment: EditorSegment): void {
 }
 
 async function reorder(ids: Guid[], previousIds: Guid[]): Promise<void> {
-  if (isDirty.value && !(await confirmDiscard('Discard unsaved segment changes before reordering?'))) {
+  if (isDirty.value && !(await confirmDiscard(localize('Editor.DiscardSegmentBeforeReorder', 'Discard unsaved segment changes before reordering?')))) {
     restoreSegmentOrder(previousIds);
     return;
   }
@@ -526,10 +526,10 @@ function confirmDiscard(message: string): Promise<boolean> {
   }
 
   return confirm({
-    title: 'Discard changes?',
+    title: localize('Editor.DiscardQuestion', 'Discard changes?'),
     message,
-    confirmLabel: 'Discard',
-    cancelLabel: 'Keep editing',
+    confirmLabel: localize('Editor.Discard', 'Discard'),
+    cancelLabel: localize('Shell.KeepEditing', 'Keep editing'),
     variant: 'warning'
   });
 }
@@ -644,7 +644,7 @@ function modeText(segment: EditorSegment): string {
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
         <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" :title="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" :aria-label="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
-        <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" :aria-label="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
+        <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? localize('Editor.ShowSegment', 'Show segment') : localize('Editor.HideSegment', 'Hide segment')" :aria-label="hiddenSegmentIds.has(segment.id) ? localize('Editor.ShowSegment', 'Show segment') : localize('Editor.HideSegment', 'Hide segment')" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
         <button type="button" class="trip-editor-list-button" :aria-current="isActiveSegment(segment) ? 'true' : undefined" :aria-label="segmentJourney(segment).accessible" @click="openEdit(segment)">
           <span>{{ segmentJourney(segment).compact }}</span>
           <small>{{ modeText(segment) }}</small>

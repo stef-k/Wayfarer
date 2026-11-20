@@ -1,4 +1,5 @@
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
 import { ensureLeafletDraw } from './leafletDrawPlugin';
 import {
   cloneSegmentRouteWorkState,
@@ -52,13 +53,16 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
         return;
       }
 
+      const ordinal = renderedState.nodes.slice(0, index + 1).filter(candidate => candidate.kind === 'anonymous').length;
+      const label = message('Editor.RoutePointLabel', 'Route point {0}', number(ordinal));
       const marker = L.marker([node.coordinate[1], node.coordinate[0]], {
         draggable: true,
         icon: anonymousIcon(),
-        title: `Route point ${renderedState.nodes.slice(0, index + 1).filter(candidate => candidate.kind === 'anonymous').length}`
+        title: label
       });
       marker.addTo(group);
       marker.getElement()?.setAttribute('data-route-point-key', node.key);
+      marker.getElement()?.setAttribute('aria-label', label);
       marker.on('drag', () => {
         const point = marker.getLatLng();
         if (state && moveAnonymousNode(state, node.key, [point.lng, point.lat])) publish();

@@ -204,32 +204,11 @@
   <data name="Editor.LoadingCurrentConsequences" xml:space="preserve">
     <value>Loading current consequences…</value>
   </data>
-  <data name="Editor.Places" xml:space="preserve">
-    <value>Places:</value>
-  </data>
-  <data name="Editor.Kept" xml:space="preserve">
-    <value>kept,</value>
-  </data>
-  <data name="Editor.DeletedAreas" xml:space="preserve">
-    <value>deleted. Areas:</value>
-  </data>
-  <data name="Editor.Deleted" xml:space="preserve">
-    <value>deleted.</value>
-  </data>
-  <data name="Editor.UnassignedPlacesDestination" xml:space="preserve">
-    <value>Unassigned Places.</value>
-  </data>
   <data name="Editor.TheRegionSPrivatePlanningIsRemoved" xml:space="preserve">
     <value>The Region’s private planning is removed. Kept children retain their own planning; deleted children and Segments lose theirs.</value>
   </data>
   <data name="Editor.SegmentsDeleted" xml:space="preserve">
-    <value>Segments deleted:</value>
-  </data>
-  <data name="Editor.SurvivingWaypointRoutesChanged" xml:space="preserve">
-    <value>Surviving waypoint routes changed:</value>
-  </data>
-  <data name="Editor.SavedWaypointAssociationsRemoved" xml:space="preserve">
-    <value>; saved waypoint associations removed:</value>
+    <value>Segments deleted: {0}.</value>
   </data>
   <data name="Editor.DeletionIsPermanentVisitHistoryRetainsSnapshots" xml:space="preserve">
     <value>Deletion is permanent. Visit history retains snapshots and is unlinked from deleted Places. Kept Areas do not preserve deleted Places or routes.</value>
@@ -2315,5 +2294,257 @@
   </data>
   <data name="Editor.SegmentPlaceUnset" xml:space="preserve">
     <value>Not selected</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Saved route · {0} custom route point</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Saved route · {0} custom route points</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Unsaved route · {0} custom route point</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Unsaved route · {0} custom route points</value>
+  </data>
+  <data name="Editor.OrderedAnchorFallback" xml:space="preserve">
+    <value>Ordered anchor fallback available</value>
+  </data>
+  <data name="Editor.UnsavedOrderedAnchorFallback" xml:space="preserve">
+    <value>Ordered anchor fallback available · unsaved</value>
+  </data>
+  <data name="Editor.NoRoute" xml:space="preserve">
+    <value>No route</value>
+  </data>
+  <data name="Editor.RegionCenterMarker" xml:space="preserve">
+    <value>{0} region center</value>
+  </data>
+  <data name="Editor.PlaceWithVisitCount" xml:space="preserve">
+    <value>{0}, {1}</value>
+  </data>
+  <data name="Editor.CollapseHeldBySearch" xml:space="preserve">
+    <value>Collapse is unavailable while sidebar search is active. Clear the search to restore your previous Region layout.</value>
+  </data>
+  <data name="Editor.CollapseHeldByEditor" xml:space="preserve">
+    <value>Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.</value>
+  </data>
+  <data name="Editor.CollapseHeldBySelection" xml:space="preserve">
+    <value>Collapse is unavailable while a Place in this Region is selected. Clear the selected Place first.</value>
+  </data>
+  <data name="Editor.PlaceGroup" xml:space="preserve">
+    <value>Places</value>
+  </data>
+  <data name="Editor.RegionDeleteCreatesDestination" xml:space="preserve">
+    <value>Creates the “{0}” Region.</value>
+  </data>
+  <data name="Editor.RegionDeleteUsesDestination" xml:space="preserve">
+    <value>Moves kept items to the existing “{0}” Region.</value>
+  </data>
+  <data name="Editor.KeepRecommended" xml:space="preserve">
+    <value>Keep (recommended)</value>
+  </data>
+  <data name="Editor.DeletePermanently" xml:space="preserve">
+    <value>Delete permanently</value>
+  </data>
+  <data name="Editor.MoveToRegion" xml:space="preserve">
+    <value>Move to “{0}”</value>
+  </data>
+  <data name="Editor.DeleteIrreversible" xml:space="preserve">
+    <value>Cannot be undone</value>
+  </data>
+  <data name="Editor.RegionDeleteChildrenSummary" xml:space="preserve">
+    <value>Places: {0} kept, {1} deleted. Areas: {2} kept, {3} deleted.</value>
+  </data>
+  <data name="Editor.RegionDeleteAffectedRoutes" xml:space="preserve">
+    <value>Surviving waypoint routes changed: {0}; saved waypoint associations removed: {1}.</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepBoth" xml:space="preserve">
+    <value>Delete Region · keep Places and Areas</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepPlaces" xml:space="preserve">
+    <value>Delete Region and Areas · keep Places</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepAreas" xml:space="preserve">
+    <value>Delete Region and Places · keep Areas</value>
+  </data>
+  <data name="Editor.DeleteRegionDeleteBoth" xml:space="preserve">
+    <value>Delete Region, Places and Areas</value>
+  </data>
+  <data name="Editor.DeleteRegionTitle" xml:space="preserve">
+    <value>Delete Region ‘{0}’?</value>
+  </data>
+  <data name="Editor.DeleteRegionDescription" xml:space="preserve">
+    <value>The Region and its name, notes, cover and map center will be lost. Choose independently what happens to Places and Areas.</value>
+  </data>
+  <data name="Editor.ReviewRegionOrder" xml:space="preserve">
+    <value>Review Region order</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.one" xml:space="preserve">
+    <value>Apply this order to {0} Region using its reviewed content?</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.other" xml:space="preserve">
+    <value>Apply this complete order to {0} Regions using their reviewed content?</value>
+  </data>
+  <data name="Editor.ApplyReviewedOrder" xml:space="preserve">
+    <value>Apply reviewed order</value>
+  </data>
+  <data name="Editor.KeepCurrentOrder" xml:space="preserve">
+    <value>Keep current order</value>
+  </data>
+  <data name="Editor.SegmentPlaceGone" xml:space="preserve">
+    <value>Place no longer available</value>
+  </data>
+  <data name="Editor.SegmentRegionGone" xml:space="preserve">
+    <value>{0} — region unavailable</value>
+  </data>
+  <data name="Editor.SegmentPlaceOutsideRegion" xml:space="preserve">
+    <value>{0} — unavailable in this Region</value>
+  </data>
+  <data name="Editor.SegmentPlaceInvalidLocation" xml:space="preserve">
+    <value>{0} — invalid location</value>
+  </data>
+  <data name="Editor.SegmentPlaceNeedsLocation" xml:space="preserve">
+    <value>{0} — location required</value>
+  </data>
+  <data name="Editor.WaypointGeometryPreserved" xml:space="preserve">
+    <value>Existing route geometry was preserved. The new connection to this Place is straight; edit the route or request an external route if needed.</value>
+  </data>
+  <data name="Editor.WaypointAdded" xml:space="preserve">
+    <value>{0} added as intermediate place {1}.</value>
+  </data>
+  <data name="Editor.WaypointMoved" xml:space="preserve">
+    <value>{0} moved to position {1}.</value>
+  </data>
+  <data name="Editor.NamedItemRemoved" xml:space="preserve">
+    <value>{0} removed.</value>
+  </data>
+  <data name="Editor.WaypointUnavailable" xml:space="preserve">
+    <value>Unavailable place {0}</value>
+  </data>
+  <data name="Editor.SegmentFromNotSelected" xml:space="preserve">
+    <value>From not selected</value>
+  </data>
+  <data name="Editor.SegmentToNotSelected" xml:space="preserve">
+    <value>To not selected</value>
+  </data>
+  <data name="Editor.WaypointLabel" xml:space="preserve">
+    <value>Intermediate place {0}: {1}</value>
+  </data>
+  <data name="Editor.MoveNamedItemUp" xml:space="preserve">
+    <value>Move {0} up</value>
+  </data>
+  <data name="Editor.MoveNamedItemDown" xml:space="preserve">
+    <value>Move {0} down</value>
+  </data>
+  <data name="Editor.RemoveNamedItem" xml:space="preserve">
+    <value>Remove {0}</value>
+  </data>
+  <data name="Editor.RouteStart" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="Editor.RouteEnd" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Editor.RouteVia" xml:space="preserve">
+    <value>Via {0}</value>
+  </data>
+  <data name="Editor.RouteUnlinkedStart" xml:space="preserve">
+    <value>Unlinked start</value>
+  </data>
+  <data name="Editor.RouteUnlinkedEnd" xml:space="preserve">
+    <value>Unlinked end</value>
+  </data>
+  <data name="Editor.RouteUnnamedWaypoint" xml:space="preserve">
+    <value>Unnamed waypoint</value>
+  </data>
+  <data name="Editor.SegmentJourneyVia" xml:space="preserve">
+    <value>Segment from {0} via {1} to {2}</value>
+  </data>
+  <data name="Editor.SegmentJourney" xml:space="preserve">
+    <value>Segment from {0} to {1}</value>
+  </data>
+  <data name="Editor.JourneyThen" xml:space="preserve">
+    <value>, then </value>
+  </data>
+  <data name="Editor.RouteDirectionUnavailable" xml:space="preserve">
+    <value>Route direction unavailable</value>
+  </data>
+  <data name="Editor.RoutePointLabel" xml:space="preserve">
+    <value>Route point {0}</value>
+  </data>
+  <data name="Editor.FixedRouteAnchorLabel" xml:space="preserve">
+    <value>{0} — {1} — fixed</value>
+  </data>
+  <data name="Editor.RoutePointInserted" xml:space="preserve">
+    <value>Inserted route point between {0} and {1}.</value>
+  </data>
+  <data name="Editor.NamedItemMoved" xml:space="preserve">
+    <value>{0} moved.</value>
+  </data>
+  <data name="Editor.InsertRoutePointAfterLabel" xml:space="preserve">
+    <value>Insert route point after {0}</value>
+  </data>
+  <data name="Editor.NewPlace" xml:space="preserve">
+    <value>New place</value>
+  </data>
+  <data name="Editor.PendingPlaceMarker" xml:space="preserve">
+    <value>Pending place location: {0}</value>
+  </data>
+  <data name="Editor.SearchPreviewMarker" xml:space="preserve">
+    <value>Search result preview: {0}</value>
+  </data>
+  <data name="Editor.EditNamedRegion" xml:space="preserve">
+    <value>Edit Region - {0}</value>
+  </data>
+  <data name="Editor.RegionDetails" xml:space="preserve">
+    <value>Region details</value>
+  </data>
+  <data name="Editor.NewRegion" xml:space="preserve">
+    <value>New region</value>
+  </data>
+  <data name="Editor.EditNamedPlace" xml:space="preserve">
+    <value>Edit Place - {0}</value>
+  </data>
+  <data name="Editor.EditNamedArea" xml:space="preserve">
+    <value>Edit Area - {0}</value>
+  </data>
+  <data name="Editor.EditNamedSegment" xml:space="preserve">
+    <value>Edit Segment - {0}</value>
+  </data>
+  <data name="Editor.NewSegment" xml:space="preserve">
+    <value>New segment</value>
+  </data>
+  <data name="Editor.TripSegment" xml:space="preserve">
+    <value>Trip segment</value>
+  </data>
+  <data name="Editor.DiscardSegmentDraft" xml:space="preserve">
+    <value>Discard unsaved segment changes?</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeDelete" xml:space="preserve">
+    <value>Discard unsaved segment draft changes before deleting?</value>
+  </data>
+  <data name="Editor.DeleteSegmentQuestion" xml:space="preserve">
+    <value>Delete segment?</value>
+  </data>
+  <data name="Editor.DeleteSegmentDescription" xml:space="preserve">
+    <value>Delete this segment and its private planning?</value>
+  </data>
+  <data name="Editor.KeepSegment" xml:space="preserve">
+    <value>Keep segment</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeReorder" xml:space="preserve">
+    <value>Discard unsaved segment changes before reordering?</value>
+  </data>
+  <data name="Editor.ShowSegment" xml:space="preserve">
+    <value>Show segment</value>
+  </data>
+  <data name="Editor.HideSegment" xml:space="preserve">
+    <value>Hide segment</value>
+  </data>
+  <data name="Editor.DiscardRegionDraft" xml:space="preserve">
+    <value>Discard unsaved region changes?</value>
+  </data>
+  <data name="Editor.DiscardBeforeRegionReorder" xml:space="preserve">
+    <value>Discard unsaved draft changes before reordering?</value>
   </data>
 </root>

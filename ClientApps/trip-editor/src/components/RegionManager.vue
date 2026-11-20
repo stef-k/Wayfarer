@@ -169,7 +169,7 @@ const placePreview = computed<PlaceDraftPreview | null>(() => {
     return {
       coordinate,
       placeId: null,
-      label: placeDraft.name || 'New place',
+      label: placeDraft.name || localize('Editor.NewPlace', 'New place'),
       iconName: placeDraft.iconName || 'marker',
       markerColor: placeDraft.markerColor || 'bg-blue'
     };
@@ -219,8 +219,8 @@ const activeRegionTarget = computed<EditorTarget>(() => ({
   identity: draft.id ? `region:edit:${draft.id}` : 'region:add',
   kind: 'region',
   mode: draft.id ? 'edit' : 'add',
-  title: draft.id ? `Edit Region - ${activeRegion.value?.name ?? draft.name}` : 'Add Region',
-  subtitle: draft.id ? 'Region details' : 'New region',
+  title: draft.id ? localize('Editor.EditNamedRegion', 'Edit Region - {0}', activeRegion.value?.name ?? draft.name) : localize('Editor.AddRegion', 'Add Region'),
+  subtitle: draft.id ? localize('Editor.RegionDetails', 'Region details') : localize('Editor.NewRegion', 'New region'),
   entityId: draft.id ?? undefined
 }));
 const activePlaceTarget = computed<EditorTarget>(() => ({
@@ -228,7 +228,7 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   identity: placeDraft.id ? `place:edit:${placeDraft.id}` : `place:add:${placeDraft.regionId ?? 'none'}`,
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
-  title: placeDraft.id ? `Edit Place - ${activePlace.value?.name ?? placeDraft.name}` : 'Add Place',
+  title: placeDraft.id ? localize('Editor.EditNamedPlace', 'Edit Place - {0}', activePlace.value?.name ?? placeDraft.name) : localize('Editor.AddPlace', 'Add Place'),
   subtitle: placeDraft.regionId && !props.state.regionsById[placeDraft.regionId]?.isShadow ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
   entityId: placeDraft.id ?? undefined,
   parentRegionId: placeDraft.regionId ?? undefined
@@ -238,7 +238,7 @@ const activeAreaTarget = computed<EditorTarget>(() => ({
   identity: areaDraft.id ? `area:edit:${areaDraft.id}` : `area:add:${areaDraft.regionId ?? 'none'}`,
   kind: 'area',
   mode: areaDraft.id ? 'edit' : 'add',
-  title: areaDraft.id ? `Edit Area - ${activeArea.value?.name ?? areaDraft.name}` : 'Add Area',
+  title: areaDraft.id ? localize('Editor.EditNamedArea', 'Edit Area - {0}', activeArea.value?.name ?? areaDraft.name) : localize('Editor.AddArea', 'Add Area'),
   subtitle: areaDraft.regionId ? props.state.regionsById[areaDraft.regionId]?.name : undefined,
   entityId: areaDraft.id ?? undefined,
   parentRegionId: areaDraft.regionId ?? undefined
@@ -471,10 +471,10 @@ function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> 
   }
 
   return confirm({
-    title: 'Discard changes?',
+    title: localize('Editor.DiscardQuestion', 'Discard changes?'),
     message,
-    confirmLabel: 'Discard',
-    cancelLabel: 'Keep editing',
+    confirmLabel: localize('Editor.Discard', 'Discard'),
+    cancelLabel: localize('Shell.KeepEditing', 'Keep editing'),
     variant: 'warning'
   });
 }

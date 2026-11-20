@@ -1,5 +1,5 @@
-import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
-import { placeNotesPreviewHtml } from '../displayHelpers';
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
+import { placeNotesPreviewHtml, placeVisitCount } from '../displayHelpers';
 import type { EditorPlace } from '../types';
 
 /// Builds sanitized place popup HTML from existing editor state only.
@@ -42,13 +42,14 @@ function precisionNotice(value: string | null | undefined): string {
 /** Uses the same cardinal phrase as the Editor visit progress controls. */
 function visitSummaryHtml(place: EditorPlace): string {
   const summary = place.visitSummary.isVisited
-    ? plural('Editor.VisitCount', place.visitSummary.visitCount, '{0} visit', '{0} visits')
+    ? placeVisitCount(place.visitSummary.visitCount)
     : message('Editor.PlacePopupNotVisited', 'Not visited yet');
   return `<div class="trip-editor-place-popup__meta"><span>${escapeHtml(message('Editor.PlacePopupVisits', 'Visits:'))}</span> ${escapeHtml(summary)}</div>`;
 }
 
+/** Formats popup coordinates for display with the existing five-decimal precision. */
 function formatCoordinate(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(5) : '';
+  return Number.isFinite(value) ? number(value, { minimumFractionDigits: 5, maximumFractionDigits: 5, useGrouping: false }) : '';
 }
 
 function escapeHtml(value: string): string {

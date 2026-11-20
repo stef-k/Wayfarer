@@ -79,9 +79,11 @@ for unsaved work.
 Area 1 verification covers language negotiation, preference writes, core draft
 guards, the live map lifecycle and Editor/Viewer presentation. The mounted
 Editor tests cover Greek indexed waypoint validation, an expired route
-proposal, a stale Segment with its reload action, map search and discard
-feedback, the Place popup, credit validation and retry, and an unconfirmed
-Planning save with its draft and save hold intact. Plan Check presents scoped findings,
+proposal, and the Segment route summary before and after stale reload. They
+also cover map search and discard feedback, authored and canonical Region
+labels in the Place popup, marker titles and text alternatives, Region collapse
+and deletion controls, credit validation and retry, and an unconfirmed Planning
+save with its draft and save hold intact. Plan Check presents scoped findings,
 dependency changes and structured estimate evidence. Follow-up controls use
 the original finding values and retained check inputs.
 

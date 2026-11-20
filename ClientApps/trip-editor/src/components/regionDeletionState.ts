@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { captureMutationPublication } from '../api/tripEditorApi';
 import { completePlace } from './placeStructuralEditing';
 import { completeSegment } from './segmentNotesDraft';
@@ -23,8 +24,12 @@ export const unknownRegionDeletionMessage = 'Outcome unknown — refresh to insp
 
 /// Contextual final activation always describes both explicit dispositions.
 export const regionDeletionLabel = (choices: RegionDeletionChoices): string => choices.places === 'keep'
-  ? choices.areas === 'keep' ? 'Delete Region · keep Places and Areas' : 'Delete Region and Areas · keep Places'
-  : choices.areas === 'keep' ? 'Delete Region and Places · keep Areas' : 'Delete Region, Places and Areas';
+  ? choices.areas === 'keep'
+    ? message('Editor.DeleteRegionKeepBoth', 'Delete Region · keep Places and Areas')
+    : message('Editor.DeleteRegionKeepPlaces', 'Delete Region and Areas · keep Places')
+  : choices.areas === 'keep'
+    ? message('Editor.DeleteRegionKeepAreas', 'Delete Region and Places · keep Areas')
+    : message('Editor.DeleteRegionDeleteBoth', 'Delete Region, Places and Areas');
 
 /// Scope contains server/account/Trip only; persisted holds contain no content, credentials or approval token.
 export const heldRegionDeletionKey = (server: string, account: string, trip: string): string =>
