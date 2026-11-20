@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import type { EditorTripState } from '../types';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import { samePlanning, type createPlanningWorkspace, type PlanningDraft } from './planningState';
+import { planningValidationText } from './planningFindingText';
 import { emptyCheckSetup, type CheckResult, type CheckSetup } from './planningCheckTypes';
 
 const storageKey = 'wayfarer.latest-owner-planning-check';
@@ -98,6 +99,13 @@ export const createPlanningReview = (options: {
       if (disposed || request !== position || scope !== identity() || scope !== partition) return;
       if (response.status === 401 || response.status === 403) {
         reset(); clearStorage(); error.value = message('Editor.PlannerOwnerAccessChanged', 'Owner access changed. Private check setup cleared; reload the editor.'); return;
+      }
+      if (response.status === 400 && !response.redirected) {
+        const problem = await response.json().catch(() => null);
+        if (!disposed && request === position && scope === identity() && problem?.code === 'planning-check-invalid') {
+          error.value = planningValidationText(problem.detail, message('Editor.PlanningCheckReviewInput', 'Review the current check inputs before trying again.'));
+          return;
+        }
       }
       if (!response.ok || response.redirected) throw new PlanningCheckPresentationError(message('Editor.PlannerCheckFailed', 'Saved owner planning could not be checked. Inputs are retained; return to editing or try a fresh review.'));
       const reply = await response.json() as CheckResult;

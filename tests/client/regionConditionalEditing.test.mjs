@@ -133,7 +133,7 @@ for (const newer of ['Newer edit', 'Original']) {
 test('conflict retains draft and original through props; explicit reset adopts reviewed current values', () => withGlobals(async () => {
   const owner = mount();
   const calls = [];
-  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return new Response(JSON.stringify({ code: 'mutation-base-stale', detail: 'Review current Region fields.' }), { status: 409 }); };
+  globalThis.fetch = async (_url, init) => { calls.push(JSON.parse(init.body)); return new Response(JSON.stringify({ code: 'mutation-base-stale', detail: 'The edited Region fields changed. Keep your draft, review current values and explicitly choose a new base before saving.' }), { status: 409 }); };
   try {
     await owner.editor.openEdit(owner.props.state.regionsById.region);
     owner.editor.draft.name = 'Mine';
@@ -142,7 +142,7 @@ test('conflict retains draft and original through props; explicit reset adopts r
     await nextTick();
     assert.equal(owner.editor.draft.name, 'Mine');
     assert.ok(owner.editor.saveError);
-    assert.equal(owner.editor.saveError, 'Review current Region fields.');
+    assert.equal(owner.editor.saveError, 'The edited Region fields changed. Keep your draft, review current values and explicitly choose a new base before saving.');
     await owner.editor.saveDraft();
     assert.deepEqual(calls[0], calls[1]);
     owner.editor.resetDraft();

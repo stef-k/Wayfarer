@@ -195,20 +195,6 @@ body {
   gap: 0.5rem;
 }
 
-.trip-editor-workspace .btn-outline-light,
-.trip-editor-expanded .btn-outline-light,
-.trip-editor-map-work-toolbar .btn-outline-light {
-  border-color: var(--trip-editor-field-border);
-  color: var(--trip-editor-text);
-}
-
-.trip-editor-workspace .btn-outline-light:hover,
-.trip-editor-expanded .btn-outline-light:hover,
-.trip-editor-map-work-toolbar .btn-outline-light:hover {
-  background: var(--trip-editor-surface-muted);
-  color: var(--trip-editor-text);
-}
-
 .trip-editor-form-error,
 .trip-editor-form-warning {
   border-radius: 6px;

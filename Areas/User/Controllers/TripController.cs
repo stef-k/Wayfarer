@@ -66,51 +66,51 @@ namespace Wayfarer.Areas.User.Controllers
             return View("Compose");
         }
 
-        // GET: /User/Trips/View/{id}
+        /// <summary>Loads the owned Trip graph and visit data from one snapshot before rendering the private Viewer.</summary>
         [HttpGet]
         public async Task<IActionResult> View(Guid id)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (userId == null) return Forbid(); 
-            
-            var trip = await _dbContext.Trips
-                .Include(t => t.Regions!).ThenInclude(r => r.Places!)
-                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-                .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
-                .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
-                .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
-                .Include(t => t.Tags)
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            if (userId == null) return Forbid();
 
-            if (trip == null) return NotFound();
+            var ct = HttpContext.RequestAborted;
+            Trip? trip;
+            List<Guid> allPlaceIds;
+            List<PlaceVisitEvent> visitEvents;
+            // Each split read, including private visit data, must see the same saved Trip.
+            await using (var snapshot = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct) : null)
+            {
+                trip = await _dbContext.Trips
+                    .AsSplitQuery()
+                    .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                    .Include(t => t.Regions!).ThenInclude(r => r.Areas)
+                    .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
+                    .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
+                    .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+                    .Include(t => t.Tags)
+                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
+                if (trip == null) return NotFound();
 
-            /* ---- layout flags ---- */
-            ViewData["LoadLeaflet"] = true;      // needs map
-            ViewData["BodyClass"]   = "container-fluid";  // full-width
+                allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
+                    .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                    .Select(p => p.Id)
+                    .ToList();
+                visitEvents = await _dbContext.PlaceVisitEvents
+                    .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                    .ToListAsync(ct);
+            }
 
+            var placeVisitCounts = visitEvents.GroupBy(v => v.PlaceId!.Value).ToDictionary(g => g.Key, g => g.Count());
+            ViewData["LoadLeaflet"] = true;
+            ViewData["BodyClass"] = "container-fluid";
             ViewBag.IsOwner = true;
-            ViewBag.IsEmbed = false;             // not an iframe here
+            ViewBag.IsEmbed = false;
             ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
-
-            // Calculate visit progress for owner's view
-            var allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
-                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
-                .Select(p => p.Id)
-                .ToList();
-
-            // Get visit counts per place (a place can be visited multiple times)
-            var visitEvents = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .ToListAsync();
-
-            var placeVisitCounts = visitEvents
-                .GroupBy(v => v.PlaceId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
-
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
-            ViewBag.VisitEvents = visitEvents; // Pass flat list for modal
+            ViewBag.VisitEvents = visitEvents;
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }

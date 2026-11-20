@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { message as localize, number } from '../../../../wwwroot/js/localization/messages.js';
-import { planningFindingText } from './planningFindingText';
+import { planningCheckNote } from './planningFindingText';
+import { checkFindingText } from './planningCheckText';
 import { computed, inject, onUnmounted } from 'vue';
 import type { EditorTripState } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
@@ -20,6 +21,21 @@ onUnmounted(review.dispose);
 const items = computed(() => result.value?.inventory ?? []);
 const byKey = computed(() => Object.fromEntries(items.value.map(i => [i.key, i])));
 const scope = computed(() => setup.value.selection === null ? localize('Editor.WholeTripScope', 'Whole Trip · every current saved entry') : localize('Editor.ExplicitScope', 'Explicit selection · remainder unassessed'));
+// Check names and meaning labels are presentation only. Follow-up checks read the original result.
+const checkKindText = (kind: string): string => ({
+  meaning: localize('Editor.CheckKindMeaning', 'Meaning'), context: localize('Editor.CheckKindContext', 'Parent windows'),
+  physical: localize('Editor.CheckKindPhysical', 'Presence'), movement: localize('Editor.CheckKindMovement', 'Movement'),
+  coverage: localize('Editor.CheckKindCoverage', 'Coverage')
+})[kind] ?? localize('Editor.CheckPlan', 'Check plan');
+const meaningText = (kind: string | undefined): string => ({
+  window: localize('Editor.PlanningWindow', 'Planning window'), presence: localize('Editor.ActivityRequiringPresence', 'Activity requiring presence'),
+  stay: localize('Editor.StayBaseAvailability', 'Stay/base availability'), travel: localize('Editor.Journey', 'Journey')
+})[kind ?? ''] ?? localize('Editor.CheckMeaningUnspecified', 'Meaning unspecified');
+const occurrenceLabel = (key: 'value' | 'start' | 'end'): string => ({
+  value: localize('Editor.CheckOccurrenceValue', 'Occurrence'),
+  start: localize('Editor.CheckOccurrenceStart', 'Start occurrence'),
+  end: localize('Editor.CheckOccurrenceEnd', 'End occurrence')
+})[key];
 const findings = computed(() => (result.value?.findings ?? []).filter(f => showDismissed.value || !dismissed.value.includes(f.id)));
 const label = (item: CheckItem): string => `${item.name} · ${item.entry.label || describePlanningTiming(item.entry.when)}`;
 const names = (keys: string[]): string => keys.map(key => byKey.value[key] ? label(byKey.value[key]!) : localize('Editor.RemovedEntry', 'Removed entry')).join(' → ');
@@ -98,19 +114,19 @@ const skip = (event: Event): void => {
         <p>{{ localize("Editor.ResultsApplyOnlyToTheListedEntries", "Results apply only to the listed entries and assumptions. They do not certify whole-Trip consistency, arrival or attention compatibility.") }}</p>
         <details v-if="result.reused.length || result.invalidated.length">
           <summary>{{ localize("Editor.UsingLastInputsReviewChange", "Using last inputs · review/change") }}</summary>
-          <p v-for="(value, index) in result.reused" :key="`reuse-${index}`">{{ localize("Editor.Reused", "Reused:") }} {{ value }}</p>
-          <p v-for="(value, index) in result.invalidated" :key="`invalid-${index}`">{{ localize("Editor.Reopened", "Reopened:") }} {{ value }}</p>
+          <p v-for="(value, index) in result.reused" :key="`reuse-${index}`">{{ localize("Editor.Reused", "Reused:") }} {{ planningCheckNote(value) }}</p>
+          <p v-for="(value, index) in result.invalidated" :key="`invalid-${index}`">{{ localize("Editor.Reopened", "Reopened:") }} {{ planningCheckNote(value) }}</p>
         </details>
         <div class="plan-check__results" :aria-label="localize('Editor.PlanningResults', 'Planning results')" aria-live="polite">
           <article v-for="finding in findings" :key="finding.id" class="plan-check__finding" :data-status="finding.result.status">
-            <strong>{{ localize(`Editor.CheckStatus.${finding.result.status}`, finding.result.status === 'unknown' ? 'Unknown' : finding.result.status) }} · {{ finding.check }}</strong>
+            <strong>{{ localize(`Editor.CheckStatus.${finding.result.status}`, finding.result.status === 'unknown' ? 'Unknown' : finding.result.status) }} · {{ checkKindText(finding.check) }}</strong>
             <small>{{ names(finding.entries) }}</small>
-            <p>{{ planningFindingText(finding.result.message) }}</p>
+            <p>{{ checkFindingText(finding) }}</p>
             <button v-if="!dismissed.includes(finding.id) && !['completed', 'excluded'].includes(finding.result.status)" type="button" class="btn btn-outline-secondary btn-sm" @click="dismissed.push(finding.id)">{{ localize("Editor.DismissForThisReview", "Dismiss for this review") }}</button>
             <button v-if="finding.check === 'physical' && finding.result.status === 'unknown' && finding.result.message.includes('incompatible locations') && finding.entries.length === 2" type="button" class="btn btn-outline-light btn-sm" @click="incompatible(finding.entries)">{{ localize("Editor.TheseLocationsRequireSeparatePresence", "These locations require separate presence") }}</button>
           </article>
         </div>
-        <p v-if="dismissed.length">{{ dismissed.length }} {{ localize("Editor.CollapsedFindingsCountsRetained", "collapsed findings; counts retained.") }} <button type="button" class="btn btn-link btn-sm" @click="showDismissed = !showDismissed">{{ showDismissed ? 'Hide dismissed' : 'Show dismissed' }}</button></p>
+        <p v-if="dismissed.length">{{ dismissed.length }} {{ localize("Editor.CollapsedFindingsCountsRetained", "collapsed findings; counts retained.") }} <button type="button" class="btn btn-link btn-sm" @click="showDismissed = !showDismissed">{{ showDismissed ? localize('Editor.CheckHideDismissed', 'Hide dismissed') : localize('Editor.CheckShowDismissed', 'Show dismissed') }}</button></p>
         <details class="plan-check__inputs">
           <summary>{{ localize("Editor.CoverageAndTargetedCheckInputs", "Coverage and targeted check inputs ·") }} {{ items.length }} {{ localize("Editor.SavedEntries", "saved entries") }}</summary>
           <p>{{ localize("Editor.UseSavedFactsFirstSupplyOnlyFacts", "Use saved facts first. Supply only facts an Unknown result needs. Leave unresolved/Skip retains Unknown. Inputs here stay private on this device and never change planning or exports.") }}</p>
@@ -118,8 +134,8 @@ const skip = (event: Event): void => {
           <label v-for="finding in result.findings.filter(f => f.check === 'physical' && f.entries.length === 2 && (f.result.message.includes('incompatible locations') || Object.hasOwn(setup.incompatible, physicalKey(f.entries))))" :key="finding.id"><input type="checkbox" :checked="Object.hasOwn(setup.incompatible, physicalKey(finding.entries))" @change="incompatible(finding.entries, ($event.target as HTMLInputElement).checked)" /> {{ names(finding.entries) }}{{ localize("Editor.LocationsRequireSeparatePresence", ": locations require separate presence") }}</label>
           <p v-if="!items.length">{{ localize("Editor.NoSavedPlanningEntriesInThisTrip", "No saved planning entries in this Trip.") }}</p>
           <details v-for="item in items" :key="item.key" class="plan-check__entry">
-            <summary>{{ label(item) }} · {{ item.selected ? 'assessed scope' : 'unassessed remainder' }}</summary>
-            <p>{{ localize("Editor.Saved", "Saved:") }} {{ describePlanningTiming(item.entry.when) }} · {{ item.entry.kind || 'meaning unspecified' }}</p>
+            <summary>{{ label(item) }} · {{ item.selected ? localize('Editor.CheckAssessedScope', 'Assessed scope') : localize('Editor.CheckUnassessedScope', 'Unassessed remainder') }}</summary>
+            <p>{{ localize("Editor.Saved", "Saved:") }} {{ describePlanningTiming(item.entry.when) }} · {{ meaningText(item.entry.kind) }}</p>
             <label><input type="checkbox" :checked="setup.selection === null || setup.selection.includes(item.key)" @change="select(item, ($event.target as HTMLInputElement).checked)" /> {{ localize("Editor.AssessThisEntryForThisCheck", "Assess this entry for this check") }}</label>
             <label v-if="!item.entry.kind" class="trip-editor-field"><span>{{ localize("Editor.MeaningForThisCheckOnly", "Meaning for this check only") }}</span>
               <select :value="setup.entries[item.key]?.kind ?? ''" @change="interpret(item.key, 'kind', ($event.target as HTMLSelectElement).value)">
@@ -128,7 +144,7 @@ const skip = (event: Event): void => {
             </label>
             <label v-if="needsZone(item)" class="trip-editor-field"><span>{{ localize("Editor.NeededZoneCivilWindowInterpretationForThis", "Needed zone / civil-window interpretation for this check") }}</span><input :value="setup.entries[item.key]?.zone ?? ''" :placeholder="localize('Editor.LeaveUnresolvedOrUTCIANAZone', 'Leave unresolved, or UTC / IANA zone')" @change="interpret(item.key, 'zone', ($event.target as HTMLInputElement).value)" /></label>
             <small v-if="needsZone(item)">{{ localize("Editor.AppliesOnlyWhereAZoneIsAbsent", "Applies only where a zone is absent, or to civil-window edges. Saved zones and fold choices stay authoritative.") }}</small>
-            <label v-for="occurrence in occurrenceValues(item)" :key="occurrence.key" class="trip-editor-field"><span>{{ occurrence.key }} {{ localize("Editor.OccurrenceUTCOffsetInSecondsForThis", "occurrence UTC offset in seconds for this check ·") }} {{ occurrence.value.local }} ({{ occurrence.value.zone || setup.entries[item.key]?.zone || 'zone unspecified' }})</span><input type="number" step="1" :value="setup.entries[item.key]?.occurrences?.[occurrence.key] ?? ''" @change="interpret(item.key, 'occurrences', { ...setup.entries[item.key]?.occurrences, [occurrence.key]: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })" /></label>
+            <label v-for="occurrence in occurrenceValues(item)" :key="occurrence.key" class="trip-editor-field"><span>{{ occurrenceLabel(occurrence.key) }} {{ localize("Editor.OccurrenceUTCOffsetInSecondsForThis", "occurrence UTC offset in seconds for this check ·") }} {{ occurrence.value.local }} ({{ occurrence.value.zone || setup.entries[item.key]?.zone || localize('Editor.PlanningZoneUnspecified', 'Zone unspecified') }})</span><input type="number" step="1" :value="setup.entries[item.key]?.occurrences?.[occurrence.key] ?? ''" @change="interpret(item.key, 'occurrences', { ...setup.entries[item.key]?.occurrences, [occurrence.key]: ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value) })" /></label>
             <label v-if="item.entry.when.form === 'at' && item.entry.when.value?.precision === 'dateTime' && item.entry.allocationMinutes == null && !['window', 'stay'].includes(item.entry.kind ?? setup.entries[item.key]?.kind ?? '')" class="trip-editor-field"><span>{{ localize("Editor.NeededElapsedDwellForThisCheckMinutes", "Needed elapsed dwell for this check (minutes)") }}</span><input type="number" min="0" step="1" :value="setup.entries[item.key]?.allocationMinutes ?? ''" @change="interpret(item.key, 'allocationMinutes', ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value))" /></label>
             <fieldset v-if="item.parentWindows.length"><legend>{{ localize("Editor.ChooseExplicitlyRelevantParentWindowUnion", "Choose explicitly relevant parent-window union") }}</legend>
               <template v-for="key in item.parentWindows" :key="key">

@@ -1,3 +1,4 @@
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, ref, watch, type Ref } from 'vue';
 import { createSegment, EditorMutationHttpError, EditorSegmentConflictError, EditorValidationError, patchSegmentNotes, updateSegment } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, EditorSegmentDraft, EditorSegmentSaveRequest, EditorSegmentWaypointDraftRow } from '../types';
@@ -293,8 +294,9 @@ export const createSegmentNotesDraft = (options: {
         options.applyError(error, 'Segment save failed.', rows);
         return;
       }
-      const accepted = await confirm({ title: 'Clear custom route?', message: error.conflict.warning,
-        confirmLabel: 'Clear route and save', cancelLabel: 'Keep editing', variant: 'warning' });
+      const accepted = await confirm({ title: message('Editor.ClearCustomRouteQuestion', 'Clear custom route?'),
+        message: message('Editor.SegmentConflictClear', 'This change clears the saved custom route and waypoint positions on that route. Confirm to save, or keep editing.'),
+        confirmLabel: message('Editor.ClearCustomRouteSave', 'Clear route and save'), cancelLabel: message('Shell.KeepEditing', 'Keep editing'), variant: 'warning' });
       if (!currentAttempt()) return;
       if (!accepted) {
         document.querySelector<HTMLElement>(`button[form="${options.formId}"]`)?.focus();

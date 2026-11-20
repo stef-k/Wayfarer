@@ -164,3 +164,9 @@ body {
 .language-dialog [hidden] {
     display: none !important;
 }
+
+/* Keep the language selector and cancel actions legible on the dark shell. */
+[data-bs-theme="dark"] :is(#language-open, .language-dialog .btn-outline-secondary) {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: #8995a2;
+}

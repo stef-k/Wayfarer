@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { editorStatusText } from './editorFeedbackText';
+import { editorFieldError, editorProposalError } from '../editorValidation';
+import { editorErrorText, editorOperationText, editorStatusText } from './editorFeedbackText';
 import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { deleteSegment, orderSegments } from '../api/tripEditorApi';
+import { EditorValidationError, deleteSegment, orderSegments } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
@@ -62,6 +63,7 @@ const isSaving = ref(false);
 const isGenerating = ref(false);
 const isOrdering = ref(false);
 const validationErrors = ref<Record<string, string[]>>({});
+const proposalError = ref<string | null>(null);
 const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
@@ -83,7 +85,7 @@ const isDirty = computed(() => draft.title !== persistedBaseline.value.title || 
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
 const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
   .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
-  .flatMap(([, messages]) => messages));
+  .flatMap(([key, messages]) => key === 'proposal' && proposalError.value ? [proposalError.value] : messages.map(editorFieldError)));
 const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegment.value
   ? buildSegmentEditTarget(activeSegment.value, segmentLabel(activeSegment.value))
   : buildSegmentCreateTarget());
@@ -310,7 +312,7 @@ function drawRoute(): void {
   invokeSegmentRouteAction(draft, () => {
     const error = beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state, focusRouteAction);
     if (!error) return;
-    saveError.value = error;
+    saveError.value = editorOperationText(error, localize('Editor.RouteWorkUnavailable', 'Route work could not start. Check the route stops and try again.'));
     void nextTick(() => document.getElementById('segment-route-work-error')?.focus());
   });
 }
@@ -331,7 +333,7 @@ function focusRouteAction(): void {
 /** Rejects an observed authoritative anchor change instead of merging it into active W. */
 async function invalidateStaleRouteWork(): Promise<void> {
   await props.editorSurface.invalidateMapWork();
-  saveError.value = 'Saved Place coordinates changed. Reload the current saved Segment before reopening route work.';
+  saveError.value = localize('Editor.SegmentRouteAnchorsChanged', 'Saved Place coordinates changed. Reload the current saved Segment before reopening route work.');
   await nextTick();
   document.getElementById('segment-route-work-error')?.focus();
 }
@@ -532,7 +534,7 @@ function confirmDiscard(message: string): Promise<boolean> {
 }
 
 function fieldErrors(key: string): string[] {
-  return validationErrors.value[key] ?? [];
+  return (validationErrors.value[key] ?? []).map(editorFieldError);
 }
 
 function showConflict(conflict: EditorSegmentConflict): void {
@@ -548,8 +550,10 @@ function clearFieldError(key: string): void {
 }
 
 function applyError(error: unknown, fallback: string, submittedWaypointRows: EditorSegmentWaypointDraftRow[] = []): void {
-  if (error instanceof Error && 'errors' in error) {
-    validationErrors.value = mapWaypointErrors((error as Error & { errors: Record<string, string[]> }).errors, submittedWaypointRows);
+  // Keep server field keys and submitted waypoint-row identity through focus and presentation.
+  if (error instanceof EditorValidationError) {
+    proposalError.value = editorProposalError(error.code);
+    validationErrors.value = mapWaypointErrors(error.errors, submittedWaypointRows);
     void nextTick(() => {
       const firstKey = Object.keys(validationErrors.value)[0];
       const rowId = firstKey?.startsWith('waypoint.') ? firstKey.slice('waypoint.'.length) : null;
@@ -560,11 +564,12 @@ function applyError(error: unknown, fallback: string, submittedWaypointRows: Edi
     });
   }
 
-  saveError.value = error instanceof Error ? error.message : fallback;
+  saveError.value = editorErrorText(error, fallback);
 }
 
 function resetFeedback(): void {
   validationErrors.value = {};
+  proposalError.value = null;
   saveError.value = null;
   segmentConflict.value = null;
 }
@@ -592,7 +597,9 @@ function isFocusable(element: HTMLElement): boolean {
 
 /** Replaces the complete draft only after explicit confirmation against current server state. */
 async function reloadCurrentSegment(): Promise<void> {
-  if (!segmentConflict.value || !(await confirm({ title: 'Reload current saved Segment?', message: 'Discard this complete unsaved Segment draft and load the current saved version?', confirmLabel: 'Reload saved Segment', cancelLabel: 'Keep editing', variant: 'warning' }))) return;
+  if (!segmentConflict.value || !(await confirm({ title: localize('Editor.ReloadSavedSegmentQuestion', 'Reload current saved Segment?'),
+    message: localize('Editor.ReloadSavedSegmentDiscard', 'Discard this complete unsaved Segment draft and load the current saved version?'),
+    confirmLabel: localize('Editor.ReloadCurrentSavedSegment', 'Reload current saved Segment'), cancelLabel: localize('Shell.KeepEditing', 'Keep editing'), variant: 'warning' }))) return;
   installAuthoritativeSegment(segmentConflict.value.currentSegment);
   syncRouteDraftPreview();
 }

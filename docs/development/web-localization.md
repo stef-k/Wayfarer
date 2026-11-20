@@ -76,9 +76,19 @@ for unsaved work.
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
 Area 1 verification covers language negotiation, preference writes, core draft
-guards, the live map lifecycle and selected Editor/Viewer presentation. Review
-remaining runtime messages, including server-owned Plan Check findings and
-rare Editor mutation and routing outcomes, before accepting Area 1 coverage.
+guards, the live map lifecycle and Editor/Viewer presentation. The mounted
+Editor tests cover Greek indexed waypoint validation, an expired route
+proposal, a stale Segment with its reload action, and an unconfirmed Planning
+save with its draft and save hold intact. Plan Check presents scoped findings,
+dependency changes and structured estimate evidence. Follow-up controls use
+the original finding values and retained check inputs.
+
+The headed Viewer-to-Editor journey checks the camera and active Segment
+through the preference switch, Greek Editor validation, and contrast in dark
+desktop, narrow and native 200% zoom layouts. The PostgreSQL private Viewer
+test checks a coherent split-query snapshot with ordered waypoints and
+owner-filtered visits. See [#960](https://github.com/stef-k/Wayfarer/issues/960)
+for the remaining areas and review gates.
 
 Use the current [#960 contract](https://github.com/stef-k/Wayfarer/issues/960)
 for the route, role and message-owner inventory. Keep untranslated destination

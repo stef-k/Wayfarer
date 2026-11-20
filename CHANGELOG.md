@@ -5,7 +5,10 @@
 - Add a browser-local English and Greek language preference, localized shared
   navigation and Trip presentation, and draft-aware switching in the Trip
   Editor (#960 Area 1). Preserve a linked Viewer camera when highlighting a
-  Segment and use the live document language in browser print.
+  Segment and use the live document language in browser print. Localize mutation
+  recovery, route proposal and Plan Check feedback, and improve the dark
+  Editor and language controls. Load the private Viewer graph and owner visits
+  in one split-query snapshot. No database migration.
 
 - Add bearer Family/Friends creation, scoped invitation management, recipient
   disclosure and responses, reviewed Leave and My sharing readback (#982).

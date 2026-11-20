@@ -57,7 +57,11 @@ public static class PlanningCheckService
         var current = setup with { Entries = inputs, SingleTraveller = single, TravellerDependency = travellerDependency,
             Transfers = transfers, Incompatible = incompatible };
         return new("planning-check-1", ownerId, graph.TripId, DateTimeZoneProviders.Tzdb.VersionId, items, findings, current, reused, invalidated,
-            graph.SegmentsById.Values.Select(s => new PlanningCheckSource(s.Id, DescribeSource(graph, s))).ToArray(), evidence);
+            graph.SegmentsById.Values.Select(s =>
+            {
+                var route = RouteSource(graph, s);
+                return new PlanningCheckSource(s.Id, DescribeSource(route)) { Route = route };
+            }).ToArray(), evidence);
     }
 
     /// <summary>Entity-owned entry keys cannot join other Trips; parent lists are candidates, never inferred constraints.</summary>
@@ -183,10 +187,18 @@ public static class PlanningCheckService
         { transfer = transfer with { WhatIfRelease = null, WhatIfAt = null }; invalidated.Add("What-if release expired or its timing evidence changed."); }
         transfer = transfer with { Dependency = dependency, WhatIfDependency = whatIfDependency,
             WhatIfAt = transfer.WhatIfRelease != null ? transfer.WhatIfAt ?? now : null };
-        var source = transfer.SegmentId.HasValue ? segment == null ? "Selected Segment unavailable" : DescribeSource(graph, segment)
+        var routeSource = segment == null ? null : RouteSource(graph, segment);
+        var source = transfer.SegmentId.HasValue ? routeSource == null ? "Selected Segment unavailable" : DescribeSource(routeSource)
             : $"Check-only manual estimate: {transfer.EstimateMinutes?.ToString() ?? "Unknown"} min";
+        var estimateSource = new PlanningCheckEstimate(routeSource, transfer.SegmentId.HasValue && segment == null, transfer.EstimateMinutes);
+        var fromLocation = LocationSource(graph, from);
+        var toLocation = LocationSource(graph, to);
         evidence.Add(new(from.Key, to.Key, transfer.SegmentId, transfer.EstimateMinutes, dependency,
-            $"{DescribeLocation(graph, from)} → {DescribeLocation(graph, to)}. {source}"));
+            $"{DescribeLocation(fromLocation)} → {DescribeLocation(toLocation)}. {source}")
+        {
+            Source = estimateSource,
+            Locations = [fromLocation, toLocation]
+        });
         if (!from.Selected || !to.Selected)
         { Add(findings, "movement", [from.Key, to.Key], new("excluded", "Movement pair is outside this selection.")); return transfer; }
         var estimate = transfer.Relevant ? transfer.SegmentId.HasValue ? segment?.EstimatedDurationMinutes : transfer.EstimateMinutes : null;
@@ -195,40 +207,53 @@ public static class PlanningCheckService
         var releaseEndpoint = PlanningIntervals.Endpoint(Effective(from, inputs), true, inputs.GetValueOrDefault(from.Key)?.Zone, transfer.WhatIfRelease);
         var assumptions = $" Source: {source}; relevance {(transfer.Relevant ? "confirmed" : "unresolved")}; allowance {transfer.Allowance}, connection {transfer.Connection}.";
         if (transfer.WhatIfRelease is { } release) assumptions += $" What-if release: {release.Local} ({release.Zone ?? "zone unspecified"}); saved intentions and history unchanged.";
-        void Compare(PlanningPlacements target, string predicate)
+        void Compare(PlanningPlacements target, string predicate, PlanningValue? deadline = null)
         {
             foreach (var comparison in PlanningComparisons.Movement(releaseEndpoint, target, estimate, allowance + connection, allowance != null && connection != null))
-                Add(findings, "movement", [from.Key, to.Key], comparison with { Message = predicate + ": " + comparison.Message + assumptions });
+                findings.Add(new($"movement/{findings.Count}", "movement", [from.Key, to.Key],
+                    comparison with { Message = predicate + ": " + comparison.Message + assumptions })
+                { Movement = new(comparison.Message, deadline, transfer.WhatIfRelease, transfer.Relevant, transfer.Allowance, transfer.Connection, estimateSource) });
         }
         Compare(PlanningIntervals.Endpoint(Effective(to, inputs), false, inputs.GetValueOrDefault(to.Key)?.Zone), "Intended arrival (saved Start/At)");
         if (transfer.ArrivalDeadline is { } deadline)
             Compare(PlanningIntervals.Endpoint(Effective(to, inputs), false, checkValue: deadline),
-                $"Arrive by {deadline.Local} ({deadline.Precision}; {deadline.Zone ?? "zone unspecified"}) · check only");
+                $"Arrive by {deadline.Local} ({deadline.Precision}; {deadline.Zone ?? "zone unspecified"}) · check only", deadline);
         return transfer;
     }
 
-    /// <summary>Human-readable current locations describe advisory evidence without publishing any mutation state.</summary>
-    private static string DescribeLocation(EditorTripStateDto graph, PlanningCheckItem item)
+    /// <summary>Maintains the legacy English protocol description from the same facts used by the Web UI.</summary>
+    private static string DescribeLocation(PlanningCheckLocation location) => location.Route != null
+        ? $"{location.Name}: {DescribeSource(location.Route)}"
+        : location.Latitude == null ? location.Name : $"{location.Name} ({location.Latitude}, {location.Longitude})";
+
+    /// <summary>Retains existing English route text for consumers of the original description field.</summary>
+    private static string DescribeSource(PlanningCheckRouteSource route)
     {
-        if (item.Kind == "segment") return $"{item.Name}: {DescribeSource(graph, graph.SegmentsById[item.TargetId])}";
-        var point = item.Kind switch {
+        var anchors = route.Anchors.Select(place => place == null ? "Unknown anchor" : $"{place.Name} ({place.Latitude}, {place.Longitude})");
+        return $"{route.Mode} · {route.Duration?.ToString() ?? "Unknown"} min · {route.DurationSource} · {string.Join(" → ", anchors)} · {(route.CustomRoute ? "Saved custom route" : "Anchor route")} · {route.Distance?.ToString() ?? "Unknown"} km";
+    }
+
+    /// <summary>Projects current route facts without deriving machine values from display text.</summary>
+    private static PlanningCheckRouteSource RouteSource(EditorTripStateDto graph, EditorSegmentDto segment)
+    {
+        var anchors = new Guid?[] { segment.FromPlaceId }.Concat(segment.WaypointPlaceIds.Select(id => (Guid?)id)).Append(segment.ToPlaceId);
+        return new(segment.Mode, segment.EstimatedDurationMinutes, segment.EstimatedDurationSource,
+            anchors.Select(id => id.HasValue && graph.PlacesById.TryGetValue(id.Value, out var place)
+                ? new PlanningCheckLocation(place.Name, place.Location?.Latitude, place.Location?.Longitude) : null).ToArray(),
+            segment.HasCustomRoute, segment.EstimatedDistanceKm);
+    }
+
+    /// <summary>Preserves authored display names alongside the same snapshot locations as the English description.</summary>
+    private static PlanningCheckLocation LocationSource(EditorTripStateDto graph, PlanningCheckItem item)
+    {
+        var point = item.Kind switch
+        {
             "place" => graph.PlacesById[item.TargetId].Location,
             "region" => graph.RegionsById[item.TargetId].Center,
             _ => null
         };
-        return point == null ? item.Name : $"{item.Name} ({point.Latitude}, {point.Longitude})";
-    }
-
-    /// <summary>Current route anchors, estimate and provenance are advisory descriptions, separate from the editor graph.</summary>
-    private static string DescribeSource(EditorTripStateDto graph, EditorSegmentDto segment)
-    {
-        string Anchor(Guid? id)
-        {
-            var place = id.HasValue ? graph.PlacesById.GetValueOrDefault(id.Value) : null;
-            return place == null ? "Unknown anchor" : $"{place.Name} ({place.Location?.Latitude}, {place.Location?.Longitude})";
-        }
-        var anchors = new Guid?[] { segment.FromPlaceId }.Concat(segment.WaypointPlaceIds.Select(id => (Guid?)id)).Append(segment.ToPlaceId);
-        return $"{segment.Mode} · {segment.EstimatedDurationMinutes?.ToString() ?? "Unknown"} min · {segment.EstimatedDurationSource} · {string.Join(" → ", anchors.Select(Anchor))} · {(segment.HasCustomRoute ? "Saved custom route" : "Anchor route")} · {segment.EstimatedDistanceKm?.ToString() ?? "Unknown"} km";
+        return new(item.Name, point?.Latitude, point?.Longitude,
+            item.Kind == "segment" ? RouteSource(graph, graph.SegmentsById[item.TargetId]) : null);
     }
 
     /// <summary>Directional Journey evidence includes ordered anchors and their current locations, without labels, times or display order.</summary>

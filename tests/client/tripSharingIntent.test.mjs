@@ -440,7 +440,8 @@ test('C3 confirmed validation rejection permits a later explicit sharing save', 
   assert.equal(editor.statusText, 'Save failed');
   assert.equal(editor.sharingUnconfirmed, false);
   assert.equal(editor.isDirty, true);
-  assert.match(owner.visibleText(), /Review sharing/);
+  assert.match(owner.visibleText(), /Review the value in this field/);
+  assert.doesNotMatch(owner.visibleText(), /Review sharing/);
   assert.equal(owner.button('Save settings & Exit').props.disabled, false);
   await owner.button('Save settings & Exit').props.onClick();
   assert.equal(calls, 2);

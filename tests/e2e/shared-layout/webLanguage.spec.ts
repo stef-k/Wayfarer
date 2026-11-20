@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -50,6 +50,96 @@ const nativeKeyboard = () => {
   return (...options: string[]) => run('key', '--window', window, '--clearmodifiers', ...options);
 };
 
+/** Checks a rendered dark control against the closest painted surface and keeps the measured ratio. */
+const textContrast = async (control: Locator): Promise<number> => {
+  await expect(control).toBeVisible();
+  return control.evaluate(element => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d')!;
+    const rgba = (color: string) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = color;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data];
+    };
+    const luminance = (rgb: number[]) => rgb.slice(0, 3).reduce((total, channel, index) => {
+      const value = channel / 255;
+      return total + [0.2126, 0.7152, 0.0722][index] * (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    }, 0);
+    const foreground = rgba(getComputedStyle(element).color);
+    const layers = [];
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const paint = rgba(getComputedStyle(node).backgroundColor);
+      layers.push(paint);
+      if (paint[3] === 255) break;
+    }
+    const background = layers.reverse().reduce((under, paint) =>
+      under.map((value, index) => value * (1 - paint[3] / 255) + paint[index] * paint[3] / 255), [255, 255, 255]);
+    const ink = luminance(foreground), surface = luminance(background);
+    return (Math.max(ink, surface) + 0.05) / (Math.min(ink, surface) + 0.05);
+  });
+};
+
+/** Captures the actual Greek controls through responsive reflow and native browser zoom. */
+const captureDarkLayouts = async (editor: Page, folder: string) => {
+  if (await editor.locator('body').getAttribute('data-bs-theme') !== 'dark') await editor.locator('#themeToggle').click();
+  await expect(editor.locator('body')).toHaveAttribute('data-bs-theme', 'dark');
+  const language = editor.locator('#language-open');
+  const toolbarAction = editor.locator('.trip-editor-toolbar__actions button:enabled').first();
+  const verify = async (control: Locator) => {
+    await expect.poll(() => textContrast(control)).toBeGreaterThanOrEqual(4.5);
+    return textContrast(control);
+  };
+  await editor.locator('#themeToggle').blur();
+  const desktop = { language: await verify(language), toolbar: await verify(toolbarAction) };
+  await editor.screenshot({ path: `${folder}/greek-dark.png` });
+
+  await editor.setViewportSize({ width: 390, height: 900 });
+  expect(await editor.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  const toggler = editor.locator('#mainNavbar .navbar-toggler');
+  const navbar = editor.locator('#mainNavbarCollapse');
+  await toggler.click();
+  await expect(navbar).toHaveClass(/\bshow\b/);
+  await language.scrollIntoViewIfNeeded();
+  await expect(language).toBeInViewport({ ratio: 1 });
+  const narrow = { language: await verify(language) };
+  await editor.screenshot({ path: `${folder}/greek-narrow.png` });
+  await toggler.click();
+  await expect(navbar).toBeHidden();
+
+  await editor.setViewportSize({ width: 1536, height: 1024 });
+  await editor.bringToFront();
+  const metrics = () => editor.evaluate(() => ({ innerWidth, dpr: devicePixelRatio,
+    scale: visualViewport?.scale, cssZoom: getComputedStyle(document.documentElement).zoom }));
+  const key = nativeKeyboard();
+  key('ctrl+0');
+  const before = await metrics();
+  try {
+    // Chromium can coalesce a burst of native shortcuts while reflowing the previous step.
+    for (let step = 0; step < 5; step++) {
+      const previous = (await metrics()).dpr;
+      key('ctrl+plus');
+      await expect.poll(async () => (await metrics()).dpr).toBeGreaterThan(previous);
+    }
+    const after = await metrics();
+    expect(after.dpr).toBe(before.dpr * 2);
+    expect(before.innerWidth / after.innerWidth).toBe(2);
+    expect(after.scale).toBe(before.scale);
+    expect(after.cssZoom).toBe(before.cssZoom);
+    expect(await editor.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+    const checkPlan = editor.locator('.plan-check > .trip-editor-panel__line button').first();
+    await editor.evaluate(() => window.scrollTo(0, 0));
+    await expect(checkPlan).toBeInViewport({ ratio: 1 });
+    const native = { checkPlan: await verify(checkPlan) };
+    await editor.screenshot({ path: `${folder}/greek-native-200.png` });
+    await writeFile(`${folder}/native-zoom.json`, JSON.stringify({ before, after }, null, 2));
+    await writeFile(`${folder}/dark-contrast.json`, JSON.stringify({ desktop, narrow, native }, null, 2));
+  } finally {
+    key('ctrl+0');
+  }
+};
+
 test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   test.setTimeout(120_000);
   page.setDefaultTimeout(15_000);
@@ -90,30 +180,5 @@ test('Area 1 Viewer to Editor language journey', async ({ page }, info) => {
   await editor.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' }).click();
   await expect(editor.getByText(/Το όνομα (είναι υποχρεωτικό|πρέπει να έχει)/)).toBeVisible();
   await name.fill('Shared layout browser Trip');
-  if (await editor.locator('body').getAttribute('data-bs-theme') !== 'dark') await editor.locator('#themeToggle').click();
-  await expect(editor.locator('body')).toHaveAttribute('data-bs-theme', 'dark');
-  await editor.screenshot({ path: `${folder}/greek-dark.png` });
-  await editor.setViewportSize({ width: 390, height: 900 });
-  expect(await editor.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
-  await editor.screenshot({ path: `${folder}/greek-narrow.png` });
-
-  await editor.setViewportSize({ width: 1536, height: 1024 });
-  await editor.bringToFront();
-  const metrics = () => editor.evaluate(() => ({ innerWidth, dpr: devicePixelRatio,
-    scale: visualViewport?.scale, cssZoom: getComputedStyle(document.documentElement).zoom }));
-  const key = nativeKeyboard();
-  key('ctrl+0');
-  const before = await metrics();
-  try {
-    key('--repeat', '5', '--delay', '120', 'ctrl+plus');
-    await expect.poll(async () => (await metrics()).dpr).toBe(before.dpr * 2);
-    const after = await metrics();
-    expect(before.innerWidth / after.innerWidth).toBe(2);
-    expect(after.scale).toBe(before.scale);
-    expect(after.cssZoom).toBe(before.cssZoom);
-    await editor.screenshot({ path: `${folder}/greek-native-200.png` });
-    await writeFile(`${folder}/native-zoom.json`, JSON.stringify({ before, after }, null, 2));
-  } finally {
-    key('ctrl+0');
-  }
+  await captureDarkLayouts(editor, folder);
 });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { editorFieldError } from '../editorValidation';
 import { regionDisplayName } from '../regionDisplayName.js';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -152,7 +153,7 @@ const submitSearch = async (): Promise<void> => {
 
     if (error instanceof EditorValidationError) {
       status.value = 'validation';
-      errorText.value = Object.values(error.errors).flat()[0] ?? error.message;
+      errorText.value = editorFieldError(Object.values(error.errors).flat()[0] ?? '');
     } else if (error instanceof Error && error.message === 'geocode-rate-limited') {
       status.value = 'rate-limit';
     } else if (error instanceof Error && error.message === 'geocode-provider-unavailable') {

@@ -36,14 +36,43 @@ public sealed record PlanningCheckItem(string Key, string Kind, Guid TargetId, G
     bool Selected, IReadOnlyList<string> ParentWindows, string Dependency);
 
 /// <summary>A dismissible displayed assessment; dismissal never changes scope, counts or later computation.</summary>
-public sealed record PlanningCheckFinding(string Id, string Check, IReadOnlyList<string> Entries, PlanningComparison Result);
+public sealed record PlanningCheckFinding(string Id, string Check, IReadOnlyList<string> Entries, PlanningComparison Result)
+{
+    /// <summary>Separates check wording and request inputs from legacy compound prose.</summary>
+    public PlanningCheckMovementDetail? Movement { get; init; }
+}
+
+/// <summary>Safe display data for one assessed arrival predicate and its assumptions.</summary>
+public sealed record PlanningCheckMovementDetail(string Comparison, PlanningValue? Deadline, PlanningValue? WhatIfRelease,
+    bool Relevant, string Allowance, string Connection, PlanningCheckEstimate Estimate);
+
+/// <summary>Distinguishes an unavailable selected Segment from a manual estimate or a routed source.</summary>
+public sealed record PlanningCheckEstimate(PlanningCheckRouteSource? Route, bool RouteUnavailable, double? ManualEstimate);
+
+/// <summary>Current route facts from the evidence snapshot, including unchanged authored anchor names.</summary>
+public sealed record PlanningCheckRouteSource(string Mode, double? Duration, string DurationSource,
+    IReadOnlyList<PlanningCheckLocation?> Anchors, bool CustomRoute, double? Distance);
+
+/// <summary>Source-snapshot location label and optional coordinates or Segment route.</summary>
+public sealed record PlanningCheckLocation(string Name, double? Latitude, double? Longitude, PlanningCheckRouteSource? Route = null);
 
 /// <summary>Read-only estimate selector text from the same coherent snapshot as the findings.</summary>
-public sealed record PlanningCheckSource(Guid Id, string Description);
+public sealed record PlanningCheckSource(Guid Id, string Description)
+{
+    /// <summary>Structured route data for localized source labels in the owner editor.</summary>
+    public PlanningCheckRouteSource? Route { get; init; }
+}
 
 /// <summary>The displayed source and its directional binding; never an editor original or a write permit.</summary>
 public sealed record PlanningCheckMovementEvidence(string From, string To, Guid? SegmentId, double? EstimateMinutes,
-    string Dependency, string Description);
+    string Dependency, string Description)
+{
+    /// <summary>Snapshot of the evidence on which the relevance control relies.</summary>
+    public PlanningCheckEstimate? Source { get; init; }
+
+    /// <summary>Directional locations associated with the estimate.</summary>
+    public IReadOnlyList<PlanningCheckLocation> Locations { get; init; } = [];
+}
 
 /// <summary>Fresh authorized result plus revalidated latest inputs; no persistence, export or mutation authority.</summary>
 public sealed record PlanningCheckResult(string Contract, string OwnerId, Guid TripId, string ZoneRulesVersion,

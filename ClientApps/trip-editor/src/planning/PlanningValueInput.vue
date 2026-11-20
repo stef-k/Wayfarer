@@ -2,7 +2,7 @@
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
 import { confirm } from '../composables/useConfirmDialog';
-import type { PlanningValue } from './planningTypes';
+import { describePlanningValue, planningPrecisionText, type PlanningValue } from './planningTypes';
 
 const props = defineProps<{ value: PlanningValue; label: string }>();
 const datePart = computed({ get: () => props.value.local.split('T')[0] ?? '', set: value => {
@@ -13,9 +13,12 @@ const timePart = computed({ get: () => props.value.local.split('T')[1] ?? '', se
 /** Precision loss is an explicit reviewed edit; adding a clock leaves the date and optional zone intact. */
 const precision = async (next: PlanningValue['precision']): Promise<void> => {
   if (next === props.value.precision) return;
-  if ((next === 'month' || props.value.precision === 'dateTime') && !await confirm({ title: 'Change precision?',
-    message: `Changing ${props.label} from ${props.value.local}${props.value.zone ? ` (${props.value.zone})` : ''} to ${next} removes its finer components and zone/occurrence choice.`,
-    confirmLabel: 'Change precision', cancelLabel: 'Keep current value', variant: 'warning' })) return;
+  if ((next === 'month' || props.value.precision === 'dateTime') && !await confirm({
+    title: localize('Editor.PlanningPrecisionQuestion', 'Change precision?'),
+    message: localize('Editor.PlanningPrecisionLoss', 'Changing {0} from {1} to {2} removes its finer components and zone/occurrence choice.',
+      props.label, describePlanningValue(props.value), planningPrecisionText(next)),
+    confirmLabel: localize('Editor.PlanningChangePrecision', 'Change precision'),
+    cancelLabel: localize('Editor.PlanningKeepValue', 'Keep current value'), variant: 'warning' })) return;
   const current = datePart.value;
   props.value.precision = next;
   props.value.local = next === 'month' ? current.slice(0, 7) : next === 'dateTime' ? `${current}T` : current;
@@ -26,7 +29,7 @@ const precision = async (next: PlanningValue['precision']): Promise<void> => {
 <template>
   <fieldset class="trip-editor-settings-group">
     <legend>{{ label }}</legend>
-    <label class="trip-editor-field"><span>{{ value.precision === 'month' ? 'Month' : 'Date' }}</span>
+    <label class="trip-editor-field"><span>{{ value.precision === 'month' ? localize('Editor.PlanningMonth', 'Month') : localize('Editor.PlanningDate', 'Date') }}</span>
       <input v-model="datePart" :type="value.precision === 'month' ? 'month' : 'date'" min="0001-01-01" max="9999-12-31" />
     </label>
     <button v-if="value.precision !== 'month'" type="button" class="btn btn-outline-secondary btn-sm" @click="precision('month')">{{ localize("Editor.MonthOnly", "Month only") }}</button>
@@ -41,6 +44,6 @@ const precision = async (next: PlanningValue['precision']): Promise<void> => {
       </details>
       <button type="button" class="btn btn-outline-secondary btn-sm" @click="precision('date')">{{ localize("Editor.RemoveTime", "Remove time") }}</button>
     </template>
-    <small>{{ value.precision }} {{ localize("Editor.Precision", "precision") }}<span v-if="value.precision === 'dateTime'"> · {{ value.zone || 'zone unspecified' }}</span></small>
+    <small>{{ planningPrecisionText(value.precision) }}<span v-if="value.precision === 'dateTime'"> · {{ value.zone || localize('Editor.PlanningZoneUnspecified', 'Zone unspecified') }}</span></small>
   </fieldset>
 </template>

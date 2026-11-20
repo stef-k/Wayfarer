@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { editorErrorText } from './editorFeedbackText';
+import { editorErrorText, editorWarningText } from './editorFeedbackText';
 import { editorFieldError } from '../editorValidation';
 import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
@@ -383,7 +383,7 @@ const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? [
         <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
 
         <div v-if="warnings.length > 0" class="trip-editor-form-warning" role="status">
-          <p v-for="warning in warnings" :key="warning.code">{{ warning.message }}</p>
+          <p v-for="warning in warnings" :key="warning.code">{{ editorWarningText(warning.code) }}</p>
         </div>
 
         <label class="trip-editor-field">

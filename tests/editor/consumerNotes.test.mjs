@@ -415,3 +415,138 @@ test('Vue echo, external adoption, dialogs and instance cleanup stay isolated', 
   assert.equal(result.leftOpen, 1); assert.match(result.rightError, /absolute HTTP\(S\) image URL/);
   assert.equal(result.rightValue, '<p>Right</p>'); assert.equal(result.dialogsAfterUnmount, 0); assert.equal(result.disposed, true);
 });
+
+test('Greek Segment feedback keeps the bound waypoint, proposal and stale draft actions', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, { ...state, segmentsById: { segment: {
+    ...segment, title: 'Authored <walk> & route', waypointPlaceIds: ['stop'], waypointRouteVertexIndices: [1],
+    externalRouting: { available: true, providerDisplayName: 'Geoapify', disclosure: 'Route coordinates are sent to Geoapify.',
+      modes: [{ key: 'walk', label: 'Walk' }] }
+  } }, placesById: { place, stop: { ...place, id: 'stop', name: 'Authored <stop> & name' } },
+  placeOrderByRegionId: { region: ['place', 'stop'] } });
+  await page.evaluate(async () => {
+    const manager = captured['SegmentManager.vue'][0];
+    await manager.openEdit(captured['App.vue'][0].state.segmentsById.segment);
+    manager.draft.estimatedDurationMinutes = '12';
+    await Probe.nextTick();
+    // Issue the same reply shape as the server's indexed route validator.
+    window.fetch = async () => Response.json({ errors: { 'waypointPlaceIds[0]': ['The waypoint anchor requires a location.'] } }, { status: 400 });
+    await manager.saveDraft();
+  });
+  const row = page.locator('[data-waypoint-client-id]');
+  await row.waitFor();
+  const boundId = await row.getAttribute('aria-errormessage');
+  assert.ok(boundId);
+  assert.match(await page.locator(`[id="${boundId}"]`).textContent(), /Ορίστε συντεταγμένες για αυτήν την ενδιάμεση στάση/);
+  assert.equal(await row.evaluate(node => node === document.activeElement), true);
+  assert.equal(await row.locator('option:checked').textContent(), 'Authored <stop> & name');
+
+  const proposal = { proposalId: 'proposal', segmentId: 'segment', protectedContext: 'original-proof',
+    geometry: [{ longitude: 20, latitude: 10 }, { longitude: 22, latitude: 11 }],
+    waypointIndices: [0, 1, 2], distanceMetres: 1250, durationSeconds: 120 };
+  await page.evaluate(proposal => { window.fetch = async () => Response.json(proposal); }, proposal);
+  await page.locator('[id^="provider-mode-"]').selectOption('walk');
+  await page.getByRole('button', { name: 'Δημιουργία διαδρομής', exact: true }).click();
+  await page.getByText('1,25 χλμ.', { exact: true }).waitFor();
+
+  await page.evaluate(async () => {
+    window.fetch = async (_url, request) => {
+      window.submittedProposal = JSON.parse(request.body).proposal;
+      return Response.json({ code: 'route-proposal-invalid-or-expired',
+        errors: { proposal: ['The route proposal cannot be saved. Discard it or explicitly generate a new proposal.'] } }, { status: 400 });
+    };
+    await captured['SegmentManager.vue'][0].saveDraft();
+  });
+  await page.getByText(/Η πρόταση διαδρομής δεν είναι έγκυρη ή έχει λήξει/).waitFor();
+  assert.equal(await page.evaluate(() => submittedProposal.protectedContext), 'original-proof');
+  await page.getByRole('button', { name: /Απόρριψη πρότασης/ }).click();
+  await page.getByRole('button', { name: 'Δημιουργία διαδρομής', exact: true }).waitFor();
+
+  await page.evaluate(async () => {
+    const manager = captured['SegmentManager.vue'][0];
+    window.fetch = async () => Response.json({ code: 'segment-route-stale',
+      currentSegment: captured['App.vue'][0].state.segmentsById.segment, warning: 'The Segment changed.' }, { status: 409 });
+    await manager.saveDraft();
+  });
+  await page.getByText(/Το αποθηκευμένο τμήμα ή η διαδρομή του άλλαξε/).waitFor();
+  await page.locator('#segment-conflict-heading + p').waitFor();
+  const reload = page.locator('.segment-conflict button');
+  assert.ok(await reload.isEnabled());
+  assert.equal(await page.locator('#segment-conflict-heading').evaluate(node => node === document.activeElement), true);
+  assert.equal(await page.evaluate(() => captured['SegmentManager.vue'][0].draft.estimatedDurationMinutes), '12');
+});
+
+test('Greek Planning keeps uncertain drafts held and renders actionable Check findings', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const authored = 'Authored <route> & clock';
+  const planning = { format: 1, entries: [{ id: 'one', label: authored, kind: 'presence',
+    when: { form: 'at', value: { precision: 'dateTime', local: '2026-10-25T02:30', zone: 'Europe/Paris' } } }] };
+  const page = await mountGreekEditor(browser, { ...state, ownerId: 'account', metadata: { ...metadata, planning } });
+  await page.evaluate(async () => {
+    const parent = captured['App.vue'][0];
+    parent.editorSurface.clearActiveTarget();
+    const review = captured['PlanCheck.vue'][0].review;
+    const item = { key: 'trip/trip/one', name: parent.state.metadata.name, entry: parent.state.metadata.planning.entries[0],
+      selected: true, parentWindows: [] };
+    const other = { ...item, key: 'place/place/two', name: 'Authored <place> & clock' };
+    window.fetch = async (_url, init) => Response.json({ contract: 'planning-check-1', ownerId: 'account', tripId: 'trip',
+      inventory: [item, other], setup: JSON.parse(init.body), estimateSources: [], movementEvidence: [], reused: [],
+      invalidated: [item.entry.label + ': changed clock/zone reopened occurrence choice.'],
+      findings: [{ id: 'physical/0', check: 'physical', entries: [item.key, other.key],
+        result: { status: 'unknown', message: 'Occupied overlap needs an explicit single-traveller premise and assessed incompatible locations.' } },
+      { id: 'movement/1', check: 'movement', entries: [item.key, other.key],
+        result: { status: 'unknown', message: 'Intended arrival: Travel gap depends on an unresolved fold; choose the occurrence.' },
+        movement: { comparison: 'Travel gap depends on an unresolved fold; choose the occurrence.', relevant: false, allowance: 'unknown',
+          connection: 'unknown', estimate: { routeUnavailable: false, manualEstimate: 12.5 } } }] });
+    await review.run();
+  });
+  await page.getByText(/12,5 λεπ\./).waitFor();
+  const check = page.locator('.plan-check');
+  await check.locator('.plan-check__inputs > summary').click();
+  await check.locator('.plan-check__entry summary').first().click();
+  assert.ok(await check.locator('.plan-check__entry input[step="1"]').first().isVisible());
+  assert.ok(await check.getByRole('button', { name: 'Αυτές οι τοποθεσίες απαιτούν χωριστή παρουσία' }).isEnabled());
+  assert.match(await check.textContent(), /Authored <route> & clock/);
+  assert.equal(await check.locator('route').count(), 0);
+
+  await page.evaluate(async () => {
+    const owner = captured['MetadataEditor.vue'][0];
+    await owner.openMetadata();
+    await Probe.nextTick();
+    const editor = captured['PlanningEditor.vue'].findLast(item => item.draft?.kind === 'trip');
+    editor.draft.entries[0].label += ' kept';
+    window.fetch = async () => { throw new TypeError('diagnostic-only transport failure'); };
+    await editor.workspace.save(editor.draft);
+  });
+  const planningPanel = page.locator('[data-planning]');
+  await planningPanel.locator('summary').first().click();
+  await planningPanel.getByRole('alert').filter({ hasText: /Η αποθήκευση του προγραμματισμού δεν επιβεβαιώθηκε/ }).waitFor();
+  assert.ok(await planningPanel.locator('.btn-primary').isDisabled());
+  assert.match(await planningPanel.textContent(), /προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί/);
+  assert.equal(await page.evaluate(() => captured['PlanningEditor.vue'].findLast(item => item.draft?.kind === 'trip').draft.entries[0].label),
+    `${authored} kept`);
+});
+
+/** Loads the shipped RESX values through the document bootstrap used by the mounted Vue owners. */
+async function mountGreekEditor(browser, graph) {
+  const page = await browser.newPage();
+  await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
+  await page.goto('http://localhost/');
+  const greek = await readFile('Resources/Editor.el-GR.resx', 'utf8');
+  const english = await readFile('Resources/Editor.resx', 'utf8');
+  await page.evaluate(({ greek, english }) => {
+    const catalog = source => Object.fromEntries(Array.from(new DOMParser().parseFromString(source, 'application/xml')
+      .querySelectorAll('data'), item => [item.getAttribute('name'), item.querySelector('value').textContent]));
+    const element = document.createElement('script');
+    element.type = 'application/json';
+    element.id = 'wayfarer-locale';
+    element.textContent = JSON.stringify({ locale: 'el-GR', fallback: 'en-US', messages: catalog(greek), english: catalog(english) });
+    document.body.append(element);
+  }, { greek, english });
+  await page.addScriptTag({ content: script });
+  await page.evaluate(graph => Probe.mountApp(graph), graph);
+  await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+  return page;
+}

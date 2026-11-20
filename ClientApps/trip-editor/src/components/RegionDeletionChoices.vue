@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { editorOperationText } from './editorFeedbackText';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { DeepReadonly } from 'vue';
 import type { Disposition, RegionDeletionController } from './regionDeletionState';
@@ -32,7 +33,7 @@ const choices: Disposition[] = ['keep', 'delete'];
     </div>
     <p v-if="controller.state.submitting">{{ localize("Editor.DeletingRegionWaitingForTheServerResult", "Deleting Region. Waiting for the server result…") }}</p>
   </div>
-  <div v-if="controller.state.error" role="alert" class="alert alert-warning">{{ controller.state.error }}</div>
+  <div v-if="controller.state.error" role="alert" class="alert alert-warning">{{ editorOperationText(controller.state.error, localize('Editor.RegionPreviewRejected', 'Request rejected. Refresh the preview and confirm again.')) }}</div>
   <div v-if="controller.state.held" role="alert" class="alert alert-warning">
     {{ unknownRegionDeletionMessage }} {{ localize("Editor.TheEarlierRequestRemainsUnresolvedAnotherRegion", "The earlier request remains unresolved. Another Region deletion is held until its terminal outcome is explicitly reconciled.") }}
   </div>

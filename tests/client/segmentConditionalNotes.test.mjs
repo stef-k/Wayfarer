@@ -220,11 +220,11 @@ for (const [outcome, id] of [[500, 'other'], [200, 'other'], [200, 'segment']]) 
 test('400/409 remain correctable with pinned original; absent original/unsupported route fails closed', () => withApp(async ({ parent, editor }) => {
   const calls = [];
   globalThis.fetch = async (url, init) => { calls.push([url, init.method, JSON.parse(init.body)]); return new Response(JSON.stringify({
-    code: 'mutation-base-stale', detail: 'Review current Notes.', errors: { notesHtml: ['Check Notes.'] } }), { status: calls.length === 1 ? 400 : 409 }); };
+    code: 'mutation-base-stale', detail: 'Review current Notes.', errors: { notesHtml: ['Notes cannot contain data image sources.'] } }), { status: calls.length === 1 ? 400 : 409 }); };
   await editor.openEdit(parent.state.segmentsById.segment);
   editor.draft.notesHtml = 'Mine';
   await editor.saveDraft();
-  assert.deepEqual(editor.fieldErrors('notesHtml'), ['Check Notes.']);
+  assert.deepEqual(editor.fieldErrors('notesHtml'), ['Notes cannot contain data image sources.']);
   editor.draft.notesHtml = 'Corrected';
   await editor.saveDraft();
   assert.deepEqual(calls[1][2], { expected: { notesHtml: null }, changes: { notesHtml: 'Corrected' } });

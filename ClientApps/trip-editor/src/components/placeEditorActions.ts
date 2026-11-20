@@ -1,3 +1,4 @@
+import { editorWarningText } from './editorFeedbackText';
 import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
 import { nextTick, onUnmounted, watch } from 'vue';
 import { createPlace, previewPlaceDeletion, deletePlace, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderPlaces, preparePlaceStructure, updatePlace, updatePlaceConditional } from '../api/tripEditorApi';
@@ -188,7 +189,7 @@ export function usePlaceEditorActions(context: any) {
       context.placeCreateBaselineRequest.value = null;
       context.placeCreateBaselineDraft.value = null;
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
-      if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map((warning: { message: string }) => warning.message), 'Place saved');
+      if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map(warning => editorWarningText(warning.code)), 'Place saved');
     } catch (error) {
       const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
