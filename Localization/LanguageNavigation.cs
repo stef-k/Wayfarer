@@ -39,7 +39,7 @@ public static class LanguageNavigation
         return area == "Identity" ? GetIdentityFormDestination(context, page) : postDestination;
     }
 
-    /// <summary>Discards POST handler selectors and preserves sign-in and registration return URLs as data.</summary>
+    /// <summary>Discards POST handler selectors while retaining return URLs and Login's session-expiry flag.</summary>
     private static string? GetIdentityFormDestination(HttpContext context, string? page)
     {
         if (!HttpMethods.IsPost(context.Request.Method) || page is null || !IdentityFormPages.Contains(page))
@@ -48,8 +48,11 @@ public static class LanguageNavigation
         var returnUrl = page is "/Account/Login" or "/Account/Register"
             ? context.Request.Query["returnUrl"].FirstOrDefault()
             : null;
+        var sessionEnded = page == "/Account/Login" && context.Request.Query["sessionEnded"] == "true"
+            ? "true"
+            : null;
         return context.RequestServices.GetRequiredService<LinkGenerator>().GetPathByPage(
-            context, page, handler: null, values: new { area = "Identity", returnUrl });
+            context, page, handler: null, values: new { area = "Identity", returnUrl, sessionEnded });
     }
 
     /// <summary>Withholds switching on transient Identity pages and unintegrated application workspaces.</summary>

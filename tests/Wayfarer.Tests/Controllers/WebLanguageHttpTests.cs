@@ -7,6 +7,7 @@ using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
@@ -94,6 +95,44 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Equal("el-GR", errorPage.DocumentElement.GetAttribute("lang"));
         Assert.Equal("Σφάλμα", errorPage.QuerySelector("main h1")?.TextContent);
         Assert.NotEmpty(errorPage.QuerySelector("main code")?.TextContent ?? "");
+    }
+
+    /// <summary>Switching languages after failed Login restores the session-expiry notice and return target.</summary>
+    [Fact]
+    public async Task LoginLanguageSwitchPreservesSessionEndedNoticeAndReturnTarget()
+    {
+        const string loginPath = "/Identity/Account/Login";
+        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext(), CreateTestDirectory(),
+            IdentityRouteHost.WithStartupSettings);
+        using var client = app.GetTestClient();
+        client.BaseAddress = new Uri("https://wayfarer.test");
+        var token = await IdentityRouteHost.AntiforgeryAsync(client);
+
+        using var failed = await client.PostAsync(loginPath + "?sessionEnded=true&ReturnUrl=%2FUser%2FTimeline",
+            Form(token, ("Input.Username", "draft-name")));
+        var page = await ParseAsync(failed);
+        Assert.Equal("en-US", page.DocumentElement.GetAttribute("lang"));
+        Assert.NotEmpty(page.QuerySelector("[data-valmsg-for='Input.Password']")?.TextContent ?? "");
+        var destination = page.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get");
+        Assert.NotNull(destination);
+        Assert.StartsWith(loginPath + "?", destination);
+        var query = QueryHelpers.ParseQuery(destination[loginPath.Length..]);
+        Assert.Equal("true", query["sessionEnded"].ToString());
+        Assert.Equal("/User/Timeline", query["ReturnUrl"].ToString());
+        Assert.Equal(2, query.Count);
+
+        var languageToken = page.QuerySelector("#language-form input[name=__RequestVerificationToken]")!.GetAttribute("value")!;
+        using var preference = await client.PostAsync("/Language/Set", Form(languageToken, ("locale", "el-GR")));
+        Assert.Equal(HttpStatusCode.NoContent, preference.StatusCode);
+        SetCookies(client, ReadCookie(preference, WebLocales.CookieName + "="));
+
+        using var clean = await client.GetAsync(destination);
+        var greek = await ParseAsync(clean);
+        Assert.Equal("el-GR", greek.DocumentElement.GetAttribute("lang"));
+        Assert.Contains("Η συνεδρία σας έληξε ή ο λογαριασμός σας έχει απενεργοποιηθεί.",
+            greek.QuerySelector("#account .validation-summary-errors")?.TextContent);
+        Assert.Equal("/Identity/Account/Register?returnUrl=%2FUser%2FTimeline",
+            greek.QuerySelector("#account a")?.GetAttribute("href"));
     }
 
     /// <summary>Renders a package-managed page, a named-handler failure, and redirected status in the destination locale.</summary>
