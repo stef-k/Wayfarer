@@ -22,6 +22,9 @@
 !Design/**
 !Controllers/**
 !Middleware/**
+!Localization/**/*.cs
+!Resources/**/*.resx
+!Resources/WebLocales.json
 !Migrations/**
 !Scripts/**
 !Swagger/**
