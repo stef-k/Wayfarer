@@ -3,8 +3,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Moq;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Areas.User.LocationProviderModels;
 using Wayfarer.Models;
@@ -49,6 +51,8 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
                     }
                 }
             };
+            // Direct controller calls bypass MVC's TempData setup for the redirect message.
+            controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
 
             var migrate = migration.MigrateAsync(user.Id);
             var save = controller.SaveProfile(new LocationProviderProfileInput
