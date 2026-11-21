@@ -2649,6 +2649,9 @@
   <data name="Editor.NewPlace" xml:space="preserve">
     <value>New place</value>
   </data>
+  <data name="Editor.NewPlaceDraftName" xml:space="preserve">
+    <value>New Place</value>
+  </data>
   <data name="Editor.PendingPlaceMarker" xml:space="preserve">
     <value>Pending place location: {0}</value>
   </data>
@@ -2663,6 +2666,9 @@
   </data>
   <data name="Editor.NewRegion" xml:space="preserve">
     <value>New region</value>
+  </data>
+  <data name="Editor.NewRegionDraftName" xml:space="preserve">
+    <value>New Region</value>
   </data>
   <data name="Editor.EditNamedPlace" xml:space="preserve">
     <value>Edit Place - {0}</value>

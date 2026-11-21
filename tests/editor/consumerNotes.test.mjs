@@ -46,6 +46,7 @@ const bundle = await build({ stdin: { contents: `
     builder.onResolve({ filter: /^\.\/map\/leafletAdapter$/ }, args =>
       args.importer.endsWith('/App.vue') ? { path: 'app-map', namespace: 'test' } : undefined);
     builder.onLoad({ filter: /^app-map$/, namespace: 'test' }, () => ({ contents: `export const createTripEditorMap = (_element, _tilesUrl, callbacks) => {
+      if (window.useRealEditorMap) return Probe.createTripEditorMap(_element, _tilesUrl, callbacks);
       window.selectSegmentFromMap = callbacks.onSegmentSelected;
       return {
         render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {},
@@ -906,7 +907,7 @@ test('Greek expanded Close and entity Cancel keep focus on Escape and discard on
       prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές και να κλείσει ο επεξεργαστής;' },
     { open: editArea, original: area.name, trigger: 'Ακύρωση',
       prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης;' },
-    { open: addPlace, original: 'New Place', trigger: 'Ακύρωση',
+    { open: addPlace, original: 'Νέα τοποθεσία', trigger: 'Ακύρωση',
       prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας;' }
   ];
   for (const { open, original, expand, trigger, prompt } of cases) {
@@ -935,6 +936,102 @@ test('Greek expanded Close and entity Cancel keep focus on Escape and discard on
   await page.getByRole('button', { name: 'Επεξεργασία ταξιδιού', exact: true }).click();
   assert.equal(await page.evaluate(() => captured['PlanningEditor.vue'].findLast(item => item.draft?.kind === 'trip')
     .draft.entries[0].label), 'Separate planning draft');
+});
+
+test('Greek and English coordinate picking keeps the marker and status on the pick while renaming', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const cases = [
+    { locale: 'en-US', add: 'Add Place', pick: 'Pick on map', name: 'Name', latitude: 'Latitude', longitude: 'Longitude',
+      status: 'Selected', done: 'Done', cancel: 'Cancel', discard: 'Discard' },
+    { locale: 'el-GR', add: 'Προσθήκη τοποθεσίας', pick: 'Επιλογή στον χάρτη', name: 'Όνομα', latitude: 'Γεωγραφικό πλάτος',
+      longitude: 'Γεωγραφικό μήκος', status: 'Επιλεγμένες συντεταγμένες:', done: 'Τέλος', cancel: 'Ακύρωση', discard: 'Απόρριψη' }
+  ];
+  for (const labels of cases) {
+    await t.test(labels.locale, async () => {
+      const page = await mountEditor(browser, state, labels.locale, { realMap: true });
+      try {
+        await checkPlaceCoordinateWork(page, labels);
+      } finally {
+        await page.close();
+      }
+    });
+  }
+});
+
+/** Clicks the real Leaflet map and checks the draft, marker and rendered toolbar through Done and Cancel. */
+async function checkPlaceCoordinateWork(page, labels) {
+  await page.getByRole('button', { name: labels.add, exact: true }).click();
+  const draft = page.locator('.trip-editor-surface--docked');
+  const name = draft.getByRole('textbox', { name: labels.name, exact: true });
+  const latitude = draft.getByRole('spinbutton', { name: labels.latitude, exact: true });
+  const longitude = draft.getByRole('spinbutton', { name: labels.longitude, exact: true });
+  const pick = draft.getByRole('button', { name: labels.pick });
+  const work = page.locator('.trip-editor-map-work-toolbar');
+  const map = page.locator('.trip-editor-map.leaflet-container');
+  const marker = map.locator('[data-place-draft-latitude]');
+  const markerCoordinate = () => marker.evaluate(node => [node.dataset.placeDraftLatitude, node.dataset.placeDraftLongitude]);
+  const draftCoordinate = async () => [await latitude.inputValue(), await longitude.inputValue()];
+  const original = await draftCoordinate();
+  await name.fill('Earlier name');
+  await pick.click();
+  await map.click({ position: { x: 390, y: 125 } });
+  const chosen = await markerCoordinate();
+  assert.notDeepEqual(chosen, original);
+  const format = new Intl.NumberFormat(labels.locale, { maximumFractionDigits: 6, useGrouping: false });
+  const selectedStatus = `${labels.status} ${chosen.map(value => format.format(Number(value))).join(', ')}`;
+  await work.getByText(selectedStatus, { exact: true }).waitFor();
+  await name.fill('New Place');
+  assert.deepEqual(await markerCoordinate(), chosen);
+  assert.equal(await work.locator('small').textContent(), selectedStatus);
+  assert.deepEqual(await draftCoordinate(), original);
+
+  await work.getByRole('button', { name: labels.done, exact: true }).click();
+  await work.waitFor({ state: 'detached' });
+  assert.deepEqual(await draftCoordinate(), chosen);
+  await pick.click();
+  await map.click({ position: { x: 175, y: 225 } });
+  assert.notDeepEqual(await markerCoordinate(), chosen);
+  await work.getByRole('button', { name: labels.cancel, exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: labels.discard, exact: true }).click();
+  await work.waitFor({ state: 'detached' });
+  assert.deepEqual(await draftCoordinate(), chosen);
+  assert.deepEqual(await markerCoordinate(), chosen);
+  assert.equal(await name.inputValue(), 'New Place');
+}
+
+test('Greek creation and Reset localize only app-generated Region and Place names', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const savedRegion = { ...region, name: 'New Region', originalValues: { ...region.originalValues, name: 'New Region' } };
+  const savedPlace = { ...place, name: 'New Place', originalValues: { ...place.originalValues, name: 'New Place' } };
+  const page = await mountGreekEditor(browser, { ...state, regionsById: { region: savedRegion }, placesById: { place: savedPlace } });
+  const form = page.locator('.trip-editor-surface--docked');
+  const name = form.getByRole('textbox', { name: 'Όνομα', exact: true });
+  const reset = form.getByRole('button', { name: 'Επαναφορά', exact: true });
+  const cases = [
+    { action: 'openCreate', args: [], expected: 'Νέα περιοχή' },
+    { action: 'openEdit', args: [savedRegion], expected: 'New Region' },
+    { action: 'openPlaceCreate', args: [savedRegion], expected: 'Νέα τοποθεσία' },
+    { action: 'openPlaceEdit', args: [savedPlace], expected: 'New Place' }
+  ];
+  const result = { id: 'provider-place', provider: 'fixture', address: '', latitude: 11, longitude: 21 };
+  for (const [name, displayName, expected] of [
+    ['Provider name', '', 'Provider name'], ['New Place', '', 'New Place'],
+    ['', 'Provider display name, Province', 'Provider display name'], ['', '', 'Νέα τοποθεσία']
+  ]) {
+    cases.push({ action: 'openPlaceCreateFromSearch', args: [savedRegion, { ...result, name, displayName }], expected });
+  }
+  for (const { action, args, expected } of cases) {
+    await page.evaluate(({ action, args }) => captured['RegionManager.vue'][0][action](...args), { action, args });
+    assert.equal(await name.inputValue(), expected);
+    await name.fill('User-entered name');
+    assert.equal(await name.inputValue(), 'User-entered name');
+    await reset.click();
+    assert.equal(await name.inputValue(), expected);
+    await form.getByRole('button', { name: 'Κλείσιμο', exact: true }).click();
+    await form.waitFor({ state: 'detached' });
+  }
 });
 
 test('Greek metadata and sharing recovery retain the earlier attempt and localize the exit prompt', async t => {
@@ -1044,20 +1141,32 @@ test('Greek Place deletion preview renders its consequences and preserves the na
 
 /** Loads the shipped RESX values through the document bootstrap used by the mounted Vue owners. */
 async function mountGreekEditor(browser, graph) {
+  return mountEditor(browser, graph, 'el-GR');
+}
+
+/** Mounts the actual Editor in the requested locale, with Leaflet enabled only for map integration cases. */
+async function mountEditor(browser, graph, locale, { realMap = false } = {}) {
   const page = await browser.newPage();
   await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
   await page.goto('http://localhost/');
   const catalogs = suffix => Promise.all(['Editor', 'Shell'].map(name => readFile(`Resources/${name}${suffix}.resx`, 'utf8')));
-  const [greek, english] = await Promise.all([catalogs('.el-GR'), catalogs('')]);
-  await page.evaluate(({ greek, english }) => {
+  const english = await catalogs('');
+  const localized = locale === 'el-GR' ? await catalogs('.el-GR') : english;
+  if (realMap) {
+    await page.addStyleTag({ path: 'node_modules/leaflet/dist/leaflet.css' });
+    await page.addStyleTag({ content: '.trip-editor-map { width: 640px; height: 360px; }' });
+  }
+  await page.evaluate(({ localized, english, locale, realMap }) => {
     const catalog = sources => Object.fromEntries(sources.flatMap(source => Array.from(new DOMParser().parseFromString(source, 'application/xml')
       .querySelectorAll('data'), item => [item.getAttribute('name'), item.querySelector('value').textContent])));
+    window.useRealEditorMap = realMap;
+    window.useMountedConfirmation = realMap;
     const element = document.createElement('script');
     element.type = 'application/json';
     element.id = 'wayfarer-locale';
-    element.textContent = JSON.stringify({ locale: 'el-GR', fallback: 'en-US', messages: catalog(greek), english: catalog(english) });
+    element.textContent = JSON.stringify({ locale, fallback: 'en-US', messages: catalog(localized), english: catalog(english) });
     document.body.append(element);
-  }, { greek, english });
+  }, { localized, english, locale, realMap });
   await page.addScriptTag({ content: script });
   await page.evaluate(graph => Probe.mountApp(graph), graph);
   await page.waitForFunction(() => window.captured?.['RegionManager.vue']);

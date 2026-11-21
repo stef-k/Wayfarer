@@ -26,6 +26,15 @@ export function useRegionEditorActions(context: any) {
     if (!mount?.dataset.accountId || !mount.dataset.tripId) return true;
     return Boolean(localStorage.getItem(heldRegionDeletionKey(location.origin, mount.dataset.accountId, mount.dataset.tripId)));
   };
+
+  /** Restores a clean creation draft with the document's suggested Region name. */
+  const resetRegionCreation = (): void => {
+    owner.reset(null);
+    owner.beginCreate(context.props.state);
+    context.draft.name = message('Editor.NewRegionDraftName', 'New Region');
+    context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
+  };
+
   const openCreate = async (): Promise<void> => {
     const target = buildRegionCreateTarget();
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -33,12 +42,9 @@ export function useRegionEditorActions(context: any) {
       return;
     }
 
-    context.regionDraftState.reset(null);
-    owner.beginCreate(context.props.state);
+    resetRegionCreation();
     Object.assign(context.placeDraft, emptyPlaceDraft());
     Object.assign(context.areaDraft, emptyAreaDraft());
-    context.draft.name = 'New Region';
-    context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
     context.placeCreateBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
@@ -60,12 +66,10 @@ export function useRegionEditorActions(context: any) {
     context.resetFeedback();
   };
 
+  /** Resets creation to its suggestion and editing to the active saved values. */
   const resetDraft = (): void => {
     if (!context.draft.id) {
-      context.regionDraftState.reset(null);
-      owner.beginCreate(context.props.state);
-      context.draft.name = 'New Region';
-      context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
+      resetRegionCreation();
     } else {
       context.regionDraftState.reset(context.activeRegion.value);
     }

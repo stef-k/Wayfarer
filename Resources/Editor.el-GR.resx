@@ -2649,6 +2649,9 @@
   <data name="Editor.NewPlace" xml:space="preserve">
     <value>Νέα τοποθεσία</value>
   </data>
+  <data name="Editor.NewPlaceDraftName" xml:space="preserve">
+    <value>Νέα τοποθεσία</value>
+  </data>
   <data name="Editor.PendingPlaceMarker" xml:space="preserve">
     <value>Εκκρεμής θέση τοποθεσίας: {0}</value>
   </data>
@@ -2662,6 +2665,9 @@
     <value>Στοιχεία περιοχής</value>
   </data>
   <data name="Editor.NewRegion" xml:space="preserve">
+    <value>Νέα περιοχή</value>
+  </data>
+  <data name="Editor.NewRegionDraftName" xml:space="preserve">
     <value>Νέα περιοχή</value>
   </data>
   <data name="Editor.EditNamedPlace" xml:space="preserve">

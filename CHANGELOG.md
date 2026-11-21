@@ -10,7 +10,9 @@
   summaries, Region controls and the canonical Region label, drawing guidance
   and live distance, both map rulers, map toolbar announcements and selection
   and editor discard prompts, map coordinate feedback, and save and sharing
-  recovery. Apply the latest toolbar camera request during animated navigation.
+  recovery. Wait for the latest toolbar camera move through animated navigation
+  and map reflow. Keep a pending Place coordinate while editing its name.
+  Localize generated Region and Place names in new drafts.
   Improve the dark Editor and language controls. Load the private Viewer graph
   and owner visits in one split-query snapshot. No database migration.
 

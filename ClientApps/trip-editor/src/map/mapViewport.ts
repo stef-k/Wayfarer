@@ -67,6 +67,8 @@ export const createMapViewport = (map: LeafletMap, options: {
   let commandFrame: number | undefined;
   let moving = false;
   let zooming = false;
+  let resizePending = false;
+  let resizing = false;
   let latestNavigation = 0;
   let settlement: Promise<void> | undefined;
   let resolveSettlement: (() => void) | undefined;
@@ -101,8 +103,27 @@ export const createMapViewport = (map: LeafletMap, options: {
     clearGesture();
     userMovement = false;
   };
-  const releaseCommand = (): void => {
+  // Preserve the settled center across reflow. Leaflet emits synchronous movement events
+  // for both invalidation and exact placement, even though the camera stays in place.
+  const applyPendingResize = (): void => {
+    if (!resizePending) return;
+    resizePending = false;
+    clearGesture();
+    const center = map.getCenter();
+    resizing = true;
+    try {
+      map.invalidateSize({ animate: false });
+      const resized = map.getCenter();
+      if (resized.lat !== center.lat || resized.lng !== center.lng) {
+        setExactMapView(map, center, map.getZoom());
+      }
+    } finally {
+      resizing = false;
+    }
+  };
+  const settleMovement = (): void => {
     if (hasMovement()) return;
+    applyPendingResize();
     commandOwned = false;
     finishSettlement();
   };
@@ -118,7 +139,7 @@ export const createMapViewport = (map: LeafletMap, options: {
       // Leaflet queues animated zoom starts for the next frame. Release no-op commands after it.
       commandFrame = window.requestAnimationFrame(() => {
         commandFrame = undefined;
-        releaseCommand();
+        settleMovement();
       });
     }
   };
@@ -146,6 +167,7 @@ export const createMapViewport = (map: LeafletMap, options: {
     gestureTimer = setTimeout(clearGesture, map.options.wheelDebounceTime! + 100);
   };
   const startMovement = (event: { type: string }): void => {
+    if (resizing) return;
     if (event.type === 'zoomstart') zooming = true;
     else moving = true;
     if (pendingGesture) {
@@ -158,21 +180,23 @@ export const createMapViewport = (map: LeafletMap, options: {
     userMovement = !commandOwned && options.canCapture();
   };
   const finishMovement = (): void => {
+    if (resizing) return;
     const view = diagnostics();
     const serialized = JSON.stringify(view);
     const capture = userMovement && !commandOwned && options.canCapture();
     userMovement = false;
     moving = false;
-    releaseCommand();
+    settleMovement();
     if (!ready || serialized === lastView) return;
     lastView = serialized;
     replaceUrlMapView(view);
     if (capture) options.onCaptured?.(view);
   };
   const finishZoom = (): void => {
+    if (resizing) return;
     zooming = false;
     diagnostics();
-    releaseCommand();
+    settleMovement();
   };
   const wheel = (): void => { if (map.scrollWheelZoom.enabled()) armGesture(); };
   const doubleClick = (): void => { if (map.doubleClickZoom.enabled()) armGesture(); };
@@ -217,16 +241,12 @@ export const createMapViewport = (map: LeafletMap, options: {
   map.on('zoomend', finishZoom);
   map.on('moveend', finishMovement);
 
-  // The status line and drawer can resize the map. Leaflet's rounded resize pan must not drift a settled camera.
-  const resizeObserver = new ResizeObserver(() => runCommand(() => {
-    const center = map.getCenter();
-    const wasMoving = moving || zooming;
-    map.invalidateSize({ animate: false });
-    const resized = map.getCenter();
-    if (!wasMoving && (resized.lat !== center.lat || resized.lng !== center.lng)) {
-      setExactMapView(map, center, map.getZoom());
-    }
-  }));
+  // Leaflet's pan target uses the size at its start. Apply layout changes after its own
+  // terminal events so a resize cannot shift that target or announce it early.
+  const resizeObserver = new ResizeObserver(() => {
+    resizePending = true;
+    settleMovement();
+  });
   resizeObserver.observe(element);
 
   return {

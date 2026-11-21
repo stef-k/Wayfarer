@@ -50,7 +50,7 @@ export function usePlaceEditorActions(context: any) {
     owner.beginCreate(context.props.state);
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
-    context.placeDraft.name = result ? searchResultName(result) : 'New Place';
+    context.placeDraft.name = suggestPlaceDraftName(result);
     context.placeDraft.address = result?.address || result?.displayName || '';
     context.placeDraft.latitude = result?.latitude ?? manualCenter?.latitude ?? '';
     context.placeDraft.longitude = result?.longitude ?? manualCenter?.longitude ?? '';
@@ -86,12 +86,16 @@ export function usePlaceEditorActions(context: any) {
     return true;
   };
 
+  /** Restores the new draft's starting values or reads the existing Place from the active snapshot. */
   const resetPlaceDraft = (): void => {
     if (context.isSaving.value) return;
     if (!context.placeDraft.id) {
+      const initialDraft = context.placeCreateBaselineDraft.value ?? {
+        ...emptyPlaceDraft(context.placeDraft.regionId), name: suggestPlaceDraftName()
+      };
       owner.reset(null);
       owner.beginCreate(context.props.state);
-      Object.assign(context.placeDraft, context.placeCreateBaselineDraft.value ?? emptyPlaceDraft(context.placeDraft.regionId));
+      Object.assign(context.placeDraft, initialDraft);
     } else {
       owner.reset(context.activePlace.value);
       owner.beginStructure(context.props.state);
@@ -349,8 +353,10 @@ export function usePlaceEditorActions(context: any) {
   return { cancelPlaceDraft, deleteDraftPlace, openPlaceCreate, openPlaceCreateFromSearch, openPlaceEdit, pickPlaceCoordinate, reorderPlaces, resetPlaceDraft, savePlaceDraft };
 }
 
-function searchResultName(result: EditorGeocodeSearchResult): string {
-  return result.name || result.displayName.split(',').map(part => part.trim()).find(Boolean) || 'New Place';
+/** Keeps provider names ahead of the localized suggestion for an unnamed new Place. */
+function suggestPlaceDraftName(result?: EditorGeocodeSearchResult | null): string {
+  return result?.name || result?.displayName.split(',').map(part => part.trim()).find(Boolean)
+    || message('Editor.NewPlaceDraftName', 'New Place');
 }
 
 function focusPlaceDraftForm(formId: string): void {

@@ -2,6 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 const savedCamera = { lat: '37.980000', lng: '23.730000', zoom: '12' };
+const fitSuccess = 'Προβάλλονται όλα τα στοιχεία στον χάρτη';
 
 /** Reads the coordinates recorded by the adapter from the real Leaflet map on moveend. */
 const camera = (map: Locator) => map.evaluate(element => ({
@@ -62,6 +63,7 @@ test('Area 1 Greek animated Editor navigation and dirty Close', async ({ page })
   const atAnnouncement = JSON.parse((await status.getAttribute('data-camera-at-announcement'))!);
   console.info('Recenter camera at announcement', atAnnouncement);
   expect(atAnnouncement).toEqual({ ...savedCamera, animating: false });
+  await map.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   expect(await camera(map)).toEqual(savedCamera);
   await expect(draft).toHaveValue('Unsaved browser title');
   await expect(latitude).toHaveValue('40');
@@ -79,8 +81,76 @@ test('Area 1 Greek animated Editor navigation and dirty Close', async ({ page })
   await page.getByRole('button', { name: 'Επεξεργασία ταξιδιού', exact: true }).click();
   await expect(draft).toHaveValue('Shared layout browser Trip');
   await expect(latitude).toHaveValue('37.98');
+
+  // Establish the fitted camera and remount there so the next Fit All has a fresh announcement.
+  const fit = toolbar.getByRole('button', { name: 'Προβολή όλων στον χάρτη' });
+  await fit.click();
+  await expect(status).toHaveText(fitSuccess);
+  const fitted = await camera(map);
+  await page.reload();
+  await expect(fit).toBeEnabled();
+  await expect(map).toHaveAttribute('data-trip-editor-map-zoom', fitted.zoom!);
+  const duringResize = await fitDuringPanAndResize(fit);
+  await expect(pane).not.toHaveClass(/leaflet-pan-anim/);
+  const terminal = await camera(map);
+  console.info('Fit All camera at announcement and pan end', duringResize, terminal);
+  expect(duringResize).toEqual({ ...terminal, pans: 2, resized: true, panning: false });
+  expect(terminal.zoom).toBe(fitted.zoom);
+  // Leaflet's same-zoom pan rounds to pixels. The fitted center should remain within one pixel.
+  const degreesPerPixel = 360 / (256 * 2 ** Number(terminal.zoom));
+  expect(Math.abs(Number(terminal.lat) - Number(fitted.lat))).toBeLessThanOrEqual(degreesPerPixel);
+  expect(Math.abs(Number(terminal.lng) - Number(fitted.lng))).toBeLessThanOrEqual(degreesPerPixel);
   expect(writes).toEqual([]);
 });
+
+/** Queues Fit All during the keyboard pan, then changes the real map box during the toolbar pan. */
+async function fitDuringPanAndResize(fit: Locator) {
+  return fit.evaluate((button, success) => new Promise<{
+    lat: string | undefined; lng: string | undefined; zoom: string | undefined;
+    pans: number; resized: boolean; panning: boolean;
+  }>((resolve, reject) => {
+    const map = document.querySelector<HTMLElement>('.trip-editor-map.leaflet-container')!;
+    const pane = map.querySelector('.leaflet-map-pane')!;
+    const status = button.closest('.trip-editor-toolbar')!.querySelector<HTMLElement>('[role="status"]')!;
+    const height = map.clientHeight;
+    let pans = 0;
+    let wasPanning = false;
+    let resized = false;
+    const resize = new ResizeObserver(() => {
+      if (pans === 2 && pane.classList.contains('leaflet-pan-anim') && map.clientHeight !== height) resized = true;
+    });
+    const observer = new MutationObserver(() => {
+      const panning = pane.classList.contains('leaflet-pan-anim');
+      if (panning && !wasPanning) {
+        pans++;
+        if (pans === 1) (button as HTMLButtonElement).click();
+        if (pans === 2) {
+          map.style.flex = 'none';
+          map.style.height = `${height - 81}px`;
+        }
+      }
+      wasPanning = panning;
+      if (status.textContent !== success) return;
+      observer.disconnect();
+      resize.disconnect();
+      clearTimeout(timeout);
+      resolve({
+        lat: map.dataset.tripEditorMapLat, lng: map.dataset.tripEditorMapLng, zoom: map.dataset.tripEditorMapZoom,
+        pans, resized, panning
+      });
+    });
+    const timeout = setTimeout(() => {
+      observer.disconnect();
+      resize.disconnect();
+      reject(new Error(`Fit All did not announce after starting ${pans} pans`));
+    }, 3000);
+    resize.observe(map);
+    observer.observe(pane, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(status, { characterData: true, childList: true, subtree: true });
+    map.focus();
+    map.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+  }), fitSuccess);
+}
 
 /** Triggers Recenter in the frame that starts Fit All's actual Leaflet zoom. */
 async function recenterDuringFit(toolbar: Locator): Promise<void> {
