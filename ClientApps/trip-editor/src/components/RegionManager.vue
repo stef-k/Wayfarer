@@ -17,6 +17,7 @@ import { createRegionDraftState } from './regionConditionalDraft';
 import { createPlaceDraftState } from './placeConditionalDraft';
 import { createAreaDraftState } from './areaConditionalDraft';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
+import { editorStatusText } from './editorFeedbackText';
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
 import { regionDisplayName } from '../regionDisplayName.js';
 import type { EditorArea, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
@@ -244,6 +245,7 @@ const activeAreaTarget = computed<EditorTarget>(() => ({
   entityId: areaDraft.id ?? undefined,
   parentRegionId: areaDraft.regionId ?? undefined
 }));
+// Resolve shared save-state text at each visible status sink.
 const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
   isDirty,
   isAreaDraftOpen,
@@ -466,7 +468,8 @@ function parseDraftCoordinate(): { latitude: number; longitude: number } | null 
     : null;
 }
 
-function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
+/** Confirms a caller-supplied discard prompt before changing the active draft. */
+function confirmDiscard(message: string): Promise<boolean> {
   if (!isDirty.value) {
     return Promise.resolve(true);
   }
@@ -536,7 +539,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
   <section class="trip-editor-panel trip-editor-regions">
     <div class="trip-editor-panel__line">
       <h2>{{ localize("Editor.RegionsPlaces", "Regions & Places") }}</h2>
-      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ editorStatusText(statusText) }}</span>
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>

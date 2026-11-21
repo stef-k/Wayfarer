@@ -1,3 +1,4 @@
+import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorMutationResult, EditorTripMetadata } from '../types';
 import { completePlace } from './placeStructuralEditing';
 import { completeSegment } from './segmentNotesDraft';
@@ -60,7 +61,16 @@ export const validatePlaceDeletionAcknowledgement = (result: EditorMutationResul
 
 /** Consequences describe route destruction, retained history and anonymous custom vertices explicitly. */
 export const placeDeletionMessage = (p: PlaceDeletionPreview): string =>
-  `Permanently delete “${p.placeName}” and its saved content. Delete ${p.deletedSegments.count} endpoint Segment(s), update ${p.updatedSegments.count} surviving waypoint route(s), and detach ${p.detachedWaypoints.count} waypoint association(s). Custom route vertices remain anonymous. Retain and unlink ${p.unlinkedVisits} visit history record(s); remove ${p.deletedCandidates} visit candidate(s). Remaining Place and affected Segment ordering will be reconciled. This cannot be undone.`;
+  message('Editor.DeletePlaceDetail', 'Permanently delete “{0}” and its saved content. {1} Custom route vertices remain anonymous. {2} Remaining Place and affected Segment ordering will be reconciled. This cannot be undone.', p.placeName,
+    [
+      plural('Editor.DeletePlaceEndpointSegments', p.deletedSegments.count, 'Delete {0} endpoint Segment.', 'Delete {0} endpoint Segments.'),
+      plural('Editor.DeletePlaceSurvivingRoutes', p.updatedSegments.count, 'Update {0} surviving waypoint route.', 'Update {0} surviving waypoint routes.'),
+      plural('Editor.DeletePlaceDetachedWaypoints', p.detachedWaypoints.count, 'Detach {0} waypoint association.', 'Detach {0} waypoint associations.'),
+    ].join(' '),
+    [
+      plural('Editor.DeletePlaceUnlinkedVisits', p.unlinkedVisits, 'Retain and unlink {0} visit history record.', 'Retain and unlink {0} visit history records.'),
+      plural('Editor.DeletePlaceVisitCandidates', p.deletedCandidates, 'Remove {0} visit candidate.', 'Remove {0} visit candidates.'),
+    ].join(' '));
 
 /** Destructive envelopes publish current metadata, never a foreign or partially shaped Trip baseline. */
 export const completeDeletionMetadata = (value: EditorTripMetadata | null, tripId: string): boolean => Boolean(value

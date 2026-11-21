@@ -9,9 +9,10 @@
   recovery, route proposal and Plan Check feedback, map marker labels, route
   summaries, Region controls and the canonical Region label, drawing guidance
   and live distance, both map rulers, map toolbar announcements and selection
-  and tab discard prompts. Improve the dark Editor and language controls.
-  Load the private Viewer graph and owner visits
-  in one split-query snapshot. No database migration.
+  and editor discard prompts, map coordinate feedback, and save and sharing
+  recovery. Apply the latest toolbar camera request during animated navigation.
+  Improve the dark Editor and language controls. Load the private Viewer graph
+  and owner visits in one split-query snapshot. No database migration.
 
 - Add bearer Family/Friends creation, scoped invitation management, recipient
   disclosure and responses, reviewed Leave and My sharing readback (#982).

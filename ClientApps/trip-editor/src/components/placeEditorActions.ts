@@ -1,3 +1,4 @@
+import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { editorWarningText } from './editorFeedbackText';
 import { validatePlaceCreation, type PlaceCreationRequest } from '../api/creationTypes';
 import { nextTick, onUnmounted, watch } from 'vue';
@@ -40,7 +41,7 @@ export function usePlaceEditorActions(context: any) {
       return false;
     }
 
-    if (isAlreadyActive && result && context.isDirty.value && !(await context.confirmDiscard('Discard unsaved place changes before adding this search result?'))) {
+    if (isAlreadyActive && result && context.isDirty.value && !(await context.confirmDiscard(message('Editor.DiscardPlaceBeforeSearchAdd', 'Discard unsaved place changes before adding this search result?')))) {
       return false;
     }
 
@@ -104,7 +105,7 @@ export function usePlaceEditorActions(context: any) {
       return;
     }
 
-    await context.props.editorSurface.closeActiveTarget('Discard unsaved place changes?');
+    await context.props.editorSurface.closeActiveTarget(message('Editor.DiscardPlaceDraft', 'Discard unsaved place changes?'));
   };
 
   const savePlaceDraft = async (): Promise<void> => {
@@ -147,9 +148,10 @@ export function usePlaceEditorActions(context: any) {
         const preview = await preparePlaceStructure(context.props.editorEndpoint, `places/${placeId}`, context.props.antiforgeryToken, preparedRequest);
         if (!currentAttempt()) return;
         validatePlaceStructurePreview(preview, context.props.state.tripId, placeId, 'web-update');
-        const approved = await confirm({ title: 'Review Place save',
-          message: `Review the current dependency base for ${preview.place!.name}. This save affects ${preview.affectedSegmentIds.length} route(s). Changed coordinates clear retained enrichment; Address changes only when explicitly edited. Your authored values remain as submitted.`,
-          confirmLabel: 'Apply reviewed save', cancelLabel: 'Keep draft', variant: 'default' });
+        const approved = await confirm({ title: message('Editor.ReviewPlaceSave', 'Review Place save'),
+          message: message('Editor.ReviewPlaceSaveDetail', 'Review the current dependency base for {0}. {1} Changed coordinates clear retained enrichment; Address changes only when explicitly edited. Your authored values remain as submitted.', preview.place!.name,
+            plural('Editor.ReviewPlaceAffectedRoutes', preview.affectedSegmentIds.length, 'This save affects {0} route.', 'This save affects {0} routes.')),
+          confirmLabel: message('Editor.ApplyReviewedPlaceSave', 'Apply reviewed save'), cancelLabel: message('Shell.KeepEditing', 'Keep editing'), variant: 'default' });
         if (!currentAttempt() || !approved) return;
         structure = { ...preparedRequest, conditionToken: preview.conditionToken, reviewed: true };
         const original = structure.expected.place as { location: unknown } | undefined;
@@ -244,8 +246,8 @@ export function usePlaceEditorActions(context: any) {
       if (!scopeCurrent() || !unchanged()) return;
       validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
       // Opening/cancelling consent preserves every draft. Only this approved target may be cleared after success.
-      const approved = await confirm({ title: 'Delete Place?', message: placeDeletionMessage(preview),
-        confirmLabel: 'Permanently delete Place', cancelLabel: 'Keep Place and drafts', variant: 'danger' });
+      const approved = await confirm({ title: message('Editor.DeletePlaceQuestion', 'Delete Place?'), message: placeDeletionMessage(preview),
+        confirmLabel: message('Editor.DeletePlacePermanently', 'Permanently delete Place'), cancelLabel: message('Editor.KeepPlaceAndDrafts', 'Keep Place and drafts'), variant: 'danger' });
       if (!approved || !scopeCurrent() || !unchanged()) return;
       validatePlaceDeletionPreview(preview, context.props.state.tripId, place.id, place.regionId);
       owner.structuralHolds.value.push({ targetId: place.id, regionIds: [place.regionId], intent: attemptId });
@@ -280,7 +282,7 @@ export function usePlaceEditorActions(context: any) {
       return;
     }
 
-    if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering places?'))) {
+    if (context.isDirty.value && !(await context.confirmDiscard(message('Editor.DiscardBeforePlaceReorder', 'Discard unsaved draft changes before reordering places?')))) {
       await context.restoreRegionOrder(previousIds);
       return;
     }
@@ -316,8 +318,9 @@ export function usePlaceEditorActions(context: any) {
       const preview = await preparePlaceStructure(context.props.editorEndpoint, `regions/${regionId}/places/order`, context.props.antiforgeryToken, request);
       if (!currentAttempt()) return;
       validatePlaceStructurePreview(preview, context.props.state.tripId, regionId, 'order');
-      if (!(await confirm({ title: 'Review Place order', message: `Apply this order to all ${ids.length} Places using their current reviewed content?`,
-        confirmLabel: 'Apply reviewed order', cancelLabel: 'Keep current order', variant: 'default' }))) {
+      if (!(await confirm({ title: message('Editor.ReviewPlaceOrder', 'Review Place order'),
+        message: plural('Editor.ReviewPlaceOrderDetail', ids.length, 'Apply this order to {0} Place using its current reviewed content?', 'Apply this order to all {0} Places using their current reviewed content?'),
+        confirmLabel: message('Editor.ApplyReviewedOrder', 'Apply reviewed order'), cancelLabel: message('Editor.KeepCurrentOrder', 'Keep current order'), variant: 'default' }))) {
         if (currentAttempt()) await context.restoreRegionOrder(previousIds);
         return;
       }

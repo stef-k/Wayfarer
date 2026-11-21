@@ -123,12 +123,13 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
   return true;
 }
 
-export async function closeActiveTarget(message = 'Discard unsaved changes and close this editor?'): Promise<boolean> {
+/** Closes the active editor after its own draft guard allows it. */
+export async function closeActiveTarget(prompt = message('Editor.DiscardAndClose', 'Discard unsaved changes and close this editor?')): Promise<boolean> {
   if (!(await cancelActiveMapWork())) {
     return false;
   }
 
-  if (!(await discardActiveTarget(message))) {
+  if (!(await discardActiveTarget(prompt))) {
     return false;
   }
 
@@ -198,7 +199,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     target: activeTarget.value,
     modeName: options.modeName,
     instruction: options.instruction,
-    statusText: options.statusText ?? 'Map work active',
+    statusText: options.statusText ?? message('Editor.MapWorkActive', 'Map work active'),
     canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
     clear: options.clear,

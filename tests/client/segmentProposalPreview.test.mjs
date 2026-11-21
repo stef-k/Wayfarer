@@ -19,7 +19,7 @@ const map = { setView() { return this; }, on(event, callback) { movements[event]
   createPane(name) { return panes[name] = { style: {}, setAttribute() {}, remove() {} }; }, getPane(name) { return panes[name]; },
   fitBounds(bounds) { this.bounds = bounds.points; },
   attributionControl: { setPrefix(value) { this.prefix = value; }, getContainer() { return { setAttribute: (name, value) => { this[name] = value; } }; } } };
-globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
+globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: callback => setTimeout(callback, 0), cancelAnimationFrame: clearTimeout });
 globalThis.document = new EventTarget();
 // The viewport tests own resize notifications; this fixture exercises proposal rendering only.
 globalThis.ResizeObserver = class { observe() {} disconnect() {} };
@@ -84,7 +84,7 @@ test('ordinary Segment hover prefers escaped authored titles and retains the der
   layer.dispose();
 });
 
-test('adapter publishes proposal geometry and clears it without duplicating ordinary draft ownership', () => {
+test('adapter publishes proposal geometry and clears it without duplicating ordinary draft ownership', async () => {
   const adapter = createTripEditorMap({}, '/controlled-tiles');
   const preview = { identity: 'segment-provider-proposal', kind: 'proposal', segmentId: 'segment',
     route: { type: 'LineString', coordinates: [[23, 37], [24, 38]] } };
@@ -92,9 +92,9 @@ test('adapter publishes proposal geometry and clears it without duplicating ordi
   assert.equal(paths.length, 2);
   assert.deepEqual(paths[0].coordinates, [[37, 23], [38, 24]]);
   assert.equal(paths[0].style.dashArray, '8 6');
-  assert.equal(adapter.focusActiveEntity({}, { kind: 'segment', entityId: 'segment' }), 'moved');
+  assert.equal(await adapter.focusActiveEntity({}, { kind: 'segment', entityId: 'segment' }), 'moved');
   assert.deepEqual(map.bounds, [[37, 23], [38, 24]]);
-  assert.equal(adapter.fitAllGeometry({ regionsById: {}, placesById: {}, areasById: {}, segmentsById: {} }), 'moved');
+  assert.equal(await adapter.fitAllGeometry({ regionsById: {}, placesById: {}, areasById: {}, segmentsById: {} }), 'moved');
   assert.deepEqual(map.bounds, [[37, 23], [38, 24]]);
   adapter.setSegmentDraftPreview({}, { ...preview, kind: undefined });
   assert.equal(paths.length, 0);

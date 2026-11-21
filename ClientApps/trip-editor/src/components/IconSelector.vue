@@ -40,9 +40,9 @@ const filteredIcons = computed(() => {
 });
 const highlightedIcon = computed(() => filteredIcons.value[highlightedIndex.value] ?? '');
 const activeOptionId = computed(() => highlightedIcon.value ? optionId(highlightedIcon.value) : undefined);
-const searchLabel = computed(() => selectorKind.value === 'color' ? 'Search marker colors' : 'Search icons');
-const optionsLabel = computed(() => selectorKind.value === 'color' ? 'Marker color options' : 'Icon options');
-const searchPlaceholder = computed(() => selectorKind.value === 'color' ? 'Search colors' : 'Search icons');
+const searchLabel = computed(() => selectorKind.value === 'color' ? localize('Editor.SearchMarkerColors', 'Search marker colors') : localize('Editor.SearchIcons', 'Search icons'));
+const optionsLabel = computed(() => selectorKind.value === 'color' ? localize('Editor.MarkerColorOptions', 'Marker color options') : localize('Editor.IconOptions', 'Icon options'));
+const searchPlaceholder = computed(() => selectorKind.value === 'color' ? localize('Editor.SearchColors', 'Search colors') : localize('Editor.SearchIcons', 'Search icons'));
 
 /// Converts stored icon ids into the same readable labels used by the legacy searchable selector.
 const iconLabel = (icon: string): string => icon.replace(/[-_]+/g, ' ');

@@ -23,11 +23,11 @@ const displayedStatus = computed(() => {
 const closeButton = ref<HTMLButtonElement | null>(null);
 const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);
 const isActive = computed(() => props.controller.isTargetActive(props.target));
+// Place coordinate work keeps its docked form mounted while the map owns input.
 const isDockedMapWork = computed(() => isActive.value &&
   props.target.kind === 'place' &&
   props.controller.surfaceMode.value === 'map-work' &&
-  props.controller.mapWork.value?.previousSurface === 'docked' &&
-  props.controller.mapWork.value.modeName === 'Pick place location');
+  props.controller.mapWork.value?.previousSurface === 'docked');
 const isDocked = computed(() => isActive.value && (props.controller.surfaceMode.value === 'docked' || isDockedMapWork.value));
 const isExpanded = computed(() => isActive.value && props.controller.surfaceMode.value === 'expanded');
 watch(isExpanded, async expanded => {

@@ -1,3 +1,4 @@
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { onUnmounted, watch } from 'vue';
 import { createArea, deleteArea, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderAreas, updateArea } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorArea, EditorRegion, Guid } from '../types';
@@ -63,7 +64,7 @@ export function useAreaEditorActions(context: any) {
   };
 
   const cancelAreaDraft = async (): Promise<void> => {
-    await context.props.editorSurface.closeActiveTarget('Discard unsaved area changes?');
+    await context.props.editorSurface.closeActiveTarget(message('Editor.DiscardAreaDraft', 'Discard unsaved area changes?'));
   };
 
   const saveAreaDraft = async (): Promise<void> => {
@@ -116,15 +117,15 @@ export function useAreaEditorActions(context: any) {
   };
 
   const deleteDraftArea = async (): Promise<void> => {
-    if (!context.activeArea.value || !(await context.confirmDiscard('Discard unsaved area draft changes before deleting?'))) {
+    if (!context.activeArea.value || !(await context.confirmDiscard(message('Editor.DiscardAreaBeforeDelete', 'Discard unsaved area draft changes before deleting?')))) {
       return;
     }
 
     if (!(await confirm({
-      title: 'Delete area?',
-      message: 'Delete this area and its private planning?',
-      confirmLabel: 'Delete',
-      cancelLabel: 'Keep area',
+      title: message('Editor.DeleteAreaQuestion', 'Delete area?'),
+      message: message('Editor.DeleteAreaPlanning', 'Delete this area and its private planning?'),
+      confirmLabel: message('Editor.Delete', 'Delete'),
+      cancelLabel: message('Editor.KeepArea', 'Keep area'),
       variant: 'danger'
     }))) {
       return;
@@ -153,7 +154,7 @@ export function useAreaEditorActions(context: any) {
       return;
     }
 
-    if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering areas?'))) {
+    if (context.isDirty.value && !(await context.confirmDiscard(message('Editor.DiscardBeforeAreaReorder', 'Discard unsaved draft changes before reordering areas?')))) {
       await context.restoreRegionOrder(previousIds);
       return;
     }

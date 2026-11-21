@@ -40,9 +40,9 @@ interface TripEditorMapAdapter {
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   setSegmentRouteWorkState: (state: SegmentRouteWorkState) => void;
-  fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
-  focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
-  focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
+  fitAllGeometry: (state: EditorTripState) => Promise<FitAllGeometryResult | undefined>;
+  focusSavedTripView: (metadata: EditorTripMetadata) => Promise<FocusSavedTripViewResult | undefined>;
+  focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => Promise<FocusActiveEntityResult | undefined>;
   showSearchPreview: (coordinate: EditorCoordinate, label: string) => void;
   dispose: () => void;
 }
@@ -67,7 +67,8 @@ export interface SelectPlaceOptions {
 }
 
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, options: TripEditorMapOptions = {}): TripEditorMapAdapter => {
-  const map = createTripMap(element, tilesUrl);
+  // The viewport observes container changes and preserves the camera through its own resize path.
+  const map = createTripMap(element, tilesUrl, { trackResize: false });
   const viewport = createMapViewport(map, {
     onCaptured: options.onMapViewCaptured,
     canCapture: () => options.canCaptureTripView?.() ?? true
@@ -205,9 +206,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       };
     },
     setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
-    fitAllGeometry: state => viewport.navigate(() => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state)))),
-    focusSavedTripView: metadata => viewport.navigate(() => focusSavedTripView(map, metadata)),
-    focusActiveEntity: (state, target) => viewport.navigate(() => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target)),
+    fitAllGeometry: state => viewport.navigateAndWait(() => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state)))),
+    focusSavedTripView: metadata => viewport.navigateAndWait(() => focusSavedTripView(map, metadata)),
+    focusActiveEntity: (state, target) => viewport.navigateAndWait(() => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target)),
     showSearchPreview: (coordinate, label) => viewport.navigate(() => searchPreview.show(coordinate, label)),
     dispose: () => {
       searchPreview.dispose();

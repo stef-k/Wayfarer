@@ -68,10 +68,9 @@ const metadataUnconfirmed = computed(() => draftState.metadataAttempt.value?.out
 const saveUnconfirmed = computed(() => metadataUnconfirmed.value || sharingUnconfirmed.value);
 /// Explain the held choice and explicit abandonment without promising remote rollback or settlement.
 const sharingHoldMessage = computed(() =>
-  `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled')}) is retained in this editor. ` +
-  'Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. ' +
-  'Leaving or reloading loses the retained choice and does not undo the earlier change.');
-const metadataHoldMessage = 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.';
+  localize('Editor.SharingHoldRecovery', 'We could not confirm the sharing change. Your choice ({0}) is retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. Leaving or reloading loses the retained choice and does not undo the earlier change.',
+    draft.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled')));
+const metadataHoldMessage = localize('Editor.MetadataHoldRecovery', 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.');
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
 /// Combines metadata, tag, share-progress, region, segment, and Planning drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
@@ -329,7 +328,7 @@ async function loadTagSuggestions(): Promise<void> {
   } catch {
     if (requestId === suggestionRequestId) {
       tagSuggestions.value = [];
-      tagSuggestionError.value = 'Suggestions unavailable.';
+      tagSuggestionError.value = localize('Editor.TagSuggestionsUnavailable', 'Suggestions unavailable.');
     }
   }
 }

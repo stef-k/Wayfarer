@@ -76,20 +76,15 @@ for unsaved work.
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
-Area 1 verification covers language negotiation, preference writes, core draft
-guards, the live map lifecycle and Editor/Viewer presentation. The mounted
-Editor tests cover Greek indexed waypoint validation, an expired route
-proposal, and the Segment route summary before and after stale reload. They
-also cover map search and discard feedback, authored and canonical Region
-labels in the Area and Place editors, map toolbar, Place popup and Visit Progress,
-toolbar announcements when map actions move or are unavailable, and draft
-discard prompts during selection and tab navigation. They verify that the
-Segment announcement keeps authored transport labels verbatim. Coverage also
-includes marker titles and text alternatives, Region collapse
-and deletion controls, credit validation and retry, and an unconfirmed Planning
-save with its draft and save hold intact. Plan Check presents scoped findings,
-dependency changes and structured estimate evidence. Follow-up controls use
-the original finding values and retained check inputs.
+Area 1 checks cover these Editor boundaries.
+
+| Source and owner | Evidence |
+| --- | --- |
+| Shared locale, safe language navigation and Editor draft owners | `WebLanguageHttpTests`, `WebCatalogTests`, `webLanguage.test.mjs`, `tripEditorExit.test.mjs` and `tripEditorLanguageDrafts.test.mjs` cover negotiations, preference writes, retained work and safe reload. |
+| Camera toolbar and viewport | `editorNavigationLanguage.spec.ts` uses animated Leaflet and checks Focus, Fit All and immediate Recenter. The terminal center and zoom agree with the Greek live announcement. Navigation keeps Metadata edits. `tripMapViewport.test.mjs` covers gesture-only capture and camera URL context. |
+| Close, Cancel and shared confirmations | The same managed journey checks dirty docked Close. `consumerNotes.test.mjs` checks expanded Close and Area and Place Cancel, Escape focus restoration, and discard with an independent Planning draft retained. Region, Place and Area actions use the Editor catalog for dirty prompts and destructive or dependency review. |
+| Entity changes, sharing and recovery | The mounted Editor coverage in `consumerNotes.test.mjs` includes Region save status, first-publication confirmation, unconfirmed Trip settings and sharing, map search feedback, credit validation, waypoint validation and draft-preserving Segment proposal and stale-route recovery. Shipped catalogs own live status, help, confirmation and recovery text. Authored names, transport labels and request values flow through unchanged. |
+| Planning and Check, Visit Progress and Notes | Mounted checks cover an unconfirmed Planning save and its draft and save hold, scoped findings and estimate evidence, retained check inputs, canonical vs. authored Region labels, and Notes draft protection. |
 
 The Editor catalog supplies Leaflet.Draw's polygon and route prompts and the
 polygon crossing warning. The Shell catalog supplies the Editor and Viewer ruler

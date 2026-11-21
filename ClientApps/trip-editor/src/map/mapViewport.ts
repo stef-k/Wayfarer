@@ -1,4 +1,4 @@
-import type { Map as LeafletMap } from 'leaflet';
+import type { LatLngExpression, Map as LeafletMap } from 'leaflet';
 import type { EditorCoordinate } from '../types';
 
 /** Serializable viewport shared by the adapter, URL, and metadata capture boundary. */
@@ -46,6 +46,12 @@ export const replaceUrlMapView = (view: TripEditorMapView, browser: Pick<Window,
   browser.history.replaceState(browser.history.state, '', url);
 };
 
+/** Place the camera exactly, including at the current zoom where Leaflet would round a pan to pixels. */
+export const setExactMapView = (map: LeafletMap, center: LatLngExpression, zoom: number): void => {
+  const options = { reset: true, animate: false };
+  map.setView(center, zoom, options);
+};
+
 /** Own movement origin until moveend (after zoomend), including animated commands and popup auto-pan. */
 export const createMapViewport = (map: LeafletMap, options: {
   onCaptured?: (view: TripEditorMapView) => void;
@@ -61,6 +67,20 @@ export const createMapViewport = (map: LeafletMap, options: {
   let commandFrame: number | undefined;
   let moving = false;
   let zooming = false;
+  let latestNavigation = 0;
+  let settlement: Promise<void> | undefined;
+  let resolveSettlement: (() => void) | undefined;
+
+  const hasMovement = (): boolean => commandFrame !== undefined || moving || zooming;
+  const settled = (): Promise<void> | undefined => {
+    if (!hasMovement()) return;
+    return settlement ??= new Promise(resolve => { resolveSettlement = resolve; });
+  };
+  const finishSettlement = (): void => {
+    resolveSettlement?.();
+    resolveSettlement = undefined;
+    settlement = undefined;
+  };
 
   const getView = (): TripEditorMapView => {
     const center = map.getCenter();
@@ -82,10 +102,12 @@ export const createMapViewport = (map: LeafletMap, options: {
     userMovement = false;
   };
   const releaseCommand = (): void => {
-    if (commandFrame === undefined && !moving && !zooming) commandOwned = false;
+    if (hasMovement()) return;
+    commandOwned = false;
+    finishSettlement();
   };
   // Commands revoke capture for their entire movement; terminal events never grant user authority.
-  const navigate = <T>(command: () => T): T => {
+  const runCommand = <T>(command: () => T): T => {
     transient();
     commandOwned = true;
     if (commandFrame !== undefined) window.cancelAnimationFrame(commandFrame);
@@ -99,6 +121,23 @@ export const createMapViewport = (map: LeafletMap, options: {
         releaseCommand();
       });
     }
+  };
+  /** A new direct map action supersedes queued toolbar navigation and feedback. */
+  const navigate = <T>(command: () => T): T => {
+    latestNavigation++;
+    return runCommand(command);
+  };
+
+  /** Leaflet can ignore setView during animated zoom. Apply the latest request once it can move,
+   * then wait for its own terminal events before returning a result for the live announcement. */
+  const navigateAndWait = async <T>(command: () => T): Promise<T | undefined> => {
+    const request = ++latestNavigation;
+    const prior = settled();
+    if (prior) await prior;
+    if (request !== latestNavigation) return;
+    const result = runCommand(command);
+    await settled();
+    return request === latestNavigation ? result : undefined;
   };
   const armGesture = (): void => {
     clearGesture();
@@ -178,13 +217,22 @@ export const createMapViewport = (map: LeafletMap, options: {
   map.on('zoomend', finishZoom);
   map.on('moveend', finishMovement);
 
-  // Toolbar/drawer layout changes resize the container without firing a window resize.
-  const resizeObserver = new ResizeObserver(() => navigate(() => map.invalidateSize({ animate: false })));
+  // The status line and drawer can resize the map. Leaflet's rounded resize pan must not drift a settled camera.
+  const resizeObserver = new ResizeObserver(() => runCommand(() => {
+    const center = map.getCenter();
+    const wasMoving = moving || zooming;
+    map.invalidateSize({ animate: false });
+    const resized = map.getCenter();
+    if (!wasMoving && (resized.lat !== center.lat || resized.lng !== center.lng)) {
+      setExactMapView(map, center, map.getZoom());
+    }
+  }));
   resizeObserver.observe(element);
 
   return {
     getView,
     navigate,
+    navigateAndWait,
     /** Initial placement is synchronous and records a baseline without writing the URL. */
     initialize: (place: () => void): void => {
       navigate(place);
@@ -192,6 +240,8 @@ export const createMapViewport = (map: LeafletMap, options: {
       ready = true;
     },
     dispose: (): void => {
+      latestNavigation++;
+      finishSettlement();
       resizeObserver.disconnect();
       clearGesture();
       if (commandFrame !== undefined) window.cancelAnimationFrame(commandFrame);

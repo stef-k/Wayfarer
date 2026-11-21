@@ -2709,4 +2709,139 @@
   <data name="Editor.DiscardBeforeRegionReorder" xml:space="preserve">
     <value>Απόρριψη των μη αποθηκευμένων αλλαγών πριν από την αλλαγή σειράς των περιοχών;</value>
   </data>
+  <data name="Editor.DiscardAndClose" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές και να κλείσει ο επεξεργαστής;</value>
+  </data>
+  <data name="Editor.DeleteAreaQuestion" xml:space="preserve">
+    <value>Να διαγραφεί η ζώνη;</value>
+  </data>
+  <data name="Editor.DeleteAreaPlanning" xml:space="preserve">
+    <value>Να διαγραφούν αυτή η ζώνη και ο ιδιωτικός σχεδιασμός της;</value>
+  </data>
+  <data name="Editor.KeepArea" xml:space="preserve">
+    <value>Διατήρηση ζώνης</value>
+  </data>
+  <data name="Editor.DiscardAreaDraft" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeDelete" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν από τη διαγραφή;</value>
+  </data>
+  <data name="Editor.DiscardBeforeAreaReorder" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν από την αλλαγή σειράς των ζωνών;</value>
+  </data>
+  <data name="Editor.ReviewPlaceSave" xml:space="preserve">
+    <value>Έλεγχος αποθήκευσης τοποθεσίας</value>
+  </data>
+  <data name="Editor.ReviewPlaceSaveDetail" xml:space="preserve">
+    <value>Ελέγξτε τα τρέχοντα στοιχεία από τα οποία εξαρτάται η τοποθεσία «{0}». {1} Η αλλαγή συντεταγμένων αφαιρεί τα αποθηκευμένα στοιχεία εμπλουτισμού. Η διεύθυνση αλλάζει μόνο αν την επεξεργαστείτε. Οι τιμές που καταχωρίσατε διατηρούνται όπως υποβλήθηκαν.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.one" xml:space="preserve">
+    <value>Η αποθήκευση επηρεάζει {0} διαδρομή.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.other" xml:space="preserve">
+    <value>Η αποθήκευση επηρεάζει {0} διαδρομές.</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.one" xml:space="preserve">
+    <value>Να εφαρμοστεί αυτή η σειρά σε {0} τοποθεσία με βάση τα τρέχοντα στοιχεία που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.other" xml:space="preserve">
+    <value>Να εφαρμοστεί αυτή η σειρά και στις {0} τοποθεσίες με βάση τα τρέχοντα στοιχεία που ελέγξατε;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeSearchAdd" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν από την προσθήκη αυτού του αποτελέσματος αναζήτησης;</value>
+  </data>
+  <data name="Editor.DiscardBeforePlaceReorder" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν από την αλλαγή σειράς των τοποθεσιών;</value>
+  </data>
+  <data name="Editor.ApplyReviewedPlaceSave" xml:space="preserve">
+    <value>Αποθήκευση μετά τον έλεγχο</value>
+  </data>
+  <data name="Editor.DeletePlaceQuestion" xml:space="preserve">
+    <value>Να διαγραφεί η τοποθεσία;</value>
+  </data>
+  <data name="Editor.DeletePlacePermanently" xml:space="preserve">
+    <value>Οριστική διαγραφή τοποθεσίας</value>
+  </data>
+  <data name="Editor.KeepPlaceAndDrafts" xml:space="preserve">
+    <value>Διατήρηση τοποθεσίας και προσχεδίων</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrder" xml:space="preserve">
+    <value>Έλεγχος σειράς τοποθεσιών</value>
+  </data>
+  <data name="Editor.DeletePlaceDetail" xml:space="preserve">
+    <value>Θα διαγραφούν οριστικά η τοποθεσία «{0}» και το αποθηκευμένο περιεχόμενό της. {1} Οι κορυφές της προσαρμοσμένης διαδρομής παραμένουν ανώνυμες. {2} Θα προσαρμοστεί η σειρά των υπόλοιπων τοποθεσιών και των επηρεαζόμενων τμημάτων διαδρομής. Η διαγραφή δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.one" xml:space="preserve">
+    <value>Θα διαγραφεί {0} τμήμα διαδρομής με άκρο σε αυτή την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.other" xml:space="preserve">
+    <value>Θα διαγραφούν {0} τμήματα διαδρομής με άκρο σε αυτή την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.one" xml:space="preserve">
+    <value>Θα ενημερωθεί {0} διαδρομή που χρησιμοποιεί την τοποθεσία ως ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.other" xml:space="preserve">
+    <value>Θα ενημερωθούν {0} διαδρομές που χρησιμοποιούν την τοποθεσία ως ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.one" xml:space="preserve">
+    <value>Θα αφαιρεθεί {0} σύνδεση με ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.other" xml:space="preserve">
+    <value>Θα αφαιρεθούν {0} συνδέσεις με ενδιάμεσα σημεία.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.one" xml:space="preserve">
+    <value>Θα διατηρηθεί {0} καταγραφή επίσκεψης χωρίς σύνδεση με την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.other" xml:space="preserve">
+    <value>Θα διατηρηθούν {0} καταγραφές επισκέψεων χωρίς σύνδεση με την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.one" xml:space="preserve">
+    <value>Θα αφαιρεθεί {0} υποψήφια επίσκεψη.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.other" xml:space="preserve">
+    <value>Θα αφαιρεθούν {0} υποψήφιες επισκέψεις.</value>
+  </data>
+  <data name="Editor.PublishTripQuestion" xml:space="preserve">
+    <value>Να δημοσιευτεί το ταξίδι;</value>
+  </data>
+  <data name="Editor.PublishTripPolicy" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη: {0}. Οι κληρονομημένοι όροι και οι σχετικές δηλώσεις ισχύουν χωριστά. Η δημόσια προβολή μόνο για ανάγνωση δεν εμποδίζει τη χειροκίνητη αντιγραφή και δεν ανακαλεί κληρονομημένα δικαιώματα.</value>
+  </data>
+  <data name="Editor.PublishTrip" xml:space="preserve">
+    <value>Δημοσίευση</value>
+  </data>
+  <data name="Editor.SharingHoldRecovery" xml:space="preserve">
+    <value>Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή κοινοποίησης. Η επιλογή σας ({0}) διατηρείται σε αυτόν τον επεξεργαστή. Η αποθήκευση έχει ανασταλεί επειδή η προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί. Κρατήστε τον επεξεργαστή ανοιχτό για να διατηρήσετε την επιλογή σας ή αποχωρήστε χωρίς αποθήκευση. Η αποχώρηση ή η ανανέωση χάνει την επιλογή σας και δεν αναιρεί την προηγούμενη αλλαγή.</value>
+  </data>
+  <data name="Editor.MetadataHoldRecovery" xml:space="preserve">
+    <value>Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή στις ρυθμίσεις του ταξιδιού. Οι πιο πρόσφατες ρυθμίσεις σας διατηρούνται σε αυτόν τον επεξεργαστή. Η αποθήκευση έχει ανασταλεί επειδή η προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί. Κρατήστε τον επεξεργαστή ανοιχτό ή αποχωρήστε χωρίς αποθήκευση. Η αποχώρηση ή η ανανέωση χάνει τις ρυθμίσεις που διατηρήθηκαν και δεν αναιρεί την προηγούμενη αλλαγή.</value>
+  </data>
+  <data name="Editor.TagSuggestionsUnavailable" xml:space="preserve">
+    <value>Οι προτάσεις ετικετών δεν είναι διαθέσιμες.</value>
+  </data>
+  <data name="Editor.SearchMarkerColors" xml:space="preserve">
+    <value>Αναζήτηση χρωμάτων δείκτη</value>
+  </data>
+  <data name="Editor.SearchIcons" xml:space="preserve">
+    <value>Αναζήτηση εικονιδίων</value>
+  </data>
+  <data name="Editor.MarkerColorOptions" xml:space="preserve">
+    <value>Επιλογές χρώματος δείκτη</value>
+  </data>
+  <data name="Editor.IconOptions" xml:space="preserve">
+    <value>Επιλογές εικονιδίου</value>
+  </data>
+  <data name="Editor.SearchColors" xml:space="preserve">
+    <value>Αναζήτηση χρωμάτων</value>
+  </data>
+  <data name="Editor.PlaceCoordinateSelected" xml:space="preserve">
+    <value>Επιλεγμένες συντεταγμένες: {0}, {1}</value>
+  </data>
+  <data name="Editor.PickPlaceLocation" xml:space="preserve">
+    <value>Επιλογή θέσης τοποθεσίας</value>
+  </data>
+  <data name="Editor.PlaceCoordinateUnselected" xml:space="preserve">
+    <value>Δεν έχουν επιλεγεί συντεταγμένες</value>
+  </data>
 </root>

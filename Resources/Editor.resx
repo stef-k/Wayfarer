@@ -2709,4 +2709,139 @@
   <data name="Editor.DiscardBeforeRegionReorder" xml:space="preserve">
     <value>Discard unsaved draft changes before reordering?</value>
   </data>
+  <data name="Editor.DiscardAndClose" xml:space="preserve">
+    <value>Discard unsaved changes and close this editor?</value>
+  </data>
+  <data name="Editor.DeleteAreaQuestion" xml:space="preserve">
+    <value>Delete area?</value>
+  </data>
+  <data name="Editor.DeleteAreaPlanning" xml:space="preserve">
+    <value>Delete this area and its private planning?</value>
+  </data>
+  <data name="Editor.KeepArea" xml:space="preserve">
+    <value>Keep area</value>
+  </data>
+  <data name="Editor.DiscardAreaDraft" xml:space="preserve">
+    <value>Discard unsaved area changes?</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeDelete" xml:space="preserve">
+    <value>Discard unsaved area draft changes before deleting?</value>
+  </data>
+  <data name="Editor.DiscardBeforeAreaReorder" xml:space="preserve">
+    <value>Discard unsaved draft changes before reordering areas?</value>
+  </data>
+  <data name="Editor.ReviewPlaceSave" xml:space="preserve">
+    <value>Review Place save</value>
+  </data>
+  <data name="Editor.ReviewPlaceSaveDetail" xml:space="preserve">
+    <value>Review the current dependency base for {0}. {1} Changed coordinates clear retained enrichment; Address changes only when explicitly edited. Your authored values remain as submitted.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.one" xml:space="preserve">
+    <value>This save affects {0} route.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.other" xml:space="preserve">
+    <value>This save affects {0} routes.</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.one" xml:space="preserve">
+    <value>Apply this order to {0} Place using its current reviewed content?</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.other" xml:space="preserve">
+    <value>Apply this order to all {0} Places using their current reviewed content?</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeSearchAdd" xml:space="preserve">
+    <value>Discard unsaved place changes before adding this search result?</value>
+  </data>
+  <data name="Editor.DiscardBeforePlaceReorder" xml:space="preserve">
+    <value>Discard unsaved draft changes before reordering places?</value>
+  </data>
+  <data name="Editor.ApplyReviewedPlaceSave" xml:space="preserve">
+    <value>Apply reviewed save</value>
+  </data>
+  <data name="Editor.DeletePlaceQuestion" xml:space="preserve">
+    <value>Delete Place?</value>
+  </data>
+  <data name="Editor.DeletePlacePermanently" xml:space="preserve">
+    <value>Permanently delete Place</value>
+  </data>
+  <data name="Editor.KeepPlaceAndDrafts" xml:space="preserve">
+    <value>Keep Place and drafts</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrder" xml:space="preserve">
+    <value>Review Place order</value>
+  </data>
+  <data name="Editor.DeletePlaceDetail" xml:space="preserve">
+    <value>Permanently delete “{0}” and its saved content. {1} Custom route vertices remain anonymous. {2} Remaining Place and affected Segment ordering will be reconciled. This cannot be undone.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.one" xml:space="preserve">
+    <value>Delete {0} endpoint Segment.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.other" xml:space="preserve">
+    <value>Delete {0} endpoint Segments.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.one" xml:space="preserve">
+    <value>Update {0} surviving waypoint route.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.other" xml:space="preserve">
+    <value>Update {0} surviving waypoint routes.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.one" xml:space="preserve">
+    <value>Detach {0} waypoint association.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.other" xml:space="preserve">
+    <value>Detach {0} waypoint associations.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.one" xml:space="preserve">
+    <value>Retain and unlink {0} visit history record.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.other" xml:space="preserve">
+    <value>Retain and unlink {0} visit history records.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.one" xml:space="preserve">
+    <value>Remove {0} visit candidate.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.other" xml:space="preserve">
+    <value>Remove {0} visit candidates.</value>
+  </data>
+  <data name="Editor.PublishTripQuestion" xml:space="preserve">
+    <value>Publish Trip?</value>
+  </data>
+  <data name="Editor.PublishTripPolicy" xml:space="preserve">
+    <value>Owner's contributions: {0}. Inherited terms and notices remain separate. Public view-only does not prevent manual copying or revoke inherited rights.</value>
+  </data>
+  <data name="Editor.PublishTrip" xml:space="preserve">
+    <value>Publish</value>
+  </data>
+  <data name="Editor.SharingHoldRecovery" xml:space="preserve">
+    <value>We could not confirm the sharing change. Your choice ({0}) is retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. Leaving or reloading loses the retained choice and does not undo the earlier change.</value>
+  </data>
+  <data name="Editor.MetadataHoldRecovery" xml:space="preserve">
+    <value>We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.</value>
+  </data>
+  <data name="Editor.TagSuggestionsUnavailable" xml:space="preserve">
+    <value>Suggestions unavailable.</value>
+  </data>
+  <data name="Editor.SearchMarkerColors" xml:space="preserve">
+    <value>Search marker colors</value>
+  </data>
+  <data name="Editor.SearchIcons" xml:space="preserve">
+    <value>Search icons</value>
+  </data>
+  <data name="Editor.MarkerColorOptions" xml:space="preserve">
+    <value>Marker color options</value>
+  </data>
+  <data name="Editor.IconOptions" xml:space="preserve">
+    <value>Icon options</value>
+  </data>
+  <data name="Editor.SearchColors" xml:space="preserve">
+    <value>Search colors</value>
+  </data>
+  <data name="Editor.PlaceCoordinateSelected" xml:space="preserve">
+    <value>Selected {0}, {1}</value>
+  </data>
+  <data name="Editor.PickPlaceLocation" xml:space="preserve">
+    <value>Pick place location</value>
+  </data>
+  <data name="Editor.PlaceCoordinateUnselected" xml:space="preserve">
+    <value>No coordinate selected</value>
+  </data>
 </root>

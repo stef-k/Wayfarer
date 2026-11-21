@@ -36,7 +36,7 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
 
     const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText(`Delete ${fixture.waypointOnlyPlace.endpointSegments} endpoint Segment(s), update ${fixture.waypointOnlyPlace.waypointOnlySegments} surviving waypoint route(s)`);
+    await expect(dialog).toContainText(new RegExp(`Delete ${fixture.waypointOnlyPlace.endpointSegments} endpoint Segments?\\. Update ${fixture.waypointOnlyPlace.waypointOnlySegments} surviving waypoint routes?\\.`));
     await expect(dialog.getByRole('button', { name: 'Keep Place and drafts' })).toBeFocused();
     await dialog.getByRole('button', { name: 'Keep Place and drafts' }).click();
 
@@ -93,14 +93,14 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     await placeRow(page, fixture.stalePlace.id).getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     const first = page.getByRole('dialog', { name: 'Delete Place?' });
-    await expect(first).toContainText('update 1 surviving waypoint route(s)');
+    await expect(first).toContainText('Update 1 surviving waypoint route.');
     applyFixtureDrift();
     await first.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
 
     await expect(page.locator('.trip-editor-form-error[role="alert"]')).toBeVisible();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
     const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
-    await expect(refreshed).toContainText('update 2 surviving waypoint route(s)');
+    await expect(refreshed).toContainText('Update 2 surviving waypoint routes.');
     await expect(refreshed.getByRole('button', { name: 'Keep Place and drafts' })).toBeFocused();
     await refreshed.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
     await expect(placeRow(page, fixture.stalePlace.id)).toHaveCount(0);
@@ -243,7 +243,7 @@ async function deletePlace(page: Page, target: LifecycleFixture['mixedPlace']): 
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
-  await expect(dialog).toContainText(`Delete ${target.endpointSegments} endpoint Segment(s), update ${target.waypointOnlySegments} surviving waypoint route(s)`);
+  await expect(dialog).toContainText(new RegExp(`Delete ${target.endpointSegments} endpoint Segments?\\. Update ${target.waypointOnlySegments} surviving waypoint routes?\\.`));
   await dialog.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
 }
 
@@ -316,7 +316,7 @@ async function assertPhonePlaceWarning(page: Page, target: LifecycleFixture['pho
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(dialog, viewport);
-  await expect(dialog).toContainText('endpoint Segment(s)');
+  await expect(dialog).toContainText(/endpoint Segments?\./);
   await dialog.getByRole('button', { name: 'Keep Place and drafts' }).click();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();
 }
@@ -341,14 +341,14 @@ async function assertPhoneStaleRefresh(page: Page, viewport: { width: number; he
   await placeRow(page, target.id).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const first = page.getByRole('dialog', { name: 'Delete Place?' });
-  await expect(first).toContainText('update 1 surviving waypoint route(s)');
+  await expect(first).toContainText('Update 1 surviving waypoint route.');
   runFixtureHelper('phone-drift');
   await first.getByRole('button', { name: 'Permanently delete Place', exact: true }).click();
   await expect(page.locator('.trip-editor-form-error[role="alert"]')).toBeVisible();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   const refreshed = page.getByRole('dialog', { name: 'Delete Place?' });
   await assertContainedDialog(refreshed, viewport);
-  await expect(refreshed).toContainText('update 2 surviving waypoint route(s)');
+  await expect(refreshed).toContainText('Update 2 surviving waypoint routes.');
   await refreshed.getByRole('button', { name: 'Keep Place and drafts' }).click();
   await expect(placeRow(page, target.id)).toBeVisible();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();

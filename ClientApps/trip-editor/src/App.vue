@@ -305,37 +305,40 @@ const clearSelectedPlace = async (): Promise<boolean> => {
 };
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
-const fitAllGeometry = (): void => {
+const fitAllGeometry = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
-  const result = mapAdapter.fitAllGeometry(state.value);
+  const result = await mapAdapter.fitAllGeometry(state.value);
+  if (!result) return;
   navigationStatus.value = result === 'moved'
     ? localize('Editor.FitAllMoved', 'Fit all geometry')
     : localize('Editor.FitAllNoGeometry', 'No geometry to fit');
 };
 
 /// Recenters to the persisted trip view; it never saves the current map viewport.
-const recenterSavedTripView = (): void => {
+const recenterSavedTripView = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
-  const result = mapAdapter.focusSavedTripView(state.value.metadata);
+  const result = await mapAdapter.focusSavedTripView(state.value.metadata);
+  if (!result) return;
   navigationStatus.value = result === 'moved'
     ? localize('Editor.RecenterMoved', 'Recentered saved trip view')
     : localize('Editor.RecenterUnavailable', 'Saved trip view unavailable');
 };
 
 /// Focuses the active target through the map adapter and reports only local toolbar status.
-const focusActiveEntity = (): void => {
+const focusActiveEntity = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
   const target = editorSurface.activeTarget.value;
-  const result = mapAdapter.focusActiveEntity(state.value, target);
+  const result = await mapAdapter.focusActiveEntity(state.value, target);
+  if (!result || target?.identity !== editorSurface.activeTarget.value?.identity) return;
   navigationStatus.value = focusStatusText(result, target);
 };
 

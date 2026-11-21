@@ -888,6 +888,160 @@ test('Greek Planning keeps uncertain drafts held and renders actionable Check fi
     `${authored} kept`);
 });
 
+test('Greek expanded Close and entity Cancel keep focus on Escape and discard only their draft', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const planning = { format: 1, entries: [{ id: 'one', kind: 'presence', label: 'Saved plan',
+    when: { form: 'at', value: { precision: 'date', local: '2026-11-21' } } }] };
+  const page = await mountGreekEditor(browser, { ...state, metadata: { ...metadata, planning } });
+  await page.evaluate(() => {
+    window.useMountedConfirmation = true;
+    const planner = captured['PlanningEditor.vue'].find(item => item.draft?.kind === 'trip');
+    planner.draft.entries[0].label = 'Separate planning draft';
+  });
+  const editArea = page.locator('[data-area-id="area"]').getByRole('button', { name: 'Επεξεργασία', exact: true });
+  const addPlace = page.getByRole('button', { name: 'Προσθήκη τοποθεσίας', exact: true }).first();
+  const cases = [
+    { open: editArea, original: area.name, expand: true, trigger: 'Κλείσιμο',
+      prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές και να κλείσει ο επεξεργαστής;' },
+    { open: editArea, original: area.name, trigger: 'Ακύρωση',
+      prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης;' },
+    { open: addPlace, original: 'New Place', trigger: 'Ακύρωση',
+      prompt: 'Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας;' }
+  ];
+  for (const { open, original, expand, trigger, prompt } of cases) {
+    await open.click();
+    if (expand) await page.getByRole('button', { name: 'Ανάπτυξη επεξεργαστή' }).click();
+    const surface = page.locator(expand ? '.trip-editor-expanded__dialog' : '.trip-editor-surface--docked');
+    const draft = surface.getByRole('textbox', { name: 'Όνομα', exact: true });
+    await draft.fill('Only this draft');
+    const close = surface.getByRole('button', { name: trigger, exact: true });
+    await close.click();
+    const dialog = page.getByRole('dialog', { name: 'Απόρριψη αλλαγών;' });
+    await dialog.getByText(prompt, { exact: true }).waitFor({ timeout: 3000 });
+    await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
+    await close.evaluate(node => {
+      if (node !== document.activeElement) throw new Error('Discard cancellation did not restore the initiating control');
+    });
+    assert.equal(await draft.inputValue(), 'Only this draft');
+    await close.click();
+    await dialog.getByRole('button', { name: 'Απόρριψη', exact: true }).click();
+    await surface.waitFor({ state: 'detached', timeout: 3000 });
+    await open.click();
+    const reopened = page.locator('.trip-editor-surface--docked').getByRole('textbox', { name: 'Όνομα', exact: true });
+    assert.equal(await reopened.inputValue(), original);
+    await page.locator('.trip-editor-surface--docked').getByRole('button', { name: 'Κλείσιμο', exact: true }).click();
+  }
+  await page.getByRole('button', { name: 'Επεξεργασία ταξιδιού', exact: true }).click();
+  assert.equal(await page.evaluate(() => captured['PlanningEditor.vue'].findLast(item => item.draft?.kind === 'trip')
+    .draft.entries[0].label), 'Separate planning draft');
+});
+
+test('Greek metadata and sharing recovery retain the earlier attempt and localize the exit prompt', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const recoveries = [
+    { field: 'name', message: 'Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή στις ρυθμίσεις του ταξιδιού.' },
+    { field: 'shareProgressEnabled', message: 'Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή κοινοποίησης. Η επιλογή σας (Ενεργό)' }
+  ];
+  for (const { field, message } of recoveries) {
+    const page = await mountGreekEditor(browser, { ...state, metadata: { ...metadata, isPublic: true,
+      originalValues: { ...metadata.originalValues, isPublic: true } } });
+    await page.evaluate(() => {
+      window.useMountedConfirmation = true;
+      window.fetch = async () => { throw new TypeError('diagnostic-only lost reply'); };
+    });
+    const form = page.locator('#trip-editor-metadata-form');
+    const draft = field === 'name' ? form.getByRole('textbox', { name: 'Όνομα', exact: true })
+      : form.getByRole('checkbox', { name: 'Εμφάνιση προόδου επισκέψεων στο δημόσιο ταξίδι' });
+    if (field === 'name') await draft.fill('Retained title');
+    else await draft.check();
+    const save = page.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' });
+    await save.click();
+    const warning = form.getByRole('alert').filter({ hasText: message });
+    await warning.waitFor({ timeout: 3000 });
+    assert.ok(await save.isDisabled());
+    assert.match(await warning.textContent(), /προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί/);
+
+    const leave = page.getByRole('button', { name: 'Έξοδος χωρίς αποθήκευση', exact: true });
+    await leave.click();
+    const dialog = page.getByRole('dialog', { name: 'Έξοδος χωρίς αποθήκευση;' });
+    await dialog.getByText(message, { exact: false }).waitFor({ timeout: 3000 });
+    await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
+    assert.ok(await save.isDisabled());
+    if (field === 'name') assert.equal(await draft.inputValue(), 'Retained title');
+    else assert.ok(await draft.isChecked());
+    await page.close();
+  }
+});
+
+test('Greek Region save status and first publication use the current locale', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, state);
+  await page.evaluate(() => {
+    window.useMountedConfirmation = true;
+    window.fetch = async () => Response.json({ errors: { name: ['Name is required.'] } }, { status: 400 });
+  });
+  const save = page.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' });
+  await page.getByRole('checkbox', { name: 'Δημόσιο ταξίδι', exact: true }).check();
+  const policy = page.getByRole('combobox', { name: 'Πολιτική δημοσίευσης' });
+  await policy.selectOption('view-only');
+  await save.click();
+  const publication = page.getByRole('dialog', { name: 'Να δημοσιευτεί το ταξίδι;' });
+  await publication.getByText(/Συνεισφορές ιδιοκτήτη: Δημόσια προβολή μόνο/).waitFor({ timeout: 3000 });
+  await publication.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
+  assert.equal(await policy.inputValue(), 'view-only');
+
+  // Region Manager's status is a separate live region from the inline form header.
+  await page.evaluate(() => captured['MetadataEditor.vue'][0].resetDraft());
+  await page.locator('[data-region-id="region"] .trip-editor-region-card__header').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const name = page.locator('.trip-editor-region-form input[type="text"]');
+  await name.fill('Retained region');
+  await page.getByRole('button', { name: 'Αποθήκευση περιοχής' }).click();
+  await page.locator('.trip-editor-regions > .trip-editor-panel__line').getByRole('status')
+    .getByText('Η αποθήκευση απέτυχε', { exact: true }).waitFor({ timeout: 3000 });
+  assert.equal(await name.inputValue(), 'Retained region');
+});
+
+test('Greek Place deletion preview renders its consequences and preserves the name as text', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const placeName = 'Coast <mark> & pier';
+  const page = await mountGreekEditor(browser, { ...state, placesById: { place: {
+    ...place, name: placeName, originalValues: { ...place.originalValues, name: placeName }
+  } } });
+  await page.evaluate(placeName => {
+    window.useMountedConfirmation = true;
+    window.deleteRequests = [];
+    window.fetch = async url => {
+      deleteRequests.push(url);
+      const sample = ids => ({ count: ids.length, ids, hasMore: false });
+      return Response.json({ contractVersion: 1, tripId: 'trip', placeId: 'place', regionId: 'region', placeName,
+        deletedSegments: sample(['endpoint']), updatedSegments: sample(['survivor1', 'survivor2']),
+        detachedWaypoints: sample(['survivor1', 'survivor2'].map(segmentId => ({ segmentId, placeId: 'place' }))),
+        unlinkedVisits: 0, deletedCandidates: 0, placeOrderIds: [], segmentOrderIds: ['survivor1', 'survivor2'],
+        confirmation: { token: 'preview', expiresAt: new Date(Date.now() + 60000).toISOString() } });
+    };
+  }, placeName);
+  await page.locator('[data-place-id="place"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const editor = page.locator('.trip-editor-surface--docked');
+  const name = editor.getByRole('textbox', { name: 'Όνομα', exact: true });
+  await name.fill('Retained Place');
+  const deleteButton = editor.getByRole('button', { name: 'Διαγραφή', exact: true });
+  await deleteButton.click();
+  const dialog = page.getByRole('dialog', { name: 'Να διαγραφεί η τοποθεσία;' });
+  await dialog.getByText(/Θα διαγραφεί 1 τμήμα διαδρομής/).waitFor({ timeout: 3000 });
+  const consequences = await dialog.textContent();
+  assert.ok(consequences.includes(placeName));
+  assert.match(consequences, /Θα ενημερωθούν 2 διαδρομές/);
+  assert.match(consequences, /Θα διατηρηθούν 0 καταγραφές επισκέψεων/);
+  assert.equal(await dialog.locator('mark').count(), 0);
+  await dialog.getByRole('button', { name: 'Διατήρηση τοποθεσίας και προσχεδίων' }).press('Escape');
+  assert.equal(await name.inputValue(), 'Retained Place');
+  assert.deepEqual(await page.evaluate(() => window.deleteRequests), ['/api/trips/trip/editor/places/place/deletion-preview']);
+});
+
 /** Loads the shipped RESX values through the document bootstrap used by the mounted Vue owners. */
 async function mountGreekEditor(browser, graph) {
   const page = await browser.newPage();
