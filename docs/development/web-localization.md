@@ -87,6 +87,12 @@ save with its draft and save hold intact. Plan Check presents scoped findings,
 dependency changes and structured estimate evidence. Follow-up controls use
 the original finding values and retained check inputs.
 
+The Editor catalog supplies Leaflet.Draw's polygon and route prompts and the
+polygon crossing warning. The Shell catalog supplies the Editor and Viewer ruler
+instructions and kilometre labels. The managed Greek map-controls journey
+exercises both rulers through Escape and follows the drawing prompts through
+polygon validation and custom route completion.
+
 The headed Viewer-to-Editor journey checks the camera and active Segment
 through the preference switch, Greek Editor validation, and contrast in dark
 desktop, narrow and native 200% zoom layouts. The delayed Place focus journey

@@ -417,6 +417,12 @@
   <data name="Shell.MeasureDistance" xml:space="preserve">
     <value>Measure distance</value>
   </data>
+  <data name="Shell.MeasureAddPoints" xml:space="preserve">
+    <value>Click to add points.</value>
+  </data>
+  <data name="Shell.MeasureCancel" xml:space="preserve">
+    <value>Press Esc to cancel.</value>
+  </data>
   <data name="Shell.CopyMapLink" xml:space="preserve">
     <value>Copy map link</value>
   </data>

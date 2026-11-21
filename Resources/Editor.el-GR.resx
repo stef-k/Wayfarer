@@ -933,6 +933,78 @@
   <data name="Editor.MapDrawRoute" xml:space="preserve">
     <value>Επεξεργαστείτε τη διαδρομή του τμήματος. Τα σημεία των αποθηκευμένων τοποθεσιών είναι σταθερά. Προσθέστε, μετακινήστε ή αφαιρέστε άλλα σημεία. Το «Τέλος» ενημερώνει το πρόχειρο.</value>
   </data>
+  <data name="Editor.DrawPolygonStart" xml:space="preserve">
+    <value>Κάντε κλικ για να αρχίσετε τη σχεδίαση της ζώνης.</value>
+  </data>
+  <data name="Editor.DrawPolygonContinue" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε άλλη κορυφή.</value>
+  </data>
+  <data name="Editor.DrawPolygonFinish" xml:space="preserve">
+    <value>Κάντε κλικ στην πρώτη κορυφή για να κλείσετε τη ζώνη.</value>
+  </data>
+  <data name="Editor.DrawPolylineStart" xml:space="preserve">
+    <value>Κάντε κλικ για να αρχίσετε τη σχεδίαση της διαδρομής.</value>
+  </data>
+  <data name="Editor.DrawPolylineContinue" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε άλλο σημείο στη διαδρομή.</value>
+  </data>
+  <data name="Editor.DrawPolylineFinish" xml:space="preserve">
+    <value>Κάντε κλικ στο τελευταίο σημείο για να ολοκληρώσετε τη διαδρομή.</value>
+  </data>
+  <data name="Editor.DrawEdgesCannotCross" xml:space="preserve">
+    <value>Οι πλευρές της ζώνης δεν επιτρέπεται να τέμνονται.</value>
+  </data>
+  <data name="Editor.EditPolygonHandles" xml:space="preserve">
+    <value>Σύρετε τις λαβές για να επεξεργαστείτε τη ζώνη.</value>
+  </data>
+  <data name="Editor.EditPolygonCancel" xml:space="preserve">
+    <value>Κάντε κλικ στην «Ακύρωση» για να αναιρέσετε τις αλλαγές.</value>
+  </data>
+  <data name="Editor.DrawAreaPolygon" xml:space="preserve">
+    <value>Σχεδίαση πολυγώνου ζώνης</value>
+  </data>
+  <data name="Editor.PlacePolygonVertices" xml:space="preserve">
+    <value>Κάντε κλικ στον χάρτη για να τοποθετήσετε τις κορυφές του πολυγώνου.</value>
+  </data>
+  <data name="Editor.PolygonVerticesReady" xml:space="preserve">
+    <value>{0} κορυφές έτοιμες</value>
+  </data>
+  <data name="Editor.NoPolygonReady" xml:space="preserve">
+    <value>Δεν υπάρχει έτοιμο πολύγωνο</value>
+  </data>
+  <data name="Editor.EditSegmentRoute" xml:space="preserve">
+    <value>Επεξεργασία διαδρομής τμήματος</value>
+  </data>
+  <data name="Editor.EditSegmentRoutePoints" xml:space="preserve">
+    <value>Τα σημεία των αποθηκευμένων τοποθεσιών είναι σταθερά. Προσθέστε, μετακινήστε ή αφαιρέστε άλλα σημεία της διαδρομής.</value>
+  </data>
+  <data name="Editor.NoRouteWork" xml:space="preserve">
+    <value>Η επεξεργασία της διαδρομής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.FallbackRoutePending" xml:space="preserve">
+    <value>Η εφεδρική διαδρομή εκκρεμεί</value>
+  </data>
+  <data name="Editor.FallbackRouteUnchanged" xml:space="preserve">
+    <value>Η εφεδρική διαδρομή παραμένει ίδια</value>
+  </data>
+  <data name="Editor.CustomRoutePending" xml:space="preserve">
+    <value>Η προσαρμοσμένη διαδρομή εκκρεμεί</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.one" xml:space="preserve">
+    <value>{0} σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.other" xml:space="preserve">
+    <value>{0} σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.one" xml:space="preserve">
+    <value>{0} επεξεργάσιμο</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.other" xml:space="preserve">
+    <value>{0} επεξεργάσιμα</value>
+  </data>
+  <data name="Editor.RouteWorkProgress" xml:space="preserve">
+    <value>{0} · {1} · {2}</value>
+  </data>
   <data name="Editor.MapDescription" xml:space="preserve">
     <value>Προβολή και περιήγηση στον χάρτη του ταξιδιού.</value>
   </data>

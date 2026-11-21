@@ -1,4 +1,5 @@
 import { message, number } from '../../../../wwwroot/js/localization/messages.js';
+import { formatMapDistance, measureInstructions } from '../../../../wwwroot/js/localization/mapMeasurementText.js';
 
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 
@@ -134,6 +135,7 @@ function mapUtilityButton(container: HTMLElement, label: string, iconUrl: string
   return button;
 }
 
+/** Owns the temporary measurement and renders its guidance and labels in the document language. */
 const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { cancel: () => void } => {
   const layer = L.layerGroup().addTo(map);
   const points: L.LatLng[] = [];
@@ -141,7 +143,7 @@ const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { can
 
   helpControl.onAdd = () => {
     const div = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-measure-help');
-    div.textContent = 'Click to add points. Esc cancels.';
+    div.textContent = measureInstructions().join(' ');
     return div;
   };
 
@@ -172,10 +174,12 @@ const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { can
       const polyline = L.polyline(points, { color: '#0d6efd', weight: 3, dashArray: '5, 5' });
       polyline.addTo(layer);
       const km = distanceKilometers(points);
+      const label = document.createElement('span');
+      label.textContent = formatMapDistance(km);
       L.marker(event.latlng, {
         icon: L.divIcon({
           className: 'trip-editor-map-distance-label',
-          html: `<span>${km.toFixed(2)} km</span>`,
+          html: label,
           iconSize: [72, 24],
           iconAnchor: [36, 12]
         }),

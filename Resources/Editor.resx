@@ -933,6 +933,78 @@
   <data name="Editor.MapDrawRoute" xml:space="preserve">
     <value>Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.</value>
   </data>
+  <data name="Editor.DrawPolygonStart" xml:space="preserve">
+    <value>Click to start drawing the area.</value>
+  </data>
+  <data name="Editor.DrawPolygonContinue" xml:space="preserve">
+    <value>Click to add another vertex.</value>
+  </data>
+  <data name="Editor.DrawPolygonFinish" xml:space="preserve">
+    <value>Click the first vertex to close the area.</value>
+  </data>
+  <data name="Editor.DrawPolylineStart" xml:space="preserve">
+    <value>Click to start drawing the route.</value>
+  </data>
+  <data name="Editor.DrawPolylineContinue" xml:space="preserve">
+    <value>Click to add another route point.</value>
+  </data>
+  <data name="Editor.DrawPolylineFinish" xml:space="preserve">
+    <value>Click the last point to finish the route.</value>
+  </data>
+  <data name="Editor.DrawEdgesCannotCross" xml:space="preserve">
+    <value>Area edges cannot cross.</value>
+  </data>
+  <data name="Editor.EditPolygonHandles" xml:space="preserve">
+    <value>Drag the handles to edit the area.</value>
+  </data>
+  <data name="Editor.EditPolygonCancel" xml:space="preserve">
+    <value>Click Cancel to undo changes.</value>
+  </data>
+  <data name="Editor.DrawAreaPolygon" xml:space="preserve">
+    <value>Draw area polygon</value>
+  </data>
+  <data name="Editor.PlacePolygonVertices" xml:space="preserve">
+    <value>Click the map to place polygon vertices.</value>
+  </data>
+  <data name="Editor.PolygonVerticesReady" xml:space="preserve">
+    <value>{0} vertices ready</value>
+  </data>
+  <data name="Editor.NoPolygonReady" xml:space="preserve">
+    <value>No polygon ready</value>
+  </data>
+  <data name="Editor.EditSegmentRoute" xml:space="preserve">
+    <value>Edit segment route</value>
+  </data>
+  <data name="Editor.EditSegmentRoutePoints" xml:space="preserve">
+    <value>Saved Place anchors are fixed. Add, move, or remove anonymous route points.</value>
+  </data>
+  <data name="Editor.NoRouteWork" xml:space="preserve">
+    <value>Route work unavailable</value>
+  </data>
+  <data name="Editor.FallbackRoutePending" xml:space="preserve">
+    <value>Fallback route pending</value>
+  </data>
+  <data name="Editor.FallbackRouteUnchanged" xml:space="preserve">
+    <value>Fallback route unchanged</value>
+  </data>
+  <data name="Editor.CustomRoutePending" xml:space="preserve">
+    <value>Custom route pending</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.one" xml:space="preserve">
+    <value>{0} route point</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.other" xml:space="preserve">
+    <value>{0} route points</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.one" xml:space="preserve">
+    <value>{0} editable</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.other" xml:space="preserve">
+    <value>{0} editable</value>
+  </data>
+  <data name="Editor.RouteWorkProgress" xml:space="preserve">
+    <value>{0} · {1} · {2}</value>
+  </data>
   <data name="Editor.MapDescription" xml:space="preserve">
     <value>View and navigate trip geography.</value>
   </data>

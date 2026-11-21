@@ -1,3 +1,4 @@
+import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkOptions } from '../map/leafletAdapter';
 import type { EditorSegmentDraft, EditorTripState } from '../types';
@@ -99,8 +100,8 @@ export function beginSegmentRouteMapWork(
   });
 
   const entered = editorSurface.enterMapWork({
-    modeName: 'Edit segment route',
-    instruction: 'Saved Place anchors are fixed. Add, move, or remove anonymous route points.',
+    modeName: message('Editor.EditSegmentRoute', 'Edit segment route'),
+    instruction: message('Editor.EditSegmentRoutePoints', 'Saved Place anchors are fixed. Add, move, or remove anonymous route points.'),
     statusText: () => segmentRouteStatus(lifecycle.work),
     canFinish: () => Boolean(lifecycle.work && projectSegmentRouteWork(lifecycle.work)),
     isDirty: () => JSON.stringify(lifecycle.work) !== JSON.stringify(initialWork),
@@ -149,11 +150,18 @@ function restoreDraft(draft: EditorSegmentDraft, snapshot: SegmentRouteDraftSnap
   draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = snapshot.waypointRouteVertexIndices[index] ?? null; });
 }
 
+/** Describes the route and point counts without changing the work state. */
 function segmentRouteStatus(work: SegmentRouteWorkState | null): string {
-  if (!work) return 'Route work unavailable';
+  if (!work) return message('Editor.NoRouteWork', 'Route work unavailable');
   const anonymousCount = work.nodes.filter(node => node.kind === 'anonymous').length;
-  const status = work.cleared ? 'Fallback route pending' : work.origin === 'fallback' && !work.changedCustom ? 'Fallback route unchanged' : 'Custom route pending';
-  return `${status} · ${work.nodes.length} route points · ${anonymousCount} editable`;
+  const status = work.cleared
+    ? message('Editor.FallbackRoutePending', 'Fallback route pending')
+    : work.origin === 'fallback' && !work.changedCustom
+      ? message('Editor.FallbackRouteUnchanged', 'Fallback route unchanged')
+      : message('Editor.CustomRoutePending', 'Custom route pending');
+  const pointCount = plural('Editor.RouteWorkPointCount', work.nodes.length, '{0} route point', '{0} route points');
+  const editableCount = plural('Editor.RouteWorkEditableCount', anonymousCount, '{0} editable', '{0} editable');
+  return message('Editor.RouteWorkProgress', '{0} · {1} · {2}', status, pointCount, editableCount);
 }
 
 function clone<T>(value: T): T {

@@ -1,4 +1,5 @@
 import { message, number } from './localization/messages.js';
+import { formatMapDistance, measureInstructions } from './localization/mapMeasurementText.js';
 
 // Custom control to display zoom level and copy permalink with theme support
 // import * as turf from '@turf/turf';
@@ -114,6 +115,7 @@ export const liveMarker = L.divIcon({
     iconAnchor: [18, 18],
 });
 
+/** Owns the temporary ruler layers and renders localized guidance and distance labels. */
 export const initDistanceMeasureTool = (map, options   = {}) => {
     const { onFinish, onCancel } = options;
     const points = [];
@@ -168,10 +170,13 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
         }
 
         const last = points.at(-1);
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-dark';
+        badge.textContent = formatMapDistance(km);
         const label = L.marker(last, {
             icon: L.divIcon({
                 className: 'distance-label',
-                html: `<span class="badge bg-dark">${km.toFixed(2)} km</span>`,
+                html: badge,
                 iconSize: [60, 24],
                 iconAnchor: [30, 12]
             })
@@ -215,7 +220,8 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
     helpControl = L.control({ position: 'bottomleft' });
     helpControl.onAdd = () => {
         const div = L.DomUtil.create('div', 'leaflet-bar help-popup');
-        div.innerHTML = '🖱 Click to add points<br>⎋ ESC to cancel';
+        const [addPoints, cancel] = measureInstructions();
+        div.append('🖱 ', addPoints, document.createElement('br'), '⎋ ', cancel);
         return div;
     };
     helpControl.addTo(map);
