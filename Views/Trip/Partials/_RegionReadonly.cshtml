@@ -76,10 +76,10 @@
                     var pLon = p.Location?.X.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     var precisionNotice = (p.ResolvedFeatureType ?? "").Trim().ToLowerInvariant() switch
                     {
-                        "postcode" => T["Viewer.ApproximatePostcode"],
-                        "city" => T["Viewer.ApproximateCity"],
-                        "suburb" or "district" => T["Viewer.ApproximateLocalArea"],
-                        "county" or "state" or "country" => T["Viewer.ApproximateRegion"],
+                        "postcode" => T["Shell.ApproximatePostcode"],
+                        "city" => T["Shell.ApproximateCity"],
+                        "suburb" or "district" => T["Shell.ApproximateLocalArea"],
+                        "county" or "state" or "country" => T["Shell.ApproximateRegion"],
                         _ => null
                     };
                     placeVisitCounts.TryGetValue(p.Id, out var vc);

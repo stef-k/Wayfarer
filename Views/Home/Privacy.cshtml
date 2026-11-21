@@ -1,26 +1,30 @@
-﻿@{
-    ViewData["Title"] = "Privacy Policy";
-}
+@inject Wayfarer.Localization.WebMessages T
 
+@{
+    ViewData["WebCatalog"] = "PublicPages";
+    ViewData["Title"] = T["PublicPages.PrivacyTitle"];
+}
 
 <div class="text-center pt-3">
     <h1>@ViewData["Title"]</h1>
-
-    <p class="lead pt-1 fs-3">Wayfarer, does not use tracking cookies!</p>
 </div>
 
 <div class="container">
-
-    <div class="row">
-        <div class="col-md-7 mx-auto">
-            <div class="pt-2 text-start fs-5" >
+    @* The policy remains English inside the localized interface. *@
+    <div lang="en">
+        <p class="lead pt-1 fs-3 text-center">Wayfarer, does not use tracking cookies!</p>
+        <div class="row">
+            <div class="col-md-7 mx-auto pt-2 text-start fs-5">
                 <p>This instance of Wayfarer is deployed for <span class="text-decoration-underline">personal use</span>,
-                    meaning registrations are not open. <br/><br/>
-                    If you like what you see, you can self host a Wayfarer instance on your own. The project is open source!<br/><br/>
-                    <a href="https://github.com/stef-k/Wayfarer" title="Wayfarer on GitHub" target="_blank">GitHub Repository</a> |
-                    <a href="https://stef-k.github.io/Wayfarer" title="Wayfarer Documentation" target="_blank">Documentation</a>
-                    </p>
+                    meaning registrations are not open.</p>
+                <p>If you like what you see, you can self host a Wayfarer instance on your own. The project is open source!</p>
             </div>
         </div>
+    </div>
+    <div class="row">
+        <p class="col-md-7 mx-auto text-start fs-5">
+            <a href="https://github.com/stef-k/Wayfarer" title="@T["PublicPages.RepositoryHint"]" target="_blank">@T["PublicPages.Repository"]</a> |
+            <a href="https://stef-k.github.io/Wayfarer" title="@T["PublicPages.DocumentationHint"]" target="_blank">@T["PublicPages.Documentation"]</a>
+        </p>
     </div>
 </div>

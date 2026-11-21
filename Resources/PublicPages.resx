@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PublicPages.Logo" xml:space="preserve">
+    <value>Wayfarer logo</value>
+  </data>
+  <data name="PublicPages.HomeHeading" xml:space="preserve">
+    <value>Track your timeline and manage your trips</value>
+  </data>
+  <data name="PublicPages.TimelineExample" xml:space="preserve">
+    <value>Timeline example</value>
+  </data>
+  <data name="PublicPages.HomeLocations" xml:space="preserve">
+    <value>Add locations manually or with a mobile GPS logging app. Add notes, image URLs and activities.</value>
+  </data>
+  <data name="PublicPages.HomeImport" xml:space="preserve">
+    <value>Import data exported from Google Timeline.</value>
+  </data>
+  <data name="PublicPages.HomeExample" xml:space="preserve">
+    <value>See a live example with real data</value>
+  </data>
+  <data name="PublicPages.PrivacyTitle" xml:space="preserve">
+    <value>Privacy Policy</value>
+  </data>
+  <data name="PublicPages.Repository" xml:space="preserve">
+    <value>GitHub Repository</value>
+  </data>
+  <data name="PublicPages.RepositoryHint" xml:space="preserve">
+    <value>Wayfarer on GitHub</value>
+  </data>
+  <data name="PublicPages.Documentation" xml:space="preserve">
+    <value>Documentation</value>
+  </data>
+  <data name="PublicPages.DocumentationHint" xml:space="preserve">
+    <value>Wayfarer Documentation</value>
+  </data>
+  <data name="PublicPages.RegistrationClosed" xml:space="preserve">
+    <value>New user registrations are currently closed. Please contact the administrator to either request an account creation or inquire about when registrations will reopen.</value>
+  </data>
+</root>

@@ -1,0 +1,20 @@
+@inject Wayfarer.Localization.WebMessages T
+@model string
+
+@{
+    Layout = null;
+    var heading = T[Model];
+}
+
+@* Both routes use the same error body for a missing or ineligible Timeline. *@
+<!DOCTYPE html>
+<html lang="@T.Locale.Tag">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@heading - Wayfarer</title>
+</head>
+<body>
+    <main><h1>@heading</h1></main>
+</body>
+</html>

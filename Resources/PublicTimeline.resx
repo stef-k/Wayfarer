@@ -1,0 +1,123 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PublicTimeline.Heading" xml:space="preserve">
+    <value>Timeline of {0}</value>
+  </data>
+  <data name="PublicTimeline.PageTitle" xml:space="preserve">
+    <value>{0} Timeline</value>
+  </data>
+  <data name="PublicTimeline.Unavailable" xml:space="preserve">
+    <value>This timeline is unavailable.</value>
+  </data>
+  <data name="PublicTimeline.UsernameRequired" xml:space="preserve">
+    <value>A username is required.</value>
+  </data>
+  <data name="PublicTimeline.Disclosure" xml:space="preserve">
+    <value>This is a public timeline. The user chose to share their location history. Some areas may be hidden for privacy.</value>
+  </data>
+  <data name="PublicTimeline.LocationDetails" xml:space="preserve">
+    <value>Location Details</value>
+  </data>
+  <data name="PublicTimeline.LocationMarker" xml:space="preserve">
+    <value>Location record</value>
+  </data>
+  <data name="PublicTimeline.LatestTooltip" xml:space="preserve">
+    <value>User's latest location.</value>
+  </data>
+  <data name="PublicTimeline.Live" xml:space="preserve">
+    <value>LIVE LOCATION</value>
+  </data>
+  <data name="PublicTimeline.Latest" xml:space="preserve">
+    <value>LATEST LOCATION</value>
+  </data>
+  <data name="PublicTimeline.ViewerTime" xml:space="preserve">
+    <value>Date and time (your timezone):</value>
+  </data>
+  <data name="PublicTimeline.RecordedTime" xml:space="preserve">
+    <value>Recorded local time:</value>
+  </data>
+  <data name="PublicTimeline.NoSourceZone" xml:space="preserve">
+    <value>Source timezone unavailable</value>
+  </data>
+  <data name="PublicTimeline.Coordinates" xml:space="preserve">
+    <value>Coordinates:</value>
+  </data>
+  <data name="PublicTimeline.Latitude" xml:space="preserve">
+    <value>Latitude:</value>
+  </data>
+  <data name="PublicTimeline.Longitude" xml:space="preserve">
+    <value>Longitude:</value>
+  </data>
+  <data name="PublicTimeline.Activity" xml:space="preserve">
+    <value>Activity:</value>
+  </data>
+  <data name="PublicTimeline.Altitude" xml:space="preserve">
+    <value>Altitude:</value>
+  </data>
+  <data name="PublicTimeline.Accuracy" xml:space="preserve">
+    <value>Accuracy:</value>
+  </data>
+  <data name="PublicTimeline.Speed" xml:space="preserve">
+    <value>Speed:</value>
+  </data>
+  <data name="PublicTimeline.NoValue" xml:space="preserve">
+    <value>No data available</value>
+  </data>
+  <data name="PublicTimeline.Metres" xml:space="preserve">
+    <value>{0} m</value>
+  </data>
+  <data name="PublicTimeline.KilometresPerHour" xml:space="preserve">
+    <value>{0} km/h</value>
+  </data>
+  <data name="PublicTimeline.NoNotes" xml:space="preserve">
+    <value>No notes available</value>
+  </data>
+  <data name="PublicTimeline.GoogleMaps" xml:space="preserve">
+    <value>View in Google Maps</value>
+  </data>
+  <data name="PublicTimeline.Maps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="PublicTimeline.Loading" xml:space="preserve">
+    <value>Loading locations…</value>
+  </data>
+  <data name="PublicTimeline.NoLocations" xml:space="preserve">
+    <value>No public locations in this map view.</value>
+  </data>
+  <data name="PublicTimeline.LocationsFailed" xml:space="preserve">
+    <value>Could not load locations. Move the map to try again.</value>
+  </data>
+  <data name="PublicTimeline.StatsFailed" xml:space="preserve">
+    <value>Could not load timeline statistics.</value>
+  </data>
+  <data name="PublicTimeline.TotalLocations" xml:space="preserve">
+    <value>Total locations: {0}</value>
+  </data>
+  <data name="PublicTimeline.FromDate" xml:space="preserve">
+    <value>From: {0}</value>
+  </data>
+  <data name="PublicTimeline.ToDate" xml:space="preserve">
+    <value>To: {0}</value>
+  </data>
+  <data name="PublicTimeline.Countries" xml:space="preserve">
+    <value>Countries: {0}</value>
+  </data>
+  <data name="PublicTimeline.Regions" xml:space="preserve">
+    <value>Regions: {0}</value>
+  </data>
+  <data name="PublicTimeline.Cities" xml:space="preserve">
+    <value>Cities: {0}</value>
+  </data>
+</root>

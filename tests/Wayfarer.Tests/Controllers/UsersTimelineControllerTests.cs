@@ -26,7 +26,7 @@ public class UsersTimelineControllerTests : TestBase
 
         var result = await controller.Index("alice");
 
-        Assert.IsType<NotFoundObjectResult>(result);
+        Assert.Equal(404, Assert.IsType<ViewResult>(result).StatusCode);
     }
 
     [Fact]
@@ -36,7 +36,7 @@ public class UsersTimelineControllerTests : TestBase
 
         var result = await controller.Index(string.Empty);
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        Assert.Equal(400, Assert.IsType<ViewResult>(result).StatusCode);
     }
 
     [Fact]
@@ -55,7 +55,8 @@ public class UsersTimelineControllerTests : TestBase
         var view = Assert.IsType<ViewResult>(result);
         Assert.Equal("Timeline", view.ViewName);
         Assert.Equal("alice", controller.ViewData["Username"]);
-        Assert.Equal("Timeline of Alice", controller.ViewData["TimelineTitle"]);
+        Assert.Null(controller.ViewData["TimelineTitle"]);
+        Assert.Equal("Alice", controller.ViewData["DisplayName"]);
     }
 
     [Fact]
@@ -93,7 +94,8 @@ public class UsersTimelineControllerTests : TestBase
         Assert.Equal("Embed", view.ViewName);
         var isEmbed = controller.ViewBag.IsEmbed;
         Assert.True(isEmbed == null || (bool)isEmbed);
-        Assert.Equal("Timeline of Alice", controller.ViewData["TimelineTitle"]);
+        Assert.Null(controller.ViewData["TimelineTitle"]);
+        Assert.Equal("Alice", controller.ViewData["DisplayName"]);
     }
 
     [Fact]
@@ -106,8 +108,8 @@ public class UsersTimelineControllerTests : TestBase
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 
-        Assert.IsType<NotFoundObjectResult>(await controller.Embed("alice"));
-        Assert.IsType<NotFoundObjectResult>(await controller.Embed("missing"));
+        Assert.Equal(404, Assert.IsType<ViewResult>(await controller.Embed("alice")).StatusCode);
+        Assert.Equal(404, Assert.IsType<ViewResult>(await controller.Embed("missing")).StatusCode);
     }
 
     [Fact]
@@ -212,8 +214,8 @@ public class UsersTimelineControllerTests : TestBase
         await db.SaveChangesAsync();
         var controller = BuildController(db);
 
-        Assert.IsType<NotFoundObjectResult>(await controller.Index("alice"));
-        Assert.IsType<NotFoundObjectResult>(await controller.Embed("alice"));
+        Assert.Equal(404, Assert.IsType<ViewResult>(await controller.Index("alice")).StatusCode);
+        Assert.Equal(404, Assert.IsType<ViewResult>(await controller.Embed("alice")).StatusCode);
         Assert.IsType<NotFoundObjectResult>(await controller.GetPublicStats("alice"));
         Assert.IsType<NotFoundObjectResult>(await controller.GetPublicTimeline(CreateRequest("alice")));
     }

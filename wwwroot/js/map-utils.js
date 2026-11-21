@@ -1,6 +1,24 @@
 import { message, number } from './localization/messages.js';
 import { formatMapDistance, measureInstructions } from './localization/mapMeasurementText.js';
 
+/** Copies the invariant permalink, retaining the older clipboard fallback when needed. */
+const copyMapLink = async url => {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        return;
+    }
+
+    const input = document.createElement('input');
+    input.value = url;
+    document.body.appendChild(input);
+    try {
+        input.select();
+        if (!document.execCommand('copy')) throw new Error('Clipboard copy was rejected');
+    } finally {
+        input.remove();
+    }
+};
+
 // Custom control to display zoom level and copy permalink with theme support
 // import * as turf from '@turf/turf';
 const ZoomLevelControl = L.Control.extend({
@@ -61,32 +79,32 @@ const ZoomLevelControl = L.Control.extend({
             zoomText.textContent = message('Shell.MapZoomLevel', 'Zoom: {0}', number(map.getZoom()));
         });
 
-        // Copy current URL to clipboard on button click
-        L.DomEvent.on(copyBtn, 'click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            const url = window.location.href;
-            const showSuccess = () => {
-                copyBtn.setAttribute('aria-label', message('Shell.MapLinkCopied', 'Map link copied'));
-                copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/check.svg" alt="" style="width:1.2em; height:1.2em;" />`;
-                setTimeout(() => {
+        const copyStatus = L.DomUtil.create('span', 'visually-hidden', container);
+        copyStatus.setAttribute('role', 'status');
+        let resetCopy;
+        // Announce clipboard feedback in both layouts, including embeds without a toast region.
+        L.DomEvent.on(copyBtn, 'click', async (event) => {
+            L.DomEvent.stopPropagation(event);
+            const showFeedback = (text, icon) => {
+                clearTimeout(resetCopy);
+                copyStatus.textContent = text;
+                copyBtn.title = text;
+                copyBtn.setAttribute('aria-label', text);
+                copyBtn.querySelector('img').src = `/lib/bootstrap-icons/bootstrap-icons-1.13.2/${icon}.svg`;
+                resetCopy = setTimeout(() => {
+                    copyStatus.textContent = '';
+                    copyBtn.title = message('Shell.CopyMapLink', 'Copy map link');
                     copyBtn.setAttribute('aria-label', copyBtn.title);
-                    copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="" style="width:1.2em; height:1.2em;" />`;
+                    copyBtn.querySelector('img').src = '/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg';
                 }, 1500);
             };
 
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url)
-                    .then(showSuccess)
-                    .catch(err => console.error('Copy failed', err));
-            } else {
-                // Fallback for older browsers
-                const input = document.createElement('input');
-                document.body.appendChild(input);
-                input.value = url;
-                input.select();
-                document.execCommand('copy');
-                document.body.removeChild(input);
-                showSuccess();
+            try {
+                await copyMapLink(window.location.href);
+                showFeedback(message('Shell.MapLinkCopied', 'Map link copied'), 'check');
+            } catch (error) {
+                console.error('Copy failed', error);
+                showFeedback(message('Shell.MapLinkCopyFailed', 'Could not copy the map link.'), 'exclamation-circle');
             }
         });
 

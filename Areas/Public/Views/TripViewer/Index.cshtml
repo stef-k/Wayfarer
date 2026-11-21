@@ -1,25 +1,26 @@
-@using System.Text.Json
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
 @{
-    ViewData["Title"] = "Public Trips";
-    var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-    var selectedTagsJson = JsonSerializer.Serialize(Model.SelectedTags, jsonOptions);
-    var popularTagsJson = JsonSerializer.Serialize(Model.PopularTags, jsonOptions);
+    ViewData["WebCatalog"] = "Discovery";
+    ViewData["Title"] = T["Discovery.Title"];
+    var modeLabel = T[Model.TagMode == "all" ? "Discovery.MatchAll" : "Discovery.MatchAny"];
 }
 
-<div class="container-fluid py-1">
+@* Share the existing Viewer clone messages with the discovery form handler. *@
+<div class="container-fluid py-1" data-discovery
+     data-clone-title="@T["Viewer.CloneTitle"]" data-clone-question="@T["Viewer.CloneQuestion"]"
+     data-cloning="@T["Viewer.Cloning"]">
     <div class="row mb-1">
         <div class="col">
-            <h1 class="h2">Public Trips</h1>
-            <p class="text-muted">Browse and discover trips shared by our community</p>
+            <h1 class="h2">@ViewData["Title"]</h1>
+            <p class="text-muted">@T["Discovery.Intro"]</p>
         </div>
     </div>
 
     <!-- Unified Control Bar - 3 Column Layout -->
     <div id="stickyControlBar" class="sticky-top bg-body pt-2 pb-3 border-bottom shadow-sm mb-4" style="top:4rem; z-index: 1050; transition: top 0.2s ease-in-out;">
-        <div class="row g-3 align-items-start" data-tag-filter data-selected-tags='@Html.Raw(selectedTagsJson)'
-            data-popular-tags='@Html.Raw(popularTagsJson)' data-tag-mode="@Model.TagMode" data-tags="@Model.TagsCsv"
+        <div class="row g-3 align-items-start" data-tag-filter data-tag-mode="@Model.TagMode" data-tags="@Model.TagsCsv"
             data-suggest-url="/Public/Tags/Suggest">
 
             <!-- Column 1: Search -->
@@ -29,17 +30,19 @@
                     <input type="hidden" name="sort" value="@Model.Sort" />
                     <input type="hidden" name="tags" value="@Model.TagsCsv" />
                     <input type="hidden" name="tagMode" value="@Model.TagMode" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
                     <div class="input-group input-group-sm">
-                        <input name="q" value="@Model.Q" class="form-control" placeholder="Search trips..."
-                            aria-label="Search trips" />
-                        <button class="btn btn-outline-secondary" type="submit" aria-label="Search">
+                        <input name="q" value="@Model.Q" class="form-control" placeholder="@T["Discovery.SearchHint"]"
+                            aria-label="@T["Discovery.SearchTrips"]" />
+                        <button class="btn btn-outline-secondary" type="submit" aria-label="@T["Discovery.Search"]">
                             <i class="bi bi-search"></i>
                         </button>
                         @if (!string.IsNullOrWhiteSpace(Model.Q))
                         {
                             <a class="btn btn-outline-secondary" asp-route="PublicTripsIndex" asp-route-view="@Model.View"
                                 asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
-                                asp-route-tagMode="@Model.TagMode" title="Clear search">
+                                asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize" title="@T["Discovery.ClearSearch"]"
+                                aria-label="@T["Discovery.ClearSearch"]">
                                 <i class="bi bi-x-lg"></i>
                             </a>
                         }
@@ -60,45 +63,47 @@
                                 data-tag-chip data-tag-slug="@tag.Slug" style="font-size: 0.7rem;">
                                 <span>@tag.Name</span>
                                 <button type="button" class="btn-close" style="width: 0.4em; height: 0.4em;"
-                                    aria-label="Remove tag"></button>
+                                    aria-label="@T["Discovery.RemoveTag", tag.Name]"></button>
                             </span>
                         }
                         <input type="text" class="border-0 flex-grow-1"
                             style="outline: none; min-width: 100px; padding: 2px 4px;"
-                            placeholder="@(Model.SelectedTags.Count == 0 ? "Filter by tags..." : "")" autocomplete="off"
+                            aria-label="@T["Discovery.FilterTags"]"
+                            placeholder="@(Model.SelectedTags.Count == 0 ? T["Discovery.FilterTagsHint"] : "")" autocomplete="off"
                             data-tag-input />
                     </div>
                     <button type="button" class="btn btn-outline-secondary" data-tag-mode-value="@Model.TagMode"
-                        data-tag-mode-toggle title="Match mode: @Model.TagMode"
-                        data-tippy-content="All: trips must have all selected tags. Any: trips with at least one selected tag.">
-                        @(Model.TagMode == "all" ? "All" : "Any")
+                        data-tag-mode-toggle title="@T["Discovery.MatchMode", modeLabel]"
+                        data-tippy-content="@T["Discovery.MatchHelp"]">
+                        @modeLabel
                     </button>
                     <button type="button" class="btn btn-outline-secondary" data-clear-tags
                         @(string.IsNullOrEmpty(Model.TagsCsv) ? "disabled" : null)>
-                        Clear
+                        @T["Discovery.ClearTags"]
                     </button>
                 </div>
                 <div class="list-group position-absolute mt-1 d-none" data-tag-suggestions
                     style="z-index: 1030; max-width: 400px;"></div>
+                <div class="small text-muted" role="status" data-tag-status></div>
             </div>
 
             <!-- Column 3: View & Sort -->
             <div class="col-12 col-md-3 col-lg-3 text-end">
                 <div class="d-flex gap-2 justify-content-end">
                     <!-- View Toggle -->
-                    <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="@T["Discovery.ViewMode"]">
                         <a class="btn btn-outline-secondary @(Model.View == "grid" ? "active" : "")"
                             asp-route="PublicTripsIndex" asp-route-view="grid" asp-route-q="@Model.Q"
                             asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
-                            asp-route-tagMode="@Model.TagMode" asp-route-page="@Model.Page" title="Grid view"
-                            aria-label="Grid view">
+                            asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize" asp-route-page="@Model.Page" title="@T["Discovery.GridView"]"
+                            aria-label="@T["Discovery.GridView"]">
                             <i class="bi bi-grid-3x3-gap"></i>
                         </a>
                         <a class="btn btn-outline-secondary @(Model.View == "list" ? "active" : "")"
                             asp-route="PublicTripsIndex" asp-route-view="list" asp-route-q="@Model.Q"
                             asp-route-sort="@Model.Sort" asp-route-tags="@Model.TagsCsv"
-                            asp-route-tagMode="@Model.TagMode" asp-route-page="@Model.Page" title="List view"
-                            aria-label="List view">
+                            asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize" asp-route-page="@Model.Page" title="@T["Discovery.ListView"]"
+                            aria-label="@T["Discovery.ListView"]">
                             <i class="bi bi-list"></i>
                         </a>
                     </div>
@@ -107,31 +112,31 @@
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
                             data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-sort-down"></i> Sort
+                            <i class="bi bi-sort-down"></i> @T["Discovery.Sort"]
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li>
                                 <a class="dropdown-item @(Model.Sort == "updated_desc" ? "active" : "")"
                                     asp-route="PublicTripsIndex" asp-route-sort="updated_desc"
                                     asp-route-view="@Model.View" asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
-                                    asp-route-tagMode="@Model.TagMode">
-                                    Updated (newest)
+                                    asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize">
+                                    @T["Discovery.UpdatedNewest"]
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item @(Model.Sort == "name_asc" ? "active" : "")"
                                     asp-route="PublicTripsIndex" asp-route-sort="name_asc" asp-route-view="@Model.View"
                                     asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
-                                    asp-route-tagMode="@Model.TagMode">
-                                    Name (A-Z)
+                                    asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize">
+                                    @T["Discovery.NameAscending"]
                                 </a>
                             </li>
                             <li>
                                 <a class="dropdown-item @(Model.Sort == "name_desc" ? "active" : "")"
                                     asp-route="PublicTripsIndex" asp-route-sort="name_desc" asp-route-view="@Model.View"
                                     asp-route-q="@Model.Q" asp-route-tags="@Model.TagsCsv"
-                                    asp-route-tagMode="@Model.TagMode">
-                                    Name (Z-A)
+                                    asp-route-tagMode="@Model.TagMode" asp-route-pageSize="@Model.PageSize">
+                                    @T["Discovery.NameDescending"]
                                 </a>
                             </li>
                         </ul>
@@ -144,19 +149,19 @@
     <!-- Popular Tags -->
     <div class="mb-2">
         <div class="text-muted small mb-2 d-flex align-items-center gap-2">
-            <i class="bi bi-stars"></i> Popular tags
+            <i class="bi bi-stars"></i> @T["Discovery.PopularTags"]
         </div>
         <div class="d-flex flex-wrap gap-2" data-popular-tags>
             @foreach (var tag in Model.PopularTags)
             {
                 <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })" class="btn btn-outline-secondary btn-sm" data-popular-tag="@tag.Slug">
                     @tag.Name
-                    <span class="badge text-bg-light ms-1">@tag.Count</span>
+                    <span class="badge text-bg-light ms-1">@T.DisplayNumber(tag.Count)</span>
                 </a>
             }
             @if (Model.PopularTags.Count == 0)
             {
-                <span class="text-muted small">No usage data yet.</span>
+                <span class="text-muted small">@T["Discovery.NoTagUsage"]</span>
             }
         </div>
     </div>
@@ -165,8 +170,9 @@
     @if (Model.Total > 0)
     {
         <div class="text-muted small mb-1">
-            Showing @((Model.Page - 1) * Model.PageSize + 1)–@Math.Min(Model.Page * Model.PageSize, Model.Total) of
-            @Model.Total trip@(Model.Total == 1 ? "" : "s")
+            @T.Count("Discovery.Results", Model.Total,
+                T.DisplayNumber((Model.Page - 1) * Model.PageSize + 1),
+                T.DisplayNumber(Math.Min(Model.Page * Model.PageSize, Model.Total)))
         </div>
     }
 
@@ -192,15 +198,28 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="tripQuickViewLabel">Trip Preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="tripQuickViewLabel">@T["Discovery.PreviewTitle"]</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
             </div>
-            <div class="modal-body">
-                <!-- Content loaded via JavaScript -->
-            </div>
+            <div class="modal-body"></div>
         </div>
     </div>
 </div>
+
+@* Loading and failure belong to this document. The preview fragment negotiates for itself. *@
+<template id="trip-preview-loading">
+    <div class="p-5 text-center text-secondary" role="status">
+        <div class="spinner-border mb-3" aria-hidden="true"></div>
+        <div>@T["Discovery.PreviewLoading"]</div>
+    </div>
+</template>
+<template id="trip-preview-failure">
+    <div class="alert alert-danger m-3" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+        @T["Discovery.PreviewFailed"]
+        <a class="alert-link">@T["Discovery.OpenTrip"]</a>
+    </div>
+</template>
 
 @section Scripts {
     @Html.FrontendViewScripts()

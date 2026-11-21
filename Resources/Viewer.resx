@@ -423,18 +423,6 @@
   <data name="Viewer.HoursUnit" xml:space="preserve">
     <value>{0} h</value>
   </data>
-  <data name="Viewer.ApproximatePostcode" xml:space="preserve">
-    <value>Approximate address — resolved to postcode level.</value>
-  </data>
-  <data name="Viewer.ApproximateCity" xml:space="preserve">
-    <value>Approximate address — resolved to city level.</value>
-  </data>
-  <data name="Viewer.ApproximateLocalArea" xml:space="preserve">
-    <value>Approximate address — resolved to local-area level.</value>
-  </data>
-  <data name="Viewer.ApproximateRegion" xml:space="preserve">
-    <value>Approximate address — resolved only to a regional level.</value>
-  </data>
   <data name="Viewer.Unlicensed" xml:space="preserve">
     <value>Unlicensed / view-only</value>
   </data>

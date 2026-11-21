@@ -1,4 +1,13 @@
-let locations = []; // Declare locations as a global variable
+import { addZoomLevelControl, latestLocationMarker, liveMarker } from '../../../map-utils.js';
+import { embeddedMapOptions, installEmbeddedMap } from '../../../embeddedMap.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
+import { message } from '../../../localization/messages.js';
+import { encodeFeatureText } from '../../../util/feature-metadata.js';
+import { isLiveLocation, scheduleLocationExpiry, getViewerTimeZone } from '../../../util/datetime.js';
+import { initWikipediaPopovers } from '../../../util/wikipedia-utils.js';
+import { renderTimelineLocation } from './timelineDetail.js';
+import { formatTimelineSummary, readTimelineLocations } from './timelineFeedback.js';
+
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
@@ -6,6 +15,9 @@ let username = null;
 let timelineLive;
 let markerLayer, clusterLayer, highlightLayer;
 let stream;
+let embedded;
+let locationsRequest;
+let statsRequest;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 // permalink setup
 const urlParams = new URLSearchParams(window.location.search);
@@ -20,31 +32,10 @@ let initialCenter = (
 );
 
 const viewerTimeZone = getViewerTimeZone();
-const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-});
-
-import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
-import { notesHtmlForDisplay } from '../../../util/notes-images.js';
-import {
-    formatViewerAndSourceTimes,
-    isLiveLocation,
-    scheduleLocationExpiry,
-    formatDate,
-    formatDecimal,
-    getViewerTimeZone,
-} from '../../../util/datetime.js';
-import {
-    generateWikipediaLinkHtml,
-    initWikipediaPopovers,
-} from '../../../util/wikipedia-utils.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     username = document.getElementById('username').dataset.username;
+    embedded = Boolean(document.querySelector('[data-timeline-embed]'));
     const timelineLiveStr = document.getElementById('timelineLive').dataset.timelineLive;
     timelineLive = timelineLiveStr && timelineLiveStr.toLowerCase() === "true";
 
@@ -65,9 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     onZoomOrMoveChanges();
 
     // handle the SSE stream
-    stream.onmessage = (event) => {
-        handleStream(event);
-    }
+    if (stream) stream.onmessage = refreshLiveTimeline;
 
     // Wire up the Bootstrap "shown" event for Wikipedia hover cards
     const modalEl = document.getElementById('locationModal');
@@ -89,34 +78,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    getUserStats(username);
+    getUserStats();
 
 });
 
-const handleStream = (event) => {
+/** Refreshes an admitted live Timeline on the existing observation stream. */
+const refreshLiveTimeline = () => {
     if (timelineLive) {
         getUserLocations();
-        getUserStats(username);
+        getUserStats();
     }
 };
 
-/**
- * Sets up Map, Table, and Pagination and may be
- * used for initial or after data updates.
- */
-
-// Initialize mapContainer with the cache proxy tile layer.
+/** Initializes the cache-backed map and the controls for this layout. */
 const initializeMap = () => {
     if (mapContainer !== undefined && mapContainer !== null) {
         mapContainer.off();
         mapContainer.remove();
     }
     mapContainer = L.map('mapContainer', {
+        ...embeddedMapOptions(embedded),
+        zoomControl: false,
         zoomAnimation: true
     }).setView(initialCenter, zoomLevel);
+    if (embedded) installEmbeddedMap(mapContainer, `/Public/Users/Timeline/${encodeURIComponent(username)}`);
+    L.control.zoom({
+        zoomInTitle: message('Shell.ZoomIn', 'Zoom in'),
+        zoomOutTitle: message('Shell.ZoomOut', 'Zoom out')
+    }).addTo(mapContainer);
     createTileLayer().addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+    const author = encodeFeatureText(message('Shell.AuthorSite', 'Hi, I am Stef check out my blog!'));
+    const credit = encodeFeatureText(message('Shell.WayfarerMapCredit', 'Powered by Wayfarer, made by Stef'));
+    mapContainer.attributionControl.setPrefix(`&copy; <a href="https://wayfarer.stefk.me" title="${credit}" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="${author}" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>`);
+    mapContainer.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
 
     addZoomLevelControl(mapContainer);
 
@@ -129,6 +124,7 @@ const initializeMap = () => {
     return mapContainer;
 };
 
+/** Keeps admitted live/latest markers above ordinary and clustered records. */
 const buildLayers = (locations) => {
     if (highlightLayer) {
         highlightLayer.clearLayers();
@@ -153,6 +149,8 @@ const buildLayers = (locations) => {
     }
     const highlightId = highlightCandidate?.location?.id ?? null;
 
+    const markerText = message('PublicTimeline.LocationMarker', 'Location record');
+    const markerOptions = { title: markerText, alt: markerText };
     locations.forEach(location => {
         const coords = [location.coordinates.latitude, location.coordinates.longitude];
         const isHighlight = highlightId !== null && location.id === highlightId;
@@ -163,7 +161,7 @@ const buildLayers = (locations) => {
                 const isLatestM = location.isLatestLocation;
 
                 document.getElementById('modalContent').innerHTML =
-                    generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
+                    renderTimelineLocation(location, { isLive: isLiveM, isLatest: isLatestM }, viewerTimeZone);
 
                 new bootstrap.Modal(document.getElementById('locationModal')).show();
             });
@@ -171,9 +169,9 @@ const buildLayers = (locations) => {
 
         if (isHighlight && highlightLayer) {
             const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
-            const highlightMarker = L.marker(coords, { icon });
+            const highlightMarker = L.marker(coords, { ...markerOptions, icon });
             if (highlightCandidate?.type === 'latest') {
-                highlightMarker.bindTooltip("User's latest location.", {
+                highlightMarker.bindTooltip(encodeFeatureText(message("PublicTimeline.LatestTooltip", "User's latest location.")), {
                     direction: "top",
                     offset: [0, -25]
                 });
@@ -182,7 +180,7 @@ const buildLayers = (locations) => {
             highlightMarker.addTo(highlightLayer);
             highlightMarker.setZIndexOffset(1000);
         } else {
-            const marker = L.marker(coords, {});
+            const marker = L.marker(coords, markerOptions);
             bindInteractions(marker);
 
             if (markerLayer) markerLayer.addLayer(marker);
@@ -236,120 +234,6 @@ const displayLocationsOnMap = (mapContainer, locations) => {
 
     // rebuild & add the right one
     buildLayers(locations);
-};
-
-
-
-// Generate the content for the modal when a marker is clicked
-const generateLocationModalContent = (location, {isLive, isLatest}) => {
-    // build your badge HTML
-    let badge = '';
-    if (isLive) {
-        badge = '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>';
-    } else if (isLatest) {
-        badge = '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>';
-    }
-
-    let dynamicMinHeight;
-    let style;
-    let charCount = location?.notes ? location.notes.length : 0;
-    if (charCount === 0) {
-        dynamicMinHeight = 0;
-        style = 'display: none;';
-    } else {
-        const lineHeightEm = 1.5;
-        const minLines = Math.ceil(charCount / 50);
-        dynamicMinHeight = 16 * (lineHeightEm * minLines);
-        style = `min-height: ${dynamicMinHeight}px; display: block;`;
-    }
-
-    const timestamps = getLocationTimestampInfo(location);
-    const sourceZone = getLocationSourceTimeZone(location);
-    const recordedTime = timestamps.source
-        ? `<div>${timestamps.source}</div>`
-        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
-
-    return `<div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-12">
-                ${badge}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6">
-                <strong>Datetime (your timezone):</strong>
-                <div>${timestamps.viewer}</div>
-            </div>
-            <div class="col-6">
-                <strong>Recorded local time:</strong>
-                ${recordedTime}
-                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12"><strong>Coordinates:</strong></div>
-            <div class="col-6">
-                <p class="mb-0">Latitude: <span class="fw-bold text-primary">${location.coordinates.latitude}</span></p>
-            </div>
-            <div class="col-6">
-                <p class="mb-0">Longitude: <span class="fw-bold text-primary">${location.coordinates.longitude}</span></p>
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6"><strong>Activity:</strong>
-            <span>${(location.activityType && location.activityType !== 'Unknown') ? location.activityType :
-        '<i class="bi bi-patch-question" title="No available data for Activity"></i>'}</span></div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6"><strong>Accuracy:</strong> <span>${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
-            <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            ${renderLocationAddress(location)}<div class="col-12"><br/>
-            ${generateGoogleMapsLink(location)}
-            ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12" style="${style}"><strong>Notes:</strong>
-                <div class="border p-1" >
-                    ${notesHtmlForDisplay(location.notes) || 'No notes available'}
-                </div>
-            </div>
-        </div>
-    </div>
-`;
-};
-
-/**
- * Generates a link query for Google Maps and opens in new tab
- * @param {string} address
- * @returns {string} an <a> tag to open Google Maps
- */
-/**
- * Generates a Google Maps link combining address and coordinates for precision.
- * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
- */
-const generateGoogleMapsLink = location => {
-    const addr = locationAddressText(location);
-    const lat  = location?.coordinates?.latitude;
-    const lon  = location?.coordinates?.longitude;
-    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
-    const query = addr && hasCoords
-        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
-        : hasCoords
-            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
-            : addr;
-    const q = encodeURIComponent(query || '');
-    return `
-    <a
-      href="https://www.google.com/maps/search/?api=1&query=${q}"
-      target="_blank"
-      class="ms-2 btn btn-outline-primary btn-sm"
-      title="View in Google Maps"
-    ><i class="bi bi-globe-europe-africa"></i> Maps</a>
-  `;
 };
 
 /**
@@ -416,89 +300,77 @@ const debounce = (func, delay) => {
     };
 };
 
-const getUserLocations = () => {
-    const url = '/Public/Users/GetPublicTimeline';
-
-    let requestData = {
+/** Loads the current viewport, discarding results superseded by a newer request. */
+const getUserLocations = async () => {
+    locationsRequest?.abort();
+    locationsRequest = new AbortController();
+    const { signal } = locationsRequest;
+    const status = document.getElementById('timeline-map-status');
+    const request = {
         minLongitude: mapBounds.getSouthWest().lng,
         minLatitude: mapBounds.getSouthWest().lat,
         maxLongitude: mapBounds.getNorthEast().lng,
         maxLatitude: mapBounds.getNorthEast().lat,
-        username: username,
-        zoomLevel: zoomLevel,
+        username,
+        zoomLevel
     };
 
-    // Send the requestData to your backend API (adjust the URL as needed)
-    fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        body: JSON.stringify(requestData)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
+    const updateStatus = text => {
+        status.textContent = text;
+        status.hidden = !text;
+        if (embedded) mapContainer.invalidateSize({ pan: false });
+    };
+
+    try {
+        const response = await fetch('/Public/Users/GetPublicTimeline', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(request),
+            signal
+        });
+        const feedback = await readTimelineLocations(response, locations => {
+            if (signal.aborted) return;
+            displayLocationsOnMap(mapContainer, locations);
+            if (response.ok && !locations.length && mapContainer.getZoom() <= 2) {
+                mapContainer.setView([20, 0], 2);
             }
-            return response.json();
-        })
-        .then(data => {
-            // TODO: Update map with new data
-            locations = data.data; // Store the fetched locations in the global variable
-            if (locations && locations.length > 0) {
-                displayLocationsOnMap(mapContainer, locations);
-            } else {
-                // Set the mapContainer to a default view if no locations exist AND user is on zoom level 2
-                if (mapContainer.getZoom() <= 2) {
-                    mapContainer.setView([20, 0], 2);
-                }
-            }
-        })
-        .catch(error => console.error("Error fetching location data:", error));
-}
+        });
+        if (!signal.aborted) updateStatus(feedback);
+    } catch (error) {
+        if (signal.aborted) return;
+        console.error('Error fetching location data:', error);
+        updateStatus(message('PublicTimeline.LocationsFailed', 'Could not load locations. Move the map to try again.'));
+    }
+};
 
 const debouncedGetUserLocations = debounce(getUserLocations, 350);
 
-const getUserStats = async (username) => {
-    if (!username) {
-        throw new Error("Username is required");
-    }
+/** Loads public aggregate history independently of viewport and surfaces only display messages. */
+const getUserStats = async () => {
+    statsRequest?.abort();
+    statsRequest = new AbortController();
+    const { signal } = statsRequest;
+    const updateSummary = text => {
+        document.getElementById('timeline-summary').textContent = text;
+        if (embedded) mapContainer.invalidateSize({ pan: false });
+    };
 
-    const url = `/Public/Users/GetPublicStats/${encodeURIComponent(username)}`;
-
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
+    try {
+        const response = await fetch(`/Public/Users/GetPublicStats/${encodeURIComponent(username)}`, {
+            headers: { Accept: 'application/json' },
+            signal
+        });
+        // The viewport request renders the shared unavailable state for a public Timeline that disappears.
+        if (response.status === 404) {
+            if (!signal.aborted) updateSummary('');
+            return;
         }
-    });
-
-    if (!response.ok) {
-        // You can handle 404/403/other errors differently if you like
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
+        if (!response.ok) throw new Error(`Timeline statistics response: ${response.status}`);
+        const summary = formatTimelineSummary(await response.json(), viewerTimeZone);
+        if (!signal.aborted) updateSummary(summary);
+    } catch (error) {
+        if (signal.aborted) return;
+        console.error('Error fetching timeline statistics:', error);
+        updateSummary(message('PublicTimeline.StatsFailed', 'Could not load timeline statistics.'));
     }
-
-    // assuming the response is JSON matching UserLocationStatsDto
-    const stats = await response.json();
-
-    const summaryParts = [];
-
-    if (stats.totalLocations != null)
-        summaryParts.push(`<strong>Total Locations:</strong>  ${stats.totalLocations}`);
-    if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.countriesVisited != null)
-        summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
-    if (stats.regionsVisited != null)
-        summaryParts.push(`<strong>Regions:</strong> ${stats.regionsVisited}`);
-    if (stats.citiesVisited != null)
-        summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
-
-    const summary = summaryParts.join(" | ");
-    document.getElementById("timeline-summary").innerHTML = summary;
 };
-

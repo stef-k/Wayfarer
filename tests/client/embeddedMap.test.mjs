@@ -32,11 +32,13 @@ test('normal and print initialization preserve defaults; both embed consumers us
     assert.deepEqual(embeddedMapOptions(true, true), {});
     assert.deepEqual(embeddedMapOptions(true), { scrollWheelZoom: false });
     const trip = await readFile('wwwroot/js/Trip/tripViewerHelpers.js', 'utf8');
-    const timeline = await readFile('wwwroot/js/Areas/Public/UsersTimeline/Embed.js', 'utf8');
+    const embed = await readFile('wwwroot/js/Areas/Public/UsersTimeline/Embed.js', 'utf8');
+    const timeline = await readFile('wwwroot/js/Areas/Public/UsersTimeline/Timeline.js', 'utf8');
     assert.match(trip, /embeddedMapOptions\(Boolean\(embedUrl\), isPrint\)/);
     assert.match(trip, /if \(embedUrl && !isPrint\) installEmbeddedMap/);
-    assert.match(timeline, /embeddedMapOptions\(true\)/);
-    assert.match(timeline, /installEmbeddedMap\(mapContainer,/);
+    assert.match(embed, /import '\.\/Timeline\.js'/);
+    assert.match(timeline, /embeddedMapOptions\(embedded\)/);
+    assert.match(timeline, /if \(embedded\) installEmbeddedMap\(mapContainer,/);
     assert.doesNotMatch(timeline, /scrollWheelZoom:/);
 });
 

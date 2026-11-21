@@ -1,6 +1,10 @@
-﻿@{
-    ViewData["Title"] = "Register";
-}
-<h1>@ViewData["Title"]</h1>
+@inject Wayfarer.Localization.WebMessages T
 
-<p>New user registrations are currently closed. Please contact the administrator to either request an account creation or inquire about when registrations will reopen.</p>
+@{
+    ViewData["WebCatalog"] = "PublicPages";
+    ViewData["Title"] = T["Shell.Register"];
+}
+
+@* The registration gate routes closed sign-ups to these contact instructions. *@
+<h1>@ViewData["Title"]</h1>
+<p>@T["PublicPages.RegistrationClosed"]</p>

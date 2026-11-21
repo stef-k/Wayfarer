@@ -25,9 +25,9 @@ namespace Wayfarer.Controllers
             return RedirectPermanent("https://stef-k.github.io/Wayfarer/");
         }
 
+        /// <summary>Renders the localized privacy interface and the English policy.</summary>
         public IActionResult Privacy()
         {
-            SetPageTitle("Privacy Policy");
             return View();
         }
         

@@ -1,29 +1,9 @@
-@using System.Security.Claims
-@using System.Linq
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.PublicTripIndexVm
 
 @if (Model.Items.Count == 0)
 {
-    <div class="text-center py-5">
-        <div class="text-muted mb-3">
-            <i class="bi bi-map" style="font-size: 3rem;"></i>
-        </div>
-        <h3 class="h5">No trips found</h3>
-        <p class="text-muted">
-            @if (!string.IsNullOrWhiteSpace(Model.Q))
-            {
-                <span>Try clearing your search filters.</span>
-            }
-            else
-            {
-                <span>There are no public trips available yet.</span>
-            }
-        </p>
-        @if (!string.IsNullOrWhiteSpace(Model.Q))
-        {
-            <a class="btn btn-outline-primary" asp-route="PublicTripsIndex">Clear Filters</a>
-        }
-    </div>
+    <partial name="_DiscoveryEmpty" model="Model" />
 }
 else
 {
@@ -31,13 +11,13 @@ else
         <table class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th style="width: 100px;">Image</th>
-                    <th style="width: 100px;">Map</th>
-                    <th>Trip</th>
-                    <th style="width: 180px;">Tags</th>
-                    <th class="text-center" style="width: 80px;">Items</th>
-                    <th style="width: 130px;">Updated</th>
-                    <th style="width: 150px;" class="text-end">Actions</th>
+                    <th style="width: 100px;">@T["Discovery.Image"]</th>
+                    <th style="width: 100px;">@T["Discovery.Map"]</th>
+                    <th>@T["Discovery.Trip"]</th>
+                    <th style="width: 180px;">@T["Discovery.Tags"]</th>
+                    <th class="text-center" style="width: 80px;">@T["Discovery.Items"]</th>
+                    <th style="width: 130px;">@T["Discovery.Updated"]</th>
+                    <th style="width: 150px;" class="text-end">@T["Discovery.Actions"]</th>
                 </tr>
             </thead>
             <tbody>
@@ -56,7 +36,7 @@ else
                                 {
                                     <!-- Show map thumbnail via async thumbnail system if no cover image but has coordinates -->
                                     <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder
-                                        alt="Map of @item.Name" style="background-color: #e9ecef;" />
+                                        alt="@T["Discovery.MapOf", item.Name]" style="background-color: #e9ecef;" />
                                 }
                                 else
                                 {
@@ -72,7 +52,7 @@ else
                             <div style="width: 90px; height: 60px; overflow: hidden; border-radius: 4px;">
                                 @if (item.CenterLat.HasValue && item.CenterLon.HasValue)
                                 {
-                                    <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder alt="Map of @item.Name"
+                                    <img class="w-100 h-100 object-fit-cover" data-thumb-placeholder alt="@T["Discovery.MapOf", item.Name]"
                                         style="background-color: #e9ecef;" />
                                 }
                                 else
@@ -93,7 +73,7 @@ else
                                 @if (!string.IsNullOrWhiteSpace(item.OwnerDisplayName))
                                 {
                                     <div class="text-muted small">
-                                        <partial name="_PublicOwnerPhoto" model="@item.OwnerProfilePhoto" /><i class="bi bi-person"></i> by @item.OwnerDisplayName
+                                        <partial name="_PublicOwnerPhoto" model="@item.OwnerProfilePhoto" /><i class="bi bi-person"></i> @T["Discovery.ByOwner", item.OwnerDisplayName]
                                     </div>
                                 }
                                 @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
@@ -114,7 +94,7 @@ else
                                     {
                                         <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
                                             class="badge rounded-pill text-bg-secondary text-decoration-none" style="font-size: 0.7rem;"
-                                            title="Filter by @tag.Name">
+                                            title="@T["Discovery.FilterByTag", tag.Name]">
                                             <i class="bi bi-tag-fill"></i> @tag.Name
                                         </a>
                                     }
@@ -122,7 +102,7 @@ else
                                     {
                                         <span class="badge rounded-pill text-bg-secondary"
                                             title="@string.Join(", ", item.Tags.Skip(3).Select(t => t.Name))">
-                                            +@(item.Tags.Count - 3)
+                                            +@T.DisplayNumber(item.Tags.Count - 3)
                                         </span>
                                     }
                                 </div>
@@ -134,26 +114,26 @@ else
                             <div class="d-flex flex-column gap-1 small text-muted">
                                 @if (item.RegionsCount > 0)
                                 {
-                                    <span title="@item.RegionsCount region@(item.RegionsCount == 1 ? "" : "s")">
-                                        <i class="bi bi-bounding-box"></i> @item.RegionsCount
+                                    <span title="@T.Count("Discovery.RegionCount", item.RegionsCount)">
+                                        <i class="bi bi-bounding-box"></i> @T.DisplayNumber(item.RegionsCount)
                                     </span>
                                 }
                                 @if (item.AreasCount > 0)
                                 {
-                                    <span title="@item.AreasCount area@(item.AreasCount == 1 ? "" : "s")">
-                                        <i class="bi bi-hexagon"></i> @item.AreasCount
+                                    <span title="@T.Count("Discovery.AreaCount", item.AreasCount)">
+                                        <i class="bi bi-hexagon"></i> @T.DisplayNumber(item.AreasCount)
                                     </span>
                                 }
                                 @if (item.PlacesCount > 0)
                                 {
-                                    <span title="@item.PlacesCount place@(item.PlacesCount == 1 ? "" : "s")">
-                                        <i class="bi bi-geo-alt"></i> @item.PlacesCount
+                                    <span title="@T.Count("Viewer.PlaceCount", item.PlacesCount)">
+                                        <i class="bi bi-geo-alt"></i> @T.DisplayNumber(item.PlacesCount)
                                     </span>
                                 }
                                 @if (item.SegmentsCount > 0)
                                 {
-                                    <span title="@item.SegmentsCount segment@(item.SegmentsCount == 1 ? "" : "s")">
-                                        <i class="bi bi-diagram-3"></i> @item.SegmentsCount
+                                    <span title="@T.Count("Discovery.SegmentCount", item.SegmentsCount)">
+                                        <i class="bi bi-diagram-3"></i> @T.DisplayNumber(item.SegmentsCount)
                                     </span>
                                 }
                             </div>
@@ -167,16 +147,15 @@ else
                                 }
                                 @if (daysSinceUpdate == 0)
                                 {
-                                    <span class="badge bg-secondary">Today</span>
+                                    <span class="badge bg-secondary">@T["Discovery.Today"]</span>
                                 }
                                 else if (daysSinceUpdate <= 7)
                                 {
-                                    <span class="badge bg-secondary">@daysSinceUpdate day@(daysSinceUpdate == 1 ? "" : "s")
-                                        ago</span>
+                                    <span class="badge bg-secondary">@T.Count("Discovery.UpdatedAgo", daysSinceUpdate)</span>
                                 }
                                 else
                                 {
-                                    <span>@item.UpdatedAt.ToString("MMM d, yyyy")</span>
+                                    <span>@item.UpdatedAt.ToString("d", T.DisplayCulture)</span>
                                 }
                             </span>
                         </td>
@@ -185,7 +164,7 @@ else
                         <td class="text-end">
                             <div class="btn-group" role="group">
                                 <button type="button" class="btn btn-sm btn-outline-secondary" data-trip-preview="@item.Id"
-                                    data-bs-toggle="modal" data-bs-target="#tripQuickView" title="Quick preview">
+                                    data-bs-toggle="modal" data-bs-target="#tripQuickView" title="@T["Discovery.PreviewHint"]" aria-label="@T["Discovery.PreviewHint"]">
                                     <i class="bi bi-eye"></i>
                                 </button>
                                 @* Clone button - show for authenticated users, login prompt for others *@
@@ -196,7 +175,7 @@ else
                                         <form asp-area="User" asp-controller="Trip" asp-action="Clone" asp-route-id="@item.Id"
                                             method="post" class="clone-trip-form d-inline-block">
                                             <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                                title="Clone this trip to your account">
+                                                title="@T["Viewer.CloneTrip"]" aria-label="@T["Viewer.CloneTrip"]">
                                                 <i class="bi bi-files"></i>
                                             </button>
                                         </form>
@@ -206,13 +185,13 @@ else
                                 {
                                     <a asp-area="Identity" asp-page="/Account/Login"
                                         asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString"
-                                        class="btn btn-sm btn-outline-secondary" title="Login to clone this trip">
+                                        class="btn btn-sm btn-outline-secondary" title="@T["Viewer.LoginToCloneTip"]" aria-label="@T["Viewer.LoginToCloneTip"]">
                                         <i class="bi bi-box-arrow-in-right"></i>
                                     </a>
                                 }
                                 <button type="button" class="btn btn-sm btn-outline-primary copy-url"
                                     data-url="@($"{Context.Request.Scheme}://{Context.Request.Host}/Public/Trips/{item.Id}")"
-                                    title="Copy public URL to clipboard">
+                                    title="@T["Viewer.CopyPublicUrl"]" aria-label="@T["Viewer.CopyPublicUrl"]">
                                     <i class="bi bi-share"></i>
                                 </button>
                             </div>

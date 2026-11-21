@@ -27,7 +27,10 @@ registration demonstrate `few` and `many`; they belong to the test assembly.
 - Use feature-qualified, stable keys under `Resources/`. `Shell` owns shared
   chrome, including the language selector, shared map controls, notes controls
   and notifications. `Viewer` owns live itinerary, visit and export text.
-  `Editor` owns the Trip editing interface.
+  `Editor` owns the Trip editing interface. `PublicPages` owns Home, the Privacy
+  interface and Registration Closed. `Discovery` owns public Trip listing and
+  preview. `PublicTimeline` owns the full and embedded Timeline interface,
+  location details and document errors.
 - Name full phrases for their intent and keep argument positions consistent
   between locales. Use `{0}`, `{1}` and subsequent positions for plain-text
   arguments. Put links, HTML, icons and accessibility relationships in the
@@ -70,7 +73,7 @@ for unsaved work.
 | Area | Entry points and owners |
 | --- | --- |
 | 1 | Standard shell, collapsed navigation, guest/User/Manager/Admin menus, shared error and notification chrome. The authenticated Trip Editor Vue mount and the authenticated, public and embedded live Trip Viewer use the shared locale, their feature catalogs and the shared map/notes chrome. Viewer owns browser print and on-screen export feedback. Capture contexts explicitly request English. |
-| 2 | Public landing, discovery, public Timeline, privacy interface, registration-closed screen and public location. The public Timeline embed layout uses the shared preference. |
+| 2 | Home, Privacy and Registration Closed. Public Trip grid/list, tag redirect, filters and pagination, quick preview and asynchronous feedback. Full and embedded public Timeline, map and location detail, summary, clipboard and unavailable or failed states. |
 | 3 | Identity and account pages, including packaged pages. Shared layout participates and one-time routes withhold the selector. |
 | 4–8 | Private Timeline, group and invitation workflows, account/app connection and settings, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Timeline Settings supplies its safe GET. Unintegrated protected workspace, Location, and connection routes withhold switching. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
@@ -103,6 +106,15 @@ The PostgreSQL private Viewer
 test checks a coherent split-query snapshot with ordered waypoints and
 owner-filtered visits. See [#960](https://github.com/stef-k/Wayfarer/issues/960)
 for the remaining areas and review gates.
+
+Area 2 checks exercise the public routes and browser presentation.
+
+| Source and owner | Evidence |
+| --- | --- |
+| Home, Privacy and Registration Closed | `PublicWebLanguageHttpTests` checks Greek page copy and alternate text. The Privacy title and links follow the locale and the policy prose remains inside `lang="en"`. |
+| Discovery | The same tests run the Greek grid and list against PostgreSQL with search, tags, sort and pagination. They check query retention and the tag redirect. The quick-preview Razor fragment negotiates its own language and responds with private, revalidating cache headers and language/cookie variation. |
+| Public Timeline and both iframe documents | The routed tests check preference-cookie precedence, cookie-free negotiation and English fallback, the two framing policies, equivalent missing/private Timeline documents, and authored headings. `PublicTimelineLocationPostgresTests` exercises public data and statistics eligibility and the legacy failure response. `embeddedMap.test.mjs` checks cooperative behavior shared with the shipped Trip embed. |
+| Timeline browser feedback | `publicTimelineLanguage.test.mjs` exercises location-detail text, localized values and the existing viewer and recorded timezone basis. It checks empty, unavailable and failed responses using the public API envelope. `publicLanguage.spec.ts` is the managed Greek Timeline embed smoke for the empty map and clipboard announcement. |
 
 Use the current [#960 contract](https://github.com/stef-k/Wayfarer/issues/960)
 for the route, role and message-owner inventory. Keep untranslated destination

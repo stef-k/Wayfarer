@@ -1,10 +1,11 @@
-using Wayfarer.Util;
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Middleware;
+using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Public.Controllers
 {
@@ -22,82 +23,43 @@ namespace Wayfarer.Areas.Public.Controllers
             _statsService = statsService;
         }
 
-        /// <summary>
-        /// Returns the view page for user's public timeline
-        /// </summary>
-        /// <param name="username"></param>
-        /// <returns></returns>
-        //[HttpGet]
+        /// <summary>Renders an effectively public Timeline in the regular layout.</summary>
         [Route("Public/Users/Timeline/{username}")]
-        public async Task<IActionResult> Index(string username)
+        public Task<IActionResult> Index(string username) => RenderTimelineAsync(username, embed: false);
+
+        /// <summary>Renders an effectively public Timeline in the compact, frameable layout.</summary>
+        [Route("Public/Users/Timeline/{username}/embed")]
+        public Task<IActionResult> Embed(string username) => RenderTimelineAsync(username, embed: true);
+
+        /// <summary>Shares the same eligibility gate and document errors across both layouts.</summary>
+        private async Task<IActionResult> RenderTimelineAsync(string username, bool embed)
         {
             if (string.IsNullOrEmpty(username))
-            {
-                return BadRequest("Username is required.");
-            }
+                return DocumentError("PublicTimeline.UsernameRequired", StatusCodes.Status400BadRequest);
 
-            ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
+            if (user is null)
+                return DocumentError("PublicTimeline.Unavailable", StatusCodes.Status404NotFound);
 
-            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
-            {
-                return NotFound("User not found or timeline is not public.");
-            }
+            var eligibility = PublicTimelineEligibilityResolver.Resolve(user);
+            if (!eligibility.IsEffectivelyPublic)
+                return DocumentError("PublicTimeline.Unavailable", StatusCodes.Status404NotFound);
 
             ViewData["Username"] = user.UserName;
-            ViewData["TimelineLive"] = PublicTimelineEligibilityResolver.Resolve(user).IsLive;
-            ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
-            if (!string.IsNullOrEmpty(user.DisplayName))
-            {
-                ViewData["DisplayName"] = user.DisplayName;
-                SetPageTitle($"{user.DisplayName} Timeline");
-            }
-            else
-            {
-                ViewData["DisplayName"] = user.UserName;
-                SetPageTitle($"{user.UserName} Timeline");
-            }
-
-            return View("Timeline");
+            ViewData["TimelineLive"] = eligibility.IsLive;
+            ViewData["TimelineTitle"] = user.TimelineTitle;
+            ViewData["DisplayName"] = string.IsNullOrWhiteSpace(user.DisplayName) ? user.UserName : user.DisplayName;
+            if (embed)
+                BrowserResponsePolicyMiddleware.AllowPublicEmbed(HttpContext);
+            return View(embed ? "Embed" : "Timeline");
         }
 
-        /// <summary>
-        /// Returns the view page for user's public timeline
-        /// </summary>
-        /// <param name="username"></param>
-        /// <returns></returns>
-        //[HttpGet]
-        [Route("Public/Users/Timeline/{username}/embed")]
-        public async Task<IActionResult> Embed(string username)
+        /// <summary>Produces a localized HTML document without enabling framing for an ineligible Timeline.</summary>
+        private ViewResult DocumentError(string key, int statusCode)
         {
-            if (string.IsNullOrEmpty(username))
-            {
-                return BadRequest("Username is required.");
-            }
-
-            ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
-
-            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
-            {
-                return NotFound("User not found or timeline is not public.");
-            }
-
-            ViewData["Username"] = user.UserName;
-            ViewData["TimelineLive"] = PublicTimelineEligibilityResolver.Resolve(user).IsLive;
-            ViewData["TimelineTitle"] = user.ResolveTimelineTitle();
-            if (!string.IsNullOrEmpty(user.DisplayName))
-            {
-                ViewData["DisplayName"] = user.DisplayName;
-                SetPageTitle($"{user.DisplayName} Timeline");
-            }
-            else
-            {
-                ViewData["DisplayName"] = user.UserName;
-                SetPageTitle($"{user.UserName} Timeline");
-            }
-
-            // Effective public eligibility above is required before allowing external framing.
-            Wayfarer.Middleware.BrowserResponsePolicyMiddleware.AllowPublicEmbed(HttpContext);
-            return View("Embed");
+            var result = View("Unavailable", (object)key);
+            result.StatusCode = statusCode;
+            return result;
         }
 
         /// <summary>

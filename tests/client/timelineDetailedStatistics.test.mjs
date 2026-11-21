@@ -10,18 +10,15 @@ const timelineScripts = [
   'wwwroot/js/Areas/User/Timeline/calendar-display.js'
 ];
 
-// Public statistics need the resolved username on initial load and live SSE refreshes.
-for (const view of ['Timeline', 'Embed']) {
-  test(`public ${view}.js passes the username to initial and live statistics refreshes`, async () => {
-    const source = await readFile(`wwwroot/js/Areas/Public/UsersTimeline/${view}.js`, 'utf8');
-    const handlerStart = source.indexOf('const handleStream =');
-    const handler = source.match(/const handleStream =[\s\S]*?\n};/)?.[0];
-    assert.ok(handler, 'live SSE handler exists');
-    assert.match(source.slice(0, handlerStart), /getUserStats\(\s*username\s*\);/);
-    assert.match(handler, /getUserStats\(\s*username\s*\);/);
-    assert.doesNotMatch(handler, /getUserStats\(\s*\)/);
-  });
-}
+test('the shared public Timeline requests statistics for the resolved username on mount and live updates', async () => {
+  const source = await readFile('wwwroot/js/Areas/Public/UsersTimeline/Timeline.js', 'utf8');
+  const refresh = source.match(/const refreshLiveTimeline =[\s\S]*?\n};/)?.[0];
+  assert.ok(refresh, 'live SSE handler exists');
+  assert.match(source, /stream\.onmessage = refreshLiveTimeline/);
+  assert.match(source.slice(0, source.indexOf(refresh)), /getUserStats\(\);/);
+  assert.match(refresh, /getUserStats\(\);/);
+  assert.match(source, /GetPublicStats\/\$\{encodeURIComponent\(username\)\}/);
+});
 
 test('all-history Timeline uses the Wayfarer alert for detailed-statistics failures', async () => {
   for (const path of timelineScripts.slice(0, 1)) {

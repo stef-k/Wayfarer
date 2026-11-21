@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Discovery.Title" xml:space="preserve">
+    <value>Public Trips</value>
+  </data>
+  <data name="Discovery.Intro" xml:space="preserve">
+    <value>Browse and discover trips shared by our community</value>
+  </data>
+  <data name="Discovery.SearchHint" xml:space="preserve">
+    <value>Search trips…</value>
+  </data>
+  <data name="Discovery.SearchTrips" xml:space="preserve">
+    <value>Search trips</value>
+  </data>
+  <data name="Discovery.Search" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Discovery.ClearSearch" xml:space="preserve">
+    <value>Clear search</value>
+  </data>
+  <data name="Discovery.RemoveTag" xml:space="preserve">
+    <value>Remove tag {0}</value>
+  </data>
+  <data name="Discovery.FilterTags" xml:space="preserve">
+    <value>Filter by tags</value>
+  </data>
+  <data name="Discovery.FilterTagsHint" xml:space="preserve">
+    <value>Filter by tags…</value>
+  </data>
+  <data name="Discovery.MatchMode" xml:space="preserve">
+    <value>Match mode: {0}</value>
+  </data>
+  <data name="Discovery.MatchHelp" xml:space="preserve">
+    <value>All: trips must have every selected tag. Any: trips must have at least one selected tag.</value>
+  </data>
+  <data name="Discovery.MatchAll" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="Discovery.MatchAny" xml:space="preserve">
+    <value>Any</value>
+  </data>
+  <data name="Discovery.ClearTags" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Discovery.ViewMode" xml:space="preserve">
+    <value>View mode</value>
+  </data>
+  <data name="Discovery.GridView" xml:space="preserve">
+    <value>Grid view</value>
+  </data>
+  <data name="Discovery.ListView" xml:space="preserve">
+    <value>List view</value>
+  </data>
+  <data name="Discovery.Sort" xml:space="preserve">
+    <value>Sort</value>
+  </data>
+  <data name="Discovery.UpdatedNewest" xml:space="preserve">
+    <value>Updated (newest)</value>
+  </data>
+  <data name="Discovery.NameAscending" xml:space="preserve">
+    <value>Name (ascending)</value>
+  </data>
+  <data name="Discovery.NameDescending" xml:space="preserve">
+    <value>Name (descending)</value>
+  </data>
+  <data name="Discovery.PopularTags" xml:space="preserve">
+    <value>Popular tags</value>
+  </data>
+  <data name="Discovery.NoTagUsage" xml:space="preserve">
+    <value>No usage data yet.</value>
+  </data>
+  <data name="Discovery.Results.one" xml:space="preserve">
+    <value>Showing {1}–{2} of {0} trip</value>
+  </data>
+  <data name="Discovery.Results.other" xml:space="preserve">
+    <value>Showing {1}–{2} of {0} trips</value>
+  </data>
+  <data name="Discovery.NoTrips" xml:space="preserve">
+    <value>No trips found</value>
+  </data>
+  <data name="Discovery.TryClearFilters" xml:space="preserve">
+    <value>Try clearing your search filters.</value>
+  </data>
+  <data name="Discovery.NoPublicTrips" xml:space="preserve">
+    <value>There are no public trips available yet.</value>
+  </data>
+  <data name="Discovery.ClearFilters" xml:space="preserve">
+    <value>Clear Filters</value>
+  </data>
+  <data name="Discovery.Pagination" xml:space="preserve">
+    <value>Trip pagination</value>
+  </data>
+  <data name="Discovery.Previous" xml:space="preserve">
+    <value>Previous page</value>
+  </data>
+  <data name="Discovery.Next" xml:space="preserve">
+    <value>Next page</value>
+  </data>
+  <data name="Discovery.CurrentPage" xml:space="preserve">
+    <value>(current page)</value>
+  </data>
+  <data name="Discovery.PreviewTitle" xml:space="preserve">
+    <value>Trip Preview</value>
+  </data>
+  <data name="Discovery.Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Discovery.PreviewHint" xml:space="preserve">
+    <value>Quick preview</value>
+  </data>
+  <data name="Discovery.PreviewLoading" xml:space="preserve">
+    <value>Loading preview…</value>
+  </data>
+  <data name="Discovery.PreviewFailed" xml:space="preserve">
+    <value>Failed to load preview.</value>
+  </data>
+  <data name="Discovery.OpenTrip" xml:space="preserve">
+    <value>Open full trip page</value>
+  </data>
+  <data name="Discovery.ViewFullTrip" xml:space="preserve">
+    <value>View Full Trip</value>
+  </data>
+  <data name="Discovery.MapOf" xml:space="preserve">
+    <value>Map of {0}</value>
+  </data>
+  <data name="Discovery.MapPreview" xml:space="preserve">
+    <value>Show map preview</value>
+  </data>
+  <data name="Discovery.HoverMap" xml:space="preserve">
+    <value>Hover for map</value>
+  </data>
+  <data name="Discovery.TapMap" xml:space="preserve">
+    <value>Tap for map</value>
+  </data>
+  <data name="Discovery.UpdatedAgo.one" xml:space="preserve">
+    <value>Updated {0} day ago</value>
+  </data>
+  <data name="Discovery.UpdatedAgo.other" xml:space="preserve">
+    <value>Updated {0} days ago</value>
+  </data>
+  <data name="Discovery.Today" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Discovery.FilterByTag" xml:space="preserve">
+    <value>Filter by {0}</value>
+  </data>
+  <data name="Discovery.TagLoading" xml:space="preserve">
+    <value>Loading tag suggestions…</value>
+  </data>
+  <data name="Discovery.TagEmpty" xml:space="preserve">
+    <value>No matching tags.</value>
+  </data>
+  <data name="Discovery.TagFailed" xml:space="preserve">
+    <value>Could not load tag suggestions.</value>
+  </data>
+  <data name="Discovery.RegionCount.one" xml:space="preserve">
+    <value>{0} region</value>
+  </data>
+  <data name="Discovery.RegionCount.other" xml:space="preserve">
+    <value>{0} regions</value>
+  </data>
+  <data name="Discovery.AreaCount.one" xml:space="preserve">
+    <value>{0} area</value>
+  </data>
+  <data name="Discovery.AreaCount.other" xml:space="preserve">
+    <value>{0} areas</value>
+  </data>
+  <data name="Discovery.SegmentCount.one" xml:space="preserve">
+    <value>{0} segment</value>
+  </data>
+  <data name="Discovery.SegmentCount.other" xml:space="preserve">
+    <value>{0} segments</value>
+  </data>
+  <data name="Discovery.LastUpdated" xml:space="preserve">
+    <value>Last updated</value>
+  </data>
+  <data name="Discovery.LastUpdatedOn" xml:space="preserve">
+    <value>Last updated: {0}</value>
+  </data>
+  <data name="Discovery.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Discovery.Share" xml:space="preserve">
+    <value>Share</value>
+  </data>
+  <data name="Discovery.Image" xml:space="preserve">
+    <value>Image</value>
+  </data>
+  <data name="Discovery.Map" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="Discovery.Trip" xml:space="preserve">
+    <value>Trip</value>
+  </data>
+  <data name="Discovery.Tags" xml:space="preserve">
+    <value>Tags</value>
+  </data>
+  <data name="Discovery.Items" xml:space="preserve">
+    <value>Items</value>
+  </data>
+  <data name="Discovery.Updated" xml:space="preserve">
+    <value>Updated</value>
+  </data>
+  <data name="Discovery.Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Discovery.ByOwner" xml:space="preserve">
+    <value>by {0}</value>
+  </data>
+  <data name="Discovery.Clone" xml:space="preserve">
+    <value>Clone</value>
+  </data>
+</root>

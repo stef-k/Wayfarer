@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PublicPages.Logo" xml:space="preserve">
+    <value>Λογότυπο Wayfarer</value>
+  </data>
+  <data name="PublicPages.HomeHeading" xml:space="preserve">
+    <value>Καταγράψτε το χρονολόγιό σας και οργανώστε τα ταξίδια σας</value>
+  </data>
+  <data name="PublicPages.TimelineExample" xml:space="preserve">
+    <value>Παράδειγμα χρονολογίου</value>
+  </data>
+  <data name="PublicPages.HomeLocations" xml:space="preserve">
+    <value>Προσθέστε τοποθεσίες χειροκίνητα ή με εφαρμογή καταγραφής GPS στο κινητό. Προσθέστε σημειώσεις, συνδέσμους εικόνων και δραστηριότητες.</value>
+  </data>
+  <data name="PublicPages.HomeImport" xml:space="preserve">
+    <value>Εισαγάγετε δεδομένα που έχετε εξαγάγει από το Χρονολόγιο Google.</value>
+  </data>
+  <data name="PublicPages.HomeExample" xml:space="preserve">
+    <value>Δείτε ένα ζωντανό παράδειγμα με πραγματικά δεδομένα</value>
+  </data>
+  <data name="PublicPages.PrivacyTitle" xml:space="preserve">
+    <value>Πολιτική απορρήτου</value>
+  </data>
+  <data name="PublicPages.Repository" xml:space="preserve">
+    <value>Αποθετήριο GitHub</value>
+  </data>
+  <data name="PublicPages.RepositoryHint" xml:space="preserve">
+    <value>Το Wayfarer στο GitHub</value>
+  </data>
+  <data name="PublicPages.Documentation" xml:space="preserve">
+    <value>Τεκμηρίωση</value>
+  </data>
+  <data name="PublicPages.DocumentationHint" xml:space="preserve">
+    <value>Τεκμηρίωση του Wayfarer</value>
+  </data>
+  <data name="PublicPages.RegistrationClosed" xml:space="preserve">
+    <value>Οι εγγραφές νέων χρηστών είναι προσωρινά κλειστές. Επικοινωνήστε με τον διαχειριστή για να ζητήσετε τη δημιουργία λογαριασμού ή να μάθετε πότε θα ανοίξουν ξανά οι εγγραφές.</value>
+  </data>
+</root>

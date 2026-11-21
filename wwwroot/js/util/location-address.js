@@ -1,4 +1,5 @@
 import { encodeFeatureText, featurePrecisionNotice } from './feature-metadata.js';
+import { message } from '../localization/messages.js';
 
 const text = value => typeof value === 'string' ? value.trim() : '';
 
@@ -8,8 +9,8 @@ export const isGeoapifyAddress = location => location?.isGeoapifyAddress === tru
     && typeof location?.reverseGeocodedAt === 'string' && Number.isFinite(Date.parse(location.reverseGeocodedAt));
 
 /** Builds ordered groups from structured fields only, preserving exact text and first occurrences. */
-export const locationAddress = (location, fallback = location?.fullAddress) => {
-    if (!isGeoapifyAddress(location)) return { primary: text(fallback) || 'Address details unavailable', notice: '', fallback: '' };
+const resolveLocationAddress = (location, fallback = location?.fullAddress) => {
+    if (!isGeoapifyAddress(location)) return { primary: text(fallback), streetMissing: false, fallback: '' };
     const seen = new Set();
     const groups = [['streetName', 'addressNumber'], ['postCode', 'place'], ['region'], ['country']]
         .map(fields => fields.map(field => {
@@ -19,9 +20,19 @@ export const locationAddress = (location, fallback = location?.fullAddress) => {
             return value;
         }).filter(Boolean).join(' ')).filter(Boolean);
     return {
-        primary: groups.join(', ') || 'Address details unavailable',
-        notice: groups.length && !text(location?.streetName) ? 'Street address unavailable' : '',
+        primary: groups.join(', '),
+        streetMissing: groups.length > 0 && !text(location?.streetName),
         fallback: groups.length ? '' : text(location?.fullAddress) || text(location?.providerAddressLine1) || text(location?.address)
+    };
+};
+
+/** Retains the original plain-text address wording used in link queries and existing consumers. */
+export const locationAddress = (location, fallback) => {
+    const address = resolveLocationAddress(location, fallback);
+    return {
+        primary: address.primary || 'Address details unavailable',
+        notice: address.streetMissing ? 'Street address unavailable' : '',
+        fallback: address.fallback
     };
 };
 
@@ -33,18 +44,23 @@ export const locationAddressText = (location, fallback) => {
 
 /** Location-only address hierarchy. Trip consumers keep their existing feature helpers. */
 export const renderLocationAddress = (location, fallback) => {
-    const address = locationAddress(location, fallback);
+    const address = resolveLocationAddress(location, fallback);
     const geoapify = isGeoapifyAddress(location);
     const type = text(location?.resolvedFeatureType).toLowerCase();
     const precision = geoapify ? featurePrecisionNotice(type) : null;
-    const label = ['amenity', 'building'].includes(type) ? 'Nearby mapped feature' : precision ? 'Mapped area' : 'Mapped feature';
     const name = geoapify ? text(location?.resolvedFeatureName) : '';
+    const feature = ['amenity', 'building'].includes(type)
+        ? message('Shell.LocationNearbyFeature', 'Nearby mapped feature: {0}', name)
+        : precision ? message('Shell.LocationMappedArea', 'Mapped area: {0}', name)
+            : message('Shell.LocationMappedFeature', 'Mapped feature: {0}', name);
+    const heading = message('Shell.LocationAddress', 'Address:');
+    const primary = address.primary || message('Shell.LocationAddressUnavailable', 'Address details unavailable');
     const secondary = (value, role = '') => `<span class="d-block small text-muted text-break"${role}>${value}</span>`;
-    return `<span class="d-block location-address text-break"><strong>Address:</strong> ${encodeFeatureText(address.primary)}`
-        + (address.notice ? secondary(address.notice) : '')
-        + (address.fallback ? secondary(`Provider display text: ${encodeFeatureText(address.fallback)}`) : '')
-        + (name ? secondary(`${label}: ${encodeFeatureText(name)}`) : '')
-        + (precision ? secondary(precision, ' role="note"') : '') + '</span>';
+    return `<span class="d-block location-address text-break"><strong>${encodeFeatureText(heading)}</strong> ${encodeFeatureText(primary)}`
+        + (address.streetMissing ? secondary(encodeFeatureText(message('Shell.LocationStreetUnavailable', 'Street address unavailable'))) : '')
+        + (address.fallback ? secondary(encodeFeatureText(message('Shell.LocationProviderText', 'Provider display text: {0}', address.fallback))) : '')
+        + (name ? secondary(encodeFeatureText(feature)) : '')
+        + (precision ? secondary(encodeFeatureText(precision), ' role="note"') : '') + '</span>';
 };
 
 /** Encodes an individual address component in Location tables, retaining the missing-data icon. */

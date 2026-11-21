@@ -191,8 +191,7 @@ public class TripViewerController : BaseController
             PopularTags = popularTags
         };
 
-        // Set page metadata
-        ViewData["Title"] = "Public Trips";
+        // The discovery view supplies the localized page title.
         ViewData["LoadLeaflet"] = false; // No map on index page
 
         return View("~/Areas/Public/Views/TripViewer/Index.cshtml", viewModel);

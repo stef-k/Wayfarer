@@ -1,21 +1,25 @@
-﻿@{
+@inject Wayfarer.Localization.WebMessages T
+@{
+    ViewData["WebCatalog"] = "PublicPages";
+    ViewData["Title"] = T["Shell.Home"];
     ViewData["BodyClass"] = "container-fluid";
 }
 
+@* Product introduction and the live public Timeline link. *@
 <div class="landing-container">
     <div class="landing-content">
         <div class="landing-block">
             <h1 class="landing-title">Wayfarer</h1>
-            <img src="/logo.png" alt="Wayfarer Logo" class="landing-image landing-image-left" />
+            <img src="/logo.png" alt="@T["PublicPages.Logo"]" class="landing-image landing-image-left" />
         </div>
         <div class="landing-block">
-            <h2 class="landing-subtitle pt-4">Track Your Timeline - Manage Your Trips</h2>
-            <img src="/map.PNG" alt="Timeline Example" class="landing-image landing-image-right" />
+            <h2 class="landing-subtitle pt-4">@T["PublicPages.HomeHeading"]</h2>
+            <img src="/map.PNG" alt="@T["PublicPages.TimelineExample"]" class="landing-image landing-image-right" />
             <p class="lead">
-                - Add locations manually or using GPS Logging mobile apps, add notes, images (URLs), activities <br />
-                - Import from Google Timeline exported data.
+                - @T["PublicPages.HomeLocations"] <br />
+                - @T["PublicPages.HomeImport"]
             </p>
-            <p><a href="https://wayfarer.stefk.me/Public/Users/Timeline/stef">Check a live example with real data</a></p>
+            <p><a href="https://wayfarer.stefk.me/Public/Users/Timeline/stef">@T["PublicPages.HomeExample"]</a></p>
         </div>
     </div>
 </div>
