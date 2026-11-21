@@ -16,6 +16,16 @@ public static class WebLocalization
         services.AddLocalization(options => options.ResourcesPath = "Resources");
         services.AddOptions<RequestLocalizationOptions>()
             .Configure<WebLocales>((options, locales) => locales.Configure(options));
+        services.AddOptions<MvcOptions>().Configure<WebMessages>((options, messages) =>
+            options.ModelMetadataDetailsProviders.Add(new SettingsValidationMetadata(messages)));
+        services.AddOptions<MvcDataAnnotationsLocalizationOptions>()
+            .PostConfigure<WebMessages>((options, messages) =>
+            {
+                var previous = options.DataAnnotationLocalizerProvider;
+                var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
+                options.DataAnnotationLocalizerProvider = (type, factory) =>
+                    SettingsValidationMetadata.Owns(type) ? settings : previous?.Invoke(type, factory) ?? factory.Create(type);
+            });
     }
 
     /// <summary>Connects the pinned Identity UI to the Web catalog through MVC presentation hooks.</summary>
@@ -34,7 +44,7 @@ public static class WebLocalization
             .PostConfigure<WebMessages>((options, messages) =>
             {
                 var defaultProvider = options.DataAnnotationLocalizerProvider;
-                var identity = new IdentityValidationMetadata.Localizer(messages);
+                var identity = new WebAnnotationLocalizer(messages, "Identity.Validation.");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
                     IdentityValidationMetadata.Owns(type) ? identity : defaultProvider?.Invoke(type, factory) ?? factory.Create(type);
             });

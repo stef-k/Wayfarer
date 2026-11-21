@@ -1,24 +1,24 @@
+@inject Wayfarer.Localization.WebMessages T
 @model List<Wayfarer.Models.HiddenArea>
 @{
-    ViewData["Title"] = "Hidden Areas";
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+    ViewData["Title"] = T["Shell.HiddenAreas"];
 }
 
-<h2 class="mb-4">Hidden Areas</h2>
+<h2 class="mb-4">@ViewData["Title"]</h2>
 
 <div class="alert alert-light small mb-3">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Hidden areas mask locations from your public timeline. Draw polygons around sensitive areas
-    like your home or workplace. If a location falls within any hidden area, it will not be visible on your public timeline.
-    Overlapping areas work together - any match hides the location.
+    @T["HiddenAreas.Help"]
 </div>
 <a asp-area="User" asp-controller="HiddenAreas" asp-action="Create" class="btn btn-primary mb-3">
-    <i class="bi bi-plus-circle"></i> Add Hidden Area
+    <i class="bi bi-plus-circle"></i> @T["HiddenAreas.Add"]
 </a>
 
 @if (!Model.Any())
 {
     <div class="alert alert-info">
-        You have not added any hidden areas yet.
+        @T["HiddenAreas.Empty"]
     </div>
 }
 else
@@ -26,9 +26,9 @@ else
     <table class="table table-bordered table-striped">
         <thead class="thead-dark">
         <tr class="text-center">
-            <th>Name</th>
-            <th style="width: 50%;">Description</th>
-            <th colspan="2">Actions</th>
+            <th>@T["HiddenAreas.Name"]</th>
+            <th style="width: 50%;">@T["HiddenAreas.Description"]</th>
+            <th colspan="2">@T["HiddenAreas.Actions"]</th>
         </tr>
         </thead>
         <tbody>
@@ -40,12 +40,12 @@ else
                 <td class="text-center">
                     <a asp-area="User" asp-controller="HiddenAreas" asp-action="Edit" asp-route-id="@area.Id"
                        class="btn btn-sm btn-secondary">
-                        <i class="bi bi-pencil-square"></i> Edit
+                        <i class="bi bi-pencil-square"></i> @T["HiddenAreas.EditAction"]
                     </a>
                 </td>
                 <td class="text-center"><a asp-area="User" asp-controller="HiddenAreas" asp-action="Delete" asp-route-id="@area.Id"
                        class="btn btn-sm btn-danger">
-                        <i class="bi bi-trash"></i> Delete
+                        <i class="bi bi-trash"></i> @T["HiddenAreas.DeleteAction"]
                     </a></td>
             </tr>
         }

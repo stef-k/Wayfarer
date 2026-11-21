@@ -2,7 +2,8 @@
 @{
     // Localized redirects carry a presentation identity instead of their initiating language.
     var key = TempData["WebAlertKey"] as string;
-    var text = key is null ? TempData["AlertMessage"] as string : T[key, TempData["WebAlertArgument"]];
+    var legacyText = TempData["AlertMessage"] as string;
+    var text = key is null ? legacyText : T[key, TempData["WebAlertArgument"]];
 }
 @if (text != null)
 {

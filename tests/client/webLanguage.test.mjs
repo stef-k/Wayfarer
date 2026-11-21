@@ -6,6 +6,7 @@ import { isLanguageUnload, languageDestination, navigateInLanguage } from '../..
 import { resolveViewerCamera, writeViewerCamera } from '../../wwwroot/js/Trip/viewerCamera.js';
 import { pdfProgressText } from '../../wwwroot/js/Trip/viewerExports.js';
 import { populateViewerPrint } from '../../wwwroot/js/Trip/viewerPrint.js';
+import { bindHiddenAreaDraft } from '../../wwwroot/js/Areas/User/HiddenAreas/drawing.js';
 
 test('registered test catalog uses Polish categories and English grammar for missing messages', async () => {
   const source = await readFile(new URL('../Wayfarer.Tests/Resources/Shell.pl-PL.resx', import.meta.url), 'utf8');
@@ -73,7 +74,7 @@ test('browser print assigns authored title and active language through DOM text 
 });
 
 /** Exercises the same selector for an ordinary GET and an admitted POST at its own safe GET URL. */
-const verifyLanguageForm = async safeGet => {
+const verifyLanguageForm = async (safeGet, editPolygon = false) => {
   const original = Object.fromEntries(['document', 'fetch', 'FormData', 'HTMLSelectElement', 'location', 'window'].map(name => [name, globalThis[name]]));
   const handlers = new Map();
   let focused;
@@ -87,10 +88,18 @@ const verifyLanguageForm = async safeGet => {
   const controls = Object.fromEntries(ids.map(id => [id, control(id)]));
   const form = controls['language-form'];
   const dialog = controls['language-dialog'];
-  const input = { form: {}, type: 'text', value: 'saved title' };
+  const input = { form: {}, type: editPolygon ? 'hidden' : 'text',
+    value: editPolygon ? 'POLYGON((23 37, 24 37, 24 38, 23 37))' : 'saved title' };
+  const originalValue = input.value;
+  const mapEvents = new Map();
+  const events = { EDITSTART: 'draw:editstart', EDITED: 'draw:edited', EDITSTOP: 'draw:editstop' };
+  const map = { on(name, handle) { mapEvents.set(name, handle); return this; } };
+  const release = editPolygon ? bindHiddenAreaDraft(map, events, input, {}) : () => {};
   const submits = [];
   const navigations = [];
-  const current = 'https://wayfarer.test/Account?returnUrl=%2Felsewhere';
+  const current = editPolygon
+    ? 'https://wayfarer.test/User/HiddenAreas/Edit/7#hidden-area-map'
+    : 'https://wayfarer.test/Account?returnUrl=%2Felsewhere';
   let result = 500;
   form.dataset.url = '/Language/Set';
   form.reset = () => {};
@@ -111,10 +120,28 @@ const verifyLanguageForm = async safeGet => {
     return { status: result };
   };
   try {
-    await import(`../../wwwroot/js/localization/languageSelector.js?form=${safeGet ? 'post' : 'get'}`);
+    await import(`../../wwwroot/js/localization/languageSelector.js?form=${editPolygon ? 'polygon' : safeGet ? 'post' : 'get'}`);
     const open = () => handlers.get('language-open:click')();
     const submit = () => handlers.get('language-form:submit')({ preventDefault() {} });
-    input.value = 'draft <text>';
+    if (editPolygon) {
+      // During a drag the feature group owns the draft and the hidden field still holds the saved geometry.
+      mapEvents.get(events.EDITSTART)();
+      open();
+      await submit();
+      assert.equal(controls['language-confirm'].hidden, false);
+      handlers.get('language-keep:click')();
+      assert.equal(input.value, originalValue);
+      assert.deepEqual(submits, []);
+      const ring = [{ lng: 23.1234567890123, lat: 37.6543210987654 }, { lng: 24, lat: 37 }, { lng: 24, lat: 38 }];
+      mapEvents.get(events.EDITED)({ layers: { eachLayer: edit => edit({ getLatLngs: () => [ring] }) } });
+      mapEvents.get(events.EDITSTOP)();
+    } else {
+      input.value = 'draft <text>';
+    }
+    const draft = editPolygon
+      ? 'POLYGON((23.1234567890123 37.6543210987654, 24 37, 24 38, 23.1234567890123 37.6543210987654))'
+      : 'draft <text>';
+    assert.equal(input.value, draft);
     open();
     await submit();
     assert.equal(controls['language-confirm'].hidden, false);
@@ -122,13 +149,14 @@ const verifyLanguageForm = async safeGet => {
     handlers.get('language-keep:click')();
     assert.equal(focused, 'language-open');
     assert.deepEqual(submits, []);
+    assert.equal(input.value, draft);
     open();
     await submit();
     await submit();
     assert.equal(dialog.open, true);
     assert.deepEqual(navigations, []);
     assert.equal(controls['language-error'].hidden, false);
-    assert.equal(input.value, 'draft <text>');
+    assert.equal(input.value, draft);
     result = 204;
     await submit();
     assert.deepEqual(submits, Array(2).fill({ url: '/Language/Set', method: 'POST', busy: true }));
@@ -136,6 +164,7 @@ const verifyLanguageForm = async safeGet => {
     assert.equal(isLanguageUnload({}), true);
     assert.equal(isLanguageUnload({}), false);
   } finally {
+    release();
     for (const [key, value] of Object.entries(original)) {
       if (value === undefined) Reflect.deleteProperty(globalThis, key);
       else globalThis[key] = value;
@@ -148,3 +177,7 @@ test('changed ordinary form guards preference writes and keeps the current docum
 
 test('POST-rendered form uses an assigned GET even when its URL is already current',
   () => verifyLanguageForm('/Account?returnUrl=%2Felsewhere'));
+
+
+test('polygon-only edits survive keeping the drawing and a failed preference write',
+  () => verifyLanguageForm('', true));

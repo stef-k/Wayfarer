@@ -1,3 +1,5 @@
+import { message } from './localization/messages.js';
+
 /** Canonical public map output. The browser origin is the public-facing origin, never a backend Host. */
 export const publicMapPath = (kind, id) => {
     if (!id || !String(id).trim()) throw new Error('A public map identifier is required.');
@@ -11,6 +13,8 @@ export const publicMapPath = (kind, id) => {
 export const escapeEmbedAttribute = value => String(value).replace(/[&<>"']/g,
     character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
+const publicHttpsError = "Open Wayfarer at its public HTTPS address to copy an embed.";
+
 /** Reject clearly local origins instead of silently advertising an unusable public snippet. */
 const publicOrigin = origin => {
     const url = new URL(origin);
@@ -20,7 +24,7 @@ const publicOrigin = origin => {
         /^\[(?:::1\]|::\]|f[cd]|fe[89ab]|::ffff:)/.test(host) ||
         /^(0|10|127|169\.254|192\.168)\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
     if (url.protocol !== 'https:' || privateHost || url.username || url.password) {
-        throw new Error('Open Wayfarer at its public HTTPS address to copy an embed.');
+        throw new Error(publicHttpsError);
     }
     return url.origin;
 };
@@ -34,26 +38,33 @@ export const buildMapEmbed = ({ kind, id, title }, origin = window.location.orig
     return { url, html };
 };
 
-/** Existing Trip clipboard feedback, shared with Timeline and deferred output validation. */
-export const copyWithFeedback = async (getText, label) => {
-    const notify = (level, message) => (wayfarer.showToast || wayfarer.showAlert).call(wayfarer, level, message);
+/** Shares one clipboard path with the direct URL and both embed formats. */
+export const copyWithFeedback = async (getText, label, feedback) => {
+    const notify = (level, text) => (wayfarer.showToast || wayfarer.showAlert).call(wayfarer, level, text);
     try {
         await navigator.clipboard.writeText(getText());
-        notify('success', `${label} copied to clipboard!`);
+        notify('success', feedback?.success ?? `${label} copied to clipboard!`);
     } catch (error) {
-        const reason = error.message?.startsWith('Open Wayfarer at') ? ` ${error.message}` : '';
-        notify('danger', `Failed to copy ${label}.${reason}`);
+        const detail = error.message === publicHttpsError ? ' ' + message('Shell.EmbedPublicHttps', publicHttpsError) : '';
+        notify('danger', (feedback?.failure ?? `Failed to copy ${label}.`) + detail);
     }
 };
 
 /** Copy either format from the same output contract. */
-export const copyMapEmbed = (element, origin = window.location.origin) => copyWithFeedback(() => {
-    const output = buildMapEmbed({ kind: element.dataset.embedKind, id: element.dataset.embedId,
-        title: element.dataset.embedTitle }, origin);
+export const copyMapEmbed = (element, origin = window.location.origin) => {
     const format = element.dataset.embedFormat;
-    if (format !== 'url' && format !== 'html') throw new Error('Unknown embed format.');
-    return output[format];
-}, `embed ${element.dataset.embedFormat?.toUpperCase()}`);
+    const feedback = format === 'html'
+        ? { success: message('Shell.EmbedHtmlCopied', 'Embed HTML copied to clipboard!'),
+            failure: message('Shell.EmbedHtmlCopyFailed', 'Failed to copy the embed HTML.') }
+        : { success: message('Shell.EmbedUrlCopied', 'Embed URL copied to clipboard!'),
+            failure: message('Shell.EmbedUrlCopyFailed', 'Failed to copy the embed URL.') };
+    return copyWithFeedback(() => {
+        if (format !== 'url' && format !== 'html') throw new Error('Unknown embed format.');
+        const output = buildMapEmbed({ kind: element.dataset.embedKind, id: element.dataset.embedId,
+            title: element.dataset.embedTitle }, origin);
+        return output[format];
+    }, undefined, feedback);
+};
 
 /** Delegation supports dynamically rendered Trip rows and static Timeline settings. */
 export const handleEmbedCopy = event => {

@@ -1,87 +1,124 @@
+@using System.Globalization
+@using Wayfarer.Localization
+@inject WebMessages T
 @model Wayfarer.Areas.User.LocationProviderModels.LocationProviderSettingsViewModel
 
-<h1>Personal location providers</h1>
+@{
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+    ViewData["Title"] = T["Providers.Title"];
+    ViewData["LanguageSafeGet"] = Url.Action("Index", "LocationProviderSettings", new { area = "User" });
+    var providerStatus = TempData["ProviderStatus"] as string;
+    var statusCapability = TempData["ProviderStatusCapability"] as string;
+}
+<h1>@ViewData["Title"]</h1>
 @* Send users to the canonical personal-provider guide on GitHub Pages. *@
-<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="https://stef-k.github.io/Wayfarer/user/location-providers.html">Read the credential and usage guide</a>.</p>
+<p>@T["Providers.CredentialPrivacy"] <a href="https://stef-k.github.io/Wayfarer/user/location-providers.html">@T["Providers.Guide"]</a></p>
 @* Migration recovery status does not override capability eligibility or saved selection. *@
 @if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict)
-{ <div class="alert alert-danger">Legacy Mapbox migration needs recovery. Conflicting stored values were retained.</div> }
+{ <div class="alert alert-danger">@T["Providers.MigrationConflict"]</div> }
 else if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
-{ <div class="alert alert-danger">The protected Mapbox credential cannot currently be read or trusted. Retained legacy recovery copies were not retired.</div> }
+{ <div class="alert alert-danger">@T["Providers.MigrationUnavailable"]</div> }
 else if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Revoked)
-{ <div class="alert alert-warning">Mapbox remains revoked. Migration cannot reactivate it.</div> }
+{ <div class="alert alert-warning">@T["Providers.MigrationRevoked"]</div> }
 else if (Model.HasLegacyMapboxRows)
-{ <div class="alert alert-warning">Legacy Mapbox migration pending. Assess and migrate the stored legacy credential explicitly below.</div> }
+{ <div class="alert alert-warning">@T["Providers.MigrationPending"]</div> }
 @if (Model.HasLegacyMapboxRows)
 {
     <form asp-action="MigrateLegacyMapbox" method="post" class="mb-3">
-        <button class="btn btn-outline-primary" type="submit">Migrate legacy Mapbox credential</button>
+        <button class="btn btn-outline-primary" type="submit">@T["Providers.Migrate"]</button>
     </form>
 }
-<div class="alert alert-info">Wayfarer records only its own contacts. Other applications can consume the provider account allowance; use a dedicated Wayfarer key when possible. Multiple keys may still share one provider allowance.</div>
-@if (TempData["ProviderStatus"] is string providerStatus) { <div class="alert alert-info">@providerStatus</div> }
+<div class="alert alert-info">@T["Providers.UsageNotice"]</div>
+@* Format the redirect message using this request's locale. *@
+@if (providerStatus is not null)
+{
+    <div class="alert alert-info" role="status">@ProviderSettingsText.RedirectStatus(T, providerStatus, statusCapability)</div>
+}
 <div asp-validation-summary="All" class="text-danger"></div>
 @foreach (var profile in Model.Profiles)
 {
 <section class="card mb-4"><div class="card-body">
     <h2 class="h4">@profile.DisplayName</h2>
-    <p><strong>Credential:</strong> @(profile.CredentialConfigured ? profile.Mask + " (configured)" : "not configured")</p>
+    <p><strong>@T["Providers.Credential"]</strong> @(profile.CredentialConfigured ? T["Providers.MaskedCredential", profile.Mask] : T["Providers.Unconfigured"])</p>
     @if (profile.ProviderKey == "mapbox")
     {
-    <form asp-action="SaveCredential" method="post">
+    <form asp-action="SaveCredential" method="post" novalidate>
         <input name="ProviderKey" value="mapbox" type="hidden" />
-        <label for="mapbox-credential" class="form-label">Replacement credential</label><input id="mapbox-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
-        <div class="form-text">Submit only to replace the credential. Replacement clears consent and verification; saved provider choices remain blocked until reverified.</div>
-        <button class="btn btn-outline-primary mt-2" type="submit">Save credential</button>
+        <label for="mapbox-credential" class="form-label">@T["Providers.Replacement"]</label><input id="mapbox-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
+        <div class="form-text">@T["Providers.MapboxReplacementHelp"]</div>
+        <button class="btn btn-outline-primary mt-2" type="submit">@T["Providers.SaveCredential"]</button>
     </form>
-    <h3 class="h5 mt-3">Permanent Geocoding consent</h3>
-    <p><strong>Consent:</strong> @(profile.PermanentConsentCurrent ? $"current (version {profile.PermanentConsentVersion}, {profile.PermanentConsentedAt:u})" : "missing")</p>
+    <h3 class="h5 mt-3">@T["Providers.ConsentTitle"]</h3>
+    <p><strong>@T["Providers.Consent"]</strong> @(profile.PermanentConsentCurrent ? T["Providers.ConsentCurrent", profile.PermanentConsentVersion, profile.PermanentConsentedAt?.UtcDateTime.ToString("g", T.DisplayCulture)] : T["Providers.ConsentMissing"])</p>
     <form asp-action="ConsentMapboxPermanent" method="post">
-        <div class="form-check"><input id="storage-ack" name="StorageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="storage-ack" class="form-check-label">I choose stored Mapbox Permanent Geocoding enrichment.</label></div>
-        <div class="form-check"><input id="billing-ack" name="BillingAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="billing-ack" class="form-check-label">I understand Permanent Geocoding is separately billed and may incur charges.</label></div>
-        <div class="form-check"><input id="eligibility-ack" name="BillingEligibilityAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="eligibility-ack" class="form-check-label">My Mapbox account has an eligible credit card or enterprise contract.</label></div>
-        <div class="form-check"><input id="meter-ack" name="WayfarerMeterAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="meter-ack" class="form-check-label">Wayfarer's meter counts only contacts made by Wayfarer.</label></div>
-        <div class="form-check"><input id="external-ack" name="ExternalUsageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="external-ack" class="form-check-label">Other applications or tokens may consume the same account allowance.</label></div>
-        <button class="btn btn-outline-primary mt-2" type="submit">Record Permanent consent</button>
+        <div class="form-check"><input id="storage-ack" name="StorageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="storage-ack" class="form-check-label">@T["Providers.StorageAck"]</label></div>
+        <div class="form-check"><input id="billing-ack" name="BillingAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="billing-ack" class="form-check-label">@T["Providers.BillingAck"]</label></div>
+        <div class="form-check"><input id="eligibility-ack" name="BillingEligibilityAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="eligibility-ack" class="form-check-label">@T["Providers.EligibilityAck"]</label></div>
+        <div class="form-check"><input id="meter-ack" name="WayfarerMeterAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="meter-ack" class="form-check-label">@T["Providers.MeterAck"]</label></div>
+        <div class="form-check"><input id="external-ack" name="ExternalUsageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="external-ack" class="form-check-label">@T["Providers.ExternalAck"]</label></div>
+        <button class="btn btn-outline-primary mt-2" type="submit">@T["Providers.SaveConsent"]</button>
     </form>
-    <h3 class="h5 mt-3">Permanent Geocoding verification</h3>
-    <p>State: <strong>@profile.GeocodingVerification</strong>. This makes one admitted, potentially billable Permanent request using fixed non-personal coordinates and does not activate Mapbox.</p>
-    <form asp-action="VerifyMapboxPermanent" method="post"><button class="btn btn-outline-primary" type="submit">Verify Mapbox Permanent Geocoding</button></form>
+    <h3 class="h5 mt-3">@T["Providers.VerificationTitle"]</h3>
+    <p>@T["Providers.State"] <strong>@ProviderSettingsText.Verification(T, profile.GeocodingVerification)</strong></p>
+    <p>@T["Providers.VerificationHelp"]</p>
+    <form asp-action="VerifyMapboxPermanent" method="post"><button class="btn btn-outline-primary" type="submit">@T["Providers.VerifyMapbox"]</button></form>
     }
     else
     {
-    <form asp-action="SaveCredential" method="post">
+    <form asp-action="SaveCredential" method="post" novalidate>
         <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
-        <label for="geoapify-credential" class="form-label">Replacement credential</label><input id="geoapify-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
-        <div class="form-text">Replacement disables both capabilities until each is reverified; saved provider choices remain selected.</div>
-        <button class="btn btn-primary mt-2" type="submit">Replace credential</button>
+        <label for="geoapify-credential" class="form-label">@T["Providers.Replacement"]</label><input id="geoapify-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
+        <div class="form-text">@T["Providers.GeoapifyReplacementHelp"]</div>
+        <button class="btn btn-primary mt-2" type="submit">@T["Providers.ReplaceCredential"]</button>
     </form>
-    <p class="mt-3">Backfill processes your wholly unenriched Locations in chronological order and commits progress after at most 10 candidates. Existing, manual, and imported enrichment is preserved.</p>
+    <p class="mt-3">@T["Providers.BackfillHelp"]</p>
     <form asp-action="BackfillGeoapify" method="post">
-        <button class="btn btn-outline-primary" type="submit">Start backfill</button>
+        <button class="btn btn-outline-primary" type="submit">@T["Providers.Backfill"]</button>
     </form>
     }
     @if (profile.ProviderKey == "mapbox")
     {
-    <p class="mt-3"><strong>Permanent Geocoding meter:</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit contacts; UTC cycle starts @profile.CycleStart and resets at the next UTC month boundary. @(!profile.GuardEnabled ? "The guard is disabled; contacts may incur charges." : "")</p>
-    <p><strong>Paused reason:</strong> @(profile.PausedReason ?? (Model.ActiveGeocodingProvider == "mapbox" ? "active" : "Mapbox is not selected"))</p>
-    <p class="mt-3"><strong>Directions guard:</strong> @(profile.DirectionsGuardEnabled == true ? "enabled" : "disabled") — @profile.DirectionsUsed / @profile.DirectionsLimit contacts. Separate Wayfarer UTC calendar-month safety cycle.</p>
-    <form asp-action="SaveGuard" method="post" class="row g-2">
+    <p class="mt-3">
+        <strong>@T["Providers.PermanentMeter"]</strong> @T[profile.GuardEnabled ? "Providers.Enabled" : "Providers.Disabled"].
+        @(profile.CycleStart is { } start
+            ? T["Providers.MeterCycle", T.DisplayNumber(profile.Used), T.DisplayNumber(profile.Limit), start.ToString("d", T.DisplayCulture)]
+            : T["Providers.MeterNoCycle", T.DisplayNumber(profile.Used), T.DisplayNumber(profile.Limit)])
+        @if (!profile.GuardEnabled)
+        {
+            @T["Providers.GuardDisabledNotice"]
+        }
+    </p>
+    <p><strong>@T["Providers.PausedReason"]</strong>
+        @(profile.PausedReason is { } reason
+            ? ProviderSettingsText.Eligibility(T, reason)
+            : T[Model.ActiveGeocodingProvider == "mapbox" ? "Providers.Active" : "Providers.MapboxNotSelected"])
+    </p>
+    <p class="mt-3"><strong>@T["Providers.DirectionsGuard"]</strong> @T[profile.DirectionsGuardEnabled == true ? "Providers.Enabled" : "Providers.Disabled"].
+        @T["Providers.DirectionsCycle", profile.DirectionsUsed?.ToString("N0", T.DisplayCulture), profile.DirectionsLimit?.ToString("N0", T.DisplayCulture)]
+    </p>
+    <form asp-action="SaveGuard" method="post" class="row g-2" novalidate>
         <input name="GuardKey" value="mapbox-directions" type="hidden" />
-        <div class="col-auto form-check"><input id="mapbox-directions-guard-enabled" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.DirectionsGuardEnabled" /><label for="mapbox-directions-guard-enabled" class="form-check-label">Directions guard enabled</label></div>
-        <div class="col-auto"><label for="mapbox-directions-guard-limit" class="visually-hidden">Directions limit</label><input id="mapbox-directions-guard-limit" name="Limit" value="@profile.DirectionsLimit" type="number" min="0" class="form-control" /></div>
-        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save Directions guard</button></div>
+        <div class="col-auto form-check"><input id="mapbox-directions-guard-enabled" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.DirectionsGuardEnabled" /><label for="mapbox-directions-guard-enabled" class="form-check-label">@T["Providers.DirectionsEnabled"]</label></div>
+        <div class="col-auto"><label for="mapbox-directions-guard-limit" class="visually-hidden">@T["Providers.DirectionsLimit"]</label><input id="mapbox-directions-guard-limit" name="Limit" value="@profile.DirectionsLimit?.ToString(CultureInfo.InvariantCulture)" type="number" min="0" class="form-control" /></div>
+        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">@T["Providers.SaveDirectionsGuard"]</button></div>
     </form>
     }
-    <p class="mt-3"><strong>@(profile.ProviderKey == "geoapify" ? "Local Wayfarer-admitted usage" : "Guard"):</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit @profile.Unit. @profile.WindowExplanation. @(profile.Exhausted ? "New contacts are paused; stored data remains available." : "")</p>
-    <form asp-action="SaveGuard" method="post" class="row g-2">
+    <p class="mt-3"><strong>@T[profile.ProviderKey == "geoapify" ? "Providers.AdmittedUsage" : "Providers.Guard"]</strong>
+        @T[profile.GuardEnabled ? "Providers.Enabled" : "Providers.Disabled"].
+        @T[profile.ProviderKey == "geoapify" ? "Providers.CreditsUsed" : "Providers.PermanentContacts", T.DisplayNumber(profile.Used), T.DisplayNumber(profile.Limit)]
+        @if (profile.Exhausted)
+        {
+            @T["Providers.Exhausted"]
+        }
+    </p>
+    <form asp-action="SaveGuard" method="post" class="row g-2" novalidate>
         <input name="GuardKey" value="@(profile.ProviderKey == "geoapify" ? "geoapify" : "mapbox-permanent")" type="hidden" />
-        <div class="col-auto form-check"><input id="@($"{profile.ProviderKey}-guard-enabled")" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label for="@($"{profile.ProviderKey}-guard-enabled")" class="form-check-label">Guard enabled</label></div>
-        <div class="col-auto"><label for="@($"{profile.ProviderKey}-guard-limit")" class="visually-hidden">Provider-native limit</label><input id="@($"{profile.ProviderKey}-guard-limit")" name="Limit" value="@profile.Limit" type="number" min="0" class="form-control" /></div>
-        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save guard</button></div>
+        <div class="col-auto form-check"><input id="@($"{profile.ProviderKey}-guard-enabled")" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label for="@($"{profile.ProviderKey}-guard-enabled")" class="form-check-label">@T["Providers.GuardEnabled"]</label></div>
+        <div class="col-auto"><label for="@($"{profile.ProviderKey}-guard-limit")" class="visually-hidden">@T["Providers.GuardLimit"]</label><input id="@($"{profile.ProviderKey}-guard-limit")" name="Limit" value="@profile.Limit.ToString(CultureInfo.InvariantCulture)" type="number" min="0" class="form-control" /></div>
+        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">@T["Providers.SaveGuard"]</button></div>
     </form>
     @if (profile.CredentialConfigured)
-    { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> Confirm revocation; coordinates, addresses, Trips, Places, imports, and synchronization data are preserved.</label> <button class="btn btn-danger" type="submit">Revoke</button></form> }
+    { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> @T["Providers.RevokeAck"]</label> <button class="btn btn-danger" type="submit">@T["Providers.Revoke"]</button></form> }
 </div></section>
 }
 @{
@@ -89,38 +126,38 @@ else if (Model.HasLegacyMapboxRows)
     var mapbox = Model.Profiles.Single(profile => profile.ProviderKey == "mapbox");
 }
 <section class="card mb-4"><div class="card-body">
-    <h2 class="h4">Geocoding</h2>
-    <p><strong>Credential status:</strong> Geoapify @(geoapify.CredentialConfigured ? "configured" : "not configured"); Mapbox @(mapbox.CredentialConfigured ? "configured" : "not configured").</p>
-    <p>Verify makes exactly one admitted setup contact. Mapbox also requires current Permanent Geocoding acknowledgements.</p>
+    <h2 class="h4">@T["Providers.Geocoding"]</h2>
+    <p><strong>@T["Providers.CredentialStatus"]</strong> Geoapify @(T[geoapify.CredentialConfigured ? "Providers.Configured" : "Providers.Unconfigured"]); Mapbox @(T[mapbox.CredentialConfigured ? "Providers.Configured" : "Providers.Unconfigured"]).</p>
+    <p>@T["Providers.GeocodingVerifyHelp"]</p>
     <div class="mb-3">
-        <form asp-action="VerifyGeoapify" method="post" class="d-inline"><input name="capability" value="Geocoding" type="hidden" /><button class="btn btn-outline-primary" type="submit">Verify Geoapify geocoding</button></form>
-        <form asp-action="VerifyMapboxPermanent" method="post" class="d-inline"><button class="btn btn-outline-primary" type="submit">Verify Mapbox Permanent Geocoding</button></form>
+        <form asp-action="VerifyGeoapify" method="post" class="d-inline"><input name="capability" value="Geocoding" type="hidden" /><button class="btn btn-outline-primary" type="submit">@T["Providers.VerifyGeoapifyGeocoding"]</button></form>
+        <form asp-action="VerifyMapboxPermanent" method="post" class="d-inline"><button class="btn btn-outline-primary" type="submit">@T["Providers.VerifyMapbox"]</button></form>
     </div>
     <form asp-action="ChooseProvider" method="post">
         <input name="Capability" value="Geocoding" type="hidden" />
-        <label for="geocoding-provider" class="form-label">Provider</label>
+        <label for="geocoding-provider" class="form-label">@T["Providers.Provider"]</label>
         <select id="geocoding-provider" name="ProviderKey" class="form-select">
-            <option value="" selected="@(Model.ActiveGeocodingProvider == null)">No provider</option>
-            @if (geoapify.CredentialConfigured) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify@(geoapify.GeocodingEligible ? "" : " (verification required)")</option> }
-            @if (mapbox.CredentialConfigured) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding@(mapbox.GeocodingEligible ? "" : " (verification required)")</option> }
+            <option value="" selected="@(Model.ActiveGeocodingProvider == null)">@T["Providers.NoProvider"]</option>
+            @if (geoapify.CredentialConfigured) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">@(geoapify.GeocodingEligible ? "Geoapify" : T["Providers.VerificationRequired", "Geoapify"])</option> }
+            @if (mapbox.CredentialConfigured) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">@(mapbox.GeocodingEligible ? "Mapbox Permanent Geocoding" : T["Providers.VerificationRequired", "Mapbox Permanent Geocoding"])</option> }
         </select>
-        <button class="btn btn-primary mt-2" type="submit">Save geocoding provider</button>
+        <button class="btn btn-primary mt-2" type="submit">@T["Providers.SaveGeocoding"]</button>
     </form>
-    <p class="mt-2"><strong>State:</strong> @Model.GeocodingStatus</p>
+    <p class="mt-2"><strong>@T["Providers.State"]</strong> @ProviderSettingsText.Selection(T, Model.ActiveGeocodingProvider, Model.GeocodingStatus)</p>
 </div></section>
 <section class="card mb-4"><div class="card-body">
-    <h2 class="h4">Directions</h2>
-    <p><strong>Credential status:</strong> Geoapify @(geoapify.CredentialConfigured ? "configured" : "not configured"). Mapbox Directions is not implemented and is not offered.</p>
-    <form asp-action="VerifyGeoapify" method="post"><input name="capability" value="Routing" type="hidden" /><button class="btn btn-outline-primary" type="submit">Verify Geoapify directions</button></form>
+    <h2 class="h4">@T["Providers.Directions"]</h2>
+    <p><strong>@T["Providers.CredentialStatus"]</strong> Geoapify @(T[geoapify.CredentialConfigured ? "Providers.Configured" : "Providers.Unconfigured"]). @T["Providers.MapboxDirectionsUnavailable"]</p>
+    <form asp-action="VerifyGeoapify" method="post"><input name="capability" value="Routing" type="hidden" /><button class="btn btn-outline-primary" type="submit">@T["Providers.VerifyGeoapifyDirections"]</button></form>
     <form asp-action="ChooseProvider" method="post" class="mt-3">
         <input name="Capability" value="Routing" type="hidden" />
-        <label for="directions-provider" class="form-label">Provider</label>
+        <label for="directions-provider" class="form-label">@T["Providers.Provider"]</label>
         <select id="directions-provider" name="ProviderKey" class="form-select">
-            <option value="" selected="@(Model.ActiveRoutingProvider == null)">No provider</option>
-            @if (geoapify.CredentialConfigured) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify@(geoapify.RoutingEligible ? "" : " (verification required)")</option> }
+            <option value="" selected="@(Model.ActiveRoutingProvider == null)">@T["Providers.NoProvider"]</option>
+            @if (geoapify.CredentialConfigured) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">@(geoapify.RoutingEligible ? "Geoapify" : T["Providers.VerificationRequired", "Geoapify"])</option> }
         </select>
-        <button class="btn btn-primary mt-2" type="submit">Save directions provider</button>
+        <button class="btn btn-primary mt-2" type="submit">@T["Providers.SaveDirections"]</button>
     </form>
-    <p class="mt-2"><strong>State:</strong> @Model.RoutingStatus</p>
+    <p class="mt-2"><strong>@T["Providers.State"]</strong> @ProviderSettingsText.Selection(T, Model.ActiveRoutingProvider, Model.RoutingStatus, routing: true)</p>
 </div></section>
-<p>Cache and stored-result reuse costs no new credit. Exhaustion pauses new contacts without deleting source or historical data. Disabling a guard may incur paid usage. Imports and backfills share the same remaining allowance.</p>
+<p>@T["Providers.ReuseHelp"]</p>

@@ -1,8 +1,12 @@
-﻿@model Wayfarer.Models.ApplicationUser
+﻿@inject Wayfarer.Localization.WebMessages T
+@model Wayfarer.Models.ApplicationUser
 
 @{
+    ViewData["Title"] = T["Settings.Title"];
+    ViewData["WebCatalog"] = "Settings";
+    var eligibility = Wayfarer.Services.PublicTimelineEligibilityResolver.Resolve(Model);
     // Relative navigation respects the public browser origin and existing forwarded-header handling.
-    var fullurl = $"/Public/Users/Timeline/{Uri.EscapeDataString(Model.UserName!)}";
+    var fullurl = $"/Public/Users/Timeline/{Uri.EscapeDataString(Model.UserName ?? string.Empty)}";
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -12,69 +16,71 @@
         <div class="col-12 col-md-8 offset-md-2">
             <div class="card shadow-sm">
                 <div class="card-header  text-bg-primary mb-3">
-                    <h2>Timeline Settings</h2>
+                    <h2>@T["Settings.Timeline"]</h2>
                 </div>
                 <div class="card-body">
                     <dl class="row">
-                        <dt class="col-sm-4">Display Name</dt>
-                        <dd class="col-sm-8">@((Model?.DisplayName) ?? "Not Set")</dd>
+                        <dt class="col-sm-4">@T["Settings.DisplayName"]</dt>
+                        <dd class="col-sm-8">@((Model.DisplayName) ?? T["Settings.NotSet"])</dd>
 
-                        <dt class="col-sm-4">Timeline Public</dt>
+                        <dt class="col-sm-4">@T["Settings.Public"]</dt>
                         <dd class="col-sm-8">
-                            @if (Model?.IsTimelinePublic == true)
+                            @if (eligibility.IsEffectivelyPublic)
                             {
-                                <span class="badge bg-success d-inline">YES</span>
-                                <p>See your public timeline at <a href="@fullurl" title="Your public facing timeline!" target="_blank">@fullurl</a>
-                                    <br/>You can share this link to your friends!</p>
-                                <p>Embed your public Timeline in your website:</p>
+                                <span class="badge bg-success d-inline">@T["Settings.Yes"]</span>
+                                <p>@T["Settings.PublicLink"] <a href="@fullurl" target="_blank">@fullurl</a></p>
+                                <p>@T["Settings.EmbedHelp"]</p>
                                 <div class="d-flex flex-wrap gap-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-embed-kind="timeline"
                                             data-embed-id="@Model.UserName" data-embed-title="@(Model.TimelineTitle ?? Model.DisplayName ?? Model.UserName)"
-                                            data-embed-format="url">Copy embed URL</button>
+                                            data-embed-format="url">@T["Shell.CopyEmbedUrl"]</button>
                                     <button type="button" class="btn btn-outline-primary btn-sm" data-embed-kind="timeline"
                                             data-embed-id="@Model.UserName" data-embed-title="@(Model.TimelineTitle ?? Model.DisplayName ?? Model.UserName)"
-                                            data-embed-format="html">Copy embed HTML</button>
+                                            data-embed-format="html">@T["Shell.CopyEmbedHtml"]</button>
                                 </div>
                             }
                             else
                             {
-                                <span class="badge bg-secondary d-inline">NO</span>
+                                <span class="badge bg-secondary d-inline">@T["Settings.No"]</span>
                             }
                         </dd>
                         
-                        <dt class="col-sm-4">Timeline Threshold</dt>
+                        <dt class="col-sm-4">@T["Settings.TimelineThreshold"]</dt>
                         <dd class="col-sm-8">
-                            @if (Model?.PublicTimelineTimeThreshold == null)
+                            @if (Model.IsTimelinePublic && !eligibility.IsThresholdValid)
                             {
-                                <span class="text-muted">You can set a time threshold for your public timeline.</span>
+                                <span class="text-warning">@T["Settings.StatusInvalid"]</span>
+                            }
+                            else if (!eligibility.IsEffectivelyPublic)
+                            {
+                                <span class="text-muted">@T["Settings.NoThreshold"]</span>
                             }
                             else
                             {
-                                @if (Model?.PublicTimelineTimeThreshold == "now")
+                                @if (eligibility.IsLive)
                                 {
-                                    <span class="badge bg-danger">Live</span>
-                                    <span>Everyone will know where you are right now!</span>
+                                    <span class="badge bg-danger">@T["Settings.Live"]</span>
+                                    <span>@T["Settings.LiveWarning"]</span>
 
                                 }
                                 else
                                 {
-                                    <span>Displaying your timeline up to @Model?.PublicTimelineTimeThreshold ago.</span>
+                                    <span>@T["Settings.StatusDelayed", eligibility.Delay?.ToString("g", T.DisplayCulture)]</span>
                                 }
                             }
                         </dd>
                     </dl>
 
                     <div class="d-grid gap-2 mt-3">
-                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="Timeline" asp-action="Settings">Manage Timeline Settings</a>
+                        <a class="btn btn-outline-primary" asp-area="User" asp-controller="Timeline" asp-action="Settings">@T["Settings.ManageTimeline"]</a>
                     </div>
 
                     <div class="card-header text-bg-primary my-4">
-                        <h2>Location Logging Thresholds</h2>
+                        <h2>@T["Settings.LoggingThresholds"]</h2>
                     </div>
 
                     <p class="text-muted mb-3">
-                        The server applies these thresholds to incoming location data. They help reduce
-                        battery drain on mobile devices and avoid storing redundant location points.
+                        @T["Settings.LoggingHelp"]
                     </p>
 
                     <div class="row mb-3">
@@ -82,13 +88,10 @@
                             <div class="card bg-body-tertiary h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
-                                        <i class="bi bi-clock me-2"></i>Time Threshold
+                                        <i class="bi bi-clock me-2"></i>@T["Settings.TimeThreshold"]
                                     </h6>
-                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationTimeThresholdMinutes"] min</p>
-                                    <p class="small text-muted mb-0">
-                                        Locations sent within <strong>@ViewData["LocationTimeThresholdMinutes"] minutes</strong>
-                                        of the previous logged location are skipped.
-                                    </p>
+                                    <p class="display-6 mb-2 text-primary">@T["Settings.Minutes", ViewData["LocationTimeThresholdMinutes"]]</p>
+                                    <p class="small text-muted mb-0">@T["Settings.TimeHelp", ViewData["LocationTimeThresholdMinutes"]]</p>
                                 </div>
                             </div>
                         </div>
@@ -96,13 +99,10 @@
                             <div class="card bg-body-tertiary h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
-                                        <i class="bi bi-geo-alt me-2"></i>Distance Threshold
+                                        <i class="bi bi-geo-alt me-2"></i>@T["Settings.DistanceThreshold"]
                                     </h6>
-                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationDistanceThresholdMeters"] m</p>
-                                    <p class="small text-muted mb-0">
-                                        Locations within <strong>@ViewData["LocationDistanceThresholdMeters"] meters</strong>
-                                        of the previous logged location are skipped.
-                                    </p>
+                                    <p class="display-6 mb-2 text-primary">@T["Shell.DisplayMetres", ViewData["LocationDistanceThresholdMeters"]]</p>
+                                    <p class="small text-muted mb-0">@T["Settings.DistanceHelp", ViewData["LocationDistanceThresholdMeters"]]</p>
                                 </div>
                             </div>
                         </div>
@@ -110,13 +110,10 @@
                             <div class="card bg-body-tertiary h-100">
                                 <div class="card-body">
                                     <h6 class="card-title">
-                                        <i class="bi bi-bullseye me-2"></i>Accuracy Threshold
+                                        <i class="bi bi-bullseye me-2"></i>@T["Settings.AccuracyThreshold"]
                                     </h6>
-                                    <p class="display-6 mb-2 text-primary">@ViewData["LocationAccuracyThresholdMeters"] m</p>
-                                    <p class="small text-muted mb-0">
-                                        Locations with GPS accuracy worse than <strong>@ViewData["LocationAccuracyThresholdMeters"] meters</strong>
-                                        are rejected.
-                                    </p>
+                                    <p class="display-6 mb-2 text-primary">@T["Shell.DisplayMetres", ViewData["LocationAccuracyThresholdMeters"]]</p>
+                                    <p class="small text-muted mb-0">@T["Settings.AccuracyHelp", ViewData["LocationAccuracyThresholdMeters"]]</p>
                                 </div>
                             </div>
                         </div>
@@ -125,27 +122,25 @@
                     <div class="alert alert-secondary mb-3">
                         <small>
                             <i class="bi bi-info-circle me-1"></i>
-                            <strong>Note:</strong> Time and distance thresholds must be exceeded for a new location to be logged.
-                            Additionally, the GPS accuracy must be within the accuracy threshold.
-                            The <strong>Check-in</strong> endpoint bypasses time/distance thresholds for manual location logging.
-                            These settings are configured by the server administrator.
+                            @T["Settings.LoggingNotice"]
                         </small>
                     </div>
 
                     @* Inbound app credentials and outbound provider keys have separate ownership. *@
-                    <div class="card-header text-bg-primary my-4"><h2>Connect apps</h2></div>
-                    <p>Pair WayfarerMobile or connect GPS loggers and other apps to your account.</p>
-                    <div class="d-grid gap-2 mt-3"><a class="btn btn-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">Connect apps</a></div>
+                    <div class="card-header text-bg-primary my-4"><h2>@T["Connection.ShortTitle"]</h2></div>
+                    <p>@T["Connection.Intro"]</p>
+                    <div class="d-grid gap-2 mt-3"><a class="btn btn-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">@T["Connection.ShortTitle"]</a></div>
 
-                    <div class="card-header text-bg-primary my-4"><h2>Personal Location Providers</h2></div>
-                    <div class="d-grid gap-2 mt-3"><a class="btn btn-outline-primary" asp-area="User" asp-controller="LocationProviderSettings" asp-action="Index">Personal Location Providers</a></div>
+                    <div class="card-header text-bg-primary my-4"><h2>@T["Providers.Title"]</h2></div>
+                    <div class="d-grid gap-2 mt-3"><a class="btn btn-outline-primary" asp-area="User" asp-controller="LocationProviderSettings" asp-action="Index">@T["Providers.Title"]</a></div>
                     
                     <div class="card-header  text-bg-primary my-4">
-                        <h2>Locations Settings</h2>
+                        <h2>@T["Settings.Locations"]</h2>
                     </div>
                     
                     <div class="d-grid gap-2 mt-3">
-                        <button class="btn btn-danger" id="deleteAllUserLocations" data-user-id="@Model?.Id">Delete All Locations</button>
+                        @Html.AntiForgeryToken()
+                        <button class="btn btn-danger" id="deleteAllUserLocations" data-user-id="@Model.Id">@T["Settings.DeleteAll"]</button>
                     </div>
                     
                 </div>

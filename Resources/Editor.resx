@@ -984,15 +984,6 @@
   <data name="Editor.MapDrawRoute" xml:space="preserve">
     <value>Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.</value>
   </data>
-  <data name="Editor.DrawPolygonStart" xml:space="preserve">
-    <value>Click to start drawing the area.</value>
-  </data>
-  <data name="Editor.DrawPolygonContinue" xml:space="preserve">
-    <value>Click to add another vertex.</value>
-  </data>
-  <data name="Editor.DrawPolygonFinish" xml:space="preserve">
-    <value>Click the first vertex to close the area.</value>
-  </data>
   <data name="Editor.DrawPolylineStart" xml:space="preserve">
     <value>Click to start drawing the route.</value>
   </data>
@@ -1001,15 +992,6 @@
   </data>
   <data name="Editor.DrawPolylineFinish" xml:space="preserve">
     <value>Click the last point to finish the route.</value>
-  </data>
-  <data name="Editor.DrawEdgesCannotCross" xml:space="preserve">
-    <value>Area edges cannot cross.</value>
-  </data>
-  <data name="Editor.EditPolygonHandles" xml:space="preserve">
-    <value>Drag the handles to edit the area.</value>
-  </data>
-  <data name="Editor.EditPolygonCancel" xml:space="preserve">
-    <value>Click Cancel to undo changes.</value>
   </data>
   <data name="Editor.DrawAreaPolygon" xml:space="preserve">
     <value>Draw area polygon</value>

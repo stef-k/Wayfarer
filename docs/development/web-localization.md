@@ -75,7 +75,8 @@ for unsaved work.
 | 1 | Standard shell, collapsed navigation, guest/User/Manager/Admin menus, shared error and notification chrome. The authenticated Trip Editor Vue mount and the authenticated, public and embedded live Trip Viewer use the shared locale, their feature catalogs and the shared map/notes chrome. Viewer owns browser print and on-screen export feedback. Capture contexts explicitly request English. |
 | 2 | Home, Privacy and Registration Closed. Public Trip grid/list, tag redirect, filters and pagination, quick preview and asynchronous feedback. Full and embedded public Timeline, map and location detail, summary, clipboard and unavailable or failed states. |
 | 3 | Identity and personal account. The compiled route inventory, presentation owners and language-navigation evidence are recorded below. |
-| 4–8 | Private Timeline, group and invitation workflows, account/app connection and settings, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Timeline Settings supplies its safe GET. Unintegrated protected workspace, Location, and connection routes withhold switching. |
+| 4 | User and Timeline Settings, Hidden Areas, app connection and personal location providers. The affected routes and evidence are recorded below. |
+| 5–8 | Group and invitation workflows, private Timeline, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Unintegrated protected workspaces and Location routes withhold switching. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
@@ -90,8 +91,8 @@ Area 1 checks cover these Editor boundaries.
 | Place coordinate work and draft names | Mounted English and Greek Place forms check that renaming during a Leaflet pick retains the marker and selected coordinate. Done adopts the pick and Cancel restores the draft coordinate. Greek creation and Reset localize the suggested Region and Place names and retain names from search and saved records. |
 | Planning and Check, Visit Progress and Notes | Mounted checks cover an unconfirmed Planning save and its draft and save hold, scoped findings and estimate evidence, retained check inputs, canonical vs. authored Region labels, and Notes draft protection. |
 
-The Editor catalog supplies Leaflet.Draw's polygon and route prompts and the
-polygon crossing warning. The Shell catalog supplies the Editor and Viewer ruler
+The Shell catalog supplies Leaflet.Draw's polygon prompts and crossing warning.
+The Editor catalog supplies its route prompts. The Shell catalog also supplies the Editor and Viewer ruler
 instructions and the metric labels for rulers and live route drawing. The managed
 Greek map-controls journey exercises both rulers through Escape and follows the
 drawing prompts through polygon validation, live route measurements and custom
@@ -170,3 +171,13 @@ feedback, retaining a selected crop after cancellation and a failed language
 write, and one safe GET after a successful switch. A photo
 write or an unconfirmed outcome temporarily disables switching until the owner
 has refreshed the photo state.
+
+
+### Area 4 settings, connection and privacy
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| `/User/Settings` and `/User/Timeline/Settings` | Settings owns logging thresholds, public availability, live acknowledgement, custom delay guidance, field errors and bulk deletion. Shell owns embed controls and clipboard feedback. Routed Greek validation in `WebLanguageHttpTests` checks the live warning, the persisted privacy state and safe GET; the controller tests cover opt-in and unchanged delay rules. The Time Threshold label association is tracked in [#993](https://github.com/stef-k/Wayfarer/issues/993). |
+| `/User/HiddenAreas` list, create, edit and delete | HiddenAreas owns pages, validation and drawing controls. Shell supplies shared polygon prompts and measurement chrome. `SettingsWebLanguageHttpTests` exercises the Greek Edit form and retains exact coordinates and SRID. The polygon editor registers its map state and WKT field with the selector. `webLanguage.test.mjs` checks unfinished and committed polygon-only drafts, cancellation, failed preference writes and safe navigation. |
+| `/User/ApiToken` | Connection owns issue, replace, reveal, QR, copy, hide and recovery text. `SettingsWebLanguageHttpTests` checks the Greek route and its selector exclusion. `connectApps.test.mjs` covers the one-time reveal, cleanup and safe status refresh. Tokens, QR contents and mutation responses remain outside locale data. |
+| `/User/LocationProviderSettings` | Providers owns migration, verification, capability selection, credential and consent controls, usage guards, revocation and backfill. `ProviderSettingsMigrationRouteTests` follows an English POST to its Greek GET and verifies the credential remains masked. `ProviderStatus` carries a catalog key plus a fixed capability value where needed. The destination formats the message. |

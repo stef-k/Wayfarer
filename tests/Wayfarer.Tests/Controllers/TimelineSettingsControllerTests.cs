@@ -113,7 +113,7 @@ public class TimelineSettingsControllerTests : TestBase
         var store = new Mock<IUserStore<ApplicationUser>>();
         var manager = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         manager.Setup(value => value.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(user);
-        var controller = new TimelineController(NullLogger<BaseController>.Instance, db, manager.Object, new LocationService(db), new LocationStatsService(db));
+        var controller = new TimelineController(NullLogger<BaseController>.Instance, db, manager.Object, new LocationService(db), new LocationStatsService(db), WebText);
         controller.TempData = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = CreateUserPrincipal(user.Id) } };
         return controller;

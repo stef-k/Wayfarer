@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="HiddenAreas.Add" xml:space="preserve">
+    <value>Add Hidden Area</value>
+  </data>
+  <data name="HiddenAreas.Edit" xml:space="preserve">
+    <value>Edit Hidden Area</value>
+  </data>
+  <data name="HiddenAreas.Delete" xml:space="preserve">
+    <value>Delete Hidden Area</value>
+  </data>
+  <data name="HiddenAreas.DeletePrompt" xml:space="preserve">
+    <value>Are you sure you want to delete this hidden area?</value>
+  </data>
+  <data name="HiddenAreas.ConfirmDelete" xml:space="preserve">
+    <value>Yes, delete</value>
+  </data>
+  <data name="HiddenAreas.Help" xml:space="preserve">
+    <value>Hidden areas mask locations on your public timeline. Draw polygons around sensitive areas such as your home or workplace. If a location falls within any of the areas, it will be hidden even where areas overlap.</value>
+  </data>
+  <data name="HiddenAreas.Empty" xml:space="preserve">
+    <value>You have not added any hidden areas yet.</value>
+  </data>
+  <data name="HiddenAreas.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="HiddenAreas.NameRequired" xml:space="preserve">
+    <value>Enter a name for the hidden area.</value>
+  </data>
+  <data name="HiddenAreas.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="HiddenAreas.DescriptionRequired" xml:space="preserve">
+    <value>Enter a description for the hidden area.</value>
+  </data>
+  <data name="HiddenAreas.Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="HiddenAreas.EditAction" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="HiddenAreas.DeleteAction" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="HiddenAreas.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="HiddenAreas.DrawMap" xml:space="preserve">
+    <value>Draw Hidden Area on Map</value>
+  </data>
+  <data name="HiddenAreas.EditMap" xml:space="preserve">
+    <value>Edit Hidden Area on Map</value>
+  </data>
+  <data name="HiddenAreas.DrawHelp" xml:space="preserve">
+    <value>Use the polygon tool to draw the area to hide.</value>
+  </data>
+  <data name="HiddenAreas.EditHelp" xml:space="preserve">
+    <value>Use the handles to edit the hidden area polygon.</value>
+  </data>
+  <data name="HiddenAreas.DrawRequired" xml:space="preserve">
+    <value>Please draw a polygon area.</value>
+  </data>
+  <data name="HiddenAreas.Added" xml:space="preserve">
+    <value>Hidden area added successfully.</value>
+  </data>
+  <data name="HiddenAreas.Updated" xml:space="preserve">
+    <value>Hidden area updated successfully.</value>
+  </data>
+  <data name="HiddenAreas.Deleted" xml:space="preserve">
+    <value>Hidden area deleted successfully.</value>
+  </data>
+  <data name="HiddenAreas.AddFailed" xml:space="preserve">
+    <value>Could not add the hidden area. Check the drawing and try again.</value>
+  </data>
+  <data name="HiddenAreas.UpdateFailed" xml:space="preserve">
+    <value>Could not update the hidden area. Check the drawing and try again.</value>
+  </data>
+  <data name="HiddenAreas.InvalidDrawing" xml:space="preserve">
+    <value>The map could not load this polygon. Check the area and try again.</value>
+  </data>
+  <data name="HiddenAreas.InvalidGeometry" xml:space="preserve">
+    <value>Invalid area geometry.</value>
+  </data>
+  <data name="HiddenAreas.DrawPolygon" xml:space="preserve">
+    <value>Draw a polygon</value>
+  </data>
+  <data name="HiddenAreas.DrawCancel" xml:space="preserve">
+    <value>Cancel drawing</value>
+  </data>
+  <data name="HiddenAreas.DrawFinish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="HiddenAreas.DrawFinishTitle" xml:space="preserve">
+    <value>Finish drawing</value>
+  </data>
+  <data name="HiddenAreas.DrawUndo" xml:space="preserve">
+    <value>Delete last point</value>
+  </data>
+  <data name="HiddenAreas.DrawUndoTitle" xml:space="preserve">
+    <value>Delete last point drawn</value>
+  </data>
+  <data name="HiddenAreas.EditPolygon" xml:space="preserve">
+    <value>Edit polygon</value>
+  </data>
+  <data name="HiddenAreas.EditDisabled" xml:space="preserve">
+    <value>No polygon to edit</value>
+  </data>
+  <data name="HiddenAreas.RemovePolygon" xml:space="preserve">
+    <value>Remove polygon</value>
+  </data>
+  <data name="HiddenAreas.RemoveDisabled" xml:space="preserve">
+    <value>No polygon to remove</value>
+  </data>
+  <data name="HiddenAreas.RemoveHint" xml:space="preserve">
+    <value>Click the polygon to remove it.</value>
+  </data>
+  <data name="HiddenAreas.EditSave" xml:space="preserve">
+    <value>Save drawing changes</value>
+  </data>
+  <data name="HiddenAreas.EditCancel" xml:space="preserve">
+    <value>Cancel and undo drawing changes</value>
+  </data>
+  <data name="HiddenAreas.ClearAll" xml:space="preserve">
+    <value>Clear all</value>
+  </data>
+  <data name="HiddenAreas.ClearAllTitle" xml:space="preserve">
+    <value>Clear all polygons</value>
+  </data>
+  <data name="HiddenAreas.SquareMetres" xml:space="preserve">
+    <value>{0} m²</value>
+  </data>
+  <data name="HiddenAreas.Hectares" xml:space="preserve">
+    <value>{0} ha</value>
+  </data>
+  <data name="HiddenAreas.Blog" xml:space="preserve">
+    <value>Visit my blog</value>
+  </data>
+</root>

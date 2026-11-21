@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
-using Microsoft.Extensions.Localization;
 using Wayfarer.Areas.Identity.Pages.Account;
 
 namespace Wayfarer.Localization;
@@ -94,18 +93,4 @@ internal sealed class IdentityValidationMetadata(WebMessages messages)
         _ => null
     };
 
-    /// <summary>Adapts existing Web catalog keys to MVC's server and unobtrusive validation adapters.</summary>
-    internal sealed class Localizer(WebMessages messages) : IStringLocalizer
-    {
-        /// <inheritdoc />
-        public LocalizedString this[string name] => this[name, []];
-
-        /// <inheritdoc />
-        public LocalizedString this[string name, params object[] arguments] =>
-            name.StartsWith("Identity.Validation.", StringComparison.Ordinal) ?
-                new(name, messages[name, arguments]) : new(name, name, resourceNotFound: true);
-
-        /// <inheritdoc />
-        public IEnumerable<LocalizedString> GetAllStrings(bool includeParentCultures) => [];
-    }
 }

@@ -233,28 +233,46 @@ public sealed class WebLanguageHttpTests : TestBase
     public async Task TimelineValidationUsesOwnedGetAndProtectedTimelineWithholdsSwitching()
     {
         var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
+        var user = TestDataFixtures.CreateUser(displayName: "Alice <North>");
+        user.PublicTimelineTimeThreshold = "2.5w";
         db.Users.Add(user);
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
         using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
         var auth = IdentityRouteHost.Cookie(app.Services, user.Id);
         client.DefaultRequestHeaders.Add("Cookie", auth);
         using var settingsResponse = await client.GetAsync("/User/Timeline/Settings");
         var settings = await ParseAsync(settingsResponse);
+        Assert.Equal("2.5w", settings.QuerySelector("#CustomThreshold")?.GetAttribute("value"));
+        Assert.Equal("Ο τίτλος του χρονολογίου δεν μπορεί να υπερβαίνει τους 80 χαρακτήρες.",
+            settings.QuerySelector("#TimelineTitle")?.GetAttribute("data-val-length"));
+        Assert.Contains("Χρονολόγιο του χρήστη", settings.QuerySelector("main")?.TextContent);
         var token = settings.QuerySelector("#language-form input[name=__RequestVerificationToken]")!.GetAttribute("value")!;
         var csrfCookie = settingsResponse.Headers.GetValues("Set-Cookie")
             .Single(value => value.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal)).Split(';')[0];
         client.DefaultRequestHeaders.Remove("Cookie");
         client.DefaultRequestHeaders.Add("Cookie", $"{auth}; {csrfCookie}");
         using var invalid = await client.PostAsync("/User/Timeline/UpdateSettings", Form(token,
-            ("TimelineTitle", new string('x', 81)), ("PublicTimelineTimeThreshold", "custom"), ("CustomPublicTimelineTimeThreshold", "invalid")));
+            ("TimelineTitle", "Draft <North>"), ("IsTimelinePublic", "true"), ("PublicTimelineTimeThreshold", "now")));
         var page = await ParseAsync(invalid);
         Assert.Equal("/User/Timeline/Settings", page.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get"));
-        using var preference = await client.PostAsync("/Language/Set", Form(token, ("locale", "el-GR")));
+        Assert.Equal("el-GR", page.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("Draft <North>", page.QuerySelector("#TimelineTitle")?.GetAttribute("value"));
+        Assert.Contains("Επιβεβαιώστε τη ζωντανή δημόσια κοινοποίηση πριν από την αποθήκευση.",
+            page.QuerySelector("[data-valmsg-for=ConfirmLivePublicTimeline]")?.TextContent);
+        db.ChangeTracker.Clear();
+        var persisted = db.Users.Single(u => u.Id == user.Id);
+        Assert.False(persisted.IsTimelinePublic);
+        Assert.Equal("2.5w", persisted.PublicTimelineTimeThreshold);
+        Assert.Null(persisted.TimelineTitle);
+        using var preference = await client.PostAsync("/Language/Set", Form(token, ("locale", "en-US")));
         Assert.Equal(HttpStatusCode.NoContent, preference.StatusCode);
+        SetCookies(client, auth, csrfCookie, ReadCookie(preference, WebLocales.CookieName + "="));
         using var clean = await client.GetAsync("/User/Timeline/Settings");
-        Assert.DoesNotContain(new string('x', 81), await clean.Content.ReadAsStringAsync());
+        var cleanPage = await ParseAsync(clean);
+        Assert.Equal("en-US", cleanPage.DocumentElement.GetAttribute("lang"));
+        Assert.Empty(cleanPage.QuerySelector("#TimelineTitle")?.GetAttribute("value") ?? string.Empty);
         using var workspace = await client.GetAsync("/User/Timeline/Index");
         Assert.Null((await ParseAsync(workspace)).QuerySelector("#language-open"));
     }

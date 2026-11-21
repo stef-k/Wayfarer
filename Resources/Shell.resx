@@ -528,4 +528,43 @@
   <data name="Shell.ApproximateRegion" xml:space="preserve">
     <value>Approximate address — resolved only to a regional level.</value>
   </data>
+  <data name="Shell.CopyEmbedUrl" xml:space="preserve">
+    <value>Copy embed URL</value>
+  </data>
+  <data name="Shell.CopyEmbedHtml" xml:space="preserve">
+    <value>Copy embed HTML</value>
+  </data>
+  <data name="Shell.EmbedUrlCopied" xml:space="preserve">
+    <value>Embed URL copied to clipboard!</value>
+  </data>
+  <data name="Shell.EmbedHtmlCopied" xml:space="preserve">
+    <value>Embed HTML copied to clipboard!</value>
+  </data>
+  <data name="Shell.EmbedUrlCopyFailed" xml:space="preserve">
+    <value>Failed to copy the embed URL.</value>
+  </data>
+  <data name="Shell.EmbedHtmlCopyFailed" xml:space="preserve">
+    <value>Failed to copy the embed HTML.</value>
+  </data>
+  <data name="Shell.EmbedPublicHttps" xml:space="preserve">
+    <value>Open Wayfarer at its public HTTPS address to copy an embed.</value>
+  </data>
+  <data name="Shell.DrawPolygonStart" xml:space="preserve">
+    <value>Click to start drawing the area.</value>
+  </data>
+  <data name="Shell.DrawPolygonContinue" xml:space="preserve">
+    <value>Click to add another vertex.</value>
+  </data>
+  <data name="Shell.DrawPolygonFinish" xml:space="preserve">
+    <value>Click the first vertex to close the area.</value>
+  </data>
+  <data name="Shell.DrawEdgesCannotCross" xml:space="preserve">
+    <value>Area edges cannot cross.</value>
+  </data>
+  <data name="Shell.EditPolygonHandles" xml:space="preserve">
+    <value>Drag the handles to edit the area.</value>
+  </data>
+  <data name="Shell.EditPolygonCancel" xml:space="preserve">
+    <value>Click Cancel to undo changes.</value>
+  </data>
 </root>

@@ -23,7 +23,6 @@ public sealed class ApiTokenController(ApplicationDbContext db, ApiTokenService 
         if (owner == null) return StatusCode(403);
         var status = await tokens.GetConnectionTokenStatusAsync(owner.Id, cancellationToken);
         if (Request.Headers.Accept.Contains("application/json")) return Json(status);
-        ViewData["Title"] = "Connect apps to Wayfarer";
         return View(new ConnectionTokenViewModel(owner.UserName ?? string.Empty, status, Request.IsHttps));
     }
 

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -17,18 +18,22 @@ namespace Wayfarer.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly Parsers.LocationService _locationService;
         private readonly ILocationStatsService _statsService;
+        private readonly WebMessages _text;
 
+        /// <summary>Creates the private Timeline controller and its settings presentation.</summary>
         public TimelineController(
             ILogger<BaseController> logger,
             ApplicationDbContext dbContext,
             UserManager<ApplicationUser> userManager,
             Parsers.LocationService locationService,
-            ILocationStatsService statsService)
+            ILocationStatsService statsService,
+            WebMessages text)
             : base(logger, dbContext)
         {
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _locationService = locationService ?? throw new ArgumentNullException(nameof(locationService));
             _statsService = statsService ?? throw new ArgumentNullException(nameof(statsService));
+            _text = text;
         }
 
         // Action to display the timeline for the logged-in user
@@ -48,24 +53,23 @@ namespace Wayfarer.Controllers
             return View();
         }
 
-        // GET: Timeline/Settings
+        /// <summary>Displays persisted Timeline settings and public availability.</summary>
         public async Task<IActionResult> Settings()
         {
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
 
             if (currentUser == null)
             {
-                SetAlert("User not found.", "danger");
+                SetAlert("User not found.", "danger", "Settings.UserMissing");
                 return RedirectToAction("Index", "Home");
             }
 
-            TimelineSettingsViewModel model = TimelineSettingsViewModel.FromUser(currentUser);
+            TimelineSettingsViewModel model = TimelineSettingsViewModel.FromUser(currentUser, _text);
 
-            SetPageTitle("Timeline Settings");
             return View(model);
         }
 
-        // POST: Timeline/Settings
+        /// <summary>Validates and saves the owner’s Timeline preferences.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateSettings(TimelineSettingsViewModel model)
@@ -74,13 +78,13 @@ namespace Wayfarer.Controllers
 
             if (currentUser == null)
             {
-                SetAlert("User not found.", "danger");
+                SetAlert("User not found.", "danger", "Settings.UserMissing");
                 return RedirectToAction("Index", "Home");
             }
 
-            model.DefaultTimelineTitle = currentUser.ResolveDefaultTimelineTitle();
+            model.SetPersistedPresentation(currentUser, PublicTimelineEligibilityResolver.Resolve(currentUser), _text);
 
-            if (model.TimelineTitle?.Length > 80) ModelState.AddModelError(nameof(model.TimelineTitle), "Timeline title must be 80 characters or fewer.");
+            if (model.TimelineTitle?.Length > 80) ModelState.AddModelError(nameof(model.TimelineTitle), _text["Settings.TitleLength"]);
 
             if (model.PublicTimelineTimeThreshold != "custom")
             {
@@ -99,16 +103,16 @@ namespace Wayfarer.Controllers
             {
                 ModelState.AddModelError(
                     submission.IsCustom ? nameof(model.CustomThreshold) : nameof(model.PublicTimelineTimeThreshold),
-                    submission.IsCustom ? "Invalid time threshold format. Use values like 1d, 2.5w, 0.1h, etc." : "Select a valid time threshold.");
+                    _text[submission.IsCustom ? "Settings.InvalidCustom" : "Settings.InvalidThreshold"]);
             }
 
             bool wouldPersistLive = model.IsTimelinePublic && submission.ThresholdToPersist == "now";
             if (wouldPersistLive && !model.ConfirmLivePublicTimeline)
             {
-                ModelState.AddModelError(nameof(model.ConfirmLivePublicTimeline), "Confirm live public sharing before saving.");
+                ModelState.AddModelError(nameof(model.ConfirmLivePublicTimeline), _text["Settings.LiveRequired"]);
             }
 
-            if (!ValidateModelState())
+            if (!ValidateModelState("Settings.ValidationFailed"))
             {
                 return View("Settings", model);
             }
@@ -124,13 +128,13 @@ namespace Wayfarer.Controllers
                 _dbContext.Users.Update(currentUser);
                 await _dbContext.SaveChangesAsync();
 
-                SetAlert("Timeline settings updated successfully.");
+                SetAlert("Timeline settings updated successfully.", "success", "Settings.TimelineSaved");
                 LogAction("TimelineSettingsUpdate", $"User {currentUser.UserName} updated their timeline settings.");
                 return RedirectToAction("Settings");
             }
             catch (Exception ex)
             {
-                HandleError(ex);
+                HandleError(ex, "Settings.TimelineSaveFailed");
                 return View("Settings", model);
             }
         }

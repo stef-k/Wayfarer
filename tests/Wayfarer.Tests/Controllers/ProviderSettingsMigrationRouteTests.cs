@@ -28,7 +28,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
 
     /// <summary>Every presentation state reads durable state without saving, repairing, retiring or contacting providers.</summary>
     [Theory]
-    [InlineData("pending", "Legacy Mapbox migration pending")]
+    [InlineData("pending", "Legacy Mapbox migration is pending")]
     [InlineData("migrated", "Mapbox is not selected")]
     [InlineData("cleanup", "verification")]
     [InlineData("conflict", "Conflicting stored values were retained")]
@@ -50,6 +50,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         http.Setup(factory => factory.CreateClient(It.IsAny<string>())).Returns(providerClient);
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
+            IdentityRouteHost.WithStartupSettings(services);
             services.AddSingleton(credentials);
             services.AddSingleton(http.Object);
             services.AddLogging(builder => builder.AddProvider(logs));
@@ -63,7 +64,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
             var text = await page.Content.ReadAsStringAsync();
             Assert.Contains(message, text);
             Assert.DoesNotContain("No provider contact is authorized", text);
-            if (state == "conflict") Assert.Contains("Ready with mapbox.", text);
+            if (state == "conflict") Assert.Contains("Ready with Mapbox.", text);
             AssertPrivate(text, db);
             var html = await new HtmlParser().ParseDocumentAsync(text);
             Assert.Equal(state is not ("migrated" or "cleanup"),
@@ -92,6 +93,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         using var logs = new TestLogProvider();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
+            IdentityRouteHost.WithStartupSettings(services);
             services.AddSingleton(credentials);
             services.AddLogging(builder => builder.AddProvider(logs));
         });
@@ -122,10 +124,17 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         Assert.Equal(Root, accepted.Headers.Location!.OriginalString);
         AssertPrivate(accepted.ToString() + await accepted.Content.ReadAsStringAsync(), db);
         AddResponseCookies(client, accepted);
+        // The initiating POST used English. Only the redirected document negotiates Greek.
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
         using var redirected = await client.GetAsync(accepted.Headers.Location);
         var text = await redirected.Content.ReadAsStringAsync();
-        Assert.Contains("Legacy Mapbox credential safely prepared", text);
-        Assert.Contains("Existing consent, verification and explicit provider selection", text);
+        var destination = await new HtmlParser().ParseDocumentAsync(text);
+        Assert.Equal("el-GR", destination.DocumentElement.GetAttribute("lang"));
+        Assert.Contains("Το παλιό διαπιστευτήριο Mapbox προετοιμάστηκε με ασφάλεια.",
+            destination.QuerySelector("main [role=status]")?.TextContent);
+        Assert.Equal("Geocoding", destination.QuerySelector("input[name=Capability]")?.GetAttribute("value"));
+        Assert.Equal("mapbox", destination.QuerySelector("option[value=mapbox]")?.GetAttribute("value"));
+        Assert.All(destination.QuerySelectorAll("input[type=password]"), field => Assert.Null(field.GetAttribute("value")));
         AssertPrivate(text, db);
         await using var verify = Context(options);
         var profile = await verify.PersonalLocationProviderProfiles.SingleAsync();
@@ -141,10 +150,10 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
 
     /// <summary>Normal blocked/no-op outcomes are successful credential-free command evaluations with PRG.</summary>
     [Theory]
-    [InlineData("empty", "No legacy Mapbox credential currently requires conversion.")]
-    [InlineData("conflict", "Conflicting stored recovery copies were retained.")]
-    [InlineData("unavailable", "Legacy recovery copies were retained.")]
-    [InlineData("revoked", "Migration did not reactivate it")]
+    [InlineData("empty", "Providers.Status.NoMigration")]
+    [InlineData("conflict", "Providers.Status.MigrationConflict")]
+    [InlineData("unavailable", "Providers.Status.MigrationUnavailable")]
+    [InlineData("revoked", "Providers.Status.MigrationRevoked")]
     public async Task Command_ReportsBoundedRecoveryOutcomes(string state, string expected)
     {
         var options = Options();
@@ -159,7 +168,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         var result = Assert.IsType<RedirectToActionResult>(await controller.MigrateLegacyMapbox(default));
         Assert.Equal("Index", result.ActionName);
         var status = Assert.IsType<string>(controller.TempData["ProviderStatus"]);
-        Assert.Contains(expected, status);
+        Assert.Equal(expected, status);
         AssertPrivate(status, db);
         await using var verify = Context(options);
         Assert.Equal(state == "empty" ? 1 : 2, await verify.ApiTokens.IgnoreQueryFilters().CountAsync());

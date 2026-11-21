@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Areas.User.LocationProviderModels;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
@@ -36,16 +37,15 @@ public sealed class LocationProviderSettingsController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         var result = await migration.MigrateAsync(userId, cancellationToken);
-        TempData["ProviderStatus"] = result.State switch
+        return RedirectWithStatus(result.State switch
         {
-            LegacyMapboxMigrationState.Migrated => "Legacy Mapbox credential safely prepared. Existing consent, verification and explicit provider selection requirements still govern Mapbox use.",
-            LegacyMapboxMigrationState.None => "No legacy Mapbox credential currently requires conversion.",
-            LegacyMapboxMigrationState.Conflict => "Legacy Mapbox migration needs recovery. Conflicting stored recovery copies were retained.",
-            LegacyMapboxMigrationState.ProtectedCredentialUnavailable => "The protected Mapbox credential cannot currently be read or trusted. Legacy recovery copies were retained.",
-            LegacyMapboxMigrationState.Revoked => "Mapbox remains revoked. Migration did not reactivate it; legacy recovery copies were retained.",
+            LegacyMapboxMigrationState.Migrated => "Migrated",
+            LegacyMapboxMigrationState.None => "NoMigration",
+            LegacyMapboxMigrationState.Conflict => "MigrationConflict",
+            LegacyMapboxMigrationState.ProtectedCredentialUnavailable => "MigrationUnavailable",
+            LegacyMapboxMigrationState.Revoked => "MigrationRevoked",
             _ => throw new InvalidOperationException("Unrecognized legacy migration outcome.")
-        };
-        return RedirectToAction(nameof(Index));
+        });
     }
 
     /// <summary>Replaces a credential only when nonblank and changes explicit capability selections independently.</summary>
@@ -55,10 +55,12 @@ public sealed class LocationProviderSettingsController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
-        if (setup != null && !string.IsNullOrWhiteSpace(input.ReplacementCredential))
-            await setup.ReplaceCredentialAsync(
-                userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
-        return RedirectToAction(nameof(Index));
+        if (setup == null || string.IsNullOrWhiteSpace(input.ReplacementCredential))
+            return RedirectToAction(nameof(Index));
+
+        await setup.ReplaceCredentialAsync(
+            userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
+        return RedirectWithStatus("CredentialReplaced");
     }
 
     /// <summary>Replaces one credential and disables its selections without provider contact.</summary>
@@ -69,30 +71,30 @@ public sealed class LocationProviderSettingsController(
         if (userId == null) return Challenge();
         if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
         await setup.ReplaceCredentialAsync(userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
-        TempData["ProviderStatus"] = "Credential replaced. Existing provider choices remain blocked until each capability is verified again.";
-        return RedirectToAction(nameof(Index));
+        return RedirectWithStatus("CredentialReplaced");
     }
 
     /// <summary>Applies one capability provider choice without contacting a provider.</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ChooseProvider(LocationProviderChoiceInput input, CancellationToken cancellationToken)
+    public async Task<IActionResult> ChooseProvider(LocationProviderChoiceInput input, [FromServices] WebMessages text,
+        CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         var capabilityValid = TryParseCapability(input.Capability, out var capability);
         var providerValid = TryParseOptionalProvider(input.ProviderKey, out var provider);
         if (!capabilityValid || !providerValid)
-            ModelState.AddModelError(string.Empty, "Choose a supported capability and provider.");
+            ModelState.AddModelError(string.Empty, text["Providers.Validation.Capability"]);
         if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
         var result = await setup.ChooseAsync(userId, capability, provider, cancellationToken);
-        TempData["ProviderStatus"] = result == ProviderChoiceResult.Success
-            ? $"{capability} provider choice saved." : "Verify this provider for the capability before selecting it.";
-        return RedirectToAction(nameof(Index));
+        return result == ProviderChoiceResult.Success
+            ? RedirectWithStatus("ChoiceSaved", capability) : RedirectWithStatus("ChoiceBlocked");
     }
 
     /// <summary>Records explicit Mapbox Permanent Geocoding consent after every acknowledgement validates.</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> ConsentMapboxPermanent(MapboxPermanentConsentInput input, CancellationToken cancellationToken)
+    public async Task<IActionResult> ConsentMapboxPermanent(MapboxPermanentConsentInput input, [FromServices] WebMessages text,
+        CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
@@ -100,10 +102,13 @@ public sealed class LocationProviderSettingsController(
         var profile = await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
             item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
         if (profile == null || credentials.Read(profile).Succeeded == false)
-        { ModelState.AddModelError(string.Empty, "Configure a readable Mapbox credential before consenting."); return View("Index", await BuildAsync(userId, cancellationToken)); }
+        {
+            ModelState.AddModelError(string.Empty, text["Providers.Validation.ConsentCredential"]);
+            return View("Index", await BuildAsync(userId, cancellationToken));
+        }
         profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return RedirectToAction(nameof(Index));
+        return RedirectWithStatus("ConsentRecorded");
     }
 
     /// <summary>Runs one explicit admitted Mapbox Permanent verification contact.</summary>
@@ -114,10 +119,13 @@ public sealed class LocationProviderSettingsController(
         if (userId == null) return Challenge();
         if (setup == null || !await setup.AuthorizeVerificationAsync(userId, PersonalLocationProvider.Mapbox,
             PersonalProviderCapability.Geocoding, cancellationToken))
-        { TempData["ProviderStatus"] = "Configure a readable credential and current Permanent acknowledgements before verification."; return RedirectToAction(nameof(Index)); }
-        TempData["ProviderStatus"] = await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
-        { PersonalProviderVerification.Verified => "Mapbox Permanent Geocoding verified. Activate it explicitly to begin enrichment.", PersonalProviderVerification.Failed => "Mapbox rejected Permanent Geocoding authorization.", _ => "Mapbox Permanent Geocoding verification is unavailable; no stored data was changed." };
-        return RedirectToAction(nameof(Index));
+            return RedirectWithStatus("MapboxNeedsSetup");
+        return RedirectWithStatus(await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
+        {
+            PersonalProviderVerification.Verified => "MapboxVerified",
+            PersonalProviderVerification.Failed => "MapboxRejected",
+            _ => "MapboxVerifyUnavailable"
+        });
     }
 
     /// <summary>Runs one explicit Geoapify capability verification without changing selection.</summary>
@@ -127,17 +135,16 @@ public sealed class LocationProviderSettingsController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         if (capability is not (PersonalProviderCapability.Geocoding or PersonalProviderCapability.Routing))
-        { TempData["ProviderStatus"] = "Choose geocoding or directions to verify."; return RedirectToAction(nameof(Index)); }
+            return RedirectWithStatus("GeoapifyInvalidCapability");
         if (setup == null || !await setup.AuthorizeVerificationAsync(
             userId, PersonalLocationProvider.Geoapify, capability, cancellationToken))
-        { TempData["ProviderStatus"] = "Configure a readable Geoapify credential before verification."; return RedirectToAction(nameof(Index)); }
+            return RedirectWithStatus("GeoapifyNeedsCredential");
         var result = geoapifyVerification == null
             ? new GeoapifyVerificationOutcome(PersonalProviderVerification.Unavailable, GeoapifyVerificationCategory.TemporaryFailure)
             : capability == PersonalProviderCapability.Geocoding
                 ? await geoapifyVerification.VerifyGeocodingAsync(userId, cancellationToken)
                 : await geoapifyVerification.VerifyRoutingAsync(userId, cancellationToken);
-        TempData["ProviderStatus"] = GeoapifyVerificationMessage(capability, result);
-        return RedirectToAction(nameof(Index));
+        return RedirectWithStatus(GeoapifyVerificationStatus(result.Category), capability);
     }
 
     /// <summary>Runs one explicit bounded Location backfill for the authenticated owner.</summary>
@@ -146,12 +153,17 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        if (enrichmentCommands == null) return RedirectToAction(nameof(Index));
+        if (enrichmentCommands == null) return RedirectWithStatus("BackfillUnavailable");
         var result = await enrichmentCommands.StartAsync(userId, cancellationToken);
-        TempData["ProviderStatus"] = result.Succeeded
-            ? "Missing-address enrichment is scheduled through the durable workflow."
-            : $"Missing-address enrichment was not started: {result.Code}.";
-        return RedirectToAction(nameof(Index));
+        return RedirectWithStatus(result.Succeeded ? "BackfillScheduled" : result.Code switch
+        {
+            "invalid-state" => "BackfillReview",
+            "authority-unavailable" => "BackfillAuthority",
+            "no-candidates" => "BackfillEmpty",
+            "stale-control" or "concurrent-command" => "BackfillChanged",
+            "scheduling-reconciliation-required" => "BackfillUnconfirmed",
+            _ => "BackfillUnavailable"
+        });
     }
 
     /// <summary>Explicitly revokes one credential without deleting profiles, usage, or domain data.</summary>
@@ -160,11 +172,13 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        if (!confirmed) return RedirectToAction(nameof(Index));
+        if (!confirmed) return RedirectWithStatus("RevokeRequired");
         var profile = await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
             item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
-        if (profile != null) { credentials.Revoke(profile); await dbContext.SaveChangesAsync(cancellationToken); }
-        return RedirectToAction(nameof(Index));
+        if (profile == null) return RedirectWithStatus("RevokeMissing");
+        credentials.Revoke(profile);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return RedirectWithStatus("Revoked");
     }
 
     /// <summary>Updates only a provider-native guard; lowering never deletes or resets usage.</summary>
@@ -173,7 +187,7 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        if (!ModelState.IsValid) return RedirectToAction(nameof(Index));
+        if (!ModelState.IsValid) return RedirectWithStatus("GuardInvalid");
         if (input.GuardKey == "geoapify")
         {
             var guard = await dbContext.GeoapifyUsageGuards.SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken)
@@ -192,7 +206,7 @@ public sealed class LocationProviderSettingsController(
             meter.Enabled = input.Enabled; meter.Limit = input.Limit;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
-        return RedirectToAction(nameof(Index));
+        return RedirectWithStatus("GuardSaved");
     }
 
     /// <summary>Builds executable eligibility and masked status without provider contact or mutation.</summary>
@@ -318,21 +332,25 @@ public sealed class LocationProviderSettingsController(
         return string.IsNullOrEmpty(value) || provider != null;
     }
 
-    /// <summary>Maps bounded request-local verification detail to credential-free presentation.</summary>
-    internal static string GeoapifyVerificationMessage(PersonalProviderCapability capability, GeoapifyVerificationOutcome outcome)
+    /// <summary>Maps bounded verification detail to a credential-free status identity.</summary>
+    private static string GeoapifyVerificationStatus(GeoapifyVerificationCategory category) => category switch
     {
-        var detail = outcome.Category switch
-        {
-            GeoapifyVerificationCategory.Verified => "verified successfully",
-            GeoapifyVerificationCategory.AuthorizationDisabled => "authorization is not enabled",
-            GeoapifyVerificationCategory.CredentialUnavailable => "the credential is missing, revoked, or unreadable",
-            GeoapifyVerificationCategory.GuardExhausted => "the local Wayfarer usage guard is exhausted",
-            GeoapifyVerificationCategory.ProviderRejected => "the provider rejected the credential or capability",
-            GeoapifyVerificationCategory.RateLimited => "the provider rejected the request because of rate or allowance limits",
-            GeoapifyVerificationCategory.TemporaryFailure => "the provider or network is temporarily unavailable",
-            GeoapifyVerificationCategory.InvalidResponse => "the provider response was invalid or incompatible",
-            _ => "authority changed while verification was in progress"
-        };
-        return $"Geoapify {capability.ToString().ToLowerInvariant()} verification {detail}. No provider was selected automatically.";
+        GeoapifyVerificationCategory.Verified => "GeoVerified",
+        GeoapifyVerificationCategory.AuthorizationDisabled => "GeoAuthorizationDisabled",
+        GeoapifyVerificationCategory.CredentialUnavailable => "GeoCredentialUnavailable",
+        GeoapifyVerificationCategory.GuardExhausted => "GeoGuardExhausted",
+        GeoapifyVerificationCategory.ProviderRejected => "GeoProviderRejected",
+        GeoapifyVerificationCategory.RateLimited => "GeoRateLimited",
+        GeoapifyVerificationCategory.TemporaryFailure => "GeoTemporaryFailure",
+        GeoapifyVerificationCategory.InvalidResponse => "GeoInvalidResponse",
+        _ => "GeoAuthorityChanged"
+    };
+
+    /// <summary>Stores a catalog key and, when required, a fixed capability value for the destination GET.</summary>
+    private IActionResult RedirectWithStatus(string status, PersonalProviderCapability? capability = null)
+    {
+        TempData["ProviderStatus"] = "Providers.Status." + status;
+        TempData["ProviderStatusCapability"] = capability?.ToString();
+        return RedirectToAction(nameof(Index));
     }
 }

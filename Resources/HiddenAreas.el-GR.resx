@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="HiddenAreas.Add" xml:space="preserve">
+    <value>Προσθήκη κρυφής ζώνης</value>
+  </data>
+  <data name="HiddenAreas.Edit" xml:space="preserve">
+    <value>Επεξεργασία κρυφής ζώνης</value>
+  </data>
+  <data name="HiddenAreas.Delete" xml:space="preserve">
+    <value>Διαγραφή κρυφής ζώνης</value>
+  </data>
+  <data name="HiddenAreas.DeletePrompt" xml:space="preserve">
+    <value>Θέλετε να διαγράψετε αυτή την κρυφή ζώνη;</value>
+  </data>
+  <data name="HiddenAreas.ConfirmDelete" xml:space="preserve">
+    <value>Ναι, διαγραφή</value>
+  </data>
+  <data name="HiddenAreas.Help" xml:space="preserve">
+    <value>Οι κρυφές ζώνες αποκρύπτουν καταγραφές από το δημόσιο χρονολόγιό σας. Σχεδιάστε πολύγωνα γύρω από ευαίσθητες περιοχές, όπως το σπίτι ή τον χώρο εργασίας σας. Αρκεί μια καταγραφή να βρίσκεται μέσα σε μία ζώνη για να αποκρυφτεί, ακόμη και αν οι ζώνες επικαλύπτονται.</value>
+  </data>
+  <data name="HiddenAreas.Empty" xml:space="preserve">
+    <value>Δεν έχετε προσθέσει ακόμη κρυφές ζώνες.</value>
+  </data>
+  <data name="HiddenAreas.Name" xml:space="preserve">
+    <value>Όνομα</value>
+  </data>
+  <data name="HiddenAreas.NameRequired" xml:space="preserve">
+    <value>Εισαγάγετε όνομα για την κρυφή ζώνη.</value>
+  </data>
+  <data name="HiddenAreas.Description" xml:space="preserve">
+    <value>Περιγραφή</value>
+  </data>
+  <data name="HiddenAreas.DescriptionRequired" xml:space="preserve">
+    <value>Εισαγάγετε περιγραφή για την κρυφή ζώνη.</value>
+  </data>
+  <data name="HiddenAreas.Actions" xml:space="preserve">
+    <value>Ενέργειες</value>
+  </data>
+  <data name="HiddenAreas.EditAction" xml:space="preserve">
+    <value>Επεξεργασία</value>
+  </data>
+  <data name="HiddenAreas.DeleteAction" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="HiddenAreas.Save" xml:space="preserve">
+    <value>Αποθήκευση</value>
+  </data>
+  <data name="HiddenAreas.DrawMap" xml:space="preserve">
+    <value>Σχεδίαση κρυφής ζώνης στον χάρτη</value>
+  </data>
+  <data name="HiddenAreas.EditMap" xml:space="preserve">
+    <value>Επεξεργασία κρυφής ζώνης στον χάρτη</value>
+  </data>
+  <data name="HiddenAreas.DrawHelp" xml:space="preserve">
+    <value>Χρησιμοποιήστε το εργαλείο πολυγώνου για να σχεδιάσετε τη ζώνη που θέλετε να αποκρύψετε.</value>
+  </data>
+  <data name="HiddenAreas.EditHelp" xml:space="preserve">
+    <value>Χρησιμοποιήστε τις λαβές για να επεξεργαστείτε το πολύγωνο της κρυφής ζώνης.</value>
+  </data>
+  <data name="HiddenAreas.DrawRequired" xml:space="preserve">
+    <value>Σχεδιάστε μια πολυγωνική ζώνη.</value>
+  </data>
+  <data name="HiddenAreas.Added" xml:space="preserve">
+    <value>Η κρυφή ζώνη προστέθηκε.</value>
+  </data>
+  <data name="HiddenAreas.Updated" xml:space="preserve">
+    <value>Η κρυφή ζώνη ενημερώθηκε.</value>
+  </data>
+  <data name="HiddenAreas.Deleted" xml:space="preserve">
+    <value>Η κρυφή ζώνη διαγράφηκε.</value>
+  </data>
+  <data name="HiddenAreas.AddFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η προσθήκη της κρυφής ζώνης. Ελέγξτε το σχέδιο και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="HiddenAreas.UpdateFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η ενημέρωση της κρυφής ζώνης. Ελέγξτε το σχέδιο και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="HiddenAreas.InvalidDrawing" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του πολυγώνου στον χάρτη. Ελέγξτε τη ζώνη και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="HiddenAreas.InvalidGeometry" xml:space="preserve">
+    <value>Η γεωμετρία της ζώνης δεν είναι έγκυρη.</value>
+  </data>
+  <data name="HiddenAreas.DrawPolygon" xml:space="preserve">
+    <value>Σχεδίαση πολυγώνου</value>
+  </data>
+  <data name="HiddenAreas.DrawCancel" xml:space="preserve">
+    <value>Ακύρωση σχεδίασης</value>
+  </data>
+  <data name="HiddenAreas.DrawFinish" xml:space="preserve">
+    <value>Ολοκλήρωση</value>
+  </data>
+  <data name="HiddenAreas.DrawFinishTitle" xml:space="preserve">
+    <value>Ολοκλήρωση σχεδίασης</value>
+  </data>
+  <data name="HiddenAreas.DrawUndo" xml:space="preserve">
+    <value>Διαγραφή τελευταίου σημείου</value>
+  </data>
+  <data name="HiddenAreas.DrawUndoTitle" xml:space="preserve">
+    <value>Διαγραφή τελευταίου σημείου σχεδίασης</value>
+  </data>
+  <data name="HiddenAreas.EditPolygon" xml:space="preserve">
+    <value>Επεξεργασία πολυγώνου</value>
+  </data>
+  <data name="HiddenAreas.EditDisabled" xml:space="preserve">
+    <value>Δεν υπάρχει πολύγωνο για επεξεργασία</value>
+  </data>
+  <data name="HiddenAreas.RemovePolygon" xml:space="preserve">
+    <value>Αφαίρεση πολυγώνου</value>
+  </data>
+  <data name="HiddenAreas.RemoveDisabled" xml:space="preserve">
+    <value>Δεν υπάρχει πολύγωνο για αφαίρεση</value>
+  </data>
+  <data name="HiddenAreas.RemoveHint" xml:space="preserve">
+    <value>Κάντε κλικ στο πολύγωνο για να το αφαιρέσετε.</value>
+  </data>
+  <data name="HiddenAreas.EditSave" xml:space="preserve">
+    <value>Αποθήκευση αλλαγών σχεδίασης</value>
+  </data>
+  <data name="HiddenAreas.EditCancel" xml:space="preserve">
+    <value>Ακύρωση και αναίρεση αλλαγών σχεδίασης</value>
+  </data>
+  <data name="HiddenAreas.ClearAll" xml:space="preserve">
+    <value>Καθαρισμός όλων</value>
+  </data>
+  <data name="HiddenAreas.ClearAllTitle" xml:space="preserve">
+    <value>Καθαρισμός όλων των πολυγώνων</value>
+  </data>
+  <data name="HiddenAreas.SquareMetres" xml:space="preserve">
+    <value>{0} τ.μ.</value>
+  </data>
+  <data name="HiddenAreas.Hectares" xml:space="preserve">
+    <value>{0} εκτάρια</value>
+  </data>
+  <data name="HiddenAreas.Blog" xml:space="preserve">
+    <value>Επισκεφθείτε το ιστολόγιό μου</value>
+  </data>
+</root>
