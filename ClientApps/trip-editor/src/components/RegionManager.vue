@@ -18,6 +18,7 @@ import { createPlaceDraftState } from './placeConditionalDraft';
 import { createAreaDraftState } from './areaConditionalDraft';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
+import { regionDisplayName } from '../regionDisplayName.js';
 import type { EditorArea, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 type PlaceDraftPreview = {
@@ -229,7 +230,7 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
   title: placeDraft.id ? localize('Editor.EditNamedPlace', 'Edit Place - {0}', activePlace.value?.name ?? placeDraft.name) : localize('Editor.AddPlace', 'Add Place'),
-  subtitle: placeDraft.regionId && !props.state.regionsById[placeDraft.regionId]?.isShadow ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
+  subtitle: placeDraft.regionId ? regionDisplayName(props.state.regionsById[placeDraft.regionId]) : undefined,
   entityId: placeDraft.id ?? undefined,
   parentRegionId: placeDraft.regionId ?? undefined
 }));
@@ -239,7 +240,7 @@ const activeAreaTarget = computed<EditorTarget>(() => ({
   kind: 'area',
   mode: areaDraft.id ? 'edit' : 'add',
   title: areaDraft.id ? localize('Editor.EditNamedArea', 'Edit Area - {0}', activeArea.value?.name ?? areaDraft.name) : localize('Editor.AddArea', 'Add Area'),
-  subtitle: areaDraft.regionId ? props.state.regionsById[areaDraft.regionId]?.name : undefined,
+  subtitle: areaDraft.regionId ? regionDisplayName(props.state.regionsById[areaDraft.regionId]) : undefined,
   entityId: areaDraft.id ?? undefined,
   parentRegionId: areaDraft.regionId ?? undefined
 }));

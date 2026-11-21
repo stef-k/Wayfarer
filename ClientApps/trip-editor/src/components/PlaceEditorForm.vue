@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
+import { regionDisplayName } from '../regionDisplayName.js';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
 import IconSelector from './IconSelector.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
@@ -39,7 +40,7 @@ const markerColorOptions = computed(() => orderedMarkerColors.filter(color => pr
     <label class="trip-editor-field">
       <span>{{ localize("Editor.Region", "Region") }}</span>
       <select v-model="props.draft.regionId">
-        <option v-for="region in props.normalRegions" :key="region.id" :value="region.id">{{ region.name }}</option>
+        <option v-for="region in props.normalRegions" :key="region.id" :value="region.id">{{ regionDisplayName(region) }}</option>
       </select>
       <small v-for="message in props.fieldErrors('regionId')" :key="message">{{ message }}</small>
     </label>

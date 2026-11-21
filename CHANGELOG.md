@@ -7,8 +7,9 @@
   Editor (#960 Area 1). Preserve a linked Viewer camera when highlighting a
   Segment and use the live document language in browser print. Localize mutation
   recovery, route proposal and Plan Check feedback, map marker labels, route
-  summaries, Region controls, drawing guidance and validation, and both map
-  rulers. Improve the dark Editor and language controls.
+  summaries, Region controls and the canonical Region label, drawing guidance
+  and live distance, and both map rulers. Improve the dark Editor and language
+  controls.
   Load the private Viewer graph and owner visits
   in one split-query snapshot. No database migration.
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { date as displayDate, locale, message as localize, number, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
-import type { EditorPlace, EditorRegion, EditorTripState, EditorVisitHistoryRow, EditorPlaceVisitSummary, Guid } from '../types';
+import { regionDisplayName } from '../regionDisplayName.js';
+import type { EditorPlace, EditorTripState, EditorVisitHistoryRow, EditorPlaceVisitSummary, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 
 type VisitFilter = 'all' | 'visited' | 'not-visited';
@@ -127,16 +128,15 @@ function filterMatches(summary: EditorPlaceVisitSummary): boolean {
   return true;
 }
 
-function regionName(regionId: Guid): string {
-  return props.state.regionsById[regionId]?.name || localize('Editor.UnknownRegion', 'Unknown region');
+/** Visit history can fall back to the Place's current Region after a move. */
+function regionName(regionId: Guid, fallbackRegionId?: Guid): string {
+  return regionDisplayName(props.state.regionsById[regionId])
+    || (fallbackRegionId && regionDisplayName(props.state.regionsById[fallbackRegionId]))
+    || localize('Editor.UnknownRegion', 'Unknown region');
 }
 
 function percentVisited(visitedCount: number, totalCount: number): number {
   return totalCount > 0 ? Math.round((visitedCount / totalCount) * 100) : 0;
-}
-
-function historyRegionName(row: EditorVisitHistoryRow, fallbackRegionId: Guid): string {
-  return props.state.regionsById[row.regionId]?.name || props.state.regionsById[fallbackRegionId]?.name || localize('Editor.UnknownRegion', 'Unknown region');
 }
 
 function compareHistoryRows(left: EditorVisitHistoryRow, right: EditorVisitHistoryRow): number {
@@ -307,7 +307,7 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
                   <div v-for="history in row.historyRows" :key="history.visitId" class="trip-editor-visit-history-row" :data-visit-id="history.visitId">
                     <div class="trip-editor-visit-history-row__title">
                       <strong>{{ row.placeName }}</strong>
-                      <span>{{ historyRegionName(history, row.regionId) }}</span>
+                      <span>{{ regionName(history.regionId, row.regionId) }}</span>
                     </div>
                     <dl>
                       <div>

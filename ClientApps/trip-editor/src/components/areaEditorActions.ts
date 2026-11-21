@@ -35,7 +35,7 @@ export function useAreaEditorActions(context: any) {
   };
 
   const openAreaEdit = async (area: EditorArea): Promise<void> => {
-    const target = buildAreaEditTarget(area, context.props.state.regionsById[area.regionId]?.name);
+    const target = buildAreaEditTarget(area, context.props.state.regionsById[area.regionId]);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
     if (!area.capabilities.canEdit || !(await context.props.editorSurface.activateTarget(target)) || isAlreadyActive) {
       return;

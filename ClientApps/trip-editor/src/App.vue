@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { message as localize } from '../../../wwwroot/js/localization/messages.js';
+import { date, message as localize } from '../../../wwwroot/js/localization/messages.js';
 import { registerLanguageDraft } from '../../../wwwroot/js/localization/languageNavigation.js';
 import { describeMapWork } from './map/mapWorkDescription';
-import { date } from '../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
 import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
 import { editorModeText } from './components/editorFeedbackText';
+import { regionDisplayName } from './regionDisplayName.js';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
@@ -62,7 +62,6 @@ const updatedLabel = computed(() =>
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
 const mapAccessibleDescription = computed(() => describeMapWork(editorSurface.mapWork.value?.target.kind));
 const selectedPlace = computed(() => selectedPlaceId.value && state.value ? state.value.placesById[selectedPlaceId.value] ?? null : null);
-const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
 const toolbarEyebrow = computed(() => {
   if (editorSurface.mapWork.value) {
     return localize('Editor.MapWork', 'Map work');
@@ -96,7 +95,8 @@ const toolbarDetail = computed(() => {
   }
 
   if (selectedPlace.value) {
-    return selectedPlaceRegionName.value ? localize('Editor.InsideRegion', 'In {0}', selectedPlaceRegionName.value) : localize('Editor.SelectedOnMap', 'Selected on the map and sidebar');
+    const regionName = regionDisplayName(state.value?.regionsById[selectedPlace.value.regionId]);
+    return regionName ? localize('Editor.InsideRegion', 'In {0}', regionName) : localize('Editor.SelectedOnMap', 'Selected on the map and sidebar');
   }
 
   if (editorSurface.activeTarget.value?.subtitle) {

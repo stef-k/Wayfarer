@@ -465,6 +465,9 @@
   <data name="Shell.DisplayKilometres" xml:space="preserve">
     <value>{0} km</value>
   </data>
+  <data name="Shell.DisplayMetres" xml:space="preserve">
+    <value>{0} m</value>
+  </data>
   <data name="Shell.UnassignedPlaces" xml:space="preserve">
     <value>Unassigned Places</value>
   </data>

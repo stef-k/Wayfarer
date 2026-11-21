@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { formatMapDistanceLabel } from '../../../../wwwroot/js/localization/mapMeasurementText.js';
 import { locale, message } from '../../../../wwwroot/js/localization/messages.js';
 import leafletDrawSource from '../../../../wwwroot/lib/leaflet/leaflet.draw.js?raw';
 import '../../../../wwwroot/lib/leaflet/leaflet.draw.css';
@@ -17,6 +18,7 @@ type DrawLocale = {
   edit: { handlers: { edit: { tooltip: { text: string; subtext: string } } } };
   format?: { numeric: { delimiters: { thousands?: string; decimal?: string } } };
 };
+type DrawGeometryUtil = { readableDistance: (...args: unknown[]) => string };
 
 /// Loads the repo-local Leaflet.Draw UMD asset into the Vite-bundled Leaflet instance.
 export function ensureLeafletDraw(): void {
@@ -30,18 +32,20 @@ export function ensureLeafletDraw(): void {
     throw new Error('Leaflet.Draw failed to initialize for Trip Editor area map-work.');
   }
 
-  localizeLeafletDraw((L as typeof L & { drawLocal: DrawLocale }).drawLocal);
+  const { drawLocal, GeometryUtil } = L as typeof L & { drawLocal: DrawLocale; GeometryUtil: DrawGeometryUtil };
+  localizeLeafletDraw(drawLocal, GeometryUtil);
   isLoaded = true;
 }
 
-/** Sets the hooks used by the Editor's draw and polygon editing handlers before they are created. */
-function localizeLeafletDraw(drawLocal: DrawLocale): void {
+/** Localizes the Editor's drawing tooltips and measurements before creating the handlers. */
+function localizeLeafletDraw(drawLocal: DrawLocale, geometry: DrawGeometryUtil): void {
   const text = document.createElement('span');
-  // Leaflet.Draw renders these hooks as HTML, so serialize each catalog entry as text.
-  const tooltipText = (key: string, fallback: string): string => {
-    text.textContent = message(key, fallback);
+  // Leaflet.Draw inserts tooltip content as HTML.
+  const tooltipHtml = (value: string): string => {
+    text.textContent = value;
     return text.innerHTML;
   };
+  const tooltipText = (key: string, fallback: string): string => tooltipHtml(message(key, fallback));
 
   const { polygon, polyline } = drawLocal.draw.handlers;
   polygon.tooltip = {
@@ -66,6 +70,14 @@ function localizeLeafletDraw(drawLocal: DrawLocale): void {
     thousands: parts.find(part => part.type === 'group')?.value,
     decimal: parts.find(part => part.type === 'decimal')?.value
   } } };
+
+  const readableDistance = geometry.readableDistance.bind(geometry);
+  geometry.readableDistance = (...args) => {
+    // Retain Leaflet.Draw's formatted number and its choice of metric unit.
+    const label = readableDistance(...args);
+    const metric = /^(.+) (km|m)$/.exec(label);
+    return metric ? tooltipHtml(formatMapDistanceLabel(metric[1], metric[2])) : label;
+  };
 }
 
 /** Detects the constructors used by the map-work layers. */

@@ -6,6 +6,11 @@ export const measureInstructions = () => [
     message('Shell.MeasureCancel', 'Press Esc to cancel.')
 ];
 
-/** Formats the map label without changing the measured value. */
-export const formatMapDistance = kilometers => message('Shell.DisplayKilometres', '{0} km',
-    number(kilometers, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+/** Adds the localized unit to an already formatted distance. */
+export const formatMapDistanceLabel = (value, unit) => unit === 'km'
+    ? message('Shell.DisplayKilometres', '{0} km', value)
+    : message('Shell.DisplayMetres', '{0} m', value);
+
+/** Formats ruler distances in kilometres to two decimal places. */
+export const formatMapDistance = kilometers => formatMapDistanceLabel(
+    number(kilometers, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'km');

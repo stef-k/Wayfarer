@@ -1,5 +1,5 @@
 import { message } from '../../../wwwroot/js/localization/messages.js';
 
-/** Localizes the canonical grouping while preserving names and stored identity. */
+/** Localizes the canonical grouping and leaves a missing Region without a label. */
 export const regionDisplayName = region =>
-  region.isShadow ? message('Shell.UnassignedPlaces', 'Unassigned Places') : region.name;
+  region?.isShadow ? message('Shell.UnassignedPlaces', 'Unassigned Places') : region?.name;

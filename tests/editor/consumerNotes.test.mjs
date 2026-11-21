@@ -632,6 +632,52 @@ test('Greek Region controls preserve collapse, selection and independent deletio
   assert.deepEqual(await page.evaluate(() => captured['App.vue'][0].state.regionOrder), ['region']);
 });
 
+test('Greek Editor displays the canonical Region for a kept Area and Place', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const canonical = { ...region, id: 'canonical', name: 'Unassigned Places', isShadow: true, displayOrder: 0 };
+  const areaName = 'Kept <area>';
+  const placeName = 'Kept <place>';
+  const keptArea = { ...area, name: areaName, regionId: canonical.id,
+    originalValues: { ...area.originalValues, name: areaName, regionId: canonical.id } };
+  const visitSummary = { ...place.visitSummary, isVisited: true, visitCount: 1,
+    firstVisitAt: metadata.updatedAt, lastVisitAt: metadata.updatedAt };
+  const keptPlace = { ...place, name: placeName, regionId: canonical.id, visitSummary,
+    originalValues: { ...place.originalValues, name: placeName, regionId: canonical.id } };
+  const page = await mountGreekEditor(browser, { ...state,
+    permissions: { ...state.permissions, canReadVisitProgress: true },
+    regionsById: { region, canonical }, regionOrder: [canonical.id, region.id],
+    areasById: { area: keptArea }, areaOrderByRegionId: { canonical: [area.id] },
+    placesById: { place: keptPlace }, placeOrderByRegionId: { canonical: [place.id] },
+    visitProgress: { totalPlaces: 1, visitedPlaces: 1, percentVisited: 100, placeSummariesByPlaceId: { place: visitSummary },
+      historyRows: [{ visitId: 'visit', placeId: place.id, regionId: canonical.id, startedAt: metadata.updatedAt,
+        endedAt: null, durationMinutes: null }] }
+  });
+  const label = 'Τοποθεσίες χωρίς περιοχή';
+  const card = page.locator('[data-region-id="canonical"]');
+  const toolbar = page.locator('.trip-editor-toolbar__status');
+  await card.locator('[data-area-id="area"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const areaHeader = card.locator('.trip-editor-surface__header');
+  await areaHeader.getByRole('heading', { name: `Επεξεργασία ζώνης — ${areaName}` }).waitFor({ timeout: 3000 });
+  assert.equal(await areaHeader.locator('small').textContent(), label);
+  assert.equal(await toolbar.textContent(), label);
+
+  await card.locator('[data-place-id="place"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const regionSelect = card.locator('select').filter({ has: page.locator('option[value="canonical"]') });
+  await regionSelect.waitFor({ timeout: 3000 });
+  assert.equal(await regionSelect.inputValue(), canonical.id);
+  assert.equal(await regionSelect.locator('option:checked').textContent(), label);
+  assert.equal(await regionSelect.locator('option[value="region"]').textContent(), region.name);
+  assert.equal(await card.locator('.trip-editor-surface__header small').textContent(), label);
+  assert.equal(await toolbar.textContent(), `Επιλεγμένη τοποθεσία: ${placeName}`);
+  assert.equal(await card.getAttribute('data-region-name'), canonical.name);
+
+  await page.getByRole('button', { name: 'Επισκέψεις', exact: true }).click();
+  const group = page.getByRole('region', { name: label });
+  await group.getByRole('heading', { name: keptPlace.name }).waitFor();
+  assert.equal(await group.locator('[data-visit-id="visit"] .trip-editor-visit-history-row__title span').textContent(), label);
+});
+
 test('Greek map-work confirmation keeps or rolls back its temporary snapshot', async t => {
   const browser = await chromium.launch();
   t.after(() => browser.close());

@@ -81,7 +81,8 @@ guards, the live map lifecycle and Editor/Viewer presentation. The mounted
 Editor tests cover Greek indexed waypoint validation, an expired route
 proposal, and the Segment route summary before and after stale reload. They
 also cover map search and discard feedback, authored and canonical Region
-labels in the Place popup, marker titles and text alternatives, Region collapse
+labels in the Area and Place editors, map toolbar, Place popup and Visit Progress,
+marker titles and text alternatives, Region collapse
 and deletion controls, credit validation and retry, and an unconfirmed Planning
 save with its draft and save hold intact. Plan Check presents scoped findings,
 dependency changes and structured estimate evidence. Follow-up controls use
@@ -89,9 +90,10 @@ the original finding values and retained check inputs.
 
 The Editor catalog supplies Leaflet.Draw's polygon and route prompts and the
 polygon crossing warning. The Shell catalog supplies the Editor and Viewer ruler
-instructions and kilometre labels. The managed Greek map-controls journey
-exercises both rulers through Escape and follows the drawing prompts through
-polygon validation and custom route completion.
+instructions and the metric labels for rulers and live route drawing. The managed
+Greek map-controls journey exercises both rulers through Escape and follows the
+drawing prompts through polygon validation, live route measurements and custom
+route completion.
 
 The headed Viewer-to-Editor journey checks the camera and active Segment
 through the preference switch, Greek Editor validation, and contrast in dark

@@ -67,7 +67,7 @@ export function usePlaceEditorActions(context: any) {
   };
 
   const openPlaceEdit = async (place: EditorPlace): Promise<boolean> => {
-    const target = buildPlaceEditTarget(place, context.props.state.regionsById[place.regionId]?.name);
+    const target = buildPlaceEditTarget(place, context.props.state.regionsById[place.regionId]);
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
     if (!place.capabilities.canEdit || !(await context.props.editorSurface.activateTarget(target)) || isAlreadyActive) {
       return false;

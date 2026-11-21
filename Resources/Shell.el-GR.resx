@@ -465,6 +465,9 @@
   <data name="Shell.DisplayKilometres" xml:space="preserve">
     <value>{0} χλμ.</value>
   </data>
+  <data name="Shell.DisplayMetres" xml:space="preserve">
+    <value>{0} μ.</value>
+  </data>
   <data name="Shell.UnassignedPlaces" xml:space="preserve">
     <value>Τοποθεσίες χωρίς περιοχή</value>
   </data>
