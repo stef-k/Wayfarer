@@ -5,18 +5,19 @@ import { renderLocationAddress, locationAddressText } from '../../../util/locati
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { generateWikipediaLinkHtml } from '../../../util/wikipedia-utils.js';
 
-/** Formats the existing event instant in the requested timezone, retaining the UTC fallback. */
+/** Formats the event instant and retains the stored timezone label when falling back to UTC. */
 export const formatTimelineDate = (iso, timeZone, withTime = false) => {
     const instant = new Date(iso);
     if (!iso || !Number.isFinite(instant.getTime())) return '';
     const options = withTime ? { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' } : { dateStyle: 'medium' };
+    let display;
     try {
-        const display = date(instant, { ...options, timeZone });
-        return withTime ? `${display} ${formatOffsetLabel(instant, timeZone)}`.trim() : display;
+        display = date(instant, { ...options, timeZone });
     } catch (error) {
         if (!(error instanceof RangeError)) throw error;
-        return date(instant, { ...options, timeZone: 'UTC' });
+        display = date(instant, { ...options, timeZone: 'UTC' });
     }
+    return withTime ? `${display} ${formatOffsetLabel(instant, timeZone)}`.trim() : display;
 };
 
 /** Prepares an HTML-safe catalog phrase for the existing modal HTML sink. */

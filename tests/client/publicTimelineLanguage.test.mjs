@@ -31,7 +31,9 @@ test('Timeline renders Greek browser feedback and detail while retaining timesta
             activityType: 'Walk <Sunday>',
             fullAddress: 'Author & "Provider"'
         };
-        const detail = renderTimelineLocation(location, { isLive: false, isLatest: true }, 'America/New_York');
+        const status = { isLive: false, isLatest: true };
+        const viewerTimeZone = 'America/New_York';
+        const detail = renderTimelineLocation(location, status, viewerTimeZone);
         assert.match(detail, /ΤΕΛΕΥΤΑΙΑ ΤΟΠΟΘΕΣΙΑ/);
         assert.match(detail, /Τοπική ώρα καταγραφής:/);
         assert.match(detail, /08:15.*GMT-4.*America\/New_York/);
@@ -42,6 +44,12 @@ test('Timeline renders Greek browser feedback and detail while retaining timesta
         assert.match(detail, /Author &amp; &quot;Provider&quot;/);
         assert.match(detail, /37\.987654%2C23\.100000/);
         assert.match(detail, /Αναζήτηση στη Βικιπαίδεια/);
+
+        const importedDetail = renderTimelineLocation({ ...location, timezone: '03:00:00' }, status, viewerTimeZone);
+        assert.match(importedDetail, /Τοπική ώρα καταγραφής:<\/strong>\s*<div>3 Ιουλ 2026, 12:15 \(03:00:00\)<\/div>/);
+        const encodedDetail = renderTimelineLocation({ ...location, timezone: '<legacy&zone>' }, status, viewerTimeZone);
+        assert.match(encodedDetail, /12:15 \(&lt;legacy&amp;zone&gt;\)<\/div>/);
+
         assert.match(formatTimelineSummary({ totalLocations: 1234, fromDate: location.localTimestamp }, 'UTC'),
             /Σύνολο καταγραφών τοποθεσίας: 1\.234 \| Από: 3 Ιουλ 2026/);
 
