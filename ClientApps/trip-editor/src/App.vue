@@ -6,6 +6,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
 import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
 import { editorModeText } from './components/editorFeedbackText';
+import { discardBeforeSelectingPlace, discardBeforeSwitchingTabs, focusStatusText } from './components/editorNavigationText';
 import { regionDisplayName } from './regionDisplayName.js';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
@@ -14,7 +15,7 @@ import TripSidebar from './components/TripSidebar.vue';
 import TripSidebarLayout from './components/TripSidebarLayout.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from './segments/editorSegmentPresentation';
 import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripState, Guid } from './types';
@@ -211,18 +212,10 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
   }
 
   if (mobileDrawerActive.value && tabForTargetKind(target.kind) !== 'regions') {
-    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before switching tabs?`);
+    return await editorSurface.closeActiveTarget(discardBeforeSwitchingTabs(target.kind));
   }
 
-  if (target.kind !== 'place') {
-    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before selecting a Place?`);
-  }
-
-  if (target.mode === 'add') {
-    return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
-  }
-
-  return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
+  return await editorSurface.closeActiveTarget(discardBeforeSelectingPlace(target.kind));
 }
 
 /** Applies one guarded transient Segment selection without opening an editor or mutating Segment data. */
@@ -232,15 +225,15 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
   const selectedId = key.kind === 'persisted' ? key.id : null;
   const ownsActiveEditor = target?.kind === 'segment'
     && (key.kind === 'create-draft' ? target.mode === 'add' : target.entityId === selectedId);
-  if (target && !ownsActiveEditor && !(await editorSurface.closeActiveTarget('Discard unsaved changes before selecting another Segment?'))) {
+  if (target && !ownsActiveEditor && !(await editorSurface.closeActiveTarget(
+    localize('Editor.DiscardBeforeSelectingSegment', 'Discard unsaved changes before selecting another Segment?')
+  ))) {
     return false;
   }
   selectedPlaceId.value = null;
   mapAdapter?.selectPlace(state.value, null);
   activeSegmentKey.value = key;
-  navigationStatus.value = key.kind === 'persisted'
-    ? `Selected segment: ${state.value.segmentsById[key.id]?.mode || 'Segment'}`
-    : 'Selected new Segment draft';
+  navigationStatus.value = segmentSelectionStatus(state.value, key);
   const retainedDraft = activeSegmentDraft.value;
   const retainedKey = retainedDraft?.key;
   const ownsRetainedDraft = key.kind === 'persisted'
@@ -248,6 +241,18 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
     : retainedKey?.kind === 'create-draft' && retainedKey.token === key.token;
   mapAdapter?.setSegmentPresentation(state.value, key, ownsRetainedDraft ? retainedDraft : null);
   return true;
+}
+
+/** Localizes the selection announcement around the catalog's authored transport label or the stored mode. */
+function segmentSelectionStatus(state: EditorTripState, key: SegmentPresentationKey): string {
+  if (key.kind === 'create-draft') {
+    return localize('Editor.SelectedSegmentDraft', 'Selected new Segment draft');
+  }
+
+  const mode = state.segmentsById[key.id]?.mode;
+  const label = state.options.transportModes.find(option => option.value === mode)?.label ?? mode;
+  return label ? localize('Editor.SelectedSegmentMode', 'Selected segment: {0}', label)
+    : localize('Editor.SelectedSegment', 'Selected segment');
 }
 
 /** Receives the current D/W snapshot while SegmentManager retains mutation authority. */
@@ -279,15 +284,6 @@ function tabForTargetKind(kind: string): 'trip' | 'regions' | 'segments' {
   return 'trip';
 }
 
-/// Keeps dirty-discard copy aligned with the manual phone tab switch guard.
-function targetKindLabel(kind: string): string {
-  if (kind === 'metadata') {
-    return 'trip';
-  }
-
-  return kind;
-}
-
 /// Clears selected-place context, closing the selected place editor first when that editor owns the selection.
 const clearSelectedPlace = async (): Promise<boolean> => {
   if (!state.value || !selectedPlaceId.value) {
@@ -297,7 +293,7 @@ const clearSelectedPlace = async (): Promise<boolean> => {
   const placeId = selectedPlaceId.value;
   const target = editorSurface.activeTarget.value;
   if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
-    if (!(await editorSurface.closeActiveTarget('Discard unsaved place changes?'))) {
+    if (!(await editorSurface.closeActiveTarget(localize('Editor.DiscardPlaceDraft', 'Discard unsaved place changes?')))) {
       return false;
     }
   }
@@ -315,7 +311,9 @@ const fitAllGeometry = (): void => {
   }
 
   const result = mapAdapter.fitAllGeometry(state.value);
-  navigationStatus.value = result === 'moved' ? 'Fit all geometry' : 'No geometry to fit';
+  navigationStatus.value = result === 'moved'
+    ? localize('Editor.FitAllMoved', 'Fit all geometry')
+    : localize('Editor.FitAllNoGeometry', 'No geometry to fit');
 };
 
 /// Recenters to the persisted trip view; it never saves the current map viewport.
@@ -325,7 +323,9 @@ const recenterSavedTripView = (): void => {
   }
 
   const result = mapAdapter.focusSavedTripView(state.value.metadata);
-  navigationStatus.value = result === 'moved' ? 'Recentered saved trip view' : 'Saved trip view unavailable';
+  navigationStatus.value = result === 'moved'
+    ? localize('Editor.RecenterMoved', 'Recentered saved trip view')
+    : localize('Editor.RecenterUnavailable', 'Saved trip view unavailable');
 };
 
 /// Focuses the active target through the map adapter and reports only local toolbar status.
@@ -490,47 +490,6 @@ const updateHiddenSegmentIds = (ids: Set<string>): void => {
     mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
   }
 };
-
-function focusStatusText(result: FocusActiveEntityResult, target: { kind: string; mode: string } | null): string {
-  if (result === 'moved') {
-    if (target?.kind === 'place' && target.mode === 'add') {
-      return 'Focused parent region';
-    }
-
-    const kind = target?.kind ?? null;
-    if (kind === 'metadata') {
-      return 'Focused trip map';
-    }
-
-    if (kind === 'region') {
-      return 'Focused region';
-    }
-
-    if (kind === 'place') {
-      return 'Focused place';
-    }
-
-    if (kind === 'area') {
-      return 'Focused area';
-    }
-
-    if (kind === 'segment') {
-      return 'Focused segment';
-    }
-
-    return 'Focused active entity';
-  }
-
-  if (result === 'missing-target') {
-    return 'No active target to focus';
-  }
-
-  if (result === 'unsupported-target') {
-    return 'Active target cannot be focused';
-  }
-
-  return 'No geometry to focus';
-}
 </script>
 
 <template>

@@ -30,6 +30,57 @@
   <data name="Editor.FocusActiveEntity" xml:space="preserve">
     <value>Εστίαση στο ενεργό στοιχείο</value>
   </data>
+  <data name="Editor.FitAllMoved" xml:space="preserve">
+    <value>Προβάλλονται όλα τα στοιχεία στον χάρτη</value>
+  </data>
+  <data name="Editor.FitAllNoGeometry" xml:space="preserve">
+    <value>Δεν υπάρχουν στοιχεία για προβολή στον χάρτη</value>
+  </data>
+  <data name="Editor.RecenterMoved" xml:space="preserve">
+    <value>Επαναφέρθηκε η αποθηκευμένη προβολή του ταξιδιού</value>
+  </data>
+  <data name="Editor.RecenterUnavailable" xml:space="preserve">
+    <value>Η αποθηκευμένη προβολή του ταξιδιού δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.FocusMissingTarget" xml:space="preserve">
+    <value>Δεν υπάρχει ενεργό στοιχείο για εστίαση</value>
+  </data>
+  <data name="Editor.FocusUnsupportedTarget" xml:space="preserve">
+    <value>Δεν είναι δυνατή η εστίαση στο ενεργό στοιχείο</value>
+  </data>
+  <data name="Editor.FocusNoGeometry" xml:space="preserve">
+    <value>Δεν υπάρχουν δεδομένα χάρτη για εστίαση</value>
+  </data>
+  <data name="Editor.FocusedTripMap" xml:space="preserve">
+    <value>Εστίαση στον χάρτη του ταξιδιού</value>
+  </data>
+  <data name="Editor.FocusedRegion" xml:space="preserve">
+    <value>Εστίαση στην περιοχή</value>
+  </data>
+  <data name="Editor.FocusedParentRegion" xml:space="preserve">
+    <value>Εστίαση στην περιοχή της τοποθεσίας</value>
+  </data>
+  <data name="Editor.FocusedPlace" xml:space="preserve">
+    <value>Εστίαση στην τοποθεσία</value>
+  </data>
+  <data name="Editor.FocusedArea" xml:space="preserve">
+    <value>Εστίαση στη ζώνη</value>
+  </data>
+  <data name="Editor.FocusedSegment" xml:space="preserve">
+    <value>Εστίαση στο τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.FocusedEntity" xml:space="preserve">
+    <value>Εστίαση στο ενεργό στοιχείο</value>
+  </data>
+  <data name="Editor.SelectedSegment" xml:space="preserve">
+    <value>Επιλέχθηκε τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.SelectedSegmentMode" xml:space="preserve">
+    <value>Επιλεγμένο τμήμα διαδρομής: {0}</value>
+  </data>
+  <data name="Editor.SelectedSegmentDraft" xml:space="preserve">
+    <value>Επιλέχθηκε το νέο πρόχειρο τμήμα διαδρομής</value>
+  </data>
   <data name="Editor.ClearSelection" xml:space="preserve">
     <value>Κατάργηση επιλογής</value>
   </data>
@@ -1016,6 +1067,45 @@
   </data>
   <data name="Editor.DiscardQuestion" xml:space="preserve">
     <value>Απόρριψη αλλαγών;</value>
+  </data>
+  <data name="Editor.DiscardTripBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του ταξιδιού πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της περιοχής πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του τμήματος διαδρομής πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardTripBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του ταξιδιού πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της περιοχής πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν επιλέξετε άλλη τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του τμήματος διαδρομής πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardPlaceDraft" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας;</value>
+  </data>
+  <data name="Editor.DiscardBeforeSelectingSegment" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν επιλέξετε άλλο τμήμα διαδρομής;</value>
+  </data>
+  <data name="Editor.DiscardBeforeSwitchingEditors" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν ανοίξετε άλλη φόρμα επεξεργασίας;</value>
   </data>
   <data name="Editor.MetadataExitDraft" xml:space="preserve">
     <value>Θέλετε να εγκαταλείψετε τις μη αποθηκευμένες αλλαγές και να επιστρέψετε στα ταξίδια; Ο σχεδιασμός αποθηκεύεται χωριστά με την «Αποθήκευση σχεδιασμού». Η έξοδος χάνει τα πρόχειρα και δεν αναιρεί ενέργειες που εκκρεμούν ή δεν έχουν επιβεβαιωθεί.</value>

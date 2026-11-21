@@ -82,7 +82,10 @@ Editor tests cover Greek indexed waypoint validation, an expired route
 proposal, and the Segment route summary before and after stale reload. They
 also cover map search and discard feedback, authored and canonical Region
 labels in the Area and Place editors, map toolbar, Place popup and Visit Progress,
-marker titles and text alternatives, Region collapse
+toolbar announcements when map actions move or are unavailable, and draft
+discard prompts during selection and tab navigation. They verify that the
+Segment announcement keeps authored transport labels verbatim. Coverage also
+includes marker titles and text alternatives, Region collapse
 and deletion controls, credit validation and retry, and an unconfirmed Planning
 save with its draft and save hold intact. Plan Check presents scoped findings,
 dependency changes and structured estimate evidence. Follow-up controls use

@@ -100,6 +100,7 @@ export function registerTargetHandler(targetKey: string, handler: EditorTargetHa
   };
 }
 
+/** Transfers editor ownership after existing map work and draft guards allow the switch. */
 export async function activateTarget(target: EditorTarget): Promise<boolean> {
   if (isSameConcreteTarget(activeTarget.value, target)) {
     activeTarget.value = target;
@@ -113,7 +114,7 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
     return false;
   }
 
-  if (!(await discardActiveTarget('Discard unsaved changes before switching editors?'))) {
+  if (!(await discardActiveTarget(message('Editor.DiscardBeforeSwitchingEditors', 'Discard unsaved changes before switching editors?')))) {
     return false;
   }
 
@@ -376,7 +377,8 @@ function isSameConcreteTarget(current: EditorTarget | null, next: EditorTarget |
   return current !== null && next !== null && current.identity === next.identity;
 }
 
-async function discardActiveTarget(message: string): Promise<boolean> {
+/** Confirms dirty-draft cleanup through the shared dialog and its focus restoration. */
+async function discardActiveTarget(prompt: string): Promise<boolean> {
   const target = activeTarget.value;
   if (!target) {
     return true;
@@ -389,10 +391,10 @@ async function discardActiveTarget(message: string): Promise<boolean> {
 
   if (handler.isDirty()) {
     const confirmed = await confirm({
-      title: 'Discard changes?',
-      message,
-      confirmLabel: 'Discard',
-      cancelLabel: 'Keep editing',
+      title: message('Editor.DiscardQuestion', 'Discard changes?'),
+      message: prompt,
+      confirmLabel: message('Editor.Discard', 'Discard'),
+      cancelLabel: message('Shell.KeepEditing', 'Keep editing'),
       variant: 'warning'
     });
     if (!confirmed) {

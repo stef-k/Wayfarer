@@ -5,6 +5,7 @@ import { computed, inject, ref, watch } from 'vue';
 import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import { planningWorkspaceKey } from '../planning/planningState';
+import { discardBeforeSwitchingTabs } from './editorNavigationText';
 import PlanCheck from '../planning/PlanCheck.vue';
 import MetadataEditor from './MetadataEditor.vue';
 import MapSearchControl from './MapSearchControl.vue';
@@ -179,6 +180,7 @@ watch(
   }
 );
 
+/** Keeps the current tab and editor open if the user declines to discard the draft. */
 async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
   if (activeMobileTab.value === tab) {
     return;
@@ -186,7 +188,7 @@ async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
 
   const activeTarget = props.editorSurface.activeTarget.value;
   if (props.mobileDrawerActive && activeTarget && tabForTargetKind(activeTarget.kind) !== tab) {
-    const canSwitch = await props.editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(activeTarget.kind)} changes before switching tabs?`);
+    const canSwitch = await props.editorSurface.closeActiveTarget(discardBeforeSwitchingTabs(activeTarget.kind));
     if (!canSwitch) {
       activeMobileTab.value = tabForTargetKind(activeTarget.kind);
       return;
@@ -214,14 +216,6 @@ function tabForTargetKind(kind: string): MobileDrawerTab {
   }
 
   return 'trip';
-}
-
-function targetKindLabel(kind: string): string {
-  if (kind === 'metadata') {
-    return 'trip';
-  }
-
-  return kind;
 }
 
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {

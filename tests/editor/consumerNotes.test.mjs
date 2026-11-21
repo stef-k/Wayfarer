@@ -45,11 +45,18 @@ const bundle = await build({ stdin: { contents: `
     // Keep geography stubbed for App tests. The map-label case mounts the real adapter directly.
     builder.onResolve({ filter: /^\.\/map\/leafletAdapter$/ }, args =>
       args.importer.endsWith('/App.vue') ? { path: 'app-map', namespace: 'test' } : undefined);
-    builder.onLoad({ filter: /^app-map$/, namespace: 'test' }, () => ({ contents: `export const createTripEditorMap = () => ({
-      render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {},
-      setSegmentDraftPreview() {}, setPlaceDraftPreview() {}, setSegmentRouteWorkState() {},
-      getMapView: () => ({ center: { latitude: 10, longitude: 20 }, zoom: 5 }) });
-      export const hasAnyGeometry = () => true; export const hasSavedTripView = () => false;
+    builder.onLoad({ filter: /^app-map$/, namespace: 'test' }, () => ({ contents: `export const createTripEditorMap = (_element, _tilesUrl, callbacks) => {
+      window.selectSegmentFromMap = callbacks.onSegmentSelected;
+      return {
+        render() {}, dispose() {}, clearSearchPreview() {}, selectPlace() {}, selectSegment() {}, setSegmentPresentation() {},
+        setSegmentDraftPreview() {}, setPlaceDraftPreview() {}, setSegmentRouteWorkState() {},
+        fitAllGeometry: () => window.mapActionResults?.fitAll ?? 'moved',
+        focusSavedTripView: () => window.mapActionResults?.recenter ?? 'moved',
+        focusActiveEntity: () => window.mapActionResults?.focus ?? 'moved',
+        getMapView: () => ({ center: { latitude: 10, longitude: 20 }, zoom: 5 })
+      };
+    };
+      export const hasAnyGeometry = () => true; export const hasSavedTripView = metadata => Boolean(metadata.center);
       export const canFocusActiveEntity = () => true;` }));
   } }] });
 const script = bundle.outputFiles.find(file => !file.path.endsWith('.css')).text;
@@ -632,7 +639,7 @@ test('Greek Region controls preserve collapse, selection and independent deletio
   assert.deepEqual(await page.evaluate(() => captured['App.vue'][0].state.regionOrder), ['region']);
 });
 
-test('Greek Editor displays the canonical Region for a kept Area and Place', async t => {
+test('Greek Editor shows the canonical Region and announces map navigation for a kept Area', async t => {
   const browser = await chromium.launch();
   t.after(() => browser.close());
   const canonical = { ...region, id: 'canonical', name: 'Unassigned Places', isShadow: true, displayOrder: 0 };
@@ -645,6 +652,7 @@ test('Greek Editor displays the canonical Region for a kept Area and Place', asy
   const keptPlace = { ...place, name: placeName, regionId: canonical.id, visitSummary,
     originalValues: { ...place.originalValues, name: placeName, regionId: canonical.id } };
   const page = await mountGreekEditor(browser, { ...state,
+    metadata: { ...metadata, center: { latitude: 38, longitude: 23 }, zoom: 8 },
     permissions: { ...state.permissions, canReadVisitProgress: true },
     regionsById: { region, canonical }, regionOrder: [canonical.id, region.id],
     areasById: { area: keptArea }, areaOrderByRegionId: { canonical: [area.id] },
@@ -655,12 +663,34 @@ test('Greek Editor displays the canonical Region for a kept Area and Place', asy
   });
   const label = 'Τοποθεσίες χωρίς περιοχή';
   const card = page.locator('[data-region-id="canonical"]');
-  const toolbar = page.locator('.trip-editor-toolbar__status');
+  const toolbar = page.locator('.trip-editor-toolbar');
+  const status = toolbar.getByRole('status');
   await card.locator('[data-area-id="area"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
   const areaHeader = card.locator('.trip-editor-surface__header');
   await areaHeader.getByRole('heading', { name: `Επεξεργασία ζώνης — ${areaName}` }).waitFor({ timeout: 3000 });
   assert.equal(await areaHeader.locator('small').textContent(), label);
-  assert.equal(await toolbar.textContent(), label);
+  assert.equal(await status.textContent(), label);
+
+  // Replay the kept-Area toolbar sequence through the mounted buttons and live status.
+  const focus = toolbar.getByRole('button', { name: 'Εστίαση στο ενεργό στοιχείο', exact: true });
+  const fitAll = toolbar.getByRole('button', { name: 'Προβολή όλων στον χάρτη', exact: true });
+  const recenter = toolbar.getByRole('button', { name: 'Επαναφορά αποθηκευμένης προβολής', exact: true });
+  for (const [button, text] of [[focus, 'Εστίαση στη ζώνη'], [fitAll, 'Προβάλλονται όλα τα στοιχεία στον χάρτη'],
+    [recenter, 'Επαναφέρθηκε η αποθηκευμένη προβολή του ταξιδιού']]) {
+    await button.click();
+    assert.equal(await status.textContent(), text);
+  }
+  await page.evaluate(() => { window.mapActionResults = { fitAll: 'no-geometry', recenter: 'missing-view' }; });
+  await fitAll.click();
+  assert.equal(await status.textContent(), 'Δεν υπάρχουν στοιχεία για προβολή στον χάρτη');
+  await recenter.click();
+  assert.equal(await status.textContent(), 'Η αποθηκευμένη προβολή του ταξιδιού δεν είναι διαθέσιμη');
+  for (const [outcome, text] of [['no-geometry', 'Δεν υπάρχουν δεδομένα χάρτη για εστίαση'],
+    ['missing-target', 'Δεν υπάρχει ενεργό στοιχείο για εστίαση'], ['unsupported-target', 'Δεν είναι δυνατή η εστίαση στο ενεργό στοιχείο']]) {
+    await page.evaluate(outcome => { window.mapActionResults.focus = outcome; }, outcome);
+    await focus.click();
+    assert.equal(await status.textContent(), text);
+  }
 
   await card.locator('[data-place-id="place"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
   const regionSelect = card.locator('select').filter({ has: page.locator('option[value="canonical"]') });
@@ -669,13 +699,72 @@ test('Greek Editor displays the canonical Region for a kept Area and Place', asy
   assert.equal(await regionSelect.locator('option:checked').textContent(), label);
   assert.equal(await regionSelect.locator('option[value="region"]').textContent(), region.name);
   assert.equal(await card.locator('.trip-editor-surface__header small').textContent(), label);
-  assert.equal(await toolbar.textContent(), `Επιλεγμένη τοποθεσία: ${placeName}`);
+  assert.equal(await status.textContent(), `Επιλεγμένη τοποθεσία: ${placeName}`);
   assert.equal(await card.getAttribute('data-region-name'), canonical.name);
 
   await page.getByRole('button', { name: 'Επισκέψεις', exact: true }).click();
   const group = page.getByRole('region', { name: label });
   await group.getByRole('heading', { name: keptPlace.name }).waitFor();
   assert.equal(await group.locator('[data-visit-id="visit"] .trip-editor-visit-history-row__title span').textContent(), label);
+});
+
+test('Greek selection confirms dirty Area navigation and announces authored Segment transport', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const transportLabel = 'Local <Shuttle> {0}';
+  const page = await mountGreekEditor(browser, { ...state, options: { ...state.options,
+    transportModes: [{ value: segment.mode, label: transportLabel }] } });
+  await page.evaluate(() => { window.useMountedConfirmation = true; });
+  await page.locator('[data-area-id="area"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const areaName = page.locator('.trip-editor-surface').getByRole('textbox', { name: 'Όνομα', exact: true });
+  await areaName.fill('Unsaved Area');
+
+  const placeRow = page.locator('[data-place-id="place"]');
+  await placeRow.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Απόρριψη αλλαγών;' });
+  await dialog.getByText('Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν επιλέξετε τοποθεσία;', { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).click();
+  await page.waitForFunction(() => document.activeElement?.matches('[data-place-id="place"]'));
+  assert.equal(await areaName.inputValue(), 'Unsaved Area');
+  assert.doesNotMatch(await placeRow.getAttribute('class'), /trip-editor-place-row--active/);
+
+  // The stub hands the persisted key to App through the same callback as a map click.
+  await page.evaluate(() => { void selectSegmentFromMap({ kind: 'persisted', id: 'segment' }); });
+  await dialog.getByText('Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν επιλέξετε άλλο τμήμα διαδρομής;', { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Απόρριψη', exact: true }).click();
+  await areaName.waitFor({ state: 'detached' });
+  const status = page.locator('.trip-editor-toolbar').getByRole('status');
+  assert.equal(await status.textContent(), `Επιλεγμένο τμήμα διαδρομής: ${transportLabel}`);
+
+  await page.getByRole('button', { name: 'Προσθήκη τμήματος', exact: true }).click();
+  await status.getByText('Επιλέχθηκε το νέο πρόχειρο τμήμα διαδρομής', { exact: true }).waitFor();
+});
+
+test('Greek tab navigation keeps the dirty Area and restores focus on Escape', async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const page = await mountGreekEditor(browser, state);
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.evaluate(() => { window.useMountedConfirmation = true; });
+  const tabs = page.locator('.trip-editor-mobile-drawer__tabs');
+  const regionsTab = tabs.getByRole('button', { name: 'Περιοχές', exact: true });
+  const segmentsTab = tabs.getByRole('button', { name: 'Τμήματα διαδρομής', exact: true });
+  await regionsTab.click();
+  await page.locator('[data-area-id="area"]').getByRole('button', { name: 'Επεξεργασία', exact: true }).click();
+  const areaName = page.locator('.trip-editor-surface').getByRole('textbox', { name: 'Όνομα', exact: true });
+  await areaName.fill('Unsaved Area');
+  await segmentsTab.click();
+  const dialog = page.getByRole('dialog', { name: 'Απόρριψη αλλαγών;' });
+  await dialog.getByText('Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν από την αλλαγή καρτέλας;', { exact: true }).waitFor();
+  await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
+  await page.waitForFunction(() => document.activeElement?.matches('.trip-editor-mobile-drawer__tabs button:last-child'));
+  assert.equal(await regionsTab.getAttribute('aria-pressed'), 'true');
+  assert.equal(await areaName.inputValue(), 'Unsaved Area');
+
+  await segmentsTab.click();
+  await dialog.getByRole('button', { name: 'Απόρριψη', exact: true }).click();
+  await areaName.waitFor({ state: 'detached' });
+  assert.equal(await segmentsTab.getAttribute('aria-pressed'), 'true');
 });
 
 test('Greek map-work confirmation keeps or rolls back its temporary snapshot', async t => {

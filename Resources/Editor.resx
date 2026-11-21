@@ -30,6 +30,57 @@
   <data name="Editor.FocusActiveEntity" xml:space="preserve">
     <value>Focus Active Entity</value>
   </data>
+  <data name="Editor.FitAllMoved" xml:space="preserve">
+    <value>Fit all geometry</value>
+  </data>
+  <data name="Editor.FitAllNoGeometry" xml:space="preserve">
+    <value>No geometry to fit</value>
+  </data>
+  <data name="Editor.RecenterMoved" xml:space="preserve">
+    <value>Recentered saved trip view</value>
+  </data>
+  <data name="Editor.RecenterUnavailable" xml:space="preserve">
+    <value>Saved trip view unavailable</value>
+  </data>
+  <data name="Editor.FocusMissingTarget" xml:space="preserve">
+    <value>No active target to focus</value>
+  </data>
+  <data name="Editor.FocusUnsupportedTarget" xml:space="preserve">
+    <value>Active target cannot be focused</value>
+  </data>
+  <data name="Editor.FocusNoGeometry" xml:space="preserve">
+    <value>No geometry to focus</value>
+  </data>
+  <data name="Editor.FocusedTripMap" xml:space="preserve">
+    <value>Focused trip map</value>
+  </data>
+  <data name="Editor.FocusedRegion" xml:space="preserve">
+    <value>Focused region</value>
+  </data>
+  <data name="Editor.FocusedParentRegion" xml:space="preserve">
+    <value>Focused parent region</value>
+  </data>
+  <data name="Editor.FocusedPlace" xml:space="preserve">
+    <value>Focused place</value>
+  </data>
+  <data name="Editor.FocusedArea" xml:space="preserve">
+    <value>Focused area</value>
+  </data>
+  <data name="Editor.FocusedSegment" xml:space="preserve">
+    <value>Focused segment</value>
+  </data>
+  <data name="Editor.FocusedEntity" xml:space="preserve">
+    <value>Focused active entity</value>
+  </data>
+  <data name="Editor.SelectedSegment" xml:space="preserve">
+    <value>Selected segment</value>
+  </data>
+  <data name="Editor.SelectedSegmentMode" xml:space="preserve">
+    <value>Selected segment: {0}</value>
+  </data>
+  <data name="Editor.SelectedSegmentDraft" xml:space="preserve">
+    <value>Selected new Segment draft</value>
+  </data>
   <data name="Editor.ClearSelection" xml:space="preserve">
     <value>Clear Selection</value>
   </data>
@@ -1016,6 +1067,45 @@
   </data>
   <data name="Editor.DiscardQuestion" xml:space="preserve">
     <value>Discard changes?</value>
+  </data>
+  <data name="Editor.DiscardTripBeforeTab" xml:space="preserve">
+    <value>Discard unsaved trip changes before switching tabs?</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforeTab" xml:space="preserve">
+    <value>Discard unsaved region changes before switching tabs?</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeTab" xml:space="preserve">
+    <value>Discard unsaved place changes before switching tabs?</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeTab" xml:space="preserve">
+    <value>Discard unsaved area changes before switching tabs?</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeTab" xml:space="preserve">
+    <value>Discard unsaved segment changes before switching tabs?</value>
+  </data>
+  <data name="Editor.DiscardTripBeforePlace" xml:space="preserve">
+    <value>Discard unsaved trip changes before selecting a Place?</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforePlace" xml:space="preserve">
+    <value>Discard unsaved region changes before selecting a Place?</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforePlace" xml:space="preserve">
+    <value>Discard unsaved place changes before selecting another place?</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforePlace" xml:space="preserve">
+    <value>Discard unsaved area changes before selecting a Place?</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforePlace" xml:space="preserve">
+    <value>Discard unsaved segment changes before selecting a Place?</value>
+  </data>
+  <data name="Editor.DiscardPlaceDraft" xml:space="preserve">
+    <value>Discard unsaved place changes?</value>
+  </data>
+  <data name="Editor.DiscardBeforeSelectingSegment" xml:space="preserve">
+    <value>Discard unsaved changes before selecting another Segment?</value>
+  </data>
+  <data name="Editor.DiscardBeforeSwitchingEditors" xml:space="preserve">
+    <value>Discard unsaved changes before switching editors?</value>
   </data>
   <data name="Editor.MetadataExitDraft" xml:space="preserve">
     <value>Leave unsaved editor changes and return to Trips? Planning is saved separately with Save Planning; Trip settings actions do not save it. Leaving loses retained drafts and does not undo pending or unconfirmed attempts.</value>

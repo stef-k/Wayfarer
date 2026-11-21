@@ -8,8 +8,8 @@
   Segment and use the live document language in browser print. Localize mutation
   recovery, route proposal and Plan Check feedback, map marker labels, route
   summaries, Region controls and the canonical Region label, drawing guidance
-  and live distance, and both map rulers. Improve the dark Editor and language
-  controls.
+  and live distance, both map rulers, map toolbar announcements and selection
+  and tab discard prompts. Improve the dark Editor and language controls.
   Load the private Viewer graph and owner visits
   in one split-query snapshot. No database migration.
 
