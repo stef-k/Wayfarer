@@ -104,11 +104,10 @@ export const createMapViewport = (map: LeafletMap, options: {
     userMovement = false;
   };
   // Preserve the settled center across reflow. Leaflet emits synchronous movement events
-  // for both invalidation and exact placement, even though the camera stays in place.
+  // for invalidation and placement. Ignore them without consuming queued user input.
   const applyPendingResize = (): void => {
     if (!resizePending) return;
     resizePending = false;
-    clearGesture();
     const center = map.getCenter();
     resizing = true;
     try {

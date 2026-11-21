@@ -1139,6 +1139,54 @@ test('Greek Place deletion preview renders its consequences and preserves the na
   assert.deepEqual(await page.evaluate(() => window.deleteRequests), ['/api/trips/trip/editor/places/place/deletion-preview']);
 });
 
+test('wheel zoom updates the Trip view draft after a resize during a pan', { timeout: 30_000 }, async t => {
+  const browser = await chromium.launch();
+  t.after(() => browser.close());
+  const saved = { center: { latitude: 37.98, longitude: 23.73 }, zoom: 8 };
+  const page = await mountEditor(browser, {
+    ...state, metadata: { ...metadata, ...saved, originalValues: { ...metadata.originalValues, ...saved } }
+  }, 'en-US', { realMap: true });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
+  const map = page.locator('.trip-editor-map.leaflet-container');
+  const zoomField = page.getByRole('spinbutton', { name: 'Zoom', exact: true });
+  assert.equal(await zoomField.inputValue(), String(saved.zoom));
+  await map.scrollIntoViewIfNeeded();
+  await map.focus();
+  const box = await map.boundingBox();
+  await page.mouse.move(box.x + 180, box.y + 100);
+  await page.keyboard.press('ArrowRight');
+
+  await map.evaluate(async element => {
+    // Wait for the actual layout change before sending wheel input during the pan.
+    const originalHeight = element.clientHeight;
+    await new Promise(resolve => {
+      const observer = new ResizeObserver(() => {
+        if (element.clientHeight === originalHeight) return;
+        observer.disconnect();
+        resolve();
+      });
+      observer.observe(element);
+      element.style.height = `${originalHeight - 81}px`;
+    });
+    element.addEventListener('wheel', event => {
+      element.dataset.wheelDuringPan = String(
+        event.isTrusted && element.querySelector('.leaflet-map-pane').classList.contains('leaflet-pan-anim'));
+    }, { capture: true, once: true });
+  });
+  await page.mouse.wheel(0, -80);
+  assert.equal(await map.getAttribute('data-wheel-during-pan'), 'true');
+
+  await page.waitForFunction(initialZoom => {
+    const element = document.querySelector('.trip-editor-map.leaflet-container');
+    return Number(element.dataset.tripEditorMapZoom) > initialZoom
+      && !element.querySelector('.leaflet-map-pane').classList.contains('leaflet-zoom-anim');
+  }, saved.zoom);
+  await map.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  assert.equal(await zoomField.inputValue(), await map.getAttribute('data-trip-editor-map-zoom'),
+    'the Trip view draft matches the actual wheel zoom');
+});
+
 /** Loads the shipped RESX values through the document bootstrap used by the mounted Vue owners. */
 async function mountGreekEditor(browser, graph) {
   return mountEditor(browser, graph, 'el-GR');
