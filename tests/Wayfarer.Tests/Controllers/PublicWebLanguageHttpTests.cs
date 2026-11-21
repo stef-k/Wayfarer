@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Wayfarer.Localization;
 using Wayfarer.Models;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Middleware;
@@ -33,7 +34,13 @@ public sealed class PublicWebLanguageHttpTests(PostgresImportTestFixture fixture
         db.Trips.AddRange(first, second);
         await db.SaveChangesAsync();
 
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), ConfigureTripServices);
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            ConfigureTripServices(services);
+            // The shared layout expects the settings supplied by production startup.
+            services.AddSingleton(Mock.Of<IApplicationSettingsService>(
+                settings => settings.GetSettings() == new ApplicationSettings()));
+        });
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("en-US");
         client.DefaultRequestHeaders.Add("Cookie", WebLocales.CookieName + "=c=el-GR%7Cuic=el-GR");
