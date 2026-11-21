@@ -23,6 +23,7 @@ namespace Wayfarer.Areas.User.Controllers
         {
             _text = text;
         }
+
         /// <summary>Displays the owner’s hidden areas.</summary>
         public async Task<IActionResult> Index()
         {
@@ -33,12 +34,14 @@ namespace Wayfarer.Areas.User.Controllers
 
             return View(user?.HiddenAreas.ToList() ?? new List<HiddenArea>());
         }
+
         /// <summary>Displays a blank drawing form.</summary>
         public IActionResult Create()
         {
             var model = new HiddenAreaCreateViewModel();
             return View(model);
         }
+
         /// <summary>Saves a new hidden area with the drawing’s coordinates.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -79,6 +82,7 @@ namespace Wayfarer.Areas.User.Controllers
                 return View(vm);
             }
         }
+
         /// <summary>Loads an owned area for editing.</summary>
         public async Task<IActionResult> Edit(int id)
         {
@@ -108,6 +112,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             return View(vm);
         }
+
         /// <summary>Saves changes to an owned area.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -171,6 +176,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             return geometry;
         }
+
         /// <summary>Confirms deletion of an owned area.</summary>
         public async Task<IActionResult> Delete(int? id)
         {
@@ -193,6 +199,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             return View(hiddenArea);
         }
+
         /// <summary>Deletes the area only when it belongs to the caller.</summary>
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]

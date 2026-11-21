@@ -51,6 +51,28 @@ public class TimelineSettingsControllerTests : TestBase
         Assert.Equal("now", user.PublicTimelineTimeThreshold);
     }
 
+    /// <summary>Preserves the accepted delay syntax and authored title in persisted settings.</summary>
+    [Fact]
+    public async Task UpdateSettings_PreservesFractionalWeekDelayAndCustomTitle()
+    {
+        var (db, user) = await CreateUserAsync();
+        var controller = BuildController(db, user);
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = "custom",
+            CustomThreshold = "2.5w",
+            TimelineTitle = "Σαββατοκύριακο <Β>"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        var saved = db.Users.Single();
+        Assert.True(saved.IsTimelinePublic);
+        Assert.Equal("2.5w", saved.PublicTimelineTimeThreshold);
+        Assert.Equal("Σαββατοκύριακο <Β>", saved.TimelineTitle);
+    }
+
     [Fact]
     public async Task UpdateSettings_DoesNotRepairExistingPublicInvalidThreshold_WhenBlankPosted()
     {

@@ -181,3 +181,9 @@ has refreshed the photo state.
 | `/User/HiddenAreas` list, create, edit and delete | HiddenAreas owns pages, validation and drawing controls. Shell supplies shared polygon prompts and measurement chrome. `SettingsWebLanguageHttpTests` exercises the Greek Edit form and retains exact coordinates and SRID. The polygon editor registers its map state and WKT field with the selector. `webLanguage.test.mjs` checks unfinished and committed polygon-only drafts, cancellation, failed preference writes and safe navigation. |
 | `/User/ApiToken` | Connection owns issue, replace, reveal, QR, copy, hide and recovery text. `SettingsWebLanguageHttpTests` checks the Greek route and its selector exclusion. `connectApps.test.mjs` covers the one-time reveal, cleanup and safe status refresh. Tokens, QR contents and mutation responses remain outside locale data. |
 | `/User/LocationProviderSettings` | Providers owns migration, verification, capability selection, credential and consent controls, usage guards, revocation and backfill. `ProviderSettingsMigrationRouteTests` follows an English POST to its Greek GET and verifies the credential remains masked. `ProviderStatus` carries a catalog key plus a fixed capability value where needed. The destination formats the message. |
+
+
+The managed Chromium check reached the Greek drawing toolbar at a narrow width
+in dark mode. Restoring the Leaflet stylesheet flag made the polygon control
+clickable. The browser fixture ended with an empty WKT field after its rapid
+vertex clicks. The complete drawn-polygon browser journey remains unqualified.

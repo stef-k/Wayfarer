@@ -36,6 +36,7 @@ public sealed class SettingsWebLanguageHttpTests : TestBase
         var page = await ParseAsync(response);
         Assert.Contains("Επεξεργασία κρυφής ζώνης", page.QuerySelector("main h2")?.TextContent);
         Assert.NotNull(page.QuerySelector("#language-open"));
+        Assert.NotNull(page.QuerySelector("link[href*='leaflet.draw.css']"));
         var form = Assert.IsAssignableFrom<IElement>(page.QuerySelector("form[action*='HiddenAreas/Edit']"));
         var csrfCookie = response.Headers.GetValues("Set-Cookie")
             .Single(value => value.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal)).Split(';')[0];

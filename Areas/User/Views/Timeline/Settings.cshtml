@@ -21,7 +21,7 @@
                     @if (!ViewData.ModelState.IsValid)
                     {
                         <div class="alert alert-danger">
-                            @Html.ValidationSummary(true, T["Settings.FixErrors"])
+                            @Html.ValidationSummary(false, T["Settings.FixErrors"])
                         </div>
                     }
 

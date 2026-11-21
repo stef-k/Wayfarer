@@ -3,6 +3,7 @@
 @{
     ViewData["Title"] = T["HiddenAreas.Edit"];
     ViewData["BodyClass"] = "container";
+    ViewData["LoadLeaflet"] = true;
     ViewData["WebCatalog"] = "HiddenAreas";
     // A validation result can return to the owning GET after discard consent.
     ViewData["LanguageSafeGet"] = Url.Action("Edit", "HiddenAreas", new { area = "User", id = Model.Id });
