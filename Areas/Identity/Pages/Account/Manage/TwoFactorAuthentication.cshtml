@@ -1,0 +1,72 @@
+@page
+@using Microsoft.AspNetCore.Http.Features
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Manage.Internal.TwoFactorAuthenticationModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.TwoFactor.ManageTitle"];
+    ViewData["ActivePage"] = ManageNavPages.TwoFactorAuthentication;
+}
+
+<partial name="/Areas/Identity/Pages/Account/_StatusMessage.cshtml" for="StatusMessage" />
+<h3>@ViewData["Title"]</h3>
+@{
+    var consentFeature = HttpContext.Features.Get<ITrackingConsentFeature>();
+    @if (consentFeature?.CanTrack ?? true)
+    {
+        @if (Model.Is2faEnabled)
+        {
+            if (Model.RecoveryCodesLeft == 0)
+            {
+                <div class="alert alert-danger">
+                    <strong>@T["Identity.TwoFactor.NoCodes"]</strong>
+                    <p>@T["Identity.TwoFactor.CodesRequired"] <a asp-page="./GenerateRecoveryCodes">@T["Identity.TwoFactor.GenerateLink"]</a></p>
+                </div>
+            }
+            else if (Model.RecoveryCodesLeft == 1)
+            {
+                <div class="alert alert-danger">
+                    <strong>@T.Count("Identity.TwoFactor.CodesLeft", Model.RecoveryCodesLeft)</strong>
+                    <p><a asp-page="./GenerateRecoveryCodes">@T["Identity.TwoFactor.GenerateLink"]</a></p>
+                </div>
+            }
+            else if (Model.RecoveryCodesLeft <= 3)
+            {
+                <div class="alert alert-warning">
+                    <strong>@T.Count("Identity.TwoFactor.CodesLeft", Model.RecoveryCodesLeft)</strong>
+                    <p><a asp-page="./GenerateRecoveryCodes">@T["Identity.TwoFactor.GenerateLink"]</a></p>
+                </div>
+            }
+
+            if (Model.IsMachineRemembered)
+            {
+                <form method="post" style="display: inline-block">
+                    <button type="submit" class="btn btn-primary">@T["Identity.TwoFactor.ForgetBrowser"]</button>
+                </form>
+            }
+            <a asp-page="./Disable2fa" class="btn btn-primary">@T["Identity.TwoFactor.Disable"]</a>
+            <a asp-page="./GenerateRecoveryCodes" class="btn btn-primary">@T["Identity.TwoFactor.ResetCodes"]</a>
+        }
+
+        <h4>@T["Identity.Authenticator.Title"]</h4>
+        @if (!Model.HasAuthenticator)
+        {
+            <a id="enable-authenticator" asp-page="./EnableAuthenticator" class="btn btn-primary">@T["Identity.Authenticator.Add"]</a>
+        }
+        else
+        {
+            <a id="enable-authenticator" asp-page="./EnableAuthenticator" class="btn btn-primary">@T["Identity.Authenticator.Setup"]</a>
+            <a id="reset-authenticator" asp-page="./ResetAuthenticator" class="btn btn-primary">@T["Identity.Authenticator.Reset"]</a>
+        }
+    }
+    else
+    {
+        <div class="alert alert-danger">
+            <strong>@T["Identity.TwoFactor.PrivacyTitle"]</strong>
+            <p>@T["Identity.TwoFactor.PrivacyRequired"]</p>
+        </div>
+    }
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

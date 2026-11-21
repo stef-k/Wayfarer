@@ -1,0 +1,576 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Identity.Login.Title" xml:space="preserve">
+    <value>Log in</value>
+  </data>
+  <data name="Identity.Login.Local" xml:space="preserve">
+    <value>Use a local account to log in.</value>
+  </data>
+  <data name="Identity.Login.Register" xml:space="preserve">
+    <value>Register as a new user</value>
+  </data>
+  <data name="Identity.Login.Inactive" xml:space="preserve">
+    <value>Your account is inactive. Please contact support.</value>
+  </data>
+  <data name="Identity.Login.Invalid" xml:space="preserve">
+    <value>Invalid login attempt.</value>
+  </data>
+  <data name="Identity.Login.SessionEnded" xml:space="preserve">
+    <value>Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.</value>
+  </data>
+  <data name="Identity.Login.Remember" xml:space="preserve">
+    <value>Remember me?</value>
+  </data>
+  <data name="Identity.Register.Title" xml:space="preserve">
+    <value>Register</value>
+  </data>
+  <data name="Identity.Register.New" xml:space="preserve">
+    <value>Create a new account.</value>
+  </data>
+  <data name="Identity.Register.UsernameTaken" xml:space="preserve">
+    <value>Username is already taken.</value>
+  </data>
+  <data name="Identity.Register.Confirmation" xml:space="preserve">
+    <value>Register confirmation</value>
+  </data>
+  <data name="Identity.Register.EmailCheck" xml:space="preserve">
+    <value>Please check your email to confirm your account.</value>
+  </data>
+  <data name="Identity.Register.EmailUnavailable" xml:space="preserve">
+    <value>This site does not have an email sender configured.</value>
+  </data>
+  <data name="Identity.Register.EmailSetup" xml:space="preserve">
+    <value>Instructions for configuring email delivery</value>
+  </data>
+  <data name="Identity.Register.ConfirmLink" xml:space="preserve">
+    <value>Confirm your account</value>
+  </data>
+  <data name="Identity.Field.Username" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="Identity.Field.Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Identity.Field.OldPassword" xml:space="preserve">
+    <value>Current password</value>
+  </data>
+  <data name="Identity.Field.NewPassword" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="Identity.Field.ConfirmPassword" xml:space="preserve">
+    <value>Confirm password</value>
+  </data>
+  <data name="Identity.Field.ConfirmNewPassword" xml:space="preserve">
+    <value>Confirm new password</value>
+  </data>
+  <data name="Identity.Field.Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Identity.Field.NewEmail" xml:space="preserve">
+    <value>New email</value>
+  </data>
+  <data name="Identity.Field.DisplayName" xml:space="preserve">
+    <value>Display name</value>
+  </data>
+  <data name="Identity.Field.ResetCode" xml:space="preserve">
+    <value>Reset code</value>
+  </data>
+  <data name="Identity.Field.RecoveryCode" xml:space="preserve">
+    <value>Recovery code</value>
+  </data>
+  <data name="Identity.Field.TwoFactorCode" xml:space="preserve">
+    <value>Authenticator code</value>
+  </data>
+  <data name="Identity.Field.VerificationCode" xml:space="preserve">
+    <value>Verification code</value>
+  </data>
+  <data name="Identity.Field.RememberMachine" xml:space="preserve">
+    <value>Remember this browser</value>
+  </data>
+  <data name="Identity.Validation.Required" xml:space="preserve">
+    <value>The field “{0}” is required.</value>
+  </data>
+  <data name="Identity.Validation.Email" xml:space="preserve">
+    <value>The field “{0}” is not a valid email address.</value>
+  </data>
+  <data name="Identity.Validation.Length" xml:space="preserve">
+    <value>The field “{0}” must be between {2} and {1} characters long.</value>
+  </data>
+  <data name="Identity.Validation.MaximumLength" xml:space="preserve">
+    <value>The field “{0}” must be at most {1} characters long.</value>
+  </data>
+  <data name="Identity.Validation.PasswordMismatch" xml:space="preserve">
+    <value>The password and confirmation password do not match.</value>
+  </data>
+  <data name="Identity.Validation.NewPasswordMismatch" xml:space="preserve">
+    <value>The new password and confirmation password do not match.</value>
+  </data>
+  <data name="Identity.Validation.InvalidValue" xml:space="preserve">
+    <value>The value “{0}” is not valid for the field “{1}”.</value>
+  </data>
+  <data name="Identity.Validation.FieldInvalid" xml:space="preserve">
+    <value>The value for the field “{0}” is invalid.</value>
+  </data>
+  <data name="Identity.Validation.ValueInvalid" xml:space="preserve">
+    <value>The value “{0}” is invalid.</value>
+  </data>
+  <data name="Identity.AccessDenied.Title" xml:space="preserve">
+    <value>Access denied</value>
+  </data>
+  <data name="Identity.AccessDenied.Description" xml:space="preserve">
+    <value>You do not have access to this resource.</value>
+  </data>
+  <data name="Identity.Error.Title" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Identity.Error.Description" xml:space="preserve">
+    <value>An error occurred while processing your request.</value>
+  </data>
+  <data name="Identity.Error.RequestId" xml:space="preserve">
+    <value>Request ID</value>
+  </data>
+  <data name="Identity.Error.UserId" xml:space="preserve">
+    <value>Unable to load user with ID '{0}'.</value>
+  </data>
+  <data name="Identity.Error.UserEmail" xml:space="preserve">
+    <value>Unable to load user with email '{0}'.</value>
+  </data>
+  <data name="Identity.Error.GenericStatus" xml:space="preserve">
+    <value>The account operation returned an unknown status. Reload the account page to check the result.</value>
+  </data>
+  <data name="Identity.Lockout.Title" xml:space="preserve">
+    <value>Locked out</value>
+  </data>
+  <data name="Identity.Lockout.Description" xml:space="preserve">
+    <value>This account has been locked out. Please try again later.</value>
+  </data>
+  <data name="Identity.Attempt.Limit" xml:space="preserve">
+    <value>Too many account attempts. Please try again later.</value>
+  </data>
+  <data name="Identity.Logout.Title" xml:space="preserve">
+    <value>Log out</value>
+  </data>
+  <data name="Identity.Logout.Submit" xml:space="preserve">
+    <value>Click here to log out</value>
+  </data>
+  <data name="Identity.Logout.Completed" xml:space="preserve">
+    <value>You have successfully logged out of the application.</value>
+  </data>
+  <data name="Identity.TwoFactor.Title" xml:space="preserve">
+    <value>Two-factor authentication</value>
+  </data>
+  <data name="Identity.TwoFactor.Instructions" xml:space="preserve">
+    <value>Your login is protected with an authenticator app. Enter your authenticator code below.</value>
+  </data>
+  <data name="Identity.TwoFactor.NoDevice" xml:space="preserve">
+    <value>Don't have access to your authenticator device?</value>
+  </data>
+  <data name="Identity.TwoFactor.UseRecovery" xml:space="preserve">
+    <value>Log in with a recovery code.</value>
+  </data>
+  <data name="Identity.TwoFactor.InvalidCode" xml:space="preserve">
+    <value>Invalid authenticator code.</value>
+  </data>
+  <data name="Identity.TwoFactor.RecoveryTitle" xml:space="preserve">
+    <value>Recovery code verification</value>
+  </data>
+  <data name="Identity.TwoFactor.RecoveryInstructions" xml:space="preserve">
+    <value>This login will not be remembered until you sign in with an authenticator code or disable 2FA and sign in again.</value>
+  </data>
+  <data name="Identity.TwoFactor.InvalidRecovery" xml:space="preserve">
+    <value>Invalid recovery code entered.</value>
+  </data>
+  <data name="Identity.TwoFactor.ManageTitle" xml:space="preserve">
+    <value>Two-factor authentication (2FA)</value>
+  </data>
+  <data name="Identity.TwoFactor.NoCodes" xml:space="preserve">
+    <value>You have no recovery codes left.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesLeft.one" xml:space="preserve">
+    <value>You have {0} recovery code left.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesLeft.other" xml:space="preserve">
+    <value>You have {0} recovery codes left.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesRequired" xml:space="preserve">
+    <value>You need a new set of recovery codes before you can log in with a recovery code.</value>
+  </data>
+  <data name="Identity.TwoFactor.GenerateLink" xml:space="preserve">
+    <value>Generate a new set of recovery codes.</value>
+  </data>
+  <data name="Identity.TwoFactor.ForgetBrowser" xml:space="preserve">
+    <value>Forget this browser</value>
+  </data>
+  <data name="Identity.TwoFactor.BrowserForgotten" xml:space="preserve">
+    <value>The current browser has been forgotten. The next time you sign in here, you will be asked for your 2FA code.</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableTitle" xml:space="preserve">
+    <value>Disable two-factor authentication (2FA)</value>
+  </data>
+  <data name="Identity.TwoFactor.Disable" xml:space="preserve">
+    <value>Disable 2FA</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableWarning" xml:space="preserve">
+    <value>This action disables 2FA.</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableKeys" xml:space="preserve">
+    <value>Disabling 2FA leaves your authenticator keys in place.</value>
+  </data>
+  <data name="Identity.TwoFactor.Disabled" xml:space="preserve">
+    <value>2FA has been disabled. You can reenable it by setting up an authenticator app.</value>
+  </data>
+  <data name="Identity.TwoFactor.ResetCodes" xml:space="preserve">
+    <value>Reset recovery codes</value>
+  </data>
+  <data name="Identity.TwoFactor.PrivacyTitle" xml:space="preserve">
+    <value>Privacy and cookie policy have not been accepted.</value>
+  </data>
+  <data name="Identity.TwoFactor.PrivacyRequired" xml:space="preserve">
+    <value>You must accept the policy before you can enable two-factor authentication.</value>
+  </data>
+  <data name="Identity.Recovery.Title" xml:space="preserve">
+    <value>Recovery codes</value>
+  </data>
+  <data name="Identity.Recovery.GenerateTitle" xml:space="preserve">
+    <value>Generate two-factor authentication (2FA) recovery codes</value>
+  </data>
+  <data name="Identity.Recovery.Generate" xml:space="preserve">
+    <value>Generate recovery codes</value>
+  </data>
+  <data name="Identity.Recovery.KeepSafe" xml:space="preserve">
+    <value>Put these codes in a safe place.</value>
+  </data>
+  <data name="Identity.Recovery.AccessWarning" xml:space="preserve">
+    <value>If you lose your device and don't have recovery codes, you will lose access to your account.</value>
+  </data>
+  <data name="Identity.Recovery.KeepKeys" xml:space="preserve">
+    <value>Generating new recovery codes keeps your existing authenticator keys.</value>
+  </data>
+  <data name="Identity.Recovery.Generated" xml:space="preserve">
+    <value>You have generated new recovery codes.</value>
+  </data>
+  <data name="Identity.Authenticator.Title" xml:space="preserve">
+    <value>Authenticator app</value>
+  </data>
+  <data name="Identity.Authenticator.Add" xml:space="preserve">
+    <value>Add authenticator app</value>
+  </data>
+  <data name="Identity.Authenticator.Setup" xml:space="preserve">
+    <value>Set up authenticator app</value>
+  </data>
+  <data name="Identity.Authenticator.Configure" xml:space="preserve">
+    <value>Configure authenticator app</value>
+  </data>
+  <data name="Identity.Authenticator.Steps" xml:space="preserve">
+    <value>To use an authenticator app, follow these steps.</value>
+  </data>
+  <data name="Identity.Authenticator.Download" xml:space="preserve">
+    <value>Install a two-factor authenticator app, such as Microsoft Authenticator or Google Authenticator.</value>
+  </data>
+  <data name="Identity.Authenticator.Scan" xml:space="preserve">
+    <value>Scan the QR code or enter the following key in your authenticator app. Spaces and letter case do not matter.</value>
+  </data>
+  <data name="Identity.Authenticator.EnterCode" xml:space="preserve">
+    <value>Enter the code generated by the authenticator app.</value>
+  </data>
+  <data name="Identity.Authenticator.Verify" xml:space="preserve">
+    <value>Verify</value>
+  </data>
+  <data name="Identity.Authenticator.Invalid" xml:space="preserve">
+    <value>Verification code is invalid.</value>
+  </data>
+  <data name="Identity.Authenticator.Verified" xml:space="preserve">
+    <value>Your authenticator app has been verified.</value>
+  </data>
+  <data name="Identity.Authenticator.Reset" xml:space="preserve">
+    <value>Reset authenticator app</value>
+  </data>
+  <data name="Identity.Authenticator.ResetKey" xml:space="preserve">
+    <value>Reset authenticator key</value>
+  </data>
+  <data name="Identity.Authenticator.ResetWarning" xml:space="preserve">
+    <value>If you reset the key, your authenticator app will stop working until you set it up again.</value>
+  </data>
+  <data name="Identity.Authenticator.ResetEffect" xml:space="preserve">
+    <value>This process disables 2FA until you verify your authenticator app. If you do not finish setup, you may lose access to your account.</value>
+  </data>
+  <data name="Identity.Authenticator.KeyReset" xml:space="preserve">
+    <value>Your authenticator key has been reset. Set up your authenticator app using the new key.</value>
+  </data>
+  <data name="Identity.Email.Manage" xml:space="preserve">
+    <value>Manage email</value>
+  </data>
+  <data name="Identity.Email.Change" xml:space="preserve">
+    <value>Change email</value>
+  </data>
+  <data name="Identity.Email.SendVerification" xml:space="preserve">
+    <value>Send verification email</value>
+  </data>
+  <data name="Identity.Email.Confirm" xml:space="preserve">
+    <value>Confirm email</value>
+  </data>
+  <data name="Identity.Email.Confirmed" xml:space="preserve">
+    <value>Thank you for confirming your email.</value>
+  </data>
+  <data name="Identity.Email.ConfirmFailed" xml:space="preserve">
+    <value>Error confirming your email.</value>
+  </data>
+  <data name="Identity.Email.ConfirmChange" xml:space="preserve">
+    <value>Confirm email change</value>
+  </data>
+  <data name="Identity.Email.ChangeConfirmed" xml:space="preserve">
+    <value>Thank you for confirming your email change.</value>
+  </data>
+  <data name="Identity.Email.ChangeFailed" xml:space="preserve">
+    <value>Error changing email.</value>
+  </data>
+  <data name="Identity.Email.UsernameChangeFailed" xml:space="preserve">
+    <value>Error changing user name.</value>
+  </data>
+  <data name="Identity.Email.Enter" xml:space="preserve">
+    <value>Enter your email.</value>
+  </data>
+  <data name="Identity.Email.ResendTitle" xml:space="preserve">
+    <value>Resend email confirmation</value>
+  </data>
+  <data name="Identity.Email.Resend" xml:space="preserve">
+    <value>Resend</value>
+  </data>
+  <data name="Identity.Email.VerificationSent" xml:space="preserve">
+    <value>Verification email sent. Please check your email.</value>
+  </data>
+  <data name="Identity.Email.ChangeSent" xml:space="preserve">
+    <value>Confirmation link to change email sent. Please check your email.</value>
+  </data>
+  <data name="Identity.Email.Unchanged" xml:space="preserve">
+    <value>Your email is unchanged.</value>
+  </data>
+  <data name="Identity.Email.IsConfirmed" xml:space="preserve">
+    <value>Email confirmed</value>
+  </data>
+  <data name="Identity.Password.Forgot" xml:space="preserve">
+    <value>Forgot your password?</value>
+  </data>
+  <data name="Identity.Password.ForgotConfirmation" xml:space="preserve">
+    <value>Forgot password confirmation</value>
+  </data>
+  <data name="Identity.Password.CheckEmail" xml:space="preserve">
+    <value>Please check your email to reset your password.</value>
+  </data>
+  <data name="Identity.Password.Reset" xml:space="preserve">
+    <value>Reset password</value>
+  </data>
+  <data name="Identity.Password.ResetInstruction" xml:space="preserve">
+    <value>Reset your password.</value>
+  </data>
+  <data name="Identity.Password.ResetAction" xml:space="preserve">
+    <value>Reset</value>
+  </data>
+  <data name="Identity.Password.ResetConfirmation" xml:space="preserve">
+    <value>Reset password confirmation</value>
+  </data>
+  <data name="Identity.Password.ResetCompleted" xml:space="preserve">
+    <value>Your password has been reset.</value>
+  </data>
+  <data name="Identity.Password.MissingCode" xml:space="preserve">
+    <value>A code must be supplied for password reset.</value>
+  </data>
+  <data name="Identity.Password.Change" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="Identity.Password.Update" xml:space="preserve">
+    <value>Update password</value>
+  </data>
+  <data name="Identity.Password.Changed" xml:space="preserve">
+    <value>Your password has been changed.</value>
+  </data>
+  <data name="Identity.Password.Set" xml:space="preserve">
+    <value>Set password</value>
+  </data>
+  <data name="Identity.Password.SetComplete" xml:space="preserve">
+    <value>Your password has been set.</value>
+  </data>
+  <data name="Identity.Password.SetLocal" xml:space="preserve">
+    <value>Add a password so you can sign in without an external provider.</value>
+  </data>
+  <data name="Identity.Password.Incorrect" xml:space="preserve">
+    <value>Incorrect password.</value>
+  </data>
+  <data name="Identity.Manage.Title" xml:space="preserve">
+    <value>Manage your account</value>
+  </data>
+  <data name="Identity.Manage.Settings" xml:space="preserve">
+    <value>Change your account settings</value>
+  </data>
+  <data name="Identity.Manage.Profile" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="Identity.Manage.Role" xml:space="preserve">
+    <value>Account role</value>
+  </data>
+  <data name="Identity.Manage.User" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="Identity.Manage.DisplayNameHelp" xml:space="preserve">
+    <value>Display name for your public pages (if any).</value>
+  </data>
+  <data name="Identity.Manage.ShowPhoto" xml:space="preserve">
+    <value>Show my profile photo beside my name on my public Trips</value>
+  </data>
+  <data name="Identity.Manage.ShowPhotoHelp" xml:space="preserve">
+    <value>Applies to your current and future photo on all your public Trips. Removing or replacing a photo keeps this choice. Downloaded copies cannot be recalled.</value>
+  </data>
+  <data name="Identity.Manage.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Identity.Manage.Updated" xml:space="preserve">
+    <value>Your profile has been updated</value>
+  </data>
+  <data name="Identity.Manage.Conflict" xml:space="preserve">
+    <value>The profile changed or could not be saved. Refresh and save your preferences again.</value>
+  </data>
+  <data name="Identity.Data.Title" xml:space="preserve">
+    <value>Personal data</value>
+  </data>
+  <data name="Identity.Data.Description" xml:space="preserve">
+    <value>Your account contains personal data that you gave us. You can download or delete it here.</value>
+  </data>
+  <data name="Identity.Data.DeleteTitle" xml:space="preserve">
+    <value>Delete personal data</value>
+  </data>
+  <data name="Identity.Data.DeleteWarning" xml:space="preserve">
+    <value>Deleting this data will permanently remove your account. The account cannot be recovered.</value>
+  </data>
+  <data name="Identity.Data.DeleteAccount" xml:space="preserve">
+    <value>Delete data and close my account</value>
+  </data>
+  <data name="Identity.Data.Download" xml:space="preserve">
+    <value>Download</value>
+  </data>
+  <data name="Identity.Data.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Identity.External.Associate" xml:space="preserve">
+    <value>Associate your {0} account.</value>
+  </data>
+  <data name="Identity.External.Description" xml:space="preserve">
+    <value>You authenticated with {0}. Enter an email address and select Register to finish signing in.</value>
+  </data>
+  <data name="Identity.External.Nav" xml:space="preserve">
+    <value>External logins</value>
+  </data>
+  <data name="Identity.External.Manage" xml:space="preserve">
+    <value>Manage your external logins</value>
+  </data>
+  <data name="Identity.External.Registered" xml:space="preserve">
+    <value>Linked providers</value>
+  </data>
+  <data name="Identity.External.Add" xml:space="preserve">
+    <value>Add another service to log in.</value>
+  </data>
+  <data name="Identity.External.UseProvider" xml:space="preserve">
+    <value>Log in using your {0} account</value>
+  </data>
+  <data name="Identity.External.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Identity.External.RemoveProvider" xml:space="preserve">
+    <value>Remove your {0} login from this account</value>
+  </data>
+  <data name="Identity.External.NotRemoved" xml:space="preserve">
+    <value>The external login was not removed.</value>
+  </data>
+  <data name="Identity.External.Removed" xml:space="preserve">
+    <value>The external login was removed.</value>
+  </data>
+  <data name="Identity.External.NotAdded" xml:space="preserve">
+    <value>The external login was not added. It can only be linked to one account.</value>
+  </data>
+  <data name="Identity.External.Added" xml:space="preserve">
+    <value>The external login was added.</value>
+  </data>
+  <data name="Identity.External.ProviderError" xml:space="preserve">
+    <value>Error from external provider: {0}</value>
+  </data>
+  <data name="Identity.External.LoadError" xml:space="preserve">
+    <value>Error loading external login information.</value>
+  </data>
+  <data name="Identity.External.ConfirmError" xml:space="preserve">
+    <value>Error loading external login information during confirmation.</value>
+  </data>
+  <data name="Identity.Error.Development" xml:space="preserve">
+    <value>Development mode</value>
+  </data>
+  <data name="Identity.Error.DevelopmentDetails" xml:space="preserve">
+    <value>The {0} environment shows more details about this error.</value>
+  </data>
+  <data name="Identity.Error.DevelopmentWarning" xml:space="preserve">
+    <value>Use {0} only for local debugging. In deployed applications it can display sensitive information to users.</value>
+  </data>
+  <data name="Identity.Error.DevelopmentSetup" xml:space="preserve">
+    <value>For local debugging, set {0} to {1} and restart the application.</value>
+  </data>
+  <data name="Identity.ErrorCode.DefaultError" xml:space="preserve">
+    <value>An unknown failure has occurred.</value>
+  </data>
+  <data name="Identity.ErrorCode.ConcurrencyFailure" xml:space="preserve">
+    <value>Optimistic concurrency failure, object has been modified.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordMismatch" xml:space="preserve">
+    <value>Incorrect password.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidToken" xml:space="preserve">
+    <value>Invalid token.</value>
+  </data>
+  <data name="Identity.ErrorCode.RecoveryCodeRedemptionFailed" xml:space="preserve">
+    <value>Recovery code redemption failed.</value>
+  </data>
+  <data name="Identity.ErrorCode.LoginAlreadyAssociated" xml:space="preserve">
+    <value>A user with this login already exists.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidUserName" xml:space="preserve">
+    <value>Username '{0}' is invalid, can only contain letters or digits.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidEmail" xml:space="preserve">
+    <value>Email '{0}' is invalid.</value>
+  </data>
+  <data name="Identity.ErrorCode.DuplicateUserName" xml:space="preserve">
+    <value>Username '{0}' is already taken.</value>
+  </data>
+  <data name="Identity.ErrorCode.DuplicateEmail" xml:space="preserve">
+    <value>Email '{0}' is already taken.</value>
+  </data>
+  <data name="Identity.ErrorCode.UserAlreadyHasPassword" xml:space="preserve">
+    <value>User already has a password set.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordTooShort" xml:space="preserve">
+    <value>Passwords must be at least {0} characters.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresUniqueChars" xml:space="preserve">
+    <value>Passwords must use at least {0} different characters.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresNonAlphanumeric" xml:space="preserve">
+    <value>Passwords must have at least one non alphanumeric character.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresDigit" xml:space="preserve">
+    <value>Passwords must have at least one digit ('0'-'9').</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresLower" xml:space="preserve">
+    <value>Passwords must have at least one lowercase ('a'-'z').</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresUpper" xml:space="preserve">
+    <value>Passwords must have at least one uppercase ('A'-'Z').</value>
+  </data>
+</root>

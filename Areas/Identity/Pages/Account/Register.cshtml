@@ -1,7 +1,7 @@
-﻿@page
+@page
 @model RegisterModel
 @{
-    ViewData["Title"] = "Register";
+    ViewData["Title"] = T["Identity.Register.Title"];
 }
 
 <h1>@ViewData["Title"]</h1>
@@ -9,39 +9,39 @@
 <div class="row">
     <div class="col-md-4">
         <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post">
-            <h2>Create a new account.</h2>
+            <h2>@T["Identity.Register.New"]</h2>
             <hr />
             <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
             <!-- Username Field -->
             <div class="form-floating mb-3">
-                <input asp-for="Input.Username" class="form-control" aria-required="true" placeholder="Username" />
-                <label asp-for="Input.Username">Username</label>
+                <input asp-for="Input.Username" class="form-control" aria-required="true" placeholder="@T["Identity.Field.Username"]" />
+                <label asp-for="Input.Username">@T["Identity.Field.Username"]</label>
                 <span asp-validation-for="Input.Username" class="text-danger"></span>
             </div>
 
             <!-- Password Field -->
             <div class="form-floating mb-3">
-                <input asp-for="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Password" />
-                <label asp-for="Input.Password">Password</label>
+                <input asp-for="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="@T["Identity.Field.Password"]" />
+                <label asp-for="Input.Password">@T["Identity.Field.Password"]</label>
                 <span asp-validation-for="Input.Password" class="text-danger"></span>
             </div>
 
             <!-- Confirm Password Field -->
             <div class="form-floating mb-3">
-                <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Confirm Password" />
-                <label asp-for="Input.ConfirmPassword">Confirm Password</label>
+                <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="@T["Identity.Field.ConfirmPassword"]" />
+                <label asp-for="Input.ConfirmPassword">@T["Identity.Field.ConfirmPassword"]</label>
                 <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
             </div>
 
             <div class="form-floating mb-3">
-                <input asp-for="Input.DisplayName" class="form-control" autocomplete="name" placeholder="Display Name" />
-                <label asp-for="Input.DisplayName" class="form-label">Display Name</label>
+                <input asp-for="Input.DisplayName" class="form-control" autocomplete="name" placeholder="@T["Identity.Field.DisplayName"]" />
+                <label asp-for="Input.DisplayName" class="form-label">@T["Identity.Field.DisplayName"]</label>
                 <span asp-validation-for="Input.DisplayName" class="text-danger"></span>
             </div>
 
             <!-- Submit Button -->
-            <button id="registerSubmit" type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
+            <button id="registerSubmit" type="submit" class="w-100 btn btn-lg btn-primary">@T["Identity.Register.Title"]</button>
         </form>
     </div>
 </div>

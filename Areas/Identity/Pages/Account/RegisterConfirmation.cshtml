@@ -1,0 +1,24 @@
+@page
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Internal.RegisterConfirmationModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.Register.Confirmation"];
+}
+
+<h1>@ViewData["Title"]</h1>
+@{
+    if (@Model.DisplayConfirmAccountLink)
+    {
+<p>
+    @T["Identity.Register.EmailUnavailable"]
+    <a href="https://aka.ms/aspaccountconf">@T["Identity.Register.EmailSetup"]</a>
+    <a id="confirm-link" href="@Model.EmailConfirmationUrl">@T["Identity.Register.ConfirmLink"]</a>
+</p>
+    }
+    else
+    {
+<p>
+        @T["Identity.Register.EmailCheck"]
+</p>
+    }
+}

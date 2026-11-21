@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Wayfarer.Localization;
 
 namespace Wayfarer.Services;
 
@@ -55,7 +56,18 @@ public sealed class IdentityAttemptAdmission(TimeProvider clock) : IAsyncResourc
             if (retry > 0)
             {
                 context.HttpContext.Response.Headers.RetryAfter = retry.ToString(CultureInfo.InvariantCulture);
-                context.Result = new StatusCodeResult(StatusCodes.Status429TooManyRequests);
+                // The Identity admission response has its own negotiated body and is never shared or replayed.
+                var messages = context.HttpContext.RequestServices.GetRequiredService<WebMessages>();
+                context.HttpContext.Response.Headers.ContentLanguage = messages.Locale.Tag;
+                context.HttpContext.Response.Headers.CacheControl = "no-store";
+                context.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+                context.Result = HttpMethods.IsHead(request.Method)
+                    ? new StatusCodeResult(StatusCodes.Status429TooManyRequests)
+                    : new ContentResult
+                    {
+                        StatusCode = StatusCodes.Status429TooManyRequests,
+                        Content = messages["Identity.Attempt.Limit"]
+                    };
                 return;
             }
         }

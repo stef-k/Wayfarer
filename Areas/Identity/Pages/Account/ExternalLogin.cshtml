@@ -1,0 +1,32 @@
+@page
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Internal.ExternalLoginModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.Register.Title"];
+}
+
+<h1>@ViewData["Title"]</h1>
+<h2 id="external-login-title">@T["Identity.External.Associate", Model.ProviderDisplayName]</h2>
+<hr />
+
+<p id="external-login-description" class="text-info">
+    @T["Identity.External.Description", Model.ProviderDisplayName]
+</p>
+
+<div class="row">
+    <div class="col-md-4">
+        <form asp-page-handler="Confirmation" asp-route-returnUrl="@Model.ReturnUrl" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+            <div class="form-floating mb-3">
+                <input asp-for="Input.Email" class="form-control" autocomplete="email" placeholder="@T["Identity.Field.Email"]"/>
+                <label asp-for="Input.Email" class="form-label"></label>
+                <span asp-validation-for="Input.Email" class="text-danger"></span>
+            </div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">@T["Identity.Register.Title"]</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

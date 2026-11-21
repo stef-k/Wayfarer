@@ -2,7 +2,10 @@
 @inject WebLocales Locales
 @inject WebMessages T
 @{
-    var destination = LanguageNavigation.GetDestination(Context, ViewData["LanguageSafeGet"] as string);
+    // One-time results may also be rendered on an otherwise safe page.
+    var destination = ViewData["LanguageOneTimeResult"] is true
+        ? null
+        : LanguageNavigation.GetDestination(Context, ViewData["LanguageSafeGet"] as string);
 }
 @if (destination != null)
 {

@@ -1,0 +1,24 @@
+@page
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Manage.Internal.ResetAuthenticatorModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.Authenticator.ResetKey"];
+    ViewData["ActivePage"] = ManageNavPages.TwoFactorAuthentication;
+}
+
+<partial name="/Areas/Identity/Pages/Account/_StatusMessage.cshtml" for="StatusMessage" />
+<h3>@ViewData["Title"]</h3>
+<div class="alert alert-warning" role="alert">
+    <p>
+        <span class="glyphicon glyphicon-warning-sign"></span>
+        <strong>@T["Identity.Authenticator.ResetWarning"]</strong>
+    </p>
+    <p>
+        @T["Identity.Authenticator.ResetEffect"]
+    </p>
+</div>
+<div>
+    <form id="reset-authenticator-form" method="post">
+        <button id="reset-authenticator-button" class="btn btn-danger" type="submit">@T["Identity.Authenticator.ResetKey"]</button>
+    </form>
+</div>

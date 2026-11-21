@@ -1,0 +1,22 @@
+@{
+    Layout = "/Views/Shared/_Layout.cshtml";
+}
+
+@* Keep the navigation and content landmarks shared across all Manage pages. *@
+<h1>@T["Identity.Manage.Title"]</h1>
+<div>
+    <h2>@T["Identity.Manage.Settings"]</h2>
+    <hr />
+    <div class="row">
+        <div class="col-lg-3">
+            <partial name="_ManageNav" />
+        </div>
+        <div class="col-lg-9">
+            @RenderBody()
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await RenderSectionAsync("Scripts", required: false)
+}

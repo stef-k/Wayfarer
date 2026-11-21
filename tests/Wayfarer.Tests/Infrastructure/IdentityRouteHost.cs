@@ -16,9 +16,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using Moq;
 using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Services.LocationImports;
 
@@ -27,6 +29,13 @@ namespace Wayfarer.Tests.Infrastructure;
 /// <summary>Real production Identity/MVC parts without database migrations, jobs or startup seeding.</summary>
 internal static class IdentityRouteHost
 {
+    /// <summary>Supplies the settings that production startup guarantees to routed layout tests.</summary>
+    public static void WithStartupSettings(IServiceCollection services)
+    {
+        var settings = new ApplicationSettings();
+        services.AddSingleton(Mock.Of<IApplicationSettingsService>(service => service.GetSettings() == settings));
+    }
+
     /// <summary>Protects a representative Identity ticket with the persisted account's security stamp.</summary>
     public static string Cookie(IServiceProvider services, string userId, string role = "User")
     {
