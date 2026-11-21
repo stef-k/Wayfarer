@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
@@ -43,17 +43,38 @@ test('profile photo crop save Group display remove fallback and retained public 
     await expect(page.locator('#userSidebar .profile-photo')).toContainText('S');
 });
 
+/** A Login validation failure shares the URL of its safe GET. Observe the actual navigation method. */
+const switchAfterLoginFailure = async (page: Page, username: string) => {
+    const path = '/Identity/Account/Login?returnUrl=%2F';
+    await page.goto(path);
+    await page.locator('#Input_Username').fill(username);
+    await page.locator('#Input_Password').fill('incorrect-password');
+    await Promise.all([
+        page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(path)),
+        page.locator('#login-submit').click()
+    ]);
+    await expect(page.locator('main .validation-summary-errors')).toContainText('Invalid login attempt.');
+    await expect(page.locator('#language-dialog')).toHaveAttribute('data-safe-get', path);
+    await page.locator('#language-open').click();
+    await page.locator('#language-options input[value="el-GR"]').check();
+    await page.locator('#language-apply').click();
+    const navigation = page.waitForRequest(request => request.isNavigationRequest() && request.url().endsWith(path));
+    await page.locator('#language-confirm').click();
+    expect((await navigation).method()).toBe('GET');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.locator('#Input_Username')).toHaveValue('');
+};
+
 /** The mounted crop remains a draft until the browser saves the language and makes one safe GET. */
-test('Greek Identity profile photo feedback and language draft protection', async ({ page, context, baseURL }) => {
+test('Greek Identity profile photo feedback and language draft protection', async ({ page, baseURL }) => {
     const config = loadSharedLayoutConfig();
-    await page.goto('/Identity/Account/Login');
-    await page.getByLabel('Username').fill(config.username);
-    await page.getByLabel('Password').fill(config.password);
+    await switchAfterLoginFailure(page, config.username);
+    await page.locator('#Input_Username').fill(config.username);
+    await page.locator('#Input_Password').fill(config.password);
     await Promise.all([
         page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
-        page.getByRole('button', { name: 'Log in' }).click()
+        page.locator('#login-submit').click()
     ]);
-    await context.addCookies([{ name: '.AspNetCore.Culture', value: 'c=el-GR%7Cuic=el-GR', url: baseURL! }]);
     const profile = '/Identity/Account/Manage?panel=photo#profile-photo-editor';
     await page.goto(profile);
     await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');

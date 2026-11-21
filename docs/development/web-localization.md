@@ -165,7 +165,8 @@ The routed layout fixtures supply the same settings dependency production startu
 supplies, independently of the database's initial settings rows.
 
 `WebCatalogTests` checks both catalog pairs. The managed Chromium profile-photo
-smoke checks Greek photo feedback, retaining a selected crop after cancellation
-and a failed language write, and one safe GET after a successful switch. A photo
+smoke checks a fresh GET at the same URL after Login validation, Greek photo
+feedback, retaining a selected crop after cancellation and a failed language
+write, and one safe GET after a successful switch. A photo
 write or an unconfirmed outcome temporarily disables switching until the owner
 has refreshed the photo state.
