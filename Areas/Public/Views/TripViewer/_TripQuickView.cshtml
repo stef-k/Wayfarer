@@ -1,3 +1,4 @@
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.PublicTripIndexItem
 
 <!-- Hero Image -->
@@ -18,7 +19,7 @@
 @if (!string.IsNullOrWhiteSpace(Model.OwnerDisplayName))
 {
     <div class="text-muted small mb-3">
-        <partial name="_PublicOwnerPhoto" model="@Model.OwnerProfilePhoto" /><i class="bi bi-person"></i> by @Model.OwnerDisplayName
+        <partial name="_PublicOwnerPhoto" model="@Model.OwnerProfilePhoto" /><i class="bi bi-person"></i> @T["Discovery.ByOwner", Model.OwnerDisplayName]
     </div>
 }
 
@@ -31,7 +32,7 @@
             {
                 <a href="@Url.RouteUrl("PublicTripsByTag", new { slug = tag.Slug })"
                    class="badge rounded-pill text-bg-secondary text-decoration-none"
-                   title="Filter by @tag.Name">
+                   title="@T["Discovery.FilterByTag", tag.Name]">
                     <i class="bi bi-tag-fill"></i> @tag.Name
                 </a>
             }
@@ -45,32 +46,28 @@
     {
         <div>
             <i class="bi bi-bounding-box"></i>
-            <strong>@Model.RegionsCount</strong>
-            region@(Model.RegionsCount == 1 ? "" : "s")
+            @T.Count("Discovery.RegionCount", Model.RegionsCount)
         </div>
     }
     @if (Model.AreasCount > 0)
     {
         <div>
             <i class="bi bi-hexagon"></i>
-            <strong>@Model.AreasCount</strong>
-            area@(Model.AreasCount == 1 ? "" : "s")
+            @T.Count("Discovery.AreaCount", Model.AreasCount)
         </div>
     }
     @if (Model.PlacesCount > 0)
     {
         <div>
             <i class="bi bi-geo-alt"></i>
-            <strong>@Model.PlacesCount</strong>
-            place@(Model.PlacesCount == 1 ? "" : "s")
+            @T.Count("Viewer.PlaceCount", Model.PlacesCount)
         </div>
     }
     @if (Model.SegmentsCount > 0)
     {
         <div>
             <i class="bi bi-diagram-3"></i>
-            <strong>@Model.SegmentsCount</strong>
-            segment@(Model.SegmentsCount == 1 ? "" : "s")
+            @T.Count("Discovery.SegmentCount", Model.SegmentsCount)
         </div>
     }
 </div>
@@ -78,14 +75,14 @@
 <!-- Last Updated -->
 <div class="text-muted small mb-3">
     <i class="bi bi-clock"></i>
-    Last updated: @Model.UpdatedAt.ToString("MMMM d, yyyy")
+    @T["Discovery.LastUpdatedOn", Model.UpdatedAt.ToString("D", T.DisplayCulture)]
 </div>
 
 <!-- Notes -->
 @if (!string.IsNullOrWhiteSpace(Model.NotesExcerpt))
 {
     <div class="mb-3">
-        <h3 class="h6 mb-2">Description</h3>
+        <h3 class="h6 mb-2">@T["Discovery.Description"]</h3>
         <div class="text-muted">
             @Html.Raw(Wayfarer.Util.RichNotes.Normalize(Model.NotesExcerpt))
         </div>
@@ -95,6 +92,6 @@
 <!-- CTA Button -->
 <div class="d-grid gap-2">
     <a href="/Public/Trips/@Model.Id" class="btn btn-primary">
-        <i class="bi bi-map"></i> View Full Trip
+        <i class="bi bi-map"></i> @T["Discovery.ViewFullTrip"]
     </a>
 </div>

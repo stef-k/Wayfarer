@@ -1,0 +1,123 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="PublicTimeline.Heading" xml:space="preserve">
+    <value>Χρονολόγιο του χρήστη {0}</value>
+  </data>
+  <data name="PublicTimeline.PageTitle" xml:space="preserve">
+    <value>Χρονολόγιο του χρήστη {0}</value>
+  </data>
+  <data name="PublicTimeline.Unavailable" xml:space="preserve">
+    <value>Το χρονολόγιο δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="PublicTimeline.UsernameRequired" xml:space="preserve">
+    <value>Απαιτείται όνομα χρήστη.</value>
+  </data>
+  <data name="PublicTimeline.Disclosure" xml:space="preserve">
+    <value>Αυτό το χρονολόγιο είναι δημόσιο. Ο χρήστης επέλεξε να κοινοποιήσει το ιστορικό τοποθεσιών του. Ορισμένες περιοχές ενδέχεται να αποκρύπτονται για λόγους απορρήτου.</value>
+  </data>
+  <data name="PublicTimeline.LocationDetails" xml:space="preserve">
+    <value>Λεπτομέρειες τοποθεσίας</value>
+  </data>
+  <data name="PublicTimeline.LocationMarker" xml:space="preserve">
+    <value>Καταγραφή τοποθεσίας</value>
+  </data>
+  <data name="PublicTimeline.LatestTooltip" xml:space="preserve">
+    <value>Η πιο πρόσφατη τοποθεσία του χρήστη.</value>
+  </data>
+  <data name="PublicTimeline.Live" xml:space="preserve">
+    <value>ΖΩΝΤΑΝΗ ΤΟΠΟΘΕΣΙΑ</value>
+  </data>
+  <data name="PublicTimeline.Latest" xml:space="preserve">
+    <value>ΤΕΛΕΥΤΑΙΑ ΤΟΠΟΘΕΣΙΑ</value>
+  </data>
+  <data name="PublicTimeline.ViewerTime" xml:space="preserve">
+    <value>Ημερομηνία και ώρα (στη ζώνη ώρας σας):</value>
+  </data>
+  <data name="PublicTimeline.RecordedTime" xml:space="preserve">
+    <value>Τοπική ώρα καταγραφής:</value>
+  </data>
+  <data name="PublicTimeline.NoSourceZone" xml:space="preserve">
+    <value>Η ζώνη ώρας καταγραφής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="PublicTimeline.Coordinates" xml:space="preserve">
+    <value>Συντεταγμένες:</value>
+  </data>
+  <data name="PublicTimeline.Latitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος:</value>
+  </data>
+  <data name="PublicTimeline.Longitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος:</value>
+  </data>
+  <data name="PublicTimeline.Activity" xml:space="preserve">
+    <value>Δραστηριότητα:</value>
+  </data>
+  <data name="PublicTimeline.Altitude" xml:space="preserve">
+    <value>Υψόμετρο:</value>
+  </data>
+  <data name="PublicTimeline.Accuracy" xml:space="preserve">
+    <value>Ακρίβεια:</value>
+  </data>
+  <data name="PublicTimeline.Speed" xml:space="preserve">
+    <value>Ταχύτητα:</value>
+  </data>
+  <data name="PublicTimeline.NoValue" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμα δεδομένα</value>
+  </data>
+  <data name="PublicTimeline.Metres" xml:space="preserve">
+    <value>{0} μ.</value>
+  </data>
+  <data name="PublicTimeline.KilometresPerHour" xml:space="preserve">
+    <value>{0} χλμ./ώρα</value>
+  </data>
+  <data name="PublicTimeline.NoNotes" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμες σημειώσεις</value>
+  </data>
+  <data name="PublicTimeline.GoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="PublicTimeline.Maps" xml:space="preserve">
+    <value>Χάρτες</value>
+  </data>
+  <data name="PublicTimeline.Loading" xml:space="preserve">
+    <value>Φόρτωση τοποθεσιών…</value>
+  </data>
+  <data name="PublicTimeline.NoLocations" xml:space="preserve">
+    <value>Δεν υπάρχουν δημόσιες τοποθεσίες σε αυτή την προβολή του χάρτη.</value>
+  </data>
+  <data name="PublicTimeline.LocationsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση τοποθεσιών. Μετακινήστε τον χάρτη για να δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="PublicTimeline.StatsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των στατιστικών του χρονολογίου.</value>
+  </data>
+  <data name="PublicTimeline.TotalLocations" xml:space="preserve">
+    <value>Σύνολο καταγραφών τοποθεσίας: {0}</value>
+  </data>
+  <data name="PublicTimeline.FromDate" xml:space="preserve">
+    <value>Από: {0}</value>
+  </data>
+  <data name="PublicTimeline.ToDate" xml:space="preserve">
+    <value>Έως: {0}</value>
+  </data>
+  <data name="PublicTimeline.Countries" xml:space="preserve">
+    <value>Χώρες: {0}</value>
+  </data>
+  <data name="PublicTimeline.Regions" xml:space="preserve">
+    <value>Περιοχές: {0}</value>
+  </data>
+  <data name="PublicTimeline.Cities" xml:space="preserve">
+    <value>Πόλεις: {0}</value>
+  </data>
+</root>

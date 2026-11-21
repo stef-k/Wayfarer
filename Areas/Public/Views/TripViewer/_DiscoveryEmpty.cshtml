@@ -1,0 +1,18 @@
+@inject Wayfarer.Localization.WebMessages T
+@model Wayfarer.Models.ViewModels.PublicTripIndexVm
+
+@* The grid and list show the same recovery action for an empty filtered result. *@
+@{
+    var hasFilters = !string.IsNullOrWhiteSpace(Model.Q) || !string.IsNullOrEmpty(Model.TagsCsv);
+}
+<div class="text-center py-5">
+    <div class="text-muted mb-3" aria-hidden="true">
+        <i class="bi bi-map" style="font-size: 3rem;"></i>
+    </div>
+    <h3 class="h5">@T["Discovery.NoTrips"]</h3>
+    <p class="text-muted">@T[hasFilters ? "Discovery.TryClearFilters" : "Discovery.NoPublicTrips"]</p>
+    @if (hasFilters)
+    {
+        <a class="btn btn-outline-primary" asp-route="PublicTripsIndex">@T["Discovery.ClearFilters"]</a>
+    }
+</div>

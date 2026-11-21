@@ -423,18 +423,6 @@
   <data name="Viewer.HoursUnit" xml:space="preserve">
     <value>{0} ώρ.</value>
   </data>
-  <data name="Viewer.ApproximatePostcode" xml:space="preserve">
-    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ταχυδρομικού κώδικα.</value>
-  </data>
-  <data name="Viewer.ApproximateCity" xml:space="preserve">
-    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο πόλης.</value>
-  </data>
-  <data name="Viewer.ApproximateLocalArea" xml:space="preserve">
-    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο συνοικίας.</value>
-  </data>
-  <data name="Viewer.ApproximateRegion" xml:space="preserve">
-    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ευρύτερης περιοχής.</value>
-  </data>
   <data name="Viewer.Unlicensed" xml:space="preserve">
     <value>Χωρίς άδεια / μόνο προβολή</value>
   </data>

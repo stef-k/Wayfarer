@@ -48,8 +48,8 @@ public sealed partial class WebMessages
     /// <summary>Formats a display number without changing its corresponding wire value.</summary>
     public string DisplayNumber(int count) => count.ToString("N0", DisplayCulture);
 
-    /// <summary>Looks up a whole count message, using English grammar for missing translations.</summary>
-    public string Count(string key, int count)
+    /// <summary>Looks up a whole count message, using English grammar for missing translations. Argument zero is the formatted count.</summary>
+    public string Count(string key, int count, params object?[] args)
     {
         var (text, translated) = Resolve(Locale.Tag, $"{key}.{Locale.PluralCategory(count)}");
         if (!translated)
@@ -58,7 +58,7 @@ public sealed partial class WebMessages
                 ?? throw new InvalidOperationException("English locale registration is missing.");
             (text, _) = Resolve(english.Tag, $"{key}.{english.PluralCategory(count)}");
         }
-        return string.Format(DisplayCulture, text, DisplayNumber(count));
+        return string.Format(DisplayCulture, text, [DisplayNumber(count), ..args]);
     }
 
     /// <summary>Serializes the requested feature catalogs with English companions for client fallback.</summary>

@@ -21,7 +21,7 @@ test('observation freshness fails closed independently of recent human event tim
 
 // Private calendar markers use qualified historical records and make no LIVE/presence claim.
 /** Execute actual renderer/timer owners at a controlled Leaflet clock boundary, including time spent rendering. */
-for (const entry of ['Public/UsersTimeline/Embed.js', 'Public/UsersTimeline/Timeline.js', 'User/Location/Index.js',
+for (const entry of ['Public/UsersTimeline/Timeline.js', 'User/Location/Index.js',
     'User/Timeline/Index.js']) {
     test(`${entry} withholds historical LIVE and expires at/during the render boundary`, async () => {
         const source = await readFile(`wwwroot/js/Areas/${entry}`, 'utf8');
@@ -42,6 +42,7 @@ for (const entry of ['Public/UsersTimeline/Embed.js', 'Public/UsersTimeline/Time
             clearTimeout: id => callbacks.delete(id), displayLocationsOnMap: (_, rows) => render(rows),
             highlightLayer: layer(), mapContainer: { getZoom: () => 3, addLayer() {} },
             latestLocationMarker: 'latest', liveMarker: 'live',
+            message: (_, readable) => readable, encodeFeatureText: value => value,
             L: { layerGroup: layer, markerClusterGroup: layer, marker: (_, options) => {
                 icons.push(options.icon);
                 clock += renderDelay;

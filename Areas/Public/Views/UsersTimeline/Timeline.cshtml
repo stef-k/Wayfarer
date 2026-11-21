@@ -1,41 +1,23 @@
-﻿@{
+@inject Wayfarer.Localization.WebMessages T
+
+@{
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
-    var username = ViewData["Username"];
-    var timelineTitle = ViewData["TimelineTitle"];
-    var timelineLive = ViewData["TimelineLive"];
+    ViewData["WebCatalog"] = "PublicTimeline";
+    ViewData["Title"] = T["PublicTimeline.PageTitle", ViewData["DisplayName"]];
+    var title = ViewData["TimelineTitle"] as string;
+    var heading = string.IsNullOrWhiteSpace(title) ? T["PublicTimeline.Heading", ViewData["DisplayName"]] : title;
 }
 
+@* The regular page retains the public-sharing disclosure beside the heading. *@
 <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 my-0">
-    <h1 class="fs-3 my-0">
-        @timelineTitle
-        <i class="bi bi-question-circle text-muted ms-1 fs-6"
-           data-tippy-content="This is a public timeline. The user chose to share their location history. Some areas may be hidden for privacy."></i>
-    </h1>
-
-    <!-- This span gets populated dynamically -->
+    <h1 class="fs-3 my-0">@heading</h1>
+    <i class="bi bi-question-circle text-muted ms-1 fs-6" tabindex="0" role="img"
+       aria-label="@T["PublicTimeline.Disclosure"]" data-tippy-content="@T["PublicTimeline.Disclosure"]"></i>
     <span id="timeline-summary" class="small font-monospace text-muted"></span>
 </div>
 
-<!-- Map container -->
-<div id="username" data-username="@username" hidden></div>
-<div id="timelineLive" data-timeline-live="@timelineLive" hidden></div>
-<div id="mapContainer" style="height: calc(100vh - 150px);"></div>
-
-<!-- Modal HTML -->
-<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
-    <div class="modal-dialog  modal-dialog-scrollable modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header text-bg-primary">
-                <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="modalContent"></div>
-            </div>
-        </div>
-    </div>
-</div>
+<partial name="_TimelineMap" />
 
 @section Scripts {
     @Html.FrontendViewScripts()

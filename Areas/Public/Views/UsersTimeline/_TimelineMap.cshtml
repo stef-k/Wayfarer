@@ -1,0 +1,26 @@
+@inject Wayfarer.Localization.WebMessages T
+
+@{
+    var embedded = ViewData["TimelineEmbedded"] is true;
+}
+
+@* The two layouts use the same map, asynchronous status and location detail modal. *@
+<div id="username" data-username="@ViewData["Username"]" hidden></div>
+<div id="timelineLive" data-timeline-live="@ViewData["TimelineLive"]" hidden></div>
+<div id="timeline-map-status" class="small text-muted px-3" role="status">@T["PublicTimeline.Loading"]</div>
+<div id="mapContainer" class="@(embedded ? "flex-grow-1" : null)"
+     style="@(embedded ? "min-height:0;" : "height: calc(100vh - 150px);")"></div>
+
+<div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header text-bg-primary">
+                <h5 class="modal-title" id="locationModalLabel">@T["PublicTimeline.LocationDetails"]</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalContent"></div>
+            </div>
+        </div>
+    </div>
+</div>

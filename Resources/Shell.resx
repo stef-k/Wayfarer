@@ -471,4 +471,61 @@
   <data name="Shell.UnassignedPlaces" xml:space="preserve">
     <value>Unassigned Places</value>
   </data>
+  <data name="Shell.MapLinkCopyFailed" xml:space="preserve">
+    <value>Could not copy the map link.</value>
+  </data>
+  <data name="Shell.OwnerPhoto" xml:space="preserve">
+    <value>Trip owner profile photo</value>
+  </data>
+  <data name="Shell.LocationAddress" xml:space="preserve">
+    <value>Address:</value>
+  </data>
+  <data name="Shell.LocationAddressUnavailable" xml:space="preserve">
+    <value>Address details unavailable</value>
+  </data>
+  <data name="Shell.LocationStreetUnavailable" xml:space="preserve">
+    <value>Street address unavailable</value>
+  </data>
+  <data name="Shell.LocationProviderText" xml:space="preserve">
+    <value>Provider display text: {0}</value>
+  </data>
+  <data name="Shell.LocationNearbyFeature" xml:space="preserve">
+    <value>Nearby mapped feature: {0}</value>
+  </data>
+  <data name="Shell.LocationMappedArea" xml:space="preserve">
+    <value>Mapped area: {0}</value>
+  </data>
+  <data name="Shell.LocationMappedFeature" xml:space="preserve">
+    <value>Mapped feature: {0}</value>
+  </data>
+  <data name="Shell.WikipediaSearch" xml:space="preserve">
+    <value>Search Wikipedia nearby</value>
+  </data>
+  <data name="Shell.WikipediaLoading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="Shell.WikipediaEmpty" xml:space="preserve">
+    <value>No nearby Wikipedia article found.</value>
+  </data>
+  <data name="Shell.WikipediaFailed" xml:space="preserve">
+    <value>Could not load article.</value>
+  </data>
+  <data name="Shell.WikipediaReadMore" xml:space="preserve">
+    <value>Read more »</value>
+  </data>
+  <data name="Shell.WayfarerMapCredit" xml:space="preserve">
+    <value>Powered by Wayfarer, made by Stef</value>
+  </data>
+  <data name="Shell.ApproximatePostcode" xml:space="preserve">
+    <value>Approximate address — resolved to postcode level.</value>
+  </data>
+  <data name="Shell.ApproximateCity" xml:space="preserve">
+    <value>Approximate address — resolved to city level.</value>
+  </data>
+  <data name="Shell.ApproximateLocalArea" xml:space="preserve">
+    <value>Approximate address — resolved to local-area level.</value>
+  </data>
+  <data name="Shell.ApproximateRegion" xml:space="preserve">
+    <value>Approximate address — resolved only to a regional level.</value>
+  </data>
 </root>

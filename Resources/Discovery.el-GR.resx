@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Discovery.Title" xml:space="preserve">
+    <value>Δημόσια ταξίδια</value>
+  </data>
+  <data name="Discovery.Intro" xml:space="preserve">
+    <value>Ανακαλύψτε ταξίδια που κοινοποιεί η κοινότητά μας</value>
+  </data>
+  <data name="Discovery.SearchHint" xml:space="preserve">
+    <value>Αναζήτηση ταξιδιών…</value>
+  </data>
+  <data name="Discovery.SearchTrips" xml:space="preserve">
+    <value>Αναζήτηση ταξιδιών</value>
+  </data>
+  <data name="Discovery.Search" xml:space="preserve">
+    <value>Αναζήτηση</value>
+  </data>
+  <data name="Discovery.ClearSearch" xml:space="preserve">
+    <value>Εκκαθάριση αναζήτησης</value>
+  </data>
+  <data name="Discovery.RemoveTag" xml:space="preserve">
+    <value>Αφαίρεση ετικέτας {0}</value>
+  </data>
+  <data name="Discovery.FilterTags" xml:space="preserve">
+    <value>Φίλτρο με ετικέτες</value>
+  </data>
+  <data name="Discovery.FilterTagsHint" xml:space="preserve">
+    <value>Φίλτρο με ετικέτες…</value>
+  </data>
+  <data name="Discovery.MatchMode" xml:space="preserve">
+    <value>Αντιστοίχιση ετικετών: {0}</value>
+  </data>
+  <data name="Discovery.MatchHelp" xml:space="preserve">
+    <value>Όλες: τα ταξίδια πρέπει να έχουν όλες τις επιλεγμένες ετικέτες. Οποιαδήποτε: αρκεί μία από τις επιλεγμένες ετικέτες.</value>
+  </data>
+  <data name="Discovery.MatchAll" xml:space="preserve">
+    <value>Όλες</value>
+  </data>
+  <data name="Discovery.MatchAny" xml:space="preserve">
+    <value>Οποιαδήποτε</value>
+  </data>
+  <data name="Discovery.ClearTags" xml:space="preserve">
+    <value>Εκκαθάριση</value>
+  </data>
+  <data name="Discovery.ViewMode" xml:space="preserve">
+    <value>Τρόπος προβολής</value>
+  </data>
+  <data name="Discovery.GridView" xml:space="preserve">
+    <value>Προβολή πλέγματος</value>
+  </data>
+  <data name="Discovery.ListView" xml:space="preserve">
+    <value>Προβολή λίστας</value>
+  </data>
+  <data name="Discovery.Sort" xml:space="preserve">
+    <value>Ταξινόμηση</value>
+  </data>
+  <data name="Discovery.UpdatedNewest" xml:space="preserve">
+    <value>Ενημέρωση (νεότερα πρώτα)</value>
+  </data>
+  <data name="Discovery.NameAscending" xml:space="preserve">
+    <value>Όνομα (αύξουσα σειρά)</value>
+  </data>
+  <data name="Discovery.NameDescending" xml:space="preserve">
+    <value>Όνομα (φθίνουσα σειρά)</value>
+  </data>
+  <data name="Discovery.PopularTags" xml:space="preserve">
+    <value>Δημοφιλείς ετικέτες</value>
+  </data>
+  <data name="Discovery.NoTagUsage" xml:space="preserve">
+    <value>Δεν υπάρχουν ακόμη στοιχεία χρήσης.</value>
+  </data>
+  <data name="Discovery.Results.one" xml:space="preserve">
+    <value>Εμφανίζονται {1}–{2} από {0} ταξίδι</value>
+  </data>
+  <data name="Discovery.Results.other" xml:space="preserve">
+    <value>Εμφανίζονται {1}–{2} από {0} ταξίδια</value>
+  </data>
+  <data name="Discovery.NoTrips" xml:space="preserve">
+    <value>Δεν βρέθηκαν ταξίδια</value>
+  </data>
+  <data name="Discovery.TryClearFilters" xml:space="preserve">
+    <value>Δοκιμάστε να καθαρίσετε τα φίλτρα αναζήτησης.</value>
+  </data>
+  <data name="Discovery.NoPublicTrips" xml:space="preserve">
+    <value>Δεν υπάρχουν ακόμη διαθέσιμα δημόσια ταξίδια.</value>
+  </data>
+  <data name="Discovery.ClearFilters" xml:space="preserve">
+    <value>Εκκαθάριση φίλτρων</value>
+  </data>
+  <data name="Discovery.Pagination" xml:space="preserve">
+    <value>Σελιδοποίηση ταξιδιών</value>
+  </data>
+  <data name="Discovery.Previous" xml:space="preserve">
+    <value>Προηγούμενη σελίδα</value>
+  </data>
+  <data name="Discovery.Next" xml:space="preserve">
+    <value>Επόμενη σελίδα</value>
+  </data>
+  <data name="Discovery.CurrentPage" xml:space="preserve">
+    <value>(τρέχουσα σελίδα)</value>
+  </data>
+  <data name="Discovery.PreviewTitle" xml:space="preserve">
+    <value>Προεπισκόπηση ταξιδιού</value>
+  </data>
+  <data name="Discovery.Preview" xml:space="preserve">
+    <value>Προεπισκόπηση</value>
+  </data>
+  <data name="Discovery.PreviewHint" xml:space="preserve">
+    <value>Γρήγορη προεπισκόπηση</value>
+  </data>
+  <data name="Discovery.PreviewLoading" xml:space="preserve">
+    <value>Φόρτωση προεπισκόπησης…</value>
+  </data>
+  <data name="Discovery.PreviewFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση της προεπισκόπησης.</value>
+  </data>
+  <data name="Discovery.OpenTrip" xml:space="preserve">
+    <value>Άνοιγμα πλήρους σελίδας ταξιδιού</value>
+  </data>
+  <data name="Discovery.ViewFullTrip" xml:space="preserve">
+    <value>Προβολή ολόκληρου του ταξιδιού</value>
+  </data>
+  <data name="Discovery.MapOf" xml:space="preserve">
+    <value>Χάρτης για το ταξίδι {0}</value>
+  </data>
+  <data name="Discovery.MapPreview" xml:space="preserve">
+    <value>Εμφάνιση προεπισκόπησης χάρτη</value>
+  </data>
+  <data name="Discovery.HoverMap" xml:space="preserve">
+    <value>Περάστε τον δείκτη για τον χάρτη</value>
+  </data>
+  <data name="Discovery.TapMap" xml:space="preserve">
+    <value>Πατήστε για τον χάρτη</value>
+  </data>
+  <data name="Discovery.UpdatedAgo.one" xml:space="preserve">
+    <value>Ενημερώθηκε πριν από {0} ημέρα</value>
+  </data>
+  <data name="Discovery.UpdatedAgo.other" xml:space="preserve">
+    <value>Ενημερώθηκε πριν από {0} ημέρες</value>
+  </data>
+  <data name="Discovery.Today" xml:space="preserve">
+    <value>Σήμερα</value>
+  </data>
+  <data name="Discovery.FilterByTag" xml:space="preserve">
+    <value>Φίλτρο με την ετικέτα {0}</value>
+  </data>
+  <data name="Discovery.TagLoading" xml:space="preserve">
+    <value>Φόρτωση προτάσεων ετικετών…</value>
+  </data>
+  <data name="Discovery.TagEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν αντίστοιχες ετικέτες.</value>
+  </data>
+  <data name="Discovery.TagFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση προτάσεων ετικετών.</value>
+  </data>
+  <data name="Discovery.RegionCount.one" xml:space="preserve">
+    <value>{0} περιοχή</value>
+  </data>
+  <data name="Discovery.RegionCount.other" xml:space="preserve">
+    <value>{0} περιοχές</value>
+  </data>
+  <data name="Discovery.AreaCount.one" xml:space="preserve">
+    <value>{0} ζώνη</value>
+  </data>
+  <data name="Discovery.AreaCount.other" xml:space="preserve">
+    <value>{0} ζώνες</value>
+  </data>
+  <data name="Discovery.SegmentCount.one" xml:space="preserve">
+    <value>{0} τμήμα διαδρομής</value>
+  </data>
+  <data name="Discovery.SegmentCount.other" xml:space="preserve">
+    <value>{0} τμήματα διαδρομής</value>
+  </data>
+  <data name="Discovery.LastUpdated" xml:space="preserve">
+    <value>Τελευταία ενημέρωση</value>
+  </data>
+  <data name="Discovery.LastUpdatedOn" xml:space="preserve">
+    <value>Τελευταία ενημέρωση: {0}</value>
+  </data>
+  <data name="Discovery.Description" xml:space="preserve">
+    <value>Περιγραφή</value>
+  </data>
+  <data name="Discovery.Share" xml:space="preserve">
+    <value>Κοινοποίηση</value>
+  </data>
+  <data name="Discovery.Image" xml:space="preserve">
+    <value>Εικόνα</value>
+  </data>
+  <data name="Discovery.Map" xml:space="preserve">
+    <value>Χάρτης</value>
+  </data>
+  <data name="Discovery.Trip" xml:space="preserve">
+    <value>Ταξίδι</value>
+  </data>
+  <data name="Discovery.Tags" xml:space="preserve">
+    <value>Ετικέτες</value>
+  </data>
+  <data name="Discovery.Items" xml:space="preserve">
+    <value>Στοιχεία</value>
+  </data>
+  <data name="Discovery.Updated" xml:space="preserve">
+    <value>Ενημέρωση</value>
+  </data>
+  <data name="Discovery.Actions" xml:space="preserve">
+    <value>Ενέργειες</value>
+  </data>
+  <data name="Discovery.ByOwner" xml:space="preserve">
+    <value>Από {0}</value>
+  </data>
+  <data name="Discovery.Clone" xml:space="preserve">
+    <value>Κλωνοποίηση</value>
+  </data>
+</root>

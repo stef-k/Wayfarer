@@ -8,13 +8,13 @@ export const encodeFeatureText = value => String(value).replace(/[&<>"']/g, char
 /** Maps provider classification metadata to an end-user address precision notice. */
 export const featurePrecisionNotice = value => {
     switch (String(value || '').trim().toLowerCase()) {
-        case 'postcode': return message('Viewer.ApproximatePostcode', 'Approximate address — resolved to postcode level.');
-        case 'city': return message('Viewer.ApproximateCity', 'Approximate address — resolved to city level.');
+        case 'postcode': return message('Shell.ApproximatePostcode', 'Approximate address — resolved to postcode level.');
+        case 'city': return message('Shell.ApproximateCity', 'Approximate address — resolved to city level.');
         case 'suburb':
-        case 'district': return message('Viewer.ApproximateLocalArea', 'Approximate address — resolved to local-area level.');
+        case 'district': return message('Shell.ApproximateLocalArea', 'Approximate address — resolved to local-area level.');
         case 'county':
         case 'state':
-        case 'country': return message('Viewer.ApproximateRegion', 'Approximate address — resolved only to a regional level.');
+        case 'country': return message('Shell.ApproximateRegion', 'Approximate address — resolved only to a regional level.');
         default: return null;
     }
 };

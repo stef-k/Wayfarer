@@ -1,3 +1,6 @@
+import { message } from '../localization/messages.js';
+import { encodeFeatureText as escapeHtml } from './feature-metadata.js';
+
 /**
  * Wikipedia Utility Module
  *
@@ -294,23 +297,11 @@ export const generateWikipediaLinkHtml = (latOrLocation, lonOrOptions, options) 
     }
 
     const { query = '', cssClass = '' } = opts;
-    const additionalClass = cssClass ? ` ${cssClass}` : '';
+    const additionalClass = cssClass ? ` ${escapeHtml(cssClass)}` : '';
     const queryAttr = query ? ` data-query="${escapeHtml(query)}"` : '';
 
-    return `<a href="#" class="ms-2 wikipedia-link btn btn-outline-primary btn-sm${additionalClass}" data-lat="${lat}" data-lon="${lon}"${queryAttr} title="Search Wikipedia nearby"><i class="bi bi-wikipedia"></i> Wiki</a>`;
-};
-
-/**
- * Escapes HTML special characters to prevent XSS.
- *
- * @param {string} text - Text to escape
- * @returns {string} Escaped text
- */
-const escapeHtml = (text) => {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    const title = escapeHtml(message('Shell.WikipediaSearch', 'Search Wikipedia nearby'));
+    return `<a href="#" class="ms-2 wikipedia-link btn btn-outline-primary btn-sm${additionalClass}" data-lat="${lat}" data-lon="${lon}"${queryAttr} title="${title}"><i class="bi bi-wikipedia"></i> Wiki</a>`;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,7 +313,7 @@ const escapeHtml = (text) => {
  *
  * @returns {string} Loading message HTML
  */
-const getLoadingHtml = () => 'Loading\u2026';
+const getLoadingHtml = () => escapeHtml(message('Shell.WikipediaLoading', 'Loading…'));
 
 /**
  * Generates the "no results" content HTML for popovers.
@@ -330,7 +321,7 @@ const getLoadingHtml = () => 'Loading\u2026';
  * @returns {string} No results message HTML
  */
 const getNoResultsHtml = () =>
-    `<div style="max-width:${POPOVER_MAX_WIDTH}px"><em>No nearby Wikipedia article found.</em></div>`;
+    `<div style="max-width:${POPOVER_MAX_WIDTH}px"><em>${escapeHtml(message('Shell.WikipediaEmpty', 'No nearby Wikipedia article found.'))}</em></div>`;
 
 /**
  * Generates the error content HTML for popovers.
@@ -338,7 +329,7 @@ const getNoResultsHtml = () =>
  * @returns {string} Error message HTML
  */
 const getErrorHtml = () =>
-    `<div style="max-width:${POPOVER_MAX_WIDTH}px"><em>Could not load article.</em></div>`;
+    `<div style="max-width:${POPOVER_MAX_WIDTH}px"><em>${escapeHtml(message('Shell.WikipediaFailed', 'Could not load article.'))}</em></div>`;
 
 /**
  * Generates the article summary content HTML for popovers.
@@ -348,7 +339,7 @@ const getErrorHtml = () =>
  */
 const getSummaryHtml = (summary) => {
     const url = summary.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(summary.title)}`;
-    return `<div style="max-width:${POPOVER_MAX_WIDTH}px"><strong>${escapeHtml(summary.title)}</strong><p>${escapeHtml(summary.extract || '')}</p><a href="${url}" target="_blank" rel="noopener noreferrer">Read more \u00BB</a></div>`;
+    return `<div style="max-width:${POPOVER_MAX_WIDTH}px"><strong>${escapeHtml(summary.title)}</strong><p>${escapeHtml(summary.extract || '')}</p><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(message('Shell.WikipediaReadMore', 'Read more »'))}</a></div>`;
 };
 
 /**

@@ -471,4 +471,61 @@
   <data name="Shell.UnassignedPlaces" xml:space="preserve">
     <value>Τοποθεσίες χωρίς περιοχή</value>
   </data>
+  <data name="Shell.MapLinkCopyFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αντιγραφή του συνδέσμου του χάρτη.</value>
+  </data>
+  <data name="Shell.OwnerPhoto" xml:space="preserve">
+    <value>Φωτογραφία προφίλ του κατόχου του ταξιδιού</value>
+  </data>
+  <data name="Shell.LocationAddress" xml:space="preserve">
+    <value>Διεύθυνση:</value>
+  </data>
+  <data name="Shell.LocationAddressUnavailable" xml:space="preserve">
+    <value>Τα στοιχεία διεύθυνσης δεν είναι διαθέσιμα</value>
+  </data>
+  <data name="Shell.LocationStreetUnavailable" xml:space="preserve">
+    <value>Η οδός δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Shell.LocationProviderText" xml:space="preserve">
+    <value>Κείμενο από τον πάροχο: {0}</value>
+  </data>
+  <data name="Shell.LocationNearbyFeature" xml:space="preserve">
+    <value>Κοντινό σημείο στον χάρτη: {0}</value>
+  </data>
+  <data name="Shell.LocationMappedArea" xml:space="preserve">
+    <value>Περιοχή στον χάρτη: {0}</value>
+  </data>
+  <data name="Shell.LocationMappedFeature" xml:space="preserve">
+    <value>Σημείο στον χάρτη: {0}</value>
+  </data>
+  <data name="Shell.WikipediaSearch" xml:space="preserve">
+    <value>Αναζήτηση στη Βικιπαίδεια για την περιοχή</value>
+  </data>
+  <data name="Shell.WikipediaLoading" xml:space="preserve">
+    <value>Φόρτωση…</value>
+  </data>
+  <data name="Shell.WikipediaEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκε άρθρο της Βικιπαίδειας για την περιοχή.</value>
+  </data>
+  <data name="Shell.WikipediaFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του άρθρου.</value>
+  </data>
+  <data name="Shell.WikipediaReadMore" xml:space="preserve">
+    <value>Διαβάστε περισσότερα »</value>
+  </data>
+  <data name="Shell.WayfarerMapCredit" xml:space="preserve">
+    <value>Με την υποστήριξη του Wayfarer, δημιουργία του Stef</value>
+  </data>
+  <data name="Shell.ApproximatePostcode" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ταχυδρομικού κώδικα.</value>
+  </data>
+  <data name="Shell.ApproximateCity" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο πόλης.</value>
+  </data>
+  <data name="Shell.ApproximateLocalArea" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο συνοικίας.</value>
+  </data>
+  <data name="Shell.ApproximateRegion" xml:space="preserve">
+    <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ευρύτερης περιοχής.</value>
+  </data>
 </root>
