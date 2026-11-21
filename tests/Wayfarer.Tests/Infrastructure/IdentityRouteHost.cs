@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.Options;
 using Wayfarer.Services;
@@ -100,6 +101,7 @@ internal static class IdentityRouteHost
         });
         app.UseMiddleware<Wayfarer.Middleware.BrowserResponsePolicyMiddleware>();
         app.UseForwardedHeaders();
+        app.UseWebLocalization();
         app.UseRouting();
         app.UseAuthentication();
         app.UseAuthorization();

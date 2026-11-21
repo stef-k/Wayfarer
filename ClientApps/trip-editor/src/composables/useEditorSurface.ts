@@ -1,4 +1,5 @@
 import { computed, readonly, ref, type Ref } from 'vue';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { confirm } from './useConfirmDialog';
 import type { Guid } from '../types';
 import type { SegmentRoutePointEditorController } from '../components/segmentRouteMapWork';
@@ -99,6 +100,7 @@ export function registerTargetHandler(targetKey: string, handler: EditorTargetHa
   };
 }
 
+/** Transfers editor ownership after existing map work and draft guards allow the switch. */
 export async function activateTarget(target: EditorTarget): Promise<boolean> {
   if (isSameConcreteTarget(activeTarget.value, target)) {
     activeTarget.value = target;
@@ -112,7 +114,7 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
     return false;
   }
 
-  if (!(await discardActiveTarget('Discard unsaved changes before switching editors?'))) {
+  if (!(await discardActiveTarget(message('Editor.DiscardBeforeSwitchingEditors', 'Discard unsaved changes before switching editors?')))) {
     return false;
   }
 
@@ -121,12 +123,13 @@ export async function activateTarget(target: EditorTarget): Promise<boolean> {
   return true;
 }
 
-export async function closeActiveTarget(message = 'Discard unsaved changes and close this editor?'): Promise<boolean> {
+/** Closes the active editor after its own draft guard allows it. */
+export async function closeActiveTarget(prompt = message('Editor.DiscardAndClose', 'Discard unsaved changes and close this editor?')): Promise<boolean> {
   if (!(await cancelActiveMapWork())) {
     return false;
   }
 
-  if (!(await discardActiveTarget(message))) {
+  if (!(await discardActiveTarget(prompt))) {
     return false;
   }
 
@@ -196,7 +199,7 @@ export function enterMapWork(options: MapWorkOptions): boolean {
     target: activeTarget.value,
     modeName: options.modeName,
     instruction: options.instruction,
-    statusText: options.statusText ?? 'Map work active',
+    statusText: options.statusText ?? message('Editor.MapWorkActive', 'Map work active'),
     canFinish: options.canFinish ?? (() => true),
     isDirty: options.isDirty ?? (() => true),
     clear: options.clear,
@@ -331,6 +334,7 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
   };
 }
 
+/** Asks before rolling back temporary map work and keeps the snapshot while editing continues. */
 async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<boolean> }): Promise<boolean> {
   if (!mapWork.value) {
     return true;
@@ -339,10 +343,10 @@ async function cancelActiveMapWork(options?: { confirmDirty?: () => Promise<bool
   const work = mapWork.value;
   if (work.isDirty()) {
     const confirmed = await (options?.confirmDirty?.() ?? confirm({
-      title: 'Discard map editing changes?',
-      message: 'Your temporary map edits will be discarded.',
-      confirmLabel: 'Discard',
-      cancelLabel: 'Keep editing',
+      title: message('Editor.DiscardMapWorkQuestion', 'Discard map editing changes?'),
+      message: message('Editor.DiscardMapWorkDetail', 'Your temporary map edits will be discarded.'),
+      confirmLabel: message('Editor.Discard', 'Discard'),
+      cancelLabel: message('Shell.KeepEditing', 'Keep editing'),
       variant: 'warning'
     }));
     if (!confirmed) {
@@ -374,7 +378,8 @@ function isSameConcreteTarget(current: EditorTarget | null, next: EditorTarget |
   return current !== null && next !== null && current.identity === next.identity;
 }
 
-async function discardActiveTarget(message: string): Promise<boolean> {
+/** Confirms dirty-draft cleanup through the shared dialog and its focus restoration. */
+async function discardActiveTarget(prompt: string): Promise<boolean> {
   const target = activeTarget.value;
   if (!target) {
     return true;
@@ -387,10 +392,10 @@ async function discardActiveTarget(message: string): Promise<boolean> {
 
   if (handler.isDirty()) {
     const confirmed = await confirm({
-      title: 'Discard changes?',
-      message,
-      confirmLabel: 'Discard',
-      cancelLabel: 'Keep editing',
+      title: message('Editor.DiscardQuestion', 'Discard changes?'),
+      message: prompt,
+      confirmLabel: message('Editor.Discard', 'Discard'),
+      cancelLabel: message('Shell.KeepEditing', 'Keep editing'),
       variant: 'warning'
     });
     if (!confirmed) {

@@ -17,6 +17,9 @@ import {
     canvasRenderer
 } from './tripViewerHelpers.js';
 
+import { resolveViewerCamera, writeViewerCamera } from './viewerCamera.js';
+import { initViewerExports } from './viewerExports.js';
+import { message, number } from '../localization/messages.js';
 import { createViewerSidebar } from './viewerSidebar.js';
 import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js'; import {encodeFeatureText, featurePrecisionNotice} from '../util/feature-metadata.js';
 import {
@@ -67,18 +70,6 @@ const initLegendSearch = () => {
     if (matches.length) { const first = matches[0]; ensureExpanded(first.collapseId); requestAnimationFrame(()=> first.el.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'})); }
   };
   input.addEventListener('input', () => doSearch(input.value));
-};// --- Permalink Support --- 
-/**
- * Read a numeric query-param or return NaN if missing
- * @param {string} key  e.g. "lat", "lon", "zoom"
- * @returns {number}
- */
-const getUrlParam = key => {
-    const params = new URLSearchParams(window.location.search);
-    const raw = params.get(key);
-    if (raw === null || raw.trim() === '') return NaN;   // no key or blank => fallback
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : NaN;                 // non-numeric => fallback
 };
 
 // Helper to check if notesHtml is "visibly empty"
@@ -93,23 +84,6 @@ const isHtmlEmpty = html => {
 };
 
 
-/**
- * Decide initial [lat, lon, zoom] by
- * preferring ?lat/?lon/?zoom over data-* defaults
- * @returns {[number, number, number]}
- */
-const resolveInitialView = () => {
-    const root = document.getElementById('trip-view');
-    const defLat = Number(root.dataset.tripLat);
-    const defLon = Number(root.dataset.tripLon);
-    const defZoom = Number(root.dataset.tripZoom) || 6;
-
-    const urlLat = getUrlParam('lat');
-    const urlLon = getUrlParam('lon');
-    const urlZoom = getUrlParam('zoom');
-
-    return [Number.isFinite(urlLat) ? urlLat : defLat, Number.isFinite(urlLon) ? urlLon : defLon, Number.isFinite(urlZoom) ? urlZoom : defZoom];
-};
 /**
  * Returns the stored Trip lat, lon and zoom
  * @returns {(number|number)[]}
@@ -141,8 +115,8 @@ const gmQuery = (addr, lat, lon) => {
  */
 const gmLinkWithCoords = (addr, lat, lon) => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(gmQuery(addr, lat, lon))}"
       target="_blank" class="btn btn-outline-primary btn-sm"
-      title="View in Google Maps">
-      <i class="bi bi-globe-europe-africa"></i> Maps</a>`;
+      title="${encodeFeatureText(message('Viewer.OpenGoogleMaps', 'View in Google Maps'))}">
+      <i class="bi bi-globe-europe-africa"></i> ${encodeFeatureText(message('Viewer.GoogleMaps', 'Maps'))}</a>`;
 /* ========================================================= */
 const init = () => {
     initLegendSearch();
@@ -150,10 +124,12 @@ const init = () => {
     const root = document.getElementById('trip-view');
     const isEmbed        = root.dataset.embed === 'true';
     const fullscreenUrl  = root.dataset.fullscreenUrl;
-    const isPrint = location.search.includes('print=1');
+    const params = new URLSearchParams(location.search);
+    const isPrint = params.get('print') === '1';
 
     /* ────────── map bootstrap ────────── */
-    let [lat, lon, zoom] = resolveInitialView();
+    const camera = resolveViewerCamera(location.search, getDefaultView());
+    let [lat, lon, zoom] = camera.view;
     const recenterMap = $('#btn-trip-center');
 
     const highlightMarker = pid => {
@@ -190,6 +166,7 @@ const init = () => {
     window.addEventListener('pagehide', event => { if (!event.persisted) sidebar.dispose(); });
     const segmentPresentation = createViewerSegmentPresentationController(map, root, {
         isPrint,
+        preserveCamera: camera.complete,
         fitOptions: sidebar.fitOptions,
         reducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
     });
@@ -199,15 +176,7 @@ const init = () => {
     });
 
     // update permalink URL
-    map.on('moveend zoomend', () => {
-        const ctr = map.getCenter();
-        const z = map.getZoom();
-        const params = new URLSearchParams(window.location.search);
-        params.set('lat', ctr.lat.toFixed(6));
-        params.set('lon', ctr.lng.toFixed(6));
-        params.set('zoom', z);
-        history.replaceState(null, '', `${window.location.pathname}?${params}`);
-    });
+    map.on('moveend zoomend', () => writeViewerCamera(location.href, history, map.getCenter(), map.getZoom()));
 
     // recenter map
     recenterMap.addEventListener('click', e => {
@@ -277,7 +246,9 @@ const init = () => {
     /* ────────── segments ────────── */
     $$('.segment-list-item').forEach(li => {
         const d = li.dataset;
-        const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
+        const distance = d.estimatedDistance ? message('Viewer.Kilometres', '{0} km', number(Number(d.estimatedDistance))) : '';
+        const label = message('Viewer.SegmentLabel', 'From {0} to {1}, {2} by {3} in {4}',
+            d.fromPlaceName, d.toPlaceName, distance, d.transportMode, d.estimatedDuration);
         addSegmentFromRouteWkt(map, d.segmentId, d.routeWkt, label, {
             anchors: JSON.parse(d.segmentAnchors || '[]'),
             orientation: d.routeOrientation || 'ambiguous',
@@ -286,13 +257,11 @@ const init = () => {
             fromRegion: d.fromPlaceregionName,
             toRegion: d.toPlaceregionName,
             mode: d.transportMode,
-            distance: d.estimatedDistance ? `${d.estimatedDistance} km` : null,
+            distance: distance || null,
             duration: d.estimatedDuration,
             notes: d.segmentNotes
         });
     });
-
-    const params = new URLSearchParams(window.location.search);
 
     /* ───── visibility toggles ───── */
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
@@ -318,27 +287,25 @@ const init = () => {
     const pane = $('#sidebar-secondary');
     const detailsHtml = li => {
         const d = li.dataset;
-        const firstImg = (d.placeNotes || '').match(/<img[^>]+src="([^"]+)"/i)?.[1] || '';
         const iconUrl = `/icons/wayfarer-map-icons/dist/png/marker/${d.placeColor}/${d.placeIcon}.png`;
         const notesDiv = li.querySelector('.place-notes');
         const notesHtml = notesDiv?.innerHTML || '';
 
         return `
   <div class="d-flex align-items-center gap-2 border-bottom px-2 py-2 bg-body-tertiary">
-    <button class="btn btn-outline-secondary btn-sm btn-back" title="Back" aria-label="Back to legend">
+    <button class="btn btn-outline-secondary btn-sm btn-back" title="${encodeFeatureText(message('Viewer.Back', 'Back'))}" aria-label="${encodeFeatureText(message('Viewer.BackToLegend', 'Back to legend'))}">
       <i class="bi bi-arrow-left"></i></button>
-          <img src="${iconUrl}" width="24" height="38" alt="">
-      <div><strong>${d.placeName}</strong><br>
-           <small class="text-muted">${d.regionName}</small></div>
+          <img src="${encodeFeatureText(iconUrl)}" width="24" height="38" alt="">
+      <div><strong>${encodeFeatureText(d.placeName)}</strong><br>
+           <small class="text-muted">${encodeFeatureText(d.regionName)}</small></div>
   </div>
 
   <div class="p-3">
-<!--    ${firstImg ? `<img src="${firstImg}" class="img-fluid w-100 mb-2" alt="">` : ''}-->
 
-    <p class="mb-1"><strong>Lat:</strong> ${(+d.placeLat).toFixed(5)}
-       &nbsp;<strong>Lon:</strong> ${(+d.placeLon).toFixed(5)}</p>
-    ${d.placeAddress ? `<p class="mb-1"><strong>Address:</strong> ${d.placeAddress}</p>` : ''}
-    ${d.placeResolvedFeatureName ? `<p class="mb-1"><strong>Detected place:</strong> ${encodeFeatureText(d.placeResolvedFeatureName)}</p>` : ''}${featurePrecisionNotice(d.placeResolvedFeatureType) ? `<p class="mb-1" role="note">${featurePrecisionNotice(d.placeResolvedFeatureType)}</p>` : ''}
+    <p class="mb-1"><strong>${encodeFeatureText(message('Shell.LatitudeShort', 'Lat:'))}</strong> ${number(+d.placeLat, { maximumFractionDigits: 5 })}
+       &nbsp;<strong>${encodeFeatureText(message('Shell.LongitudeShort', 'Lon:'))}</strong> ${number(+d.placeLon, { maximumFractionDigits: 5 })}</p>
+    ${d.placeAddress ? `<p class="mb-1"><strong>${encodeFeatureText(message('Shell.AddressLabel', 'Address:'))}</strong> ${encodeFeatureText(d.placeAddress)}</p>` : ''}
+    ${d.placeResolvedFeatureName ? `<p class="mb-1">${encodeFeatureText(message('Viewer.DetectedPlace', 'Detected place: {0}', d.placeResolvedFeatureName))}</p>` : ''}${featurePrecisionNotice(d.placeResolvedFeatureType) ? `<p class="mb-1" role="note">${featurePrecisionNotice(d.placeResolvedFeatureType)}</p>` : ''}
 
     ${!isHtmlEmpty(notesHtml) ? `
        <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes rich-notes-content" >
@@ -351,15 +318,15 @@ const init = () => {
   </div>`;
     };
 
-    /* open details */
-    window.wayfarer.openPlaceDetails = pid => {
+    /** Opens the Place panel and marker, preserving a camera owned by a permalink or print. */
+    const openPlaceDetails = (pid, preserveCamera = false) => {
         const li = $(`.place-list-item[data-place-id="${pid}"]`);
         if (!li) return;
         // The hidden Razor notes already contain display proxies before either DOM insertion.
-        sidebar.openDetails(detailsHtml(li));
+        sidebar.openDetails(detailsHtml(li), { preserveCamera });
         highlightMarker(pid);
         const m = getPlaceMarker(pid);
-        if (m) {
+        if (m && !preserveCamera) {
             const tgt = m.getLatLng();
             // pick a zoom level that is at least 12 or keeps the current one if closer
             const z = Math.max(map.getZoom(), 12);
@@ -369,6 +336,7 @@ const init = () => {
         }
         initWikipediaPopovers(pane);
     };
+    window.wayfarer.openPlaceDetails = openPlaceDetails;
 
     /* close details */
     document.addEventListener('click', e => {
@@ -409,208 +377,7 @@ const init = () => {
         });
     });
 
-    // --------------------------------------------------------------------
-    // Export Buttons – show spinner until navigation starts (cannot detect
-    // download completion reliably without a service-worker)
-    //
-    // Requires: Bootstrap modal (#exportWait) from Viewer.cshtml
-    // --------------------------------------------------------------------
-    // viewer -- export helpers
-    const MAX_SAFE_SIZE = 120 * 1024 * 1024;   // 120 MB  ➜ tweak to taste
-    const waitModal = new bootstrap.Modal('#exportWait', {backdrop: 'static'});
-    const spinnerTxt = document.querySelector('#exportWait strong');
-    const dlFrame = document.getElementById('exportFrame'); // keep the iframe
-
-    function showModal(modal) {
-        return new Promise(res => {
-            const el = modal._element;
-            const alreadyShown = el.classList.contains('show');
-
-            if (alreadyShown) return res();           // nothing to wait for
-            el.addEventListener('shown.bs.modal', res, {once: true});
-            modal.show();
-        });
-    }
-
-    function hideModal(modal) {
-        return new Promise(res => {
-            const el = modal._element;
-            const alreadyHidden = !el.classList.contains('show');
-
-            if (alreadyHidden) return res();          // nothing to wait for
-            el.addEventListener('hidden.bs.modal', res, {once: true});
-            modal.hide();
-        });
-    }
-
-    //------------------------------------------------------------------
-    // (A) fast-path – fetch into memory → Blob → <a download>
-    //------------------------------------------------------------------
-    async function fetchAndSave(url, fallbackName = 'download', signal = null) {
-        const resp = await fetch(url, {credentials: 'include', signal});
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-        const cd = resp.headers.get('Content-Disposition') ?? '';
-        const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
-        const fileName = m ? decodeURIComponent(m[1]) : fallbackName;
-
-        const chunks = [];
-        const reader = resp.body.getReader();
-        while (true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            chunks.push(value);
-        }
-        const blob = new Blob(chunks, {type: resp.headers.get('Content-Type') || 'application/octet-stream'});
-        const objUrl = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = objUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(objUrl);
-    }
-
-    //------------------------------------------------------------------
-    // (B) fallback – let the browser stream via hidden iframe
-    //------------------------------------------------------------------
-    function iframeDownload(url) {
-        return new Promise(resolve => {
-            // 1️⃣ hard-timeout – gives up after 25 s
-            const failSafe = setTimeout(resolve, 25_000);
-
-            // 2️⃣ occasionally load *does* fire (e.g. 204 responses)
-            const onLoad = () => {
-                clearTimeout(failSafe);
-                dlFrame.removeEventListener('load', onLoad);
-                resolve();
-            };
-            dlFrame.addEventListener('load', onLoad);
-
-            // 3️⃣ kick-off download ( ⚠️ missing “+” fixed )
-            dlFrame.src = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
-        });
-    }
-
-    async function smartDownload(url, signal = null) {
-        // HEAD request to know size (falls back to iframe if HEAD fails)
-        let isBig = false;
-        try {
-            const head = await fetch(url, {method: 'HEAD', credentials: 'include', signal});
-            const sz = Number(head.headers.get('Content-Length')) || 0;
-            isBig = sz > MAX_SAFE_SIZE;
-        } catch (e) {
-            // If aborted, re-throw to let caller handle it
-            if (e.name === 'AbortError') throw e;
-            /* HEAD failed – treat as unknown */
-        }
-
-        if (!isBig) {
-            try {           // fast path first
-                await fetchAndSave(url, 'download', signal);
-                return;     // success → exit
-            } catch (e) {
-                // If aborted, re-throw to let caller handle it
-                if (e.name === 'AbortError') throw e;
-                console.warn('Blob download failed, switching to iframe:', e);
-            }
-        }
-        // large or fetch failed → iframe streaming (cannot abort iframe downloads)
-        await iframeDownload(url);
-    }
-
-    ['export-wayfarer', 'export-mymaps', 'export-pdf'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (!btn) return;
-
-        btn.addEventListener('click', async e => {
-            e.preventDefault();
-
-            const isPdf = id === 'export-pdf';
-            let eventSource = null;
-            let abortController = null;
-            const progressMsg = document.getElementById('export-progress-message');
-            const cancelBtn = document.getElementById('export-cancel-btn');
-
-            if (isPdf && progressMsg) {
-                // Generate unique session ID for this export
-                const sessionId = crypto.randomUUID();
-
-                // Extract trip ID from button href (format: /Trip/ExportPdf/{tripId})
-                const tripId = btn.href.split('/').pop().split('?')[0];
-
-                // Setup SSE for real-time progress updates
-                const progressUrl = `/Trip/ExportProgress/${tripId}?sessionId=${sessionId}`;
-                eventSource = new EventSource(progressUrl);
-
-                eventSource.onmessage = (evt) => {
-                    try {
-                        const { message } = JSON.parse(evt.data);
-                        progressMsg.innerHTML = message;
-                    } catch (e) {
-                        console.warn('Failed to parse progress message:', e);
-                    }
-                };
-
-                eventSource.onerror = () => {
-                    // Connection lost - not critical, just stop updating
-                    eventSource?.close();
-                };
-
-                spinnerTxt.textContent = 'Generating PDF Export';
-                progressMsg.innerHTML = 'Connecting...';
-
-                // Create AbortController for cancellation
-                abortController = new AbortController();
-
-                // Wire up cancel button
-                if (cancelBtn) {
-                    cancelBtn.style.display = 'inline-block';
-                    const handleCancel = () => {
-                        abortController.abort();
-                        cancelBtn.removeEventListener('click', handleCancel);
-                    };
-                    cancelBtn.addEventListener('click', handleCancel);
-                }
-
-                // Add sessionId to download URL
-                const dlUrl = btn.href + (btn.href.includes('?') ? '&' : '?') + `sessionId=${sessionId}`;
-
-                await showModal(waitModal);
-
-                try {
-                    await smartDownload(dlUrl, abortController.signal);
-                } catch (err) {
-                    if (err.name === 'AbortError') {
-                        progressMsg.innerHTML = '❌ Export cancelled';
-                        wayfarer.showAlert('info', 'PDF export cancelled.');
-                    } else {
-                        wayfarer.showAlert('danger', 'PDF export failed.');
-                        console.error(err);
-                    }
-                } finally {
-                    eventSource?.close();
-                    if (cancelBtn) cancelBtn.style.display = 'none';
-                    await hideModal(waitModal);
-                }
-            } else {
-                // KML exports - simple flow (no progress)
-                spinnerTxt.textContent = 'Generating file…';
-                await showModal(waitModal);
-
-                try {
-                    await smartDownload(btn.href);
-                } catch (err) {
-                    wayfarer.showAlert('danger', 'Download failed.');
-                    console.error(err);
-                } finally {
-                    await hideModal(waitModal);
-                }
-            }
-        });
-    });
+    initViewerExports();
 
     // Handle copy-url clicks for Share button
     document.addEventListener('click', async (e) => {
@@ -625,16 +392,16 @@ const init = () => {
             await navigator.clipboard.writeText(url);
             // Use toast instead of alert to avoid viewport jumps
             if (wayfarer.showToast) {
-                wayfarer.showToast('success', 'URL copied to clipboard!');
+                wayfarer.showToast('success', message('Shell.UrlCopied', 'URL copied to clipboard!'));
             } else {
-                wayfarer.showAlert('success', 'URL copied to clipboard!');
+                wayfarer.showAlert('success', message('Shell.UrlCopied', 'URL copied to clipboard!'));
             }
         } catch (err) {
             console.error('Failed to copy URL:', err);
             if (wayfarer.showToast) {
-                wayfarer.showToast('danger', 'Failed to copy URL.');
+                wayfarer.showToast('danger', message('Shell.UrlCopyFailed', 'Failed to copy URL.'));
             } else {
-                wayfarer.showAlert('danger', 'Failed to copy URL.');
+                wayfarer.showAlert('danger', message('Shell.UrlCopyFailed', 'Failed to copy URL.'));
             }
         }
     });
@@ -653,15 +420,8 @@ const init = () => {
                         bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
                     } catch {}
                 }
-                // Wait for accordion animation, then highlight the place and open details
-                setTimeout(() => {
-                    // Highlight marker on map
-                    highlightMarker(focusPlaceId);
-                    // Open the place details pane
-                    if (window.wayfarer?.openPlaceDetails) {
-                        window.wayfarer.openPlaceDetails(focusPlaceId);
-                    }
-                }, 350);
+                // Evaluate preservation from the original link, before camera changes rewrite the URL.
+                setTimeout(() => openPlaceDetails(focusPlaceId, camera.complete || isPrint), 350);
             }
         }
     }

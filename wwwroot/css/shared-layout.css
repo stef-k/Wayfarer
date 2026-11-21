@@ -149,3 +149,24 @@ body {
         overflow-wrap: anywhere;
     }
 }
+
+/* The language preference stays usable at narrow widths and native browser zoom. */
+.language-dialog {
+    width: min(28rem, calc(100% - 2rem));
+    max-height: calc(100% - 2rem);
+    overflow: auto;
+}
+.language-dialog::backdrop {
+    background: rgb(0 0 0 / 55%);
+}
+
+#language-open[hidden],
+.language-dialog [hidden] {
+    display: none !important;
+}
+
+/* Keep the language selector and cancel actions legible on the dark shell. */
+[data-bs-theme="dark"] :is(#language-open, .language-dialog .btn-outline-secondary) {
+    --bs-btn-color: var(--bs-body-color);
+    --bs-btn-border-color: #8995a2;
+}

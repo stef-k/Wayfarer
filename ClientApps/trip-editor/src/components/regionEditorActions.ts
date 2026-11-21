@@ -1,5 +1,6 @@
 import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
 import { onUnmounted, watch } from 'vue';
+import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
 import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, prepareRegionOrder, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, Guid } from '../types';
@@ -25,6 +26,15 @@ export function useRegionEditorActions(context: any) {
     if (!mount?.dataset.accountId || !mount.dataset.tripId) return true;
     return Boolean(localStorage.getItem(heldRegionDeletionKey(location.origin, mount.dataset.accountId, mount.dataset.tripId)));
   };
+
+  /** Restores a clean creation draft with the document's suggested Region name. */
+  const resetRegionCreation = (): void => {
+    owner.reset(null);
+    owner.beginCreate(context.props.state);
+    context.draft.name = message('Editor.NewRegionDraftName', 'New Region');
+    context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
+  };
+
   const openCreate = async (): Promise<void> => {
     const target = buildRegionCreateTarget();
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -32,12 +42,9 @@ export function useRegionEditorActions(context: any) {
       return;
     }
 
-    context.regionDraftState.reset(null);
-    owner.beginCreate(context.props.state);
+    resetRegionCreation();
     Object.assign(context.placeDraft, emptyPlaceDraft());
     Object.assign(context.areaDraft, emptyAreaDraft());
-    context.draft.name = 'New Region';
-    context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
     context.placeCreateBaselineRequest.value = null;
     context.areaCreateBaselineRequest.value = null;
     context.resetFeedback();
@@ -59,12 +66,10 @@ export function useRegionEditorActions(context: any) {
     context.resetFeedback();
   };
 
+  /** Resets creation to its suggestion and editing to the active saved values. */
   const resetDraft = (): void => {
     if (!context.draft.id) {
-      context.regionDraftState.reset(null);
-      owner.beginCreate(context.props.state);
-      context.draft.name = 'New Region';
-      context.regionCreateBaselineRequest.value = buildRegionRequest(context.draft);
+      resetRegionCreation();
     } else {
       context.regionDraftState.reset(context.activeRegion.value);
     }
@@ -72,7 +77,7 @@ export function useRegionEditorActions(context: any) {
   };
 
   const cancelDraft = async (): Promise<void> => {
-    await context.props.editorSurface.closeActiveTarget('Discard unsaved region changes?');
+    await context.props.editorSurface.closeActiveTarget(message('Editor.DiscardRegionDraft', 'Discard unsaved region changes?'));
   };
 
   const saveDraft = async (): Promise<void> => {
@@ -167,9 +172,9 @@ export function useRegionEditorActions(context: any) {
         }
       }
     });
-    const settled = confirm({ title: `Delete Region ‘${region.name}’?`,
-      message: 'The Region and its name, notes, cover and map center will be lost. Choose independently what happens to Places and Areas.',
-      cancelLabel: 'Cancel', variant: 'danger', regionDeletion: controller });
+    const settled = confirm({ title: message('Editor.DeleteRegionTitle', 'Delete Region ‘{0}’?', region.name),
+      message: message('Editor.DeleteRegionDescription', 'The Region and its name, notes, cover and map center will be lost. Choose independently what happens to Places and Areas.'),
+      cancelLabel: message('Shell.Cancel', 'Cancel'), variant: 'danger', regionDeletion: controller });
     void controller.refresh();
     await settled;
   };
@@ -190,7 +195,7 @@ export function useRegionEditorActions(context: any) {
       request = { expected: JSON.parse(JSON.stringify(originals)), regionIds: [...ids] };
     }
     catch (error) { context.applyError(error, 'Region order held.'); await context.restoreRegionOrder(previousIds); return; }
-    if (context.isDirty.value && !(await context.confirmDiscard('Discard unsaved draft changes before reordering?'))) {
+    if (context.isDirty.value && !(await context.confirmDiscard(message('Editor.DiscardBeforeRegionReorder', 'Discard unsaved draft changes before reordering?')))) {
       await context.restoreRegionOrder(previousIds);
       return;
     }
@@ -207,8 +212,10 @@ export function useRegionEditorActions(context: any) {
       const preview = await prepareRegionOrder(context.props.editorEndpoint, context.props.antiforgeryToken, request);
       if (!currentAttempt()) return;
       validateRegionOrderPreview(preview, tripId, request.expected);
-      if (!(await confirm({ title: 'Review Region order', message: `Apply this complete order to ${ids.length} Regions using their reviewed content?`,
-        confirmLabel: 'Apply reviewed order', cancelLabel: 'Keep current order', variant: 'default' }))) {
+      if (!(await confirm({ title: message('Editor.ReviewRegionOrder', 'Review Region order'),
+        message: plural('Editor.ApplyReviewedRegionCount', ids.length, 'Apply this order to {0} Region using its reviewed content?', 'Apply this complete order to {0} Regions using their reviewed content?'),
+        confirmLabel: message('Editor.ApplyReviewedOrder', 'Apply reviewed order'),
+        cancelLabel: message('Editor.KeepCurrentOrder', 'Keep current order'), variant: 'default' }))) {
         if (currentAttempt()) await context.restoreRegionOrder(previousIds);
         return;
       }

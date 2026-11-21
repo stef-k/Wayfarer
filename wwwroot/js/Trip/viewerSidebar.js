@@ -1,3 +1,5 @@
+import { message } from '../localization/messages.js';
+import { encodeFeatureText } from '../util/feature-metadata.js';
 import { bindSidebarResize, readSidebarPreference, sidebarWidth, SIDEBAR_MIN, SIDEBAR_DESKTOP, writeSidebarPreference } from './sidebarWidth.js';
 
 /**
@@ -32,10 +34,10 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const makeControls = panel => {
         const bar = document.createElement('div');
         bar.className = 'viewer-sidebar-controls bg-body border-bottom';
-        bar.innerHTML = `<label class="viewer-sidebar-width">Sidebar width <select aria-label="Sidebar width" class="form-select form-select-sm">
-            <option value="standard">Standard</option><option value="half">Half</option><option value="full">Full</option>
-            <option value="custom" disabled>Custom</option></select></label>
-            <button type="button" class="btn btn-outline-secondary btn-sm" aria-label="Hide sidebar" aria-expanded="true" aria-controls="sidebar-primary sidebar-secondary">Hide</button>`;
+        bar.innerHTML = `<label class="viewer-sidebar-width">${encodeFeatureText(message('Shell.SidebarWidth', 'Sidebar width'))} <select aria-label="${encodeFeatureText(message('Shell.SidebarWidth', 'Sidebar width'))}" class="form-select form-select-sm">
+            <option value="standard">${encodeFeatureText(message('Shell.Standard', 'Standard'))}</option><option value="half">${encodeFeatureText(message('Shell.Half', 'Half'))}</option><option value="full">${encodeFeatureText(message('Shell.Full', 'Full'))}</option>
+            <option value="custom" disabled>${encodeFeatureText(message('Shell.Custom', 'Custom'))}</option></select></label>
+            <button type="button" class="btn btn-outline-secondary btn-sm" aria-label="${encodeFeatureText(message('Shell.HideSidebar', 'Hide sidebar'))}" aria-expanded="true" aria-controls="sidebar-primary sidebar-secondary">${encodeFeatureText(message('Shell.Hide', 'Hide'))}</button>`;
         panel.prepend(bar);
         const select = bar.querySelector('select');
         select.addEventListener('change', () => {
@@ -50,8 +52,8 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const showButton = document.createElement('button');
     showButton.id = 'btn-show-sidebar';
     showButton.className = 'btn btn-light border fw-semibold shadow-lg';
-    showButton.textContent = 'MAP LEGEND';
-    showButton.setAttribute('aria-label', 'Show sidebar');
+    showButton.textContent = message('Viewer.MapLegend', 'MAP LEGEND');
+    showButton.setAttribute('aria-label', message('Shell.ShowSidebar', 'Show sidebar'));
     showButton.setAttribute('aria-expanded', 'false');
     showButton.setAttribute('aria-controls', 'sidebar-primary sidebar-secondary');
     root.append(showButton);
@@ -59,10 +61,10 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     handle.className = 'viewer-sidebar-resizer';
     handle.tabIndex = 0;
     handle.setAttribute('role', 'separator');
-    handle.setAttribute('aria-label', 'Resize sidebar');
+    handle.setAttribute('aria-label', message('Shell.ResizeSidebar', 'Resize sidebar'));
     handle.setAttribute('aria-orientation', 'vertical');
     handle.setAttribute('aria-controls', 'sidebar-primary sidebar-secondary');
-    handle.title = 'Resize sidebar: arrows 20px, Shift arrows 100px, Home minimum, End full width, Escape cancels drag';
+    handle.title = message('Shell.ResizeSidebarInstructions', 'Resize sidebar: arrows 20px, Shift arrows 100px, Home minimum, End full width, Escape cancels drag');
     root.append(handle);
     const content = document.createElement('div');
     content.dataset.detailsContent = '';
@@ -73,7 +75,7 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
     const navigation = () => viewerNavigation(map.getSize(), visible() && !phone.matches ? width() : 0);
 
     /** Delta-only synchronous offsets cannot leave obsolete transition callbacks behind. */
-    const render = () => {
+    const render = ({ preserveCamera = false } = {}) => {
         root.style.setProperty('--legend-w', `${width()}px`);
         root.dataset.sidebarMode = preference.mode;
         legend.dataset.collapsed = String(hidden || collapsed);
@@ -94,8 +96,10 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         const nextOffset = navigation().offsetX;
         const delta = nextOffset - appliedOffset;
         appliedOffset = nextOffset;
-        if (delta) map.stop();
-        if (delta) map.panBy([-delta, 0], { animate: false });
+        if (delta && !preserveCamera) {
+            map.stop();
+            map.panBy([-delta, 0], { animate: false });
+        }
     };
     /** Hiding retains details content and selection; focus moves to the reachable Show action. */
     function hide() {
@@ -132,12 +136,13 @@ export const createViewerSidebar = (root, map, { isEmbed, isPrint }) => {
         fitOptions: () => navigation().fitOptions,
         /** Offset the destination itself; navigation needs no delayed pan callback. */
         centerFor: (target, zoom) => map.unproject(map.project(target, zoom).subtract([navigation().offsetX, 0]), zoom),
-        openDetails: html => {
+        /** URL-driven details may open over the existing camera without applying a sidebar offset. */
+        openDetails: (html, { preserveCamera = false } = {}) => {
             resizer.cancel();
             content.innerHTML = html;
             detailsActive = true;
             hidden = false;
-            render();
+            render({ preserveCamera });
         },
         closeDetails: () => {
             resizer.cancel();

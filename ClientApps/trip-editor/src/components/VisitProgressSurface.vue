@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { date as displayDate, locale, message as localize, number, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
-import type { EditorPlace, EditorRegion, EditorTripState, EditorVisitHistoryRow, EditorPlaceVisitSummary, Guid } from '../types';
+import { regionDisplayName } from '../regionDisplayName.js';
+import type { EditorPlace, EditorTripState, EditorVisitHistoryRow, EditorPlaceVisitSummary, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 
 type VisitFilter = 'all' | 'visited' | 'not-visited';
@@ -70,15 +72,15 @@ const regionGroups = computed<VisitRegionGroup[]>(() => {
 
 const emptyState = computed(() => {
   if (totalPlaces.value === 0) {
-    return 'No places in this trip yet.';
+    return localize('Editor.EmptyTripPlaces', 'No places in this trip yet.');
   }
 
   if (filter.value === 'visited' && regionGroups.value.length === 0) {
-    return 'No visited places yet.';
+    return localize('Editor.EmptyVisitedPlaces', 'No visited places yet.');
   }
 
   if (filter.value === 'not-visited' && regionGroups.value.length === 0) {
-    return 'All places have visits.';
+    return localize('Editor.AllPlacesVisited', 'All places have visits.');
   }
 
   return null;
@@ -126,16 +128,15 @@ function filterMatches(summary: EditorPlaceVisitSummary): boolean {
   return true;
 }
 
-function regionName(regionId: Guid): string {
-  return props.state.regionsById[regionId]?.name || 'Unknown region';
+/** Visit history can fall back to the Place's current Region after a move. */
+function regionName(regionId: Guid, fallbackRegionId?: Guid): string {
+  return regionDisplayName(props.state.regionsById[regionId])
+    || (fallbackRegionId && regionDisplayName(props.state.regionsById[fallbackRegionId]))
+    || localize('Editor.UnknownRegion', 'Unknown region');
 }
 
 function percentVisited(visitedCount: number, totalCount: number): number {
   return totalCount > 0 ? Math.round((visitedCount / totalCount) * 100) : 0;
-}
-
-function historyRegionName(row: EditorVisitHistoryRow, fallbackRegionId: Guid): string {
-  return props.state.regionsById[row.regionId]?.name || props.state.regionsById[fallbackRegionId]?.name || 'Unknown region';
 }
 
 function compareHistoryRows(left: EditorVisitHistoryRow, right: EditorVisitHistoryRow): number {
@@ -149,33 +150,34 @@ function compareHistoryRows(left: EditorVisitHistoryRow, right: EditorVisitHisto
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
-    return 'Not available';
+    return localize('Editor.Unavailable', 'Not available');
   }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return 'Not available';
+    return localize('Editor.Unavailable', 'Not available');
   }
 
-  return `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+  return locale === 'en-US' ? `${date.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+    : `${displayDate(date, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })} UTC`;
 }
 
 function formatEndedAt(value: string | null): string {
-  return value ? formatTimestamp(value) : 'Open';
+  return value ? formatTimestamp(value) : localize('Editor.VisitOpen', 'Open');
 }
 
 function formatDuration(minutes: number | null): string {
   if (minutes === null) {
-    return 'Duration unavailable';
+    return localize('Editor.DurationUnavailable', 'Duration unavailable');
   }
 
   if (minutes < 60) {
-    return `${minutes} min`;
+    return localize('Editor.VisitDurationMinutes', '{0} min', number(minutes));
   }
 
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return remainingMinutes === 0 ? `${hours} hr` : `${hours} hr ${remainingMinutes} min`;
+  return remainingMinutes === 0 ? localize('Editor.VisitDurationHours', '{0} hr', number(hours)) : localize('Editor.VisitDurationHoursMinutes', '{0} hr {1} min', number(hours), number(remainingMinutes));
 }
 
 function manageVisitHref(visitId: Guid): string {
@@ -184,7 +186,7 @@ function manageVisitHref(visitId: Guid): string {
 
 async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
   event.preventDefault();
-  const canNavigate = await props.editorSurface.closeActiveTarget('Discard unsaved editor changes before managing this visit?');
+  const canNavigate = await props.editorSurface.closeActiveTarget(localize('Editor.DiscardBeforeManagingVisit', 'Discard unsaved editor changes before managing this visit?'));
   if (!canNavigate) {
     return;
   }
@@ -201,28 +203,28 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
       <section class="trip-editor-expanded__dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId">
         <header class="trip-editor-surface__header trip-editor-expanded__header">
           <div>
-            <p class="trip-editor-surface__eyebrow">Read-only visits</p>
-            <h2 :id="titleId">Visit progress and history</h2>
-            <small>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</small>
+            <p class="trip-editor-surface__eyebrow">{{ localize("Editor.ReadOnlyVisits", "Read-only visits") }}</p>
+            <h2 :id="titleId">{{ localize("Editor.VisitProgressAndHistory", "Visit progress and history") }}</h2>
+            <small>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} {{ localize("Editor.PlacesVisited", "places visited") }}</small>
           </div>
           <div class="trip-editor-surface__controls">
-            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="emit('close')">Close</button>
+            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="emit('close')">{{ localize("Shell.Close", "Close") }}</button>
           </div>
         </header>
 
         <div class="trip-editor-expanded__body trip-editor-visit-progress__body">
-          <section class="trip-editor-visit-progress__summary" aria-label="Trip visit progress summary">
+          <section class="trip-editor-visit-progress__summary" :aria-label="localize('Editor.TripVisitProgressSummary', 'Trip visit progress summary')">
             <div class="trip-editor-visit-progress__summary-heading">
               <div>
-                <span>Visit progress</span>
-                <strong>Your overall trip progress</strong>
+                <span>{{ localize("Editor.VisitProgress", "Visit progress") }}</span>
+                <strong>{{ localize("Editor.YourOverallTripProgress", "Your overall trip progress") }}</strong>
               </div>
               <strong class="trip-editor-visit-progress__percent">{{ state.visitProgress.percentVisited }}%</strong>
             </div>
             <div
               class="trip-editor-progress trip-editor-visit-progress__bar"
               role="progressbar"
-              aria-label="Overall visit progress"
+              :aria-label="localize('Editor.OverallVisitProgress', 'Overall visit progress')"
               :aria-valuenow="state.visitProgress.percentVisited"
               aria-valuemin="0"
               aria-valuemax="100"
@@ -231,24 +233,24 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
             </div>
             <p class="trip-editor-visit-progress__summary-count">
               <span class="trip-editor-visit-status trip-editor-visit-status--visited" aria-hidden="true">&check;</span>
-              {{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited
+              {{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} {{ localize("Editor.PlacesVisited", "places visited") }}
             </p>
-            <p v-if="totalPlaces > 0 && !hasVisits">No visit history yet.</p>
+            <p v-if="totalPlaces > 0 && !hasVisits">{{ localize("Editor.NoVisitHistoryYet", "No visit history yet.") }}</p>
           </section>
 
-          <fieldset class="trip-editor-visit-progress__filters" aria-label="Visit filters">
-            <legend>Filter places</legend>
+          <fieldset class="trip-editor-visit-progress__filters" :aria-label="localize('Editor.VisitFilters', 'Visit filters')">
+            <legend>{{ localize("Editor.FilterPlaces", "Filter places") }}</legend>
             <label class="trip-editor-visit-filter-option">
               <input v-model="filter" type="radio" name="trip-editor-visit-filter" value="all" />
-              <span>All</span>
+              <span>{{ localize("Editor.AllPlaces", "All") }}</span>
             </label>
             <label class="trip-editor-visit-filter-option">
               <input v-model="filter" type="radio" name="trip-editor-visit-filter" value="visited" />
-              <span><span class="trip-editor-visit-status trip-editor-visit-status--visited" aria-hidden="true">&check;</span>Visited</span>
+              <span><span class="trip-editor-visit-status trip-editor-visit-status--visited" aria-hidden="true">&check;</span>{{ localize("Editor.Visited", "Visited") }}</span>
             </label>
             <label class="trip-editor-visit-filter-option">
               <input v-model="filter" type="radio" name="trip-editor-visit-filter" value="not-visited" />
-              <span><span class="trip-editor-visit-status trip-editor-visit-status--pending" aria-hidden="true"></span>Not visited</span>
+              <span><span class="trip-editor-visit-status trip-editor-visit-status--pending" aria-hidden="true"></span>{{ localize("Editor.NotVisited", "Not visited") }}</span>
             </label>
           </fieldset>
 
@@ -258,13 +260,13 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
             <section v-for="group in regionGroups" :key="group.regionId" class="trip-editor-visit-region" :aria-label="group.regionName">
               <header class="trip-editor-visit-region__header">
                 <h3>{{ group.regionName }}</h3>
-                <span>{{ group.visitedCount }} / {{ group.totalCount }} visited</span>
+                <span>{{ group.visitedCount }} / {{ group.totalCount }} {{ localize("Editor.VisitedHelp", "visited") }}</span>
               </header>
               <div
                 v-if="group.totalCount > 0"
                 class="trip-editor-progress trip-editor-visit-region__bar"
                 role="progressbar"
-                :aria-label="`${group.regionName} visit progress`"
+                :aria-label="localize('Editor.RegionVisitProgress', '{0} visit progress', group.regionName)"
                 :aria-valuenow="group.percentVisited"
                 aria-valuemin="0"
                 aria-valuemax="100"
@@ -277,52 +279,52 @@ async function manageVisit(event: MouseEvent, visitId: Guid): Promise<void> {
                     <span
                       class="trip-editor-visit-status"
                       :class="row.summary.isVisited ? 'trip-editor-visit-status--visited' : 'trip-editor-visit-status--pending'"
-                      :aria-label="row.summary.isVisited ? 'Visited' : 'Not visited'"
+                      :aria-label="localize(row.summary.isVisited ? 'Editor.Visited' : 'Editor.NotVisited', row.summary.isVisited ? 'Visited' : 'Not visited')"
                       role="img"
                     >
                       <span v-if="row.summary.isVisited" aria-hidden="true">&check;</span>
                     </span>
                     <div>
                       <h4>{{ row.placeName }}</h4>
-                      <small>{{ row.summary.isVisited ? 'Visited' : 'Not visited' }}</small>
+                      <small>{{ localize(row.summary.isVisited ? 'Editor.Visited' : 'Editor.NotVisited', row.summary.isVisited ? 'Visited' : 'Not visited') }}</small>
                     </div>
                   </div>
-                  <strong class="trip-editor-visit-count-pill">{{ row.summary.visitCount }} visit{{ row.summary.visitCount === 1 ? '' : 's' }}</strong>
+                  <strong class="trip-editor-visit-count-pill">{{ plural('Editor.VisitCount', row.summary.visitCount, '{0} visit', '{0} visits') }}</strong>
                 </header>
                 <dl class="trip-editor-visit-place-row__summary">
                   <div>
-                    <dt>First visit</dt>
+                    <dt>{{ localize("Editor.FirstVisit", "First visit") }}</dt>
                     <dd>{{ formatTimestamp(row.summary.firstVisitAt) }}</dd>
                   </div>
                   <div>
-                    <dt>Last visit</dt>
+                    <dt>{{ localize("Editor.LastVisit", "Last visit") }}</dt>
                     <dd>{{ formatTimestamp(row.summary.lastVisitAt) }}</dd>
                   </div>
                 </dl>
 
                 <div v-if="row.summary.isVisited" class="trip-editor-visit-history">
-                  <p v-if="row.historyRows.length === 0" class="trip-editor-empty-state">No visit history rows available for this place.</p>
+                  <p v-if="row.historyRows.length === 0" class="trip-editor-empty-state">{{ localize("Editor.NoVisitHistoryRowsAvailableForThis", "No visit history rows available for this place.") }}</p>
                   <div v-for="history in row.historyRows" :key="history.visitId" class="trip-editor-visit-history-row" :data-visit-id="history.visitId">
                     <div class="trip-editor-visit-history-row__title">
                       <strong>{{ row.placeName }}</strong>
-                      <span>{{ historyRegionName(history, row.regionId) }}</span>
+                      <span>{{ regionName(history.regionId, row.regionId) }}</span>
                     </div>
                     <dl>
                       <div>
-                        <dt>Start</dt>
+                        <dt>{{ localize("Editor.Start", "Start") }}</dt>
                         <dd>{{ formatTimestamp(history.startedAt) }}</dd>
                       </div>
                       <div>
-                        <dt>End</dt>
+                        <dt>{{ localize("Editor.End", "End") }}</dt>
                         <dd>{{ formatEndedAt(history.endedAt) }}</dd>
                       </div>
                       <div>
-                        <dt>Duration</dt>
+                        <dt>{{ localize("Editor.Duration", "Duration") }}</dt>
                         <dd>{{ formatDuration(history.durationMinutes) }}</dd>
                       </div>
                     </dl>
                     <a class="btn btn-outline-light btn-sm" :href="manageVisitHref(history.visitId)" @click="event => manageVisit(event, history.visitId)">
-                      Manage visit
+                      {{ localize("Editor.ManageVisit", "Manage visit") }}
                     </a>
                   </div>
                 </div>

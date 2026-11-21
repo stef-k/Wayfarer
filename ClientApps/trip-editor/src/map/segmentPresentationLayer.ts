@@ -1,4 +1,5 @@
 import L, { type Map as LeafletMap } from 'leaflet';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import type { Guid } from '../types';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import { fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge, projectChevronArm,
@@ -60,7 +61,7 @@ export const createSegmentPresentationLayer = (
       // Authored titles distinguish same-endpoint alternatives; historical routes retain their role labels.
       .bindTooltip(presentation.title ? escapeHtml(presentation.title) : presentation.directionTrustworthy
         ? presentation.anchors.anchors.map(anchor => escapeHtml(`${anchor.label} — ${anchor.roleText} — ${anchor.displayName}`)).join('<br>')
-        : 'Route direction unavailable', { className: 'trip-rich-tooltip' })
+        : escapeHtml(message('Editor.RouteDirectionUnavailable', 'Route direction unavailable')), { className: 'trip-rich-tooltip' })
       .addTo(group);
     const chevrons = presentation.directionTrustworthy ? renderChevrons(presentation, active, group) : [];
     const lineElement = line.getElement();

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
@@ -16,7 +17,9 @@ import { createRegionDraftState } from './regionConditionalDraft';
 import { createPlaceDraftState } from './placeConditionalDraft';
 import { createAreaDraftState } from './areaConditionalDraft';
 import { stopPlaceCoordinatePick, type PlaceCoordinateMapWorkState, type PlaceCoordinatePicker } from './placeCoordinateMapWork';
+import { editorStatusText } from './editorFeedbackText';
 import { mutationFeedbackClass, useEditorMutationFeedback } from './useEditorMutationFeedback';
+import { regionDisplayName } from '../regionDisplayName.js';
 import type { EditorArea, EditorAreaSaveRequest, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorPlaceDraft, EditorPlaceSaveRequest, EditorRegion, EditorRegionSaveRequest, EditorTripState, Guid } from '../types';
 
 type PlaceDraftPreview = {
@@ -150,8 +153,8 @@ const renderedAreaIdsByRegionId = computed(() => {
 });
 const placePreview = computed<PlaceDraftPreview | null>(() => {
   // Pick owns the pending coordinate until Done or Cancel; form fields continue to own draft styling.
-  const coordinate = props.editorSurface.mapWork.value?.modeName === 'Pick place location'
-    && props.editorSurface.mapWork.value.target.identity === activePlaceTarget.value.identity
+  const mapWork = props.editorSurface.mapWork.value;
+  const coordinate = placeCoordinateMapWork.stopPick && mapWork?.target.identity === activePlaceTarget.value.identity
     ? placeCoordinateMapWork.coordinate
     : parseDraftCoordinate();
   if (placeDraft.id && activePlace.value && isPlaceEditOpen(activePlace.value)) {
@@ -168,7 +171,7 @@ const placePreview = computed<PlaceDraftPreview | null>(() => {
     return {
       coordinate,
       placeId: null,
-      label: placeDraft.name || 'New place',
+      label: placeDraft.name || localize('Editor.NewPlace', 'New place'),
       iconName: placeDraft.iconName || 'marker',
       markerColor: placeDraft.markerColor || 'bg-blue'
     };
@@ -218,8 +221,8 @@ const activeRegionTarget = computed<EditorTarget>(() => ({
   identity: draft.id ? `region:edit:${draft.id}` : 'region:add',
   kind: 'region',
   mode: draft.id ? 'edit' : 'add',
-  title: draft.id ? `Edit Region - ${activeRegion.value?.name ?? draft.name}` : 'Add Region',
-  subtitle: draft.id ? 'Region details' : 'New region',
+  title: draft.id ? localize('Editor.EditNamedRegion', 'Edit Region - {0}', activeRegion.value?.name ?? draft.name) : localize('Editor.AddRegion', 'Add Region'),
+  subtitle: draft.id ? localize('Editor.RegionDetails', 'Region details') : localize('Editor.NewRegion', 'New region'),
   entityId: draft.id ?? undefined
 }));
 const activePlaceTarget = computed<EditorTarget>(() => ({
@@ -227,8 +230,8 @@ const activePlaceTarget = computed<EditorTarget>(() => ({
   identity: placeDraft.id ? `place:edit:${placeDraft.id}` : `place:add:${placeDraft.regionId ?? 'none'}`,
   kind: 'place',
   mode: placeDraft.id ? 'edit' : 'add',
-  title: placeDraft.id ? `Edit Place - ${activePlace.value?.name ?? placeDraft.name}` : 'Add Place',
-  subtitle: placeDraft.regionId && !props.state.regionsById[placeDraft.regionId]?.isShadow ? props.state.regionsById[placeDraft.regionId]?.name : undefined,
+  title: placeDraft.id ? localize('Editor.EditNamedPlace', 'Edit Place - {0}', activePlace.value?.name ?? placeDraft.name) : localize('Editor.AddPlace', 'Add Place'),
+  subtitle: placeDraft.regionId ? regionDisplayName(props.state.regionsById[placeDraft.regionId]) : undefined,
   entityId: placeDraft.id ?? undefined,
   parentRegionId: placeDraft.regionId ?? undefined
 }));
@@ -237,11 +240,12 @@ const activeAreaTarget = computed<EditorTarget>(() => ({
   identity: areaDraft.id ? `area:edit:${areaDraft.id}` : `area:add:${areaDraft.regionId ?? 'none'}`,
   kind: 'area',
   mode: areaDraft.id ? 'edit' : 'add',
-  title: areaDraft.id ? `Edit Area - ${activeArea.value?.name ?? areaDraft.name}` : 'Add Area',
-  subtitle: areaDraft.regionId ? props.state.regionsById[areaDraft.regionId]?.name : undefined,
+  title: areaDraft.id ? localize('Editor.EditNamedArea', 'Edit Area - {0}', activeArea.value?.name ?? areaDraft.name) : localize('Editor.AddArea', 'Add Area'),
+  subtitle: areaDraft.regionId ? regionDisplayName(props.state.regionsById[areaDraft.regionId]) : undefined,
   entityId: areaDraft.id ?? undefined,
   parentRegionId: areaDraft.regionId ?? undefined
 }));
+// Resolve shared save-state text at each visible status sink.
 const { applyError, fieldErrors, formSummaryErrors, markSaved, resetFeedback, saveError, saveWarning, statusText } = useEditorMutationFeedback({
   isDirty,
   isAreaDraftOpen,
@@ -464,16 +468,17 @@ function parseDraftCoordinate(): { latitude: number; longitude: number } | null 
     : null;
 }
 
-function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> {
+/** Confirms a caller-supplied discard prompt before changing the active draft. */
+function confirmDiscard(message: string): Promise<boolean> {
   if (!isDirty.value) {
     return Promise.resolve(true);
   }
 
   return confirm({
-    title: 'Discard changes?',
+    title: localize('Editor.DiscardQuestion', 'Discard changes?'),
     message,
-    confirmLabel: 'Discard',
-    cancelLabel: 'Keep editing',
+    confirmLabel: localize('Editor.Discard', 'Discard'),
+    cancelLabel: localize('Shell.KeepEditing', 'Keep editing'),
     variant: 'warning'
   });
 }
@@ -533,14 +538,14 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
 <template>
   <section class="trip-editor-panel trip-editor-regions">
     <div class="trip-editor-panel__line">
-      <h2>Regions &amp; Places</h2>
-      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+      <h2>{{ localize("Editor.RegionsPlaces", "Regions & Places") }}</h2>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ editorStatusText(statusText) }}</span>
     </div>
 
     <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
     <div v-if="saveWarning" class="trip-editor-form-warning" role="status">{{ saveWarning }}</div>
 
-    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Region</button>
+    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">{{ localize("Editor.AddRegion", "Add Region") }}</button>
 
     <RegionEditorSurface :notes-adoption="regionDraftState.notesAdoption.value" :notes-session="regionDraftState.session()" v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 

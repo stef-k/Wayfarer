@@ -1,6 +1,8 @@
 ﻿@model Wayfarer.Models.ViewModels.TimelineSettingsViewModel
 
 @{
+    // The validation response can safely return to Settings without replaying UpdateSettings.
+    ViewData["LanguageSafeGet"] = Url.Action("Settings", "Timeline", new { area = "User" });
     ViewData["Title"] = "Timeline Settings";
 }
 

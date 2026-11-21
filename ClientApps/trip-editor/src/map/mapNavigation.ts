@@ -1,7 +1,7 @@
 import L, { type Map as LeafletMap } from 'leaflet';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorCoordinate, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
-import { resolveUrlMapView } from './mapViewport';
+import { resolveUrlMapView, setExactMapView } from './mapViewport';
 
 /** Geometry and saved-view navigation results; these commands never own metadata drafts. */
 export type FitAllGeometryResult = 'moved' | 'no-geometry';
@@ -32,7 +32,7 @@ export const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata
     return 'missing-view';
   }
 
-  map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom);
+  setExactMapView(map, [metadata.center.latitude, metadata.center.longitude], metadata.zoom);
   return 'moved';
 };
 

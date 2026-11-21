@@ -1,5 +1,6 @@
-﻿<!DOCTYPE html>
-<html lang="en" class="h-100">
+@inject Wayfarer.Localization.WebMessages T
+<!DOCTYPE html>
+<html lang="@T.Locale.Tag" class="h-100">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -35,21 +36,16 @@
 <!-- The embed document fits its viewport; the host page owns ordinary scrolling. -->
 <body data-bs-theme="light" class="h-100">
     <div class="@(ViewData["BodyClass"] as string ?? "container")">
-        @if (TempData["AlertMessage"] != null)
-        {
-            <div class="alert alert-@TempData["AlertType"] alert-dismissible fade show" role="alert">
-                @TempData["AlertMessage"]
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
+        <partial name="_SiteAlert" />
         <div id="alertBox" class="alert alert-success alert-dismissible fade" role="alert" style="display: none;">
-            <span id="alertMessage">This is a placeholder message.</span>
-            <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="Close"></button>
+            <span id="alertMessage"></span>
+            <button type="button" class="btn-close" onclick="wayfarer.hideAlert()" aria-label="@T["Shell.Close"]"></button>
         </div>
 
 
         <main role="main" class="h-100">
-            @RenderBody()
+            <partial name="_WebLocale" />
+                @RenderBody()
         </main>
     </div>
 

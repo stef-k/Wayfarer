@@ -1,3 +1,5 @@
+import { regionDisplayName } from '../regionDisplayName.js';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorPlace, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
 
 /** Uses authoritative membership/order, including the protected Region, without granting Region edit capabilities. */
@@ -7,7 +9,7 @@ export function segmentPlaceGroups(state: EditorTripState): Array<{ id: Guid; la
     if (!region || region.tripId !== state.tripId) return [];
     const places = (state.placeOrderByRegionId[id] ?? []).map(placeId => state.placesById[placeId])
       .filter(place => place && place.tripId === state.tripId && place.regionId === id);
-    return [{ id, label: region.isShadow ? 'Unassigned Places' : region.name, places }];
+    return [{ id, label: regionDisplayName(region), places }];
   });
 }
 
@@ -28,9 +30,15 @@ export function segmentWaypointChoices(state: EditorTripState, draft: EditorSegm
 /** Describes unavailable references without replacing or clearing a persisted draft identity. */
 export function segmentPlaceUnavailableLabel(state: EditorTripState, id: Guid): string {
   const place = state.placesById[id];
-  if (!place || place.tripId !== state.tripId) return 'Place no longer available';
+  if (!place || place.tripId !== state.tripId) return message('Editor.SegmentPlaceGone', 'Place no longer available');
   const region = state.regionsById[place.regionId];
-  if (!region || region.tripId !== state.tripId || !state.regionOrder.includes(region.id)) return `${place.name} — region unavailable`;
-  if (!(state.placeOrderByRegionId[region.id] ?? []).includes(id)) return `${place.name} — unavailable in this Region`;
-  return `${place.name} — ${place.location ? 'invalid location' : 'location required'}`;
+  if (!region || region.tripId !== state.tripId || !state.regionOrder.includes(region.id)) {
+    return message('Editor.SegmentRegionGone', '{0} — region unavailable', place.name);
+  }
+  if (!(state.placeOrderByRegionId[region.id] ?? []).includes(id)) {
+    return message('Editor.SegmentPlaceOutsideRegion', '{0} — unavailable in this Region', place.name);
+  }
+  return place.location
+    ? message('Editor.SegmentPlaceInvalidLocation', '{0} — invalid location', place.name)
+    : message('Editor.SegmentPlaceNeedsLocation', '{0} — location required', place.name);
 }

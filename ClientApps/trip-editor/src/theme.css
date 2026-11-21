@@ -9,6 +9,8 @@
   --trip-editor-muted: var(--bs-secondary-color, #64748b);
   --trip-editor-field-bg: color-mix(in srgb, var(--bs-body-bg, #ffffff) 92%, #e2e8f0);
   --trip-editor-field-border: var(--bs-border-color, #cbd5e1);
+  --trip-editor-button-text: var(--trip-editor-text);
+  --trip-editor-button-border: var(--bs-secondary, #6c757d);
   --trip-editor-accent: var(--bs-primary, #0d6efd);
   --trip-editor-danger-bg: var(--bs-danger-bg-subtle, rgba(220, 53, 69, 0.12));
   --trip-editor-danger-text: var(--bs-danger-text-emphasis, #842029);
@@ -27,9 +29,31 @@
   --trip-editor-muted: var(--bs-secondary-color, #adb5bd);
   --trip-editor-field-bg: var(--bs-body-bg, #212529);
   --trip-editor-field-border: var(--bs-border-color, #495057);
+  --trip-editor-button-text: #e2e8f0;
+  --trip-editor-button-border: #8995a2;
   --trip-editor-accent: var(--bs-primary, #0d6efd);
   --trip-editor-danger-bg: var(--bs-danger-bg-subtle, rgba(127, 29, 29, 0.35));
   --trip-editor-danger-text: var(--bs-danger-text-emphasis, #f1aeb5);
   --trip-editor-warning-bg: var(--bs-warning-bg-subtle, rgba(113, 63, 18, 0.35));
   --trip-editor-warning-text: var(--bs-warning-text-emphasis, #ffda6a);
+}
+
+/* Use the themed foreground for both resting and focused Editor outline controls. */
+:is(.trip-editor-workspace, .trip-editor-expanded, .trip-editor-map-work-toolbar) .btn-outline-light {
+  --bs-btn-color: var(--trip-editor-button-text);
+  --bs-btn-border-color: var(--trip-editor-button-border);
+  --bs-btn-hover-color: var(--trip-editor-button-text);
+  --bs-btn-hover-bg: var(--trip-editor-surface-muted);
+  --bs-btn-hover-border-color: var(--trip-editor-button-border);
+  --bs-btn-active-color: var(--trip-editor-button-text);
+  --bs-btn-active-bg: var(--trip-editor-surface-muted);
+  --bs-btn-active-border-color: var(--trip-editor-button-border);
+  --bs-btn-disabled-color: var(--trip-editor-button-text);
+  --bs-btn-disabled-border-color: var(--trip-editor-button-border);
+}
+
+/* Bootstrap's secondary outline defaults use the same mid-gray in both themes. */
+[data-bs-theme="dark"] :is(.trip-editor-workspace, .trip-editor-expanded, .trip-editor-map-work-toolbar) .btn-outline-secondary {
+  --bs-btn-color: var(--trip-editor-button-text);
+  --bs-btn-border-color: var(--trip-editor-button-border);
 }

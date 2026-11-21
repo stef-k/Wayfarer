@@ -1,5 +1,7 @@
 import { createGroupNotificationRefresh, reloadGroupNotificationState } from './groupNotifications.js';
 
+import { message, number, plural } from './localization/messages.js';
+
 window.wayfarer = window.wayfarer || {};
 
 function hideAlert() {
@@ -103,9 +105,9 @@ function showConfirmationModal(options) {
     const cancelButton = modal.querySelector('.btn-secondary, [data-bs-dismiss="modal"]');
 
     // Set the default values if the options are not provided
-    modalTitle.textContent = options.title || 'Confirm Action';
-    modalBody.textContent = options.message || 'Are you sure you want to proceed?';
-    confirmButton.textContent = options.confirmText || 'Confirm';
+    modalTitle.textContent = options.title || message('Shell.ConfirmAction', 'Confirm Action');
+    modalBody.textContent = options.message || message('Shell.ConfirmMessage', 'Are you sure you want to proceed?');
+    confirmButton.textContent = options.confirmText || message('Shell.Confirm', 'Confirm');
 
     // Track if confirm was clicked to distinguish from cancel/dismiss
     let confirmed = false;
@@ -153,14 +155,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const list = loadedInvites ?? (res.ok ? await res.json() : []);
             if (signal?.aborted) return;
             const count = Array.isArray(list) ? list.length : 0;
-            invitesBadge.textContent = count;
+            invitesBadge.textContent = number(count);
             invitesBadge.classList.toggle('d-none', count === 0);
             // One-time session notification after login
             if (count > 0 && !sessionStorage.getItem('invites.notified')) {
                 if (typeof showAlert === 'function') {
-                    const plural = count === 1 ? '' : 's';
-                    // Provide instruction to visit Invitations page
-                    showAlert('info', `You have ${count} pending invitation${plural}. Open User → Invitations to review.`);
+                    showAlert('info', plural('Shell.InvitationsPending', count,
+                        'You have {0} pending invitation. Open User → Invitations to review.',
+                        'You have {0} pending invitations. Open User → Invitations to review.'));
                 }
                 sessionStorage.setItem('invites.notified', '1');
             }
@@ -186,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newInvs = invites.filter(x => !prevIds.has(x.id)).map(x => x.groupName).filter(Boolean);
             const notified = sessionStorage.getItem('user.invites.diff.notified') === '1';
             if (!notified && newInvs.length) {
-                if (typeof showAlert === 'function') showAlert('info', `New invitation(s) for: ${newInvs.join(', ')}. Open User → Invitations.`);
+                if (typeof showAlert === 'function') showAlert('info', message('Shell.InvitationsReceived', 'New invitations for: {0}. Open User → Invitations.', newInvs.join(', ')));
                 sessionStorage.setItem('user.invites.diff.notified', '1');
             }
             localStorage.setItem('user.pending.invites', JSON.stringify(invites));
@@ -213,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mgrBadge.textContent = cnt;
             mgrBadge.classList.toggle('d-none', cnt === 0);
             if (cnt > 0 && !sessionStorage.getItem('mgr.activity.notified')) {
-                if (typeof showAlert === 'function') showAlert('info', `You have ${cnt} recent group updates. Open Manager → Groups.`);
+                if (typeof showAlert === 'function') showAlert('info', message('Shell.GroupUpdates', 'Recent group updates: {0}. Open Manager → Groups.', number(cnt)));
                 sessionStorage.setItem('mgr.activity.notified', '1');
             }
         } catch { /* ignore */ }
@@ -260,14 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (invites.length) {
                     const names = invites.map(x => x.groupName).filter(Boolean);
-                    if (names.length && typeof showAlert === 'function') showAlert('info', `New invitation(s) for: ${names.join(', ')}. Open User → Invitations.`);
+                    if (names.length && typeof showAlert === 'function') showAlert('info', message('Shell.InvitationsReceived', 'New invitations for: {0}. Open User → Invitations.', names.join(', ')));
                 }
                 const joinedNames = joined.map(x => x.groupName).filter(Boolean);
                 const removedNames = removed.map(x => x.groupName).filter(Boolean);
                 const leftNames = left.map(x => x.groupName).filter(Boolean);
-                if (joinedNames.length && typeof showAlert === 'function') showAlert('success', `You joined: ${joinedNames.join(', ')}`);
-                if (removedNames.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removedNames.join(', ')}`);
-                if (leftNames.length && typeof showAlert === 'function') showAlert('secondary', `You left: ${leftNames.join(', ')}`);
+                if (joinedNames.length && typeof showAlert === 'function') showAlert('success', message('Shell.GroupJoined', 'You joined: {0}', joinedNames.join(', ')));
+                if (removedNames.length && typeof showAlert === 'function') showAlert('warning', message('Shell.GroupRemoved', 'You were removed from: {0}', removedNames.join(', ')));
+                if (leftNames.length && typeof showAlert === 'function') showAlert('secondary', message('Shell.GroupLeft', 'You left: {0}', leftNames.join(', ')));
                 if (invites.length || joinedNames.length || removedNames.length || leftNames.length) {
                     localStorage.setItem('user.activity.lastSeenAt', new Date().toISOString());
                     sessionStorage.setItem('user.activity.notified', '1');
@@ -296,8 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const added = joined.filter(x => !prevMap.has(x.id)).map(x => x.name).filter(Boolean);
             const notifiedThisSession = sessionStorage.getItem('user.joined.diff.notified') === '1';
             if (!notifiedThisSession) {
-                if (removed.length && typeof showAlert === 'function') showAlert('warning', `You were removed from: ${removed.join(', ')}`);
-                if (added.length && typeof showAlert === 'function') showAlert('success', `You joined: ${added.join(', ')}`);
+                if (removed.length && typeof showAlert === 'function') showAlert('warning', message('Shell.GroupRemoved', 'You were removed from: {0}', removed.join(', ')));
+                if (added.length && typeof showAlert === 'function') showAlert('success', message('Shell.GroupJoined', 'You joined: {0}', added.join(', ')));
                 if (removed.length || added.length) sessionStorage.setItem('user.joined.diff.notified', '1');
             }
             localStorage.setItem('user.joined.groups', JSON.stringify(joined));

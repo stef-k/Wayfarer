@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
 import type { EditorAreaDraft } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
@@ -32,27 +33,27 @@ const geometryStatus = computed(() => {
     </div>
 
     <label class="trip-editor-field">
-      <span>Name</span>
+      <span>{{ localize("Editor.Name", "Name") }}</span>
       <input v-model="props.draft.name" type="text" autocomplete="off" />
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
+    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <div class="trip-editor-grid">
       <label class="trip-editor-field">
-        <span>Fill Color</span>
+        <span>{{ localize("Editor.FillColor", "Fill Color") }}</span>
         <input v-model="props.draft.fillHex" type="color" />
       </label>
       <label class="trip-editor-field">
-        <span>Fill Hex</span>
+        <span>{{ localize("Editor.FillHex", "Fill Hex") }}</span>
         <input v-model="props.draft.fillHex" type="text" autocomplete="off" />
         <small v-for="message in props.fieldErrors('fillHex')" :key="message">{{ message }}</small>
       </label>
     </div>
 
     <div class="trip-editor-field">
-      <span>Geometry</span>
+      <span>{{ localize("Editor.Geometry", "Geometry") }}</span>
       <output>{{ geometryStatus }}</output>
       <small v-for="message in props.fieldErrors('geometry')" :key="message">{{ message }}</small>
       <small v-for="message in props.fieldErrors('geometry.coordinates')" :key="message">{{ message }}</small>

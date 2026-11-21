@@ -28,13 +28,14 @@ export interface CheckItem {
 }
 /** Displayed finding counts survive collapse; the next request recomputes all results. */
 export interface CheckFinding {
-  id: string; check: string; entries: string[];
+  id: string; check: string; entries: string[]; movement?: CheckMovementDetail | null;
   result: { status: 'completed' | 'unknown' | 'inconsistent' | 'possible' | 'mismatch' | 'contradiction' | 'risk' | 'excluded'; message: string; minutes?: number | null };
 }
 /** Current read-only source options and the evidence actually shown for a requested direction. */
-export interface CheckSource { id: string; description: string }
+export interface CheckSource { id: string; description: string; route?: CheckRouteSource | null }
 export interface CheckMovementEvidence {
   from: string; to: string; segmentId?: string | null; estimateMinutes?: number | null; dependency: string; description: string;
+  source?: CheckEstimate | null; locations?: CheckLocation[];
 }
 /** Fresh server comparison result with sanitized dependency-bound local reuse. */
 export interface CheckResult {
@@ -45,3 +46,15 @@ export interface CheckResult {
 
 /** Whole current inventory is the default, with no implicit premises, zero estimates or allowances. */
 export const emptyCheckSetup = (): CheckSetup => ({ selection: null, singleTraveller: false, entries: {}, transfers: [], incompatible: {} });
+
+/** Localized displays consume the same route and location facts as the legacy descriptions. */
+export interface CheckRouteSource {
+  mode: string; duration?: number | null; durationSource: string; anchors: (CheckLocation | null)[];
+  customRoute: boolean; distance?: number | null;
+}
+export interface CheckLocation { name: string; latitude?: number | null; longitude?: number | null; route?: CheckRouteSource | null }
+export interface CheckEstimate { route?: CheckRouteSource | null; routeUnavailable: boolean; manualEstimate?: number | null }
+export interface CheckMovementDetail {
+  comparison: string; deadline?: PlanningValue | null; whatIfRelease?: PlanningValue | null;
+  relevant: boolean; allowance: CheckTreatment; connection: CheckTreatment; estimate: CheckEstimate;
+}

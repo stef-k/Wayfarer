@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { ref } from 'vue';
 import type { CheckItem, CheckSetup, CheckTransfer, CheckSource, CheckMovementEvidence } from './planningCheckTypes';
+import { checkRouteText, movementEvidenceText } from './planningCheckText';
 import { describePlanningTiming } from './planningTypes';
 import PlanningValueInput from './PlanningValueInput.vue';
 
@@ -47,36 +49,37 @@ const addDeadline = (transfer: CheckTransfer): void => { transfer.arrivalDeadlin
 </script>
 
 <template>
-  <fieldset class="plan-check__movement"><legend>Movement and timing</legend>
-    <p>Choose the release → destination pair. Intended arrival uses saved Start/At; an optional Arrive by deadline is assessed separately for this check. No saved Segment or provider call is needed.</p>
-    <label class="trip-editor-field"><span>Release from entry</span><select v-model="from"><option value="">Leave unresolved</option><option v-for="item in items.filter(i => i.selected)" :key="item.key" :value="item.key">{{ label(item) }}</option></select></label>
-    <label class="trip-editor-field"><span>Destination entry · intended arrival or check-only deadline</span><select v-model="to"><option value="">Leave unresolved</option><option v-for="item in items.filter(i => i.selected && i.key !== from)" :key="item.key" :value="item.key">{{ label(item) }}</option></select></label>
-    <button type="button" class="btn btn-outline-light btn-sm" :disabled="!from || !to || from === to" @click="add">Assess this movement</button>
+  <fieldset class="plan-check__movement"><legend>{{ localize("Editor.MovementAndTiming", "Movement and timing") }}</legend>
+    <p>{{ localize("Editor.ChooseTheReleaseDestinationPairIntendedArrival", "Choose the release → destination pair. Intended arrival uses saved Start/At; an optional Arrive by deadline is assessed separately for this check. No saved Segment or provider call is needed.") }}</p>
+    <label class="trip-editor-field"><span>{{ localize("Editor.ReleaseFromEntry", "Release from entry") }}</span><select v-model="from"><option value="">{{ localize("Editor.LeaveUnresolved", "Leave unresolved") }}</option><option v-for="item in items.filter(i => i.selected)" :key="item.key" :value="item.key">{{ label(item) }}</option></select></label>
+    <label class="trip-editor-field"><span>{{ localize("Editor.DestinationEntryIntendedArrivalOrCheckOnly", "Destination entry · intended arrival or check-only deadline") }}</span><select v-model="to"><option value="">{{ localize("Editor.LeaveUnresolved", "Leave unresolved") }}</option><option v-for="item in items.filter(i => i.selected && i.key !== from)" :key="item.key" :value="item.key">{{ label(item) }}</option></select></label>
+    <button type="button" class="btn btn-outline-light btn-sm" :disabled="!from || !to || from === to" @click="add">{{ localize("Editor.AssessThisMovement", "Assess this movement") }}</button>
     <fieldset v-for="(transfer, index) in setup.transfers" :key="`${transfer.from}|${transfer.to}`">
       <legend>{{ items.find(i => i.key === transfer.from)?.name }} → {{ items.find(i => i.key === transfer.to)?.name }}</legend>
-      <p>Intended arrival: saved Start/At. Stored End remains an endpoint and supplies no arrival deadline.</p>
-      <button v-if="!transfer.arrivalDeadline" type="button" class="btn btn-outline-light btn-sm" @click="addDeadline(transfer)">Add Arrive by deadline for this check</button>
+      <p>{{ localize("Editor.IntendedArrivalSavedStartAtStoredEnd", "Intended arrival: saved Start/At. Stored End remains an endpoint and supplies no arrival deadline.") }}</p>
+      <button v-if="!transfer.arrivalDeadline" type="button" class="btn btn-outline-light btn-sm" @click="addDeadline(transfer)">{{ localize("Editor.AddArriveByDeadlineForThisCheck", "Add Arrive by deadline for this check") }}</button>
       <template v-else>
-        <PlanningValueInput :value="transfer.arrivalDeadline" label="Arrive by · check only" />
-        <small>This private check input changes no saved intention. Elapsed assessment needs minute precision and a resolved zone.</small>
-        <button type="button" class="btn btn-outline-secondary btn-sm" @click="transfer.arrivalDeadline = null">Remove check-only deadline</button>
+        <PlanningValueInput :value="transfer.arrivalDeadline" :label="localize('Editor.ArriveByCheckOnly', 'Arrive by · check only')" />
+        <small>{{ localize("Editor.ThisPrivateCheckInputChangesNoSaved", "This private check input changes no saved intention. Elapsed assessment needs minute precision and a resolved zone.") }}</small>
+        <button type="button" class="btn btn-outline-secondary btn-sm" @click="transfer.arrivalDeadline = null">{{ localize("Editor.RemoveCheckOnlyDeadline", "Remove check-only deadline") }}</button>
       </template>
-      <label class="trip-editor-field"><span>Estimate source</span><select v-model="transfer.segmentId" @change="sourceChanged(transfer)"><option :value="null">My estimate for this check</option><option v-for="source in sources" :key="source.id" :value="source.id">{{ source.description }}</option></select></label>
-      <label v-if="!transfer.segmentId" class="trip-editor-field"><span>Travel estimate in minutes</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="sourceChanged(transfer)" /></label>
-      <p v-if="displayed(transfer)" class="plan-check__source">Source shown for confirmation: {{ displayed(transfer)?.description }}</p>
-      <p v-else>Check saved version to load this source before confirming relevance.</p>
-      <label><input v-model="transfer.relevant" type="checkbox" :disabled="!displayed(transfer)" @change="reassess(transfer)" /> This estimate is relevant to this direction, locations and travel mode</label>
+      <label class="trip-editor-field"><span>{{ localize("Editor.EstimateSource", "Estimate source") }}</span><select v-model="transfer.segmentId" @change="sourceChanged(transfer)"><option :value="null">{{ localize("Editor.MyEstimateForThisCheck", "My estimate for this check") }}</option><option v-for="source in sources" :key="source.id" :value="source.id">{{ source.route ? checkRouteText(source.route) : localize('Editor.CheckSourceReview', 'Check the saved version again to load the estimate source.') }}</option></select></label>
+      <label v-if="!transfer.segmentId" class="trip-editor-field"><span>{{ localize("Editor.TravelEstimateInMinutes", "Travel estimate in minutes") }}</span><input v-model.number="transfer.estimateMinutes" type="number" min="0" step="1" @change="sourceChanged(transfer)" /></label>
+      <p v-if="displayed(transfer)" class="plan-check__source">{{ localize("Editor.SourceShownForConfirmation", "Source shown for confirmation:") }} {{ movementEvidenceText(displayed(transfer)!) }}</p>
+      <p v-else>{{ localize("Editor.CheckSavedVersionToLoadThisSource", "Check saved version to load this source before confirming relevance.") }}</p>
+      <label><input v-model="transfer.relevant" type="checkbox" :disabled="!displayed(transfer)" @change="reassess(transfer)" /> {{ localize("Editor.ThisEstimateIsRelevantToThisDirection", "This estimate is relevant to this direction, locations and travel mode") }}</label>
       <template v-for="extra in ['allowance', 'connection'] as const" :key="extra">
-        <label class="trip-editor-field"><span>{{ extra === 'allowance' ? 'Rest / buffer allowance' : 'Necessary connection information' }}</span><select v-model="transfer[extra]" @change="changed(transfer)"><option value="unknown">Unknown / Skip</option><option value="none">None needed for this check</option><option value="included">Already included in the selected estimate</option><option value="additional">Additional minutes, counted once</option></select></label>
-        <label v-if="transfer[extra] === 'additional'" class="trip-editor-field"><span>Additional {{ extra }} minutes (not already counted in estimate or gap)</span><input v-if="extra === 'allowance'" v-model.number="transfer.allowanceMinutes" type="number" min="0" step="1" @change="changed(transfer)" /><input v-else v-model.number="transfer.connectionMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
+        <label class="trip-editor-field"><span>{{ extra === 'allowance' ? localize('Editor.CheckAllowance', 'Rest / buffer allowance') : localize('Editor.CheckConnection', 'Necessary connection information') }}</span><select v-model="transfer[extra]" @change="changed(transfer)"><option value="unknown">{{ localize("Editor.UnknownSkip", "Unknown / Skip") }}</option><option value="none">{{ localize("Editor.NoneNeededForThisCheck", "None needed for this check") }}</option><option value="included">{{ localize("Editor.AlreadyIncludedInTheSelectedEstimate", "Already included in the selected estimate") }}</option><option value="additional">{{ localize("Editor.AdditionalMinutesCountedOnce", "Additional minutes, counted once") }}</option></select></label>
+        <label v-if="transfer[extra] === 'additional'" class="trip-editor-field"><span>{{ extra === 'allowance' ? localize('Editor.CheckAdditionalAllowance', 'Additional rest/buffer minutes not already counted in estimate or gap')
+          : localize('Editor.CheckAdditionalConnection', 'Additional connection minutes not already counted in estimate or gap') }}</span><input v-if="extra === 'allowance'" v-model.number="transfer.allowanceMinutes" type="number" min="0" step="1" @change="changed(transfer)" /><input v-else v-model.number="transfer.connectionMinutes" type="number" min="0" step="1" @change="changed(transfer)" /></label>
       </template>
-      <details><summary>What if the release is different?</summary>
-        <p>A current-release assumption lasts at most 30 minutes on this UTC day and changes no intention, estimate or observed history.</p>
-        <label class="trip-editor-field"><span>What-if release clock</span><input type="datetime-local" :value="transfer.whatIfRelease?.local ?? ''" @change="whatIf(transfer, ($event.target as HTMLInputElement).value)" /></label>
-        <label v-if="transfer.whatIfRelease" class="trip-editor-field"><span>What-if release zone</span><input v-model="transfer.whatIfRelease.zone" placeholder="UTC or IANA zone; no device default" @change="() => { if (transfer.whatIfRelease && !transfer.whatIfRelease.zone) delete transfer.whatIfRelease.zone; transfer.whatIfAt = null; transfer.whatIfDependency = null }" /></label>
+      <details><summary>{{ localize("Editor.WhatIfTheReleaseIsDifferent", "What if the release is different?") }}</summary>
+        <p>{{ localize("Editor.ACurrentReleaseAssumptionLastsAtMost", "A current-release assumption lasts at most 30 minutes on this UTC day and changes no intention, estimate or observed history.") }}</p>
+        <label class="trip-editor-field"><span>{{ localize("Editor.WhatIfReleaseClock", "What-if release clock") }}</span><input type="datetime-local" :value="transfer.whatIfRelease?.local ?? ''" @change="whatIf(transfer, ($event.target as HTMLInputElement).value)" /></label>
+        <label v-if="transfer.whatIfRelease" class="trip-editor-field"><span>{{ localize("Editor.WhatIfReleaseZone", "What-if release zone") }}</span><input v-model="transfer.whatIfRelease.zone" :placeholder="localize('Editor.UtcOrIANAZoneNoDeviceDefault', 'UTC or IANA zone; no device default')" @change="() => { if (transfer.whatIfRelease && !transfer.whatIfRelease.zone) delete transfer.whatIfRelease.zone; transfer.whatIfAt = null; transfer.whatIfDependency = null }" /></label>
       </details>
-      <button type="button" class="btn btn-outline-secondary btn-sm" @click="setup.transfers.splice(index, 1)">Remove this movement check</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" @click="setup.transfers.splice(index, 1)">{{ localize("Editor.RemoveThisMovementCheck", "Remove this movement check") }}</button>
     </fieldset>
-    <small>Other saved activities are not automatically deducted from this pair's gap. Select the relevant release/arrival entries and account for each rest once.</small>
+    <small>{{ localize("Editor.OtherSavedActivitiesAreNotAutomaticallyDeducted", "Other saved activities are not automatically deducted from this pair's gap. Select the relevant release/arrival entries and account for each rest once.") }}</small>
   </fieldset>
 </template>

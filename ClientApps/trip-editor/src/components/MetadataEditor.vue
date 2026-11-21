@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { editorErrorText, editorWarningText } from './editorFeedbackText';
+import { editorFieldError } from '../editorValidation';
+import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { EditorMutationHttpError, EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
-import { confirm } from '../composables/useConfirmDialog';
+import { confirmMetadataExit } from './metadataExit';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { buildMetadataRequest, capturedViewDraft, createMetadataDraftState, equivalentViewDraft, normalizeTagNameKey, normalizeTagNames,
@@ -64,10 +68,9 @@ const metadataUnconfirmed = computed(() => draftState.metadataAttempt.value?.out
 const saveUnconfirmed = computed(() => metadataUnconfirmed.value || sharingUnconfirmed.value);
 /// Explain the held choice and explicit abandonment without promising remote rollback or settlement.
 const sharingHoldMessage = computed(() =>
-  `We could not confirm the sharing change. Your choice (${draft.shareProgressEnabled ? 'Enabled' : 'Disabled'}) is retained in this editor. ` +
-  'Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. ' +
-  'Leaving or reloading loses the retained choice and does not undo the earlier change.');
-const metadataHoldMessage = 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.';
+  localize('Editor.SharingHoldRecovery', 'We could not confirm the sharing change. Your choice ({0}) is retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. Leaving or reloading loses the retained choice and does not undo the earlier change.',
+    draft.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled')));
+const metadataHoldMessage = localize('Editor.MetadataHoldRecovery', 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.');
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
 /// Combines metadata, tag, share-progress, region, segment, and Planning drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
@@ -82,12 +85,12 @@ const visibleShareProgressEnabled = computed({
 const progressUrl = computed(() => (!shareProgressUnavailable.value && draft.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 /// Reports persisted share-progress state for read-only Trip summaries.
 const shareProgressSummary = computed(() => {
-  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
+  if (sharingUnconfirmed.value) return localize('Editor.ConfirmedStatus', 'Sharing change not confirmed');
   if (!props.metadata.isPublic) {
-    return 'Unavailable until trip is public';
+    return localize('Editor.ProgressNeedsPublic', 'Unavailable until trip is public');
   }
 
-  return props.metadata.shareProgressEnabled ? 'Enabled' : 'Disabled';
+  return props.metadata.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled');
 });
 const summaryProgressUrl = computed(() => (props.metadata.isPublic && props.metadata.shareProgressEnabled ? props.metadata.progressPublicUrl : null));
 const target = computed<EditorTarget>(() => ({
@@ -95,8 +98,8 @@ const target = computed<EditorTarget>(() => ({
   identity: 'metadata',
   kind: 'metadata',
   mode: 'edit',
-  title: `Edit Trip - ${props.metadata.name}`,
-  subtitle: props.metadata.isPublic ? 'Public trip' : 'Private trip'
+  title: localize('Editor.EditNamedTrip', 'Edit Trip - {0}', props.metadata.name),
+  subtitle: props.metadata.isPublic ? localize('Editor.PublicTrip', 'Public trip') : localize('Editor.PrivateTrip', 'Private trip')
 }));
 const isActive = computed(() => props.editorSurface.isTargetActive(target.value));
 
@@ -105,8 +108,8 @@ const statusText = computed(() => {
     return 'Saving...';
   }
 
-  if (sharingUnconfirmed.value) return 'Sharing change not confirmed';
-  if (metadataUnconfirmed.value) return 'Trip settings change not confirmed';
+  if (sharingUnconfirmed.value) return localize('Editor.ConfirmedStatus', 'Sharing change not confirmed');
+  if (metadataUnconfirmed.value) return localize('Editor.MetadataUnconfirmedStatus', 'Trip settings change not confirmed');
 
   if (saveError.value) {
     return 'Save failed';
@@ -163,6 +166,9 @@ watch(
   }
 );
 
+// Pending attempts and the sidebar's retained drafts remain owned by the mounted editor.
+const unregisterLanguageDraft = registerLanguageDraft(() => hasUnsavedEditorChanges.value || isSaving.value || saveUnconfirmed.value);
+
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
   unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
@@ -178,6 +184,7 @@ onMounted(() => {
 onUnmounted(() => {
   editSession.value++;
   unregisterSurfaceHandler?.();
+  unregisterLanguageDraft();
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
@@ -251,16 +258,16 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     }
     if (error instanceof EditorValidationError) {
       validationErrors.value = error.errors;
-      saveError.value = error.message;
+      saveError.value = localize('Editor.InvalidForm', 'Review the highlighted fields before saving.');
     } else {
-      saveError.value = error instanceof Error ? error.message : 'Trip settings save failed.';
+      saveError.value = editorErrorText(error, 'Trip settings save failed.');
     }
   } finally {
     isSaving.value = false;
   }
 
   if (!failed) {
-    lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    lastSavedAt.value = date(new Date(), { timeStyle: 'short' });
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
     draftState.refresh(props.metadata, props.tagOrder, props.tagsBySlug);
     if (exitAfterSave && savingSession === editSession.value && !isDirty.value) {
@@ -270,7 +277,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 };
 
 const backToTrips = async (): Promise<void> => {
-  if (!hasUnsavedEditorChanges.value || (await confirmDiscardTripEditorChanges())) {
+  if (!hasUnsavedEditorChanges.value || (await confirmMetadataExit(saveUnconfirmed.value, metadataUnconfirmed.value ? metadataHoldMessage : sharingHoldMessage.value))) {
     leaveEditor();
   }
 };
@@ -291,30 +298,12 @@ function confirmUnload(event: BeforeUnloadEvent): void {
   // Consume approval once so interrupted navigation or a restored page retains protection.
   const approvedExit = exitInProgress.value;
   exitInProgress.value = false;
-  if (approvedExit || !hasUnsavedEditorChanges.value) {
+  if (isLanguageUnload(event) || approvedExit || !hasUnsavedEditorChanges.value) {
     return;
   }
 
   event.preventDefault();
   event.returnValue = '';
-}
-
-/// Confirms before discarding Trip Editor drafts that are not saved by the current action.
-function confirmDiscardTripEditorChanges(): Promise<boolean> {
-  if (saveUnconfirmed.value) return confirm({
-    title: 'Leave without saving?',
-    message: metadataUnconfirmed.value ? metadataHoldMessage : 'The sharing change is not confirmed. The earlier change may still finish. Leaving will lose your retained sharing choice and any other unsaved edits; it will not undo the earlier change.',
-    confirmLabel: 'Leave without saving',
-    cancelLabel: 'Keep editing',
-    variant: 'warning'
-  });
-  return confirm({
-    title: 'Discard changes?',
-    message: 'Leave unsaved editor changes and return to Trips? Planning is saved separately with Save Planning; Trip settings actions do not save it. Leaving loses retained drafts and does not undo pending or unconfirmed attempts.',
-    confirmLabel: 'Discard',
-    cancelLabel: 'Stay',
-    variant: 'warning'
-  });
 }
 
 /** Opens the existing metadata surface without replacing pending drafts. */
@@ -339,7 +328,7 @@ async function loadTagSuggestions(): Promise<void> {
   } catch {
     if (requestId === suggestionRequestId) {
       tagSuggestions.value = [];
-      tagSuggestionError.value = 'Suggestions unavailable.';
+      tagSuggestionError.value = localize('Editor.TagSuggestionsUnavailable', 'Suggestions unavailable.');
     }
   }
 }
@@ -367,23 +356,25 @@ function normalizeShareProgress(value: MetadataDraft): boolean {
   return value.isPublic && props.metadata.isPublic && value.shareProgressEnabled;
 }
 
-const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? [];
+const fieldErrors = (key: string): string[] => (validationErrors.value[key] ?? []).map(editorFieldError);
+/** Keeps the collection-level error attached to the credit controls across unrelated draft edits. */
+const creditErrors = computed(() => fieldErrors('credits'));
 </script>
 
 <template>
   <section v-if="!isActive" class="trip-editor-panel trip-editor-editor-summary">
     <div>
-      <h2>Trip Settings</h2>
-      <p>{{ metadata.isPublic ? 'Public trip' : 'Private trip' }}</p>
-      <p>Share progress: {{ shareProgressSummary }}</p>
+      <h2>{{ localize("Editor.TripSettings", "Trip Settings") }}</h2>
+      <p>{{ metadata.isPublic ? localize('Editor.PublicTrip', 'Public trip') : localize('Editor.PrivateTrip', 'Private trip') }}</p>
+      <p>{{ localize("Editor.ShareProgressLabel", "Share progress:") }} {{ shareProgressSummary }}</p>
       <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
       <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
       <div v-if="metadata.publicUrl || summaryProgressUrl" class="trip-editor-editor-summary__links">
-        <a v-if="metadata.publicUrl" :href="metadata.publicUrl" target="_blank" rel="noopener">Open public trip</a>
-        <a v-if="summaryProgressUrl" :href="summaryProgressUrl" target="_blank" rel="noopener">Open progress URL</a>
+        <a v-if="metadata.publicUrl" :href="metadata.publicUrl" target="_blank" rel="noopener">{{ localize("Editor.OpenPublicTrip", "Open public trip") }}</a>
+        <a v-if="summaryProgressUrl" :href="summaryProgressUrl" target="_blank" rel="noopener">{{ localize("Editor.OpenProgressURL", "Open progress URL") }}</a>
       </div>
     </div>
-    <button type="button" class="btn btn-outline-light btn-sm" @click="openMetadata">Edit Trip</button>
+    <button type="button" class="btn btn-outline-light btn-sm" @click="openMetadata">{{ localize("Editor.EditTrip", "Edit Trip") }}</button>
   </section>
 
   <EditorSurface v-else :controller="editorSurface" :target="target" :status-text="statusText">
@@ -393,44 +384,44 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
         <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
 
         <div v-if="warnings.length > 0" class="trip-editor-form-warning" role="status">
-          <p v-for="warning in warnings" :key="warning.code">{{ warning.message }}</p>
+          <p v-for="warning in warnings" :key="warning.code">{{ editorWarningText(warning.code) }}</p>
         </div>
 
         <label class="trip-editor-field">
-          <span>Name</span>
+          <span>{{ localize("Editor.Name", "Name") }}</span>
           <input v-model="draft.name" type="text" autocomplete="off" />
           <small v-for="message in fieldErrors('name')" :key="message">{{ message }}</small>
         </label>
 
         <label class="trip-editor-toggle">
           <input v-model="draft.isPublic" type="checkbox" />
-          <span>Public trip</span>
+          <span>{{ localize("Editor.PublicTrip", "Public trip") }}</span>
         </label>
-        <TripCreditsEditor :draft="draft" />
+        <TripCreditsEditor :draft="draft" :errors="creditErrors" />
 
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-share-progress-heading">
-          <h3 id="trip-editor-share-progress-heading">Share Progress</h3>
+          <h3 id="trip-editor-share-progress-heading">{{ localize("Editor.ShareProgress", "Share Progress") }}</h3>
           <p v-if="sharingUnconfirmed" class="trip-editor-form-warning" role="alert">{{ sharingHoldMessage }}</p>
           <label class="trip-editor-toggle">
             <input v-model="visibleShareProgressEnabled" type="checkbox" :disabled="shareProgressUnavailable" />
-            <span>Show visit progress on public trip</span>
+            <span>{{ localize("Editor.ShowVisitProgressOnPublicTrip", "Show visit progress on public trip") }}</span>
           </label>
-          <a v-if="progressUrl" :href="progressUrl" target="_blank" rel="noopener">Open progress URL</a>
+          <a v-if="progressUrl" :href="progressUrl" target="_blank" rel="noopener">{{ localize("Editor.OpenProgressURL", "Open progress URL") }}</a>
           <small v-for="message in fieldErrors('enabled')" :key="message">{{ message }}</small>
           <small v-for="message in fieldErrors('shareProgressEnabled')" :key="message">{{ message }}</small>
         </section>
 
         <section class="trip-editor-settings-group" aria-labelledby="trip-editor-tags-heading">
-          <h3 id="trip-editor-tags-heading">Tags</h3>
+          <h3 id="trip-editor-tags-heading">{{ localize("Editor.Tags", "Tags") }}</h3>
           <div class="trip-editor-tags trip-editor-tags--editable">
             <span v-for="(tag, index) in draft.tags" :key="`${normalizeTagNameKey(tag)}-${index}`">
               {{ tag }}
-              <button type="button" :aria-label="`Remove tag ${tag}`" @click="removeTag(index)">Remove</button>
+              <button type="button" :aria-label="localize('Editor.RemoveTag', 'Remove tag {0}', tag)" @click="removeTag(index)">{{ localize("Editor.Remove", "Remove") }}</button>
             </span>
           </div>
           <div class="trip-editor-tag-entry">
             <label class="trip-editor-field">
-              <span>Add tag</span>
+              <span>{{ localize("Editor.AddTag", "Add tag") }}</span>
               <input
                 v-model="tagInput"
                 type="text"
@@ -439,7 +430,7 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
                 @keydown.enter.prevent="addTag(tagInput)"
               />
             </label>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="!tagInput.trim() || draft.tags.length >= tagOptions.maxTags" @click="addTag(tagInput)">Add</button>
+            <button type="button" class="btn btn-outline-light btn-sm" :disabled="!tagInput.trim() || draft.tags.length >= tagOptions.maxTags" @click="addTag(tagInput)">{{ localize("Editor.Add", "Add") }}</button>
           </div>
           <div v-if="tagSuggestions.length > 0" class="trip-editor-tag-suggestions">
             <button v-for="suggestion in tagSuggestions" :key="suggestion.slug" type="button" @click="addTag(suggestion.name)">
@@ -454,30 +445,30 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
         </section>
 
 
-            <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" label="Notes" :validation-messages="fieldErrors('notesHtml')" />
+            <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="fieldErrors('notesHtml')" />
 
         <label class="trip-editor-field">
-          <span>Cover Image URL</span>
+          <span>{{ localize("Editor.CoverImageURL", "Cover Image URL") }}</span>
           <input v-model="draft.coverImageRawUrl" type="url" autocomplete="off" />
           <small v-for="message in fieldErrors('coverImage.rawUrl')" :key="message">{{ message }}</small>
         </label>
 
         <div class="trip-editor-grid">
           <label class="trip-editor-field">
-            <span>Center Latitude</span>
+            <span>{{ localize("Editor.CenterLatitude", "Center Latitude") }}</span>
             <input v-model="draft.centerLatitude" type="number" step="any" />
             <small v-for="message in fieldErrors('center.latitude')" :key="message">{{ message }}</small>
           </label>
 
           <label class="trip-editor-field">
-            <span>Center Longitude</span>
+            <span>{{ localize("Editor.CenterLongitude", "Center Longitude") }}</span>
             <input v-model="draft.centerLongitude" type="number" step="any" />
             <small v-for="message in fieldErrors('center.longitude')" :key="message">{{ message }}</small>
           </label>
         </div>
 
         <label class="trip-editor-field">
-          <span>Zoom</span>
+          <span>{{ localize("Editor.Zoom", "Zoom") }}</span>
           <input v-model="draft.zoom" type="number" min="0" max="19" step="1" />
           <small v-for="message in fieldErrors('zoom')" :key="message">{{ message }}</small>
         </label>
@@ -485,10 +476,10 @@ const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? []
     </template>
 
     <template #footer>
-      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">Save settings &amp; Continue</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">Save settings &amp; Exit</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">Cancel / Reset</button>
-      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? 'Leave without saving' : 'Back to Trips' }}</button>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">{{ localize("Editor.SaveSettingsContinue", "Save settings & Continue") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">{{ localize("Editor.SaveSettingsExit", "Save settings & Exit") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">{{ localize("Editor.CancelReset", "Cancel / Reset") }}</button>
+      <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? localize('Editor.LeaveWithoutSaving', 'Leave without saving') : localize('Editor.BackToTrips', 'Back to Trips') }}</button>
     </template>
   </EditorSurface>
 </template>

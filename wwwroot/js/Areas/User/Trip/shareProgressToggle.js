@@ -1,3 +1,5 @@
+import { message } from '../../../localization/messages.js';
+
 /**
  * Share Progress Toggle - Auto-saves via AJAX
  * Handles the share progress toggle in trip edit view, syncs between
@@ -19,11 +21,11 @@ let btnCopyProgressLink = null;
 const updateAllBadges = (enabled) => {
     if (shareProgressStatus) {
         shareProgressStatus.className = enabled ? 'badge bg-success' : 'badge bg-secondary';
-        shareProgressStatus.textContent = enabled ? 'Visible to public' : 'Private';
+        shareProgressStatus.textContent = enabled ? message("Viewer.Public", 'Visible to public') : message("Viewer.Private", 'Private');
     }
     if (modalShareStatus) {
         modalShareStatus.className = enabled ? 'badge bg-success small' : 'badge bg-secondary small';
-        modalShareStatus.textContent = enabled ? 'Visible to public' : 'Private';
+        modalShareStatus.textContent = enabled ? message("Viewer.Public", 'Visible to public') : message("Viewer.Private", 'Private');
     }
     // Show/hide copy link button based on enabled state
     if (btnCopyProgressLink) {
@@ -52,7 +54,7 @@ const saveShareProgress = async (enabled) => {
     // Show saving state
     if (shareProgressStatus) {
         shareProgressStatus.className = 'badge bg-warning';
-        shareProgressStatus.textContent = 'Saving...';
+        shareProgressStatus.textContent = message("Viewer.ShareSaving", 'Saving...');
     }
 
     try {
@@ -67,19 +69,19 @@ const saveShareProgress = async (enabled) => {
         });
 
         if (response.status === 401) {
-            throw new Error('Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
+            throw new Error(message("Viewer.ShareSessionEnded", 'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.'));
         }
         const result = await response.json();
         if (response.ok && result.success) {
             syncToggles(result.enabled);
         } else {
-            throw new Error(result.message || result.error || 'Share progress could not be saved.');
+            throw new Error(result.message && document.documentElement.lang === "en-US" ? result.message : message("Viewer.ShareSaveFailed", 'Share progress could not be saved.'));
         }
     } catch (error) {
         // Revert on error
         syncToggles(!enabled);
         // Use the same visible rejection convention as other Trip actions; never leave a success badge.
-        wayfarer.showAlert('danger', error instanceof Error ? error.message : 'Share progress could not be saved.');
+        wayfarer.showAlert('danger', error instanceof Error ? error.message : message("Viewer.ShareSaveFailed", 'Share progress could not be saved.'));
         console.error('Failed to save share progress:', error);
     }
 };
@@ -148,7 +150,7 @@ export const initShareProgressToggle = () => {
             if (success) {
                 // Show feedback
                 const originalHtml = btnCopyProgressLink.innerHTML;
-                btnCopyProgressLink.innerHTML = '<i class="bi bi-check me-1"></i>Copied!';
+                btnCopyProgressLink.textContent = message('Shell.UrlCopied', 'URL copied to clipboard!');
                 btnCopyProgressLink.classList.remove('btn-outline-success');
                 btnCopyProgressLink.classList.add('btn-success');
                 setTimeout(() => {

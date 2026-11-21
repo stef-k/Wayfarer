@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { EditorRegion } from '../types';
 import EditorSurface from './EditorSurface.vue';
@@ -48,11 +49,11 @@ defineEmits<{
 
     <template #footer>
       <button v-if="activeRegion?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">
-        Delete
+        {{ localize("Editor.Delete", "Delete") }}
       </button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
-      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Region</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">{{ localize("Shell.Cancel", "Cancel") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">{{ localize("Editor.Reset", "Reset") }}</button>
+      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">{{ localize("Editor.SaveRegion", "Save Region") }}</button>
     </template>
   </EditorSurface>
 </template>

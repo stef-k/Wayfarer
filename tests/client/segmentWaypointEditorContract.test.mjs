@@ -77,7 +77,7 @@ test('missing, inaccessible, invalid-location and unavailable membership referen
 });
 
 /** Uses the established SFC compiler seam; child editors are boundaries, both real picker templates run below. */
-async function loadSelectorComponent(name) {
+async function loadSelectorComponent(name, locale = 'en-US') {
   const filename = `ClientApps/trip-editor/src/components/${name}.vue`;
   const { descriptor } = parse(await readFile(filename, 'utf8'), { filename });
   const script = compileScript(descriptor, { id: name });
@@ -89,7 +89,7 @@ async function loadSelectorComponent(name) {
       builder.onLoad({ filter: /\.vue$/ }, () => ({ contents: 'export default { render: () => null };' }));
     } }] });
   const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+  return import(`data:text/javascript;base64,${Buffer.from(code + '\n// render locale: ' + locale).toString('base64')}`);
 }
 
 for (const name of ['SegmentEditorForm', 'SegmentWaypointEditor']) {
@@ -132,10 +132,31 @@ for (const name of ['SegmentEditorForm', 'SegmentWaypointEditor']) {
   });
 }
 
+test('the Vue waypoint picker uses a registered third catalog and readable English fallback', async () => {
+  const previous = globalThis.document;
+  const fixture = await readFile(new URL('../Wayfarer.Tests/Resources/Editor.pl-PL.resx', import.meta.url), 'utf8');
+  const localized = fixture.match(/<value>(Miejsca[^<]+)<\/value>/)[1];
+  const bundle = { locale: 'pl-PL', fallback: 'en-US', messages: { 'Editor.IntermediatePlaces': localized }, english: {} };
+  globalThis.document = { getElementById: () => ({ textContent: JSON.stringify(bundle) }) };
+  try {
+    const { default: component, render } = await loadSelectorComponent('SegmentWaypointEditor', bundle.locale);
+    const draft = { fromPlaceId: null, toPlaceId: null, waypointRows: [] };
+    const props = { state: catalogue(), draft, baselineDraft: draft, fieldErrors: () => [], isSaving: false, semanticEditsSafe: true };
+    const markup = await renderToString(createSSRApp({ setup() {
+      const bindings = proxyRefs(component.setup(props, { expose() {}, emit() {} }));
+      return () => render({}, [], props, bindings, {}, {});
+    } }));
+    assert.match(markup, /Miejsca pośrednie/);
+    assert.match(markup, /Add intermediate place/);
+  } finally {
+    globalThis.document = previous;
+  }
+});
+
 test('the Segment editor exposes visible intermediate-place controls', async () => {
   const source = await sourceOrEmpty(componentPath);
-  assert.match(source, /<legend[^>]*>\s*Intermediate places\s*<\/legend>/i);
-  assert.match(source, />\s*Add intermediate place\s*</i);
+  assert.match(source, /<legend[^>]*>.*Editor\.IntermediatePlaces.*<\/legend>/i);
+  assert.match(source, /<button[^>]*>.*Editor\.AddIntermediatePlace.*<\/button>/i);
 });
 
 test('waypoint order can be changed with accessible move controls', async () => {

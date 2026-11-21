@@ -1,3 +1,5 @@
+import { message } from './localization/messages.js';
+
 /** Shared cooperative interaction and full-view escape for public iframe maps. */
 const installations = new WeakMap();
 
@@ -38,8 +40,8 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
         link.className = 'wayfarer-embed-full-view btn btn-primary btn-sm text-white shadow d-print-none';
         // Override Leaflet's control cursor so this action remains visibly clickable.
         link.style.cursor = 'pointer';
-        link.textContent = 'Open full view';
-        link.title = 'Open full view in a new tab';
+        link.textContent = message('Shell.FullMap', 'Open full view');
+        link.title = message('Shell.FullMapNewTab', 'Open full view in a new tab');
         link.href = fullViewUrl;
         link.target = '_blank';
         link.rel = 'noopener';

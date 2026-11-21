@@ -1,0 +1,15 @@
+{
+  "WebLocales": [
+    {
+      "Tag": "pl-PL",
+      "NativeName": "Polski",
+      "PrimaryDefault": true,
+      "PluralCategories": ["one", "few", "many", "other"],
+      "IntegerPluralRules": {
+        "one": "^1$",
+        "few": "^(?:[2-4]|[0-9]*[02-9][2-4])$",
+        "many": "^(?:[02-9]|[0-9]+[015-9]|[0-9]*1[2-4])$"
+      }
+    }
+  ]
+}

@@ -1,3 +1,6 @@
+import { message } from '../../../../wwwroot/js/localization/messages.js';
+import { planningValidationText } from './planningFindingText';
+import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, onMounted, onUnmounted, provide, reactive, type InjectionKey, type Ref } from 'vue';
 import type { EditorTripState } from '../types';
 import { observeMutationDispatch } from '../api/tripEditorApi';
@@ -84,7 +87,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
       : target.kind === 'area' ? graph.areasById[target.entityId!] : graph.segmentsById[target.entityId!];
     return entity ? { kind: target.kind, entity, parent: 'regionId' in entity ? entity.regionId : graph.tripId } : null;
   };
-  const diagnostics = (target: EditorTarget): string[] => (current(target)?.entity as { planningDiagnostics?: { message: string }[] } | undefined)?.planningDiagnostics?.map(d => d.message) ?? [];
+  const diagnostics = (target: EditorTarget): string[] => (current(target)?.entity as { planningDiagnostics?: { message: string }[] } | undefined)?.planningDiagnostics?.map(d => planningValidationText(d.message, message('Editor.PlanningReviewStored', 'Review current time or zone rules before changing saved planning.'))) ?? [];
   const value = (draft: PlanningDraft): PlanningAggregate | null => draft.entries.length ? { format: 1, entries: copy(draft.entries) } : null;
   const dirty = (draft: PlanningDraft): boolean => draft.deleted === true || draft.pending || draft.uncertain || !samePlanning(value(draft), draft.original);
 
@@ -136,7 +139,8 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
           || Object.hasOwn(problem, 'errors') && (!problem.errors || typeof problem.errors !== 'object' || Array.isArray(problem.errors)
             || Object.values(problem.errors).some(errors => !Array.isArray(errors) || errors.some(error => typeof error !== 'string')))
           || Object.hasOwn(problem, 'detail') && typeof problem.detail !== 'string') throw new Error('Planning acknowledgement unavailable.');
-        draft.error = typeof problem.detail === 'string' ? problem.detail : 'Planning was not applied. Keep the draft and review current values.';
+        draft.error = rejectedPlanningText(problem.code, problem.detail);
+
         return;
       }
       const reply = await readPlanningReply<PlanningAcknowledgement>(response);
@@ -155,7 +159,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
       }
     } catch {
       draft.uncertain = true;
-      draft.error = 'Planning save not confirmed. The earlier change may still finish. Your complete draft is retained; saving is paused. Reloading loses this draft and does not undo the attempt.';
+      draft.error = message('Editor.PlanningSaveUncertain', 'Planning save not confirmed. The earlier change may still finish. Your complete draft is retained; saving is paused. Reloading loses this draft and does not undo the attempt.');
     } finally { draft.pending = false; }
   };
 
@@ -214,10 +218,27 @@ export const providePlanningWorkspace = (state: Ref<EditorTripState | null>, end
   const workspace = createPlanningWorkspace(state, endpoint, token);
   provide(planningWorkspaceKey, workspace);
   const stopObserving = observeMutationDispatch(endpoint, workspace.capturePublication);
+  const unregisterLanguageDraft = registerLanguageDraft(() => workspace.hasChanges.value);
   const beforeUnload = (event: BeforeUnloadEvent): void => {
-    if (workspace.hasChanges.value) { event.preventDefault(); event.returnValue = ''; }
+    if (!isLanguageUnload(event) && workspace.hasChanges.value) { event.preventDefault(); event.returnValue = ''; }
   };
   onMounted(() => window.addEventListener?.('beforeunload', beforeUnload));
-  onUnmounted(() => { stopObserving(); window.removeEventListener?.('beforeunload', beforeUnload); });
+  onUnmounted(() => { stopObserving(); unregisterLanguageDraft(); window.removeEventListener?.('beforeunload', beforeUnload); });
   return workspace;
 };
+
+/** A rejected attempt retains its draft and existing review action. */
+function rejectedPlanningText(code: string, detail: unknown): string {
+  switch (code) {
+    case 'mutation-authority-unavailable':
+      return message('Editor.SessionEnded', 'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
+    case 'mutation-base-stale':
+    case 'mutation-scope-stale':
+    case 'mutation-contention':
+      return message('Editor.PlanningSaveConflict', 'Saved planning changed. Keep your draft and use Review current comparison before saving again.');
+    case 'mutation-scope-unavailable':
+      return message('Editor.PlanningSaveMissing', 'This planning target is no longer available. Keep your draft and reload the editor to inspect the Trip.');
+    default:
+      return planningValidationText(detail, message('Editor.PlanningNotApplied', 'Planning was not applied. Keep the draft and review current values.'));
+  }
+}

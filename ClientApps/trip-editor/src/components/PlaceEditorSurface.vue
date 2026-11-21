@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { EditorPlace, EditorPlaceDraft, EditorRegion, EditorTripState } from '../types';
@@ -56,22 +57,22 @@ defineEmits<{
 
     <template #footer>
       <button v-if="activePlace?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving || isMapWorkActive" @click="$emit('delete')">
-        Delete
+        {{ localize("Editor.Delete", "Delete") }}
       </button>
       <button
         type="button"
         class="btn btn-outline-light btn-sm"
         :disabled="isSaving || isMapWorkActive"
-        title="Pick this place's latitude and longitude on the map"
+        :title="localize('Editor.PickThisPlaceSLatitudeAndLongitude', 'Pick this place\'s latitude and longitude on the map')"
         :aria-describedby="`${formId}-pick-help`"
         @click="$emit('pickCoordinate')"
       >
-        Pick on map
-        <span :id="`${formId}-pick-help`" class="visually-hidden">Click the map or drag the marker. Done updates the draft; Save Place persists it.</span>
+        {{ localize("Editor.PickOnMap", "Pick on map") }}
+        <span :id="`${formId}-pick-help`" class="visually-hidden">{{ localize("Editor.ClickTheMapOrDragTheMarker", "Click the map or drag the marker. Done updates the draft; Save Place persists it.") }}</span>
       </button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || isMapWorkActive" @click="$emit('cancel')">Cancel</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || isMapWorkActive || !isDirty" @click="$emit('reset')">Reset</button>
-      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving || isMapWorkActive">Save Place</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || isMapWorkActive" @click="$emit('cancel')">{{ localize("Shell.Cancel", "Cancel") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || isMapWorkActive || !isDirty" @click="$emit('reset')">{{ localize("Editor.Reset", "Reset") }}</button>
+      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving || isMapWorkActive">{{ localize("Editor.SavePlace", "Save Place") }}</button>
     </template>
   </EditorSurface>
 </template>

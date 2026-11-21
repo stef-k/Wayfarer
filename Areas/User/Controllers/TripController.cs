@@ -66,51 +66,51 @@ namespace Wayfarer.Areas.User.Controllers
             return View("Compose");
         }
 
-        // GET: /User/Trips/View/{id}
+        /// <summary>Loads the owned Trip graph and visit data from one snapshot before rendering the private Viewer.</summary>
         [HttpGet]
         public async Task<IActionResult> View(Guid id)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (userId == null) return Forbid(); 
-            
-            var trip = await _dbContext.Trips
-                .Include(t => t.Regions!).ThenInclude(r => r.Places!)
-                .Include(t => t.Regions!).ThenInclude(a => a.Areas)
-                .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
-                .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
-                .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
-                .Include(t => t.Tags)
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            if (userId == null) return Forbid();
 
-            if (trip == null) return NotFound();
+            var ct = HttpContext.RequestAborted;
+            Trip? trip;
+            List<Guid> allPlaceIds;
+            List<PlaceVisitEvent> visitEvents;
+            // Each split read, including private visit data, must see the same saved Trip.
+            await using (var snapshot = _dbContext.Database.IsRelational()
+                ? await _dbContext.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, ct) : null)
+            {
+                trip = await _dbContext.Trips
+                    .AsSplitQuery()
+                    .Include(t => t.Regions!).ThenInclude(r => r.Places!)
+                    .Include(t => t.Regions!).ThenInclude(r => r.Areas)
+                    .Include(t => t.Segments!).ThenInclude(s => s.FromPlace)
+                    .Include(t => t.Segments!).ThenInclude(s => s.ToPlace)
+                    .Include(t => t.Segments!).ThenInclude(s => s.Waypoints.OrderBy(w => w.Position)).ThenInclude(w => w.Place)
+                    .Include(t => t.Tags)
+                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId, ct);
+                if (trip == null) return NotFound();
 
-            /* ---- layout flags ---- */
-            ViewData["LoadLeaflet"] = true;      // needs map
-            ViewData["BodyClass"]   = "container-fluid";  // full-width
+                allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
+                    .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
+                    .Select(p => p.Id)
+                    .ToList();
+                visitEvents = await _dbContext.PlaceVisitEvents
+                    .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
+                    .ToListAsync(ct);
+            }
 
+            var placeVisitCounts = visitEvents.GroupBy(v => v.PlaceId!.Value).ToDictionary(g => g.Key, g => g.Count());
+            ViewData["LoadLeaflet"] = true;
+            ViewData["BodyClass"] = "container-fluid";
             ViewBag.IsOwner = true;
-            ViewBag.IsEmbed = false;             // not an iframe here
+            ViewBag.IsEmbed = false;
             ViewBag.ShareProgressEnabled = trip.ShareProgressEnabled;
-
-            // Calculate visit progress for owner's view
-            var allPlaceIds = (trip.Regions ?? Enumerable.Empty<Region>())
-                .SelectMany(r => r.Places ?? Enumerable.Empty<Place>())
-                .Select(p => p.Id)
-                .ToList();
-
-            // Get visit counts per place (a place can be visited multiple times)
-            var visitEvents = await _dbContext.PlaceVisitEvents
-                .Where(v => v.UserId == userId && v.PlaceId != null && allPlaceIds.Contains(v.PlaceId.Value))
-                .ToListAsync();
-
-            var placeVisitCounts = visitEvents
-                .GroupBy(v => v.PlaceId!.Value)
-                .ToDictionary(g => g.Key, g => g.Count());
-
             ViewBag.TotalPlaces = allPlaceIds.Count;
             ViewBag.VisitedPlaces = placeVisitCounts.Count;
             ViewBag.PlaceVisitCounts = placeVisitCounts;
-            ViewBag.VisitEvents = visitEvents; // Pass flat list for modal
+            ViewBag.VisitEvents = visitEvents;
 
             return View("~/Views/Trip/Viewer.cshtml", trip);
         }
@@ -328,7 +328,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetCloneAlert("Viewer.CloneSignIn", "danger");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -337,23 +337,23 @@ namespace Wayfarer.Areas.User.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to clone trip {TripId}", id);
-                SetAlert("Failed to clone trip. Please try again.", "danger");
+                SetCloneAlert("Viewer.CloneFailed", "danger");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
 
             if (clone.Status == TripCloneStatus.NotFound)
             {
-                SetAlert("Trip not found.", "warning");
+                SetCloneAlert("Viewer.CloneMissing", "warning");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
             if (clone.Status == TripCloneStatus.NotPublic)
             {
-                SetAlert("This trip is not public and cannot be cloned.", "danger");
+                SetCloneAlert("Viewer.ClonePrivate", "danger");
                 return RedirectToAction("Index", "TripViewer", new { area = "Public" });
             }
             if (clone.Status == TripCloneStatus.AlreadyOwned)
             {
-                SetAlert("You already own this trip. Use the duplicate feature instead.", "info");
+                SetCloneAlert("Viewer.CloneOwned", "info");
                 return RedirectToAction("Edit", new { id });
             }
 
@@ -365,9 +365,16 @@ namespace Wayfarer.Areas.User.Controllers
                     _logger.LogWarning(ex, "Trip clone {ClonedTripId} committed but cache warmup scheduling failed", clone.ClonedTripId);
                 }
             }
-            SetAlert($"Trip '{clone.SourceTripName}' has been cloned to your account!" +
-                (clone.MediaOmitted ? " Covers and embedded images were omitted because transferable permission is unavailable. Select permitted images in your copy." : ""), "success");
+            SetCloneAlert(clone.MediaOmitted ? "Viewer.ClonePartial" : "Viewer.CloneSucceeded", "success", clone.SourceTripName);
             return RedirectToAction("Edit", new { id = clone.ClonedTripId });
+        }
+
+        /// <summary>Defers clone feedback formatting until the destination resolves its request locale.</summary>
+        private void SetCloneAlert(string key, string type, string? argument = null)
+        {
+            TempData["WebAlertKey"] = key;
+            TempData["WebAlertArgument"] = argument;
+            TempData["AlertType"] = type;
         }
     }
 }

@@ -1,3 +1,4 @@
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import type { CoordinatePickOptions, TripEditorMapView } from '../map/leafletAdapter';
 import type { EditorCoordinate, EditorPlaceDraft } from '../types';
@@ -35,8 +36,8 @@ export function beginPlaceCoordinateMapWork(
   });
 
   const entered = editorSurface.enterMapWork({
-    modeName: 'Pick place location',
-    instruction: 'Click the map or drag the marker. Done updates the draft; Save Place persists it.',
+    modeName: message('Editor.PickPlaceLocation', 'Pick place location'),
+    instruction: message('Editor.ClickTheMapOrDragTheMarker', 'Click the map or drag the marker. Done updates the draft; Save Place persists it.'),
     statusText: () => placeCoordinatePickStatus(state.coordinate),
     canFinish: () => isValidCoordinate(state.coordinate),
     isDirty: () => !sameCoordinate(state.coordinate, coordinateFromSnapshot(coordinateSnapshot)),
@@ -104,12 +105,9 @@ function sameCoordinate(current: EditorCoordinate | null, snapshot: EditorCoordi
 
 function placeCoordinatePickStatus(coordinate: EditorCoordinate | null): string {
   if (!isValidCoordinate(coordinate)) {
-    return 'No coordinate selected';
+    return message('Editor.PlaceCoordinateUnselected', 'No coordinate selected');
   }
 
-  return `Selected ${formatCoordinate(coordinate.latitude)}, ${formatCoordinate(coordinate.longitude)}`;
-}
-
-function formatCoordinate(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+  const precision = { maximumFractionDigits: 6, useGrouping: false };
+  return message('Editor.PlaceCoordinateSelected', 'Selected {0}, {1}', number(coordinate.latitude, precision), number(coordinate.longitude, precision));
 }

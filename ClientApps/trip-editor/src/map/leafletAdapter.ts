@@ -1,4 +1,6 @@
 import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
+import { regionDisplayName } from '../regionDisplayName.js';
 import { createTripMap } from './tripMapSetup';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
@@ -38,9 +40,9 @@ interface TripEditorMapAdapter {
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   setSegmentRouteWorkState: (state: SegmentRouteWorkState) => void;
-  fitAllGeometry: (state: EditorTripState) => FitAllGeometryResult;
-  focusSavedTripView: (metadata: EditorTripMetadata) => FocusSavedTripViewResult;
-  focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => FocusActiveEntityResult;
+  fitAllGeometry: (state: EditorTripState) => Promise<FitAllGeometryResult | undefined>;
+  focusSavedTripView: (metadata: EditorTripMetadata) => Promise<FocusSavedTripViewResult | undefined>;
+  focusActiveEntity: (state: EditorTripState, target: EditorTarget | null) => Promise<FocusActiveEntityResult | undefined>;
   showSearchPreview: (coordinate: EditorCoordinate, label: string) => void;
   dispose: () => void;
 }
@@ -65,7 +67,8 @@ export interface SelectPlaceOptions {
 }
 
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, options: TripEditorMapOptions = {}): TripEditorMapAdapter => {
-  const map = createTripMap(element, tilesUrl);
+  // The viewport observes container changes and preserves the camera through its own resize path.
+  const map = createTripMap(element, tilesUrl, { trackResize: false });
   const viewport = createMapViewport(map, {
     onCaptured: options.onMapViewCaptured,
     canCapture: () => options.canCaptureTripView?.() ?? true
@@ -203,9 +206,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       };
     },
     setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
-    fitAllGeometry: state => viewport.navigate(() => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state)))),
-    focusSavedTripView: metadata => viewport.navigate(() => focusSavedTripView(map, metadata)),
-    focusActiveEntity: (state, target) => viewport.navigate(() => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target)),
+    fitAllGeometry: state => viewport.navigateAndWait(() => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state)))),
+    focusSavedTripView: metadata => viewport.navigateAndWait(() => focusSavedTripView(map, metadata)),
+    focusActiveEntity: (state, target) => viewport.navigateAndWait(() => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target)),
     showSearchPreview: (coordinate, label) => viewport.navigate(() => searchPreview.show(coordinate, label)),
     dispose: () => {
       searchPreview.dispose();
@@ -222,20 +225,24 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
 };
 
+/** Supplies one center label for the marker title and its accessible image. */
 const renderRegion = (region: EditorRegion, layers: LayerGroup): void => {
   if (!region.center) {
     return;
   }
 
+  const name = regionDisplayName(region);
+  const label = message('Editor.RegionCenterMarker', '{0} region center', name);
   L.marker([region.center.latitude, region.center.longitude], {
-    icon: regionMarkerIcon(region),
+    icon: regionMarkerIcon(region, label),
     interactive: !region.isShadow,
     keyboard: !region.isShadow,
-    title: `${region.name} region center`,
-    alt: `${region.name} region center`
-  }).bindTooltip(escapeHtml(region.name)).addTo(layers);
+    title: label,
+    alt: label
+  }).bindTooltip(escapeHtml(name)).addTo(layers);
 };
 
+/** Renders the Place popup using the parent Region's display name. */
 const renderPlace = (
   place: EditorPlace,
   state: EditorTripState,
@@ -263,7 +270,8 @@ const renderPlace = (
       marker.openPopup();
     }
   });
-  marker.bindPopup(placePopupHtml(place, state.regionsById[place.regionId]?.name), { className: 'trip-editor-place-popup' });
+  const region = state.regionsById[place.regionId];
+  marker.bindPopup(placePopupHtml(place, region && regionDisplayName(region)), { className: 'trip-editor-place-popup' });
   // Leaflet auto-opens bound popups on marker click; selection must finish first so dirty-discard cancel keeps the old popup/halo.
   const popupMarker = marker as L.Marker & { _openPopup?: (event: LeafletMouseEvent) => void };
   if (popupMarker._openPopup) {

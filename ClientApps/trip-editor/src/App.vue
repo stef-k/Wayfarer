@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import { date, message as localize } from '../../../wwwroot/js/localization/messages.js';
+import { registerLanguageDraft } from '../../../wwwroot/js/localization/languageNavigation.js';
+import { describeMapWork } from './map/mapWorkDescription';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { providePlanningWorkspace } from './planning/planningState';
-import { loadEditorState } from './api/tripEditorApi';
+import { EditorMutationHttpError, loadEditorState } from './api/tripEditorApi';
+import { editorModeText } from './components/editorFeedbackText';
+import { discardBeforeSelectingPlace, discardBeforeSwitchingTabs, focusStatusText } from './components/editorNavigationText';
+import { regionDisplayName } from './regionDisplayName.js';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import MapSearchControl from './components/MapSearchControl.vue';
 import MapWorkToolbar from './components/MapWorkToolbar.vue';
@@ -9,7 +15,7 @@ import TripSidebar from './components/TripSidebar.vue';
 import TripSidebarLayout from './components/TripSidebarLayout.vue';
 import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './composables/useConfirmDialog';
 import { useEditorSurface } from './composables/useEditorSurface';
-import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
+import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from './segments/editorSegmentPresentation';
 import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripState, Guid } from './types';
@@ -34,6 +40,9 @@ const activePlaceDraftPreview = ref<PlaceDraftMarkerPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const completedSearchAddRequestId = ref<number | null>(null);
 const editorSurface = useEditorSurface();
+// Query the map owner before any close workflow can restore or clear its snapshot.
+const unregisterLanguageDraft = registerLanguageDraft(() =>
+  editorSurface.isMapWorkActive.value || editorSurface.isActiveTargetDirty() || pendingSearchAdd.value !== null);
 let mapAdapter: ReturnType<typeof createTripEditorMap> | null = null;
 let mobileDrawerQuery: MediaQueryList | null = null;
 const coordinatePicker = {
@@ -49,45 +58,32 @@ const routeEditor = {
 };
 
 const updatedLabel = computed(() =>
-  state.value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.value.metadata.updatedAt)) : ''
+  state.value ? date(new Date(state.value.metadata.updatedAt), { dateStyle: 'medium', timeStyle: 'short' }) : ''
 );
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
-// Projects the authoritative map-work owner into the map landmark's exact instruction.
-const mapAccessibleDescription = computed(() => {
-  switch (editorSurface.mapWork.value?.target.kind) {
-    case 'place':
-      return 'Select the Place location. Click the map or drag the marker; Done updates the draft.';
-    case 'area':
-      return 'Edit the Area geometry. Click the map to place polygon vertices; Done updates the draft.';
-    case 'segment':
-      return 'Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.';
-    default:
-      return 'View and navigate trip geography.';
-  }
-});
+const mapAccessibleDescription = computed(() => describeMapWork(editorSurface.mapWork.value?.target.kind));
 const selectedPlace = computed(() => selectedPlaceId.value && state.value ? state.value.placesById[selectedPlaceId.value] ?? null : null);
-const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
 const toolbarEyebrow = computed(() => {
   if (editorSurface.mapWork.value) {
-    return 'Map work';
+    return localize('Editor.MapWork', 'Map work');
   }
 
   if (selectedPlace.value) {
-    return 'Selected place';
+    return localize('Editor.SelectedPlace', 'Selected place');
   }
 
   if (editorSurface.activeTarget.value) {
-    return `${editorSurface.activeTarget.value.mode === 'add' ? 'New' : 'Editing'} ${editorSurface.activeTarget.value.kind}`;
+    return editorModeText(editorSurface.activeTarget.value.kind, editorSurface.activeTarget.value.mode);
   }
 
-  return 'Map status';
+  return localize('Editor.MapStatus', 'Map status');
 });
 const toolbarTitle = computed(() => {
   if (editorSurface.mapWork.value) {
     return editorSurface.mapWork.value.modeName;
   }
 
-  return selectedPlace.value?.name ?? editorSurface.activeTarget.value?.title ?? 'Trip map';
+  return selectedPlace.value?.name ?? editorSurface.activeTarget.value?.title ?? localize('Editor.TripMap', 'Trip map');
 });
 const toolbarDetail = computed(() => {
   if (editorSurface.mapWork.value) {
@@ -100,14 +96,15 @@ const toolbarDetail = computed(() => {
   }
 
   if (selectedPlace.value) {
-    return selectedPlaceRegionName.value ? `In ${selectedPlaceRegionName.value}` : 'Selected on the map and sidebar';
+    const regionName = regionDisplayName(state.value?.regionsById[selectedPlace.value.regionId]);
+    return regionName ? localize('Editor.InsideRegion', 'In {0}', regionName) : localize('Editor.SelectedOnMap', 'Selected on the map and sidebar');
   }
 
   if (editorSurface.activeTarget.value?.subtitle) {
     return editorSurface.activeTarget.value.subtitle;
   }
 
-  return `Updated ${updatedLabel.value}`;
+  return localize('Editor.UpdatedAt', 'Updated {0}', updatedLabel.value);
 });
 const canFitAllGeometry = computed(() => Boolean(state.value && hasAnyGeometry(state.value)));
 const canRecenterSavedView = computed(() => Boolean(state.value && hasSavedTripView(state.value.metadata)));
@@ -148,12 +145,15 @@ onMounted(async () => {
     });
     mapAdapter.render(loadedState, hiddenSegmentIds.value, selectedPlaceId.value);
   } catch (loadError) {
-    error.value = loadError instanceof Error ? loadError.message : 'Trip Editor failed to load.';
+    error.value = loadError instanceof EditorMutationHttpError && [401, 403].includes(loadError.status)
+      ? localize('Editor.LoadUnauthorized', 'Your session ended or you no longer have access. Sign in again or return to My Trips.')
+      : localize('Editor.LoadError', 'Trip Editor failed to load.');
     isLoading.value = false;
   }
 });
 
 onUnmounted(() => {
+  unregisterLanguageDraft();
   disposeConfirmDialogHost();
   setConfirmDialogFocusFallback(null);
   mobileDrawerQuery?.removeEventListener('change', updateMobileDrawerState);
@@ -196,7 +196,7 @@ const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPop
   activeSegmentDraft.value = null;
   mapAdapter?.setSegmentPresentation(state.value, null, null);
   mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
-  navigationStatus.value = `Selected place: ${state.value.placesById[placeId].name}`;
+  navigationStatus.value = localize('Editor.SelectedPlaceName', 'Selected place: {0}', state.value.placesById[placeId].name);
   return true;
 };
 
@@ -212,18 +212,10 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
   }
 
   if (mobileDrawerActive.value && tabForTargetKind(target.kind) !== 'regions') {
-    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before switching tabs?`);
+    return await editorSurface.closeActiveTarget(discardBeforeSwitchingTabs(target.kind));
   }
 
-  if (target.kind !== 'place') {
-    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before selecting a Place?`);
-  }
-
-  if (target.mode === 'add') {
-    return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
-  }
-
-  return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
+  return await editorSurface.closeActiveTarget(discardBeforeSelectingPlace(target.kind));
 }
 
 /** Applies one guarded transient Segment selection without opening an editor or mutating Segment data. */
@@ -233,15 +225,15 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
   const selectedId = key.kind === 'persisted' ? key.id : null;
   const ownsActiveEditor = target?.kind === 'segment'
     && (key.kind === 'create-draft' ? target.mode === 'add' : target.entityId === selectedId);
-  if (target && !ownsActiveEditor && !(await editorSurface.closeActiveTarget('Discard unsaved changes before selecting another Segment?'))) {
+  if (target && !ownsActiveEditor && !(await editorSurface.closeActiveTarget(
+    localize('Editor.DiscardBeforeSelectingSegment', 'Discard unsaved changes before selecting another Segment?')
+  ))) {
     return false;
   }
   selectedPlaceId.value = null;
   mapAdapter?.selectPlace(state.value, null);
   activeSegmentKey.value = key;
-  navigationStatus.value = key.kind === 'persisted'
-    ? `Selected segment: ${state.value.segmentsById[key.id]?.mode || 'Segment'}`
-    : 'Selected new Segment draft';
+  navigationStatus.value = segmentSelectionStatus(state.value, key);
   const retainedDraft = activeSegmentDraft.value;
   const retainedKey = retainedDraft?.key;
   const ownsRetainedDraft = key.kind === 'persisted'
@@ -249,6 +241,18 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
     : retainedKey?.kind === 'create-draft' && retainedKey.token === key.token;
   mapAdapter?.setSegmentPresentation(state.value, key, ownsRetainedDraft ? retainedDraft : null);
   return true;
+}
+
+/** Localizes the selection announcement around the catalog's authored transport label or the stored mode. */
+function segmentSelectionStatus(state: EditorTripState, key: SegmentPresentationKey): string {
+  if (key.kind === 'create-draft') {
+    return localize('Editor.SelectedSegmentDraft', 'Selected new Segment draft');
+  }
+
+  const mode = state.segmentsById[key.id]?.mode;
+  const label = state.options.transportModes.find(option => option.value === mode)?.label ?? mode;
+  return label ? localize('Editor.SelectedSegmentMode', 'Selected segment: {0}', label)
+    : localize('Editor.SelectedSegment', 'Selected segment');
 }
 
 /** Receives the current D/W snapshot while SegmentManager retains mutation authority. */
@@ -280,15 +284,6 @@ function tabForTargetKind(kind: string): 'trip' | 'regions' | 'segments' {
   return 'trip';
 }
 
-/// Keeps dirty-discard copy aligned with the manual phone tab switch guard.
-function targetKindLabel(kind: string): string {
-  if (kind === 'metadata') {
-    return 'trip';
-  }
-
-  return kind;
-}
-
 /// Clears selected-place context, closing the selected place editor first when that editor owns the selection.
 const clearSelectedPlace = async (): Promise<boolean> => {
   if (!state.value || !selectedPlaceId.value) {
@@ -298,7 +293,7 @@ const clearSelectedPlace = async (): Promise<boolean> => {
   const placeId = selectedPlaceId.value;
   const target = editorSurface.activeTarget.value;
   if (target?.kind === 'place' && target.mode === 'edit' && target.entityId === placeId) {
-    if (!(await editorSurface.closeActiveTarget('Discard unsaved place changes?'))) {
+    if (!(await editorSurface.closeActiveTarget(localize('Editor.DiscardPlaceDraft', 'Discard unsaved place changes?')))) {
       return false;
     }
   }
@@ -310,33 +305,40 @@ const clearSelectedPlace = async (): Promise<boolean> => {
 };
 
 /// Runs a navigation-only adapter command without mutating editor drafts or metadata.
-const fitAllGeometry = (): void => {
+const fitAllGeometry = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
-  const result = mapAdapter.fitAllGeometry(state.value);
-  navigationStatus.value = result === 'moved' ? 'Fit all geometry' : 'No geometry to fit';
+  const result = await mapAdapter.fitAllGeometry(state.value);
+  if (!result) return;
+  navigationStatus.value = result === 'moved'
+    ? localize('Editor.FitAllMoved', 'Fit all geometry')
+    : localize('Editor.FitAllNoGeometry', 'No geometry to fit');
 };
 
 /// Recenters to the persisted trip view; it never saves the current map viewport.
-const recenterSavedTripView = (): void => {
+const recenterSavedTripView = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
-  const result = mapAdapter.focusSavedTripView(state.value.metadata);
-  navigationStatus.value = result === 'moved' ? 'Recentered saved trip view' : 'Saved trip view unavailable';
+  const result = await mapAdapter.focusSavedTripView(state.value.metadata);
+  if (!result) return;
+  navigationStatus.value = result === 'moved'
+    ? localize('Editor.RecenterMoved', 'Recentered saved trip view')
+    : localize('Editor.RecenterUnavailable', 'Saved trip view unavailable');
 };
 
 /// Focuses the active target through the map adapter and reports only local toolbar status.
-const focusActiveEntity = (): void => {
+const focusActiveEntity = async (): Promise<void> => {
   if (!state.value || !mapAdapter) {
     return;
   }
 
   const target = editorSurface.activeTarget.value;
-  const result = mapAdapter.focusActiveEntity(state.value, target);
+  const result = await mapAdapter.focusActiveEntity(state.value, target);
+  if (!result || target?.identity !== editorSurface.activeTarget.value?.identity) return;
   navigationStatus.value = focusStatusText(result, target);
 };
 
@@ -491,58 +493,17 @@ const updateHiddenSegmentIds = (ids: Set<string>): void => {
     mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
   }
 };
-
-function focusStatusText(result: FocusActiveEntityResult, target: { kind: string; mode: string } | null): string {
-  if (result === 'moved') {
-    if (target?.kind === 'place' && target.mode === 'add') {
-      return 'Focused parent region';
-    }
-
-    const kind = target?.kind ?? null;
-    if (kind === 'metadata') {
-      return 'Focused trip map';
-    }
-
-    if (kind === 'region') {
-      return 'Focused region';
-    }
-
-    if (kind === 'place') {
-      return 'Focused place';
-    }
-
-    if (kind === 'area') {
-      return 'Focused area';
-    }
-
-    if (kind === 'segment') {
-      return 'Focused segment';
-    }
-
-    return 'Focused active entity';
-  }
-
-  if (result === 'missing-target') {
-    return 'No active target to focus';
-  }
-
-  if (result === 'unsupported-target') {
-    return 'Active target cannot be focused';
-  }
-
-  return 'No geometry to focus';
-}
 </script>
 
 <template>
   <div ref="workspaceElement" class="trip-editor-workspace" tabindex="-1">
     <div v-if="isLoading" class="trip-editor-state trip-editor-state--loading">
-      <div class="spinner-border" role="status" aria-label="Loading"></div>
-      <span>Loading trip editor...</span>
+      <div class="spinner-border" role="status" :aria-label="localize('Editor.Loading', 'Loading')"></div>
+      <span>{{ localize("Editor.LoadingEditor", "Loading trip editor...") }}</span>
     </div>
 
     <div v-else-if="error" class="trip-editor-state trip-editor-state--error">
-      <strong>Trip Editor unavailable</strong>
+      <strong>{{ localize("Editor.TripEditorUnavailable", "Trip Editor unavailable") }}</strong>
       <span>{{ error }}</span>
     </div>
 
@@ -588,12 +549,12 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           </div>
           <div class="trip-editor-toolbar__actions">
             <template v-if="!isMapWorkActive">
-              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFitAllGeometry" @click="fitAllGeometry">Fit All</button>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFitAllGeometry" @click="fitAllGeometry">{{ localize("Editor.FitAll", "Fit All") }}</button>
               <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canRecenterSavedView" @click="recenterSavedTripView">
-                Recenter Saved Trip View
+                {{ localize("Editor.RecenterSavedTripView", "Recenter Saved Trip View") }}
               </button>
-              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">Focus Active Entity</button>
-              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">Clear Selection</button>
+              <button type="button" class="btn btn-outline-light btn-sm" :disabled="!canFocusTarget" @click="focusActiveEntity">{{ localize("Editor.FocusActiveEntity", "Focus Active Entity") }}</button>
+              <button v-if="selectedPlace" type="button" class="btn btn-outline-light btn-sm" @click="clearSelectedPlace">{{ localize("Editor.ClearSelection", "Clear Selection") }}</button>
             </template>
           </div>
         </header>
@@ -613,7 +574,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           ref="mapElement"
           class="trip-editor-map"
           role="region"
-          aria-label="Trip map"
+          :aria-label="localize('Editor.TripMap', 'Trip map')"
           aria-describedby="trip-editor-map-description"
         ></div>
         <p id="trip-editor-map-description" class="visually-hidden">{{ mapAccessibleDescription }}</p>

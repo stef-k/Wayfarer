@@ -1,4 +1,5 @@
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorCoordinate, EditorPlace } from '../types';
 import { previewMarkerIcon } from './markerRendering';
 
@@ -20,7 +21,7 @@ export const createPlaceDraftPreviewLayer = (map: LeafletMap): {
   let dragHandler: (() => void) | null = null;
   let pickActive = false;
   let onMarkerDragged: ((coordinate: EditorCoordinate) => void) | undefined;
-  let markerLabel = 'New place';
+  let markerLabel = message('Editor.NewPlace', 'New place');
   let markerPreview: Pick<EditorPlace, 'iconName' | 'markerColor'> = { iconName: 'marker', markerColor: 'bg-blue' };
 
   const clear = (): void => {
@@ -69,7 +70,7 @@ export const createPlaceDraftPreviewLayer = (map: LeafletMap): {
   };
 
   const renderMarker = (coordinate: EditorCoordinate): void => {
-    const title = `Pending place location: ${markerLabel}`;
+    const title = message('Editor.PendingPlaceMarker', 'Pending place location: {0}', markerLabel);
     marker = L.marker([coordinate.latitude, coordinate.longitude], {
       icon: previewMarkerIcon('place-draft', title, markerPreview),
       draggable: pickActive,
@@ -96,7 +97,7 @@ export const createPlaceDraftPreviewLayer = (map: LeafletMap): {
     }
 
     marker.setLatLng([coordinate.latitude, coordinate.longitude]);
-    marker.setIcon(previewMarkerIcon('place-draft', `Pending place location: ${label}`, preview));
+    marker.setIcon(previewMarkerIcon('place-draft', message('Editor.PendingPlaceMarker', 'Pending place location: {0}', label), preview));
     exposeCoordinate(coordinate);
   };
 

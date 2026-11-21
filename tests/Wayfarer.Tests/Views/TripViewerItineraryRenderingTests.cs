@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using MvcFrontendKit.Extensions;
 using NetTopologySuite.Geometries;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -49,7 +50,7 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Equal(consent ? 2 : 0, photos.Length);
             Assert.All(photos, photo => Assert.Equal($"/Public/Trips/{trip.Id}/owner-photo/{version:N}", photo.GetAttribute("src")));
             Assert.DoesNotContain("private-photo-state", html);
-            Assert.Contains("modalContent.querySelectorAll('.profile-photo').forEach(photo => photo.remove())", html);
+            Assert.NotNull(viewer.QuerySelector("script[src*=viewerPrint]"));
             var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(),
                 Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
             var print = new HtmlParser().ParseDocument(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
@@ -427,15 +428,53 @@ public sealed class TripViewerItineraryRenderingTests
         }
     }
 
+    /// <summary>Greek display uses locale formatting and safely preserves the title and numeric machine attributes.</summary>
+    [Fact]
+    public async Task GreekEmbedRendersLocalizedTextWithInvariantCameraAndAuthoredContent()
+    {
+        using var root = new Wayfarer.Tests.Infrastructure.TestDirectory();
+        await File.WriteAllTextAsync(Path.Combine(root.Path, "frontend.manifest.json"), "{}");
+        using var host = BuildRazorHost(root.Path);
+        using var scope = host.Services.CreateScope();
+        var trip = WaypointTrip();
+        trip.Name = "Trip <guide> & maps";
+        trip.CenterLat = 37.51;
+        trip.CenterLon = 23.15;
+        trip.Zoom = 9;
+        trip.UpdatedAt = new DateTime(2026, 11, 19, 19, 35, 0, DateTimeKind.Utc);
+        trip.Segments.Single().EstimatedDistanceKm = 2.135123;
+        var previous = System.Globalization.CultureInfo.CurrentUICulture;
+        var culture = System.Globalization.CultureInfo.GetCultureInfo("el-GR");
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = culture;
+            var viewer = new HtmlParser().ParseDocument(await RenderViewerAsync(scope.ServiceProvider, trip));
+            Assert.Equal("el-GR", viewer.DocumentElement.GetAttribute("lang"));
+            Assert.Null(viewer.QuerySelector("#language-open"));
+            Assert.Equal(trip.Name, viewer.QuerySelector("#readableViewModalLabel")?.TextContent);
+            Assert.Null(viewer.QuerySelector("#readableViewModalLabel guide"));
+            Assert.Equal("Περισσότερες ενέργειες", viewer.QuerySelector("#btn-more-actions")?.GetAttribute("aria-label"));
+            Assert.Equal("37.51", viewer.QuerySelector("#trip-view")?.GetAttribute("data-trip-lat"));
+            Assert.Equal("2.135123", viewer.QuerySelector(".segment-list-item")?.GetAttribute("data-estimated-distance"));
+            Assert.Contains("2,14 χλμ.", viewer.Body!.TextContent);
+            Assert.Contains(trip.UpdatedAt.ToString("g", culture), viewer.Body.TextContent);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = previous;
+        }
+    }
+
     private static IHost BuildRazorHost(string webRoot) =>
         Host.CreateDefaultBuilder()
             .ConfigureWebHostDefaults(webHost => webHost
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseWebRoot(webRoot)
                 .UseSetting(WebHostDefaults.ApplicationKey, typeof(Trip).Assembly.GetName().Name)
-                .ConfigureServices(services =>
+                .ConfigureServices((context, services) =>
                 {
                     services.AddLogging();
+                    services.AddWebLocalization(context.Configuration);
                     services.AddHttpContextAccessor();
                     services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly);
                     services.AddMvcFrontendKit();

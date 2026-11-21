@@ -1,14 +1,16 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewBag.Title = "Page Not Found";
+    ViewData["WebCatalog"] = "Shell";
+    ViewBag.Title = T["Shell.NotFound"];
     Layout = "_Layout";
 }
 
 <div class="container text-center py-5">
     <h1 style="font-size: 8rem; font-weight: 700;">404</h1>
-    <p class="mb-4" style="font-size: 1.75rem;">Wayfarer, did you lose your way?</p>
-    <img src="/logo-transparent.png" alt="Wayfarer Logo" class="img-fluid"
+    <p class="mb-4" style="font-size: 1.75rem;">@T["Shell.LostWay"]</p>
+    <img src="/logo-transparent.png" alt="@T["Shell.Logo"]" class="img-fluid"
         style="max-width: 280px; height: auto; margin-bottom: 2rem;">
     <div>
-        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary btn-lg mt-2 px-4">Return Home</a>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary btn-lg mt-2 px-4">@T["Shell.ReturnHome"]</a>
     </div>
 </div>

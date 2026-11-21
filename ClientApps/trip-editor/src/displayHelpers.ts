@@ -1,4 +1,5 @@
 import { canonicalImageSource, normalizeNotesHtml } from './notes/notesHtml';
+import { message, plural } from '../../../wwwroot/js/localization/messages.js';
 import type { EditorPlace } from './types';
 
 const iconBasePath = '/icons/wayfarer-map-icons/dist/png/marker';
@@ -37,8 +38,13 @@ export function placeNotesPreviewHtml(notesHtml: string, maxCharacters = 180): s
 /// Provides the accessible label shared by map markers and sidebar marker previews.
 export function placeMarkerLabel(place: Pick<EditorPlace, 'name' | 'visitSummary'>): string {
   return place.visitSummary.isVisited
-    ? `${place.name}, ${place.visitSummary.visitCount} visit(s)`
+    ? message('Editor.PlaceWithVisitCount', '{0}, {1}', place.name, placeVisitCount(place.visitSummary.visitCount))
     : place.name;
+}
+
+/** Formats the visit count shared by Place marker labels and the popup. */
+export function placeVisitCount(count: number): string {
+  return plural('Editor.VisitCount', count, '{0} visit', '{0} visits');
 }
 
 function truncateTextContent(root: ParentNode, maxCharacters: number): void {

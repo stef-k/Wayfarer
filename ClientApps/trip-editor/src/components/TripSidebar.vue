@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { regionDisplayName } from '../regionDisplayName.js';
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, inject, ref, watch } from 'vue';
 import type { EditorArea, EditorGeocodeSearchResult, EditorMutationResult, EditorPlace, EditorRegion, EditorSegment, EditorTripState, Guid } from '../types';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import { planningWorkspaceKey } from '../planning/planningState';
+import { discardBeforeSwitchingTabs } from './editorNavigationText';
 import PlanCheck from '../planning/PlanCheck.vue';
 import MetadataEditor from './MetadataEditor.vue';
 import MapSearchControl from './MapSearchControl.vue';
@@ -89,7 +92,7 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
   };
 
   for (const region of orderedVisibleRegions(props.state)) {
-    const regionMatches = includesSearch(region.name, normalizedSearchQuery.value);
+    const regionMatches = includesSearch(regionDisplayName(region), normalizedSearchQuery.value);
     const places = orderedPlaces(props.state, region.id);
     const areas = orderedAreas(props.state, region.id);
     const matchingPlaces = regionMatches ? places : places.filter(place => matchesPlace(place, normalizedSearchQuery.value));
@@ -177,6 +180,7 @@ watch(
   }
 );
 
+/** Keeps the current tab and editor open if the user declines to discard the draft. */
 async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
   if (activeMobileTab.value === tab) {
     return;
@@ -184,7 +188,7 @@ async function setMobileTab(tab: MobileDrawerTab): Promise<void> {
 
   const activeTarget = props.editorSurface.activeTarget.value;
   if (props.mobileDrawerActive && activeTarget && tabForTargetKind(activeTarget.kind) !== tab) {
-    const canSwitch = await props.editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(activeTarget.kind)} changes before switching tabs?`);
+    const canSwitch = await props.editorSurface.closeActiveTarget(discardBeforeSwitchingTabs(activeTarget.kind));
     if (!canSwitch) {
       activeMobileTab.value = tabForTargetKind(activeTarget.kind);
       return;
@@ -212,14 +216,6 @@ function tabForTargetKind(kind: string): MobileDrawerTab {
   }
 
   return 'trip';
-}
-
-function targetKindLabel(kind: string): string {
-  if (kind === 'metadata') {
-    return 'trip';
-  }
-
-  return kind;
 }
 
 const segmentLabel = (state: EditorTripState, segment: EditorSegment): string => {
@@ -273,39 +269,39 @@ function normalize(value: string): string {
   <aside class="trip-editor-sidebar" :class="{ 'trip-editor-sidebar--mobile-drawer': mobileDrawerActive }" :data-mobile-drawer-state="drawerMode">
     <header class="trip-editor-sidebar__header">
       <div>
-        <p class="trip-editor-sidebar__eyebrow">Trip Editor</p>
+        <p class="trip-editor-sidebar__eyebrow">{{ localize("Editor.Title", "Trip Editor") }}</p>
         <h1>{{ state.metadata.name }}</h1>
       </div>
-      <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? 'Public' : 'Private' }}</span>
+      <span class="trip-editor-sidebar__status">{{ state.metadata.isPublic ? localize('Editor.TripPublic', 'Public') : localize('Editor.TripPrivate', 'Private') }}</span>
     </header>
 
     <template v-if="!mobileDrawerActive">
       <section class="trip-editor-panel trip-editor-sidebar-search">
         <label class="trip-editor-field">
-          <span>Sidebar search</span>
-          <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+          <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
+          <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
         </label>
-        <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
+        <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
       </section>
 
     </template>
 
-    <div class="trip-editor-mobile-drawer" aria-label="Trip editor mobile drawer">
-      <div v-if="!editorSurface.isMapWorkActive.value" class="trip-editor-mobile-drawer__state-controls" aria-label="Drawer size">
-        <button type="button" :aria-pressed="drawerMode === 'collapsed'" @click="setMobileDrawerState('collapsed')">Collapse</button>
-        <button type="button" :aria-pressed="drawerMode === 'peek'" @click="setMobileDrawerState('peek')">Peek</button>
-        <button type="button" :aria-pressed="drawerMode === 'expanded-view' || drawerMode === 'expanded-edit'" @click="setMobileDrawerState('expanded-view')">Expand</button>
+    <div class="trip-editor-mobile-drawer" :aria-label="localize('Editor.TripEditorMobileDrawer', 'Trip editor mobile drawer')">
+      <div v-if="!editorSurface.isMapWorkActive.value" class="trip-editor-mobile-drawer__state-controls" :aria-label="localize('Editor.DrawerSize', 'Drawer size')">
+        <button type="button" :aria-pressed="drawerMode === 'collapsed'" @click="setMobileDrawerState('collapsed')">{{ localize("Editor.Collapse", "Collapse") }}</button>
+        <button type="button" :aria-pressed="drawerMode === 'peek'" @click="setMobileDrawerState('peek')">{{ localize("Editor.Peek", "Peek") }}</button>
+        <button type="button" :aria-pressed="drawerMode === 'expanded-view' || drawerMode === 'expanded-edit'" @click="setMobileDrawerState('expanded-view')">{{ localize("Editor.Expand", "Expand") }}</button>
       </div>
 
-      <nav class="trip-editor-mobile-drawer__tabs" aria-label="Trip editor sections">
-        <button type="button" :class="{ active: activeMobileTab === 'trip' }" :aria-pressed="activeMobileTab === 'trip'" @click="setMobileTab('trip')">Trip</button>
-        <button type="button" :class="{ active: activeMobileTab === 'regions' }" :aria-pressed="activeMobileTab === 'regions'" @click="setMobileTab('regions')">Regions</button>
-        <button type="button" :class="{ active: activeMobileTab === 'segments' }" :aria-pressed="activeMobileTab === 'segments'" @click="setMobileTab('segments')">Segments</button>
+      <nav class="trip-editor-mobile-drawer__tabs" :aria-label="localize('Editor.TripEditorSections', 'Trip editor sections')">
+        <button type="button" :class="{ active: activeMobileTab === 'trip' }" :aria-pressed="activeMobileTab === 'trip'" @click="setMobileTab('trip')">{{ localize("Editor.Trip", "Trip") }}</button>
+        <button type="button" :class="{ active: activeMobileTab === 'regions' }" :aria-pressed="activeMobileTab === 'regions'" @click="setMobileTab('regions')">{{ localize("Editor.Regions", "Regions") }}</button>
+        <button type="button" :class="{ active: activeMobileTab === 'segments' }" :aria-pressed="activeMobileTab === 'segments'" @click="setMobileTab('segments')">{{ localize("Editor.Segments", "Segments") }}</button>
       </nav>
 
       <div class="trip-editor-mobile-drawer__body">
         <PlanCheck :state="state" :endpoint="editorEndpoint" :antiforgery="antiforgeryToken" :ordinary-dirty="regionDraftDirty || segmentDraftDirty" :surface="editorSurface" />
-        <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
+        <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" :aria-label="localize('Editor.TripTab', 'Trip tab')" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"
             :captured-map-view="capturedMapView"
@@ -323,20 +319,20 @@ function normalize(value: string): string {
 
           <section v-if="state.permissions.canReadVisitProgress" class="trip-editor-panel">
             <div class="trip-editor-panel__line">
-              <span>Visit progress</span>
+              <span>{{ localize("Editor.VisitProgress", "Visit progress") }}</span>
               <strong>{{ state.visitProgress.percentVisited }}%</strong>
             </div>
             <div class="trip-editor-progress" aria-hidden="true">
               <span :style="{ width: `${state.visitProgress.percentVisited}%` }"></span>
             </div>
             <div class="trip-editor-panel__line trip-editor-visit-progress-entry">
-              <p>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} places visited</p>
-              <button type="button" class="btn btn-outline-light btn-sm" @click="isVisitProgressOpen = true">Visits</button>
+              <p>{{ state.visitProgress.visitedPlaces }} / {{ state.visitProgress.totalPlaces }} {{ localize("Editor.PlacesVisited", "places visited") }}</p>
+              <button type="button" class="btn btn-outline-light btn-sm" @click="isVisitProgressOpen = true">{{ localize("Editor.Visits", "Visits") }}</button>
             </div>
           </section>
 
           <section v-if="state.tagOrder.length > 0" class="trip-editor-panel">
-            <h2>Tags</h2>
+            <h2>{{ localize("Editor.Tags", "Tags") }}</h2>
             <div class="trip-editor-tags">
               <span v-for="slug in state.tagOrder" :key="slug">{{ state.tagsBySlug[slug]?.name }}</span>
             </div>
@@ -355,13 +351,13 @@ function normalize(value: string): string {
           />
         </section>
 
-        <section v-show="!mobileDrawerActive || activeMobileTab === 'regions'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--regions" aria-label="Regions tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'regions'" :inert="mobileDrawerActive && activeMobileTab !== 'regions'">
+        <section v-show="!mobileDrawerActive || activeMobileTab === 'regions'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--regions" :aria-label="localize('Editor.RegionsTab', 'Regions tab')" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'regions'" :inert="mobileDrawerActive && activeMobileTab !== 'regions'">
           <section v-if="mobileDrawerActive" class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
-              <span>Sidebar search</span>
-              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+              <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
+              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
             </label>
-            <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
+            <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
           </section>
 
           <RegionManager
@@ -386,13 +382,13 @@ function normalize(value: string): string {
           />
         </section>
 
-        <section v-show="!mobileDrawerActive || activeMobileTab === 'segments'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--segments" aria-label="Segments tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'segments'" :inert="mobileDrawerActive && activeMobileTab !== 'segments'">
+        <section v-show="!mobileDrawerActive || activeMobileTab === 'segments'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--segments" :aria-label="localize('Editor.SegmentsTab', 'Segments tab')" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'segments'" :inert="mobileDrawerActive && activeMobileTab !== 'segments'">
           <section v-if="mobileDrawerActive" class="trip-editor-panel trip-editor-sidebar-search">
             <label class="trip-editor-field">
-              <span>Sidebar search</span>
-              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="`Search regions, places, areas, segments`" />
+              <span>{{ localize("Editor.SidebarSearch", "Sidebar search") }}</span>
+              <input v-model="searchQuery" type="search" autocomplete="off" :placeholder="localize('Editor.SearchTripEntities', 'Search regions, places, areas, segments')" />
             </label>
-            <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">No matching regions, places, areas, or segments.</p>
+            <p v-if="isSearchActive && !hasSidebarSearchMatches" class="trip-editor-empty-state">{{ localize("Editor.NoMatchingRegionsPlacesAreasOrSegments", "No matching regions, places, areas, or segments.") }}</p>
           </section>
 
           <SegmentManager

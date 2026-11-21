@@ -69,6 +69,10 @@ public sealed class PlanningCheckTests
         var result = PlanningCheckService.Run(graph, "alice", setup, Now);
         Assert.Contains(result.Findings, f => f.Check == "movement" && f.Result.Status == "risk" && f.Result.Minutes == 30 && f.Result.Message.Contains("Arrive by"));
         Assert.Contains(result.Findings, f => f.Check == "movement" && f.Result.Status == "completed" && f.Result.Minutes == 30 && f.Result.Message.Contains("Intended arrival"));
+        var assessed = Assert.Single(result.Findings, f => f.Result.Status == "risk" && f.Movement?.Deadline != null);
+        Assert.Equal("2027-03-02T12:00", assessed.Movement!.Deadline!.Local);
+        Assert.Equal(90d, assessed.Movement.Estimate.ManualEstimate);
+        Assert.True(assessed.Movement.Relevant);
         var later = result.Setup with { Transfers = [result.Setup.Transfers[0] with { ArrivalDeadline = new("dateTime", "2027-03-02T12:30", "UTC") }] };
         var changed = PlanningCheckService.Run(graph, "alice", later, Now);
         Assert.Empty(changed.Invalidated);
@@ -123,6 +127,10 @@ public sealed class PlanningCheckTests
         Assert.False(displayed.Setup.Transfers[0].Relevant);
         Assert.Contains("45 min", displayed.EstimateSources.Single().Description);
         Assert.Contains("Museum (0, 0) → Lunch (1, 1)", displayed.MovementEvidence.Single().Description);
+        var evidence = Assert.Single(displayed.MovementEvidence);
+        Assert.Equal(45d, evidence.Source?.Route?.Duration);
+        Assert.Equal(new[] { "Museum", "Lunch" }, evidence.Locations.Select(location => location.Name));
+        Assert.Equal(new[] { "Museum", "Lunch" }, evidence.Source!.Route!.Anchors.Select(anchor => anchor!.Name));
         var reconfirmed = displayed.Setup with { Transfers = [displayed.Setup.Transfers[0] with { Relevant = true,
             Dependency = displayed.MovementEvidence.Single().Dependency, Allowance = "additional", AllowanceMinutes = 15, Connection = "none" }] };
         var accepted = PlanningCheckService.Run(graph, "alice", reconfirmed, Now);

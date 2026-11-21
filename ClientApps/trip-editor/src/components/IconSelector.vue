@@ -3,6 +3,7 @@ let nextSelectorId = 0;
 </script>
 
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { placeMarkerIconUrl } from '../displayHelpers';
 
@@ -39,9 +40,9 @@ const filteredIcons = computed(() => {
 });
 const highlightedIcon = computed(() => filteredIcons.value[highlightedIndex.value] ?? '');
 const activeOptionId = computed(() => highlightedIcon.value ? optionId(highlightedIcon.value) : undefined);
-const searchLabel = computed(() => selectorKind.value === 'color' ? 'Search marker colors' : 'Search icons');
-const optionsLabel = computed(() => selectorKind.value === 'color' ? 'Marker color options' : 'Icon options');
-const searchPlaceholder = computed(() => selectorKind.value === 'color' ? 'Search colors' : 'Search icons');
+const searchLabel = computed(() => selectorKind.value === 'color' ? localize('Editor.SearchMarkerColors', 'Search marker colors') : localize('Editor.SearchIcons', 'Search icons'));
+const optionsLabel = computed(() => selectorKind.value === 'color' ? localize('Editor.MarkerColorOptions', 'Marker color options') : localize('Editor.IconOptions', 'Icon options'));
+const searchPlaceholder = computed(() => selectorKind.value === 'color' ? localize('Editor.SearchColors', 'Search colors') : localize('Editor.SearchIcons', 'Search icons'));
 
 /// Converts stored icon ids into the same readable labels used by the legacy searchable selector.
 const iconLabel = (icon: string): string => icon.replace(/[-_]+/g, ' ');
@@ -247,7 +248,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPoin
           <span v-else class="trip-editor-icon-selector__swatch" :class="icon" aria-hidden="true" data-color-selector-option-swatch></span>
           <span data-icon-selector-option-name>{{ optionLabel(icon) }}</span>
         </li>
-        <li v-if="filteredIcons.length === 0" class="trip-editor-icon-selector__empty">No matching icons.</li>
+        <li v-if="filteredIcons.length === 0" class="trip-editor-icon-selector__empty">{{ localize("Editor.NoMatchingIcons", "No matching icons.") }}</li>
       </ul>
     </div>
   </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize, number } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref } from 'vue';
 import type { EditorPlace, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState } from '../types';
 import { preserveWaypointRouteChange, type WaypointRouteChangeResult } from '../segments/segmentWaypointRoutePreservation';
@@ -26,7 +27,7 @@ const announcement = ref('');
 const preservedRouteFingerprint = ref<string | null>(null);
 const aggregateErrors = computed(() => [...new Set([...props.fieldErrors('waypointPlaceIds'), ...props.fieldErrors('waypointRouteVertexIndices')])]);
 const preservationMessage = computed(() => preservedRouteFingerprint.value === routeFingerprint()
-  ? 'Existing route geometry was preserved. The new connection to this Place is straight; edit the route or request an external route if needed.'
+  ? localize('Editor.WaypointGeometryPreserved', 'Existing route geometry was preserved. The new connection to this Place is straight; edit the route or request an external route if needed.')
   : null);
 
 defineExpose({ focusLegend: () => legend.value?.focus() });
@@ -48,7 +49,7 @@ function addWaypoint(): void {
   clearAggregateErrors();
   const name = placeName(row.placeId);
   placeToAdd.value = '';
-  announcement.value = `${name} added as intermediate place ${props.draft.waypointRows.length}.`;
+  announcement.value = localize('Editor.WaypointAdded', '{0} added as intermediate place {1}.', name, number(props.draft.waypointRows.length));
   void nextTick(() => rowControls.get(row.clientId)?.focus());
 }
 
@@ -71,7 +72,7 @@ function move(row: EditorSegmentWaypointDraftRow, offset: number): void {
   emit('semanticEditsUnsafe');
   preservedRouteFingerprint.value = null;
   syncWaypointArrays(props.draft);
-  announcement.value = `${placeName(row.placeId)} moved to position ${destination + 1}.`;
+  announcement.value = localize('Editor.WaypointMoved', '{0} moved to position {1}.', placeName(row.placeId), number(destination + 1));
   void nextTick(() => rowControls.get(row.clientId)?.focus());
 }
 
@@ -85,7 +86,7 @@ function remove(row: EditorSegmentWaypointDraftRow): void {
   applyPreservation(preservation);
   emit('clearError', `waypoint.${row.clientId}`);
   clearAggregateErrors();
-  announcement.value = `${name} removed.`;
+  announcement.value = localize('Editor.NamedItemRemoved', '{0} removed.', name);
   void nextTick(() => {
     const target = props.draft.waypointRows[index] ?? props.draft.waypointRows[index - 1];
     target ? rowControls.get(target.clientId)?.focus() : addSelect.value?.focus();
@@ -123,8 +124,11 @@ function endpointsMatchBaseline(): boolean {
   return props.draft.fromPlaceId === props.baselineDraft.fromPlaceId && props.draft.toPlaceId === props.baselineDraft.toPlaceId;
 }
 
+/** Preserves authored names and the referenced identity when a saved Place is unavailable. */
 function placeName(id: string | null): string {
-  return id ? props.state.placesById[id]?.name ?? `Unavailable place ${id}` : 'Place';
+  return id
+    ? props.state.placesById[id]?.name ?? localize('Editor.WaypointUnavailable', 'Unavailable place {0}', id)
+    : localize('Editor.SegmentPlaceUnset', 'Not selected');
 }
 
 /** Returns the indexed errors owned by one stable logical row. */
@@ -143,27 +147,31 @@ function clearAggregateErrors(): void {
   emit('clearError', 'waypointRouteVertexIndices');
 }
 
-const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.draft.fromPlaceId) : 'From not selected',
-  ...props.draft.waypointRows.map(row => placeName(row.placeId)), props.draft.toPlaceId ? placeName(props.draft.toPlaceId) : 'To not selected'].join(' → '));
+/** Pairs the visible journey with the current ordered draft anchors. */
+const journeyOrder = computed(() => [
+  props.draft.fromPlaceId ? placeName(props.draft.fromPlaceId) : localize('Editor.SegmentFromNotSelected', 'From not selected'),
+  ...props.draft.waypointRows.map(row => placeName(row.placeId)),
+  props.draft.toPlaceId ? placeName(props.draft.toPlaceId) : localize('Editor.SegmentToNotSelected', 'To not selected')
+].join(' → '));
 </script>
 
 <template>
   <fieldset class="segment-waypoints" data-segment-waypoint-group tabindex="-1" :disabled="isSaving" :aria-invalid="aggregateErrors.length > 0 ? 'true' : undefined" :aria-errormessage="aggregateErrors.length > 0 ? 'segment-waypoint-errors' : undefined">
-    <legend ref="legend" tabindex="-1">Intermediate places</legend>
-    <p v-if="draft.waypointRows.length === 0" class="trip-editor-empty-state">No intermediate saved Place selected.</p>
+    <legend ref="legend" tabindex="-1">{{ localize("Editor.IntermediatePlaces", "Intermediate places") }}</legend>
+    <p v-if="draft.waypointRows.length === 0" class="trip-editor-empty-state">{{ localize("Editor.NoIntermediateSavedPlaceSelected", "No intermediate saved Place selected.") }}</p>
     <div class="segment-waypoints__add">
       <label class="trip-editor-field">
-        <span>Place to add</span>
+        <span>{{ localize("Editor.PlaceToAdd", "Place to add") }}</span>
         <select ref="addSelect" v-model="placeToAdd">
-          <option value="">Select a saved Place</option>
+          <option value="">{{ localize("Editor.SelectASavedPlace", "Select a saved Place") }}</option>
           <option v-for="place in choices(null)" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </select>
       </label>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="!placeToAdd || isSaving" @click="addWaypoint">Add intermediate place</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="!placeToAdd || isSaving" @click="addWaypoint">{{ localize("Editor.AddIntermediatePlace", "Add intermediate place") }}</button>
     </div>
     <div v-for="(row, index) in draft.waypointRows" :key="row.clientId" class="segment-waypoints__row">
       <label class="trip-editor-field segment-waypoints__select">
-        <span>{{ `Intermediate place ${index + 1}: ${placeName(row.placeId)}` }}</span>
+        <span>{{ localize('Editor.WaypointLabel', 'Intermediate place {0}: {1}', number(index + 1), placeName(row.placeId)) }}</span>
         <select :ref="element => { if (element) rowControls.set(row.clientId, element as HTMLSelectElement); }" :data-waypoint-client-id="row.clientId" :value="row.placeId" :aria-invalid="rowErrors(row).length > 0 ? 'true' : undefined" :aria-errormessage="rowErrors(row).length > 0 ? rowErrorId(row.clientId) : undefined" @change="substitute(row, ($event.target as HTMLSelectElement).value)">
           <option v-if="!choices(row).some(place => place.id === row.placeId)" :value="row.placeId" disabled>{{ segmentPlaceUnavailableLabel(state, row.placeId) }}</option>
           <option v-for="place in choices(row)" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
@@ -173,16 +181,16 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
         </div>
       </label>
       <div class="segment-waypoints__actions">
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === 0 || isSaving" :aria-label="`Move ${placeName(row.placeId)} up`" @click="move(row, -1)">Move up</button>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === draft.waypointRows.length - 1 || isSaving" :aria-label="`Move ${placeName(row.placeId)} down`" @click="move(row, 1)">Move down</button>
-        <button type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" :aria-label="`Remove ${placeName(row.placeId)}`" @click="remove(row)">Remove</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === 0 || isSaving" :aria-label="localize('Editor.MoveNamedItemUp', 'Move {0} up', placeName(row.placeId))" @click="move(row, -1)">{{ localize("Editor.MoveUp", "Move up") }}</button>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="index === draft.waypointRows.length - 1 || isSaving" :aria-label="localize('Editor.MoveNamedItemDown', 'Move {0} down', placeName(row.placeId))" @click="move(row, 1)">{{ localize("Editor.MoveDown", "Move down") }}</button>
+        <button type="button" class="btn btn-outline-danger btn-sm" :disabled="isSaving" :aria-label="localize('Editor.RemoveNamedItem', 'Remove {0}', placeName(row.placeId))" @click="remove(row)">{{ localize("Editor.Remove", "Remove") }}</button>
       </div>
     </div>
     <div v-if="aggregateErrors.length > 0" id="segment-waypoint-errors">
       <small v-for="message in aggregateErrors" :key="message">{{ message }}</small>
     </div>
     <p v-if="preservationMessage" class="trip-editor-help" role="status">{{ preservationMessage }}</p>
-    <p><strong>Journey order:</strong> {{ journeyOrder }}</p>
+    <p><strong>{{ localize("Editor.JourneyOrder", "Journey order:") }}</strong> {{ journeyOrder }}</p>
     <span class="visually-hidden" aria-live="polite">{{ announcement }}</span>
   </fieldset>
 </template>

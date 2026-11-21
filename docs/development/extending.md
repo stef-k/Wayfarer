@@ -16,6 +16,9 @@ Check role/ownership, cancellation, request-size rules for uploads, `StoragePath
 
 **Lowest useful test:** controller/service behavioral test proving the requirement. Add a browser smoke only when the behavior cannot be credibly proved below the browser.
 
+For browser-facing copy, follow [Web localization](web-localization.md) for
+catalog ownership, locale-aware display, safe switching and validation.
+
 ## Add an API endpoint
 
 **Start with:** the cohesive controller in `Areas/Api/Controllers/`; use its existing service and DTO conventions. For Trip Editor work, extend the `TripEditorController` partial family rather than introducing a parallel API.

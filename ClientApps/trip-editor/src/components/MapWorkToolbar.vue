@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import SegmentRoutePointEditor from './SegmentRoutePointEditor.vue';
@@ -55,7 +56,7 @@ watch(
 </script>
 
 <template>
-  <div v-if="mapWork" class="trip-editor-map-work-toolbar" role="region" aria-label="Map work" tabindex="-1" @keydown="onKeydown">
+  <div v-if="mapWork" class="trip-editor-map-work-toolbar" role="region" :aria-label="localize('Editor.MapWork', 'Map work')" tabindex="-1" @keydown="onKeydown">
     <div>
       <p class="trip-editor-surface__eyebrow">{{ mapWork.target.title }}</p>
       <strong>{{ mapWork.modeName }}</strong>
@@ -63,9 +64,9 @@ watch(
       <small>{{ statusText }}</small>
     </div>
     <div class="trip-editor-map-work-toolbar__actions">
-      <button ref="doneButton" type="button" class="btn btn-primary btn-sm" :disabled="!canFinish" @click="finish">Done</button>
-      <button v-if="canClear" type="button" class="btn btn-outline-light btn-sm" @click="mapWork?.clear?.()">Clear Route</button>
-      <button type="button" class="btn btn-outline-light btn-sm" @click="controller.cancelMapWork()">Cancel</button>
+      <button ref="doneButton" type="button" class="btn btn-primary btn-sm" :disabled="!canFinish" @click="finish">{{ localize("Editor.Done", "Done") }}</button>
+      <button v-if="canClear" type="button" class="btn btn-outline-light btn-sm" @click="mapWork?.clear?.()">{{ localize("Editor.ClearRoute", "Clear Route") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm" @click="controller.cancelMapWork()">{{ localize("Shell.Cancel", "Cancel") }}</button>
     </div>
     <SegmentRoutePointEditor v-if="routePointEditor" ref="routePointEditorView" :controller="routePointEditor" />
   </div>

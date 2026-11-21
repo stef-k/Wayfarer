@@ -490,7 +490,7 @@ test('actual App Name validation 400 retains multi-field intent and allows corre
     calls.push(JSON.parse(init.body));
     return calls.length === 1
       ? new Response(JSON.stringify({ code: 'mutation-request-invalid', detail: 'Check the requested Area fields.',
-        errors: { name: ['Area name must be 200 characters or fewer.'] } }), { status: 400 })
+        errors: { name: ['Name must contain 1 through 200 characters.'] } }), { status: 400 })
       : new Response(JSON.stringify(envelope(area({ name: 'x'.repeat(200), notesHtml: 'Authored notes' }))));
   };
   await editor.openAreaEdit(parent.state.areasById.area);
@@ -500,7 +500,7 @@ test('actual App Name validation 400 retains multi-field intent and allows corre
   await editor.saveAreaDraft();
   assert.equal(editor.areaDraft.name.length, 201);
   assert.equal(editor.areaDraft.notesHtml, 'Authored notes');
-  assert.deepEqual(editor.fieldErrors('name'), ['Area name must be 200 characters or fewer.']);
+  assert.deepEqual(editor.fieldErrors('name'), ['Name must contain 1 through 200 characters.']);
   assert.equal(editor.statusText, 'Save failed');
   assert.equal(editor.areaDraftState.uncertain.value, false);
   editor.areaDraft.name = 'x'.repeat(200);

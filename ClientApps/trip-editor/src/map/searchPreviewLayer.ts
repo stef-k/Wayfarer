@@ -1,4 +1,5 @@
 import L, { type Map as LeafletMap } from 'leaflet';
+import { message } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorCoordinate } from '../types';
 import { previewMarkerIcon } from './markerRendering';
 
@@ -15,7 +16,7 @@ export const createSearchPreviewLayer = (map: LeafletMap): {
   };
 
   const show = (coordinate: EditorCoordinate, label: string): void => {
-    const title = `Search result preview: ${label}`;
+    const title = message('Editor.SearchPreviewMarker', 'Search result preview: {0}', label);
     clear();
     L.marker([coordinate.latitude, coordinate.longitude], {
       icon: previewMarkerIcon('search', title),

@@ -1,4 +1,7 @@
-﻿// Custom control to display zoom level and copy permalink with theme support
+import { message, number } from './localization/messages.js';
+import { formatMapDistance, measureInstructions } from './localization/mapMeasurementText.js';
+
+// Custom control to display zoom level and copy permalink with theme support
 // import * as turf from '@turf/turf';
 const ZoomLevelControl = L.Control.extend({
     onAdd: function (map) {
@@ -7,12 +10,13 @@ const ZoomLevelControl = L.Control.extend({
 
         // Create zoom text
         const zoomText = L.DomUtil.create('span', '', container);
-        zoomText.textContent = `Zoom: ${map.getZoom()}`;
+        zoomText.textContent = message('Shell.MapZoomLevel', 'Zoom: {0}', number(map.getZoom()));
 
         // Ruler (measure) button
         const measureBtn = L.DomUtil.create('button', '', container);
-        measureBtn.title = 'Measure distance';
-        measureBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg" alt="Measure" style="width:1.2em; height:1.2em;" />`;
+        measureBtn.title = message('Shell.MeasureDistance', 'Measure distance');
+        measureBtn.setAttribute('aria-label', measureBtn.title);
+        measureBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg" alt="" style="width:1.2em; height:1.2em;" />`;
 
         let measureActive = false;
         let currentTool = null;
@@ -48,12 +52,13 @@ const ZoomLevelControl = L.Control.extend({
 
         // Create copy button using Bootstrap Icon
         const copyBtn = L.DomUtil.create('button', '', container);
-        copyBtn.title = 'Copy map link';
-        copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
+        copyBtn.title = message('Shell.CopyMapLink', 'Copy map link');
+        copyBtn.setAttribute('aria-label', copyBtn.title);
+        copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="" style="width:1.2em; height:1.2em;" />`;
 
         // Update zoom text on zoom changes
         map.on('zoomend', () => {
-            zoomText.textContent = `Zoom: ${map.getZoom()}`;
+            zoomText.textContent = message('Shell.MapZoomLevel', 'Zoom: {0}', number(map.getZoom()));
         });
 
         // Copy current URL to clipboard on button click
@@ -61,9 +66,11 @@ const ZoomLevelControl = L.Control.extend({
             L.DomEvent.stopPropagation(e);
             const url = window.location.href;
             const showSuccess = () => {
-                copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/check.svg" alt="Copied" style="width:1.2em; height:1.2em;" />`;
+                copyBtn.setAttribute('aria-label', message('Shell.MapLinkCopied', 'Map link copied'));
+                copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/check.svg" alt="" style="width:1.2em; height:1.2em;" />`;
                 setTimeout(() => {
-                    copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="Copy link" style="width:1.2em; height:1.2em;" />`;
+                    copyBtn.setAttribute('aria-label', copyBtn.title);
+                    copyBtn.innerHTML = `<img src="/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg" alt="" style="width:1.2em; height:1.2em;" />`;
                 }, 1500);
             };
 
@@ -108,6 +115,7 @@ export const liveMarker = L.divIcon({
     iconAnchor: [18, 18],
 });
 
+/** Owns the temporary ruler layers and renders localized guidance and distance labels. */
 export const initDistanceMeasureTool = (map, options   = {}) => {
     const { onFinish, onCancel } = options;
     const points = [];
@@ -162,10 +170,13 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
         }
 
         const last = points.at(-1);
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-dark';
+        badge.textContent = formatMapDistance(km);
         const label = L.marker(last, {
             icon: L.divIcon({
                 className: 'distance-label',
-                html: `<span class="badge bg-dark">${km.toFixed(2)} km</span>`,
+                html: badge,
                 iconSize: [60, 24],
                 iconAnchor: [30, 12]
             })
@@ -209,7 +220,8 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
     helpControl = L.control({ position: 'bottomleft' });
     helpControl.onAdd = () => {
         const div = L.DomUtil.create('div', 'leaflet-bar help-popup');
-        div.innerHTML = '🖱 Click to add points<br>⎋ ESC to cancel';
+        const [addPoints, cancel] = measureInstructions();
+        div.append('🖱 ', addPoints, document.createElement('br'), '⎋ ', cancel);
         return div;
     };
     helpControl.addTo(map);

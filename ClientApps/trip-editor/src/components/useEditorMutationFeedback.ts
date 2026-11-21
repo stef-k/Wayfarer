@@ -1,3 +1,6 @@
+import { date } from '../../../../wwwroot/js/localization/messages.js';
+import { editorFieldError } from '../editorValidation';
+import { editorErrorText } from './editorFeedbackText';
 import { computed, ref, type ComputedRef } from 'vue';
 import { EditorValidationError } from '../api/tripEditorApi';
 
@@ -63,7 +66,7 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
 
   const formSummaryErrors = computed(() => {
     const fields = options.isAreaDraftOpen.value ? options.areaFields : options.isPlaceDraftOpen.value ? options.placeFields : options.regionFields;
-    return Object.entries(validationErrors.value).filter(([key]) => !fields.includes(key)).flatMap(([, messages]) => messages);
+    return Object.entries(validationErrors.value).filter(([key]) => !fields.includes(key)).flatMap(([, messages]) => messages.map(editorFieldError));
   });
 
   function applyError(error: unknown, fallback: string): void {
@@ -71,19 +74,19 @@ export function useEditorMutationFeedback(options: FeedbackOptions) {
 
     if (error instanceof EditorValidationError) {
       validationErrors.value = error.errors;
-      saveError.value = error.message;
+      saveError.value = editorErrorText(error, fallback);
       return;
     }
 
-    saveError.value = error instanceof Error ? error.message : fallback;
+    saveError.value = editorErrorText(error, fallback);
   }
 
   function fieldErrors(key: string): string[] {
-    return validationErrors.value[key] ?? [];
+    return (validationErrors.value[key] ?? []).map(editorFieldError);
   }
 
   function markSaved(warningMessages: string[] = [], savedLabel = 'Saved'): void {
-    lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    lastSavedAt.value = date(new Date(), { timeStyle: 'short' });
     lastSavedLabel.value = savedLabel;
     saveError.value = null;
     saveWarning.value = warningMessages.length > 0 ? warningMessages.join(' ') : null;

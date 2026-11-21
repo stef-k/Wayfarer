@@ -1,0 +1,474 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Shell.Language" xml:space="preserve">
+    <value>Γλώσσα</value>
+  </data>
+  <data name="Shell.Apply" xml:space="preserve">
+    <value>Εφαρμογή</value>
+  </data>
+  <data name="Shell.Cancel" xml:space="preserve">
+    <value>Ακύρωση</value>
+  </data>
+  <data name="Shell.KeepEditing" xml:space="preserve">
+    <value>Συνέχεια επεξεργασίας</value>
+  </data>
+  <data name="Shell.DiscardAndSwitch" xml:space="preserve">
+    <value>Απόρριψη αλλαγών και αλλαγή γλώσσας</value>
+  </data>
+  <data name="Shell.LanguageDiscard" xml:space="preserve">
+    <value>Η αλλαγή γλώσσας φορτώνει ξανά τη σελίδα και απορρίπτει τις μη αποθηκευμένες αλλαγές. Ενέργειες που έχουν ήδη υποβληθεί μπορεί ακόμη να ολοκληρωθούν.</value>
+  </data>
+  <data name="Shell.LanguageFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση της γλώσσας. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Shell.Close" xml:space="preserve">
+    <value>Κλείσιμο</value>
+  </data>
+  <data name="Shell.Home" xml:space="preserve">
+    <value>Αρχική</value>
+  </data>
+  <data name="Shell.Trips" xml:space="preserve">
+    <value>Ταξίδια</value>
+  </data>
+  <data name="Shell.Docs" xml:space="preserve">
+    <value>Τεκμηρίωση</value>
+  </data>
+  <data name="Shell.Mobile" xml:space="preserve">
+    <value>Εφαρμογή κινητού</value>
+  </data>
+  <data name="Shell.Privacy" xml:space="preserve">
+    <value>Απόρρητο</value>
+  </data>
+  <data name="Shell.ToggleNavigation" xml:space="preserve">
+    <value>Εναλλαγή πλοήγησης</value>
+  </data>
+  <data name="Shell.HomeLink" xml:space="preserve">
+    <value>Μετάβαση στην αρχική σελίδα</value>
+  </data>
+  <data name="Shell.PublicTripsLink" xml:space="preserve">
+    <value>Προβολή δημόσιων ταξιδιών χρηστών</value>
+  </data>
+  <data name="Shell.ReadDocs" xml:space="preserve">
+    <value>Διαβάστε την τεκμηρίωση</value>
+  </data>
+  <data name="Shell.MobileDocs" xml:space="preserve">
+    <value>Τεκμηρίωση εφαρμογής κινητού</value>
+  </data>
+  <data name="Shell.PrivacyLink" xml:space="preserve">
+    <value>Διαβάστε την πολιτική απορρήτου</value>
+  </data>
+  <data name="Shell.BackToTop" xml:space="preserve">
+    <value>Στην αρχή της σελίδας</value>
+  </data>
+  <data name="Shell.AuthorSite" xml:space="preserve">
+    <value>Επισκεφθείτε το ιστολόγιο του Stef</value>
+  </data>
+  <data name="Shell.SourceLink" xml:space="preserve">
+    <value>Πηγαίος κώδικας του Wayfarer στο GitHub</value>
+  </data>
+  <data name="Shell.ConfirmAction" xml:space="preserve">
+    <value>Επιβεβαίωση ενέργειας</value>
+  </data>
+  <data name="Shell.ConfirmMessage" xml:space="preserve">
+    <value>Θέλετε σίγουρα να συνεχίσετε;</value>
+  </data>
+  <data name="Shell.Confirm" xml:space="preserve">
+    <value>Επιβεβαίωση</value>
+  </data>
+  <data name="Shell.ChangeTheme" xml:space="preserve">
+    <value>Αλλαγή θέματος</value>
+  </data>
+  <data name="Shell.Menu" xml:space="preserve">
+    <value>Μενού</value>
+  </data>
+  <data name="Shell.Logout" xml:space="preserve">
+    <value>Αποσύνδεση</value>
+  </data>
+  <data name="Shell.Register" xml:space="preserve">
+    <value>Εγγραφή</value>
+  </data>
+  <data name="Shell.Login" xml:space="preserve">
+    <value>Σύνδεση</value>
+  </data>
+  <data name="Shell.Users" xml:space="preserve">
+    <value>Χρήστες</value>
+  </data>
+  <data name="Shell.Jobs" xml:space="preserve">
+    <value>Εργασίες</value>
+  </data>
+  <data name="Shell.AuditLogs" xml:space="preserve">
+    <value>Καταγραφές ελέγχου</value>
+  </data>
+  <data name="Shell.ApplicationSettings" xml:space="preserve">
+    <value>Ρυθμίσεις εφαρμογής</value>
+  </data>
+  <data name="Shell.ActivityTypes" xml:space="preserve">
+    <value>Τύποι δραστηριότητας</value>
+  </data>
+  <data name="Shell.TransportProfiles" xml:space="preserve">
+    <value>Προφίλ μετακίνησης</value>
+  </data>
+  <data name="Shell.ApplicationLogs" xml:space="preserve">
+    <value>Καταγραφές εφαρμογής</value>
+  </data>
+  <data name="Shell.MyAccount" xml:space="preserve">
+    <value>Ο λογαριασμός μου</value>
+  </data>
+  <data name="Shell.ManageAccount" xml:space="preserve">
+    <value>Διαχείριση λογαριασμού</value>
+  </data>
+  <data name="Shell.AdminRole" xml:space="preserve">
+    <value>{0} (Διαχειριστής συστήματος)</value>
+  </data>
+  <data name="Shell.ManagerRole" xml:space="preserve">
+    <value>{0} (Υπεύθυνος διαχείρισης)</value>
+  </data>
+  <data name="Shell.Groups" xml:space="preserve">
+    <value>Ομάδες</value>
+  </data>
+  <data name="Shell.CreateGroup" xml:space="preserve">
+    <value>Δημιουργία ομάδας</value>
+  </data>
+  <data name="Shell.ApiTokens" xml:space="preserve">
+    <value>Διακριτικά API</value>
+  </data>
+  <data name="Shell.Timeline" xml:space="preserve">
+    <value>Χρονολόγιο</value>
+  </data>
+  <data name="Shell.TimelineNavigation" xml:space="preserve">
+    <value>Περιήγηση στο χρονολόγιο ανά ημερομηνία, μήνα ή έτος</value>
+  </data>
+  <data name="Shell.PrivateTimeline" xml:space="preserve">
+    <value>Το ιδιωτικό μου χρονολόγιο</value>
+  </data>
+  <data name="Shell.PrivateTimelineLink" xml:space="preserve">
+    <value>Προβολή του ιδιωτικού χρονολογίου</value>
+  </data>
+  <data name="Shell.Locations" xml:space="preserve">
+    <value>Καταγραφές τοποθεσίας</value>
+  </data>
+  <data name="Shell.LocationsMap" xml:space="preserve">
+    <value>Διαχείριση καταγραφών σε πίνακα και χάρτη</value>
+  </data>
+  <data name="Shell.AllLocations" xml:space="preserve">
+    <value>Όλες οι καταγραφές τοποθεσίας</value>
+  </data>
+  <data name="Shell.LocationsTable" xml:space="preserve">
+    <value>Διαχείριση καταγραφών σε πίνακα</value>
+  </data>
+  <data name="Shell.BulkEditNotes" xml:space="preserve">
+    <value>Μαζική επεξεργασία σημειώσεων</value>
+  </data>
+  <data name="Shell.BulkEditNotesLink" xml:space="preserve">
+    <value>Μαζική επεξεργασία σημειώσεων καταγραφών με φίλτρα</value>
+  </data>
+  <data name="Shell.LocationImports" xml:space="preserve">
+    <value>Εισαγωγές καταγραφών</value>
+  </data>
+  <data name="Shell.UploadLocationData" xml:space="preserve">
+    <value>Μεταφόρτωση δεδομένων τοποθεσίας</value>
+  </data>
+  <data name="Shell.MyTripsLink" xml:space="preserve">
+    <value>Προβολή, επεξεργασία, διαγραφή ή δημιουργία ταξιδιών</value>
+  </data>
+  <data name="Shell.TripVisitHistory" xml:space="preserve">
+    <value>Ιστορικό επισκέψεων ταξιδιών</value>
+  </data>
+  <data name="Shell.TripVisitHistoryLink" xml:space="preserve">
+    <value>Προβολή και διαχείριση ιστορικού επισκέψεων σε τοποθεσίες ταξιδιών</value>
+  </data>
+  <data name="Shell.HiddenAreas" xml:space="preserve">
+    <value>Κρυφές ζώνες</value>
+  </data>
+  <data name="Shell.HiddenAreasLink" xml:space="preserve">
+    <value>Ορισμός ζωνών που αποκρύπτονται από τα δημόσια χρονολόγια</value>
+  </data>
+  <data name="Shell.MyGroups" xml:space="preserve">
+    <value>Οι ομάδες μου</value>
+  </data>
+  <data name="Shell.MembershipsLink" xml:space="preserve">
+    <value>Προβολή και διαχείριση συμμετοχών σε ομάδες</value>
+  </data>
+  <data name="Shell.Invitations" xml:space="preserve">
+    <value>Προσκλήσεις</value>
+  </data>
+  <data name="Shell.ManageInvitations" xml:space="preserve">
+    <value>Προβολή και διαχείριση προσκλήσεων</value>
+  </data>
+  <data name="Shell.Settings" xml:space="preserve">
+    <value>Ρυθμίσεις</value>
+  </data>
+  <data name="Shell.SettingsLink" xml:space="preserve">
+    <value>Ρυθμίσεις χρονολογίου, συνδέσεις εφαρμογών και προσωπικοί πάροχοι τοποθεσίας</value>
+  </data>
+  <data name="Shell.NotFound" xml:space="preserve">
+    <value>Η σελίδα δεν βρέθηκε</value>
+  </data>
+  <data name="Shell.LostWay" xml:space="preserve">
+    <value>Μήπως χάσατε τον δρόμο σας;</value>
+  </data>
+  <data name="Shell.Logo" xml:space="preserve">
+    <value>Λογότυπο του Wayfarer</value>
+  </data>
+  <data name="Shell.ReturnHome" xml:space="preserve">
+    <value>Επιστροφή στην αρχική σελίδα</value>
+  </data>
+  <data name="Shell.ErrorTitle" xml:space="preserve">
+    <value>Σφάλμα</value>
+  </data>
+  <data name="Shell.ErrorHeading" xml:space="preserve">
+    <value>Σφάλμα</value>
+  </data>
+  <data name="Shell.RequestError" xml:space="preserve">
+    <value>Προέκυψε σφάλμα κατά την επεξεργασία του αιτήματός σας.</value>
+  </data>
+  <data name="Shell.RequestId" xml:space="preserve">
+    <value>Αναγνωριστικό αιτήματος:</value>
+  </data>
+  <data name="Shell.DevelopmentMode" xml:space="preserve">
+    <value>Λειτουργία ανάπτυξης</value>
+  </data>
+  <data name="Shell.DevelopmentDetails" xml:space="preserve">
+    <value>Η λειτουργία Development εμφανίζει περισσότερες πληροφορίες για το σφάλμα.</value>
+  </data>
+  <data name="Shell.DevelopmentWarning" xml:space="preserve">
+    <value>Η λειτουργία Development πρέπει να παραμένει απενεργοποιημένη σε εγκαταστάσεις παραγωγής.</value>
+  </data>
+  <data name="Shell.DevelopmentSensitive" xml:space="preserve">
+    <value>Οι λεπτομέρειες εξαιρέσεων μπορεί να αποκαλύψουν ευαίσθητες πληροφορίες στους χρήστες.</value>
+  </data>
+  <data name="Shell.DevelopmentHelp" xml:space="preserve">
+    <value>Για τοπική αποσφαλμάτωση, ορίστε τη μεταβλητή {0} σε {1} και επανεκκινήστε την εφαρμογή.</value>
+  </data>
+  <data name="Shell.InvitationsPending.one" xml:space="preserve">
+    <value>Έχετε {0} πρόσκληση σε εκκρεμότητα. Ανοίξτε Χρήστης → Προσκλήσεις για να τη δείτε.</value>
+  </data>
+  <data name="Shell.InvitationsPending.other" xml:space="preserve">
+    <value>Έχετε {0} προσκλήσεις σε εκκρεμότητα. Ανοίξτε Χρήστης → Προσκλήσεις για να τις δείτε.</value>
+  </data>
+  <data name="Shell.InvitationsReceived" xml:space="preserve">
+    <value>Νέες προσκλήσεις για: {0}. Ανοίξτε Χρήστης → Προσκλήσεις.</value>
+  </data>
+  <data name="Shell.GroupUpdates" xml:space="preserve">
+    <value>Πρόσφατες ενημερώσεις ομάδων: {0}. Ανοίξτε Διαχείριση → Ομάδες.</value>
+  </data>
+  <data name="Shell.GroupJoined" xml:space="preserve">
+    <value>Προστεθήκατε στις ομάδες: {0}</value>
+  </data>
+  <data name="Shell.GroupRemoved" xml:space="preserve">
+    <value>Αφαιρεθήκατε από τις ομάδες: {0}</value>
+  </data>
+  <data name="Shell.GroupLeft" xml:space="preserve">
+    <value>Αποχωρήσατε από τις ομάδες: {0}</value>
+  </data>
+  <data name="Shell.MapAttribution" xml:space="preserve">
+    <value>Αναφορά προέλευσης χάρτη</value>
+  </data>
+  <data name="Shell.ZoomIn" xml:space="preserve">
+    <value>Μεγέθυνση</value>
+  </data>
+  <data name="Shell.ZoomOut" xml:space="preserve">
+    <value>Σμίκρυνση</value>
+  </data>
+  <data name="Shell.UrlCopied" xml:space="preserve">
+    <value>Ο σύνδεσμος αντιγράφηκε στο πρόχειρο.</value>
+  </data>
+  <data name="Shell.UrlCopyFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αντιγραφή του συνδέσμου.</value>
+  </data>
+  <data name="Shell.Notes" xml:space="preserve">
+    <value>Σημειώσεις</value>
+  </data>
+  <data name="Shell.Paragraph" xml:space="preserve">
+    <value>Παράγραφος</value>
+  </data>
+  <data name="Shell.Heading" xml:space="preserve">
+    <value>Επικεφαλίδα</value>
+  </data>
+  <data name="Shell.Bold" xml:space="preserve">
+    <value>Έντονα</value>
+  </data>
+  <data name="Shell.Italic" xml:space="preserve">
+    <value>Πλάγια</value>
+  </data>
+  <data name="Shell.Underline" xml:space="preserve">
+    <value>Υπογράμμιση</value>
+  </data>
+  <data name="Shell.OrderedList" xml:space="preserve">
+    <value>Αριθμημένη λίστα</value>
+  </data>
+  <data name="Shell.BulletList" xml:space="preserve">
+    <value>Λίστα με κουκκίδες</value>
+  </data>
+  <data name="Shell.Left" xml:space="preserve">
+    <value>Αριστερά</value>
+  </data>
+  <data name="Shell.Center" xml:space="preserve">
+    <value>Κέντρο</value>
+  </data>
+  <data name="Shell.Right" xml:space="preserve">
+    <value>Δεξιά</value>
+  </data>
+  <data name="Shell.Alignment" xml:space="preserve">
+    <value>Στοίχιση</value>
+  </data>
+  <data name="Shell.Link" xml:space="preserve">
+    <value>Σύνδεσμος</value>
+  </data>
+  <data name="Shell.Image" xml:space="preserve">
+    <value>Εικόνα</value>
+  </data>
+  <data name="Shell.DefaultFont" xml:space="preserve">
+    <value>Προεπιλεγμένη γραμματοσειρά</value>
+  </data>
+  <data name="Shell.Serif" xml:space="preserve">
+    <value>Με ακρέμονες</value>
+  </data>
+  <data name="Shell.Monospace" xml:space="preserve">
+    <value>Σταθερού πλάτους</value>
+  </data>
+  <data name="Shell.Font" xml:space="preserve">
+    <value>Γραμματοσειρά</value>
+  </data>
+  <data name="Shell.RemoveFormatting" xml:space="preserve">
+    <value>Αφαίρεση μορφοποίησης</value>
+  </data>
+  <data name="Shell.NotesLegacyFormatting" xml:space="preserve">
+    <value>Η παλαιότερη μορφοποίηση ίσως χρειαστεί διόρθωση κατά την επεξεργασία. Με το κουμπί «Εικόνα» εισάγετε σύνδεσμο εικόνας HTTP(S).</value>
+  </data>
+  <data name="Shell.Unlink" xml:space="preserve">
+    <value>Κατάργηση συνδέσμου</value>
+  </data>
+  <data name="Shell.FollowLink" xml:space="preserve">
+    <value>Άνοιγμα συνδέσμου</value>
+  </data>
+  <data name="Shell.SidebarWidth" xml:space="preserve">
+    <value>Πλάτος πλαϊνής στήλης</value>
+  </data>
+  <data name="Shell.Standard" xml:space="preserve">
+    <value>Κανονικό</value>
+  </data>
+  <data name="Shell.Half" xml:space="preserve">
+    <value>Μισό</value>
+  </data>
+  <data name="Shell.Full" xml:space="preserve">
+    <value>Πλήρες</value>
+  </data>
+  <data name="Shell.Custom" xml:space="preserve">
+    <value>Προσαρμοσμένο</value>
+  </data>
+  <data name="Shell.Hide" xml:space="preserve">
+    <value>Απόκρυψη</value>
+  </data>
+  <data name="Shell.HideSidebar" xml:space="preserve">
+    <value>Απόκρυψη πλαϊνής στήλης</value>
+  </data>
+  <data name="Shell.ResizeSidebar" xml:space="preserve">
+    <value>Αλλαγή πλάτους πλαϊνής στήλης</value>
+  </data>
+  <data name="Shell.ResizeSidebarInstructions" xml:space="preserve">
+    <value>Αλλαγή πλάτους: βέλη 20 px, Shift και βέλη 100 px, Home ελάχιστο, End πλήρες, Escape ακύρωση σύρσης</value>
+  </data>
+  <data name="Shell.ShowSidebar" xml:space="preserve">
+    <value>Εμφάνιση πλαϊνής στήλης</value>
+  </data>
+  <data name="Shell.LatitudeShort" xml:space="preserve">
+    <value>Πλάτος:</value>
+  </data>
+  <data name="Shell.LongitudeShort" xml:space="preserve">
+    <value>Μήκος:</value>
+  </data>
+  <data name="Shell.AddressLabel" xml:space="preserve">
+    <value>Διεύθυνση:</value>
+  </data>
+  <data name="Shell.NotesLabel" xml:space="preserve">
+    <value>Σημειώσεις:</value>
+  </data>
+  <data name="Shell.ContainsMedia" xml:space="preserve">
+    <value>[Περιέχει πολυμέσα]</value>
+  </data>
+  <data name="Shell.MediaPrefix" xml:space="preserve">
+    <value>[Πολυμέσα] </value>
+  </data>
+  <data name="Shell.MapZoomLevel" xml:space="preserve">
+    <value>Εστίαση: {0}</value>
+  </data>
+  <data name="Shell.FullMap" xml:space="preserve">
+    <value>Άνοιγμα πλήρους προβολής</value>
+  </data>
+  <data name="Shell.FullMapNewTab" xml:space="preserve">
+    <value>Άνοιγμα πλήρους προβολής σε νέα καρτέλα</value>
+  </data>
+  <data name="Shell.MapInteraction" xml:space="preserve">
+    <value>Χρησιμοποιήστε δύο δάχτυλα για να μετακινήσετε τον χάρτη</value>
+  </data>
+  <data name="Shell.MeasureDistance" xml:space="preserve">
+    <value>Μέτρηση απόστασης</value>
+  </data>
+  <data name="Shell.MeasureAddPoints" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε σημεία.</value>
+  </data>
+  <data name="Shell.MeasureCancel" xml:space="preserve">
+    <value>Πατήστε Esc για ακύρωση.</value>
+  </data>
+  <data name="Shell.CopyMapLink" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου χάρτη</value>
+  </data>
+  <data name="Shell.MapLinkCopied" xml:space="preserve">
+    <value>Ο σύνδεσμος χάρτη αντιγράφηκε</value>
+  </data>
+  <data name="Shell.MapLinkCopiedClipboard" xml:space="preserve">
+    <value>Ο σύνδεσμος του χάρτη αντιγράφηκε στο πρόχειρο</value>
+  </data>
+  <data name="Shell.NoteSafeLink" xml:space="preserve">
+    <value>Εισαγάγετε ασφαλή σύνδεσμο ή διεύθυνση εικόνας HTTP(S).</value>
+  </data>
+  <data name="Shell.NoteAbsoluteImage" xml:space="preserve">
+    <value>Εισαγάγετε πλήρη διεύθυνση εικόνας HTTP(S).</value>
+  </data>
+  <data name="Shell.NoteFollowSafeLink" xml:space="preserve">
+    <value>Εισαγάγετε ασφαλή σύνδεσμο πριν τον ανοίξετε.</value>
+  </data>
+  <data name="Shell.NoteFormatting" xml:space="preserve">
+    <value>Μορφοποίηση · {0}</value>
+  </data>
+  <data name="Shell.NoteInsertImageUrl" xml:space="preserve">
+    <value>Εισαγωγή διεύθυνσης εικόνας</value>
+  </data>
+  <data name="Shell.NoteEditLink" xml:space="preserve">
+    <value>Επεξεργασία συνδέσμου</value>
+  </data>
+  <data name="Shell.NoteImageUrl" xml:space="preserve">
+    <value>Διεύθυνση εικόνας</value>
+  </data>
+  <data name="Shell.NoteLinkUrl" xml:space="preserve">
+    <value>Διεύθυνση συνδέσμου</value>
+  </data>
+  <data name="Shell.NoteInsertImage" xml:space="preserve">
+    <value>Εισαγωγή εικόνας</value>
+  </data>
+  <data name="Shell.StartMeasure" xml:space="preserve">
+    <value>Κάντε κλικ στον χάρτη για μέτρηση απόστασης. Κάντε διπλό κλικ για ολοκλήρωση ή πατήστε Esc για ακύρωση.</value>
+  </data>
+  <data name="Shell.DisplayKilometres" xml:space="preserve">
+    <value>{0} χλμ.</value>
+  </data>
+  <data name="Shell.DisplayMetres" xml:space="preserve">
+    <value>{0} μ.</value>
+  </data>
+  <data name="Shell.UnassignedPlaces" xml:space="preserve">
+    <value>Τοποθεσίες χωρίς περιοχή</value>
+  </data>
+</root>

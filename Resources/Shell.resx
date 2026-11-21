@@ -1,0 +1,474 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Shell.Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Shell.Apply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Shell.Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Shell.KeepEditing" xml:space="preserve">
+    <value>Keep editing</value>
+  </data>
+  <data name="Shell.DiscardAndSwitch" xml:space="preserve">
+    <value>Discard changes and switch</value>
+  </data>
+  <data name="Shell.LanguageDiscard" xml:space="preserve">
+    <value>Switching languages reloads this page and discards unsaved work. Work already submitted may still finish.</value>
+  </data>
+  <data name="Shell.LanguageFailed" xml:space="preserve">
+    <value>Could not save the language preference. Try again.</value>
+  </data>
+  <data name="Shell.Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Shell.Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Shell.Trips" xml:space="preserve">
+    <value>Trips</value>
+  </data>
+  <data name="Shell.Docs" xml:space="preserve">
+    <value>Docs</value>
+  </data>
+  <data name="Shell.Mobile" xml:space="preserve">
+    <value>Mobile</value>
+  </data>
+  <data name="Shell.Privacy" xml:space="preserve">
+    <value>Privacy</value>
+  </data>
+  <data name="Shell.ToggleNavigation" xml:space="preserve">
+    <value>Toggle navigation</value>
+  </data>
+  <data name="Shell.HomeLink" xml:space="preserve">
+    <value>Navigate to Home page (/)</value>
+  </data>
+  <data name="Shell.PublicTripsLink" xml:space="preserve">
+    <value>See public trips made by users</value>
+  </data>
+  <data name="Shell.ReadDocs" xml:space="preserve">
+    <value>Read the documentation</value>
+  </data>
+  <data name="Shell.MobileDocs" xml:space="preserve">
+    <value>Mobile app documentation</value>
+  </data>
+  <data name="Shell.PrivacyLink" xml:space="preserve">
+    <value>Check the privacy policy</value>
+  </data>
+  <data name="Shell.BackToTop" xml:space="preserve">
+    <value>Back to top</value>
+  </data>
+  <data name="Shell.AuthorSite" xml:space="preserve">
+    <value>Hi, I am Stef check out my blog!</value>
+  </data>
+  <data name="Shell.SourceLink" xml:space="preserve">
+    <value>Wayfarer source code on GitHub</value>
+  </data>
+  <data name="Shell.ConfirmAction" xml:space="preserve">
+    <value>Confirm Action</value>
+  </data>
+  <data name="Shell.ConfirmMessage" xml:space="preserve">
+    <value>Are you sure you want to proceed?</value>
+  </data>
+  <data name="Shell.Confirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="Shell.ChangeTheme" xml:space="preserve">
+    <value>Change theme</value>
+  </data>
+  <data name="Shell.Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="Shell.Logout" xml:space="preserve">
+    <value>Logout</value>
+  </data>
+  <data name="Shell.Register" xml:space="preserve">
+    <value>Register</value>
+  </data>
+  <data name="Shell.Login" xml:space="preserve">
+    <value>Login</value>
+  </data>
+  <data name="Shell.Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="Shell.Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="Shell.AuditLogs" xml:space="preserve">
+    <value>Audit Logs</value>
+  </data>
+  <data name="Shell.ApplicationSettings" xml:space="preserve">
+    <value>Application Settings</value>
+  </data>
+  <data name="Shell.ActivityTypes" xml:space="preserve">
+    <value>Activity Types</value>
+  </data>
+  <data name="Shell.TransportProfiles" xml:space="preserve">
+    <value>Transport Profiles</value>
+  </data>
+  <data name="Shell.ApplicationLogs" xml:space="preserve">
+    <value>Application Logs</value>
+  </data>
+  <data name="Shell.MyAccount" xml:space="preserve">
+    <value>My Account</value>
+  </data>
+  <data name="Shell.ManageAccount" xml:space="preserve">
+    <value>Manage your account</value>
+  </data>
+  <data name="Shell.AdminRole" xml:space="preserve">
+    <value>{0} (Admin)</value>
+  </data>
+  <data name="Shell.ManagerRole" xml:space="preserve">
+    <value>{0} (Manager)</value>
+  </data>
+  <data name="Shell.Groups" xml:space="preserve">
+    <value>Groups</value>
+  </data>
+  <data name="Shell.CreateGroup" xml:space="preserve">
+    <value>Create Group</value>
+  </data>
+  <data name="Shell.ApiTokens" xml:space="preserve">
+    <value>API Tokens</value>
+  </data>
+  <data name="Shell.Timeline" xml:space="preserve">
+    <value>Timeline</value>
+  </data>
+  <data name="Shell.TimelineNavigation" xml:space="preserve">
+    <value>Navigate your timeline by date, month, or year</value>
+  </data>
+  <data name="Shell.PrivateTimeline" xml:space="preserve">
+    <value>My Private Timeline</value>
+  </data>
+  <data name="Shell.PrivateTimelineLink" xml:space="preserve">
+    <value>See your private timeline</value>
+  </data>
+  <data name="Shell.Locations" xml:space="preserve">
+    <value>Locations</value>
+  </data>
+  <data name="Shell.LocationsMap" xml:space="preserve">
+    <value>Location manager with table/map split view</value>
+  </data>
+  <data name="Shell.AllLocations" xml:space="preserve">
+    <value>All Locations</value>
+  </data>
+  <data name="Shell.LocationsTable" xml:space="preserve">
+    <value>Location manager with table view</value>
+  </data>
+  <data name="Shell.BulkEditNotes" xml:space="preserve">
+    <value>Bulk Edit Notes</value>
+  </data>
+  <data name="Shell.BulkEditNotesLink" xml:space="preserve">
+    <value>Bulk edit location notes based on filters</value>
+  </data>
+  <data name="Shell.LocationImports" xml:space="preserve">
+    <value>Location imports</value>
+  </data>
+  <data name="Shell.UploadLocationData" xml:space="preserve">
+    <value>Upload location data</value>
+  </data>
+  <data name="Shell.MyTripsLink" xml:space="preserve">
+    <value>View-edit-delete your planned trips or create new ones</value>
+  </data>
+  <data name="Shell.TripVisitHistory" xml:space="preserve">
+    <value>Trip Visit History</value>
+  </data>
+  <data name="Shell.TripVisitHistoryLink" xml:space="preserve">
+    <value>View and manage your trip place visit history</value>
+  </data>
+  <data name="Shell.HiddenAreas" xml:space="preserve">
+    <value>Hidden Areas</value>
+  </data>
+  <data name="Shell.HiddenAreasLink" xml:space="preserve">
+    <value>Set hidden areas from public timelines</value>
+  </data>
+  <data name="Shell.MyGroups" xml:space="preserve">
+    <value>My Groups</value>
+  </data>
+  <data name="Shell.MembershipsLink" xml:space="preserve">
+    <value>View and manage your group memberships</value>
+  </data>
+  <data name="Shell.Invitations" xml:space="preserve">
+    <value>Invitations</value>
+  </data>
+  <data name="Shell.ManageInvitations" xml:space="preserve">
+    <value>View and manage your invitations</value>
+  </data>
+  <data name="Shell.Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Shell.SettingsLink" xml:space="preserve">
+    <value>Timeline settings, app connections and personal location providers</value>
+  </data>
+  <data name="Shell.NotFound" xml:space="preserve">
+    <value>Page Not Found</value>
+  </data>
+  <data name="Shell.LostWay" xml:space="preserve">
+    <value>Wayfarer, did you lose your way?</value>
+  </data>
+  <data name="Shell.Logo" xml:space="preserve">
+    <value>Wayfarer Logo</value>
+  </data>
+  <data name="Shell.ReturnHome" xml:space="preserve">
+    <value>Return Home</value>
+  </data>
+  <data name="Shell.ErrorTitle" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="Shell.ErrorHeading" xml:space="preserve">
+    <value>Error.</value>
+  </data>
+  <data name="Shell.RequestError" xml:space="preserve">
+    <value>An error occurred while processing your request.</value>
+  </data>
+  <data name="Shell.RequestId" xml:space="preserve">
+    <value>Request ID:</value>
+  </data>
+  <data name="Shell.DevelopmentMode" xml:space="preserve">
+    <value>Development Mode</value>
+  </data>
+  <data name="Shell.DevelopmentDetails" xml:space="preserve">
+    <value>Enabling Development shows more details about the error.</value>
+  </data>
+  <data name="Shell.DevelopmentWarning" xml:space="preserve">
+    <value>Do not enable the Development environment on deployed applications.</value>
+  </data>
+  <data name="Shell.DevelopmentSensitive" xml:space="preserve">
+    <value>Exception details can expose sensitive information to users.</value>
+  </data>
+  <data name="Shell.DevelopmentHelp" xml:space="preserve">
+    <value>To debug locally, set {0} to {1}, then restart the app.</value>
+  </data>
+  <data name="Shell.InvitationsPending.one" xml:space="preserve">
+    <value>You have {0} pending invitation. Open User → Invitations to review.</value>
+  </data>
+  <data name="Shell.InvitationsPending.other" xml:space="preserve">
+    <value>You have {0} pending invitations. Open User → Invitations to review.</value>
+  </data>
+  <data name="Shell.InvitationsReceived" xml:space="preserve">
+    <value>New invitations for: {0}. Open User → Invitations.</value>
+  </data>
+  <data name="Shell.GroupUpdates" xml:space="preserve">
+    <value>Recent group updates: {0}. Open Manager → Groups.</value>
+  </data>
+  <data name="Shell.GroupJoined" xml:space="preserve">
+    <value>You joined: {0}</value>
+  </data>
+  <data name="Shell.GroupRemoved" xml:space="preserve">
+    <value>You were removed from: {0}</value>
+  </data>
+  <data name="Shell.GroupLeft" xml:space="preserve">
+    <value>You left: {0}</value>
+  </data>
+  <data name="Shell.MapAttribution" xml:space="preserve">
+    <value>Map attribution</value>
+  </data>
+  <data name="Shell.ZoomIn" xml:space="preserve">
+    <value>Zoom in</value>
+  </data>
+  <data name="Shell.ZoomOut" xml:space="preserve">
+    <value>Zoom out</value>
+  </data>
+  <data name="Shell.UrlCopied" xml:space="preserve">
+    <value>URL copied to clipboard!</value>
+  </data>
+  <data name="Shell.UrlCopyFailed" xml:space="preserve">
+    <value>Failed to copy URL.</value>
+  </data>
+  <data name="Shell.Notes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="Shell.Paragraph" xml:space="preserve">
+    <value>Paragraph</value>
+  </data>
+  <data name="Shell.Heading" xml:space="preserve">
+    <value>Heading</value>
+  </data>
+  <data name="Shell.Bold" xml:space="preserve">
+    <value>Bold</value>
+  </data>
+  <data name="Shell.Italic" xml:space="preserve">
+    <value>Italic</value>
+  </data>
+  <data name="Shell.Underline" xml:space="preserve">
+    <value>Underline</value>
+  </data>
+  <data name="Shell.OrderedList" xml:space="preserve">
+    <value>Ordered list</value>
+  </data>
+  <data name="Shell.BulletList" xml:space="preserve">
+    <value>Bullet list</value>
+  </data>
+  <data name="Shell.Left" xml:space="preserve">
+    <value>Left</value>
+  </data>
+  <data name="Shell.Center" xml:space="preserve">
+    <value>Center</value>
+  </data>
+  <data name="Shell.Right" xml:space="preserve">
+    <value>Right</value>
+  </data>
+  <data name="Shell.Alignment" xml:space="preserve">
+    <value>Alignment</value>
+  </data>
+  <data name="Shell.Link" xml:space="preserve">
+    <value>Link</value>
+  </data>
+  <data name="Shell.Image" xml:space="preserve">
+    <value>Image</value>
+  </data>
+  <data name="Shell.DefaultFont" xml:space="preserve">
+    <value>Default font</value>
+  </data>
+  <data name="Shell.Serif" xml:space="preserve">
+    <value>Serif</value>
+  </data>
+  <data name="Shell.Monospace" xml:space="preserve">
+    <value>Monospace</value>
+  </data>
+  <data name="Shell.Font" xml:space="preserve">
+    <value>Font</value>
+  </data>
+  <data name="Shell.RemoveFormatting" xml:space="preserve">
+    <value>Remove formatting</value>
+  </data>
+  <data name="Shell.NotesLegacyFormatting" xml:space="preserve">
+    <value>Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</value>
+  </data>
+  <data name="Shell.Unlink" xml:space="preserve">
+    <value>Unlink</value>
+  </data>
+  <data name="Shell.FollowLink" xml:space="preserve">
+    <value>Follow link</value>
+  </data>
+  <data name="Shell.SidebarWidth" xml:space="preserve">
+    <value>Sidebar width</value>
+  </data>
+  <data name="Shell.Standard" xml:space="preserve">
+    <value>Standard</value>
+  </data>
+  <data name="Shell.Half" xml:space="preserve">
+    <value>Half</value>
+  </data>
+  <data name="Shell.Full" xml:space="preserve">
+    <value>Full</value>
+  </data>
+  <data name="Shell.Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="Shell.Hide" xml:space="preserve">
+    <value>Hide</value>
+  </data>
+  <data name="Shell.HideSidebar" xml:space="preserve">
+    <value>Hide sidebar</value>
+  </data>
+  <data name="Shell.ResizeSidebar" xml:space="preserve">
+    <value>Resize sidebar</value>
+  </data>
+  <data name="Shell.ResizeSidebarInstructions" xml:space="preserve">
+    <value>Resize sidebar: arrows 20px, Shift arrows 100px, Home minimum, End full width, Escape cancels drag</value>
+  </data>
+  <data name="Shell.ShowSidebar" xml:space="preserve">
+    <value>Show sidebar</value>
+  </data>
+  <data name="Shell.LatitudeShort" xml:space="preserve">
+    <value>Lat:</value>
+  </data>
+  <data name="Shell.LongitudeShort" xml:space="preserve">
+    <value>Lon:</value>
+  </data>
+  <data name="Shell.AddressLabel" xml:space="preserve">
+    <value>Address:</value>
+  </data>
+  <data name="Shell.NotesLabel" xml:space="preserve">
+    <value>Notes:</value>
+  </data>
+  <data name="Shell.ContainsMedia" xml:space="preserve">
+    <value>[Contains media]</value>
+  </data>
+  <data name="Shell.MediaPrefix" xml:space="preserve">
+    <value>[Media] </value>
+  </data>
+  <data name="Shell.MapZoomLevel" xml:space="preserve">
+    <value>Zoom: {0}</value>
+  </data>
+  <data name="Shell.FullMap" xml:space="preserve">
+    <value>Open full view</value>
+  </data>
+  <data name="Shell.FullMapNewTab" xml:space="preserve">
+    <value>Open full view in a new tab</value>
+  </data>
+  <data name="Shell.MapInteraction" xml:space="preserve">
+    <value>Use two fingers to move the map</value>
+  </data>
+  <data name="Shell.MeasureDistance" xml:space="preserve">
+    <value>Measure distance</value>
+  </data>
+  <data name="Shell.MeasureAddPoints" xml:space="preserve">
+    <value>Click to add points.</value>
+  </data>
+  <data name="Shell.MeasureCancel" xml:space="preserve">
+    <value>Press Esc to cancel.</value>
+  </data>
+  <data name="Shell.CopyMapLink" xml:space="preserve">
+    <value>Copy map link</value>
+  </data>
+  <data name="Shell.MapLinkCopied" xml:space="preserve">
+    <value>Map link copied</value>
+  </data>
+  <data name="Shell.MapLinkCopiedClipboard" xml:space="preserve">
+    <value>Map link copied to clipboard</value>
+  </data>
+  <data name="Shell.NoteSafeLink" xml:space="preserve">
+    <value>Enter a safe link or HTTP(S) image URL.</value>
+  </data>
+  <data name="Shell.NoteAbsoluteImage" xml:space="preserve">
+    <value>Enter an absolute HTTP(S) image URL.</value>
+  </data>
+  <data name="Shell.NoteFollowSafeLink" xml:space="preserve">
+    <value>Enter a safe link before following it.</value>
+  </data>
+  <data name="Shell.NoteFormatting" xml:space="preserve">
+    <value>{0} formatting</value>
+  </data>
+  <data name="Shell.NoteInsertImageUrl" xml:space="preserve">
+    <value>Insert image URL</value>
+  </data>
+  <data name="Shell.NoteEditLink" xml:space="preserve">
+    <value>Edit link</value>
+  </data>
+  <data name="Shell.NoteImageUrl" xml:space="preserve">
+    <value>Image URL</value>
+  </data>
+  <data name="Shell.NoteLinkUrl" xml:space="preserve">
+    <value>Link URL</value>
+  </data>
+  <data name="Shell.NoteInsertImage" xml:space="preserve">
+    <value>Insert Image</value>
+  </data>
+  <data name="Shell.StartMeasure" xml:space="preserve">
+    <value>Click the map to measure distance. Double-click to finish. Press Esc to cancel.</value>
+  </data>
+  <data name="Shell.DisplayKilometres" xml:space="preserve">
+    <value>{0} km</value>
+  </data>
+  <data name="Shell.DisplayMetres" xml:space="preserve">
+    <value>{0} m</value>
+  </data>
+  <data name="Shell.UnassignedPlaces" xml:space="preserve">
+    <value>Unassigned Places</value>
+  </data>
+</root>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import { editorFieldError, editorProposalError } from '../editorValidation';
+import { editorErrorText, editorOperationText, editorStatusText } from './editorFeedbackText';
+import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { deleteSegment, orderSegments } from '../api/tripEditorApi';
+import { EditorValidationError, deleteSegment, orderSegments } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
@@ -8,6 +11,7 @@ import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, Editor
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
 import { buildSegmentRequest, emptySegmentDraft, mapWaypointErrors, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
+import SegmentConflictNotice from './SegmentConflictNotice.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkLifecycleState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
@@ -60,6 +64,7 @@ const isSaving = ref(false);
 const isGenerating = ref(false);
 const isOrdering = ref(false);
 const validationErrors = ref<Record<string, string[]>>({});
+const proposalError = ref<string | null>(null);
 const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
@@ -81,7 +86,7 @@ const isDirty = computed(() => draft.title !== persistedBaseline.value.title || 
 const statusText = computed(() => isSaving.value ? 'Saving...' : isOrdering.value ? 'Saving order...' : saveError.value ? 'Save failed' : isDirty.value ? 'Unsaved changes' : lastSavedAt.value ? `Saved ${lastSavedAt.value}` : 'Saved');
 const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
   .filter(([key]) => !segmentFields.includes(key) && !key.startsWith('waypoint.'))
-  .flatMap(([, messages]) => messages));
+  .flatMap(([key, messages]) => key === 'proposal' && proposalError.value ? [proposalError.value] : messages.map(editorFieldError)));
 const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegment.value
   ? buildSegmentEditTarget(activeSegment.value, segmentLabel(activeSegment.value))
   : buildSegmentCreateTarget());
@@ -186,7 +191,7 @@ function resetDraft(): void {
 }
 
 async function cancelDraft(): Promise<void> {
-  await props.editorSurface.closeActiveTarget('Discard unsaved segment changes?');
+  await props.editorSurface.closeActiveTarget(localize('Editor.DiscardSegmentDraft', 'Discard unsaved segment changes?'));
 }
 
 async function saveDraft(): Promise<void> {
@@ -265,15 +270,15 @@ function installAuthoritativeSegment(segment: EditorSegment): void {
 }
 
 async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarget: EditorTarget): Promise<void> {
-  if (!(await confirmDiscard('Discard unsaved segment draft changes before deleting?'))) {
+  if (!(await confirmDiscard(localize('Editor.DiscardSegmentBeforeDelete', 'Discard unsaved segment draft changes before deleting?')))) {
     return;
   }
 
   if (!(await confirm({
-    title: 'Delete segment?',
-    message: 'Delete this segment and its private planning?',
-    confirmLabel: 'Delete',
-    cancelLabel: 'Keep segment',
+    title: localize('Editor.DeleteSegmentQuestion', 'Delete segment?'),
+    message: localize('Editor.DeleteSegmentDescription', 'Delete this segment and its private planning?'),
+    confirmLabel: localize('Editor.Delete', 'Delete'),
+    cancelLabel: localize('Editor.KeepSegment', 'Keep segment'),
     variant: 'danger'
   }))) {
     return;
@@ -308,7 +313,7 @@ function drawRoute(): void {
   invokeSegmentRouteAction(draft, () => {
     const error = beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state, focusRouteAction);
     if (!error) return;
-    saveError.value = error;
+    saveError.value = editorOperationText(error, localize('Editor.RouteWorkUnavailable', 'Route work could not start. Check the route stops and try again.'));
     void nextTick(() => document.getElementById('segment-route-work-error')?.focus());
   });
 }
@@ -329,7 +334,7 @@ function focusRouteAction(): void {
 /** Rejects an observed authoritative anchor change instead of merging it into active W. */
 async function invalidateStaleRouteWork(): Promise<void> {
   await props.editorSurface.invalidateMapWork();
-  saveError.value = 'Saved Place coordinates changed. Reload the current saved Segment before reopening route work.';
+  saveError.value = localize('Editor.SegmentRouteAnchorsChanged', 'Saved Place coordinates changed. Reload the current saved Segment before reopening route work.');
   await nextTick();
   document.getElementById('segment-route-work-error')?.focus();
 }
@@ -347,7 +352,7 @@ function toggleVisibility(segment: EditorSegment): void {
 }
 
 async function reorder(ids: Guid[], previousIds: Guid[]): Promise<void> {
-  if (isDirty.value && !(await confirmDiscard('Discard unsaved segment changes before reordering?'))) {
+  if (isDirty.value && !(await confirmDiscard(localize('Editor.DiscardSegmentBeforeReorder', 'Discard unsaved segment changes before reordering?')))) {
     restoreSegmentOrder(previousIds);
     return;
   }
@@ -521,16 +526,16 @@ function confirmDiscard(message: string): Promise<boolean> {
   }
 
   return confirm({
-    title: 'Discard changes?',
+    title: localize('Editor.DiscardQuestion', 'Discard changes?'),
     message,
-    confirmLabel: 'Discard',
-    cancelLabel: 'Keep editing',
+    confirmLabel: localize('Editor.Discard', 'Discard'),
+    cancelLabel: localize('Shell.KeepEditing', 'Keep editing'),
     variant: 'warning'
   });
 }
 
 function fieldErrors(key: string): string[] {
-  return validationErrors.value[key] ?? [];
+  return (validationErrors.value[key] ?? []).map(editorFieldError);
 }
 
 function showConflict(conflict: EditorSegmentConflict): void {
@@ -546,8 +551,10 @@ function clearFieldError(key: string): void {
 }
 
 function applyError(error: unknown, fallback: string, submittedWaypointRows: EditorSegmentWaypointDraftRow[] = []): void {
-  if (error instanceof Error && 'errors' in error) {
-    validationErrors.value = mapWaypointErrors((error as Error & { errors: Record<string, string[]> }).errors, submittedWaypointRows);
+  // Keep server field keys and submitted waypoint-row identity through focus and presentation.
+  if (error instanceof EditorValidationError) {
+    proposalError.value = editorProposalError(error.code);
+    validationErrors.value = mapWaypointErrors(error.errors, submittedWaypointRows);
     void nextTick(() => {
       const firstKey = Object.keys(validationErrors.value)[0];
       const rowId = firstKey?.startsWith('waypoint.') ? firstKey.slice('waypoint.'.length) : null;
@@ -558,11 +565,12 @@ function applyError(error: unknown, fallback: string, submittedWaypointRows: Edi
     });
   }
 
-  saveError.value = error instanceof Error ? error.message : fallback;
+  saveError.value = editorErrorText(error, fallback);
 }
 
 function resetFeedback(): void {
   validationErrors.value = {};
+  proposalError.value = null;
   saveError.value = null;
   segmentConflict.value = null;
 }
@@ -590,7 +598,9 @@ function isFocusable(element: HTMLElement): boolean {
 
 /** Replaces the complete draft only after explicit confirmation against current server state. */
 async function reloadCurrentSegment(): Promise<void> {
-  if (!segmentConflict.value || !(await confirm({ title: 'Reload current saved Segment?', message: 'Discard this complete unsaved Segment draft and load the current saved version?', confirmLabel: 'Reload saved Segment', cancelLabel: 'Keep editing', variant: 'warning' }))) return;
+  if (!segmentConflict.value || !(await confirm({ title: localize('Editor.ReloadSavedSegmentQuestion', 'Reload current saved Segment?'),
+    message: localize('Editor.ReloadSavedSegmentDiscard', 'Discard this complete unsaved Segment draft and load the current saved version?'),
+    confirmLabel: localize('Editor.ReloadCurrentSavedSegment', 'Reload current saved Segment'), cancelLabel: localize('Shell.KeepEditing', 'Keep editing'), variant: 'warning' }))) return;
   installAuthoritativeSegment(segmentConflict.value.currentSegment);
   syncRouteDraftPreview();
 }
@@ -599,13 +609,8 @@ function cloneDraft(value: EditorSegmentDraft): EditorSegmentDraft {
   return JSON.parse(JSON.stringify(value)) as EditorSegmentDraft;
 }
 
-function conflictJourney(segment: EditorSegment): string {
-  return [segment.fromPlaceId, ...segment.waypointPlaceIds, segment.toPlaceId]
-    .map(id => id ? props.state.placesById[id]?.name ?? 'Unavailable place' : 'Not selected').join(' → ');
-}
-
 function markSaved(): void {
-  lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+  lastSavedAt.value = date(new Date(), { timeStyle: 'short' });
   saveError.value = null;
 }
 
@@ -615,41 +620,40 @@ function segmentLabel(segment: EditorSegment): string {
   return segment.title || [from, to].filter(Boolean).join(' to ') || segment.mode || 'Segment';
 }
 
+/** Catalog labels and stored mode names retain their authored values. */
 function modeText(segment: EditorSegment): string {
-  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label ?? (segment.mode || 'mode unset');
+  return props.state.options.transportModes.find(mode => mode.value === segment.mode)?.label
+    ?? (segment.mode || localize('Editor.ModeUnset', 'Mode unset'));
 }
+
 </script>
 
 <template>
   <section class="trip-editor-panel">
     <div class="trip-editor-panel__line">
-      <h2>Segments</h2>
-      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ statusText }}</span>
+      <h2>{{ localize("Editor.Segments", "Segments") }}</h2>
+      <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ editorStatusText(statusText) }}</span>
     </div>
     <div v-if="saveError" id="segment-route-work-error" class="trip-editor-form-error" role="alert" tabindex="-1">{{ saveError }}</div>
-    <section v-if="segmentConflict" class="trip-editor-form-warning segment-conflict" aria-labelledby="segment-conflict-heading">
-      <h3 id="segment-conflict-heading" tabindex="-1">Current saved Segment</h3>
-      <p>{{ conflictJourney(segmentConflict.currentSegment) }}</p>
-      <p>{{ modeText(segmentConflict.currentSegment) }} · {{ segmentConflict.currentSegment.estimatedDistanceKm ?? 'Distance unavailable' }} km · {{ segmentConflict.currentSegment.estimatedDurationMinutes ?? 'Duration unavailable' }} minutes · {{ segmentConflict.currentSegment.estimatedDurationSource }}</p>
-      <button type="button" class="btn btn-outline-light btn-sm" @click="reloadCurrentSegment">Reload current saved Segment</button>
-    </section>
-    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
+    <SegmentConflictNotice v-if="segmentConflict" :segment="segmentConflict.currentSegment"
+      :places="state.placesById" :mode-label="modeText(segmentConflict.currentSegment)" @reload="reloadCurrentSegment" />
+    <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">{{ localize("Editor.AddSegment", "Add Segment") }}</button>
 
     <SegmentEditorSurface :notes-adoption="notes.notesAdoption.value" :notes-session="notes.session.value" v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :baseline-draft="persistedBaseline" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :is-generating="isGenerating" :manual-duration-override="routeProposalDraft.manualOverride.value" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :semantic-edits-safe="semanticTaint.isSafe.value" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-generating-changed="isGenerating = $event" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" @semantic-edits-unsafe="semanticTaint.markUnsafe" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
-        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" title="Drag to reorder segment" aria-label="Drag to reorder segment" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
-        <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" :aria-label="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
+        <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" :title="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" :aria-label="localize('Editor.DragToReorderSegment', 'Drag to reorder segment')" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
+        <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? localize('Editor.ShowSegment', 'Show segment') : localize('Editor.HideSegment', 'Hide segment')" :aria-label="hiddenSegmentIds.has(segment.id) ? localize('Editor.ShowSegment', 'Show segment') : localize('Editor.HideSegment', 'Hide segment')" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
         <button type="button" class="trip-editor-list-button" :aria-current="isActiveSegment(segment) ? 'true' : undefined" :aria-label="segmentJourney(segment).accessible" @click="openEdit(segment)">
           <span>{{ segmentJourney(segment).compact }}</span>
           <small>{{ modeText(segment) }}</small>
         </button>
-        <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
+        <button type="button" class="trip-editor-icon-button" :title="localize('Editor.DeleteSegment', 'Delete segment')" :aria-label="localize('Editor.DeleteSegment', 'Delete segment')" @click="deleteSegmentFromRow(segment)">×</button>
 
         <SegmentEditorSurface :notes-adoption="notes.notesAdoption.value" :notes-session="notes.session.value" v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :baseline-draft="persistedBaseline" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :is-generating="isGenerating" :manual-duration-override="routeProposalDraft.manualOverride.value" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :semantic-edits-safe="semanticTaint.isSafe.value" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-generating-changed="isGenerating = $event" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" @semantic-edits-unsafe="semanticTaint.markUnsafe" />
       </li>
     </ul>
-    <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>
+    <p v-else class="trip-editor-empty-state">{{ localize("Editor.NoTravelSegmentsAddedYet", "No travel segments added yet.") }}</p>
   </section>
 </template>

@@ -163,7 +163,7 @@ for (const reversal of [false, true]) {
 for (const status of [400, 409, 405]) {
   test(`Place ${status} preserves dirty content and originals without unconditional fallback`, () => withApp(async ({ parent, editor, prepared }) => {
     const calls = [];
-    globalThis.fetch = async (_url, init) => { calls.push(init); return new Response(JSON.stringify(status === 400 ? { errors: { name: ['Correct this name'] } } : { code: 'mutation-base-stale', detail: 'Review current values' }), { status }); };
+    globalThis.fetch = async (_url, init) => { calls.push(init); return new Response(JSON.stringify(status === 400 ? { errors: { name: ['Name is required.'] } } : { code: 'mutation-base-stale', detail: 'Review current values' }), { status }); };
     await editor.openPlaceEdit(parent.state.placesById.place);
     editor.placeDraft.name = 'Mine';
     await editor.savePlaceDraft();
@@ -171,7 +171,7 @@ for (const status of [400, 409, 405]) {
     await nextTick();
     assert.equal(editor.placeDraft.name, 'Mine');
     assert.equal(editor.placeDirty, true);
-    if (status === 400) assert.deepEqual(editor.fieldErrors('name'), ['Correct this name']);
+    if (status === 400) assert.deepEqual(editor.fieldErrors('name'), ['Name is required.']);
     await editor.savePlaceDraft();
     assert.equal(calls.length, 2);
     assert.deepEqual(JSON.parse(calls[1].body).expected, { regionId: 'region', name: 'Original' });

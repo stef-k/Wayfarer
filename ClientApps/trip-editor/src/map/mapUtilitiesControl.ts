@@ -1,3 +1,6 @@
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
+import { formatMapDistance, measureInstructions } from '../../../../wwwroot/js/localization/mapMeasurementText.js';
+
 import L, { type LeafletMouseEvent, type Map as LeafletMap } from 'leaflet';
 
 export type MapUtilitiesControl = L.Control & {
@@ -11,15 +14,15 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
   control.onAdd = (map: LeafletMap) => {
     const container = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-utilities');
     const zoomText = L.DomUtil.create('span', 'trip-editor-map-utilities__zoom', container);
-    const measureButton = mapUtilityButton(container, 'Measure distance', '/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg');
-    const copyButton = mapUtilityButton(container, 'Copy map link', '/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg');
+    const measureButton = mapUtilityButton(container, message('Shell.MeasureDistance', 'Measure distance'), '/lib/bootstrap-icons/bootstrap-icons-1.13.2/rulers.svg');
+    const copyButton = mapUtilityButton(container, message('Shell.CopyMapLink', 'Copy map link'), '/lib/bootstrap-icons/bootstrap-icons-1.13.2/link-45deg.svg');
     let measureTool: ReturnType<typeof createDistanceMeasureTool> | null = null;
     let copyTimer: number | null = null;
     let copyFeedbackControl: L.Control | null = null;
     let copyFeedbackTimer: number | null = null;
 
     const updateZoomText = (): void => {
-      zoomText.textContent = `Zoom: ${map.getZoom()}`;
+      zoomText.textContent = message('Shell.MapZoomLevel', 'Zoom: {0}', number(map.getZoom()));
     };
 
     const stopMeasure = (): void => {
@@ -58,16 +61,16 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
       L.DomEvent.stop(event);
       void copyCurrentMapLink(map).then(() => {
         copyButton.classList.add('trip-editor-map-utilities__button--copied');
-        copyButton.setAttribute('aria-label', 'Map link copied');
-        copyButton.setAttribute('title', 'Map link copied');
+        copyButton.setAttribute('aria-label', message('Shell.MapLinkCopied', 'Map link copied'));
+        copyButton.setAttribute('title', message('Shell.MapLinkCopied', 'Map link copied'));
         showCopyFeedback();
         if (copyTimer !== null) {
           window.clearTimeout(copyTimer);
         }
         copyTimer = window.setTimeout(() => {
           copyButton.classList.remove('trip-editor-map-utilities__button--copied');
-          copyButton.setAttribute('aria-label', 'Copy map link');
-          copyButton.setAttribute('title', 'Copy map link');
+          copyButton.setAttribute('aria-label', message('Shell.CopyMapLink', 'Copy map link'));
+          copyButton.setAttribute('title', message('Shell.CopyMapLink', 'Copy map link'));
           copyTimer = null;
         }, 1500);
       });
@@ -92,7 +95,7 @@ export const createMapUtilitiesControl = (element: HTMLElement): MapUtilitiesCon
         copyFeedbackControl.onAdd = () => {
           const div = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-copy-feedback');
           div.setAttribute('role', 'status');
-          div.textContent = 'Map link copied to clipboard';
+          div.textContent = message('Shell.MapLinkCopiedClipboard', 'Map link copied to clipboard');
           return div;
         };
         copyFeedbackControl.addTo(map);
@@ -132,6 +135,7 @@ function mapUtilityButton(container: HTMLElement, label: string, iconUrl: string
   return button;
 }
 
+/** Owns the temporary measurement and renders its guidance and labels in the document language. */
 const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { cancel: () => void } => {
   const layer = L.layerGroup().addTo(map);
   const points: L.LatLng[] = [];
@@ -139,7 +143,7 @@ const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { can
 
   helpControl.onAdd = () => {
     const div = L.DomUtil.create('div', 'leaflet-bar trip-editor-map-measure-help');
-    div.textContent = 'Click to add points. Esc cancels.';
+    div.textContent = measureInstructions().join(' ');
     return div;
   };
 
@@ -170,10 +174,12 @@ const createDistanceMeasureTool = (map: LeafletMap, onCancel: () => void): { can
       const polyline = L.polyline(points, { color: '#0d6efd', weight: 3, dashArray: '5, 5' });
       polyline.addTo(layer);
       const km = distanceKilometers(points);
+      const label = document.createElement('span');
+      label.textContent = formatMapDistance(km);
       L.marker(event.latlng, {
         icon: L.divIcon({
           className: 'trip-editor-map-distance-label',
-          html: `<span>${km.toFixed(2)} km</span>`,
+          html: label,
           iconSize: [72, 24],
           iconAnchor: [36, 12]
         }),

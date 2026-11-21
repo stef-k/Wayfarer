@@ -1,3 +1,4 @@
+@inject Wayfarer.Localization.WebMessages T
 @model string
 @{
     /// <summary>
@@ -7,35 +8,35 @@
 }
 <div class="dropdown" style="margin-top: 2px;">
     <button class="btn dropdown-toggle text-truncate nav-user-btn" type="button" data-bs-toggle="dropdown"
-            aria-expanded="false" title="@Model (Admin)">
+            aria-expanded="false" title="@T["Shell.AdminRole", Model]">
         <i class="bi bi-shield-lock me-1"></i>@Model
     </button>
     <ul class="dropdown-menu user-menu">
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Users">Users</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Users">@T["Shell.Users"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Jobs">Jobs</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Jobs">@T["Shell.Jobs"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="AuditLogs">Audit Logs</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="AuditLogs">@T["Shell.AuditLogs"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Settings">Application Settings</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Settings">@T["Shell.ApplicationSettings"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="ActivityType">Activity Types</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="ActivityType">@T["Shell.ActivityTypes"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="TransportProfile">Transport Profiles</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="TransportProfile">@T["Shell.TransportProfiles"]</a>
         </li>
         <li>
         </li>
         <li>
-            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Logs">Application Logs</a>
+            <a class="dropdown-item" asp-action="Index" asp-area="Admin" asp-controller="Logs">@T["Shell.ApplicationLogs"]</a>
         </li>
         <li>
-            <a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index" title="Manage your account">My Account</a>
+            <a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index" title="@T["Shell.ManageAccount"]">@T["Shell.MyAccount"]</a>
         </li>
     </ul>
 </div>

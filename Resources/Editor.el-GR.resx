@@ -1,0 +1,2853 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Editor.Loading" xml:space="preserve">
+    <value>Φόρτωση</value>
+  </data>
+  <data name="Editor.LoadingEditor" xml:space="preserve">
+    <value>Φόρτωση επεξεργαστή ταξιδιού…</value>
+  </data>
+  <data name="Editor.TripEditorUnavailable" xml:space="preserve">
+    <value>Ο επεξεργαστής ταξιδιού δεν είναι διαθέσιμος</value>
+  </data>
+  <data name="Editor.FitAll" xml:space="preserve">
+    <value>Προβολή όλων στον χάρτη</value>
+  </data>
+  <data name="Editor.RecenterSavedTripView" xml:space="preserve">
+    <value>Επαναφορά αποθηκευμένης προβολής</value>
+  </data>
+  <data name="Editor.FocusActiveEntity" xml:space="preserve">
+    <value>Εστίαση στο ενεργό στοιχείο</value>
+  </data>
+  <data name="Editor.FitAllMoved" xml:space="preserve">
+    <value>Προβάλλονται όλα τα στοιχεία στον χάρτη</value>
+  </data>
+  <data name="Editor.FitAllNoGeometry" xml:space="preserve">
+    <value>Δεν υπάρχουν στοιχεία για προβολή στον χάρτη</value>
+  </data>
+  <data name="Editor.RecenterMoved" xml:space="preserve">
+    <value>Επαναφέρθηκε η αποθηκευμένη προβολή του ταξιδιού</value>
+  </data>
+  <data name="Editor.RecenterUnavailable" xml:space="preserve">
+    <value>Η αποθηκευμένη προβολή του ταξιδιού δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.FocusMissingTarget" xml:space="preserve">
+    <value>Δεν υπάρχει ενεργό στοιχείο για εστίαση</value>
+  </data>
+  <data name="Editor.FocusUnsupportedTarget" xml:space="preserve">
+    <value>Δεν είναι δυνατή η εστίαση στο ενεργό στοιχείο</value>
+  </data>
+  <data name="Editor.FocusNoGeometry" xml:space="preserve">
+    <value>Δεν υπάρχουν δεδομένα χάρτη για εστίαση</value>
+  </data>
+  <data name="Editor.FocusedTripMap" xml:space="preserve">
+    <value>Εστίαση στον χάρτη του ταξιδιού</value>
+  </data>
+  <data name="Editor.FocusedRegion" xml:space="preserve">
+    <value>Εστίαση στην περιοχή</value>
+  </data>
+  <data name="Editor.FocusedParentRegion" xml:space="preserve">
+    <value>Εστίαση στην περιοχή της τοποθεσίας</value>
+  </data>
+  <data name="Editor.FocusedPlace" xml:space="preserve">
+    <value>Εστίαση στην τοποθεσία</value>
+  </data>
+  <data name="Editor.FocusedArea" xml:space="preserve">
+    <value>Εστίαση στη ζώνη</value>
+  </data>
+  <data name="Editor.FocusedSegment" xml:space="preserve">
+    <value>Εστίαση στο τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.FocusedEntity" xml:space="preserve">
+    <value>Εστίαση στο ενεργό στοιχείο</value>
+  </data>
+  <data name="Editor.SelectedSegment" xml:space="preserve">
+    <value>Επιλέχθηκε τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.SelectedSegmentMode" xml:space="preserve">
+    <value>Επιλεγμένο τμήμα διαδρομής: {0}</value>
+  </data>
+  <data name="Editor.SelectedSegmentDraft" xml:space="preserve">
+    <value>Επιλέχθηκε το νέο πρόχειρο τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.ClearSelection" xml:space="preserve">
+    <value>Κατάργηση επιλογής</value>
+  </data>
+  <data name="Editor.TripMap" xml:space="preserve">
+    <value>Χάρτης ταξιδιού</value>
+  </data>
+  <data name="Editor.Name" xml:space="preserve">
+    <value>Όνομα</value>
+  </data>
+  <data name="Editor.FillColor" xml:space="preserve">
+    <value>Χρώμα γεμίσματος</value>
+  </data>
+  <data name="Editor.FillHex" xml:space="preserve">
+    <value>Δεκαεξαδικό χρώμα γεμίσματος</value>
+  </data>
+  <data name="Editor.Geometry" xml:space="preserve">
+    <value>Γεωμετρία</value>
+  </data>
+  <data name="Editor.Delete" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="Editor.DrawEditArea" xml:space="preserve">
+    <value>Σχεδίαση ή επεξεργασία ζώνης</value>
+  </data>
+  <data name="Editor.Reset" xml:space="preserve">
+    <value>Επαναφορά</value>
+  </data>
+  <data name="Editor.SaveArea" xml:space="preserve">
+    <value>Αποθήκευση ζώνης</value>
+  </data>
+  <data name="Editor.ExpandEditor" xml:space="preserve">
+    <value>Ανάπτυξη επεξεργαστή</value>
+  </data>
+  <data name="Editor.DockToSidebar" xml:space="preserve">
+    <value>Προσάρτηση στην πλαϊνή στήλη</value>
+  </data>
+  <data name="Editor.NoMatchingIcons" xml:space="preserve">
+    <value>Δεν βρέθηκαν αντίστοιχα εικονίδια.</value>
+  </data>
+  <data name="Editor.MapSearch" xml:space="preserve">
+    <value>Αναζήτηση στον χάρτη</value>
+  </data>
+  <data name="Editor.SearchAddressOrPlace" xml:space="preserve">
+    <value>Αναζήτηση διεύθυνσης ή τοποθεσίας</value>
+  </data>
+  <data name="Editor.Search" xml:space="preserve">
+    <value>Αναζήτηση</value>
+  </data>
+  <data name="Editor.SearchBy" xml:space="preserve">
+    <value>Αναζήτηση με</value>
+  </data>
+  <data name="Editor.TargetRegion" xml:space="preserve">
+    <value>Περιοχή προορισμού</value>
+  </data>
+  <data name="Editor.SelectRegion" xml:space="preserve">
+    <value>Επιλέξτε περιοχή</value>
+  </data>
+  <data name="Editor.AddAsPlace" xml:space="preserve">
+    <value>Προσθήκη ως τοποθεσία</value>
+  </data>
+  <data name="Editor.Done" xml:space="preserve">
+    <value>Τέλος</value>
+  </data>
+  <data name="Editor.ClearRoute" xml:space="preserve">
+    <value>Εκκαθάριση διαδρομής</value>
+  </data>
+  <data name="Editor.MapWork" xml:space="preserve">
+    <value>Εργασία στον χάρτη</value>
+  </data>
+  <data name="Editor.TripSettings" xml:space="preserve">
+    <value>Ρυθμίσεις ταξιδιού</value>
+  </data>
+  <data name="Editor.ShareProgressLabel" xml:space="preserve">
+    <value>Κοινοποίηση προόδου:</value>
+  </data>
+  <data name="Editor.OpenPublicTrip" xml:space="preserve">
+    <value>Άνοιγμα δημόσιου ταξιδιού</value>
+  </data>
+  <data name="Editor.OpenProgressURL" xml:space="preserve">
+    <value>Άνοιγμα συνδέσμου προόδου</value>
+  </data>
+  <data name="Editor.EditTrip" xml:space="preserve">
+    <value>Επεξεργασία ταξιδιού</value>
+  </data>
+  <data name="Editor.PublicTrip" xml:space="preserve">
+    <value>Δημόσιο ταξίδι</value>
+  </data>
+  <data name="Editor.PrivateTrip" xml:space="preserve">
+    <value>Ιδιωτικό ταξίδι</value>
+  </data>
+  <data name="Editor.ShareProgress" xml:space="preserve">
+    <value>Κοινοποίηση προόδου</value>
+  </data>
+  <data name="Editor.ShowVisitProgressOnPublicTrip" xml:space="preserve">
+    <value>Εμφάνιση προόδου επισκέψεων στο δημόσιο ταξίδι</value>
+  </data>
+  <data name="Editor.Tags" xml:space="preserve">
+    <value>Ετικέτες</value>
+  </data>
+  <data name="Editor.Remove" xml:space="preserve">
+    <value>Αφαίρεση</value>
+  </data>
+  <data name="Editor.AddTag" xml:space="preserve">
+    <value>Προσθήκη ετικέτας</value>
+  </data>
+  <data name="Editor.Add" xml:space="preserve">
+    <value>Προσθήκη</value>
+  </data>
+  <data name="Editor.CoverImageURL" xml:space="preserve">
+    <value>Σύνδεσμος εικόνας εξωφύλλου</value>
+  </data>
+  <data name="Editor.CenterLatitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος κέντρου</value>
+  </data>
+  <data name="Editor.CenterLongitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος κέντρου</value>
+  </data>
+  <data name="Editor.Zoom" xml:space="preserve">
+    <value>Εστίαση</value>
+  </data>
+  <data name="Editor.SaveSettingsContinue" xml:space="preserve">
+    <value>Αποθήκευση ρυθμίσεων και συνέχεια</value>
+  </data>
+  <data name="Editor.SaveSettingsExit" xml:space="preserve">
+    <value>Αποθήκευση ρυθμίσεων και έξοδος</value>
+  </data>
+  <data name="Editor.CancelReset" xml:space="preserve">
+    <value>Ακύρωση / Επαναφορά</value>
+  </data>
+  <data name="Editor.Region" xml:space="preserve">
+    <value>Περιοχή</value>
+  </data>
+  <data name="Editor.NameRequired" xml:space="preserve">
+    <value>Το όνομα είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Editor.NameLength" xml:space="preserve">
+    <value>Το όνομα πρέπει να έχει από 1 έως 200 χαρακτήρες.</value>
+  </data>
+  <data name="Editor.FieldRequired" xml:space="preserve">
+    <value>Το πεδίο είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Editor.Address" xml:space="preserve">
+    <value>Διεύθυνση</value>
+  </data>
+  <data name="Editor.Latitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος</value>
+  </data>
+  <data name="Editor.Longitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος</value>
+  </data>
+  <data name="Editor.Icon" xml:space="preserve">
+    <value>Εικονίδιο</value>
+  </data>
+  <data name="Editor.MarkerColor" xml:space="preserve">
+    <value>Χρώμα δείκτη</value>
+  </data>
+  <data name="Editor.ReverseGeocodeThisLocationOnSave" xml:space="preserve">
+    <value>Εύρεση διεύθυνσης από τις συντεταγμένες κατά την αποθήκευση</value>
+  </data>
+  <data name="Editor.PickOnMap" xml:space="preserve">
+    <value>Επιλογή στον χάρτη</value>
+  </data>
+  <data name="Editor.ClickTheMapOrDragTheMarker" xml:space="preserve">
+    <value>Κάντε κλικ στον χάρτη ή σύρετε τον δείκτη. Το «Τέλος» ενημερώνει το πρόχειρο. Η «Αποθήκευση τοποθεσίας» αποθηκεύει την αλλαγή.</value>
+  </data>
+  <data name="Editor.PickThisPlaceSLatitudeAndLongitude" xml:space="preserve">
+    <value>Επιλογή γεωγραφικού πλάτους και μήκους στον χάρτη</value>
+  </data>
+  <data name="Editor.SavePlace" xml:space="preserve">
+    <value>Αποθήκευση τοποθεσίας</value>
+  </data>
+  <data name="Editor.LoadingCurrentConsequences" xml:space="preserve">
+    <value>Φόρτωση συνεπειών της διαγραφής…</value>
+  </data>
+  <data name="Editor.TheRegionSPrivatePlanningIsRemoved" xml:space="preserve">
+    <value>Ο ιδιωτικός σχεδιασμός της περιοχής αφαιρείται. Τα στοιχεία που διατηρούνται διατηρούν τον σχεδιασμό τους. Ο σχεδιασμός των διαγραμμένων στοιχείων και τμημάτων αφαιρείται.</value>
+  </data>
+  <data name="Editor.SegmentsDeleted" xml:space="preserve">
+    <value>Τμήματα διαδρομής που διαγράφονται: {0}.</value>
+  </data>
+  <data name="Editor.DeletionIsPermanentVisitHistoryRetainsSnapshots" xml:space="preserve">
+    <value>Η διαγραφή είναι οριστική. Το ιστορικό επισκέψεων διατηρεί τα στιγμιότυπα και αποσυνδέεται από τις διαγραμμένες τοποθεσίες. Η διατήρηση ζωνών δεν διατηρεί τις διαγραμμένες τοποθεσίες ή διαδρομές.</value>
+  </data>
+  <data name="Editor.DeletingRegionWaitingForTheServerResult" xml:space="preserve">
+    <value>Διαγραφή περιοχής. Αναμονή αποτελέσματος από τον διακομιστή…</value>
+  </data>
+  <data name="Editor.TheEarlierRequestRemainsUnresolvedAnotherRegion" xml:space="preserve">
+    <value>Το προηγούμενο αίτημα παραμένει ανεπίλυτο. Η διαγραφή άλλης περιοχής αναστέλλεται μέχρι να εξακριβωθεί το τελικό αποτέλεσμα.</value>
+  </data>
+  <data name="Editor.RefreshPreview" xml:space="preserve">
+    <value>Ανανέωση προεπισκόπησης</value>
+  </data>
+  <data name="Editor.RegionDeletionRemainsHeldUntilTheEarlier" xml:space="preserve">
+    <value>Η διαγραφή περιοχής παραμένει σε αναστολή μέχρι να εξακριβωθεί το τελικό αποτέλεσμα του προηγούμενου αιτήματος.</value>
+  </data>
+  <data name="Editor.SaveRegion" xml:space="preserve">
+    <value>Αποθήκευση περιοχής</value>
+  </data>
+  <data name="Editor.RegionsPlaces" xml:space="preserve">
+    <value>Περιοχές και τοποθεσίες</value>
+  </data>
+  <data name="Editor.AddRegion" xml:space="preserve">
+    <value>Προσθήκη περιοχής</value>
+  </data>
+  <data name="Editor.DragToReorderRegion" xml:space="preserve">
+    <value>Σύρετε για να αλλάξετε τη σειρά της περιοχής</value>
+  </data>
+  <data name="Editor.Edit" xml:space="preserve">
+    <value>Επεξεργασία</value>
+  </data>
+  <data name="Editor.DragToReorderPlace" xml:space="preserve">
+    <value>Σύρετε για να αλλάξετε τη σειρά της τοποθεσίας</value>
+  </data>
+  <data name="Editor.Areas" xml:space="preserve">
+    <value>Ζώνες</value>
+  </data>
+  <data name="Editor.DragToReorderArea" xml:space="preserve">
+    <value>Σύρετε για να αλλάξετε τη σειρά της ζώνης</value>
+  </data>
+  <data name="Editor.Area" xml:space="preserve">
+    <value>Ζώνη</value>
+  </data>
+  <data name="Editor.AddPlace" xml:space="preserve">
+    <value>Προσθήκη τοποθεσίας</value>
+  </data>
+  <data name="Editor.AddArea" xml:space="preserve">
+    <value>Προσθήκη ζώνης</value>
+  </data>
+  <data name="Editor.SegmentTitleOptional" xml:space="preserve">
+    <value>Τίτλος τμήματος (προαιρετικό)</value>
+  </data>
+  <data name="Editor.UseDerivedJourneyLabel" xml:space="preserve">
+    <value>Χρήση αυτόματης ονομασίας διαδρομής</value>
+  </data>
+  <data name="Editor.FromPlace" xml:space="preserve">
+    <value>Τοποθεσία αναχώρησης</value>
+  </data>
+  <data name="Editor.Unlinked" xml:space="preserve">
+    <value>Χωρίς σύνδεση</value>
+  </data>
+  <data name="Editor.ToPlace" xml:space="preserve">
+    <value>Τοποθεσία άφιξης</value>
+  </data>
+  <data name="Editor.TransportMode" xml:space="preserve">
+    <value>Μέσο μετακίνησης</value>
+  </data>
+  <data name="Editor.Unset" xml:space="preserve">
+    <value>Χωρίς επιλογή</value>
+  </data>
+  <data name="Editor.EstimatedDistanceKm" xml:space="preserve">
+    <value>Εκτιμώμενη απόσταση (χλμ.)</value>
+  </data>
+  <data name="Editor.DurationEstimate" xml:space="preserve">
+    <value>Εκτίμηση διάρκειας</value>
+  </data>
+  <data name="Editor.UseAutomaticEstimate" xml:space="preserve">
+    <value>Χρήση αυτόματης εκτίμησης</value>
+  </data>
+  <data name="Editor.EnterManually" xml:space="preserve">
+    <value>Χειροκίνητη εισαγωγή</value>
+  </data>
+  <data name="Editor.EstimatedDurationMinutes" xml:space="preserve">
+    <value>Εκτιμώμενη διάρκεια (λεπτά)</value>
+  </data>
+  <data name="Editor.Route" xml:space="preserve">
+    <value>Διαδρομή</value>
+  </data>
+  <data name="Editor.TheCustomRouteIsStoredInReverse" xml:space="preserve">
+    <value>Η προσαρμοσμένη διαδρομή είναι αποθηκευμένη σε αντίστροφη σειρά. Χρησιμοποιήστε την «Αντιστροφή διαδρομής» πριν αποθηκεύσετε το πρόχειρο.</value>
+  </data>
+  <data name="Editor.RouteDirectionUnavailableCorrectOrClearThe" xml:space="preserve">
+    <value>Η κατεύθυνση της διαδρομής δεν είναι διαθέσιμη. Διορθώστε ή διαγράψτε την προσαρμοσμένη διαδρομή πριν χρησιμοποιήσετε τις ενδείξεις κατεύθυνσης.</value>
+  </data>
+  <data name="Editor.DrawEditRoute" xml:space="preserve">
+    <value>Σχεδίαση ή επεξεργασία διαδρομής</value>
+  </data>
+  <data name="Editor.ReverseRoute" xml:space="preserve">
+    <value>Αντιστροφή διαδρομής</value>
+  </data>
+  <data name="Editor.SaveSegment" xml:space="preserve">
+    <value>Αποθήκευση τμήματος</value>
+  </data>
+  <data name="Editor.Segments" xml:space="preserve">
+    <value>Τμήματα διαδρομής</value>
+  </data>
+  <data name="Editor.CurrentSavedSegment" xml:space="preserve">
+    <value>Τρέχον αποθηκευμένο τμήμα</value>
+  </data>
+  <data name="Editor.Km" xml:space="preserve">
+    <value>χλμ. ·</value>
+  </data>
+  <data name="Editor.Minutes" xml:space="preserve">
+    <value>λεπτά ·</value>
+  </data>
+  <data name="Editor.ReloadCurrentSavedSegment" xml:space="preserve">
+    <value>Επαναφόρτωση τρέχοντος αποθηκευμένου τμήματος</value>
+  </data>
+  <data name="Editor.AddSegment" xml:space="preserve">
+    <value>Προσθήκη τμήματος</value>
+  </data>
+  <data name="Editor.DragToReorderSegment" xml:space="preserve">
+    <value>Σύρετε για να αλλάξετε τη σειρά του τμήματος</value>
+  </data>
+  <data name="Editor.DeleteSegment" xml:space="preserve">
+    <value>Διαγραφή τμήματος</value>
+  </data>
+  <data name="Editor.NoTravelSegmentsAddedYet" xml:space="preserve">
+    <value>Δεν έχουν προστεθεί ακόμη τμήματα διαδρομής.</value>
+  </data>
+  <data name="Editor.RoutePoints" xml:space="preserve">
+    <value>Σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.StartViaAndEndAnchorsFollowTheir" xml:space="preserve">
+    <value>Τα σημεία αφετηρίας, διέλευσης και άφιξης ακολουθούν τις αποθηκευμένες τοποθεσίες τους. Εδώ δεν είναι δυνατή η μετακίνηση ή η αφαίρεσή τους.</value>
+  </data>
+  <data name="Editor.LongitudeMustBeBetween180And180" xml:space="preserve">
+    <value>Το γεωγραφικό μήκος πρέπει να είναι μεταξύ -180 και 180.</value>
+  </data>
+  <data name="Editor.LatitudeMustBeBetween90And90" xml:space="preserve">
+    <value>Το γεωγραφικό πλάτος πρέπει να είναι μεταξύ -90 και 90.</value>
+  </data>
+  <data name="Editor.FixedSavedPlaceAnchor" xml:space="preserve">
+    <value>Σταθερό σημείο αποθηκευμένης τοποθεσίας</value>
+  </data>
+  <data name="Editor.InsertRoutePointAfter" xml:space="preserve">
+    <value>Εισαγωγή σημείου διαδρομής μετά από αυτό</value>
+  </data>
+  <data name="Editor.ExternalRoutedPath" xml:space="preserve">
+    <value>Διαδρομή από εξωτερικό πάροχο</value>
+  </data>
+  <data name="Editor.SaveTheTransportProfileChangeBeforeGenerating" xml:space="preserve">
+    <value>Αποθηκεύστε την αλλαγή προφίλ μετακίνησης πριν δημιουργήσετε νέα πρόταση.</value>
+  </data>
+  <data name="Editor.DirectionsMode" xml:space="preserve">
+    <value>Τρόπος δρομολόγησης</value>
+  </data>
+  <data name="Editor.ChooseAMode" xml:space="preserve">
+    <value>Επιλέξτε τρόπο δρομολόγησης</value>
+  </data>
+  <data name="Editor.UsedOnlyToCalculateThisRouteThe" xml:space="preserve">
+    <value>Η επιλογή χρησιμοποιείται μόνο για τον υπολογισμό αυτής της διαδρομής. Το προφίλ μετακίνησης του τμήματος παραμένει ίδιο.</value>
+  </data>
+  <data name="Editor.CancelGeneration" xml:space="preserve">
+    <value>Ακύρωση δημιουργίας</value>
+  </data>
+  <data name="Editor.ReviewTheProposedRouteAndEstimatesSave" xml:space="preserve">
+    <value>Ελέγξτε την προτεινόμενη διαδρομή και τις εκτιμήσεις. Η «Αποθήκευση τμήματος» εφαρμόζει την πρόταση μαζί με τις υπόλοιπες αλλαγές. Η «Απόρριψη πρότασης» διατηρεί την προηγούμενη διαδρομή.</value>
+  </data>
+  <data name="Editor.ProposedDistance" xml:space="preserve">
+    <value>Προτεινόμενη απόσταση</value>
+  </data>
+  <data name="Editor.EstimatedTravelTime" xml:space="preserve">
+    <value>Εκτιμώμενος χρόνος μετακίνησης</value>
+  </data>
+  <data name="Editor.SaveKeepsYourManualDurationInsteadOf" xml:space="preserve">
+    <value>Η αποθήκευση διατηρεί τη διάρκεια που εισαγάγατε αντί της προτεινόμενης εκτίμησης.</value>
+  </data>
+  <data name="Editor.DiscardProposal" xml:space="preserve">
+    <value>Απόρριψη πρότασης</value>
+  </data>
+  <data name="Editor.IntermediatePlaces" xml:space="preserve">
+    <value>Ενδιάμεσες τοποθεσίες</value>
+  </data>
+  <data name="Editor.NoIntermediateSavedPlaceSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί αποθηκευμένη ενδιάμεση τοποθεσία.</value>
+  </data>
+  <data name="Editor.PlaceToAdd" xml:space="preserve">
+    <value>Τοποθεσία προς προσθήκη</value>
+  </data>
+  <data name="Editor.SelectASavedPlace" xml:space="preserve">
+    <value>Επιλέξτε αποθηκευμένη τοποθεσία</value>
+  </data>
+  <data name="Editor.AddIntermediatePlace" xml:space="preserve">
+    <value>Προσθήκη ενδιάμεσης τοποθεσίας</value>
+  </data>
+  <data name="Editor.MoveUp" xml:space="preserve">
+    <value>Μετακίνηση προς τα πάνω</value>
+  </data>
+  <data name="Editor.MoveDown" xml:space="preserve">
+    <value>Μετακίνηση προς τα κάτω</value>
+  </data>
+  <data name="Editor.JourneyOrder" xml:space="preserve">
+    <value>Σειρά διαδρομής:</value>
+  </data>
+  <data name="Editor.OwnerSContributionsPublicationPolicy" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη — πολιτική δημοσίευσης</value>
+  </data>
+  <data name="Editor.UnlicensedEffectivelyViewOnly" xml:space="preserve">
+    <value>Χωρίς άδεια — ουσιαστικά μόνο προβολή</value>
+  </data>
+  <data name="Editor.PublicViewOnly" xml:space="preserve">
+    <value>Δημόσια προβολή μόνο</value>
+  </data>
+  <data name="Editor.PublicationPolicy" xml:space="preserve">
+    <value>Πολιτική δημοσίευσης</value>
+  </data>
+  <data name="Editor.InheritedTermsStaySeparateViewOnlyDoes" xml:space="preserve">
+    <value>Οι κληρονομημένοι όροι ισχύουν χωριστά. Η επιλογή μόνο προβολής δεν εμποδίζει τη χειροκίνητη αντιγραφή ούτε ανακαλεί κληρονομημένα δικαιώματα.</value>
+  </data>
+  <data name="Editor.SourcesCredits" xml:space="preserve">
+    <value>Πηγές και αναφορές δημιουργών</value>
+  </data>
+  <data name="Editor.PolicyCoversYourContributionsOnlyInheritedTerms" xml:space="preserve">
+    <value>Η πολιτική καλύπτει μόνο τις δικές σας συνεισφορές. Οι κληρονομημένοι όροι ισχύουν χωριστά. Οι αναφορές είναι περιγραφικές και δεν πιστοποιούν ιδιοκτησία. Διατηρήστε όλες τις σημειώσεις που εξακολουθούν να ισχύουν.</value>
+  </data>
+  <data name="Editor.OwnerSContributions" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη</value>
+  </data>
+  <data name="Editor.SelectedPublicationPolicy" xml:space="preserve">
+    <value>Επιλεγμένη πολιτική δημοσίευσης:</value>
+  </data>
+  <data name="Editor.InheritedLicensedRightsAreRetained" xml:space="preserve">
+    <value>. Τα δικαιώματα των κληρονομημένων αδειών διατηρούνται.</value>
+  </data>
+  <data name="Editor.Credit" xml:space="preserve">
+    <value>Αναφορά δημιουργού</value>
+  </data>
+  <data name="Editor.Contributor" xml:space="preserve">
+    <value>Συντελεστής</value>
+  </data>
+  <data name="Editor.SourceDescription" xml:space="preserve">
+    <value>Περιγραφή πηγής</value>
+  </data>
+  <data name="Editor.InheritedLicenceTerms" xml:space="preserve">
+    <value>Κληρονομημένη άδεια ή όροι</value>
+  </data>
+  <data name="Editor.LicenceURL" xml:space="preserve">
+    <value>Σύνδεσμος άδειας</value>
+  </data>
+  <data name="Editor.Notices" xml:space="preserve">
+    <value>Σημειώσεις</value>
+  </data>
+  <data name="Editor.Modifications" xml:space="preserve">
+    <value>Τροποποιήσεις</value>
+  </data>
+  <data name="Editor.PublicSourceURL" xml:space="preserve">
+    <value>Δημόσιος σύνδεσμος πηγής</value>
+  </data>
+  <data name="Editor.RemoveCorrectedInapplicableCredit" xml:space="preserve">
+    <value>Αφαίρεση διορθωμένης ή μη εφαρμοστέας αναφοράς</value>
+  </data>
+  <data name="Editor.AddCredit" xml:space="preserve">
+    <value>Προσθήκη αναφοράς</value>
+  </data>
+  <data name="Editor.Title" xml:space="preserve">
+    <value>Επεξεργαστής ταξιδιού</value>
+  </data>
+  <data name="Editor.SidebarSearch" xml:space="preserve">
+    <value>Αναζήτηση στην πλαϊνή στήλη</value>
+  </data>
+  <data name="Editor.NoMatchingRegionsPlacesAreasOrSegments" xml:space="preserve">
+    <value>Δεν βρέθηκαν αντίστοιχες περιοχές, τοποθεσίες, ζώνες ή τμήματα.</value>
+  </data>
+  <data name="Editor.Collapse" xml:space="preserve">
+    <value>Σύμπτυξη</value>
+  </data>
+  <data name="Editor.Peek" xml:space="preserve">
+    <value>Προεπισκόπηση</value>
+  </data>
+  <data name="Editor.Expand" xml:space="preserve">
+    <value>Ανάπτυξη</value>
+  </data>
+  <data name="Editor.DrawerSize" xml:space="preserve">
+    <value>Μέγεθος συρταριού</value>
+  </data>
+  <data name="Editor.Trip" xml:space="preserve">
+    <value>Ταξίδι</value>
+  </data>
+  <data name="Editor.Regions" xml:space="preserve">
+    <value>Περιοχές</value>
+  </data>
+  <data name="Editor.TripEditorSections" xml:space="preserve">
+    <value>Ενότητες επεξεργαστή ταξιδιού</value>
+  </data>
+  <data name="Editor.VisitProgress" xml:space="preserve">
+    <value>Πρόοδος επισκέψεων</value>
+  </data>
+  <data name="Editor.PlacesVisited" xml:space="preserve">
+    <value>τοποθεσίες με επίσκεψη</value>
+  </data>
+  <data name="Editor.Visits" xml:space="preserve">
+    <value>Επισκέψεις</value>
+  </data>
+  <data name="Editor.TripTab" xml:space="preserve">
+    <value>Καρτέλα ταξιδιού</value>
+  </data>
+  <data name="Editor.RegionsTab" xml:space="preserve">
+    <value>Καρτέλα περιοχών</value>
+  </data>
+  <data name="Editor.SegmentsTab" xml:space="preserve">
+    <value>Καρτέλα τμημάτων</value>
+  </data>
+  <data name="Editor.TripEditorMobileDrawer" xml:space="preserve">
+    <value>Συρτάρι επεξεργαστή ταξιδιού για κινητά</value>
+  </data>
+  <data name="Editor.ReadOnlyVisits" xml:space="preserve">
+    <value>Επισκέψεις μόνο για ανάγνωση</value>
+  </data>
+  <data name="Editor.VisitProgressAndHistory" xml:space="preserve">
+    <value>Πρόοδος και ιστορικό επισκέψεων</value>
+  </data>
+  <data name="Editor.YourOverallTripProgress" xml:space="preserve">
+    <value>Συνολική πρόοδος ταξιδιού</value>
+  </data>
+  <data name="Editor.OverallVisitProgress" xml:space="preserve">
+    <value>Συνολική πρόοδος επισκέψεων</value>
+  </data>
+  <data name="Editor.NoVisitHistoryYet" xml:space="preserve">
+    <value>Δεν υπάρχει ακόμη ιστορικό επισκέψεων.</value>
+  </data>
+  <data name="Editor.TripVisitProgressSummary" xml:space="preserve">
+    <value>Σύνοψη προόδου επισκέψεων ταξιδιού</value>
+  </data>
+  <data name="Editor.FilterPlaces" xml:space="preserve">
+    <value>Φιλτράρισμα τοποθεσιών</value>
+  </data>
+  <data name="Editor.AllPlaces" xml:space="preserve">
+    <value>Όλες</value>
+  </data>
+  <data name="Editor.Visited" xml:space="preserve">
+    <value>Επίσκεψη</value>
+  </data>
+  <data name="Editor.NotVisited" xml:space="preserve">
+    <value>Χωρίς επίσκεψη</value>
+  </data>
+  <data name="Editor.VisitFilters" xml:space="preserve">
+    <value>Φίλτρα επισκέψεων</value>
+  </data>
+  <data name="Editor.VisitedHelp" xml:space="preserve">
+    <value>με επίσκεψη</value>
+  </data>
+  <data name="Editor.Visit" xml:space="preserve">
+    <value>επίσκεψη</value>
+  </data>
+  <data name="Editor.FirstVisit" xml:space="preserve">
+    <value>Πρώτη επίσκεψη</value>
+  </data>
+  <data name="Editor.LastVisit" xml:space="preserve">
+    <value>Τελευταία επίσκεψη</value>
+  </data>
+  <data name="Editor.NoVisitHistoryRowsAvailableForThis" xml:space="preserve">
+    <value>Δεν υπάρχουν εγγραφές επισκέψεων για αυτήν την τοποθεσία.</value>
+  </data>
+  <data name="Editor.Start" xml:space="preserve">
+    <value>Έναρξη</value>
+  </data>
+  <data name="Editor.End" xml:space="preserve">
+    <value>Λήξη</value>
+  </data>
+  <data name="Editor.Duration" xml:space="preserve">
+    <value>Διάρκεια</value>
+  </data>
+  <data name="Editor.ManageVisit" xml:space="preserve">
+    <value>Διαχείριση επίσκεψης</value>
+  </data>
+  <data name="Editor.MovementAndTiming" xml:space="preserve">
+    <value>Μετακίνηση και χρονισμός</value>
+  </data>
+  <data name="Editor.ChooseTheReleaseDestinationPairIntendedArrival" xml:space="preserve">
+    <value>Επιλέξτε το ζεύγος αναχώρησης και προορισμού. Η προβλεπόμενη άφιξη χρησιμοποιεί την αποθηκευμένη έναρξη ή ώρα. Η προαιρετική προθεσμία άφιξης αξιολογείται χωριστά. Δεν χρειάζεται αποθηκευμένο τμήμα ή κλήση σε πάροχο.</value>
+  </data>
+  <data name="Editor.ReleaseFromEntry" xml:space="preserve">
+    <value>Αναχώρηση από καταχώριση</value>
+  </data>
+  <data name="Editor.LeaveUnresolved" xml:space="preserve">
+    <value>Να παραμείνει ανεπίλυτο</value>
+  </data>
+  <data name="Editor.DestinationEntryIntendedArrivalOrCheckOnly" xml:space="preserve">
+    <value>Καταχώριση προορισμού · προβλεπόμενη άφιξη ή προθεσμία μόνο για τον έλεγχο</value>
+  </data>
+  <data name="Editor.AssessThisMovement" xml:space="preserve">
+    <value>Αξιολόγηση μετακίνησης</value>
+  </data>
+  <data name="Editor.IntendedArrivalSavedStartAtStoredEnd" xml:space="preserve">
+    <value>Προβλεπόμενη άφιξη: αποθηκευμένη έναρξη ή ώρα. Η αποθηκευμένη λήξη παραμένει τελικό σημείο και δεν ορίζει προθεσμία άφιξης.</value>
+  </data>
+  <data name="Editor.AddArriveByDeadlineForThisCheck" xml:space="preserve">
+    <value>Προσθήκη προθεσμίας άφιξης για αυτόν τον έλεγχο</value>
+  </data>
+  <data name="Editor.ArriveByCheckOnly" xml:space="preserve">
+    <value>Άφιξη έως · μόνο για τον έλεγχο</value>
+  </data>
+  <data name="Editor.ThisPrivateCheckInputChangesNoSaved" xml:space="preserve">
+    <value>Αυτή η ιδιωτική τιμή ελέγχου δεν αλλάζει κάποια αποθηκευμένη πρόθεση. Η αξιολόγηση διάρκειας απαιτεί ακρίβεια λεπτού και καθορισμένη ζώνη ώρας.</value>
+  </data>
+  <data name="Editor.RemoveCheckOnlyDeadline" xml:space="preserve">
+    <value>Αφαίρεση προθεσμίας ελέγχου</value>
+  </data>
+  <data name="Editor.EstimateSource" xml:space="preserve">
+    <value>Πηγή εκτίμησης</value>
+  </data>
+  <data name="Editor.MyEstimateForThisCheck" xml:space="preserve">
+    <value>Η εκτίμησή μου για αυτόν τον έλεγχο</value>
+  </data>
+  <data name="Editor.TravelEstimateInMinutes" xml:space="preserve">
+    <value>Εκτίμηση χρόνου μετακίνησης σε λεπτά</value>
+  </data>
+  <data name="Editor.SourceShownForConfirmation" xml:space="preserve">
+    <value>Πηγή προς επιβεβαίωση:</value>
+  </data>
+  <data name="Editor.CheckSavedVersionToLoadThisSource" xml:space="preserve">
+    <value>Ελέγξτε την αποθηκευμένη έκδοση για να φορτωθεί η πηγή πριν επιβεβαιώσετε τη συνάφειά της.</value>
+  </data>
+  <data name="Editor.ThisEstimateIsRelevantToThisDirection" xml:space="preserve">
+    <value>Η εκτίμηση αφορά αυτήν την κατεύθυνση, τις τοποθεσίες και το μέσο μετακίνησης</value>
+  </data>
+  <data name="Editor.UnknownSkip" xml:space="preserve">
+    <value>Άγνωστο / Παράλειψη</value>
+  </data>
+  <data name="Editor.NoneNeededForThisCheck" xml:space="preserve">
+    <value>Δεν απαιτείται για αυτόν τον έλεγχο</value>
+  </data>
+  <data name="Editor.AlreadyIncludedInTheSelectedEstimate" xml:space="preserve">
+    <value>Περιλαμβάνεται ήδη στην επιλεγμένη εκτίμηση</value>
+  </data>
+  <data name="Editor.AdditionalMinutesCountedOnce" xml:space="preserve">
+    <value>Πρόσθετα λεπτά που υπολογίζονται μία φορά</value>
+  </data>
+  <data name="Editor.Additional" xml:space="preserve">
+    <value>Πρόσθετα</value>
+  </data>
+  <data name="Editor.MinutesNotAlreadyCountedInEstimateOr" xml:space="preserve">
+    <value>λεπτά (εκτός εκτίμησης ή διαθέσιμου διαστήματος)</value>
+  </data>
+  <data name="Editor.WhatIfTheReleaseIsDifferent" xml:space="preserve">
+    <value>Αν η ώρα αναχώρησης είναι διαφορετική;</value>
+  </data>
+  <data name="Editor.ACurrentReleaseAssumptionLastsAtMost" xml:space="preserve">
+    <value>Η υπόθεση για την τρέχουσα αναχώρηση ισχύει έως 30 λεπτά κατά τη σημερινή ημέρα UTC. Οι προθέσεις, οι εκτιμήσεις και το καταγεγραμμένο ιστορικό παραμένουν ίδια.</value>
+  </data>
+  <data name="Editor.WhatIfReleaseClock" xml:space="preserve">
+    <value>Υποθετική ώρα αναχώρησης</value>
+  </data>
+  <data name="Editor.WhatIfReleaseZone" xml:space="preserve">
+    <value>Υποθετική ζώνη ώρας αναχώρησης</value>
+  </data>
+  <data name="Editor.UtcOrIANAZoneNoDeviceDefault" xml:space="preserve">
+    <value>UTC ή ζώνη IANA, χωρίς προεπιλογή συσκευής</value>
+  </data>
+  <data name="Editor.RemoveThisMovementCheck" xml:space="preserve">
+    <value>Αφαίρεση ελέγχου μετακίνησης</value>
+  </data>
+  <data name="Editor.OtherSavedActivitiesAreNotAutomaticallyDeducted" xml:space="preserve">
+    <value>Οι άλλες αποθηκευμένες δραστηριότητες δεν αφαιρούνται αυτόματα από το διαθέσιμο διάστημα. Επιλέξτε τις σχετικές καταχωρίσεις αναχώρησης και άφιξης και υπολογίστε κάθε στάση μία φορά.</value>
+  </data>
+  <data name="Editor.OptionalPlanningChecks" xml:space="preserve">
+    <value>Προαιρετικοί έλεγχοι σχεδιασμού</value>
+  </data>
+  <data name="Editor.CheckPlan" xml:space="preserve">
+    <value>Έλεγχος σχεδίου</value>
+  </data>
+  <data name="Editor.CheckThisEntityOnly" xml:space="preserve">
+    <value>Έλεγχος μόνο αυτού του στοιχείου</value>
+  </data>
+  <data name="Editor.EditingAndSavingNeedNoAssessmentOr" xml:space="preserve">
+    <value>Η επεξεργασία και η αποθήκευση δεν απαιτούν αξιολόγηση ή επιβεβαίωση προειδοποιήσεων.</value>
+  </data>
+  <data name="Editor.ChecksUseAFreshSavedOwnerSnapshot" xml:space="preserve">
+    <value>. Οι έλεγχοι χρησιμοποιούν πρόσφατο στιγμιότυπο των αποθηκευμένων δεδομένων του ιδιοκτήτη.</value>
+  </data>
+  <data name="Editor.UnsavedOrUnconfirmedDraftsAreSeparateAnd" xml:space="preserve">
+    <value>Τα μη αποθηκευμένα ή ανεπιβεβαίωτα πρόχειρα διατηρούνται χωριστά και εξαιρούνται από την αξιολόγηση των αποθηκευμένων δεδομένων.</value>
+  </data>
+  <data name="Editor.YourDraftsHaveNotBeenSavedBy" xml:space="preserve">
+    <value>Ο έλεγχος σχεδίου δεν αποθήκευσε τα πρόχειρά σας.</value>
+  </data>
+  <data name="Editor.SaveAndCheck" xml:space="preserve">
+    <value>Αποθήκευση και έλεγχος</value>
+  </data>
+  <data name="Editor.CheckSavedVersion" xml:space="preserve">
+    <value>Έλεγχος αποθηκευμένης έκδοσης</value>
+  </data>
+  <data name="Editor.ReturnToEditing" xml:space="preserve">
+    <value>Επιστροφή στην επεξεργασία</value>
+  </data>
+  <data name="Editor.ChooseVersionToCheck" xml:space="preserve">
+    <value>Επιλογή έκδοσης προς έλεγχο</value>
+  </data>
+  <data name="Editor.CheckingSavedInformation" xml:space="preserve">
+    <value>Έλεγχος αποθηκευμένων πληροφοριών…</value>
+  </data>
+  <data name="Editor.ThisReviewIsStaleSavedFactsDrafts" xml:space="preserve">
+    <value>Η αξιολόγηση έχει παλιώσει επειδή άλλαξαν αποθηκευμένα δεδομένα, πρόχειρα ή τιμές ελέγχου. Εκτελέστε ξανά τον έλεγχο για ενημερωμένα αποτελέσματα.</value>
+  </data>
+  <data name="Editor.Findings" xml:space="preserve">
+    <value>ευρήματα ·</value>
+  </data>
+  <data name="Editor.CompletedChecks" xml:space="preserve">
+    <value>ολοκληρωμένοι έλεγχοι ·</value>
+  </data>
+  <data name="Editor.Unknown" xml:space="preserve">
+    <value>άγνωστα ·</value>
+  </data>
+  <data name="Editor.EntriesExplicitlyUnassessed" xml:space="preserve">
+    <value>καταχωρίσεις εκτός αξιολόγησης</value>
+  </data>
+  <data name="Editor.ResultsApplyOnlyToTheListedEntries" xml:space="preserve">
+    <value>Τα αποτελέσματα αφορούν μόνο τις καταχωρίσεις και τις υποθέσεις που εμφανίζονται. Η συνέπεια ολόκληρου του ταξιδιού, οι αφίξεις και η συμβατότητα απαιτήσεων προσοχής δεν πιστοποιούνται.</value>
+  </data>
+  <data name="Editor.UsingLastInputsReviewChange" xml:space="preserve">
+    <value>Χρήση τελευταίων τιμών · έλεγχος ή αλλαγή</value>
+  </data>
+  <data name="Editor.Reused" xml:space="preserve">
+    <value>Επαναχρησιμοποιήθηκαν:</value>
+  </data>
+  <data name="Editor.Reopened" xml:space="preserve">
+    <value>Άνοιξαν ξανά:</value>
+  </data>
+  <data name="Editor.DismissForThisReview" xml:space="preserve">
+    <value>Απόκρυψη για αυτήν την αξιολόγηση</value>
+  </data>
+  <data name="Editor.TheseLocationsRequireSeparatePresence" xml:space="preserve">
+    <value>Αυτές οι τοποθεσίες απαιτούν χωριστή παρουσία</value>
+  </data>
+  <data name="Editor.PlanningResults" xml:space="preserve">
+    <value>Αποτελέσματα σχεδιασμού</value>
+  </data>
+  <data name="Editor.CollapsedFindingsCountsRetained" xml:space="preserve">
+    <value>κρυμμένα ευρήματα, διατηρούνται στις μετρήσεις.</value>
+  </data>
+  <data name="Editor.CoverageAndTargetedCheckInputs" xml:space="preserve">
+    <value>Κάλυψη και τιμές στοχευμένου ελέγχου ·</value>
+  </data>
+  <data name="Editor.SavedEntries" xml:space="preserve">
+    <value>αποθηκευμένες καταχωρίσεις</value>
+  </data>
+  <data name="Editor.UseSavedFactsFirstSupplyOnlyFacts" xml:space="preserve">
+    <value>Χρησιμοποιήστε πρώτα τα αποθηκευμένα δεδομένα. Συμπληρώστε μόνο όσα χρειάζονται για ένα άγνωστο αποτέλεσμα. Με την παράλειψη το αποτέλεσμα παραμένει άγνωστο. Οι τιμές παραμένουν ιδιωτικές στη συσκευή και δεν αλλάζουν τον σχεδιασμό ή τις εξαγωγές.</value>
+  </data>
+  <data name="Editor.OneTravellerForThisSelectedScope" xml:space="preserve">
+    <value>Ένας ταξιδιώτης για το επιλεγμένο εύρος</value>
+  </data>
+  <data name="Editor.LocationsRequireSeparatePresence" xml:space="preserve">
+    <value>: οι τοποθεσίες απαιτούν χωριστή παρουσία</value>
+  </data>
+  <data name="Editor.NoSavedPlanningEntriesInThisTrip" xml:space="preserve">
+    <value>Το ταξίδι δεν έχει αποθηκευμένες καταχωρίσεις σχεδιασμού.</value>
+  </data>
+  <data name="Editor.Saved" xml:space="preserve">
+    <value>Αποθηκεύτηκε</value>
+  </data>
+  <data name="Editor.AssessThisEntryForThisCheck" xml:space="preserve">
+    <value>Συμπερίληψη καταχώρισης σε αυτόν τον έλεγχο</value>
+  </data>
+  <data name="Editor.MeaningForThisCheckOnly" xml:space="preserve">
+    <value>Σημασία μόνο για αυτόν τον έλεγχο</value>
+  </data>
+  <data name="Editor.LeaveUnresolvedSkip" xml:space="preserve">
+    <value>Να παραμείνει ανεπίλυτο / Παράλειψη</value>
+  </data>
+  <data name="Editor.PlanningWindow" xml:space="preserve">
+    <value>Χρονικό παράθυρο σχεδιασμού</value>
+  </data>
+  <data name="Editor.ActivityRequiringPresence" xml:space="preserve">
+    <value>Δραστηριότητα που απαιτεί παρουσία</value>
+  </data>
+  <data name="Editor.StayBaseAvailability" xml:space="preserve">
+    <value>Διαθεσιμότητα διαμονής ή βάσης</value>
+  </data>
+  <data name="Editor.Journey" xml:space="preserve">
+    <value>Διαδρομή</value>
+  </data>
+  <data name="Editor.NeededZoneCivilWindowInterpretationForThis" xml:space="preserve">
+    <value>Ζώνη ώρας ή ερμηνεία τοπικού χρονικού παραθύρου για τον έλεγχο</value>
+  </data>
+  <data name="Editor.LeaveUnresolvedOrUTCIANAZone" xml:space="preserve">
+    <value>Να παραμείνει ανεπίλυτο ή ζώνη UTC / IANA</value>
+  </data>
+  <data name="Editor.AppliesOnlyWhereAZoneIsAbsent" xml:space="preserve">
+    <value>Ισχύει μόνο όταν λείπει η ζώνη ώρας ή για τα όρια τοπικού χρονικού παραθύρου. Οι αποθηκευμένες ζώνες και επιλογές επαναλαμβανόμενης ώρας υπερισχύουν.</value>
+  </data>
+  <data name="Editor.OccurrenceUTCOffsetInSecondsForThis" xml:space="preserve">
+    <value>απόκλιση UTC σε δευτερόλεπτα για την εμφάνιση σε αυτόν τον έλεγχο ·</value>
+  </data>
+  <data name="Editor.NeededElapsedDwellForThisCheckMinutes" xml:space="preserve">
+    <value>Απαιτούμενος χρόνος παραμονής για τον έλεγχο (λεπτά)</value>
+  </data>
+  <data name="Editor.ChooseExplicitlyRelevantParentWindowUnion" xml:space="preserve">
+    <value>Επιλέξτε ρητά τα σχετικά ανώτερα χρονικά παράθυρα προς συνένωση</value>
+  </data>
+  <data name="Editor.MissingMeaningsCanBeClarifiedInThe" xml:space="preserve">
+    <value>Η σημασία που λείπει μπορεί να διευκρινιστεί στην αντίστοιχη καταχώριση. Τα μη επιλεγμένα παράθυρα δεν επιβάλλουν χρονικό περιορισμό και τα κενά της ένωσης διατηρούνται.</value>
+  </data>
+  <data name="Editor.UseForThisCheckCheckSavedVersion" xml:space="preserve">
+    <value>Χρήση σε αυτόν τον έλεγχο · έλεγχος αποθηκευμένης έκδοσης</value>
+  </data>
+  <data name="Editor.CheckAgain" xml:space="preserve">
+    <value>Επανάληψη ελέγχου</value>
+  </data>
+  <data name="Editor.ClearLatestPrivateInputs" xml:space="preserve">
+    <value>Εκκαθάριση των τελευταίων ιδιωτικών τιμών</value>
+  </data>
+  <data name="Editor.DiscardThisPlanningDraft" xml:space="preserve">
+    <value>Απόρριψη αυτού του πρόχειρου σχεδιασμού</value>
+  </data>
+  <data name="Editor.DeletedTargetPlanningRecovery" xml:space="preserve">
+    <value>Ανάκτηση σχεδιασμού διαγραμμένου στοιχείου</value>
+  </data>
+  <data name="Editor.Planning" xml:space="preserve">
+    <value>Σχεδιασμός</value>
+  </data>
+  <data name="Editor.SavePlanningSavesOnlyThisObjectS" xml:space="preserve">
+    <value>Η «Αποθήκευση σχεδιασμού» αποθηκεύει μόνο τον σχεδιασμό αυτού του στοιχείου. Οι ρυθμίσεις ταξιδιού, οι σημειώσεις και οι διαδρομές αποθηκεύονται χωριστά.</value>
+  </data>
+  <data name="Editor.StoredPlanningIsRetainedReviewExplicitlyBefore" xml:space="preserve">
+    <value>Ο αποθηκευμένος σχεδιασμός διατηρείται. Ελέγξτε τον πριν κάνετε αλλαγές.</value>
+  </data>
+  <data name="Editor.At" xml:space="preserve">
+    <value>Στις</value>
+  </data>
+  <data name="Editor.Information" xml:space="preserve">
+    <value>πληροφορίες</value>
+  </data>
+  <data name="Editor.Unspecified" xml:space="preserve">
+    <value>Απροσδιόριστο</value>
+  </data>
+  <data name="Editor.Known" xml:space="preserve">
+    <value>Γνωστό</value>
+  </data>
+  <data name="Editor.ExplicitlyUnknown" xml:space="preserve">
+    <value>Ρητά άγνωστο</value>
+  </data>
+  <data name="Editor.DeliberatelyFlexible" xml:space="preserve">
+    <value>Σκόπιμα ευέλικτο</value>
+  </data>
+  <data name="Editor.EndIsAnEndpointNotALatest" xml:space="preserve">
+    <value>Η λήξη ορίζει το τέλος του διαστήματος.</value>
+  </data>
+  <data name="Editor.AddEndDate" xml:space="preserve">
+    <value>Προσθήκη ημερομηνίας λήξης</value>
+  </data>
+  <data name="Editor.More" xml:space="preserve">
+    <value>Περισσότερα</value>
+  </data>
+  <data name="Editor.LabelOptional" xml:space="preserve">
+    <value>Ετικέτα (προαιρετικό)</value>
+  </data>
+  <data name="Editor.MeaningOptional" xml:space="preserve">
+    <value>Σημασία (προαιρετικό)</value>
+  </data>
+  <data name="Editor.ElapsedAllocationInMinutesOptional" xml:space="preserve">
+    <value>Δέσμευση χρόνου σε λεπτά (προαιρετικό)</value>
+  </data>
+  <data name="Editor.AllocationIsAllowedOnAtOrUndated" xml:space="preserve">
+    <value>Η δέσμευση χρόνου επιτρέπεται σε καταχωρίσεις συγκεκριμένης ώρας ή σε αχρονολόγητες καταχωρίσεις χωρίς κατηγορία, παρουσίας ή διαδρομής. Αφαιρέστε τη πριν επιλέξετε παράθυρο, διαμονή ή περίοδο.</value>
+  </data>
+  <data name="Editor.Timing" xml:space="preserve">
+    <value>Χρονισμός</value>
+  </data>
+  <data name="Editor.Period" xml:space="preserve">
+    <value>Περίοδος</value>
+  </data>
+  <data name="Editor.UndatedUnspecified" xml:space="preserve">
+    <value>Χωρίς ημερομηνία, απροσδιόριστο</value>
+  </data>
+  <data name="Editor.RemoveEntry" xml:space="preserve">
+    <value>Αφαίρεση καταχώρισης</value>
+  </data>
+  <data name="Editor.SavePlanning" xml:space="preserve">
+    <value>Αποθήκευση σχεδιασμού</value>
+  </data>
+  <data name="Editor.ReviewCurrentComparison" xml:space="preserve">
+    <value>Έλεγχος τρέχουσας σύγκρισης</value>
+  </data>
+  <data name="Editor.MonthOnly" xml:space="preserve">
+    <value>Μόνο μήνας</value>
+  </data>
+  <data name="Editor.ChooseExactDate" xml:space="preserve">
+    <value>Επιλογή ακριβούς ημερομηνίας</value>
+  </data>
+  <data name="Editor.AddTime" xml:space="preserve">
+    <value>Προσθήκη ώρας</value>
+  </data>
+  <data name="Editor.Time" xml:space="preserve">
+    <value>Ώρα</value>
+  </data>
+  <data name="Editor.ZoneAndOccurrenceOptional" xml:space="preserve">
+    <value>Ζώνη ώρας και εμφάνιση (προαιρετικά)</value>
+  </data>
+  <data name="Editor.UtcOrIANAZone" xml:space="preserve">
+    <value>UTC ή ζώνη IANA</value>
+  </data>
+  <data name="Editor.OccurrenceUTCOffsetInSecondsOptional" xml:space="preserve">
+    <value>Απόκλιση UTC σε δευτερόλεπτα για την εμφάνιση (προαιρετικά)</value>
+  </data>
+  <data name="Editor.LeaveOccurrenceUnresolvedOrSupplyTheZone" xml:space="preserve">
+    <value>Αφήστε την εμφάνιση ανεπίλυτη ή εισαγάγετε την απόκλιση της ζώνης για την επιθυμητή εμφάνιση μιας επαναλαμβανόμενης ώρας. Η ζώνη δεν προσδιορίζεται αυτόματα.</value>
+  </data>
+  <data name="Editor.RemoveTime" xml:space="preserve">
+    <value>Αφαίρεση ώρας</value>
+  </data>
+  <data name="Editor.Precision" xml:space="preserve">
+    <value>ακρίβεια</value>
+  </data>
+  <data name="Editor.MapPickPlace" xml:space="preserve">
+    <value>Επιλέξτε τη θέση της τοποθεσίας στον χάρτη ή σύρετε τον δείκτη. Το «Τέλος» ενημερώνει το πρόχειρο.</value>
+  </data>
+  <data name="Editor.MapDrawArea" xml:space="preserve">
+    <value>Επεξεργαστείτε τη γεωμετρία της ζώνης. Κάντε κλικ στον χάρτη για να τοποθετήσετε κορυφές. Το «Τέλος» ενημερώνει το πρόχειρο.</value>
+  </data>
+  <data name="Editor.MapDrawRoute" xml:space="preserve">
+    <value>Επεξεργαστείτε τη διαδρομή του τμήματος. Τα σημεία των αποθηκευμένων τοποθεσιών είναι σταθερά. Προσθέστε, μετακινήστε ή αφαιρέστε άλλα σημεία. Το «Τέλος» ενημερώνει το πρόχειρο.</value>
+  </data>
+  <data name="Editor.DrawPolygonStart" xml:space="preserve">
+    <value>Κάντε κλικ για να αρχίσετε τη σχεδίαση της ζώνης.</value>
+  </data>
+  <data name="Editor.DrawPolygonContinue" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε άλλη κορυφή.</value>
+  </data>
+  <data name="Editor.DrawPolygonFinish" xml:space="preserve">
+    <value>Κάντε κλικ στην πρώτη κορυφή για να κλείσετε τη ζώνη.</value>
+  </data>
+  <data name="Editor.DrawPolylineStart" xml:space="preserve">
+    <value>Κάντε κλικ για να αρχίσετε τη σχεδίαση της διαδρομής.</value>
+  </data>
+  <data name="Editor.DrawPolylineContinue" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε άλλο σημείο στη διαδρομή.</value>
+  </data>
+  <data name="Editor.DrawPolylineFinish" xml:space="preserve">
+    <value>Κάντε κλικ στο τελευταίο σημείο για να ολοκληρώσετε τη διαδρομή.</value>
+  </data>
+  <data name="Editor.DrawEdgesCannotCross" xml:space="preserve">
+    <value>Οι πλευρές της ζώνης δεν επιτρέπεται να τέμνονται.</value>
+  </data>
+  <data name="Editor.EditPolygonHandles" xml:space="preserve">
+    <value>Σύρετε τις λαβές για να επεξεργαστείτε τη ζώνη.</value>
+  </data>
+  <data name="Editor.EditPolygonCancel" xml:space="preserve">
+    <value>Κάντε κλικ στην «Ακύρωση» για να αναιρέσετε τις αλλαγές.</value>
+  </data>
+  <data name="Editor.DrawAreaPolygon" xml:space="preserve">
+    <value>Σχεδίαση πολυγώνου ζώνης</value>
+  </data>
+  <data name="Editor.PlacePolygonVertices" xml:space="preserve">
+    <value>Κάντε κλικ στον χάρτη για να τοποθετήσετε τις κορυφές του πολυγώνου.</value>
+  </data>
+  <data name="Editor.PolygonVerticesReady" xml:space="preserve">
+    <value>{0} κορυφές έτοιμες</value>
+  </data>
+  <data name="Editor.NoPolygonReady" xml:space="preserve">
+    <value>Δεν υπάρχει έτοιμο πολύγωνο</value>
+  </data>
+  <data name="Editor.EditSegmentRoute" xml:space="preserve">
+    <value>Επεξεργασία διαδρομής τμήματος</value>
+  </data>
+  <data name="Editor.EditSegmentRoutePoints" xml:space="preserve">
+    <value>Τα σημεία των αποθηκευμένων τοποθεσιών είναι σταθερά. Προσθέστε, μετακινήστε ή αφαιρέστε άλλα σημεία της διαδρομής.</value>
+  </data>
+  <data name="Editor.NoRouteWork" xml:space="preserve">
+    <value>Η επεξεργασία της διαδρομής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.FallbackRoutePending" xml:space="preserve">
+    <value>Η εφεδρική διαδρομή εκκρεμεί</value>
+  </data>
+  <data name="Editor.FallbackRouteUnchanged" xml:space="preserve">
+    <value>Η εφεδρική διαδρομή παραμένει ίδια</value>
+  </data>
+  <data name="Editor.CustomRoutePending" xml:space="preserve">
+    <value>Η προσαρμοσμένη διαδρομή εκκρεμεί</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.one" xml:space="preserve">
+    <value>{0} σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.RouteWorkPointCount.other" xml:space="preserve">
+    <value>{0} σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.one" xml:space="preserve">
+    <value>{0} επεξεργάσιμο</value>
+  </data>
+  <data name="Editor.RouteWorkEditableCount.other" xml:space="preserve">
+    <value>{0} επεξεργάσιμα</value>
+  </data>
+  <data name="Editor.RouteWorkProgress" xml:space="preserve">
+    <value>{0} · {1} · {2}</value>
+  </data>
+  <data name="Editor.MapDescription" xml:space="preserve">
+    <value>Προβολή και περιήγηση στον χάρτη του ταξιδιού.</value>
+  </data>
+  <data name="Editor.LeaveWithoutSavingQuestion" xml:space="preserve">
+    <value>Έξοδος χωρίς αποθήκευση;</value>
+  </data>
+  <data name="Editor.LeaveWithoutSaving" xml:space="preserve">
+    <value>Έξοδος χωρίς αποθήκευση</value>
+  </data>
+  <data name="Editor.DiscardQuestion" xml:space="preserve">
+    <value>Απόρριψη αλλαγών;</value>
+  </data>
+  <data name="Editor.DiscardTripBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του ταξιδιού πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της περιοχής πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeTab" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του τμήματος διαδρομής πριν από την αλλαγή καρτέλας;</value>
+  </data>
+  <data name="Editor.DiscardTripBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του ταξιδιού πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardRegionBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της περιοχής πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν επιλέξετε άλλη τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforePlace" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές του τμήματος διαδρομής πριν επιλέξετε τοποθεσία;</value>
+  </data>
+  <data name="Editor.DiscardPlaceDraft" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας;</value>
+  </data>
+  <data name="Editor.DiscardBeforeSelectingSegment" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν επιλέξετε άλλο τμήμα διαδρομής;</value>
+  </data>
+  <data name="Editor.DiscardBeforeSwitchingEditors" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν ανοίξετε άλλη φόρμα επεξεργασίας;</value>
+  </data>
+  <data name="Editor.MetadataExitDraft" xml:space="preserve">
+    <value>Θέλετε να εγκαταλείψετε τις μη αποθηκευμένες αλλαγές και να επιστρέψετε στα ταξίδια; Ο σχεδιασμός αποθηκεύεται χωριστά με την «Αποθήκευση σχεδιασμού». Η έξοδος χάνει τα πρόχειρα και δεν αναιρεί ενέργειες που εκκρεμούν ή δεν έχουν επιβεβαιωθεί.</value>
+  </data>
+  <data name="Editor.Discard" xml:space="preserve">
+    <value>Απόρριψη</value>
+  </data>
+  <data name="Editor.Stay" xml:space="preserve">
+    <value>Παραμονή</value>
+  </data>
+  <data name="Editor.CopyIdeas" xml:space="preserve">
+    <value>Αντιγραφή ιδεών σε αυτό το ταξίδι</value>
+  </data>
+  <data name="Editor.ComparisonReturn" xml:space="preserve">
+    <value>Επιστροφή στη σύγκριση</value>
+  </data>
+  <data name="Editor.ReturnToComparison" xml:space="preserve">
+    <value>Επιστροφή στην αποθηκευμένη σύγκριση</value>
+  </data>
+  <data name="Editor.ComparisonSaved" xml:space="preserve">
+    <value>Κάθε επιτυχής αλλαγή έχει ήδη αποθηκευτεί στο C.</value>
+  </data>
+  <data name="Editor.LoadFailed" xml:space="preserve">
+    <value>Ο χώρος εργασίας ταξιδιού δεν φορτώθηκε. Ανανεώστε τη σελίδα ή επιστρέψτε στα ταξίδια σας.</value>
+  </data>
+  <data name="Editor.MyTrips" xml:space="preserve">
+    <value>Τα ταξίδια μου</value>
+  </data>
+  <data name="Editor.InvalidField" xml:space="preserve">
+    <value>Ελέγξτε την τιμή αυτού του πεδίου.</value>
+  </data>
+  <data name="Editor.InvalidForm" xml:space="preserve">
+    <value>Ελέγξτε τα επισημασμένα πεδία πριν από την αποθήκευση.</value>
+  </data>
+  <data name="Editor.LoadUnauthorized" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε ή δεν έχετε πλέον πρόσβαση. Συνδεθείτε ξανά ή επιστρέψτε στα ταξίδια σας.</value>
+  </data>
+  <data name="Editor.LoadError" xml:space="preserve">
+    <value>Ο επεξεργαστής ταξιδιού δεν φορτώθηκε.</value>
+  </data>
+  <data name="Editor.SaveError" xml:space="preserve">
+    <value>Η αποθήκευση των ρυθμίσεων ταξιδιού απέτυχε.</value>
+  </data>
+  <data name="Editor.SelectedPlace" xml:space="preserve">
+    <value>Επιλεγμένη τοποθεσία</value>
+  </data>
+  <data name="Editor.MapStatus" xml:space="preserve">
+    <value>Κατάσταση χάρτη</value>
+  </data>
+  <data name="Editor.SelectedOnMap" xml:space="preserve">
+    <value>Επιλεγμένο στον χάρτη και στην πλαϊνή στήλη</value>
+  </data>
+  <data name="Editor.InsideRegion" xml:space="preserve">
+    <value>Στην περιοχή {0}</value>
+  </data>
+  <data name="Editor.UpdatedAt" xml:space="preserve">
+    <value>Ενημερώθηκε {0}</value>
+  </data>
+  <data name="Editor.SelectedPlaceName" xml:space="preserve">
+    <value>Επιλεγμένη τοποθεσία: {0}</value>
+  </data>
+  <data name="Editor.MapWorkActive" xml:space="preserve">
+    <value>Εργασία στον χάρτη σε εξέλιξη</value>
+  </data>
+  <data name="Editor.ExpandedActive" xml:space="preserve">
+    <value>Ο επεξεργαστής είναι ανεπτυγμένος</value>
+  </data>
+  <data name="Editor.Saving" xml:space="preserve">
+    <value>Αποθήκευση…</value>
+  </data>
+  <data name="Editor.SavingOrder" xml:space="preserve">
+    <value>Αποθήκευση σειράς…</value>
+  </data>
+  <data name="Editor.SaveFailed" xml:space="preserve">
+    <value>Η αποθήκευση απέτυχε</value>
+  </data>
+  <data name="Editor.UnsavedChanges" xml:space="preserve">
+    <value>Μη αποθηκευμένες αλλαγές</value>
+  </data>
+  <data name="Editor.SavedAt" xml:space="preserve">
+    <value>Αποθηκεύτηκε στις {0}</value>
+  </data>
+  <data name="Editor.SavedWithWarning" xml:space="preserve">
+    <value>{0} με προειδοποίηση</value>
+  </data>
+  <data name="Editor.PlanningPending" xml:space="preserve">
+    <value>Εκκρεμεί αποθήκευση σχεδιασμού</value>
+  </data>
+  <data name="Editor.PlanningUnconfirmed" xml:space="preserve">
+    <value>Η αποθήκευση σχεδιασμού δεν επιβεβαιώθηκε</value>
+  </data>
+  <data name="Editor.PlanningDeleted" xml:space="preserve">
+    <value>Ο σχεδιασμός του διαγραμμένου στοιχείου διατηρήθηκε</value>
+  </data>
+  <data name="Editor.PlanningUnsaved" xml:space="preserve">
+    <value>Μη αποθηκευμένος σχεδιασμός</value>
+  </data>
+  <data name="Editor.PlanningAndOtherStatus" xml:space="preserve">
+    <value>{0} · Άλλες αλλαγές: {1}</value>
+  </data>
+  <data name="Editor.ConfirmedStatus" xml:space="preserve">
+    <value>Η αλλαγή κοινοποίησης δεν επιβεβαιώθηκε</value>
+  </data>
+  <data name="Editor.MetadataUnconfirmedStatus" xml:space="preserve">
+    <value>Η αλλαγή ρυθμίσεων ταξιδιού δεν επιβεβαιώθηκε</value>
+  </data>
+  <data name="Editor.ProgressNeedsPublic" xml:space="preserve">
+    <value>Διαθέσιμο μετά τη δημοσίευση του ταξιδιού</value>
+  </data>
+  <data name="Editor.Enabled" xml:space="preserve">
+    <value>Ενεργό</value>
+  </data>
+  <data name="Editor.Disabled" xml:space="preserve">
+    <value>Ανενεργό</value>
+  </data>
+  <data name="Editor.RemoveTag" xml:space="preserve">
+    <value>Αφαίρεση ετικέτας {0}</value>
+  </data>
+  <data name="Editor.EmptyTripPlaces" xml:space="preserve">
+    <value>Το ταξίδι δεν έχει ακόμη τοποθεσίες.</value>
+  </data>
+  <data name="Editor.EmptyVisitedPlaces" xml:space="preserve">
+    <value>Δεν έχουν καταγραφεί ακόμη επισκέψεις σε τοποθεσίες.</value>
+  </data>
+  <data name="Editor.AllPlacesVisited" xml:space="preserve">
+    <value>Έχουν καταγραφεί επισκέψεις για όλες τις τοποθεσίες.</value>
+  </data>
+  <data name="Editor.UnknownRegion" xml:space="preserve">
+    <value>Άγνωστη περιοχή</value>
+  </data>
+  <data name="Editor.Unavailable" xml:space="preserve">
+    <value>Μη διαθέσιμο</value>
+  </data>
+  <data name="Editor.VisitOpen" xml:space="preserve">
+    <value>Σε εξέλιξη</value>
+  </data>
+  <data name="Editor.DurationUnavailable" xml:space="preserve">
+    <value>Η διάρκεια δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.VisitDurationMinutes" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Editor.VisitDurationHours" xml:space="preserve">
+    <value>{0} ώρ.</value>
+  </data>
+  <data name="Editor.VisitDurationHoursMinutes" xml:space="preserve">
+    <value>{0} ώρ. {1} λεπ.</value>
+  </data>
+  <data name="Editor.DiscardBeforeManagingVisit" xml:space="preserve">
+    <value>Θέλετε να απορρίψετε τις μη αποθηκευμένες αλλαγές πριν διαχειριστείτε αυτήν την επίσκεψη;</value>
+  </data>
+  <data name="Editor.RegionVisitProgress" xml:space="preserve">
+    <value>Πρόοδος επισκέψεων στην περιοχή «{0}»</value>
+  </data>
+  <data name="Editor.VisitCount.one" xml:space="preserve">
+    <value>{0} επίσκεψη</value>
+  </data>
+  <data name="Editor.VisitCount.other" xml:space="preserve">
+    <value>{0} επισκέψεις</value>
+  </data>
+  <data name="Editor.NewEntity" xml:space="preserve">
+    <value>Προσθήκη · {0}</value>
+  </data>
+  <data name="Editor.EditingEntity" xml:space="preserve">
+    <value>Επεξεργασία · {0}</value>
+  </data>
+  <data name="Editor.EntityMetadata" xml:space="preserve">
+    <value>ρυθμίσεις ταξιδιού</value>
+  </data>
+  <data name="Editor.EntityRegion" xml:space="preserve">
+    <value>περιοχή</value>
+  </data>
+  <data name="Editor.EntityPlace" xml:space="preserve">
+    <value>τοποθεσία</value>
+  </data>
+  <data name="Editor.EntityArea" xml:space="preserve">
+    <value>ζώνη</value>
+  </data>
+  <data name="Editor.EntitySegment" xml:space="preserve">
+    <value>τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.InvalidCenter" xml:space="preserve">
+    <value>Το γεωγραφικό πλάτος και μήκος πρέπει να συμπληρωθούν μαζί.</value>
+  </data>
+  <data name="Editor.SessionEnded" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε ή ο λογαριασμός σας είναι απενεργοποιημένος. Συνδεθείτε ξανά. Διατηρήστε τις μη αποθηκευμένες αλλαγές πριν φύγετε από τη σελίδα.</value>
+  </data>
+  <data name="Editor.Conflict" xml:space="preserve">
+    <value>Οι αλλαγές δεν αποθηκεύτηκαν επειδή το ταξίδι άλλαξε. Ελέγξτε την τρέχουσα έκδοση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.ChangeUnavailable" xml:space="preserve">
+    <value>Το ταξίδι ή το στοιχείο δεν είναι πλέον διαθέσιμο.</value>
+  </data>
+  <data name="Editor.ChangeUnconfirmed" xml:space="preserve">
+    <value>Η αλλαγή δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο και ελέγξτε την τρέχουσα κατάσταση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.SavedWarning" xml:space="preserve">
+    <value>Αποθηκεύτηκε με προειδοποίηση. Ελέγξτε το αποθηκευμένο στοιχείο πριν συνεχίσετε.</value>
+  </data>
+  <data name="Editor.SearchTripEntities" xml:space="preserve">
+    <value>Αναζήτηση περιοχών, τοποθεσιών, ζωνών, τμημάτων διαδρομής</value>
+  </data>
+  <data name="Editor.TripPublic" xml:space="preserve">
+    <value>Δημόσιο</value>
+  </data>
+  <data name="Editor.TripPrivate" xml:space="preserve">
+    <value>Ιδιωτικό</value>
+  </data>
+  <data name="Editor.EditNamedTrip" xml:space="preserve">
+    <value>Επεξεργασία ταξιδιού · {0}</value>
+  </data>
+  <data name="Editor.BackToTrips" xml:space="preserve">
+    <value>Επιστροφή στα ταξίδια</value>
+  </data>
+  <data name="Editor.PlannerStorageUnavailable" xml:space="preserve">
+    <value>Ο χώρος αποθήκευσης της συσκευής δεν είναι διαθέσιμος. Οι τιμές διατηρούνται μόνο σε αυτόν τον ανοιχτό επεξεργαστή.</value>
+  </data>
+  <data name="Editor.PlannerRefreshOwner" xml:space="preserve">
+    <value>Ανανεώστε τον επεξεργαστή του ιδιοκτήτη πριν από τον έλεγχο.</value>
+  </data>
+  <data name="Editor.PlannerOwnerAccessChanged" xml:space="preserve">
+    <value>Η πρόσβαση του ιδιοκτήτη άλλαξε. Οι ιδιωτικές ρυθμίσεις ελέγχου εκκαθαρίστηκαν. Φορτώστε ξανά τον επεξεργαστή.</value>
+  </data>
+  <data name="Editor.PlannerOwnerChanged" xml:space="preserve">
+    <value>Ο ιδιοκτήτης άλλαξε. Οι ιδιωτικές ρυθμίσεις ελέγχου εκκαθαρίστηκαν. Φορτώστε ξανά τον επεξεργαστή.</value>
+  </data>
+  <data name="Editor.PlannerCheckFailed" xml:space="preserve">
+    <value>Ο αποθηκευμένος σχεδιασμός δεν ελέγχθηκε. Οι τιμές διατηρήθηκαν. Επιστρέψτε στην επεξεργασία ή εκτελέστε νέο έλεγχο.</value>
+  </data>
+  <data name="Editor.PlannerIncomplete" xml:space="preserve">
+    <value>Το αποτέλεσμα του ελέγχου είναι ελλιπές. Ο αποθηκευμένος σχεδιασμός παραμένει ίδιος.</value>
+  </data>
+  <data name="Editor.PlannerSize" xml:space="preserve">
+    <value>Οι ρυθμίσεις υπερβαίνουν το όριο αποθήκευσης της συσκευής και διατηρούνται μόνο σε αυτόν τον επεξεργαστή.</value>
+  </data>
+  <data name="Editor.PlannerUnavailable" xml:space="preserve">
+    <value>Η αξιολόγηση δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.PlannerDrafts" xml:space="preserve">
+    <value>Υπάρχουν μη αποθηκευμένες ή ανεπιβεβαίωτες αλλαγές. Χρησιμοποιήστε τα κουμπιά αποθήκευσής τους, ελέγξτε την αποθηκευμένη έκδοση ή επιστρέψτε στην επεξεργασία.</value>
+  </data>
+  <data name="Editor.PlannerOrdinaryFailed" xml:space="preserve">
+    <value>Η αποθήκευση δεν ολοκληρώθηκε. Τα πρόχειρα παραμένουν χωριστά. Χρησιμοποιήστε τα κουμπιά αποθήκευσής τους ή ελέγξτε την αποθηκευμένη έκδοση.</value>
+  </data>
+  <data name="Editor.WholeTripScope" xml:space="preserve">
+    <value>Ολόκληρο ταξίδι · όλες οι τρέχουσες αποθηκευμένες καταχωρίσεις</value>
+  </data>
+  <data name="Editor.ExplicitScope" xml:space="preserve">
+    <value>Ρητή επιλογή · οι υπόλοιπες καταχωρίσεις δεν αξιολογήθηκαν</value>
+  </data>
+  <data name="Editor.RemovedEntry" xml:space="preserve">
+    <value>Καταχώριση που αφαιρέθηκε</value>
+  </data>
+  <data name="Editor.CheckResultsSummary" xml:space="preserve">
+    <value>Ευρήματα: {0} · Ολοκληρωμένοι έλεγχοι: {1} · Άγνωστα: {2} · Εκτός αξιολόγησης: {3}</value>
+  </data>
+  <data name="Editor.CheckStatus.completed" xml:space="preserve">
+    <value>ολοκληρώθηκε</value>
+  </data>
+  <data name="Editor.CheckStatus.unknown" xml:space="preserve">
+    <value>Άγνωστο</value>
+  </data>
+  <data name="Editor.CheckStatus.inconsistent" xml:space="preserve">
+    <value>ασυνεπές</value>
+  </data>
+  <data name="Editor.CheckStatus.possible" xml:space="preserve">
+    <value>πιθανό</value>
+  </data>
+  <data name="Editor.CheckStatus.mismatch" xml:space="preserve">
+    <value>ασυμφωνία</value>
+  </data>
+  <data name="Editor.CheckStatus.contradiction" xml:space="preserve">
+    <value>αντίφαση</value>
+  </data>
+  <data name="Editor.CheckStatus.risk" xml:space="preserve">
+    <value>κίνδυνος</value>
+  </data>
+  <data name="Editor.CheckStatus.excluded" xml:space="preserve">
+    <value>εκτός αξιολόγησης</value>
+  </data>
+  <data name="Editor.ParentWindowSelect" xml:space="preserve">
+    <value>Επιλέξτε ρητά τα σχετικά ανώτερα χρονικά παράθυρα. Η ιεραρχία από μόνη της δεν επιβάλλει περιορισμό.</value>
+  </data>
+  <data name="Editor.ParentWindowPlacements" xml:space="preserve">
+    <value>Υπάρχουν πάνω από 256 επιτρεπτές τοποθετήσεις στον χρόνο. Περιορίστε τα επιλεγμένα παράθυρα ή τις εμφανίσεις επαναλαμβανόμενης ώρας.</value>
+  </data>
+  <data name="Editor.ParentWindowFrame" xml:space="preserve">
+    <value>Η καταχώριση και τα επιλεγμένα παράθυρα χρειάζονται κοινό πλαίσιο χρονικής στιγμής ή τοπικής ώρας.</value>
+  </data>
+  <data name="Editor.ParentWindowInside" xml:space="preserve">
+    <value>Η καταχώριση καλύπτεται πλήρως από την ένωση των επιλεγμένων ανώτερων παραθύρων.</value>
+  </data>
+  <data name="Editor.ParentWindowPossible" xml:space="preserve">
+    <value>Ορισμένες δυνατές τοποθετήσεις υπερβαίνουν την επιλεγμένη ένωση, ενώ άλλες καλύπτονται. Επιλέξτε την εμφάνιση της επαναλαμβανόμενης ώρας για βέβαιο αποτέλεσμα.</value>
+  </data>
+  <data name="Editor.PhysicalFrame" xml:space="preserve">
+    <value>Η σύγκριση απαιτήσεων παρουσίας χρειάζεται κοινό χρονικό πλαίσιο.</value>
+  </data>
+  <data name="Editor.PhysicalNoOverlap" xml:space="preserve">
+    <value>Οι απαιτήσεις παρουσίας δεν επικαλύπτονται. Τα διαδοχικά διαστήματα δεν καθορίζουν χρόνο μετακίνησης.</value>
+  </data>
+  <data name="Editor.PhysicalPremises" xml:space="preserve">
+    <value>Η επικάλυψη απαιτήσεων παρουσίας χρειάζεται ρητή υπόθεση ενός ταξιδιώτη και αξιολόγηση ασυμβατότητας των τοποθεσιών.</value>
+  </data>
+  <data name="Editor.PhysicalContradiction" xml:space="preserve">
+    <value>Απαιτείται ταυτόχρονη παρουσία ενός ταξιδιώτη σε τοποθεσίες που έχουν αξιολογηθεί ως ασύμβατες.</value>
+  </data>
+  <data name="Editor.PhysicalPossible" xml:space="preserve">
+    <value>Ορισμένες δυνατές τοποθετήσεις απαιτούν ταυτόχρονη παρουσία σε ασύμβατες τοποθεσίες.</value>
+  </data>
+  <data name="Editor.TravelZones" xml:space="preserve">
+    <value>Για τον υπολογισμό του χρόνου μετακίνησης χρειάζονται καθορισμένες ζώνες ώρας.</value>
+  </data>
+  <data name="Editor.TravelAllNegative" xml:space="preserve">
+    <value>Όλα τα δυνατά χρονικά διαστήματα είναι αρνητικά.</value>
+  </data>
+  <data name="Editor.TravelFold" xml:space="preserve">
+    <value>Το διάστημα μετακίνησης εξαρτάται από απροσδιόριστη επαναλαμβανόμενη ώρα. Επιλέξτε την εμφάνιση.</value>
+  </data>
+  <data name="Editor.TravelAllowanceUnknown" xml:space="preserve">
+    <value>Ο πρόσθετος χρόνος ή τα απαραίτητα στοιχεία σύνδεσης παραμένουν άγνωστα. Ο γνωστός κίνδυνος της εκτίμησης διατηρείται.</value>
+  </data>
+  <data name="Editor.CheckPlacementsUnavailable" xml:space="preserve">
+    <value>Δεν υπάρχουν υποστηριζόμενες τοποθετήσεις στον χρόνο.</value>
+  </data>
+  <data name="Editor.CheckMeaningUnknown" xml:space="preserve">
+    <value>Η σημασία είναι απροσδιόριστη. Διευκρινίστε τη μόνο για αυτόν τον έλεγχο ή αφήστε τη ανεπίλυτη.</value>
+  </data>
+  <data name="Editor.CheckStayOverlap" xml:space="preserve">
+    <value>Η διαθεσιμότητα διαμονής και τα χρονικά παράθυρα σχεδιασμού επιτρέπουν επικαλύψεις, καθώς δεν απαιτούν συνεχή φυσική παρουσία.</value>
+  </data>
+  <data name="Editor.CheckJourneySelect" xml:space="preserve">
+    <value>Η πρόθεση διαδρομής διατηρείται. Επιλέξτε τις σχετικές καταχωρίσεις μετακίνησης για να την αξιολογήσετε. Οι ενδιάμεσες τοποθεσίες δεν αποτελούν χρονικά καθορισμένες στάσεις.</value>
+  </data>
+  <data name="Editor.CheckPairSelect" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί ζεύγος μετακίνησης. Επιλέξτε καταχωρίσεις αναχώρησης και άφιξης. Η σειρά εμφάνισης δεν καθορίζει τη μετακίνηση.</value>
+  </data>
+  <data name="Editor.CheckOutsideSelection" xml:space="preserve">
+    <value>Εξαιρείται ρητά από την προσωρινή επιλογή. Παραμένει αποθηκευμένο και εκτός αξιολόγησης.</value>
+  </data>
+  <data name="Editor.CheckPairOutside" xml:space="preserve">
+    <value>Το ζεύγος μετακίνησης βρίσκεται εκτός αυτής της επιλογής.</value>
+  </data>
+  <data name="Editor.CheckDetailFallback" xml:space="preserve">
+    <value>Ελέγξτε τις καταχωρίσεις που εμφανίζονται και τις υποθέσεις ελέγχου για αυτό το αποτέλεσμα.</value>
+  </data>
+  <data name="Editor.ValidationIcon" xml:space="preserve">
+    <value>Επιλέξτε ένα εικονίδιο από τις διαθέσιμες επιλογές.</value>
+  </data>
+  <data name="Editor.ValidationMarker" xml:space="preserve">
+    <value>Επιλέξτε ένα χρώμα δείκτη από τις διαθέσιμες επιλογές.</value>
+  </data>
+  <data name="Editor.ValidationAddressLocation" xml:space="preserve">
+    <value>Ορίστε συντεταγμένες για την αυτόματη εύρεση διεύθυνσης.</value>
+  </data>
+  <data name="Editor.ValidationNoteImages" xml:space="preserve">
+    <value>Στις σημειώσεις χρησιμοποιήστε διευθύνσεις εικόνων αντί για ενσωματωμένα δεδομένα εικόνας.</value>
+  </data>
+  <data name="Editor.ValidationReservedRegion" xml:space="preserve">
+    <value>Αυτό το όνομα χρησιμοποιείται από το σύστημα. Επιλέξτε άλλο όνομα περιοχής.</value>
+  </data>
+  <data name="Editor.ValidationCoverUrl" xml:space="preserve">
+    <value>Εισαγάγετε πλήρη διεύθυνση HTTP ή HTTPS για την εικόνα εξωφύλλου.</value>
+  </data>
+  <data name="Editor.ValidationZoom" xml:space="preserve">
+    <value>Η μεγέθυνση πρέπει να είναι ακέραιος από 0 έως 19.</value>
+  </data>
+  <data name="Editor.ValidationManualDuration" xml:space="preserve">
+    <value>Συμπληρώστε τη διάρκεια που ορίζεται χειροκίνητα.</value>
+  </data>
+  <data name="Editor.ValidationDurationSource" xml:space="preserve">
+    <value>Επιλέξτε αυτόματο ή χειροκίνητο υπολογισμό διάρκειας.</value>
+  </data>
+  <data name="Editor.ValidationDurationReload" xml:space="preserve">
+    <value>Φορτώστε ξανά την επεξεργασία πριν από την αποθήκευση. Απαιτείται τρόπος υπολογισμού διάρκειας.</value>
+  </data>
+  <data name="Editor.ValidationTitleLength" xml:space="preserve">
+    <value>Ο τίτλος μπορεί να είναι κενός ή να περιέχει έως 200 χαρακτήρες.</value>
+  </data>
+  <data name="Editor.ValidationRouteEvidence" xml:space="preserve">
+    <value>Χρειάζονται τα αρχικά στοιχεία της διαδρομής. Ελέγξτε την αποθηκευμένη διαδρομή.</value>
+  </data>
+  <data name="Editor.ValidationRouteContract" xml:space="preserve">
+    <value>Η μορφή διαδρομής δεν υποστηρίζεται. Φορτώστε ξανά την επεξεργασία.</value>
+  </data>
+  <data name="Editor.ValidationWaypointLengths" xml:space="preserve">
+    <value>Κάθε ενδιάμεση στάση πρέπει να έχει αντίστοιχη θέση στη διαδρομή.</value>
+  </data>
+  <data name="Editor.ValidationWaypointNull" xml:space="preserve">
+    <value>Χωρίς διαδρομή, αφήστε κενή τη θέση της στάσης στη διαδρομή.</value>
+  </data>
+  <data name="Editor.ValidationWaypointIndex" xml:space="preserve">
+    <value>Η θέση της στάσης στη διαδρομή πρέπει να είναι ακέραιος ή κενή.</value>
+  </data>
+  <data name="Editor.ValidationWaypointRequiredIndex" xml:space="preserve">
+    <value>Αντιστοιχίστε τη στάση σε ένα σημείο της προσαρμοσμένης διαδρομής.</value>
+  </data>
+  <data name="Editor.ValidationWaypointIncreasing" xml:space="preserve">
+    <value>Αντιστοιχίστε τις στάσεις σε διαδοχικά σημεία με τη σειρά της διαδρομής.</value>
+  </data>
+  <data name="Editor.ValidationWaypointInterior" xml:space="preserve">
+    <value>Επιλέξτε σημείο ανάμεσα στην αφετηρία και τον προορισμό.</value>
+  </data>
+  <data name="Editor.ValidationWaypointDuplicate" xml:space="preserve">
+    <value>Η ίδια τοποθεσία εμφανίζεται ήδη ως ενδιάμεση στάση.</value>
+  </data>
+  <data name="Editor.ValidationWaypointEndpoint" xml:space="preserve">
+    <value>Η ενδιάμεση στάση πρέπει να διαφέρει από την αφετηρία και τον προορισμό.</value>
+  </data>
+  <data name="Editor.ValidationFromRequired" xml:space="preserve">
+    <value>Επιλέξτε αφετηρία όταν υπάρχουν ενδιάμεσες στάσεις.</value>
+  </data>
+  <data name="Editor.ValidationToRequired" xml:space="preserve">
+    <value>Επιλέξτε προορισμό όταν υπάρχουν ενδιάμεσες στάσεις.</value>
+  </data>
+  <data name="Editor.ValidationAnchorLocation" xml:space="preserve">
+    <value>Ορίστε συντεταγμένες για αυτήν την τοποθεσία.</value>
+  </data>
+  <data name="Editor.ValidationWaypointLocation" xml:space="preserve">
+    <value>Ορίστε συντεταγμένες για αυτήν την ενδιάμεση στάση.</value>
+  </data>
+  <data name="Editor.ValidationAreaColor" xml:space="preserve">
+    <value>Χρησιμοποιήστε δεκαεξαδικό χρώμα στη μορφή #RRGGBB.</value>
+  </data>
+  <data name="Editor.ValidationRouteSize" xml:space="preserve">
+    <value>Η διαδρομή πρέπει να περιέχει τουλάχιστον δύο σημεία.</value>
+  </data>
+  <data name="Editor.ValidationCoordinateBounds" xml:space="preserve">
+    <value>Χρησιμοποιήστε γεωγραφικό μήκος από -180 έως 180 και πλάτος από -90 έως 90.</value>
+  </data>
+  <data name="Editor.ValidationAreaExterior" xml:space="preserve">
+    <value>Σχεδιάστε το εξωτερικό περίγραμμα της ζώνης.</value>
+  </data>
+  <data name="Editor.ValidationAreaClosed" xml:space="preserve">
+    <value>Κλείστε κάθε περίγραμμα της ζώνης.</value>
+  </data>
+  <data name="Editor.ValidationAreaSize" xml:space="preserve">
+    <value>Κάθε περίγραμμα της ζώνης πρέπει να περιέχει τουλάχιστον τέσσερα σημεία μαζί με το σημείο κλεισίματος.</value>
+  </data>
+  <data name="Editor.ValidationSharingPublic" xml:space="preserve">
+    <value>Δημοσιεύστε το ταξίδι για να κοινοποιήσετε την πρόοδο επισκέψεων.</value>
+  </data>
+  <data name="Editor.ValidationTags" xml:space="preserve">
+    <value>Ελέγξτε τις ετικέτες. Μία ή περισσότερες δεν είναι έγκυρες.</value>
+  </data>
+  <data name="Editor.ProposalRegenerate" xml:space="preserve">
+    <value>Η πρόταση διαδρομής δεν μπορεί να αποθηκευτεί. Απορρίψτε την ή δημιουργήστε νέα πρόταση.</value>
+  </data>
+  <data name="Editor.ProposalMalformed" xml:space="preserve">
+    <value>Η πρόταση διαδρομής δεν είναι έγκυρη. Απορρίψτε την ή δημιουργήστε νέα πριν από την αποθήκευση.</value>
+  </data>
+  <data name="Editor.ValidationWaypointOwner" xml:space="preserve">
+    <value>Επιλέξτε μια διαθέσιμη τοποθεσία του ταξιδιού για την ενδιάμεση στάση.</value>
+  </data>
+  <data name="Editor.MetadataConflict" xml:space="preserve">
+    <value>Τα στοιχεία του ταξιδιού άλλαξαν σε άλλη συσκευή. Το πρόχειρό σας διατηρείται. Ελέγξτε τις τρέχουσες τιμές πριν τις χρησιμοποιήσετε ως βάση και αποθηκεύσετε ξανά.</value>
+  </data>
+  <data name="Editor.SegmentEarlierUnknown" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση του τμήματος διαδρομής δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο και ελέγξτε την τρέχουσα αποθηκευμένη έκδοση πριν αποθηκεύσετε ξανά.</value>
+  </data>
+  <data name="Editor.SegmentRouteHeld" xml:space="preserve">
+    <value>Η επεξεργασία της διαδρομής ξεκίνησε ενώ εκκρεμούσε η προηγούμενη αποθήκευση. Κρατήστε το πρόχειρο και ελέγξτε ή επαναφέρετε την αποθηκευμένη έκδοση πριν αποθηκεύσετε ξανά.</value>
+  </data>
+  <data name="Editor.SegmentNotesOriginal" xml:space="preserve">
+    <value>Οι αρχικές σημειώσεις του τμήματος διαδρομής δεν είναι διαθέσιμες. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.SegmentOriginal" xml:space="preserve">
+    <value>Τα αρχικά στοιχεία του τμήματος διαδρομής δεν είναι διαθέσιμα. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.RegionOrderHeld" xml:space="preserve">
+    <value>Η προηγούμενη αλλαγή σειράς περιοχών μπορεί να έχει αποθηκευτεί. Κρατήστε τη σειρά σας και μην επαναλάβετε την αλλαγή. Η ανανέωση ή επαναφορά δεν αποδεικνύει αν αποθηκεύτηκε. Αν θέλετε να φύγετε, επιλέξτε αποχώρηση χωρίς αποθήκευση.</value>
+  </data>
+  <data name="Editor.RegionOrderUnknown" xml:space="preserve">
+    <value>Η προηγούμενη αλλαγή σειράς περιοχών δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο και μην επαναλάβετε την αλλαγή.</value>
+  </data>
+  <data name="Editor.RegionOrderUnconfirmed" xml:space="preserve">
+    <value>Η αλλαγή σειράς περιοχών δεν επιβεβαιώθηκε και μπορεί να έχει αποθηκευτεί. Η σειρά σας διατηρείται. Μην επαναλάβετε την αλλαγή. Η ανανέωση ή επαναφορά δεν αποδεικνύει αν αποθηκεύτηκε. Για να εγκαταλείψετε τη σελίδα, επιλέξτε αποχώρηση χωρίς αποθήκευση.</value>
+  </data>
+  <data name="Editor.RegionEarlierCreate" xml:space="preserve">
+    <value>Η προηγούμενη δημιουργία περιοχής δεν επιβεβαιώθηκε και μπορεί να έχει ολοκληρωθεί. Κρατήστε το πρόχειρο. Η ανανέωση δεν αποδεικνύει ότι η περιοχή δεν δημιουργήθηκε. Μην επαναλάβετε τη δημιουργία.</value>
+  </data>
+  <data name="Editor.RegionEarlierSave" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση περιοχής δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο, ελέγξτε την τρέχουσα κατάσταση και επιλέξτε επαναφορά πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.RegionEarlierDeletion" xml:space="preserve">
+    <value>Μια προηγούμενη διαγραφή περιοχής εκκρεμεί. Εξακριβώστε την έκβασή της πριν αλλάξετε περιοχές.</value>
+  </data>
+  <data name="Editor.RegionCreationOriginal" xml:space="preserve">
+    <value>Η αρχική λίστα περιοχών δεν είναι διαθέσιμη. Ελέγξτε ρητά μια νέα αρχική προβολή.</value>
+  </data>
+  <data name="Editor.RegionOrderOriginal" xml:space="preserve">
+    <value>Η αρχική σειρά περιοχών δεν είναι διαθέσιμη. Κρατήστε τη σειρά σας και ελέγξτε ρητά μια νέα αρχική προβολή.</value>
+  </data>
+  <data name="Editor.RegionDeleteUnknown" xml:space="preserve">
+    <value>Η έκβαση είναι άγνωστη. Ανανεώστε για να ελέγξετε την τρέχουσα κατάσταση του ταξιδιού.</value>
+  </data>
+  <data name="Editor.RegionPreviewExpired" xml:space="preserve">
+    <value>Η προεπισκόπηση έληξε. Ανανεώστε την και επιβεβαιώστε ξανά.</value>
+  </data>
+  <data name="Editor.RegionPreviewStorage" xml:space="preserve">
+    <value>Ο χώρος αποθήκευσης του προγράμματος περιήγησης δεν είναι διαθέσιμος. Ενεργοποιήστε τον πριν επιβεβαιώσετε.</value>
+  </data>
+  <data name="Editor.RegionPreviewRejected" xml:space="preserve">
+    <value>Το αίτημα απορρίφθηκε. Ανανεώστε την προεπισκόπηση και επιβεβαιώστε ξανά.</value>
+  </data>
+  <data name="Editor.RegionPreviewUnavailable" xml:space="preserve">
+    <value>Η προεπισκόπηση δεν είναι διαθέσιμη. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Editor.PlaceEarlierCreate" xml:space="preserve">
+    <value>Η προηγούμενη δημιουργία τοποθεσίας δεν επιβεβαιώθηκε και μπορεί να έχει ολοκληρωθεί. Κρατήστε το πρόχειρο. Η ανανέωση δεν αποδεικνύει ότι η τοποθεσία δεν δημιουργήθηκε. Μην επαναλάβετε τη δημιουργία.</value>
+  </data>
+  <data name="Editor.PlaceEarlierSave" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση τοποθεσίας δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο, ελέγξτε την τρέχουσα κατάσταση και επιλέξτε επαναφορά πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.PlaceCreationOriginal" xml:space="preserve">
+    <value>Ο αρχικός προορισμός δημιουργίας δεν είναι διαθέσιμος. Κρατήστε το πρόχειρο και ελέγξτε ρητά μια νέα αρχική προβολή.</value>
+  </data>
+  <data name="Editor.PlaceDeleteHeld" xml:space="preserve">
+    <value>Η έκβαση της προηγούμενης ενέργειας για την τοποθεσία είναι άγνωστη. Αφήστε την σε εκκρεμότητα χωρίς επανάληψη. Η αποχώρηση από τη σελίδα δεν αναιρεί το αίτημα.</value>
+  </data>
+  <data name="Editor.PlaceDeleteUnknown" xml:space="preserve">
+    <value>Η έκβαση της διαγραφής τοποθεσίας είναι άγνωστη. Ανανεώστε για να ελέγξετε τα τρέχοντα δεδομένα και μην επαναλάβετε την προσπάθεια. Η αποχώρηση δεν αναιρεί το αίτημα.</value>
+  </data>
+  <data name="Editor.PlaceOrderHeld" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια για την τοποθεσία δεν επιβεβαιώθηκε. Μην επαναλάβετε την αλλαγή σειράς.</value>
+  </data>
+  <data name="Editor.EditorReloadAccount" xml:space="preserve">
+    <value>Φορτώστε ξανά την επεξεργασία για να επαληθεύσετε τον λογαριασμό σας.</value>
+  </data>
+  <data name="Editor.SegmentRouteAnchorsChanged" xml:space="preserve">
+    <value>Οι αποθηκευμένες συντεταγμένες των τοποθεσιών άλλαξαν. Φορτώστε ξανά το αποθηκευμένο τμήμα διαδρομής πριν συνεχίσετε.</value>
+  </data>
+  <data name="Editor.ProposalExpired" xml:space="preserve">
+    <value>Η πρόταση διαδρομής δεν είναι έγκυρη ή έχει λήξει. Απορρίψτε την ή δημιουργήστε νέα πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.ProposalStale" xml:space="preserve">
+    <value>Τα στοιχεία της διαδρομής άλλαξαν μετά τη δημιουργία της πρότασης. Απορρίψτε την ή δημιουργήστε νέα πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.AddressManualSaved" xml:space="preserve">
+    <value>Η αυτόματη εύρεση διεύθυνσης δεν ήταν διαθέσιμη. Αποθηκεύτηκε η διεύθυνση που εισαγάγατε.</value>
+  </data>
+  <data name="Editor.SharingDisabledPrivate" xml:space="preserve">
+    <value>Η κοινοποίηση προόδου απενεργοποιήθηκε επειδή το ταξίδι είναι ιδιωτικό.</value>
+  </data>
+  <data name="Editor.SavedReviewWarnings" xml:space="preserve">
+    <value>Η αλλαγή αποθηκεύτηκε με προειδοποίηση. Ελέγξτε τις αποθηκευμένες τιμές πριν συνεχίσετε.</value>
+  </data>
+  <data name="Editor.SegmentConflictReview" xml:space="preserve">
+    <value>Το αποθηκευμένο τμήμα ή η διαδρομή του άλλαξε. Συνεχίστε την επεξεργασία για να κρατήσετε το πρόχειρο ή φορτώστε παρακάτω το αποθηκευμένο τμήμα.</value>
+  </data>
+  <data name="Editor.SegmentConflictClear" xml:space="preserve">
+    <value>Η αλλαγή καταργεί την αποθηκευμένη προσαρμοσμένη διαδρομή και τις θέσεις των ενδιάμεσων στάσεων σε αυτή. Επιβεβαιώστε για αποθήκευση ή συνεχίστε την επεξεργασία.</value>
+  </data>
+  <data name="Editor.RouteWorkUnavailable" xml:space="preserve">
+    <value>Η επεξεργασία της διαδρομής δεν ξεκίνησε. Ελέγξτε τις στάσεις και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Editor.PlaceSaved" xml:space="preserve">
+    <value>Η τοποθεσία αποθηκεύτηκε</value>
+  </data>
+  <data name="Editor.PlaceSavedAt" xml:space="preserve">
+    <value>Η τοποθεσία αποθηκεύτηκε στις {0}</value>
+  </data>
+  <data name="Editor.ProposalContextChanged" xml:space="preserve">
+    <value>Τα στοιχεία της διαδρομής άλλαξαν. Η πρόταση απορρίφθηκε και το πρόχειρο διατηρήθηκε.</value>
+  </data>
+  <data name="Editor.ProposalModeChanged" xml:space="preserve">
+    <value>Ο τρόπος μετακίνησης άλλαξε. Δημιουργήστε νέα πρόταση για αυτόν τον τρόπο.</value>
+  </data>
+  <data name="Editor.ProposalCancelled" xml:space="preserve">
+    <value>Η δημιουργία διαδρομής ακυρώθηκε. Το πρόχειρό σας διατηρήθηκε.</value>
+  </data>
+  <data name="Editor.ProposalGenerationUnavailable" xml:space="preserve">
+    <value>Η δημιουργία διαδρομής δεν είναι διαθέσιμη. Το πρόχειρο διατηρήθηκε. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Editor.ProposalChooseMode" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενο τρόπο μετακίνησης και δημιουργήστε νέα πρόταση.</value>
+  </data>
+  <data name="Editor.ProposalCheckAnchors" xml:space="preserve">
+    <value>Ελέγξτε ότι κάθε στάση έχει συντεταγμένες και ότι το τμήμα έχει έως 50 στάσεις.</value>
+  </data>
+  <data name="Editor.ProposalSegmentGone" xml:space="preserve">
+    <value>Το τμήμα διαδρομής δεν είναι πλέον διαθέσιμο. Φορτώστε ξανά το ταξίδι.</value>
+  </data>
+  <data name="Editor.ProposalSelectProvider" xml:space="preserve">
+    <value>Επιλέξτε επαληθευμένο πάροχο δρομολόγησης στις ρυθμίσεις παρόχου.</value>
+  </data>
+  <data name="Editor.ProposalVerifyProvider" xml:space="preserve">
+    <value>Ελέγξτε την πρόσβαση στη δρομολόγηση και επαληθεύστε τα διαπιστευτήρια στις ρυθμίσεις παρόχου.</value>
+  </data>
+  <data name="Editor.ProposalRetryLater" xml:space="preserve">
+    <value>Οι προτάσεις διαδρομής δεν είναι προσωρινά διαθέσιμες. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Editor.ProposalGenerateAgain" xml:space="preserve">
+    <value>Η πρόταση δεν ισχύει πλέον ή έχει λήξει. Δημιουργήστε νέα πρόταση.</value>
+  </data>
+  <data name="Editor.ProposalRequestLimit" xml:space="preserve">
+    <value>Συμπληρώθηκε το όριο αιτημάτων δρομολόγησης. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Editor.ProposalUnsafeRoute" xml:space="preserve">
+    <value>Ο πάροχος δεν μπόρεσε να υπολογίσει ασφαλή διαδρομή. Το πρόχειρο διατηρήθηκε. Ελέγξτε τις στάσεις ή επιλέξτε άλλο τρόπο μετακίνησης.</value>
+  </data>
+  <data name="Editor.ProposalGeoapifyDisclosure" xml:space="preserve">
+    <value>Οι συντεταγμένες της διαδρομής αποστέλλονται στην Geoapify.</value>
+  </data>
+  <data name="Editor.ProposalDisclosure" xml:space="preserve">
+    <value>Οι συντεταγμένες της διαδρομής αποστέλλονται στον πάροχο {0}.</value>
+  </data>
+  <data name="Editor.ProposalGenerating" xml:space="preserve">
+    <value>Δημιουργία διαδρομής…</value>
+  </data>
+  <data name="Editor.ProposalGenerate" xml:space="preserve">
+    <value>Δημιουργία διαδρομής</value>
+  </data>
+  <data name="Editor.EstimateUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμο</value>
+  </data>
+  <data name="Editor.EstimateDistance" xml:space="preserve">
+    <value>{0} χλμ.</value>
+  </data>
+  <data name="Editor.EstimateDuration" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Editor.ClearCustomRouteQuestion" xml:space="preserve">
+    <value>Κατάργηση προσαρμοσμένης διαδρομής;</value>
+  </data>
+  <data name="Editor.ClearCustomRouteSave" xml:space="preserve">
+    <value>Κατάργηση διαδρομής και αποθήκευση</value>
+  </data>
+  <data name="Editor.ReloadSavedSegmentQuestion" xml:space="preserve">
+    <value>Φόρτωση του αποθηκευμένου τμήματος διαδρομής;</value>
+  </data>
+  <data name="Editor.ReloadSavedSegmentDiscard" xml:space="preserve">
+    <value>Να απορριφθεί ολόκληρο το μη αποθηκευμένο πρόχειρο και να φορτωθεί η τρέχουσα έκδοση;</value>
+  </data>
+  <data name="Editor.CheckParentChoose" xml:space="preserve">
+    <value>Επιλέξτε σχετικά χρονικά παράθυρα του γονικού αντικειμένου ή αφήστε το πλαίσιο αδιευκρίνιστο. Η ιεραρχία από μόνη της δεν επιβάλλει χρονικό περιορισμό.</value>
+  </data>
+  <data name="Editor.CheckParentChanged" xml:space="preserve">
+    <value>Ένα επιλεγμένο παράθυρο δεν αφορά πλέον το γονικό αντικείμενο. Ελέγξτε την επιλογή.</value>
+  </data>
+  <data name="Editor.CheckParentOutside" xml:space="preserve">
+    <value>Κάθε δυνατή τοποθέτηση εκτείνεται εκτός της ένωσης των επιλεγμένων χρονικών παραθύρων.</value>
+  </data>
+  <data name="Editor.CheckCoarse" xml:space="preserve">
+    <value>Δεν υποστηρίζονται διαστήματα παρουσίας με μεικτή ή χαμηλή ακρίβεια. Εξειδικεύστε τα μόνο αν χρειάζεται.</value>
+  </data>
+  <data name="Editor.CheckCoverageEnd" xml:space="preserve">
+    <value>Για τον έλεγχο ολόκληρης της καταχώρισης ορίστε λήξη ή ρητή διάρκεια. Η ημερομηνία από μόνη της δεν δηλώνει παρουσία.</value>
+  </data>
+  <data name="Editor.CheckCoverageBounds" xml:space="preserve">
+    <value>Για έλεγχο κάλυψης χρειάζονται γνωστά υποστηριζόμενα όρια. Οι τιμές που λείπουν, είναι άγνωστες ή είναι ευέλικτες δεν θεωρούνται μηδενικές.</value>
+  </data>
+  <data name="Editor.CheckReleaseUnknown" xml:space="preserve">
+    <value>Η ώρα αναχώρησης ή λήξης είναι άγνωστη. Ορίστε την αν είναι γνωστή.</value>
+  </data>
+  <data name="Editor.CheckArrivalUnknown" xml:space="preserve">
+    <value>Η ώρα άφιξης ή έναρξης είναι άγνωστη. Ορίστε την αν είναι γνωστή.</value>
+  </data>
+  <data name="Editor.CheckDwellUnknown" xml:space="preserve">
+    <value>Η διάρκεια παραμονής είναι άγνωστη. Ορίστε τη διάρκειά της ή ώρα λήξης για να υπολογιστεί η αναχώρηση.</value>
+  </data>
+  <data name="Editor.CheckComparableMinute" xml:space="preserve">
+    <value>Χρειάζεται συγκρίσιμη ώρα αναχώρησης ή άφιξης με ακρίβεια λεπτού.</value>
+  </data>
+  <data name="Editor.CheckElapsedPrecision" xml:space="preserve">
+    <value>Για τη σύγκριση διάρκειας ορίστε ώρα με ακρίβεια λεπτού και σχετική ζώνη ώρας.</value>
+  </data>
+  <data name="Editor.CheckCivilInvalid" xml:space="preserve">
+    <value>Δεν μπορεί να προσδιοριστεί η δηλωμένη τοπική ημερομηνία ή ώρα.</value>
+  </data>
+  <data name="Editor.CheckZoneNeeded" xml:space="preserve">
+    <value>Λείπει αναγκαία ζώνη ώρας. Επιλέξτε ζώνη για αυτόν τον έλεγχο ή αφήστε την αδιευκρίνιστη.</value>
+  </data>
+  <data name="Editor.CheckZoneUnsupported" xml:space="preserve">
+    <value>Η ζώνη ώρας δεν υποστηρίζεται από τους τρέχοντες κανόνες. Ελέγξτε τη ζώνη.</value>
+  </data>
+  <data name="Editor.CheckZoneGap" xml:space="preserve">
+    <value>Αυτή η τοπική ώρα παραλείπεται κατά την αλλαγή ώρας. Ελέγξτε την ώρα και τη ζώνη.</value>
+  </data>
+  <data name="Editor.CheckFoldOffset" xml:space="preserve">
+    <value>Η επιλεγμένη απόκλιση UTC για τη διπλή τοπική ώρα δεν είναι διαθέσιμη με τους τρέχοντες κανόνες. Ελέγξτε την εμφάνιση που επιλέξατε.</value>
+  </data>
+  <data name="Editor.CheckInvalidWindow" xml:space="preserve">
+    <value>Το τοπικό χρονικό παράθυρο δεν είναι έγκυρο. Ελέγξτε τις ημερομηνίες.</value>
+  </data>
+  <data name="Editor.CheckBeyondCalendar" xml:space="preserve">
+    <value>Δεν υποστηρίζεται κάλυψη σε ζώνη ώρας μετά το έτος 9999.</value>
+  </data>
+  <data name="Editor.CheckEndpointFrame" xml:space="preserve">
+    <value>Τα άκρα του διαστήματος δεν έχουν κοινό χρονικό πλαίσιο. Ελέγξτε τις ημερομηνίες και τις ζώνες ώρας.</value>
+  </data>
+  <data name="Editor.CheckReversed" xml:space="preserve">
+    <value>Η λήξη προηγείται της έναρξης. Ελέγξτε τα όρια του διαστήματος.</value>
+  </data>
+  <data name="Editor.CheckFoldReversed" xml:space="preserve">
+    <value>Με ορισμένες εκδοχές της διπλής ώρας η λήξη προηγείται της έναρξης. Επιλέξτε τη σωστή εμφάνιση.</value>
+  </data>
+  <data name="Editor.CheckTravellerChanged" xml:space="preserve">
+    <value>Η υπόθεση για έναν ταξιδιώτη χρειάζεται επανεξέταση, επειδή άλλαξαν οι επιλεγμένοι συμμετέχοντες.</value>
+  </data>
+  <data name="Editor.CheckTravellerReused" xml:space="preserve">
+    <value>Υπόθεση για έναν ταξιδιώτη</value>
+  </data>
+  <data name="Editor.CheckDeletedLinks" xml:space="preserve">
+    <value>Αφαιρέθηκαν συνδέσεις μετακίνησης προς καταχωρίσεις που διαγράφηκαν.</value>
+  </data>
+  <data name="Editor.CheckRemovedInputs" xml:space="preserve">
+    <value>Αφαιρέθηκαν τα δεδομένα ελέγχου για τις διαγραμμένες καταχωρίσεις.</value>
+  </data>
+  <data name="Editor.CheckLocationReused" xml:space="preserve">
+    <value>Εκτίμηση ασύμβατων τοποθεσιών</value>
+  </data>
+  <data name="Editor.CheckLocationChanged" xml:space="preserve">
+    <value>Η παρουσία ή η τοποθεσία άλλαξε. Επανεξετάστε αν απαιτείται παρουσία σε διαφορετικά μέρη.</value>
+  </data>
+  <data name="Editor.CheckMovementChanged" xml:space="preserve">
+    <value>Η διαδρομή, η τοποθεσία ή η εκτίμηση άλλαξε. Επιβεβαιώστε ξανά τη συνάφεια και τους πρόσθετους χρόνους.</value>
+  </data>
+  <data name="Editor.CheckMovementReused" xml:space="preserve">
+    <value>Συνάφεια εκτίμησης μετακίνησης και υπολογισμός του περιθωρίου χρόνου</value>
+  </data>
+  <data name="Editor.CheckWhatIfChanged" xml:space="preserve">
+    <value>Η υποθετική ώρα αναχώρησης έληξε ή άλλαξαν τα χρονικά στοιχεία της. Ορίστε νέα ώρα αν χρειάζεται.</value>
+  </data>
+  <data name="Editor.CheckEntryChanged" xml:space="preserve">
+    <value>Ελέγξτε ξανά τις ερμηνείες για «{0}». Άλλαξε η καταχώριση, η τοποθεσία ή οι κανόνες.</value>
+  </data>
+  <data name="Editor.CheckEntryReused" xml:space="preserve">
+    <value>Ερμηνείες για «{0}»</value>
+  </data>
+  <data name="Editor.CheckContextChanged" xml:space="preserve">
+    <value>Άλλαξαν τα χρονικά παράθυρα που σχετίζονται με «{0}». Ελέγξτε την επιλογή.</value>
+  </data>
+  <data name="Editor.CheckContextReused" xml:space="preserve">
+    <value>Επιλεγμένα γονικά παράθυρα για «{0}» (η κάλυψη υπολογίστηκε ξανά)</value>
+  </data>
+  <data name="Editor.CheckOccurrenceChanged" xml:space="preserve">
+    <value>Άλλαξε η ώρα ή η ζώνη για «{0}». Επιλέξτε ξανά εμφάνιση της τοπικής ώρας.</value>
+  </data>
+  <data name="Editor.PlanningValueScope" xml:space="preserve">
+    <value>Προσθέστε από 1 έως 128 καταχωρίσεις προγραμματισμού.</value>
+  </data>
+  <data name="Editor.PlanningValueIdentity" xml:space="preserve">
+    <value>Οι καταχωρίσεις πρέπει να έχουν διαφορετικά αναγνωριστικά. Δημιουργήστε ξανά τυχόν διπλότυπες καταχωρίσεις.</value>
+  </data>
+  <data name="Editor.PlanningValueLabel" xml:space="preserve">
+    <value>Η ετικέτα προγραμματισμού μπορεί να περιέχει έως 200 χαρακτήρες.</value>
+  </data>
+  <data name="Editor.PlanningValueMeaning" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενη σημασία για αυτό το αντικείμενο.</value>
+  </data>
+  <data name="Editor.PlanningValueForm" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενη μορφή χρόνου.</value>
+  </data>
+  <data name="Editor.PlanningValueAllocation" xml:space="preserve">
+    <value>Ορίστε μη αρνητικό ακέραιο αριθμό λεπτών μόνο για πρόθεση με μία χρονική τιμή ή χωρίς ημερομηνία.</value>
+  </data>
+  <data name="Editor.PlanningValueAt" xml:space="preserve">
+    <value>Για μεμονωμένη ημερομηνία ή ώρα συμπληρώστε μία τιμή, χωρίς όρια περιόδου.</value>
+  </data>
+  <data name="Editor.PlanningValuePeriod" xml:space="preserve">
+    <value>Συμπληρώστε τουλάχιστον ένα γνωστό όριο για την περίοδο.</value>
+  </data>
+  <data name="Editor.PlanningValueReversed" xml:space="preserve">
+    <value>Η λήξη της περιόδου προηγείται της έναρξης. Κρατήστε και διορθώστε το πρόχειρο.</value>
+  </data>
+  <data name="Editor.PlanningValueUndated" xml:space="preserve">
+    <value>Για καταχώριση χωρίς ημερομηνία αφαιρέστε τις τιμές και τα όρια χρόνου.</value>
+  </data>
+  <data name="Editor.PlanningValueBound" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενη κατάσταση για το όριο.</value>
+  </data>
+  <data name="Editor.PlanningValueBoundKnown" xml:space="preserve">
+    <value>Συμπληρώστε τιμή μόνο για γνωστό όριο.</value>
+  </data>
+  <data name="Editor.PlanningValueCivil" xml:space="preserve">
+    <value>Συμπληρώστε την τοπική ημερομηνία ή ώρα με την επιλεγμένη ακρίβεια.</value>
+  </data>
+  <data name="Editor.PlanningValueDate" xml:space="preserve">
+    <value>Συμπληρώστε έγκυρο μήνα ή ημερομηνία χωρίς ζώνη ώρας.</value>
+  </data>
+  <data name="Editor.PlanningValuePrecision" xml:space="preserve">
+    <value>Επιλέξτε μήνα, ημερομηνία ή ημερομηνία και ώρα με ακρίβεια λεπτού.</value>
+  </data>
+  <data name="Editor.PlanningValueClock" xml:space="preserve">
+    <value>Συμπληρώστε έγκυρη ημερομηνία και ώρα μέχρι το λεπτό, χωρίς δευτερόλεπτα.</value>
+  </data>
+  <data name="Editor.PlanningValueOffsetZone" xml:space="preserve">
+    <value>Για απόκλιση UTC μιας εμφάνισης ορίστε ρητά ζώνη ώρας.</value>
+  </data>
+  <data name="Editor.PlanningValueZone" xml:space="preserve">
+    <value>Επιλέξτε UTC ή υποστηριζόμενη ζώνη IANA.</value>
+  </data>
+  <data name="Editor.PlanningValueGap" xml:space="preserve">
+    <value>Η ώρα παραλείπεται κατά την αλλαγή ώρας. Επιλέξτε έγκυρη τοπική ώρα.</value>
+  </data>
+  <data name="Editor.PlanningValueOccurrence" xml:space="preserve">
+    <value>Η απόκλιση UTC της επιλεγμένης εμφάνισης δεν αντιστοιχεί στη ζώνη και την ώρα. Ελέγξτε την επιλογή.</value>
+  </data>
+  <data name="Editor.PlanningCheckScope" xml:space="preserve">
+    <value>Τα δεδομένα υπερβαίνουν το όριο ελέγχου. Περιορίστε την επιλογή.</value>
+  </data>
+  <data name="Editor.PlanningCheckInterpretation" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενες ερμηνείες και μη αρνητικές διάρκειες σε λεπτά.</value>
+  </data>
+  <data name="Editor.PlanningCheckMovementInput" xml:space="preserve">
+    <value>Επιλέξτε διαφορετικές καταχωρίσεις αναχώρησης και άφιξης, υποστηριζόμενο χειρισμό και πεπερασμένες μη αρνητικές διάρκειες.</value>
+  </data>
+  <data name="Editor.CheckOutsideMinutes" xml:space="preserve">
+    <value>{0} λεπτά βρίσκονται σίγουρα εκτός της ένωσης των επιλεγμένων γονικών παραθύρων.</value>
+  </data>
+  <data name="Editor.CheckNegativeMinutes" xml:space="preserve">
+    <value>Η άφιξη προηγείται της αναχώρησης κατά {0} λεπτά.</value>
+  </data>
+  <data name="Editor.CheckGapUnknown" xml:space="preserve">
+    <value>Μεσολαβούν {0} λεπτά. Η σχετική εκτίμηση μετακίνησης είναι άγνωστη και δεν υπολογίζεται ως μηδέν.</value>
+  </data>
+  <data name="Editor.CheckRiskExtras" xml:space="preserve">
+    <value>Εκτιμώμενη έλλειψη {0} λεπτών πριν από τους πρόσθετους χρόνους.</value>
+  </data>
+  <data name="Editor.CheckSlack" xml:space="preserve">
+    <value>Απομένουν περίπου {0} λεπτά ({1} διαθέσιμα − {2} εκτίμηση μετακίνησης − {3} επιπλέον). Η άφιξη δεν είναι εγγυημένη.</value>
+  </data>
+  <data name="Editor.CheckRiskAll" xml:space="preserve">
+    <value>Εκτιμώμενη έλλειψη {0} λεπτών μαζί με το πρόσθετο περιθώριο ή τη σύνδεση.</value>
+  </data>
+  <data name="Editor.CheckPairBound" xml:space="preserve">
+    <value>Δεν αξιολογήθηκαν άλλα {0} ζεύγη παρουσίας λόγω του ορίου των 2.048 ζευγών. Περιορίστε ρητά την εμφανιζόμενη επιλογή.</value>
+  </data>
+  <data name="Editor.CheckSourceRoute" xml:space="preserve">
+    <value>{0} · {1} · {2} · {3} · {4} · {5}</value>
+  </data>
+  <data name="Editor.CheckUnknownAnchor" xml:space="preserve">
+    <value>Άγνωστη στάση</value>
+  </data>
+  <data name="Editor.CheckCustomRoute" xml:space="preserve">
+    <value>Αποθηκευμένη προσαρμοσμένη διαδρομή</value>
+  </data>
+  <data name="Editor.CheckAnchorRoute" xml:space="preserve">
+    <value>Διαδρομή μέσω καθορισμένων στάσεων</value>
+  </data>
+  <data name="Editor.CheckSourceUnavailable" xml:space="preserve">
+    <value>Το επιλεγμένο τμήμα διαδρομής δεν είναι διαθέσιμο</value>
+  </data>
+  <data name="Editor.CheckManualEstimate" xml:space="preserve">
+    <value>Χειροκίνητη εκτίμηση μόνο για αυτόν τον έλεγχο ({0})</value>
+  </data>
+  <data name="Editor.CheckMovementAssumptions" xml:space="preserve">
+    <value>Πηγή ({0}). Συνάφεια ({1}), περιθώριο ({2}), σύνδεση ({3}).</value>
+  </data>
+  <data name="Editor.CheckIntendedArrival" xml:space="preserve">
+    <value>Προβλεπόμενη άφιξη (αποθηκευμένη έναρξη ή ώρα)</value>
+  </data>
+  <data name="Editor.CheckDeadline" xml:space="preserve">
+    <value>Άφιξη έως {0} · μόνο για τον έλεγχο</value>
+  </data>
+  <data name="Editor.CheckMovementResult" xml:space="preserve">
+    <value>{0}. {1} {2}</value>
+  </data>
+  <data name="Editor.CheckWhatIfEvidence" xml:space="preserve">
+    <value>Υποθετική αναχώρηση {0}. Οι αποθηκευμένες προθέσεις και το ιστορικό διατηρούνται.</value>
+  </data>
+  <data name="Editor.CheckRelevanceConfirmed" xml:space="preserve">
+    <value>επιβεβαιωμένη</value>
+  </data>
+  <data name="Editor.CheckRelevanceUnresolved" xml:space="preserve">
+    <value>αδιευκρίνιστη</value>
+  </data>
+  <data name="Editor.CheckTreatmentUnknown" xml:space="preserve">
+    <value>άγνωστο</value>
+  </data>
+  <data name="Editor.CheckTreatmentNone" xml:space="preserve">
+    <value>δεν απαιτείται</value>
+  </data>
+  <data name="Editor.CheckTreatmentIncluded" xml:space="preserve">
+    <value>περιλαμβάνεται στην εκτίμηση</value>
+  </data>
+  <data name="Editor.CheckTreatmentAdditional" xml:space="preserve">
+    <value>επιπλέον</value>
+  </data>
+  <data name="Editor.PlanningNotApplied" xml:space="preserve">
+    <value>Ο προγραμματισμός δεν αποθηκεύτηκε. Κρατήστε το πρόχειρο και ελέγξτε τις τρέχουσες τιμές.</value>
+  </data>
+  <data name="Editor.PlanningSaveConflict" xml:space="preserve">
+    <value>Ο αποθηκευμένος προγραμματισμός άλλαξε. Κρατήστε το πρόχειρο και επιλέξτε «Έλεγχος τρέχουσας σύγκρισης» πριν αποθηκεύσετε ξανά.</value>
+  </data>
+  <data name="Editor.PlanningSaveMissing" xml:space="preserve">
+    <value>Το αντικείμενο προγραμματισμού δεν είναι πλέον διαθέσιμο. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία για να ελέγξετε το ταξίδι.</value>
+  </data>
+  <data name="Editor.PlanningSaveUncertain" xml:space="preserve">
+    <value>Η αποθήκευση του προγραμματισμού δεν επιβεβαιώθηκε. Η προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί. Ολόκληρο το πρόχειρο διατηρείται και η αποθήκευση έχει παγώσει. Με την ανανέωση θα χάσετε το πρόχειρο χωρίς να αναιρεθεί η προσπάθεια.</value>
+  </data>
+  <data name="Editor.PlanningReviewUnavailable" xml:space="preserve">
+    <value>Δεν φορτώθηκε ο τρέχων προγραμματισμός. Κρατήστε το πρόχειρο και δοκιμάστε ξανά τον έλεγχο τρέχουσας σύγκρισης.</value>
+  </data>
+  <data name="Editor.PlanningCheckReviewInput" xml:space="preserve">
+    <value>Ελέγξτε τα δεδομένα που εισαγάγατε για τον έλεγχο πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.CheckKindMeaning" xml:space="preserve">
+    <value>Σημασία</value>
+  </data>
+  <data name="Editor.CheckKindContext" xml:space="preserve">
+    <value>Γονικά χρονικά παράθυρα</value>
+  </data>
+  <data name="Editor.CheckKindPhysical" xml:space="preserve">
+    <value>Παρουσία</value>
+  </data>
+  <data name="Editor.CheckKindMovement" xml:space="preserve">
+    <value>Μετακίνηση</value>
+  </data>
+  <data name="Editor.CheckKindCoverage" xml:space="preserve">
+    <value>Κάλυψη</value>
+  </data>
+  <data name="Editor.PlanningMonth" xml:space="preserve">
+    <value>Μήνας</value>
+  </data>
+  <data name="Editor.PlanningDate" xml:space="preserve">
+    <value>Ημερομηνία</value>
+  </data>
+  <data name="Editor.PlanningMinute" xml:space="preserve">
+    <value>Ημερομηνία και ώρα (λεπτά)</value>
+  </data>
+  <data name="Editor.PlanningZoneUnspecified" xml:space="preserve">
+    <value>Δεν ορίστηκε ζώνη ώρας</value>
+  </data>
+  <data name="Editor.PlanningCivilWithZone" xml:space="preserve">
+    <value>{0} ({1}, {2})</value>
+  </data>
+  <data name="Editor.PlanningCivil" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Editor.PlanningPeriodSummary" xml:space="preserve">
+    <value>Έναρξη {0} → Λήξη {1}</value>
+  </data>
+  <data name="Editor.PlanningTimingAt" xml:space="preserve">
+    <value>Στις</value>
+  </data>
+  <data name="Editor.PlanningTimingPeriod" xml:space="preserve">
+    <value>Περίοδος</value>
+  </data>
+  <data name="Editor.PlanningTimingUndated" xml:space="preserve">
+    <value>Χωρίς καθορισμένη ημερομηνία</value>
+  </data>
+  <data name="Editor.PlanningEntryDate" xml:space="preserve">
+    <value>Ημερομηνία {0}</value>
+  </data>
+  <data name="Editor.PlanningStartInfo" xml:space="preserve">
+    <value>Στοιχεία έναρξης</value>
+  </data>
+  <data name="Editor.PlanningEndInfo" xml:space="preserve">
+    <value>Στοιχεία λήξης</value>
+  </data>
+  <data name="Editor.PlanningStart" xml:space="preserve">
+    <value>Έναρξη</value>
+  </data>
+  <data name="Editor.PlanningEnd" xml:space="preserve">
+    <value>Λήξη</value>
+  </data>
+  <data name="Editor.PlanningCheckout" xml:space="preserve">
+    <value>Αναχώρηση από το κατάλυμα</value>
+  </data>
+  <data name="Editor.PlanningAddStart" xml:space="preserve">
+    <value>Προσθήκη ημερομηνίας έναρξης</value>
+  </data>
+  <data name="Editor.PlanningAddAnother" xml:space="preserve">
+    <value>Προσθήκη επιπλέον ημερομηνίας</value>
+  </data>
+  <data name="Editor.PlanningAddDate" xml:space="preserve">
+    <value>Προσθήκη ημερομηνίας</value>
+  </data>
+  <data name="Editor.PlanningZoneRemoved" xml:space="preserve">
+    <value>Καταχώριση «{0}» ({1}). Αφαιρείται η ζώνη {2}. Η τοπική ημερομηνία και ώρα παραμένει {3}.</value>
+  </data>
+  <data name="Editor.PlanningZoneOffsetRemoved" xml:space="preserve">
+    <value>Καταχώριση «{0}» ({1}). Αφαιρούνται η ζώνη {2} και η απόκλιση UTC {3}. Η τοπική ημερομηνία και ώρα παραμένει {4}.</value>
+  </data>
+  <data name="Editor.PlanningEntry" xml:space="preserve">
+    <value>Καταχώριση</value>
+  </data>
+  <data name="Editor.PlanningChangeQuestion" xml:space="preserve">
+    <value>Αλλαγή χρονικού προγραμματισμού;</value>
+  </data>
+  <data name="Editor.PlanningChangeExplain" xml:space="preserve">
+    <value>Να αντικατασταθεί το «{0}» με «{1}»; Τα τρέχοντα χρονικά πεδία θα αφαιρεθούν. Η ταυτότητα και τα προαιρετικά στοιχεία θα διατηρηθούν.</value>
+  </data>
+  <data name="Editor.PlanningChangeTiming" xml:space="preserve">
+    <value>Αλλαγή χρόνου</value>
+  </data>
+  <data name="Editor.PlanningKeepTiming" xml:space="preserve">
+    <value>Διατήρηση χρόνου</value>
+  </data>
+  <data name="Editor.PlanningReviewQuestion" xml:space="preserve">
+    <value>Έλεγχος τρέχουσας σύγκρισης;</value>
+  </data>
+  <data name="Editor.PlanningReviewExplain" xml:space="preserve">
+    <value>Φορτώστε τον τρέχοντα αποθηκευμένο προγραμματισμό ως νέα βάση, διατηρώντας ολόκληρο το πρόχειρο. Η επόμενη αποθήκευση θα αντικαταστήσει όλο τον προγραμματισμό αυτού του αντικειμένου.</value>
+  </data>
+  <data name="Editor.PlanningUseComparison" xml:space="preserve">
+    <value>Χρήση τρέχουσας σύγκρισης</value>
+  </data>
+  <data name="Editor.PlanningKeepComparison" xml:space="preserve">
+    <value>Διατήρηση αρχικής σύγκρισης</value>
+  </data>
+  <data name="Editor.PlanningDiscardDeletedQuestion" xml:space="preserve">
+    <value>Απόρριψη προγραμματισμού διαγραμμένου αντικειμένου;</value>
+  </data>
+  <data name="Editor.PlanningDiscardDeletedExplain" xml:space="preserve">
+    <value>Να απορριφθεί μόνο αυτό το διατηρημένο πρόχειρο προγραμματισμού; Αν το χρειάζεστε, αντιγράψτε το πρώτα. Τα υπόλοιπα πρόχειρα θα διατηρηθούν.</value>
+  </data>
+  <data name="Editor.PlanningDiscardDraft" xml:space="preserve">
+    <value>Απόρριψη αυτού του πρόχειρου</value>
+  </data>
+  <data name="Editor.PlanningKeepDraft" xml:space="preserve">
+    <value>Διατήρηση πρόχειρου</value>
+  </data>
+  <data name="Editor.PlanningDeletedCopy" xml:space="preserve">
+    <value>Το αντικείμενο ({0}) διαγράφηκε. Το πρόχειρο προγραμματισμού διατηρείται παρακάτω για αντιγραφή.</value>
+  </data>
+  <data name="Editor.PlanningDeletedUnconfirmed" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση μπορεί ακόμη να ολοκληρωθεί. Η έκβασή της παραμένει ανεπιβεβαίωτη.</value>
+  </data>
+  <data name="Editor.PlanningDeletedConfirmed" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση προγραμματισμού ολοκληρώθηκε. Το αντικείμενο παραμένει διαγραμμένο.</value>
+  </data>
+  <data name="Editor.PlanningDiscardWhenDone" xml:space="preserve">
+    <value>Απορρίψτε το διατηρημένο πρόχειρο όταν δεν το χρειάζεστε πλέον.</value>
+  </data>
+  <data name="Editor.PlanningRetainedLabel" xml:space="preserve">
+    <value>Διατηρημένος προγραμματισμός ({0})</value>
+  </data>
+  <data name="Editor.PlanningSavedNewer" xml:space="preserve">
+    <value>Ο προηγούμενος προγραμματισμός αποθηκεύτηκε. Οι νεότερες αλλαγές δεν έχουν αποθηκευτεί.</value>
+  </data>
+  <data name="Editor.PlanningSaved" xml:space="preserve">
+    <value>Ο προγραμματισμός αποθηκεύτηκε.</value>
+  </data>
+  <data name="Editor.CheckMeaningUnspecified" xml:space="preserve">
+    <value>Δεν ορίστηκε σημασία</value>
+  </data>
+  <data name="Editor.CheckAssessedScope" xml:space="preserve">
+    <value>Περιλαμβάνεται στον έλεγχο</value>
+  </data>
+  <data name="Editor.CheckUnassessedScope" xml:space="preserve">
+    <value>Εκτός ελέγχου</value>
+  </data>
+  <data name="Editor.CheckShowDismissed" xml:space="preserve">
+    <value>Εμφάνιση κρυμμένων ευρημάτων</value>
+  </data>
+  <data name="Editor.CheckHideDismissed" xml:space="preserve">
+    <value>Απόκρυψη ευρημάτων που απορρίφθηκαν</value>
+  </data>
+  <data name="Editor.CheckAllowance" xml:space="preserve">
+    <value>Χρόνος ανάπαυσης ή περιθώριο</value>
+  </data>
+  <data name="Editor.CheckConnection" xml:space="preserve">
+    <value>Αναγκαία στοιχεία σύνδεσης</value>
+  </data>
+  <data name="Editor.CheckAdditionalAllowance" xml:space="preserve">
+    <value>Επιπλέον λεπτά ανάπαυσης ή περιθωρίου εκτός εκτίμησης και διαθέσιμου χρόνου</value>
+  </data>
+  <data name="Editor.CheckAdditionalConnection" xml:space="preserve">
+    <value>Επιπλέον λεπτά σύνδεσης εκτός εκτίμησης και διαθέσιμου χρόνου</value>
+  </data>
+  <data name="Editor.CheckOccurrenceValue" xml:space="preserve">
+    <value>Εμφάνιση</value>
+  </data>
+  <data name="Editor.CheckOccurrenceStart" xml:space="preserve">
+    <value>Εμφάνιση ώρας έναρξης</value>
+  </data>
+  <data name="Editor.CheckOccurrenceEnd" xml:space="preserve">
+    <value>Εμφάνιση ώρας λήξης</value>
+  </data>
+  <data name="Editor.CheckSourceReview" xml:space="preserve">
+    <value>Ελέγξτε ξανά την αποθηκευμένη έκδοση για να φορτώσετε την πηγή της εκτίμησης.</value>
+  </data>
+  <data name="Editor.PlanningReviewStored" xml:space="preserve">
+    <value>Ελέγξτε τους ισχύοντες κανόνες ώρας ή ζώνης πριν αλλάξετε τον αποθηκευμένο προγραμματισμό.</value>
+  </data>
+  <data name="Editor.ValidationFromTrip" xml:space="preserve">
+    <value>Επιλέξτε αφετηρία που ανήκει σε αυτό το ταξίδι.</value>
+  </data>
+  <data name="Editor.ValidationToTrip" xml:space="preserve">
+    <value>Επιλέξτε προορισμό που ανήκει σε αυτό το ταξίδι.</value>
+  </data>
+  <data name="Editor.ValidationWaypointCoordinates" xml:space="preserve">
+    <value>Αντιστοιχίστε την ενδιάμεση στάση στο σημείο της διαδρομής με τις ίδιες συντεταγμένες.</value>
+  </data>
+  <data name="Editor.ValidationEndpointCoordinates" xml:space="preserve">
+    <value>Το άκρο της διαδρομής πρέπει να έχει τις ίδιες συντεταγμένες με την επιλεγμένη αφετηρία ή τον προορισμό.</value>
+  </data>
+  <data name="Editor.ValidationTagBlank" xml:space="preserve">
+    <value>Συμπληρώστε την ετικέτα ή αφαιρέστε τη.</value>
+  </data>
+  <data name="Editor.ValidationTagFormat" xml:space="preserve">
+    <value>Χρησιμοποιήστε υποστηριζόμενους χαρακτήρες ή συντομεύστε την ετικέτα.</value>
+  </data>
+  <data name="Editor.ValidationTagLimit" xml:space="preserve">
+    <value>Ένα ταξίδι μπορεί να έχει έως {0} ετικέτες.</value>
+  </data>
+  <data name="Editor.ValidationSearchRequired" xml:space="preserve">
+    <value>Συμπληρώστε τι θέλετε να αναζητήσετε.</value>
+  </data>
+  <data name="Editor.ValidationSearchMinimum" xml:space="preserve">
+    <value>Εισαγάγετε τουλάχιστον 3 χαρακτήρες για αναζήτηση.</value>
+  </data>
+  <data name="Editor.ValidationSearchMaximum" xml:space="preserve">
+    <value>Η αναζήτηση μπορεί να περιέχει έως 200 χαρακτήρες.</value>
+  </data>
+  <data name="Editor.ValidationAreaGeoJson" xml:space="preserve">
+    <value>Σχεδιάστε έγκυρο πολύγωνο για τη ζώνη.</value>
+  </data>
+  <data name="Editor.ValidationRouteGeoJson" xml:space="preserve">
+    <value>Σχεδιάστε μια γραμμή διαδρομής ή αφαιρέστε την υπάρχουσα.</value>
+  </data>
+  <data name="Editor.ValidationRouteNumeric" xml:space="preserve">
+    <value>Σε κάθε σημείο συμπληρώστε έγκυρες αριθμητικές τιμές για το γεωγραφικό μήκος και πλάτος.</value>
+  </data>
+  <data name="Editor.ValidationNotesOriginal" xml:space="preserve">
+    <value>Χρειάζονται οι αρχικές σημειώσεις. Ελέγξτε την αποθηκευμένη έκδοση πριν αποθηκεύσετε ξανά.</value>
+  </data>
+  <data name="Editor.Manual" xml:space="preserve">
+    <value>Χειροκίνητη</value>
+  </data>
+  <data name="Editor.Automatic" xml:space="preserve">
+    <value>Αυτόματη</value>
+  </data>
+  <data name="Editor.ChangeRateLimited" xml:space="preserve">
+    <value>Υποβλήθηκαν πολλά αιτήματα. Κρατήστε το πρόχειρο και δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Editor.ChangeReloadEditor" xml:space="preserve">
+    <value>Η ενέργεια δεν είναι διαθέσιμη. Κρατήστε τις μη αποθηκευμένες αλλαγές και φορτώστε ξανά την επεξεργασία πριν δοκιμάσετε.</value>
+  </data>
+  <data name="Editor.ProposalReloadRoute" xml:space="preserve">
+    <value>Τα αποθηκευμένα στοιχεία διαδρομής άλλαξαν. Κρατήστε το πρόχειρο και φορτώστε το αποθηκευμένο τμήμα πριν δημιουργήσετε νέα πρόταση.</value>
+  </data>
+  <data name="Editor.ProposalTimeout" xml:space="preserve">
+    <value>Η δημιουργία διαδρομής ξεπέρασε το χρονικό όριο. Το πρόχειρο διατηρήθηκε. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Editor.ProposalReloadRequest" xml:space="preserve">
+    <value>Το αίτημα διαδρομής δεν υποστηρίζεται. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν δοκιμάσετε.</value>
+  </data>
+  <data name="Editor.AreaEarlierSave" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση ζώνης δεν επιβεβαιώθηκε. Κρατήστε το πρόχειρο, ελέγξτε την τρέχουσα κατάσταση και επιλέξτε επαναφορά πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.AreaOriginalParent" xml:space="preserve">
+    <value>Η αρχική περιοχή της ζώνης δεν είναι διαθέσιμη. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.AreaOriginalValues" xml:space="preserve">
+    <value>Οι αρχικές τιμές της ζώνης δεν είναι διαθέσιμες. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.PlaceOriginalParent" xml:space="preserve">
+    <value>Η αρχική περιοχή της τοποθεσίας δεν είναι διαθέσιμη. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.PlaceOriginalValues" xml:space="preserve">
+    <value>Οι αρχικές τιμές της τοποθεσίας δεν είναι διαθέσιμες. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.RegionOriginalValues" xml:space="preserve">
+    <value>Οι αρχικές τιμές της περιοχής δεν είναι διαθέσιμες. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.TripOriginalValues" xml:space="preserve">
+    <value>Οι αρχικές τιμές του ταξιδιού δεν είναι διαθέσιμες. Κρατήστε το πρόχειρο και φορτώστε ξανά την επεξεργασία πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.AreaSaveIncomplete" xml:space="preserve">
+    <value>Η απάντηση αποθήκευσης της ζώνης ήταν ελλιπής. Η αλλαγή μπορεί να έχει αποθηκευτεί. Κρατήστε το πρόχειρο και ελέγξτε την έκβαση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.SegmentSaveIncomplete" xml:space="preserve">
+    <value>Η απάντηση αποθήκευσης του τμήματος διαδρομής ήταν ελλιπής. Η αλλαγή μπορεί να έχει αποθηκευτεί. Κρατήστε το πρόχειρο και ελέγξτε την έκβαση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.SegmentNotesSaveIncomplete" xml:space="preserve">
+    <value>Η απάντηση αποθήκευσης των σημειώσεων ήταν ελλιπής. Η αλλαγή μπορεί να έχει αποθηκευτεί. Κρατήστε το πρόχειρο και ελέγξτε την έκβαση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.RegionBaseStale" xml:space="preserve">
+    <value>Τα πεδία της περιοχής άλλαξαν. Κρατήστε το πρόχειρο, ελέγξτε τις τρέχουσες τιμές και επιλέξτε ρητά νέα βάση πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.ProposalDurationEstimate" xml:space="preserve">
+    <value>{0} λεπτά</value>
+  </data>
+  <data name="Editor.PlanningPrecisionQuestion" xml:space="preserve">
+    <value>Αλλαγή ακρίβειας;</value>
+  </data>
+  <data name="Editor.PlanningChangePrecision" xml:space="preserve">
+    <value>Αλλαγή ακρίβειας</value>
+  </data>
+  <data name="Editor.PlanningKeepValue" xml:space="preserve">
+    <value>Διατήρηση τρέχουσας τιμής</value>
+  </data>
+  <data name="Editor.PlanningPrecisionLoss" xml:space="preserve">
+    <value>Η αλλαγή του πεδίου «{0}» από {1} σε {2} αφαιρεί τα λεπτομερέστερα χρονικά στοιχεία, τη ζώνη ώρας και την επιλεγμένη εμφάνιση.</value>
+  </data>
+  <data name="Editor.AreaParentChanged" xml:space="preserve">
+    <value>Η ζώνη μετακινήθηκε σε άλλη περιοχή. Κρατήστε το πρόχειρο και ελέγξτε την περιοχή στην οποία ανήκει τώρα.</value>
+  </data>
+  <data name="Editor.PlaceParentChanged" xml:space="preserve">
+    <value>Η τοποθεσία μετακινήθηκε σε άλλη περιοχή. Κρατήστε το πρόχειρο και ελέγξτε την περιοχή στην οποία ανήκει τώρα.</value>
+  </data>
+  <data name="Editor.SegmentParentChanged" xml:space="preserve">
+    <value>Άλλαξε το ταξίδι του τμήματος διαδρομής. Κρατήστε το πρόχειρο και ελέγξτε το ταξίδι στο οποίο ανήκει τώρα.</value>
+  </data>
+  <data name="Editor.RegionScopeChanged" xml:space="preserve">
+    <value>Άλλαξαν τα στοιχεία ένταξης της περιοχής. Κρατήστε το πρόχειρο και ελέγξτε πού ανήκει τώρα.</value>
+  </data>
+  <data name="Editor.AreaBaseChanged" xml:space="preserve">
+    <value>Τα πεδία της ζώνης άλλαξαν. Κρατήστε το πρόχειρο, ελέγξτε τις τρέχουσες τιμές και επιλέξτε ρητά νέα βάση πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.PlaceBaseChanged" xml:space="preserve">
+    <value>Τα πεδία της τοποθεσίας άλλαξαν. Κρατήστε το πρόχειρο, ελέγξτε τις τρέχουσες τιμές και επιλέξτε ρητά νέα βάση πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.SegmentNotesChanged" xml:space="preserve">
+    <value>Οι σημειώσεις του τμήματος διαδρομής άλλαξαν. Κρατήστε το πρόχειρο, ελέγξτε τις τρέχουσες σημειώσεις και επιλέξτε ρητά νέα βάση πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Editor.PlaceDependencyChanged" xml:space="preserve">
+    <value>Η τοποθεσία, η σειρά ή οι εξαρτήσεις της άλλαξαν. Κρατήστε το πρόχειρο και ελέγξτε ρητά μια νέα βάση.</value>
+  </data>
+  <data name="Editor.PlaceDependencyReview" xml:space="preserve">
+    <value>Κρατήστε το πρόχειρο. Ελέγξτε την προεπισκόπηση των εξαρτήσεων πριν εφαρμόσετε την αλλαγή.</value>
+  </data>
+  <data name="Editor.PlaceDeletionConfirm" xml:space="preserve">
+    <value>Ελέγξτε την τρέχουσα προεπισκόπηση διαγραφής και επιβεβαιώστε ρητά.</value>
+  </data>
+  <data name="Editor.PlaceDeletionRefresh" xml:space="preserve">
+    <value>Η προεπισκόπηση έληξε ή άλλαξε η τοποθεσία, η σειρά ή οι εξαρτήσεις της. Ελέγξτε νέα προεπισκόπηση και επιβεβαιώστε ξανά.</value>
+  </data>
+  <data name="Editor.RegionDeletionConfirm" xml:space="preserve">
+    <value>Ελέγξτε τις τρέχουσες συνέπειες της διαγραφής και επιβεβαιώστε.</value>
+  </data>
+  <data name="Editor.RegionDeletionRefresh" xml:space="preserve">
+    <value>Η προεπισκόπηση έληξε ή το ταξίδι άλλαξε. Φορτώστε νέα προεπισκόπηση και επιβεβαιώστε ξανά.</value>
+  </data>
+  <data name="Editor.RegionReserved" xml:space="preserve">
+    <value>Αυτή η ενέργεια δεν μπορεί να επεξεργαστεί την περιοχή συστήματος «Μη ταξινομημένες τοποθεσίες».</value>
+  </data>
+  <data name="Editor.RegionReservedDelete" xml:space="preserve">
+    <value>Η περιοχή συστήματος για τις μη ταξινομημένες τοποθεσίες δεν μπορεί να διαγραφεί.</value>
+  </data>
+  <data name="Editor.PlaceReservedOrder" xml:space="preserve">
+    <value>Αυτή η ενέργεια δεν αλλάζει τη σειρά στις μη ταξινομημένες τοποθεσίες.</value>
+  </data>
+  <data name="Editor.RegionOrTripUnavailable" xml:space="preserve">
+    <value>Το ταξίδι ή η περιοχή δεν είναι πλέον διαθέσιμα. Ελέγξτε την τρέχουσα κατάσταση του ταξιδιού.</value>
+  </data>
+  <data name="Editor.RouteWorkNeedsAnchors" xml:space="preserve">
+    <value>Για να επεξεργαστείτε τη διαδρομή επιλέξτε αφετηρία και προορισμό με συντεταγμένες.</value>
+  </data>
+  <data name="Editor.RouteWorkMalformed" xml:space="preserve">
+    <value>Η αποθηκευμένη προσαρμοσμένη διαδρομή δεν είναι έγκυρη. Φορτώστε ξανά ή διορθώστε το τμήμα πριν την επεξεργαστείτε.</value>
+  </data>
+  <data name="Editor.RouteWorkMissingEndpoint" xml:space="preserve">
+    <value>Λείπει ένα άκρο της προσαρμοσμένης διαδρομής. Επιλέξτε αφετηρία και προορισμό.</value>
+  </data>
+  <data name="Editor.RouteWorkMissingIndex" xml:space="preserve">
+    <value>Λείπει η θέση μιας ενδιάμεσης στάσης στη διαδρομή. Ελέγξτε την αποθηκευμένη διαδρομή.</value>
+  </data>
+  <data name="Editor.RouteWorkIndexOrder" xml:space="preserve">
+    <value>Η σειρά σημείων των ενδιάμεσων στάσεων δεν είναι έγκυρη. Ελέγξτε την αποθηκευμένη διαδρομή.</value>
+  </data>
+  <data name="Editor.RouteWorkAnchorStale" xml:space="preserve">
+    <value>Μια στάση δεν αντιστοιχεί στην αποθηκευμένη τοποθεσία. Φορτώστε ξανά τη διαδρομή πριν την επεξεργαστείτε.</value>
+  </data>
+  <data name="Editor.RouteWorkStartStale" xml:space="preserve">
+    <value>Η αρχή της προσαρμοσμένης διαδρομής δεν αντιστοιχεί πλέον στην αποθηκευμένη αφετηρία. Ελέγξτε την αφετηρία.</value>
+  </data>
+  <data name="Editor.RouteWorkEndStale" xml:space="preserve">
+    <value>Το τέλος της προσαρμοσμένης διαδρομής δεν αντιστοιχεί πλέον στον αποθηκευμένο προορισμό. Ελέγξτε τον προορισμό.</value>
+  </data>
+  <data name="Editor.RouteWorkIndexStale" xml:space="preserve">
+    <value>Οι ενδιάμεσες στάσεις δεν αντιστοιχούν στα σημεία της διαδρομής. Φορτώστε ξανά πριν επεξεργαστείτε τη διαδρομή.</value>
+  </data>
+  <data name="Editor.RouteWorkWaypointStale" xml:space="preserve">
+    <value>Οι θέσεις των ενδιάμεσων στάσεων άλλαξαν. Φορτώστε ξανά πριν επεξεργαστείτε τη διαδρομή.</value>
+  </data>
+  <data name="Editor.RouteWorkWaypointsNeedEndpoints" xml:space="preserve">
+    <value>Για διαδρομή με ενδιάμεσες στάσεις επιλέξτε αφετηρία και προορισμό.</value>
+  </data>
+  <data name="Editor.RouteWorkMissingLocation" xml:space="preserve">
+    <value>Μια στάση δεν έχει αποθηκευμένες συντεταγμένες. Ορίστε τις πριν επεξεργαστείτε τη διαδρομή.</value>
+  </data>
+  <data name="Editor.MapSearchNoRegion" xml:space="preserve">
+    <value>Δεν υπάρχει διαθέσιμη επεξεργάσιμη περιοχή για αυτό το αποτέλεσμα.</value>
+  </data>
+  <data name="Editor.MapSearchWorking" xml:space="preserve">
+    <value>Αναζήτηση στον χάρτη…</value>
+  </data>
+  <data name="Editor.MapSearchEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν αποτελέσματα στον χάρτη.</value>
+  </data>
+  <data name="Editor.MapSearchUnavailable" xml:space="preserve">
+    <value>Ο πάροχος αναζήτησης στον χάρτη δεν είναι διαθέσιμος.</value>
+  </data>
+  <data name="Editor.MapSearchRateLimit" xml:space="preserve">
+    <value>Έγιναν πολλές αναζητήσεις στον χάρτη. Δοκιμάστε ξανά σε λίγο.</value>
+  </data>
+  <data name="Editor.MapSearchFailed" xml:space="preserve">
+    <value>Η αναζήτηση στον χάρτη απέτυχε.</value>
+  </data>
+  <data name="Editor.MapSearchResult" xml:space="preserve">
+    <value>Αποτέλεσμα γεωκωδικοποίησης</value>
+  </data>
+  <data name="Editor.DiscardMapWorkQuestion" xml:space="preserve">
+    <value>Απόρριψη αλλαγών στον χάρτη;</value>
+  </data>
+  <data name="Editor.DiscardMapWorkDetail" xml:space="preserve">
+    <value>Οι προσωρινές αλλαγές στον χάρτη θα απορριφθούν.</value>
+  </data>
+  <data name="Editor.ValidationCredits" xml:space="preserve">
+    <value>Ελέγξτε την πολιτική συνεισφοράς και συμπληρώστε ευανάγνωστες αναφορές.</value>
+  </data>
+  <data name="Editor.ModeUnset" xml:space="preserve">
+    <value>Δεν έχει οριστεί μέσο μετακίνησης</value>
+  </data>
+  <data name="Editor.DistanceUnavailable" xml:space="preserve">
+    <value>Η απόσταση δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.InactiveMode" xml:space="preserve">
+    <value>{0} (ανενεργό)</value>
+  </data>
+  <data name="Editor.EstimateNeedsRouteSpeed" xml:space="preserve">
+    <value>Απαιτούνται διαδρομή και ταχύτητα για τον υπολογισμό</value>
+  </data>
+  <data name="Editor.UnnamedPlace" xml:space="preserve">
+    <value>Τοποθεσία χωρίς όνομα</value>
+  </data>
+  <data name="Editor.PlacePopupDetected" xml:space="preserve">
+    <value>Εντοπισμένη τοποθεσία: {0}</value>
+  </data>
+  <data name="Editor.PlacePopupSelectMarker" xml:space="preserve">
+    <value>Επιλέξτε τον δείκτη για να επιλέξετε αυτήν την τοποθεσία</value>
+  </data>
+  <data name="Editor.PlacePopupPostcode" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο ταχυδρομικού κώδικα.</value>
+  </data>
+  <data name="Editor.PlacePopupCity" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο πόλης.</value>
+  </data>
+  <data name="Editor.PlacePopupLocalArea" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, σε επίπεδο τοπικής περιοχής.</value>
+  </data>
+  <data name="Editor.PlacePopupRegion" xml:space="preserve">
+    <value>Διεύθυνση κατά προσέγγιση, μόνο σε επίπεδο περιφέρειας.</value>
+  </data>
+  <data name="Editor.PlacePopupNotVisited" xml:space="preserve">
+    <value>Καμία επίσκεψη έως τώρα</value>
+  </data>
+  <data name="Editor.PlacePopupVisits" xml:space="preserve">
+    <value>Επισκέψεις:</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη τοποθεσία</value>
+  </data>
+  <data name="Editor.SegmentPlaceUnset" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί τοποθεσία</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Αποθηκευμένη διαδρομή · {0} προσαρμοσμένο σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.SavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Αποθηκευμένη διαδρομή · {0} προσαρμοσμένα σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.one" xml:space="preserve">
+    <value>Μη αποθηκευμένη διαδρομή · {0} προσαρμοσμένο σημείο διαδρομής</value>
+  </data>
+  <data name="Editor.UnsavedCustomRouteSummary.other" xml:space="preserve">
+    <value>Μη αποθηκευμένη διαδρομή · {0} προσαρμοσμένα σημεία διαδρομής</value>
+  </data>
+  <data name="Editor.OrderedAnchorFallback" xml:space="preserve">
+    <value>Διαθέσιμη εναλλακτική διαδρομή μέσω των σημείων με τη σειρά τους</value>
+  </data>
+  <data name="Editor.UnsavedOrderedAnchorFallback" xml:space="preserve">
+    <value>Διαθέσιμη εναλλακτική διαδρομή μέσω των σημείων με τη σειρά τους · μη αποθηκευμένη</value>
+  </data>
+  <data name="Editor.NoRoute" xml:space="preserve">
+    <value>Χωρίς διαδρομή</value>
+  </data>
+  <data name="Editor.RegionCenterMarker" xml:space="preserve">
+    <value>Κέντρο περιοχής: {0}</value>
+  </data>
+  <data name="Editor.PlaceWithVisitCount" xml:space="preserve">
+    <value>{0}, {1}</value>
+  </data>
+  <data name="Editor.CollapseHeldBySearch" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο είναι ενεργή η αναζήτηση στην πλαϊνή στήλη. Καθαρίστε την αναζήτηση για να επαναφέρετε την προηγούμενη διάταξη των περιοχών.</value>
+  </data>
+  <data name="Editor.CollapseHeldByEditor" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο είναι ανοιχτή η φόρμα επεξεργασίας περιοχής, τοποθεσίας ή ζώνης σε αυτήν την περιοχή. Κλείστε πρώτα τη φόρμα.</value>
+  </data>
+  <data name="Editor.CollapseHeldBySelection" xml:space="preserve">
+    <value>Η σύμπτυξη δεν είναι διαθέσιμη όσο υπάρχει επιλεγμένη τοποθεσία σε αυτήν την περιοχή. Καταργήστε πρώτα την επιλογή.</value>
+  </data>
+  <data name="Editor.PlaceGroup" xml:space="preserve">
+    <value>Τοποθεσίες</value>
+  </data>
+  <data name="Editor.RegionDeleteCreatesDestination" xml:space="preserve">
+    <value>Δημιουργείται η περιοχή «{0}».</value>
+  </data>
+  <data name="Editor.RegionDeleteUsesDestination" xml:space="preserve">
+    <value>Μεταφορά στην υπάρχουσα περιοχή «{0}».</value>
+  </data>
+  <data name="Editor.KeepRecommended" xml:space="preserve">
+    <value>Διατήρηση (προτείνεται)</value>
+  </data>
+  <data name="Editor.DeletePermanently" xml:space="preserve">
+    <value>Οριστική διαγραφή</value>
+  </data>
+  <data name="Editor.MoveToRegion" xml:space="preserve">
+    <value>Μεταφορά στην περιοχή «{0}»</value>
+  </data>
+  <data name="Editor.DeleteIrreversible" xml:space="preserve">
+    <value>Δεν μπορεί να αναιρεθεί</value>
+  </data>
+  <data name="Editor.RegionDeleteChildrenSummary" xml:space="preserve">
+    <value>Τοποθεσίες: {0} διατηρούνται, {1} διαγράφονται. Ζώνες: {2} διατηρούνται, {3} διαγράφονται.</value>
+  </data>
+  <data name="Editor.RegionDeleteAffectedRoutes" xml:space="preserve">
+    <value>Διαδρομές με ενδιάμεσες στάσεις που διατηρούνται και αλλάζουν: {0}. Συσχετίσεις αποθηκευμένων στάσεων που αφαιρούνται: {1}.</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepBoth" xml:space="preserve">
+    <value>Διαγραφή περιοχής · διατήρηση τοποθεσιών και ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepPlaces" xml:space="preserve">
+    <value>Διαγραφή περιοχής και ζωνών · διατήρηση τοποθεσιών</value>
+  </data>
+  <data name="Editor.DeleteRegionKeepAreas" xml:space="preserve">
+    <value>Διαγραφή περιοχής και τοποθεσιών · διατήρηση ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionDeleteBoth" xml:space="preserve">
+    <value>Διαγραφή περιοχής, τοποθεσιών και ζωνών</value>
+  </data>
+  <data name="Editor.DeleteRegionTitle" xml:space="preserve">
+    <value>Διαγραφή περιοχής «{0}»;</value>
+  </data>
+  <data name="Editor.DeleteRegionDescription" xml:space="preserve">
+    <value>Η περιοχή, το όνομά της, οι σημειώσεις, το εξώφυλλο και το κέντρο της στον χάρτη θα χαθούν. Επιλέξτε χωριστά τι θα γίνει με τις τοποθεσίες και τις ζώνες.</value>
+  </data>
+  <data name="Editor.ReviewRegionOrder" xml:space="preserve">
+    <value>Έλεγχος σειράς περιοχών</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.one" xml:space="preserve">
+    <value>Εφαρμογή αυτής της σειράς σε {0} περιοχή με βάση το περιεχόμενο που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ApplyReviewedRegionCount.other" xml:space="preserve">
+    <value>Εφαρμογή της πλήρους σειράς σε {0} περιοχές με βάση το περιεχόμενο που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ApplyReviewedOrder" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης σειράς</value>
+  </data>
+  <data name="Editor.KeepCurrentOrder" xml:space="preserve">
+    <value>Διατήρηση τρέχουσας σειράς</value>
+  </data>
+  <data name="Editor.SegmentPlaceGone" xml:space="preserve">
+    <value>Η τοποθεσία δεν είναι πλέον διαθέσιμη</value>
+  </data>
+  <data name="Editor.SegmentRegionGone" xml:space="preserve">
+    <value>{0} — η περιοχή δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.SegmentPlaceOutsideRegion" xml:space="preserve">
+    <value>{0} — μη διαθέσιμη σε αυτήν την περιοχή</value>
+  </data>
+  <data name="Editor.SegmentPlaceInvalidLocation" xml:space="preserve">
+    <value>{0} — μη έγκυρες συντεταγμένες</value>
+  </data>
+  <data name="Editor.SegmentPlaceNeedsLocation" xml:space="preserve">
+    <value>{0} — απαιτούνται συντεταγμένες</value>
+  </data>
+  <data name="Editor.WaypointGeometryPreserved" xml:space="preserve">
+    <value>Η υπάρχουσα γεωμετρία διατηρήθηκε. Η νέα σύνδεση με την τοποθεσία είναι ευθεία. Αν χρειάζεται, επεξεργαστείτε τη διαδρομή ή ζητήστε διαδρομή από εξωτερική υπηρεσία.</value>
+  </data>
+  <data name="Editor.WaypointAdded" xml:space="preserve">
+    <value>Προστέθηκε η τοποθεσία «{0}» ως ενδιάμεση στάση {1}.</value>
+  </data>
+  <data name="Editor.WaypointMoved" xml:space="preserve">
+    <value>Η τοποθεσία «{0}» μετακινήθηκε στη θέση {1}.</value>
+  </data>
+  <data name="Editor.NamedItemRemoved" xml:space="preserve">
+    <value>Αφαιρέθηκε: {0}.</value>
+  </data>
+  <data name="Editor.WaypointUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη τοποθεσία {0}</value>
+  </data>
+  <data name="Editor.SegmentFromNotSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί αφετηρία</value>
+  </data>
+  <data name="Editor.SegmentToNotSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί προορισμός</value>
+  </data>
+  <data name="Editor.WaypointLabel" xml:space="preserve">
+    <value>Ενδιάμεση στάση {0}: {1}</value>
+  </data>
+  <data name="Editor.MoveNamedItemUp" xml:space="preserve">
+    <value>Μετακίνηση προς τα πάνω: {0}</value>
+  </data>
+  <data name="Editor.MoveNamedItemDown" xml:space="preserve">
+    <value>Μετακίνηση προς τα κάτω: {0}</value>
+  </data>
+  <data name="Editor.RemoveNamedItem" xml:space="preserve">
+    <value>Αφαίρεση: {0}</value>
+  </data>
+  <data name="Editor.RouteStart" xml:space="preserve">
+    <value>Αφετηρία</value>
+  </data>
+  <data name="Editor.RouteEnd" xml:space="preserve">
+    <value>Άφιξη</value>
+  </data>
+  <data name="Editor.RouteVia" xml:space="preserve">
+    <value>Μέσω {0}</value>
+  </data>
+  <data name="Editor.RouteUnlinkedStart" xml:space="preserve">
+    <value>Ασύνδετη αφετηρία</value>
+  </data>
+  <data name="Editor.RouteUnlinkedEnd" xml:space="preserve">
+    <value>Ασύνδετη άφιξη</value>
+  </data>
+  <data name="Editor.RouteUnnamedWaypoint" xml:space="preserve">
+    <value>Ανώνυμο ενδιάμεσο σημείο</value>
+  </data>
+  <data name="Editor.SegmentJourneyVia" xml:space="preserve">
+    <value>Τμήμα από {0} μέσω {1} προς {2}</value>
+  </data>
+  <data name="Editor.SegmentJourney" xml:space="preserve">
+    <value>Τμήμα από {0} προς {1}</value>
+  </data>
+  <data name="Editor.JourneyThen" xml:space="preserve">
+    <value>, έπειτα </value>
+  </data>
+  <data name="Editor.RouteDirectionUnavailable" xml:space="preserve">
+    <value>Η κατεύθυνση διαδρομής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.RoutePointLabel" xml:space="preserve">
+    <value>Σημείο διαδρομής {0}</value>
+  </data>
+  <data name="Editor.FixedRouteAnchorLabel" xml:space="preserve">
+    <value>{0} — {1} — σταθερό σημείο</value>
+  </data>
+  <data name="Editor.RoutePointInserted" xml:space="preserve">
+    <value>Προστέθηκε σημείο διαδρομής ανάμεσα στα «{0}» και «{1}».</value>
+  </data>
+  <data name="Editor.NamedItemMoved" xml:space="preserve">
+    <value>Μετακινήθηκε: {0}.</value>
+  </data>
+  <data name="Editor.InsertRoutePointAfterLabel" xml:space="preserve">
+    <value>Εισαγωγή σημείου διαδρομής μετά το «{0}»</value>
+  </data>
+  <data name="Editor.NewPlace" xml:space="preserve">
+    <value>Νέα τοποθεσία</value>
+  </data>
+  <data name="Editor.NewPlaceDraftName" xml:space="preserve">
+    <value>Νέα τοποθεσία</value>
+  </data>
+  <data name="Editor.PendingPlaceMarker" xml:space="preserve">
+    <value>Εκκρεμής θέση τοποθεσίας: {0}</value>
+  </data>
+  <data name="Editor.SearchPreviewMarker" xml:space="preserve">
+    <value>Προεπισκόπηση αποτελέσματος αναζήτησης: {0}</value>
+  </data>
+  <data name="Editor.EditNamedRegion" xml:space="preserve">
+    <value>Επεξεργασία περιοχής — {0}</value>
+  </data>
+  <data name="Editor.RegionDetails" xml:space="preserve">
+    <value>Στοιχεία περιοχής</value>
+  </data>
+  <data name="Editor.NewRegion" xml:space="preserve">
+    <value>Νέα περιοχή</value>
+  </data>
+  <data name="Editor.NewRegionDraftName" xml:space="preserve">
+    <value>Νέα περιοχή</value>
+  </data>
+  <data name="Editor.EditNamedPlace" xml:space="preserve">
+    <value>Επεξεργασία τοποθεσίας — {0}</value>
+  </data>
+  <data name="Editor.EditNamedArea" xml:space="preserve">
+    <value>Επεξεργασία ζώνης — {0}</value>
+  </data>
+  <data name="Editor.EditNamedSegment" xml:space="preserve">
+    <value>Επεξεργασία τμήματος διαδρομής — {0}</value>
+  </data>
+  <data name="Editor.NewSegment" xml:space="preserve">
+    <value>Νέο τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.TripSegment" xml:space="preserve">
+    <value>Τμήμα διαδρομής ταξιδιού</value>
+  </data>
+  <data name="Editor.DiscardSegmentDraft" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής;</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeDelete" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής πριν από τη διαγραφή;</value>
+  </data>
+  <data name="Editor.DeleteSegmentQuestion" xml:space="preserve">
+    <value>Διαγραφή τμήματος διαδρομής;</value>
+  </data>
+  <data name="Editor.DeleteSegmentDescription" xml:space="preserve">
+    <value>Διαγραφή αυτού του τμήματος διαδρομής και του ιδιωτικού σχεδιασμού του;</value>
+  </data>
+  <data name="Editor.KeepSegment" xml:space="preserve">
+    <value>Διατήρηση τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.DiscardSegmentBeforeReorder" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών του τμήματος διαδρομής πριν από την αλλαγή σειράς;</value>
+  </data>
+  <data name="Editor.ShowSegment" xml:space="preserve">
+    <value>Εμφάνιση τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.HideSegment" xml:space="preserve">
+    <value>Απόκρυψη τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.DiscardRegionDraft" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών της περιοχής;</value>
+  </data>
+  <data name="Editor.DiscardBeforeRegionReorder" xml:space="preserve">
+    <value>Απόρριψη των μη αποθηκευμένων αλλαγών πριν από την αλλαγή σειράς των περιοχών;</value>
+  </data>
+  <data name="Editor.DiscardAndClose" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές και να κλείσει ο επεξεργαστής;</value>
+  </data>
+  <data name="Editor.DeleteAreaQuestion" xml:space="preserve">
+    <value>Να διαγραφεί η ζώνη;</value>
+  </data>
+  <data name="Editor.DeleteAreaPlanning" xml:space="preserve">
+    <value>Να διαγραφούν αυτή η ζώνη και ο ιδιωτικός σχεδιασμός της;</value>
+  </data>
+  <data name="Editor.KeepArea" xml:space="preserve">
+    <value>Διατήρηση ζώνης</value>
+  </data>
+  <data name="Editor.DiscardAreaDraft" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης;</value>
+  </data>
+  <data name="Editor.DiscardAreaBeforeDelete" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της ζώνης πριν από τη διαγραφή;</value>
+  </data>
+  <data name="Editor.DiscardBeforeAreaReorder" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν από την αλλαγή σειράς των ζωνών;</value>
+  </data>
+  <data name="Editor.ReviewPlaceSave" xml:space="preserve">
+    <value>Έλεγχος αποθήκευσης τοποθεσίας</value>
+  </data>
+  <data name="Editor.ReviewPlaceSaveDetail" xml:space="preserve">
+    <value>Ελέγξτε τα τρέχοντα στοιχεία από τα οποία εξαρτάται η τοποθεσία «{0}». {1} Η αλλαγή συντεταγμένων αφαιρεί τα αποθηκευμένα στοιχεία εμπλουτισμού. Η διεύθυνση αλλάζει μόνο αν την επεξεργαστείτε. Οι τιμές που καταχωρίσατε διατηρούνται όπως υποβλήθηκαν.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.one" xml:space="preserve">
+    <value>Η αποθήκευση επηρεάζει {0} διαδρομή.</value>
+  </data>
+  <data name="Editor.ReviewPlaceAffectedRoutes.other" xml:space="preserve">
+    <value>Η αποθήκευση επηρεάζει {0} διαδρομές.</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.one" xml:space="preserve">
+    <value>Να εφαρμοστεί αυτή η σειρά σε {0} τοποθεσία με βάση τα τρέχοντα στοιχεία που ελέγξατε;</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrderDetail.other" xml:space="preserve">
+    <value>Να εφαρμοστεί αυτή η σειρά και στις {0} τοποθεσίες με βάση τα τρέχοντα στοιχεία που ελέγξατε;</value>
+  </data>
+  <data name="Editor.DiscardPlaceBeforeSearchAdd" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές της τοποθεσίας πριν από την προσθήκη αυτού του αποτελέσματος αναζήτησης;</value>
+  </data>
+  <data name="Editor.DiscardBeforePlaceReorder" xml:space="preserve">
+    <value>Να απορριφθούν οι μη αποθηκευμένες αλλαγές πριν από την αλλαγή σειράς των τοποθεσιών;</value>
+  </data>
+  <data name="Editor.ApplyReviewedPlaceSave" xml:space="preserve">
+    <value>Αποθήκευση μετά τον έλεγχο</value>
+  </data>
+  <data name="Editor.DeletePlaceQuestion" xml:space="preserve">
+    <value>Να διαγραφεί η τοποθεσία;</value>
+  </data>
+  <data name="Editor.DeletePlacePermanently" xml:space="preserve">
+    <value>Οριστική διαγραφή τοποθεσίας</value>
+  </data>
+  <data name="Editor.KeepPlaceAndDrafts" xml:space="preserve">
+    <value>Διατήρηση τοποθεσίας και προσχεδίων</value>
+  </data>
+  <data name="Editor.ReviewPlaceOrder" xml:space="preserve">
+    <value>Έλεγχος σειράς τοποθεσιών</value>
+  </data>
+  <data name="Editor.DeletePlaceDetail" xml:space="preserve">
+    <value>Θα διαγραφούν οριστικά η τοποθεσία «{0}» και το αποθηκευμένο περιεχόμενό της. {1} Οι κορυφές της προσαρμοσμένης διαδρομής παραμένουν ανώνυμες. {2} Θα προσαρμοστεί η σειρά των υπόλοιπων τοποθεσιών και των επηρεαζόμενων τμημάτων διαδρομής. Η διαγραφή δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.one" xml:space="preserve">
+    <value>Θα διαγραφεί {0} τμήμα διαδρομής με άκρο σε αυτή την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceEndpointSegments.other" xml:space="preserve">
+    <value>Θα διαγραφούν {0} τμήματα διαδρομής με άκρο σε αυτή την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.one" xml:space="preserve">
+    <value>Θα ενημερωθεί {0} διαδρομή που χρησιμοποιεί την τοποθεσία ως ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceSurvivingRoutes.other" xml:space="preserve">
+    <value>Θα ενημερωθούν {0} διαδρομές που χρησιμοποιούν την τοποθεσία ως ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.one" xml:space="preserve">
+    <value>Θα αφαιρεθεί {0} σύνδεση με ενδιάμεσο σημείο.</value>
+  </data>
+  <data name="Editor.DeletePlaceDetachedWaypoints.other" xml:space="preserve">
+    <value>Θα αφαιρεθούν {0} συνδέσεις με ενδιάμεσα σημεία.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.one" xml:space="preserve">
+    <value>Θα διατηρηθεί {0} καταγραφή επίσκεψης χωρίς σύνδεση με την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceUnlinkedVisits.other" xml:space="preserve">
+    <value>Θα διατηρηθούν {0} καταγραφές επισκέψεων χωρίς σύνδεση με την τοποθεσία.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.one" xml:space="preserve">
+    <value>Θα αφαιρεθεί {0} υποψήφια επίσκεψη.</value>
+  </data>
+  <data name="Editor.DeletePlaceVisitCandidates.other" xml:space="preserve">
+    <value>Θα αφαιρεθούν {0} υποψήφιες επισκέψεις.</value>
+  </data>
+  <data name="Editor.PublishTripQuestion" xml:space="preserve">
+    <value>Να δημοσιευτεί το ταξίδι;</value>
+  </data>
+  <data name="Editor.PublishTripPolicy" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη: {0}. Οι κληρονομημένοι όροι και οι σχετικές δηλώσεις ισχύουν χωριστά. Η δημόσια προβολή μόνο για ανάγνωση δεν εμποδίζει τη χειροκίνητη αντιγραφή και δεν ανακαλεί κληρονομημένα δικαιώματα.</value>
+  </data>
+  <data name="Editor.PublishTrip" xml:space="preserve">
+    <value>Δημοσίευση</value>
+  </data>
+  <data name="Editor.SharingHoldRecovery" xml:space="preserve">
+    <value>Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή κοινοποίησης. Η επιλογή σας ({0}) διατηρείται σε αυτόν τον επεξεργαστή. Η αποθήκευση έχει ανασταλεί επειδή η προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί. Κρατήστε τον επεξεργαστή ανοιχτό για να διατηρήσετε την επιλογή σας ή αποχωρήστε χωρίς αποθήκευση. Η αποχώρηση ή η ανανέωση χάνει την επιλογή σας και δεν αναιρεί την προηγούμενη αλλαγή.</value>
+  </data>
+  <data name="Editor.MetadataHoldRecovery" xml:space="preserve">
+    <value>Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή στις ρυθμίσεις του ταξιδιού. Οι πιο πρόσφατες ρυθμίσεις σας διατηρούνται σε αυτόν τον επεξεργαστή. Η αποθήκευση έχει ανασταλεί επειδή η προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί. Κρατήστε τον επεξεργαστή ανοιχτό ή αποχωρήστε χωρίς αποθήκευση. Η αποχώρηση ή η ανανέωση χάνει τις ρυθμίσεις που διατηρήθηκαν και δεν αναιρεί την προηγούμενη αλλαγή.</value>
+  </data>
+  <data name="Editor.TagSuggestionsUnavailable" xml:space="preserve">
+    <value>Οι προτάσεις ετικετών δεν είναι διαθέσιμες.</value>
+  </data>
+  <data name="Editor.SearchMarkerColors" xml:space="preserve">
+    <value>Αναζήτηση χρωμάτων δείκτη</value>
+  </data>
+  <data name="Editor.SearchIcons" xml:space="preserve">
+    <value>Αναζήτηση εικονιδίων</value>
+  </data>
+  <data name="Editor.MarkerColorOptions" xml:space="preserve">
+    <value>Επιλογές χρώματος δείκτη</value>
+  </data>
+  <data name="Editor.IconOptions" xml:space="preserve">
+    <value>Επιλογές εικονιδίου</value>
+  </data>
+  <data name="Editor.SearchColors" xml:space="preserve">
+    <value>Αναζήτηση χρωμάτων</value>
+  </data>
+  <data name="Editor.PlaceCoordinateSelected" xml:space="preserve">
+    <value>Επιλεγμένες συντεταγμένες: {0}, {1}</value>
+  </data>
+  <data name="Editor.PickPlaceLocation" xml:space="preserve">
+    <value>Επιλογή θέσης τοποθεσίας</value>
+  </data>
+  <data name="Editor.PlaceCoordinateUnselected" xml:space="preserve">
+    <value>Δεν έχουν επιλεγεί συντεταγμένες</value>
+  </data>
+</root>

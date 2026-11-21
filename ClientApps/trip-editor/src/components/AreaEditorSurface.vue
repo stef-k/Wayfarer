@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { EditorArea, EditorAreaDraft } from '../types';
 import AreaEditorForm from './AreaEditorForm.vue';
@@ -46,12 +47,12 @@ defineEmits<{
 
     <template #footer>
       <button v-if="activeArea?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">
-        Delete
+        {{ localize("Editor.Delete", "Delete") }}
       </button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawArea')">Draw/Edit Area</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
-      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Area</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawArea')">{{ localize("Editor.DrawEditArea", "Draw/Edit Area") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">{{ localize("Shell.Cancel", "Cancel") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">{{ localize("Editor.Reset", "Reset") }}</button>
+      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">{{ localize("Editor.SaveArea", "Save Area") }}</button>
     </template>
   </EditorSurface>
 </template>

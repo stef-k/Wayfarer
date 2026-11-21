@@ -1,3 +1,4 @@
+import { message, number } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorSurfaceController } from '../composables/useEditorSurface';
 import type { AreaPolygonWorkOptions } from '../map/leafletAdapter';
 import type { EditorAreaDraft, GeoJsonPolygon } from '../types';
@@ -34,8 +35,8 @@ export function beginAreaPolygonMapWork(
   });
 
   const entered = editorSurface.enterMapWork({
-    modeName: 'Draw area polygon',
-    instruction: 'Click the map to place polygon vertices.',
+    modeName: message('Editor.DrawAreaPolygon', 'Draw area polygon'),
+    instruction: message('Editor.PlacePolygonVertices', 'Click the map to place polygon vertices.'),
     statusText: () => areaPolygonStatus(state.geometry),
     canFinish: () => hasValidPolygon(state.geometry),
     isDirty: () => !sameGeometry(state.geometry, snapshot.geometry),
@@ -79,9 +80,12 @@ function sameGeometry(left: GeoJsonPolygon | null, right: GeoJsonPolygon | null)
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/** Describes whether the current shape has enough vertices to finish. */
 function areaPolygonStatus(geometry: GeoJsonPolygon | null): string {
   const vertices = Math.max(0, (geometry?.coordinates?.[0]?.length ?? 1) - 1);
-  return vertices >= 3 ? `${vertices} vertices ready` : 'No polygon ready';
+  return vertices >= 3
+    ? message('Editor.PolygonVerticesReady', '{0} vertices ready', number(vertices))
+    : message('Editor.NoPolygonReady', 'No polygon ready');
 }
 
 function cloneGeometry<T>(geometry: T): T {

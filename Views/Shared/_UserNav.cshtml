@@ -1,3 +1,4 @@
+@inject Wayfarer.Localization.WebMessages T
 @model string
 @{
     /// <summary>
@@ -14,48 +15,48 @@
 
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Timeline" asp-action="Chronological"
-                title="Navigate your timeline by date, month, or year">Timeline</a>
+                title="@T["Shell.TimelineNavigation"]">@T["Shell.Timeline"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Timeline" asp-action="Index"
-                title="See your private timeline">My Private Timeline</a>
+                title="@T["Shell.PrivateTimelineLink"]">@T["Shell.PrivateTimeline"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Location" asp-action="Index"
-                title="Location manager with table/map split view">Locations</a>
+                title="@T["Shell.LocationsMap"]">@T["Shell.Locations"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Location" asp-action="AllLocations"
-                title="Location manager with table view">All Locations</a>
+                title="@T["Shell.LocationsTable"]">@T["Shell.AllLocations"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Location" asp-action="BulkEditNotes"
-                title="Bulk edit location notes based on filters">Bulk Edit Notes</a>
+                title="@T["Shell.BulkEditNotesLink"]">@T["Shell.BulkEditNotes"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="LocationImport" asp-action="Index"
-                title="Upload location data">Location imports</a>
+                title="@T["Shell.UploadLocationData"]">@T["Shell.LocationImports"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Trip" asp-action="Index"
-                title="View-edit-delete your planned trips or create new ones">Trips</a>
+                title="@T["Shell.MyTripsLink"]">@T["Shell.Trips"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Visit" asp-action="Index"
-                title="View and manage your trip place visit history">Trip Visit History</a>
+                title="@T["Shell.TripVisitHistoryLink"]">@T["Shell.TripVisitHistory"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="HiddenAreas" asp-action="Index"
-                title="Set hidden areas from public timelines">Hidden Areas</a>
+                title="@T["Shell.HiddenAreasLink"]">@T["Shell.HiddenAreas"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Groups" asp-action="Index"
-                title="View and manage your group memberships">My Groups</a>
+                title="@T["Shell.MembershipsLink"]">@T["Shell.MyGroups"]</a>
         </li>
         <li class="nav-item d-flex align-items-center">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Invitations" asp-action="Index"
-                title="View and manage your invitations">
-                Invitations
+                title="@T["Shell.ManageInvitations"]">
+                @T["Shell.Invitations"]
             </a>
             <span id="userInvitesBadge" class="badge bg-danger rounded-pill ms-2 d-none" style="min-width:1.25rem;">
                 0
@@ -63,11 +64,11 @@
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="User" asp-controller="Settings" asp-action="Index"
-                title="Timeline settings, app connections and personal location providers">Settings</a>
+                title="@T["Shell.SettingsLink"]">@T["Shell.Settings"]</a>
         </li>
         <li class="nav-item">
             <a class="nav-link theme-toggle" asp-area="Identity" asp-page="/Account/Manage/Index"
-                title="Manage your account">My Account</a>
+                title="@T["Shell.ManageAccount"]">@T["Shell.MyAccount"]</a>
         </li>
     </ul>
 </div>

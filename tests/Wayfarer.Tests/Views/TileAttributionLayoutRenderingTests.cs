@@ -239,9 +239,10 @@ public sealed class TileAttributionLayoutRenderingTests
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseWebRoot(webRoot)
                 .UseSetting(WebHostDefaults.ApplicationKey, typeof(Trip).Assembly.GetName().Name)
-                .ConfigureServices(services =>
+                .ConfigureServices((context, services) =>
                 {
                     services.AddLogging();
+                    Wayfarer.Localization.WebLocalization.AddWebLocalization(services, context.Configuration);
                     services.AddHttpContextAccessor();
                     services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly);
                     services.AddMvcFrontendKit();

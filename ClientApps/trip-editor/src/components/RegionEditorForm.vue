@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import type { EditorRegion } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
 import type { RegionDraft } from './regionPlaceDrafts';
@@ -28,27 +29,27 @@ const emit = defineEmits<{
     </div>
 
     <label class="trip-editor-field">
-      <span>Name</span>
+      <span>{{ localize("Editor.Name", "Name") }}</span>
       <input v-model="props.draft.name" type="text" autocomplete="off" />
       <small v-for="message in props.fieldErrors('name')" :key="message">{{ message }}</small>
     </label>
 
-    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" label="Notes" :validation-messages="props.fieldErrors('notesHtml')" />
+    <RichNotesEditor :adoption-revision="notesAdoption" :key="props.notesSession" :editor-id="`${props.formId}-notes`" v-model="props.draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="props.fieldErrors('notesHtml')" />
 
     <label class="trip-editor-field">
-      <span>Cover Image URL</span>
+      <span>{{ localize("Editor.CoverImageURL", "Cover Image URL") }}</span>
       <input v-model="props.draft.coverImageRawUrl" type="url" autocomplete="off" />
       <small v-for="message in props.fieldErrors('coverImage.rawUrl')" :key="message">{{ message }}</small>
     </label>
 
     <div class="trip-editor-grid">
       <label class="trip-editor-field">
-        <span>Center Latitude</span>
+        <span>{{ localize("Editor.CenterLatitude", "Center Latitude") }}</span>
         <input v-model="props.draft.centerLatitude" type="number" step="any" />
         <small v-for="message in props.fieldErrors('center.latitude')" :key="message">{{ message }}</small>
       </label>
       <label class="trip-editor-field">
-        <span>Center Longitude</span>
+        <span>{{ localize("Editor.CenterLongitude", "Center Longitude") }}</span>
         <input v-model="props.draft.centerLongitude" type="number" step="any" />
         <small v-for="message in props.fieldErrors('center.longitude')" :key="message">{{ message }}</small>
       </label>

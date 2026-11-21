@@ -1,4 +1,5 @@
 import { mountRazorNotes } from './razor';
+import { registerLanguageDraft } from '../../wwwroot/js/localization/languageNavigation.js';
 /**
  * Visit Edit - Form + Map for editing a visit event
  * Allows editing timestamps, location (via map click), appearance, and notes.
@@ -133,10 +134,17 @@ const initIconColorSync = () => {
 /** Bind only the independent Visit snapshot's NotesHtml field; MVC retains validation and save ownership. */
 const initNotes = () => {
     const notes = mountRazorNotes(document.getElementById('notes'));
+    // The hidden field receives Notes only on Visit submit. The selector reads the mounted draft directly.
+    const savedNotes = notes.getValue();
+    const unregisterLanguageDraft = registerLanguageDraft(() => notes.getValue() !== savedNotes);
     document.getElementById('visitForm').addEventListener('submit', () => {
         document.getElementById('hiddenNotes').value = notes.getValue();
     });
-    window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
+    window.addEventListener('pagehide', event => {
+        if (event.persisted) return;
+        unregisterLanguageDraft();
+        notes.dispose();
+    });
 };
 
 /**

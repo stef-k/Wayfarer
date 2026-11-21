@@ -77,10 +77,12 @@ export const generateExternalRouteProposal = async (
 /// Error raised when an editor mutation returns ASP.NET validation problem details.
 export class EditorValidationError extends Error {
   readonly errors: Record<string, string[]>;
+  readonly code?: string;
 
   constructor(problem: ValidationProblemDetails) {
     super(problem.title ?? 'Validation failed.');
     this.errors = problem.errors ?? {};
+    this.code = problem.code;
   }
 }
 
@@ -418,6 +420,13 @@ const sendMutation = async <TData>(
     if (String(conflict.code).startsWith('segment-'))
       throw new EditorSegmentConflictError(conflict as EditorSegmentConflict, response.headers.get('X-Wayfarer-Clear-Route-Confirmation'));
     throw new EditorLifecycleConfirmationError(conflict as EditorLifecycleConflict);
+  }
+
+  // A protected operation may be refused while the account remains signed in.
+  if (response.status === 403) {
+    const problem = await response.json().catch(() => null);
+    const detail = typeof problem?.detail === 'string' ? problem.detail : 'Trip Editor access denied.';
+    throw new EditorMutationHttpError(detail, response.status);
   }
 
   if (!response.ok) {

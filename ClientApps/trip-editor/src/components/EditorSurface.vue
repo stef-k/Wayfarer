@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { planningWorkspaceKey } from '../planning/planningState';
 import PlanningEditor from '../planning/PlanningEditor.vue';
 import { computed, inject, nextTick, ref, watch } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
+import { editorModeText, editorStatusText } from './editorFeedbackText';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 
 const props = defineProps<{
@@ -15,16 +17,17 @@ const props = defineProps<{
 const planningWorkspace = inject(planningWorkspaceKey, null);
 const displayedStatus = computed(() => {
   const planning = planningWorkspace?.status();
-  return planning ? `${planning}; other changes: ${props.statusText}` : props.statusText;
+  return planning ? localize('Editor.PlanningAndOtherStatus', '{0}; other changes: {1}', editorStatusText(planning), editorStatusText(props.statusText))
+    : editorStatusText(props.statusText);
 });
 const closeButton = ref<HTMLButtonElement | null>(null);
 const titleId = computed(() => `trip-editor-surface-title-${props.target.identity.replace(/[^a-z0-9_-]/gi, '-')}`);
 const isActive = computed(() => props.controller.isTargetActive(props.target));
+// Place coordinate work keeps its docked form mounted while the map owns input.
 const isDockedMapWork = computed(() => isActive.value &&
   props.target.kind === 'place' &&
   props.controller.surfaceMode.value === 'map-work' &&
-  props.controller.mapWork.value?.previousSurface === 'docked' &&
-  props.controller.mapWork.value.modeName === 'Pick place location');
+  props.controller.mapWork.value?.previousSurface === 'docked');
 const isDocked = computed(() => isActive.value && (props.controller.surfaceMode.value === 'docked' || isDockedMapWork.value));
 const isExpanded = computed(() => isActive.value && props.controller.surfaceMode.value === 'expanded');
 watch(isExpanded, async expanded => {
@@ -41,14 +44,14 @@ watch(isExpanded, async expanded => {
   <section v-if="isDocked" class="trip-editor-surface trip-editor-surface--docked" :class="{ 'trip-editor-surface--map-work': isDockedMapWork }" :aria-labelledby="titleId">
     <header class="trip-editor-surface__header">
       <div>
-        <p class="trip-editor-surface__eyebrow">{{ target.mode === 'add' ? 'New' : 'Editing' }} {{ target.kind }}</p>
+        <p class="trip-editor-surface__eyebrow">{{ editorModeText(target.kind, target.mode) }}</p>
         <h2 :id="titleId">{{ target.title }}</h2>
         <small v-if="target.subtitle">{{ target.subtitle }}</small>
       </div>
       <div class="trip-editor-surface__controls">
-        <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
-        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">Expand Editor</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">Close</button>
+        <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ displayedStatus }}</span>
+        <button type="button" class="btn btn-outline-light btn-sm" :disabled="isDockedMapWork" @click="controller.expand(target)">{{ localize("Editor.ExpandEditor", "Expand Editor") }}</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isDockedMapWork" @click="controller.closeActiveTarget()">{{ localize("Shell.Close", "Close") }}</button>
       </div>
     </header>
     <div class="trip-editor-surface__body">
@@ -63,7 +66,7 @@ watch(isExpanded, async expanded => {
   <section v-else-if="isActive" class="trip-editor-surface-context" :class="{ 'trip-editor-surface-context--map-work': controller.surfaceMode.value === 'map-work' }">
     <div>
       <strong>{{ target.title }}</strong>
-      <small>{{ controller.surfaceMode.value === 'map-work' ? 'Map work active' : 'Expanded editor active' }}</small>
+      <small>{{ controller.surfaceMode.value === 'map-work' ? localize('Editor.MapWorkActive', 'Map work active') : localize('Editor.ExpandedActive', 'Expanded editor active') }}</small>
     </div>
     <button
       v-if="controller.surfaceMode.value === 'expanded'"
@@ -71,7 +74,7 @@ watch(isExpanded, async expanded => {
       class="btn btn-outline-light btn-sm"
       @click="controller.dock(target)"
     >
-      Dock to sidebar
+      {{ localize("Editor.DockToSidebar", "Dock to sidebar") }}
     </button>
   </section>
 
@@ -81,14 +84,14 @@ watch(isExpanded, async expanded => {
       <section class="trip-editor-expanded__dialog" role="dialog" aria-modal="true" :aria-labelledby="titleId">
         <header class="trip-editor-surface__header trip-editor-expanded__header">
           <div>
-            <p class="trip-editor-surface__eyebrow">{{ target.mode === 'add' ? 'New' : 'Editing' }} {{ target.kind }}</p>
+            <p class="trip-editor-surface__eyebrow">{{ editorModeText(target.kind, target.mode) }}</p>
             <h2 :id="titleId">{{ target.title }}</h2>
             <small v-if="target.subtitle">{{ target.subtitle }}</small>
           </div>
           <div class="trip-editor-surface__controls">
-            <span class="trip-editor-save-state" :class="mutationFeedbackClass(displayedStatus)" role="status">{{ displayedStatus }}</span>
-            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">Dock to sidebar</button>
-            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">Close</button>
+            <span class="trip-editor-save-state" :class="mutationFeedbackClass(statusText)" role="status">{{ displayedStatus }}</span>
+            <button type="button" class="btn btn-outline-light btn-sm" @click="controller.dock(target)">{{ localize("Editor.DockToSidebar", "Dock to sidebar") }}</button>
+            <button ref="closeButton" type="button" class="btn btn-outline-secondary btn-sm" @click="controller.closeActiveTarget()">{{ localize("Shell.Close", "Close") }}</button>
           </div>
         </header>
         <div class="trip-editor-expanded__body">

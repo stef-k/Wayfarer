@@ -1,3 +1,5 @@
+import { message } from '../localization/messages.js';
+
 /** Every personal download starts unchecked and bypasses HTTP caches, HEAD probes and iframe fallbacks. */
 const dialog = document.getElementById('personal-native-dialog');
 const form = document.getElementById('personal-native-form');
@@ -28,6 +30,6 @@ form?.addEventListener('submit', async event => {
         setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
         form.reset(); dialog.close();
     } catch {
-        document.getElementById('personal-native-error').textContent = 'The complete download is unavailable. Your export choices are retained.';
+        document.getElementById('personal-native-error').textContent = message('Viewer.DownloadChoicesRetained', 'The complete download is unavailable. Your export choices are retained.');
     } finally { downloading = false; submit.disabled = false; }
 });

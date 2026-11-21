@@ -1,3 +1,5 @@
+import { encodeFeatureText } from '../util/feature-metadata.js';
+import { message, number, plural } from '../localization/messages.js';
 /* tripViewerHelpers.js – read-only viewer helpers
  * -----------------------------------------------
  *  • Leaflet bootstrap
@@ -54,9 +56,10 @@ export const initLeaflet = (center = [20, 0], zoom = 3, embedUrl = null) => {
     const tiles = createTileLayer().addTo(map);
     map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
     // Match the Trip Editor's accessible attribution-control contract.
-    map.attributionControl.getContainer()?.setAttribute('aria-label', 'Map attribution');
-    map.attributionControl.getContainer()?.setAttribute('title', 'Map attribution');
-    L.control.zoom({position: 'bottomright'}).addTo(map);
+    map.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
+    map.attributionControl.getContainer()?.setAttribute('title', message('Shell.MapAttribution', 'Map attribution'));
+    L.control.zoom({ position: 'bottomright', zoomInTitle: message('Shell.ZoomIn', 'Zoom in'),
+        zoomOutTitle: message('Shell.ZoomOut', 'Zoom out') }).addTo(map);
     addZoomLevelControl(map);                 /* ← your existing util */
 
     if (isPrint) {
@@ -128,7 +131,7 @@ export const addRegionMarker = (map, id, [lat, lon], name = '') => {
     });
 
     const m = L.marker([lat, lon], {icon: leafletIcon})
-        .bindTooltip(name, {direction: 'right'})
+        .bindTooltip(encodeFeatureText(name), {direction: 'right'})
         .addTo(map);
 
     _regions[id] = m;
@@ -155,13 +158,14 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
     const visitCount = opts.visitCount || 0;
     if (visitCount > 0) {
         // Show checkmark for 1 visit, show count for multiple visits
-        const badgeContent = visitCount === 1 ? '✓' : visitCount;
-        const badgeTitle = visitCount === 1 ? 'Visited' : `Visited ${visitCount} times`;
+        const badgeContent = visitCount === 1 ? '✓' : number(visitCount);
+        const badgeTitle = visitCount === 1 ? message('Viewer.Visited', 'Visited')
+            : plural('Viewer.VisitedCount', visitCount, 'Visited {0} time', 'Visited {0} times');
         leafletIcon = L.divIcon({
             className: 'place-marker-wrapper',
             html: `<div class="place-marker visited">
                      <img src="${iconUrl}" width="${WF_WIDTH}" height="${WF_HEIGHT}" alt="">
-                     <span class="visit-badge" title="${badgeTitle}">${badgeContent}</span>
+                     <span class="visit-badge" title="${encodeFeatureText(badgeTitle)}">${badgeContent}</span>
                    </div>`,
             iconSize: [WF_WIDTH, WF_HEIGHT],
             iconAnchor: WF_ANCHOR
@@ -252,12 +256,12 @@ export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
         });
     } else {
         // Fallback to simple label tooltip
-        pl.bindTooltip(label, {sticky: true, direction: 'top'});
+        pl.bindTooltip(encodeFeatureText(label), {sticky: true, direction: 'top'});
     }
 
     pl.addTo(group);
     const hit = isPrint ? null : L.polyline(presentedCoords, {opacity: 0, weight: 16, className: 'segment-route-hit'})
-        .bindTooltip(orientation === 'ambiguous' ? 'Route direction unavailable' : presentation.tooltip,
+        .bindTooltip(orientation === 'ambiguous' ? message('Viewer.RouteDirectionUnavailable', 'Route direction unavailable') : presentation.tooltip,
             {sticky: true, direction: 'top', className: 'trip-rich-tooltip'})
         .on('click', () => window.wayfarer?.selectSegment?.(id))
         .addTo(group);

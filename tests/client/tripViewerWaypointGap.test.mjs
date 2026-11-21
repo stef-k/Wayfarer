@@ -331,7 +331,14 @@ test('normal requested Segment uses the common controller selection and resolved
   assert.equal(snapshot.segments.find(item => item.id === 'one').active, true);
   assert.equal(snapshot.segments.find(item => item.id === 'two').active, false);
   assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, paddingTopLeft: [90, 60], paddingBottomRight: [60, 60] } });
+  delete map.fitted;
+  const linked = createViewerSegmentPresentationController(map, root, { isPrint: false, preserveCamera: true,
+    fitOptions: () => viewerNavigation(map.getSize(), 30).fitOptions });
+  linked.initialize('two');
+  assert.equal(helpers.getSegmentPresentationSnapshot().segments.find(item => item.id === 'two').active, true);
+  assert.equal(map.fitted, undefined);
   controller.initialize('missing');
+  assert.equal(map.fitted, undefined);
   assert.equal(helpers.getSegmentPresentationSnapshot().segments.some(item => item.active), false);
 });
 
