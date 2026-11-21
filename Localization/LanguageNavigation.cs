@@ -7,9 +7,17 @@ public static class LanguageNavigation
 {
     private static readonly HashSet<string> TemporaryIdentityPages = new(StringComparer.OrdinalIgnoreCase)
     {
-        "ConfirmEmail", "ConfirmEmailChange", "RegisterConfirmation", "ResetPassword", "ResetPasswordConfirmation",
+        "ConfirmEmail", "ConfirmEmailChange", "RegisterConfirmation", "ForgotPasswordConfirmation",
+        "ResetPassword", "ResetPasswordConfirmation",
         "ExternalLogin", "LoginWithRecoveryCode", "LoginWith2fa", "GenerateRecoveryCodes", "ShowRecoveryCodes",
         "EnableAuthenticator"
+    };
+
+    private static readonly HashSet<string> IdentityFormPages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/Account/Login", "/Account/Register", "/Account/ForgotPassword", "/Account/ResendEmailConfirmation",
+        "/Account/Manage/Index", "/Account/Manage/Email", "/Account/Manage/ChangePassword",
+        "/Account/Manage/SetPassword", "/Account/Manage/DeletePersonalData"
     };
 
     /// <summary>Returns an application-owned GET or the empty string for a safe current URL.</summary>
@@ -26,12 +34,31 @@ public static class LanguageNavigation
         var page = values["page"] as string;
         if (IsUnavailable(area, controller, action, page))
             return null;
-        return HttpMethods.IsGet(context.Request.Method) ? "" : postDestination;
+        if (HttpMethods.IsGet(context.Request.Method))
+            return "";
+        return area == "Identity" ? GetIdentityFormDestination(context, page) : postDestination;
     }
 
+    /// <summary>Discards POST handler selectors while retaining return URLs and Login's session-expiry flag.</summary>
+    private static string? GetIdentityFormDestination(HttpContext context, string? page)
+    {
+        if (!HttpMethods.IsPost(context.Request.Method) || page is null || !IdentityFormPages.Contains(page))
+            return null;
+
+        var returnUrl = page is "/Account/Login" or "/Account/Register"
+            ? context.Request.Query["returnUrl"].FirstOrDefault()
+            : null;
+        var sessionEnded = page == "/Account/Login" && context.Request.Query["sessionEnded"] == "true"
+            ? "true"
+            : null;
+        return context.RequestServices.GetRequiredService<LinkGenerator>().GetPathByPage(
+            context, page, handler: null, values: new { area = "Identity", returnUrl, sessionEnded });
+    }
+
+    /// <summary>Withholds switching on transient Identity pages and unintegrated application workspaces.</summary>
     private static bool IsUnavailable(string? area, string? controller, string? action, string? page)
     {
-        if (page is not null && TemporaryIdentityPages.Contains(page.Split('/')[^1]))
+        if (area == "Identity" && page is not null && TemporaryIdentityPages.Contains(page.Split('/')[^1]))
             return true;
         if (!string.Equals(area, "User", StringComparison.OrdinalIgnoreCase))
             return false;

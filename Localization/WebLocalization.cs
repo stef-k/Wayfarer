@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Net.Http.Headers;
 
 namespace Wayfarer.Localization;
@@ -13,6 +16,28 @@ public static class WebLocalization
         services.AddLocalization(options => options.ResourcesPath = "Resources");
         services.AddOptions<RequestLocalizationOptions>()
             .Configure<WebLocales>((options, locales) => locales.Configure(options));
+    }
+
+    /// <summary>Connects the pinned Identity UI to the Web catalog through MVC presentation hooks.</summary>
+    internal static void AddIdentityPresentation(this IServiceCollection services)
+    {
+        // Translate the pinned Identity UI's string outcomes after handler execution.
+        services.AddScoped<IdentityFeedback>();
+        services.Configure<RazorPagesOptions>(options =>
+            options.Conventions.AddAreaFolderApplicationModelConvention("Identity", "/", page =>
+                page.Filters.Add(new ServiceFilterAttribute(typeof(IdentityFeedback)))));
+
+        // Keep the standard MVC client and server validation rules and localize Identity metadata.
+        services.AddOptions<MvcOptions>().Configure<WebMessages>((options, messages) =>
+            options.ModelMetadataDetailsProviders.Add(new IdentityValidationMetadata(messages)));
+        services.AddOptions<MvcDataAnnotationsLocalizationOptions>()
+            .PostConfigure<WebMessages>((options, messages) =>
+            {
+                var defaultProvider = options.DataAnnotationLocalizerProvider;
+                var identity = new IdentityValidationMetadata.Localizer(messages);
+                options.DataAnnotationLocalizerProvider = (type, factory) =>
+                    IdentityValidationMetadata.Owns(type) ? identity : defaultProvider?.Invoke(type, factory) ?? factory.Create(type);
+            });
     }
 
     /// <summary>Reads bundled registration with an optional deployment configuration override.</summary>

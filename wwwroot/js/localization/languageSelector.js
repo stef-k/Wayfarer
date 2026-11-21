@@ -82,7 +82,8 @@ form.addEventListener('submit', async event => {
         const reply = await fetch(form.dataset.url, { method: 'POST', body: data, credentials: 'same-origin', redirect: 'error' });
         if (reply.status !== 204) throw new Error('Language preference rejected');
         if (different) {
-            navigateInLanguage(destination);
+            // An explicit safe GET starts a navigation even when it shares the previous POST's URL.
+            navigateInLanguage(destination, safeGet ? url => window.location.assign(url) : undefined);
             return;
         }
         setApplying(false);

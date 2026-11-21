@@ -72,7 +72,8 @@ test('browser print assigns authored title and active language through DOM text 
   assert.deepEqual(attributes.children, [{ tag: 'h5', textContent: title }, ...clone.childNodes]);
 });
 
-test('changed ordinary form guards preference writes and keeps the current document on cancel or failure', async () => {
+/** Exercises the same selector for an ordinary GET and an admitted POST at its own safe GET URL. */
+const verifyLanguageForm = async safeGet => {
   const original = Object.fromEntries(['document', 'fetch', 'FormData', 'HTMLSelectElement', 'location', 'window'].map(name => [name, globalThis[name]]));
   const handlers = new Map();
   let focused;
@@ -88,15 +89,20 @@ test('changed ordinary form guards preference writes and keeps the current docum
   const dialog = controls['language-dialog'];
   const input = { form: {}, type: 'text', value: 'saved title' };
   const submits = [];
-  let reloads = 0;
+  const navigations = [];
+  const current = 'https://wayfarer.test/Account?returnUrl=%2Felsewhere';
   let result = 500;
   form.dataset.url = '/Language/Set';
   form.reset = () => {};
-  dialog.dataset.safeGet = '';
+  dialog.dataset.safeGet = safeGet;
   dialog.showModal = () => { dialog.open = true; };
   dialog.close = () => { dialog.open = false; handlers.get('language-dialog:close')(); };
   globalThis.document = { getElementById: id => controls[id], querySelectorAll: () => [input], addEventListener() {} };
-  globalThis.location = { href: 'https://wayfarer.test/Account?returnUrl=%2Felsewhere#title', reload: () => { reloads++; } };
+  globalThis.location = {
+    href: current,
+    reload: () => navigations.push(['reload', current]),
+    assign: target => navigations.push(['assign', target])
+  };
   globalThis.window = { location: globalThis.location };
   globalThis.HTMLSelectElement = class {};
   globalThis.FormData = class { get(name) { assert.equal(name, 'locale'); return 'el-GR'; } };
@@ -105,7 +111,7 @@ test('changed ordinary form guards preference writes and keeps the current docum
     return { status: result };
   };
   try {
-    await import('../../wwwroot/js/localization/languageSelector.js');
+    await import(`../../wwwroot/js/localization/languageSelector.js?form=${safeGet ? 'post' : 'get'}`);
     const open = () => handlers.get('language-open:click')();
     const submit = () => handlers.get('language-form:submit')({ preventDefault() {} });
     input.value = 'draft <text>';
@@ -120,13 +126,13 @@ test('changed ordinary form guards preference writes and keeps the current docum
     await submit();
     await submit();
     assert.equal(dialog.open, true);
-    assert.equal(reloads, 0);
+    assert.deepEqual(navigations, []);
     assert.equal(controls['language-error'].hidden, false);
     assert.equal(input.value, 'draft <text>');
     result = 204;
     await submit();
     assert.deepEqual(submits, Array(2).fill({ url: '/Language/Set', method: 'POST', busy: true }));
-    assert.equal(reloads, 1);
+    assert.deepEqual(navigations, [[safeGet ? 'assign' : 'reload', current]]);
     assert.equal(isLanguageUnload({}), true);
     assert.equal(isLanguageUnload({}), false);
   } finally {
@@ -135,4 +141,10 @@ test('changed ordinary form guards preference writes and keeps the current docum
       else globalThis[key] = value;
     }
   }
-});
+};
+
+test('changed ordinary form guards preference writes and keeps the current document on cancel or failure',
+  () => verifyLanguageForm(''));
+
+test('POST-rendered form uses an assigned GET even when its URL is already current',
+  () => verifyLanguageForm('/Account?returnUrl=%2Felsewhere'));

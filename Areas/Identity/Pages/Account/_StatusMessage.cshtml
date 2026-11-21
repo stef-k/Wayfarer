@@ -1,0 +1,11 @@
+@model string?
+
+@* Read the pinned handlers' TempData at the destination, using that request's locale. *@
+@if (!string.IsNullOrEmpty(Model))
+{
+    var (message, failed) = IdentityFeedback.Status(T, Model);
+    <div class="alert @(failed ? "alert-danger" : "alert-success") alert-dismissible" role="alert">
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="@T["Shell.Close"]"></button>
+        @message
+    </div>
+}

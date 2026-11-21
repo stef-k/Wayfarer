@@ -7,6 +7,7 @@ using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.WebUtilities;
 using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
@@ -39,9 +40,7 @@ public sealed class WebLanguageHttpTests : TestBase
     public async Task NegotiationReachesRazorAndBootstrap(string header, string? cookie, string locale)
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings());
-        await db.SaveChangesAsync();
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
         // Set the raw header at the request boundary so HttpClient cannot round malformed quality values.
         var context = await app.GetTestServer().SendAsync(http =>
         {
@@ -68,14 +67,148 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Contains($"\"locale\":\"{locale}\"", page.QuerySelector("#wayfarer-locale")!.TextContent);
     }
 
+    /// <summary>Identity login validation offers a clean GET with the original return URL.</summary>
+    [Fact]
+    public async Task LocalIdentityFailureKeepsFieldAndReturnUrl()
+    {
+        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext(), CreateTestDirectory(),
+            IdentityRouteHost.WithStartupSettings);
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el");
+        var token = await IdentityRouteHost.AntiforgeryAsync(client);
+        const string target = "/Identity/Account/Login?returnUrl=%2Fdestination%3Fview%3Dmap";
+        using var reply = await client.PostAsync(target, Form(token, ("Input.Username", "draft-name")));
+        var page = await ParseAsync(reply);
+        Assert.Equal("el-GR", page.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("Σύνδεση", page.QuerySelector("main h1")?.TextContent);
+        Assert.Equal("draft-name", page.QuerySelector("#Input_Username")?.GetAttribute("value"));
+        const string required = "Το πεδίο «Κωδικός πρόσβασης» είναι υποχρεωτικό.";
+        Assert.Equal(required, page.QuerySelector("[data-valmsg-for='Input.Password']")?.TextContent);
+        Assert.Equal(required, page.QuerySelector("#Input_Password")?.GetAttribute("data-val-required"));
+        Assert.Equal("Κωδικός πρόσβασης", page.QuerySelector("label[for=Input_Password]")?.TextContent);
+        Assert.Equal(target, page.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get"));
+        using var clean = await client.GetAsync(target);
+        Assert.DoesNotContain("draft-name", await clean.Content.ReadAsStringAsync());
+
+        using var error = await client.GetAsync("/Identity/Error");
+        var errorPage = await ParseAsync(error);
+        Assert.Equal("el-GR", errorPage.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("Σφάλμα", errorPage.QuerySelector("main h1")?.TextContent);
+        Assert.NotEmpty(errorPage.QuerySelector("main code")?.TextContent ?? "");
+    }
+
+    /// <summary>Switching languages after failed Login restores the session-expiry notice and return target.</summary>
+    [Fact]
+    public async Task LoginLanguageSwitchPreservesSessionEndedNoticeAndReturnTarget()
+    {
+        const string loginPath = "/Identity/Account/Login";
+        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext(), CreateTestDirectory(),
+            IdentityRouteHost.WithStartupSettings);
+        using var client = app.GetTestClient();
+        client.BaseAddress = new Uri("https://wayfarer.test");
+        var token = await IdentityRouteHost.AntiforgeryAsync(client);
+
+        using var failed = await client.PostAsync(loginPath + "?sessionEnded=true&ReturnUrl=%2FUser%2FTimeline",
+            Form(token, ("Input.Username", "draft-name")));
+        var page = await ParseAsync(failed);
+        Assert.Equal("en-US", page.DocumentElement.GetAttribute("lang"));
+        Assert.NotEmpty(page.QuerySelector("[data-valmsg-for='Input.Password']")?.TextContent ?? "");
+        var destination = page.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get");
+        Assert.NotNull(destination);
+        Assert.StartsWith(loginPath + "?", destination);
+        var query = QueryHelpers.ParseQuery(destination[loginPath.Length..]);
+        Assert.Equal("true", query["sessionEnded"].ToString());
+        Assert.Equal("/User/Timeline", query["ReturnUrl"].ToString());
+        Assert.Equal(2, query.Count);
+
+        var languageToken = page.QuerySelector("#language-form input[name=__RequestVerificationToken]")!.GetAttribute("value")!;
+        using var preference = await client.PostAsync("/Language/Set", Form(languageToken, ("locale", "el-GR")));
+        Assert.Equal(HttpStatusCode.NoContent, preference.StatusCode);
+        SetCookies(client, ReadCookie(preference, WebLocales.CookieName + "="));
+
+        using var clean = await client.GetAsync(destination);
+        var greek = await ParseAsync(clean);
+        Assert.Equal("el-GR", greek.DocumentElement.GetAttribute("lang"));
+        Assert.Contains("Η συνεδρία σας έληξε ή ο λογαριασμός σας έχει απενεργοποιηθεί.",
+            greek.QuerySelector("#account .validation-summary-errors")?.TextContent);
+        Assert.Equal("/Identity/Account/Register?returnUrl=%2FUser%2FTimeline",
+            greek.QuerySelector("#account a")?.GetAttribute("href"));
+    }
+
+    /// <summary>Renders a package-managed page, a named-handler failure, and redirected status in the destination locale.</summary>
+    [Fact]
+    public async Task ManageEmailLocalizesNestedLayoutValidationAndRedirectStatus()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        user.Email = "owner@example.test";
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
+        using var client = app.GetTestClient();
+        var auth = IdentityRouteHost.Cookie(app.Services, user.Id);
+        client.DefaultRequestHeaders.Add("Cookie", auth);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el");
+        const string path = "/Identity/Account/Manage/Email";
+
+        using var initial = await client.GetAsync(path);
+        var page = await ParseAsync(initial);
+        Assert.Equal("el-GR", page.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("Διαχείριση λογαριασμού", page.QuerySelector("main h1")?.TextContent);
+        Assert.Equal("Διαχείριση email", page.QuerySelector("main h3")?.TextContent);
+        Assert.Equal("Προσωπικά δεδομένα", page.QuerySelector("#personal-data")?.TextContent);
+        Assert.Equal("owner@example.test", page.QuerySelector("#Email")?.GetAttribute("value"));
+
+        var token = page.QuerySelector("#email-form input[name=__RequestVerificationToken]")!.GetAttribute("value")!;
+        var antiforgery = ReadCookie(initial, ".AspNetCore.Antiforgery.");
+        SetCookies(client, auth, antiforgery);
+        var change = page.QuerySelector("#change-email-button")!.GetAttribute("formaction")!;
+        using var rejected = await client.PostAsync(change, Form(token, ("Input.NewEmail", "invalid-address")));
+        var invalid = await ParseAsync(rejected);
+        const string message = "Το πεδίο «Νέο email» δεν περιέχει έγκυρη διεύθυνση email.";
+        Assert.Equal(message, invalid.QuerySelector("#Input_NewEmail")?.GetAttribute("data-val-email"));
+        Assert.Equal(message, invalid.QuerySelector("[data-valmsg-for='Input.NewEmail']")?.TextContent);
+        Assert.Equal("invalid-address", invalid.QuerySelector("#Input_NewEmail")?.GetAttribute("value"));
+        Assert.Equal(path, invalid.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get"));
+
+        client.DefaultRequestHeaders.AcceptLanguage.Clear();
+        using var unchanged = await client.PostAsync(change, Form(token, ("Input.NewEmail", user.Email)));
+        Assert.Equal(HttpStatusCode.Redirect, unchanged.StatusCode);
+        SetCookies(client, auth, antiforgery, ReadCookie(unchanged, ".AspNetCore.Mvc.CookieTempDataProvider="));
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el");
+        using var destination = await client.GetAsync(unchanged.Headers.Location);
+        var status = (await ParseAsync(destination)).QuerySelector("main .alert-success");
+        Assert.Contains("Η διεύθυνση email σας παραμένει ίδια.", status?.TextContent);
+        Assert.Equal("Κλείσιμο", status?.QuerySelector("button")?.GetAttribute("aria-label"));
+
+        const string downloadPath = "/Identity/Account/Manage/DownloadPersonalData";
+        using var greekDownload = await client.PostAsync(downloadPath, Form(token));
+        Assert.Equal(HttpStatusCode.OK, greekDownload.StatusCode);
+        Assert.Equal("PersonalData.json", greekDownload.Content.Headers.ContentDisposition?.FileName);
+        client.DefaultRequestHeaders.AcceptLanguage.Clear();
+        using var englishDownload = await client.PostAsync(downloadPath, Form(token));
+        Assert.Equal(HttpStatusCode.OK, englishDownload.StatusCode);
+        Assert.Equal(greekDownload.Content.Headers.ContentDisposition, englishDownload.Content.Headers.ContentDisposition);
+        Assert.Equal(await greekDownload.Content.ReadAsByteArrayAsync(), await englishDownload.Content.ReadAsByteArrayAsync());
+    }
+
+    /// <summary>Retains the wire cookie pair needed to follow an authenticated form and its status redirect.</summary>
+    private static string ReadCookie(HttpResponseMessage response, string prefix) =>
+        response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith(prefix, StringComparison.Ordinal)).Split(';')[0];
+
+    /// <summary>Sets an explicit test-browser cookie snapshot without following redirects automatically.</summary>
+    private static void SetCookies(HttpClient client, params string[] values)
+    {
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", string.Join("; ", values));
+    }
+
     /// <summary>Bad credentials and noncanonical selections cannot set the preference.</summary>
     [Fact]
     public async Task PreferenceRequiresAntiforgeryAndCanonicalChoice()
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings());
-        await db.SaveChangesAsync();
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
         using var client = app.GetTestClient();
         client.BaseAddress = new Uri("https://wayfarer.test");
         var token = await IdentityRouteHost.AntiforgeryAsync(client);
@@ -100,11 +233,10 @@ public sealed class WebLanguageHttpTests : TestBase
     public async Task TimelineValidationUsesOwnedGetAndProtectedTimelineWithholdsSwitching()
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings());
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
         using var client = app.GetTestClient();
         var auth = IdentityRouteHost.Cookie(app.Services, user.Id);
         client.DefaultRequestHeaders.Add("Cookie", auth);
@@ -132,14 +264,13 @@ public sealed class WebLanguageHttpTests : TestBase
     public async Task AdditionalLocaleResolvesRazorAndPluralBootstrapWithEnglishFallback()
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings());
-        await db.SaveChangesAsync();
         var probe = new ConfigurationBuilder().AddJsonFile(Path.Combine(AppContext.BaseDirectory, "Resources", "WebLocaleProbe.json"))
             .Build().GetSection("WebLocales").Get<WebLocale[]>() ?? [];
         var builtIn = WebLocalization.ReadLocales(new ConfigurationBuilder().Build());
         var locales = new WebLocales(builtIn.All.Concat(probe));
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
+            IdentityRouteHost.WithStartupSettings(services);
             services.AddSingleton(locales);
             services.AddSingleton(provider => new WebMessages(locales, provider.GetRequiredService<ILogger<WebMessages>>(),
                 typeof(WebLanguageHttpTests).Assembly));
@@ -171,11 +302,10 @@ public sealed class WebLanguageHttpTests : TestBase
     public async Task RoleNavigationSharesLocale(string role, string expected, string unrelated)
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings());
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), IdentityRouteHost.WithStartupSettings);
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, user.Id, role));
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
@@ -187,10 +317,12 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.DoesNotContain(links, href => href.Contains(unrelated, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>Submits browser fields with the form's antiforgery token.</summary>
     private static FormUrlEncodedContent Form(string token, params (string Name, string Value)[] fields) =>
         new(fields.Select(field => new KeyValuePair<string, string>(field.Name, field.Value))
             .Append(new("__RequestVerificationToken", token)));
 
+    /// <summary>Reads a successful routed HTML document for semantic assertions.</summary>
     private static async Task<IDocument> ParseAsync(HttpResponseMessage response)
     {
         var html = await response.Content.ReadAsStringAsync();

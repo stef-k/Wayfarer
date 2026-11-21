@@ -1,0 +1,26 @@
+@page
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Manage.Internal.ShowRecoveryCodesModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.Recovery.Title"];
+    ViewData["ActivePage"] = "TwoFactorAuthentication";
+}
+
+<partial name="/Areas/Identity/Pages/Account/_StatusMessage.cshtml" for="StatusMessage" />
+<h3>@ViewData["Title"]</h3>
+<div class="alert alert-warning" role="alert">
+    <p>
+        <strong>@T["Identity.Recovery.KeepSafe"]</strong>
+    </p>
+    <p>
+        @T["Identity.Recovery.AccessWarning"]
+    </p>
+</div>
+<div class="row">
+    <div class="col-md-12">
+        @for (var row = 0; row < (Model.RecoveryCodes?.Length ?? 0); row += 2)
+        {
+            <code class="recovery-code">@Model.RecoveryCodes![row]</code><text>&nbsp;</text><code class="recovery-code">@Model.RecoveryCodes[row + 1]</code><br />
+        }
+    </div>
+</div>

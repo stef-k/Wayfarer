@@ -1,0 +1,23 @@
+@page
+@model Microsoft.AspNetCore.Identity.UI.V5.Pages.Account.Internal.LogoutModel
+@* The pinned Identity UI package owns the page model and handlers. *@
+@{
+    ViewData["Title"] = T["Identity.Logout.Title"];
+}
+
+<header>
+    <h1>@ViewData["Title"]</h1>
+    @{
+        if (User.Identity!.IsAuthenticated)
+        {
+            <form class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="@Url.Page("/", new { area = "" })" method="post">
+                <button type="submit" class="nav-link btn btn-link text-dark">@T["Identity.Logout.Submit"]</button>
+            </form>
+        }
+        else
+        {
+            ViewData["LanguageOneTimeResult"] = true;
+            <p>@T["Identity.Logout.Completed"]</p>
+        }
+    }
+</header>

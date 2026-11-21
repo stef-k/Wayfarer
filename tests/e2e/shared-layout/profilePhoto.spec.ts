@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import path from 'node:path';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
@@ -41,4 +41,84 @@ test('profile photo crop save Group display remove fallback and retained public 
     await page.goto(`/User/Groups/Map?groupId=${group.id}`);
     await expect(page.locator('#userSidebar .profile-photo img')).toHaveCount(0);
     await expect(page.locator('#userSidebar .profile-photo')).toContainText('S');
+});
+
+/** A Login validation failure shares the URL of its safe GET. Observe the actual navigation method. */
+const switchAfterLoginFailure = async (page: Page, username: string) => {
+    const path = '/Identity/Account/Login?returnUrl=%2F';
+    await page.goto(path);
+    await page.locator('#Input_Username').fill(username);
+    await page.locator('#Input_Password').fill('incorrect-password');
+    await Promise.all([
+        page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(path)),
+        page.locator('#login-submit').click()
+    ]);
+    await expect(page.locator('main .validation-summary-errors')).toContainText('Invalid login attempt.');
+    await expect(page.locator('#language-dialog')).toHaveAttribute('data-safe-get', path);
+    await page.locator('#language-open').click();
+    await page.locator('#language-options input[value="el-GR"]').check();
+    await page.locator('#language-apply').click();
+    const navigation = page.waitForRequest(request => request.isNavigationRequest() && request.url().endsWith(path));
+    await page.locator('#language-confirm').click();
+    expect((await navigation).method()).toBe('GET');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.locator('#Input_Username')).toHaveValue('');
+};
+
+/** The mounted crop remains a draft until the browser saves the language and makes one safe GET. */
+test('Greek Identity profile photo feedback and language draft protection', async ({ page, baseURL }) => {
+    const config = loadSharedLayoutConfig();
+    await switchAfterLoginFailure(page, config.username);
+    await page.locator('#Input_Username').fill(config.username);
+    await page.locator('#Input_Password').fill(config.password);
+    await Promise.all([
+        page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+        page.locator('#login-submit').click()
+    ]);
+    const profile = '/Identity/Account/Manage?panel=photo#profile-photo-editor';
+    await page.goto(profile);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.locator('#photo-status')).toContainText('Η κατάσταση της φωτογραφίας ανανεώθηκε.');
+    await page.locator('#photo-file').setInputFiles({
+        name: 'invalid.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from('invalid image')
+    });
+    await expect(page.locator('#photo-status')).toContainText('Επιλέξτε ή εξαγάγετε JPEG, PNG ή στατικό WebP.');
+    await page.locator('#photo-file').setInputFiles(path.resolve('tools/image-helper/fixtures/orientation-7.png'));
+    await expect(page.locator('#photo-framing')).toBeVisible();
+    await page.locator('#photo-zoom').focus();
+    await page.keyboard.press('ArrowRight');
+    const zoom = await page.locator('#photo-zoom').inputValue();
+
+    const requests: string[] = [];
+    page.on('request', request => {
+        const { pathname } = new URL(request.url());
+        if (pathname === '/Language/Set' || request.isNavigationRequest() ||
+            (pathname === '/api/profile-photo/me' && request.method() !== 'GET')) {
+            requests.push(`${request.method()} ${pathname}`);
+        }
+    });
+    await page.route('**/Language/Set', route => route.fulfill({ status: 400 }), { times: 1 });
+    const open = page.locator('#language-open');
+    for (const firstAction of ['#language-keep', '#language-confirm']) {
+        await open.click();
+        await page.locator('#language-options input[value="en-US"]').check();
+        await page.locator('#language-apply').click();
+        await page.locator(firstAction).click();
+        if (firstAction === '#language-keep') {
+            await expect(open).toBeFocused();
+            expect(requests).toEqual([]);
+        } else {
+            await expect(page.locator('#language-error')).toBeVisible();
+            expect(requests).toEqual(['POST /Language/Set']);
+        }
+        await expect(page.locator('#photo-zoom')).toHaveValue(zoom);
+        await expect(page.locator('#photo-file')).toHaveValue(/orientation-7\.png$/);
+    }
+    await page.locator('#language-confirm').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+    expect(page.url()).toBe(new URL(profile, baseURL).href);
+    await expect(page.locator('#photo-file')).toHaveValue('');
+    expect(requests).toEqual(['POST /Language/Set', 'POST /Language/Set', 'GET /Identity/Account/Manage']);
 });

@@ -1,0 +1,120 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="ProfilePhoto.Title" xml:space="preserve">
+    <value>Φωτογραφία προφίλ (προαιρετική)</value>
+  </data>
+  <data name="ProfilePhoto.Current" xml:space="preserve">
+    <value>Τρέχουσα φωτογραφία προφίλ</value>
+  </data>
+  <data name="ProfilePhoto.Select" xml:space="preserve">
+    <value>Επιλογή ή αντικατάσταση φωτογραφίας</value>
+  </data>
+  <data name="ProfilePhoto.Formats" xml:space="preserve">
+    <value>JPEG, PNG ή στατικό WebP, έως 15 MiB και 40 megapixel. Για αρχεία HEIC/HEIF, εξαγάγετε ή επιλέξτε JPEG, PNG ή στατικό WebP.</value>
+  </data>
+  <data name="ProfilePhoto.Preview" xml:space="preserve">
+    <value>Προεπισκόπηση κυκλικής περικοπής φωτογραφίας</value>
+  </data>
+  <data name="ProfilePhoto.Zoom" xml:space="preserve">
+    <value>Μεγέθυνση</value>
+  </data>
+  <data name="ProfilePhoto.Horizontal" xml:space="preserve">
+    <value>Οριζόντια θέση</value>
+  </data>
+  <data name="ProfilePhoto.Vertical" xml:space="preserve">
+    <value>Κατακόρυφη θέση</value>
+  </data>
+  <data name="ProfilePhoto.Reset" xml:space="preserve">
+    <value>Επαναφορά περικοπής</value>
+  </data>
+  <data name="ProfilePhoto.Save" xml:space="preserve">
+    <value>Αποθήκευση φωτογραφίας</value>
+  </data>
+  <data name="ProfilePhoto.Cancel" xml:space="preserve">
+    <value>Ακύρωση επιλογής</value>
+  </data>
+  <data name="ProfilePhoto.Remove" xml:space="preserve">
+    <value>Αφαίρεση φωτογραφίας</value>
+  </data>
+  <data name="ProfilePhoto.Refresh" xml:space="preserve">
+    <value>Ανανέωση κατάστασης φωτογραφίας</value>
+  </data>
+  <data name="ProfilePhoto.ConsentOn" xml:space="preserve">
+    <value>Η εμφάνιση της φωτογραφίας στα δημόσια ταξίδια είναι ενεργή. Η τρέχουσα φωτογραφία και όσες την αντικαταστήσουν μπορούν να εμφανίζονται στα δημόσια ταξίδια σας.</value>
+  </data>
+  <data name="ProfilePhoto.ConsentOff" xml:space="preserve">
+    <value>Η εμφάνιση της φωτογραφίας στα δημόσια ταξίδια είναι ανενεργή. Τη φωτογραφία βλέπετε μόνο εσείς και τα μέλη ομάδας που έχουν πρόσβαση.</value>
+  </data>
+  <data name="ProfilePhoto.Changed" xml:space="preserve">
+    <value>Η κατάσταση της φωτογραφίας άλλαξε. Επιλέξτε «Ανανέωση κατάστασης φωτογραφίας», ελέγξτε την αποθηκευμένη επιλογή δημόσιας εμφάνισης και δοκιμάστε ξανά την αποθήκευση ή την αφαίρεση.</value>
+  </data>
+  <data name="ProfilePhoto.Unknown" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επιβεβαίωση του αποτελέσματος. Ανανεώστε την κατάσταση της φωτογραφίας πριν επιχειρήσετε νέα αποθήκευση ή αφαίρεση.</value>
+  </data>
+  <data name="ProfilePhoto.Unsupported" xml:space="preserve">
+    <value>Επιλέξτε ή εξαγάγετε JPEG, PNG ή στατικό WebP. Τα αρχεία HEIC/HEIF και οι κινούμενες εικόνες δεν υποστηρίζονται.</value>
+  </data>
+  <data name="ProfilePhoto.TooLarge" xml:space="preserve">
+    <value>Επιλέξτε φωτογραφία έως 15 MiB, 40 megapixel και 16.384 pixel ανά πλευρά.</value>
+  </data>
+  <data name="ProfilePhoto.Invalid" xml:space="preserve">
+    <value>Η εικόνα είναι κατεστραμμένη, ελλιπής ή κινούμενη. Επιλέξτε άλλη φωτογραφία.</value>
+  </data>
+  <data name="ProfilePhoto.InvalidCrop" xml:space="preserve">
+    <value>Η περικοπή βρίσκεται εκτός των ορίων της εικόνας. Προσαρμόστε ή επαναφέρετε την περικοπή.</value>
+  </data>
+  <data name="ProfilePhoto.Timeout" xml:space="preserve">
+    <value>Ο χρόνος μεταφόρτωσης έληξε. Η τρέχουσα φωτογραφία παραμένει διαθέσιμη. Δοκιμάστε ξανά όταν είστε έτοιμοι.</value>
+  </data>
+  <data name="ProfilePhoto.Refreshing" xml:space="preserve">
+    <value>Ανανέωση κατάστασης φωτογραφίας…</value>
+  </data>
+  <data name="ProfilePhoto.Saving" xml:space="preserve">
+    <value>Αποθήκευση φωτογραφίας…</value>
+  </data>
+  <data name="ProfilePhoto.Removing" xml:space="preserve">
+    <value>Αφαίρεση φωτογραφίας…</value>
+  </data>
+  <data name="ProfilePhoto.Unavailable" xml:space="preserve">
+    <value>Η κατάσταση της φωτογραφίας δεν είναι διαθέσιμη. Επιλέξτε «Ανανέωση κατάστασης φωτογραφίας».</value>
+  </data>
+  <data name="ProfilePhoto.SaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση. Η τρέχουσα φωτογραφία διατηρείται, εκτός αν δεν επιβεβαιωθεί το αποτέλεσμα.</value>
+  </data>
+  <data name="ProfilePhoto.RemoveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αφαίρεση. Ελέγξτε την τρέχουσα κατάσταση της φωτογραφίας πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="ProfilePhoto.Refreshed" xml:space="preserve">
+    <value>Η κατάσταση της φωτογραφίας ανανεώθηκε. Ελέγξτε την αποθηκευμένη επιλογή δημόσιας εμφάνισης και έπειτα αποθηκεύστε ή αφαιρέστε τη φωτογραφία.</value>
+  </data>
+  <data name="ProfilePhoto.Removed" xml:space="preserve">
+    <value>Η φωτογραφία αφαιρέθηκε.</value>
+  </data>
+  <data name="ProfilePhoto.Saved" xml:space="preserve">
+    <value>Η φωτογραφία αποθηκεύτηκε.</value>
+  </data>
+  <data name="ProfilePhoto.Adjust" xml:space="preserve">
+    <value>Προσαρμόστε την περικοπή ή αποθηκεύστε την κεντραρισμένη προεπισκόπηση.</value>
+  </data>
+  <data name="ProfilePhoto.SessionEnded" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε. Συνδεθείτε ξανά για να διαχειριστείτε τη φωτογραφία σας.</value>
+  </data>
+  <data name="ProfilePhoto.StorageUnavailable" xml:space="preserve">
+    <value>Ο χώρος αποθήκευσης φωτογραφιών δεν είναι διαθέσιμος. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="ProfilePhoto.InvalidRequest" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση του αιτήματος. Φορτώστε ξανά τη σελίδα πριν δοκιμάσετε ξανά.</value>
+  </data>
+</root>

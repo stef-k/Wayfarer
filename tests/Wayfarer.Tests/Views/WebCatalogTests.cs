@@ -16,6 +16,8 @@ public sealed class WebCatalogTests
     [InlineData("PublicPages")]
     [InlineData("Discovery")]
     [InlineData("PublicTimeline")]
+    [InlineData("Identity")]
+    [InlineData("ProfilePhoto")]
     public void CatalogsHaveMatchingEntriesAndArguments(string owner)
     {
         var locales = WebLocalization.ReadLocales(new ConfigurationBuilder().Build());

@@ -1,8 +1,10 @@
-﻿@page
+@page
 @model Wayfarer.Areas.Identity.Pages.Account.LoginModel
 
 @{
-    ViewData["Title"] = "Log in";
+    // An external callback error is a one-time result carried in TempData.
+    ViewData["LanguageOneTimeResult"] = !string.IsNullOrEmpty(Model.ErrorMessage);
+    ViewData["Title"] = T["Identity.Login.Title"];
 }
 
 <h1>@ViewData["Title"]</h1>
@@ -10,20 +12,20 @@
     <div class="col-md-4">
         <section>
             <form id="account" method="post">
-                <h2>Use a local account to log in.</h2>
+                <h2>@T["Identity.Login.Local"]</h2>
                 <hr />
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
                 <!-- Change Email input to Username -->
                 <div class="form-floating mb-3">
-                    <input asp-for="Input.Username" class="form-control" autocomplete="username" aria-required="true" placeholder="Username" />
-                    <label asp-for="Input.Username" class="form-label">Username</label>
+                    <input asp-for="Input.Username" class="form-control" autocomplete="username" aria-required="true" placeholder="@T["Identity.Field.Username"]" />
+                    <label asp-for="Input.Username" class="form-label">@T["Identity.Field.Username"]</label>
                     <span asp-validation-for="Input.Username" class="text-danger"></span>
                 </div>
 
                 <div class="form-floating mb-3">
-                    <input asp-for="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label asp-for="Input.Password" class="form-label">Password</label>
+                    <input asp-for="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="@T["Identity.Field.Password"]" />
+                    <label asp-for="Input.Password" class="form-label">@T["Identity.Field.Password"]</label>
                     <span asp-validation-for="Input.Password" class="text-danger"></span>
                 </div>
                 <div class="checkbox mb-3">
@@ -33,11 +35,11 @@
                     </label>
                 </div>
                 <div>
-                    <button id="login-submit" type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+                    <button id="login-submit" type="submit" class="w-100 btn btn-lg btn-primary">@T["Identity.Login.Title"]</button>
                 </div>
                 <div>
                     <p>
-                        <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">Register as a new user</a>
+                        <a asp-page="./Register" asp-route-returnUrl="@Model.ReturnUrl">@T["Identity.Login.Register"]</a>
                     </p>
                 </div>
             </form>

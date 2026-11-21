@@ -74,7 +74,7 @@ for unsaved work.
 | --- | --- |
 | 1 | Standard shell, collapsed navigation, guest/User/Manager/Admin menus, shared error and notification chrome. The authenticated Trip Editor Vue mount and the authenticated, public and embedded live Trip Viewer use the shared locale, their feature catalogs and the shared map/notes chrome. Viewer owns browser print and on-screen export feedback. Capture contexts explicitly request English. |
 | 2 | Home, Privacy and Registration Closed. Public Trip grid/list, tag redirect, filters and pagination, quick preview and asynchronous feedback. Full and embedded public Timeline, map and location detail, summary, clipboard and unavailable or failed states. |
-| 3 | Identity and account pages, including packaged pages. Shared layout participates and one-time routes withhold the selector. |
+| 3 | Identity and personal account. The compiled route inventory, presentation owners and language-navigation evidence are recorded below. |
 | 4–8 | Private Timeline, group and invitation workflows, account/app connection and settings, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Timeline Settings supplies its safe GET. Unintegrated protected workspace, Location, and connection routes withhold switching. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
@@ -128,3 +128,45 @@ Run the regular `WebCatalogTests` and `WebLanguageHttpTests` .NET selections and
 frontend changes. Use the managed shared-layout browser procedure in
 [Testing](testing.md#browser-and-playwright-evidence) for the integrated
 Viewer-to-Editor journey and native browser zoom evidence.
+
+### Area 3 Identity and personal account
+
+The compiled inventory has 31 Identity page models. The account routes below
+use the `/Identity/Account` prefix. `Manage/Index` also serves the Manage folder
+URL. Razor overrides use the page models from Identity UI 10.0.14. The package
+continues to provide handlers except for Wayfarer's existing Login, Register,
+Manage Index and EnableAuthenticator models. On a package upgrade, check the
+compiled route inventory, templates, validators and handler message map against
+the new package. [ASP.NET Core Identity UI source](https://github.com/dotnet/aspnetcore/tree/v10.0.14/src/Identity/UI/src/Areas/Identity/Pages/V5)
+
+| Compiled routes | Presentation owner |
+| --- | --- |
+| `Login`, `Register`, `Logout`, `AccessDenied`, `Lockout`, `/Identity/Error` | Identity catalog and shared shell. Login includes inactivity, session expiry and configured provider callback errors. |
+| `LoginWith2fa`, `LoginWithRecoveryCode`, `ExternalLogin` | Package-backed overrides retain pending sign-in cookies, callbacks, provider values and return URLs. |
+| `RegisterConfirmation`, `ConfirmEmail`, `ConfirmEmailChange`, `ResendEmailConfirmation` | Identity catalog at the rendered destination, including confirmation status and resend outcomes. Outbound mail follows the existing handlers. |
+| `ForgotPassword`, `ForgotPasswordConfirmation`, `ResetPassword`, `ResetPasswordConfirmation` | Package-backed overrides, field and Identity policy errors, and an Identity message for missing reset codes. |
+| `Manage/Index`, `Manage/Email`, `Manage/ChangePassword`, `Manage/SetPassword`, `Manage/ExternalLogins` | Localized nested layout, navigation and status partial. Profile bootstraps the ProfilePhoto catalog for its independent crop editor and API feedback. |
+| `Manage/TwoFactorAuthentication`, `Manage/EnableAuthenticator`, `Manage/Disable2fa`, `Manage/ResetAuthenticator`, `Manage/GenerateRecoveryCodes`, `Manage/ShowRecoveryCodes` | Identity catalog, recovery-code counts and instructions. Authenticator keys, QR values and recovery codes pass through unchanged. |
+| `Manage/PersonalData`, `Manage/DeletePersonalData`, `Manage/DownloadPersonalData` | Localized data controls and refusal feedback. The download handler returns 404 on GET and the existing JSON attachment on POST. |
+
+`IdentityAttemptRouteTests` pins model ownership, Manage authorization and
+antiforgery. It checks Greek and English attempt-limit bodies and the original
+status and retry headers. `IdentityAdmittedFlowTests` covers lockout, pending
+sign-in and single-use recovery, the generated-code result, reset and confirmation
+tokens, and the configured external-provider state with a fixture scheme.
+Provider callbacks, token-processing pages and one-time results withhold
+language switching.
+
+`WebLanguageHttpTests` exercises local Login and packaged Manage Email rendering,
+including the nested layout, a named-handler failure, destination-localized
+TempData and byte-identical personal data download. On an admitted ordinary form
+failure, the selector requests consent and uses the application's safe GET.
+The routed layout fixtures supply the same settings dependency production startup
+supplies, independently of the database's initial settings rows.
+
+`WebCatalogTests` checks both catalog pairs. The managed Chromium profile-photo
+smoke checks a fresh GET at the same URL after Login validation, Greek photo
+feedback, retaining a selected crop after cancellation and a failed language
+write, and one safe GET after a successful switch. A photo
+write or an unconfirmed outcome temporarily disables switching until the owner
+has refreshed the photo state.

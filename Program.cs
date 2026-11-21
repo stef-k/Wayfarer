@@ -285,6 +285,7 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
             options.Lockout.MaxFailedAccessAttempts = 5;
             options.Lockout.AllowedForNewUsers = true;
         })
+        .AddErrorDescriber<WebIdentityErrorDescriber>() // Applies only to Web Identity page descriptions.
         .AddRoles<IdentityRole>() // Adds role-based authorization
         .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
         .AddDefaultTokenProviders(); // Adds support for token-based authentication
@@ -501,6 +502,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
             o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
             o.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
         });
+
+    builder.Services.AddIdentityPresentation();
 
     // Add MvcFrontendKit for frontend bundling
     builder.Services.AddMvcFrontendKit();

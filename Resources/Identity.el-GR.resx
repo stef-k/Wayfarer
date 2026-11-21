@@ -1,0 +1,576 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Identity.Login.Title" xml:space="preserve">
+    <value>Σύνδεση</value>
+  </data>
+  <data name="Identity.Login.Local" xml:space="preserve">
+    <value>Συνδεθείτε με τον λογαριασμό σας.</value>
+  </data>
+  <data name="Identity.Login.Register" xml:space="preserve">
+    <value>Εγγραφή νέου χρήστη</value>
+  </data>
+  <data name="Identity.Login.Inactive" xml:space="preserve">
+    <value>Ο λογαριασμός σας είναι ανενεργός. Επικοινωνήστε με την υποστήριξη.</value>
+  </data>
+  <data name="Identity.Login.Invalid" xml:space="preserve">
+    <value>Αποτυχία σύνδεσης.</value>
+  </data>
+  <data name="Identity.Login.SessionEnded" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε ή ο λογαριασμός σας έχει απενεργοποιηθεί. Συνδεθείτε ξανά. Κρατήστε τυχόν μη αποθηκευμένες αλλαγές πριν φύγετε από τη σελίδα.</value>
+  </data>
+  <data name="Identity.Login.Remember" xml:space="preserve">
+    <value>Να παραμείνω συνδεδεμένος;</value>
+  </data>
+  <data name="Identity.Register.Title" xml:space="preserve">
+    <value>Εγγραφή</value>
+  </data>
+  <data name="Identity.Register.New" xml:space="preserve">
+    <value>Δημιουργήστε νέο λογαριασμό.</value>
+  </data>
+  <data name="Identity.Register.UsernameTaken" xml:space="preserve">
+    <value>Το όνομα χρήστη χρησιμοποιείται ήδη.</value>
+  </data>
+  <data name="Identity.Register.Confirmation" xml:space="preserve">
+    <value>Επιβεβαίωση εγγραφής</value>
+  </data>
+  <data name="Identity.Register.EmailCheck" xml:space="preserve">
+    <value>Ελέγξτε το email σας για να επιβεβαιώσετε τον λογαριασμό σας.</value>
+  </data>
+  <data name="Identity.Register.EmailUnavailable" xml:space="preserve">
+    <value>Ο ιστότοπος δεν έχει ρυθμισμένη υπηρεσία αποστολής email.</value>
+  </data>
+  <data name="Identity.Register.EmailSetup" xml:space="preserve">
+    <value>Οδηγίες ρύθμισης αποστολής email</value>
+  </data>
+  <data name="Identity.Register.ConfirmLink" xml:space="preserve">
+    <value>Επιβεβαιώστε τον λογαριασμό σας</value>
+  </data>
+  <data name="Identity.Field.Username" xml:space="preserve">
+    <value>Όνομα χρήστη</value>
+  </data>
+  <data name="Identity.Field.Password" xml:space="preserve">
+    <value>Κωδικός πρόσβασης</value>
+  </data>
+  <data name="Identity.Field.OldPassword" xml:space="preserve">
+    <value>Τρέχων κωδικός πρόσβασης</value>
+  </data>
+  <data name="Identity.Field.NewPassword" xml:space="preserve">
+    <value>Νέος κωδικός πρόσβασης</value>
+  </data>
+  <data name="Identity.Field.ConfirmPassword" xml:space="preserve">
+    <value>Επιβεβαίωση κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Field.ConfirmNewPassword" xml:space="preserve">
+    <value>Επιβεβαίωση νέου κωδικού</value>
+  </data>
+  <data name="Identity.Field.Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="Identity.Field.NewEmail" xml:space="preserve">
+    <value>Νέο email</value>
+  </data>
+  <data name="Identity.Field.DisplayName" xml:space="preserve">
+    <value>Εμφανιζόμενο όνομα</value>
+  </data>
+  <data name="Identity.Field.ResetCode" xml:space="preserve">
+    <value>Κωδικός επαναφοράς</value>
+  </data>
+  <data name="Identity.Field.RecoveryCode" xml:space="preserve">
+    <value>Κωδικός ανάκτησης</value>
+  </data>
+  <data name="Identity.Field.TwoFactorCode" xml:space="preserve">
+    <value>Κωδικός εφαρμογής επαλήθευσης</value>
+  </data>
+  <data name="Identity.Field.VerificationCode" xml:space="preserve">
+    <value>Κωδικός επαλήθευσης</value>
+  </data>
+  <data name="Identity.Field.RememberMachine" xml:space="preserve">
+    <value>Απομνημόνευση αυτού του προγράμματος περιήγησης</value>
+  </data>
+  <data name="Identity.Validation.Required" xml:space="preserve">
+    <value>Το πεδίο «{0}» είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Identity.Validation.Email" xml:space="preserve">
+    <value>Το πεδίο «{0}» δεν περιέχει έγκυρη διεύθυνση email.</value>
+  </data>
+  <data name="Identity.Validation.Length" xml:space="preserve">
+    <value>Το πεδίο «{0}» πρέπει να έχει από {2} έως {1} χαρακτήρες.</value>
+  </data>
+  <data name="Identity.Validation.MaximumLength" xml:space="preserve">
+    <value>Το πεδίο «{0}» πρέπει να έχει έως {1} χαρακτήρες.</value>
+  </data>
+  <data name="Identity.Validation.PasswordMismatch" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης και η επιβεβαίωσή του δεν ταιριάζουν.</value>
+  </data>
+  <data name="Identity.Validation.NewPasswordMismatch" xml:space="preserve">
+    <value>Ο νέος κωδικός πρόσβασης και η επιβεβαίωσή του δεν ταιριάζουν.</value>
+  </data>
+  <data name="Identity.Validation.InvalidValue" xml:space="preserve">
+    <value>Η τιμή «{0}» δεν είναι έγκυρη για το πεδίο «{1}».</value>
+  </data>
+  <data name="Identity.Validation.FieldInvalid" xml:space="preserve">
+    <value>Η τιμή του πεδίου «{0}» δεν είναι έγκυρη.</value>
+  </data>
+  <data name="Identity.Validation.ValueInvalid" xml:space="preserve">
+    <value>Η τιμή «{0}» δεν είναι έγκυρη.</value>
+  </data>
+  <data name="Identity.AccessDenied.Title" xml:space="preserve">
+    <value>Δεν επιτρέπεται η πρόσβαση</value>
+  </data>
+  <data name="Identity.AccessDenied.Description" xml:space="preserve">
+    <value>Δεν έχετε πρόσβαση σε αυτόν τον πόρο.</value>
+  </data>
+  <data name="Identity.Error.Title" xml:space="preserve">
+    <value>Σφάλμα</value>
+  </data>
+  <data name="Identity.Error.Description" xml:space="preserve">
+    <value>Παρουσιάστηκε σφάλμα κατά την επεξεργασία του αιτήματός σας.</value>
+  </data>
+  <data name="Identity.Error.RequestId" xml:space="preserve">
+    <value>Αναγνωριστικό αιτήματος</value>
+  </data>
+  <data name="Identity.Error.UserId" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του χρήστη με αναγνωριστικό «{0}».</value>
+  </data>
+  <data name="Identity.Error.UserEmail" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του χρήστη με email «{0}».</value>
+  </data>
+  <data name="Identity.Error.GenericStatus" xml:space="preserve">
+    <value>Η ενέργεια λογαριασμού επέστρεψε άγνωστη κατάσταση. Φορτώστε ξανά τη σελίδα του λογαριασμού για να ελέγξετε το αποτέλεσμα.</value>
+  </data>
+  <data name="Identity.Lockout.Title" xml:space="preserve">
+    <value>Κλειδωμένος λογαριασμός</value>
+  </data>
+  <data name="Identity.Lockout.Description" xml:space="preserve">
+    <value>Ο λογαριασμός έχει κλειδωθεί. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Identity.Attempt.Limit" xml:space="preserve">
+    <value>Έγιναν υπερβολικά πολλές προσπάθειες. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Identity.Logout.Title" xml:space="preserve">
+    <value>Αποσύνδεση</value>
+  </data>
+  <data name="Identity.Logout.Submit" xml:space="preserve">
+    <value>Αποσυνδεθείτε</value>
+  </data>
+  <data name="Identity.Logout.Completed" xml:space="preserve">
+    <value>Αποσυνδεθήκατε από την εφαρμογή.</value>
+  </data>
+  <data name="Identity.TwoFactor.Title" xml:space="preserve">
+    <value>Έλεγχος ταυτότητας δύο παραγόντων</value>
+  </data>
+  <data name="Identity.TwoFactor.Instructions" xml:space="preserve">
+    <value>Η σύνδεσή σας προστατεύεται από εφαρμογή επαλήθευσης. Εισαγάγετε τον κωδικό της εφαρμογής.</value>
+  </data>
+  <data name="Identity.TwoFactor.NoDevice" xml:space="preserve">
+    <value>Δεν έχετε πρόσβαση στη συσκευή επαλήθευσης;</value>
+  </data>
+  <data name="Identity.TwoFactor.UseRecovery" xml:space="preserve">
+    <value>Συνδεθείτε με κωδικό ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.InvalidCode" xml:space="preserve">
+    <value>Μη έγκυρος κωδικός εφαρμογής επαλήθευσης.</value>
+  </data>
+  <data name="Identity.TwoFactor.RecoveryTitle" xml:space="preserve">
+    <value>Επαλήθευση κωδικού ανάκτησης</value>
+  </data>
+  <data name="Identity.TwoFactor.RecoveryInstructions" xml:space="preserve">
+    <value>Η σύνδεση δεν θα αποθηκευτεί μέχρι να συνδεθείτε με κωδικό εφαρμογής επαλήθευσης ή να απενεργοποιήσετε τον έλεγχο δύο παραγόντων και να συνδεθείτε ξανά.</value>
+  </data>
+  <data name="Identity.TwoFactor.InvalidRecovery" xml:space="preserve">
+    <value>Ο κωδικός ανάκτησης δεν είναι έγκυρος.</value>
+  </data>
+  <data name="Identity.TwoFactor.ManageTitle" xml:space="preserve">
+    <value>Έλεγχος ταυτότητας δύο παραγόντων (2FA)</value>
+  </data>
+  <data name="Identity.TwoFactor.NoCodes" xml:space="preserve">
+    <value>Δεν απομένουν κωδικοί ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesLeft.one" xml:space="preserve">
+    <value>Απομένει {0} κωδικός ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesLeft.other" xml:space="preserve">
+    <value>Απομένουν {0} κωδικοί ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.CodesRequired" xml:space="preserve">
+    <value>Χρειάζεστε νέους κωδικούς ανάκτησης για να μπορέσετε να συνδεθείτε με κωδικό ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.GenerateLink" xml:space="preserve">
+    <value>Δημιουργήστε νέους κωδικούς ανάκτησης.</value>
+  </data>
+  <data name="Identity.TwoFactor.ForgetBrowser" xml:space="preserve">
+    <value>Κατάργηση απομνημόνευσης αυτού του προγράμματος περιήγησης</value>
+  </data>
+  <data name="Identity.TwoFactor.BrowserForgotten" xml:space="preserve">
+    <value>Καταργήθηκε η απομνημόνευση αυτού του προγράμματος περιήγησης. Την επόμενη φορά που θα συνδεθείτε από εδώ, θα σας ζητηθεί ο κωδικός 2FA.</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableTitle" xml:space="preserve">
+    <value>Απενεργοποίηση ελέγχου ταυτότητας δύο παραγόντων (2FA)</value>
+  </data>
+  <data name="Identity.TwoFactor.Disable" xml:space="preserve">
+    <value>Απενεργοποίηση 2FA</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableWarning" xml:space="preserve">
+    <value>Με αυτή την ενέργεια απενεργοποιείται ο έλεγχος δύο παραγόντων.</value>
+  </data>
+  <data name="Identity.TwoFactor.DisableKeys" xml:space="preserve">
+    <value>Η απενεργοποίηση του ελέγχου δύο παραγόντων διατηρεί τα κλειδιά επαλήθευσης.</value>
+  </data>
+  <data name="Identity.TwoFactor.Disabled" xml:space="preserve">
+    <value>Ο έλεγχος δύο παραγόντων απενεργοποιήθηκε. Μπορείτε να τον ενεργοποιήσετε ξανά ρυθμίζοντας μια εφαρμογή επαλήθευσης.</value>
+  </data>
+  <data name="Identity.TwoFactor.ResetCodes" xml:space="preserve">
+    <value>Αντικατάσταση κωδικών ανάκτησης</value>
+  </data>
+  <data name="Identity.TwoFactor.PrivacyTitle" xml:space="preserve">
+    <value>Δεν έχει γίνει αποδοχή της πολιτικής απορρήτου και cookies.</value>
+  </data>
+  <data name="Identity.TwoFactor.PrivacyRequired" xml:space="preserve">
+    <value>Αποδεχτείτε την πολιτική για να ενεργοποιήσετε τον έλεγχο δύο παραγόντων.</value>
+  </data>
+  <data name="Identity.Recovery.Title" xml:space="preserve">
+    <value>Κωδικοί ανάκτησης</value>
+  </data>
+  <data name="Identity.Recovery.GenerateTitle" xml:space="preserve">
+    <value>Δημιουργία κωδικών ανάκτησης για έλεγχο δύο παραγόντων (2FA)</value>
+  </data>
+  <data name="Identity.Recovery.Generate" xml:space="preserve">
+    <value>Δημιουργία κωδικών ανάκτησης</value>
+  </data>
+  <data name="Identity.Recovery.KeepSafe" xml:space="preserve">
+    <value>Φυλάξτε τους κωδικούς σε ασφαλές μέρος.</value>
+  </data>
+  <data name="Identity.Recovery.AccessWarning" xml:space="preserve">
+    <value>Αν χάσετε τη συσκευή σας και δεν έχετε τους κωδικούς ανάκτησης, θα χάσετε την πρόσβαση στον λογαριασμό σας.</value>
+  </data>
+  <data name="Identity.Recovery.KeepKeys" xml:space="preserve">
+    <value>Η δημιουργία νέων κωδικών ανάκτησης διατηρεί τα υπάρχοντα κλειδιά επαλήθευσης.</value>
+  </data>
+  <data name="Identity.Recovery.Generated" xml:space="preserve">
+    <value>Δημιουργήθηκαν νέοι κωδικοί ανάκτησης.</value>
+  </data>
+  <data name="Identity.Authenticator.Title" xml:space="preserve">
+    <value>Εφαρμογή επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.Add" xml:space="preserve">
+    <value>Προσθήκη εφαρμογής επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.Setup" xml:space="preserve">
+    <value>Ρύθμιση εφαρμογής επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.Configure" xml:space="preserve">
+    <value>Ρύθμιση εφαρμογής επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.Steps" xml:space="preserve">
+    <value>Ακολουθήστε τα παρακάτω βήματα για να χρησιμοποιήσετε μια εφαρμογή επαλήθευσης.</value>
+  </data>
+  <data name="Identity.Authenticator.Download" xml:space="preserve">
+    <value>Εγκαταστήστε μια εφαρμογή επαλήθευσης δύο παραγόντων, όπως το Microsoft Authenticator ή το Google Authenticator.</value>
+  </data>
+  <data name="Identity.Authenticator.Scan" xml:space="preserve">
+    <value>Σαρώστε τον κωδικό QR ή εισαγάγετε το ακόλουθο κλειδί στην εφαρμογή επαλήθευσης. Τα κενά και η χρήση κεφαλαίων ή πεζών δεν έχουν σημασία.</value>
+  </data>
+  <data name="Identity.Authenticator.EnterCode" xml:space="preserve">
+    <value>Εισαγάγετε τον κωδικό που εμφανίζεται στην εφαρμογή επαλήθευσης.</value>
+  </data>
+  <data name="Identity.Authenticator.Verify" xml:space="preserve">
+    <value>Επαλήθευση</value>
+  </data>
+  <data name="Identity.Authenticator.Invalid" xml:space="preserve">
+    <value>Ο κωδικός επαλήθευσης δεν είναι έγκυρος.</value>
+  </data>
+  <data name="Identity.Authenticator.Verified" xml:space="preserve">
+    <value>Η εφαρμογή επαλήθευσης επαληθεύτηκε.</value>
+  </data>
+  <data name="Identity.Authenticator.Reset" xml:space="preserve">
+    <value>Επαναφορά εφαρμογής επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.ResetKey" xml:space="preserve">
+    <value>Επαναφορά κλειδιού επαλήθευσης</value>
+  </data>
+  <data name="Identity.Authenticator.ResetWarning" xml:space="preserve">
+    <value>Αν επαναφέρετε το κλειδί, η εφαρμογή επαλήθευσης θα σταματήσει να λειτουργεί μέχρι να τη ρυθμίσετε ξανά.</value>
+  </data>
+  <data name="Identity.Authenticator.ResetEffect" xml:space="preserve">
+    <value>Ο έλεγχος δύο παραγόντων θα απενεργοποιηθεί μέχρι να επαληθεύσετε ξανά την εφαρμογή. Αν δεν ολοκληρώσετε τη ρύθμιση, μπορεί να χάσετε την πρόσβαση στον λογαριασμό σας.</value>
+  </data>
+  <data name="Identity.Authenticator.KeyReset" xml:space="preserve">
+    <value>Το κλειδί επαλήθευσης επαναφέρθηκε. Ρυθμίστε την εφαρμογή επαλήθευσης με το νέο κλειδί.</value>
+  </data>
+  <data name="Identity.Email.Manage" xml:space="preserve">
+    <value>Διαχείριση email</value>
+  </data>
+  <data name="Identity.Email.Change" xml:space="preserve">
+    <value>Αλλαγή email</value>
+  </data>
+  <data name="Identity.Email.SendVerification" xml:space="preserve">
+    <value>Αποστολή email επαλήθευσης</value>
+  </data>
+  <data name="Identity.Email.Confirm" xml:space="preserve">
+    <value>Επιβεβαίωση email</value>
+  </data>
+  <data name="Identity.Email.Confirmed" xml:space="preserve">
+    <value>Η διεύθυνση email επιβεβαιώθηκε.</value>
+  </data>
+  <data name="Identity.Email.ConfirmFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επιβεβαίωση του email σας.</value>
+  </data>
+  <data name="Identity.Email.ConfirmChange" xml:space="preserve">
+    <value>Επιβεβαίωση αλλαγής email</value>
+  </data>
+  <data name="Identity.Email.ChangeConfirmed" xml:space="preserve">
+    <value>Η αλλαγή της διεύθυνσης email επιβεβαιώθηκε.</value>
+  </data>
+  <data name="Identity.Email.ChangeFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αλλαγή της διεύθυνσης email.</value>
+  </data>
+  <data name="Identity.Email.UsernameChangeFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αλλαγή του ονόματος χρήστη.</value>
+  </data>
+  <data name="Identity.Email.Enter" xml:space="preserve">
+    <value>Εισαγάγετε τη διεύθυνση email σας.</value>
+  </data>
+  <data name="Identity.Email.ResendTitle" xml:space="preserve">
+    <value>Εκ νέου αποστολή email επιβεβαίωσης</value>
+  </data>
+  <data name="Identity.Email.Resend" xml:space="preserve">
+    <value>Αποστολή ξανά</value>
+  </data>
+  <data name="Identity.Email.VerificationSent" xml:space="preserve">
+    <value>Στάλθηκε email επαλήθευσης. Ελέγξτε τα εισερχόμενά σας.</value>
+  </data>
+  <data name="Identity.Email.ChangeSent" xml:space="preserve">
+    <value>Στάλθηκε σύνδεσμος επιβεβαίωσης της αλλαγής διεύθυνσης. Ελέγξτε τα εισερχόμενά σας.</value>
+  </data>
+  <data name="Identity.Email.Unchanged" xml:space="preserve">
+    <value>Η διεύθυνση email σας παραμένει ίδια.</value>
+  </data>
+  <data name="Identity.Email.IsConfirmed" xml:space="preserve">
+    <value>Το email έχει επιβεβαιωθεί</value>
+  </data>
+  <data name="Identity.Password.Forgot" xml:space="preserve">
+    <value>Ξεχάσατε τον κωδικό πρόσβασης;</value>
+  </data>
+  <data name="Identity.Password.ForgotConfirmation" xml:space="preserve">
+    <value>Επιβεβαίωση αιτήματος επαναφοράς κωδικού</value>
+  </data>
+  <data name="Identity.Password.CheckEmail" xml:space="preserve">
+    <value>Ελέγξτε το email σας για να επαναφέρετε τον κωδικό πρόσβασης.</value>
+  </data>
+  <data name="Identity.Password.Reset" xml:space="preserve">
+    <value>Επαναφορά κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Password.ResetInstruction" xml:space="preserve">
+    <value>Επαναφέρετε τον κωδικό πρόσβασής σας.</value>
+  </data>
+  <data name="Identity.Password.ResetAction" xml:space="preserve">
+    <value>Επαναφορά</value>
+  </data>
+  <data name="Identity.Password.ResetConfirmation" xml:space="preserve">
+    <value>Επιβεβαίωση επαναφοράς κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Password.ResetCompleted" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης επαναφέρθηκε.</value>
+  </data>
+  <data name="Identity.Password.MissingCode" xml:space="preserve">
+    <value>Για την επαναφορά του κωδικού πρόσβασης απαιτείται κωδικός επαναφοράς.</value>
+  </data>
+  <data name="Identity.Password.Change" xml:space="preserve">
+    <value>Αλλαγή κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Password.Update" xml:space="preserve">
+    <value>Ενημέρωση κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Password.Changed" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης άλλαξε.</value>
+  </data>
+  <data name="Identity.Password.Set" xml:space="preserve">
+    <value>Ορισμός κωδικού πρόσβασης</value>
+  </data>
+  <data name="Identity.Password.SetComplete" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης ορίστηκε.</value>
+  </data>
+  <data name="Identity.Password.SetLocal" xml:space="preserve">
+    <value>Ορίστε έναν κωδικό πρόσβασης για να μπορείτε να συνδέεστε χωρίς εξωτερικό πάροχο.</value>
+  </data>
+  <data name="Identity.Password.Incorrect" xml:space="preserve">
+    <value>Λανθασμένος κωδικός πρόσβασης.</value>
+  </data>
+  <data name="Identity.Manage.Title" xml:space="preserve">
+    <value>Διαχείριση λογαριασμού</value>
+  </data>
+  <data name="Identity.Manage.Settings" xml:space="preserve">
+    <value>Ρυθμίσεις λογαριασμού</value>
+  </data>
+  <data name="Identity.Manage.Profile" xml:space="preserve">
+    <value>Προφίλ</value>
+  </data>
+  <data name="Identity.Manage.Role" xml:space="preserve">
+    <value>Ρόλος λογαριασμού</value>
+  </data>
+  <data name="Identity.Manage.User" xml:space="preserve">
+    <value>Χρήστης</value>
+  </data>
+  <data name="Identity.Manage.DisplayNameHelp" xml:space="preserve">
+    <value>Το όνομα που εμφανίζεται στις δημόσιες σελίδες σας, εφόσον υπάρχουν.</value>
+  </data>
+  <data name="Identity.Manage.ShowPhoto" xml:space="preserve">
+    <value>Εμφάνιση της φωτογραφίας προφίλ δίπλα στο όνομά μου στα δημόσια ταξίδια μου</value>
+  </data>
+  <data name="Identity.Manage.ShowPhotoHelp" xml:space="preserve">
+    <value>Ισχύει για την τρέχουσα και για κάθε μελλοντική φωτογραφία σε όλα τα δημόσια ταξίδια σας. Η επιλογή διατηρείται αν αφαιρέσετε ή αντικαταστήσετε τη φωτογραφία. Αν κάποιος κατεβάσει αντίγραφο, δεν μπορείτε να το ανακαλέσετε.</value>
+  </data>
+  <data name="Identity.Manage.Save" xml:space="preserve">
+    <value>Αποθήκευση</value>
+  </data>
+  <data name="Identity.Manage.Updated" xml:space="preserve">
+    <value>Το προφίλ σας ενημερώθηκε.</value>
+  </data>
+  <data name="Identity.Manage.Conflict" xml:space="preserve">
+    <value>Το προφίλ άλλαξε ή δεν ήταν δυνατή η αποθήκευσή του. Ανανεώστε τη σελίδα και αποθηκεύστε ξανά τις προτιμήσεις σας.</value>
+  </data>
+  <data name="Identity.Data.Title" xml:space="preserve">
+    <value>Προσωπικά δεδομένα</value>
+  </data>
+  <data name="Identity.Data.Description" xml:space="preserve">
+    <value>Ο λογαριασμός σας περιέχει προσωπικά δεδομένα που μας έχετε δώσει. Μπορείτε να τα κατεβάσετε ή να τα διαγράψετε εδώ.</value>
+  </data>
+  <data name="Identity.Data.DeleteTitle" xml:space="preserve">
+    <value>Διαγραφή προσωπικών δεδομένων</value>
+  </data>
+  <data name="Identity.Data.DeleteWarning" xml:space="preserve">
+    <value>Η διαγραφή αυτών των δεδομένων θα αφαιρέσει οριστικά τον λογαριασμό σας. Δεν θα είναι δυνατή η ανάκτησή του.</value>
+  </data>
+  <data name="Identity.Data.DeleteAccount" xml:space="preserve">
+    <value>Διαγραφή δεδομένων και κλείσιμο του λογαριασμού μου</value>
+  </data>
+  <data name="Identity.Data.Download" xml:space="preserve">
+    <value>Λήψη</value>
+  </data>
+  <data name="Identity.Data.Delete" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="Identity.External.Associate" xml:space="preserve">
+    <value>Συνδέστε τον λογαριασμό σας στον πάροχο «{0}».</value>
+  </data>
+  <data name="Identity.External.Description" xml:space="preserve">
+    <value>Ο έλεγχος ταυτότητας μέσω του παρόχου «{0}» ολοκληρώθηκε. Εισαγάγετε μια διεύθυνση email και επιλέξτε «Εγγραφή» για να ολοκληρώσετε τη σύνδεση.</value>
+  </data>
+  <data name="Identity.External.Nav" xml:space="preserve">
+    <value>Εξωτερικοί πάροχοι σύνδεσης</value>
+  </data>
+  <data name="Identity.External.Manage" xml:space="preserve">
+    <value>Διαχείριση εξωτερικών παρόχων σύνδεσης</value>
+  </data>
+  <data name="Identity.External.Registered" xml:space="preserve">
+    <value>Συνδεδεμένοι πάροχοι</value>
+  </data>
+  <data name="Identity.External.Add" xml:space="preserve">
+    <value>Προσθέστε άλλη υπηρεσία σύνδεσης.</value>
+  </data>
+  <data name="Identity.External.UseProvider" xml:space="preserve">
+    <value>Σύνδεση μέσω του παρόχου «{0}»</value>
+  </data>
+  <data name="Identity.External.Remove" xml:space="preserve">
+    <value>Αφαίρεση</value>
+  </data>
+  <data name="Identity.External.RemoveProvider" xml:space="preserve">
+    <value>Αφαίρεση του παρόχου «{0}» από αυτόν τον λογαριασμό</value>
+  </data>
+  <data name="Identity.External.NotRemoved" xml:space="preserve">
+    <value>Ο εξωτερικός πάροχος δεν αφαιρέθηκε.</value>
+  </data>
+  <data name="Identity.External.Removed" xml:space="preserve">
+    <value>Ο εξωτερικός πάροχος αφαιρέθηκε.</value>
+  </data>
+  <data name="Identity.External.NotAdded" xml:space="preserve">
+    <value>Ο εξωτερικός πάροχος δεν προστέθηκε. Κάθε εξωτερική σύνδεση μπορεί να συσχετιστεί μόνο με έναν λογαριασμό.</value>
+  </data>
+  <data name="Identity.External.Added" xml:space="preserve">
+    <value>Ο εξωτερικός πάροχος προστέθηκε.</value>
+  </data>
+  <data name="Identity.External.ProviderError" xml:space="preserve">
+    <value>Σφάλμα από τον εξωτερικό πάροχο: {0}</value>
+  </data>
+  <data name="Identity.External.LoadError" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των στοιχείων σύνδεσης του εξωτερικού παρόχου.</value>
+  </data>
+  <data name="Identity.External.ConfirmError" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των στοιχείων σύνδεσης του εξωτερικού παρόχου κατά την επιβεβαίωση.</value>
+  </data>
+  <data name="Identity.Error.Development" xml:space="preserve">
+    <value>Λειτουργία ανάπτυξης</value>
+  </data>
+  <data name="Identity.Error.DevelopmentDetails" xml:space="preserve">
+    <value>Το περιβάλλον {0} εμφανίζει περισσότερες λεπτομέρειες για αυτό το σφάλμα.</value>
+  </data>
+  <data name="Identity.Error.DevelopmentWarning" xml:space="preserve">
+    <value>Χρησιμοποιήστε το περιβάλλον {0} μόνο για τοπική αποσφαλμάτωση. Σε εγκαταστάσεις παραγωγής μπορεί να εμφανίσει ευαίσθητες πληροφορίες στους χρήστες.</value>
+  </data>
+  <data name="Identity.Error.DevelopmentSetup" xml:space="preserve">
+    <value>Για τοπική αποσφαλμάτωση, ορίστε τη μεταβλητή {0} σε {1} και επανεκκινήστε την εφαρμογή.</value>
+  </data>
+  <data name="Identity.ErrorCode.DefaultError" xml:space="preserve">
+    <value>Παρουσιάστηκε άγνωστο σφάλμα.</value>
+  </data>
+  <data name="Identity.ErrorCode.ConcurrencyFailure" xml:space="preserve">
+    <value>Τα στοιχεία του λογαριασμού άλλαξαν. Φορτώστε ξανά τη σελίδα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordMismatch" xml:space="preserve">
+    <value>Λανθασμένος κωδικός πρόσβασης.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidToken" xml:space="preserve">
+    <value>Ο κωδικός επιβεβαίωσης δεν είναι έγκυρος.</value>
+  </data>
+  <data name="Identity.ErrorCode.RecoveryCodeRedemptionFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η χρήση του κωδικού ανάκτησης.</value>
+  </data>
+  <data name="Identity.ErrorCode.LoginAlreadyAssociated" xml:space="preserve">
+    <value>Υπάρχει ήδη λογαριασμός με αυτή τη σύνδεση.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidUserName" xml:space="preserve">
+    <value>Το όνομα χρήστη «{0}» περιέχει μη επιτρεπόμενους χαρακτήρες.</value>
+  </data>
+  <data name="Identity.ErrorCode.InvalidEmail" xml:space="preserve">
+    <value>Η διεύθυνση email «{0}» δεν είναι έγκυρη.</value>
+  </data>
+  <data name="Identity.ErrorCode.DuplicateUserName" xml:space="preserve">
+    <value>Το όνομα χρήστη «{0}» χρησιμοποιείται ήδη.</value>
+  </data>
+  <data name="Identity.ErrorCode.DuplicateEmail" xml:space="preserve">
+    <value>Η διεύθυνση email «{0}» χρησιμοποιείται ήδη.</value>
+  </data>
+  <data name="Identity.ErrorCode.UserAlreadyHasPassword" xml:space="preserve">
+    <value>Έχει ήδη οριστεί κωδικός για αυτόν τον λογαριασμό.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordTooShort" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον {0} χαρακτήρες.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresUniqueChars" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον {0} διαφορετικούς χαρακτήρες.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresNonAlphanumeric" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον έναν χαρακτήρα που δεν είναι γράμμα ή ψηφίο.</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresDigit" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον ένα ψηφίο (0–9).</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresLower" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον ένα πεζό λατινικό γράμμα (a–z).</value>
+  </data>
+  <data name="Identity.ErrorCode.PasswordRequiresUpper" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον ένα κεφαλαίο λατινικό γράμμα (A–Z).</value>
+  </data>
+</root>
