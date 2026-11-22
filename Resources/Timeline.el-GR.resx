@@ -459,6 +459,9 @@
   <data name="Timeline.MatchingRecords" xml:space="preserve">
     <value>καταγραφές που ταιριάζουν</value>
   </data>
+  <data name="Timeline.MatchingRulesChanged" xml:space="preserve">
+    <value>Άλλαξαν οι κανόνες αντιστοίχισης. Επιλέξτε «Ανανέωση / Νέα προσπάθεια» για να ελέγξετε ξανά τα φίλτρα που διατηρήθηκαν.</value>
+  </data>
   <data name="Timeline.MaximumGap" xml:space="preserve">
     <value>Μέγιστο χρονικό διάστημα</value>
   </data>

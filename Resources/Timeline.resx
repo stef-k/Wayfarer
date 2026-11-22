@@ -459,6 +459,9 @@
   <data name="Timeline.MatchingRecords" xml:space="preserve">
     <value>matching records</value>
   </data>
+  <data name="Timeline.MatchingRulesChanged" xml:space="preserve">
+    <value>Matching interpretation changed. Refresh to revalidate the retained filters.</value>
+  </data>
   <data name="Timeline.MaximumGap" xml:space="preserve">
     <value>Maximum gap</value>
   </data>

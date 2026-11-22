@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { assertCalendarDetailClocks } from './fixtures/calendarDetail.mjs';
+import { createCalendarDetail } from '../../wwwroot/js/Areas/User/Timeline/calendar-detail.js';
 import { createCalendarPicker } from '../../wwwroot/js/Areas/User/Timeline/calendar-picker.js';
 import { TimelinePage } from '../../wwwroot/js/Areas/User/Timeline/calendar-page.js';
 import { CalendarIntent, emptyFilters, filterBody, viewportArea } from '../../wwwroot/js/Areas/User/Timeline/calendar-intent.js';
@@ -188,6 +190,10 @@ test('canonical activity redirects bind subsequent reads; a conflicting interpre
     mismatch = true; await owner.openMonth(2026, 5);
     assert.equal(owner.state.period, null); assert.equal(owner.state.analysis, null); assert.equal(owner.blocked, true);
 });
+
+/** The English detail document distinguishes exact UTC instants within a second. */
+test('English calendar details display exact Event UTC and the two local clocks', t =>
+    assertCalendarDetailClocks(t, createCalendarDetail, 'Event UTC:', '.'));
 
 test('foreign subject clears page data and its tab slot without touching preference or mutation storage', async () => {
     const { owner, intent } = setup(async (operation, body) => ({ ...observation(operation, body), subjectId: 'other' }));

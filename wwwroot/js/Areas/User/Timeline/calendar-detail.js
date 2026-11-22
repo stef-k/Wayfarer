@@ -10,6 +10,19 @@ import { locationEditUrl, measurement, notesLabel } from './timeline-location.js
 
 export { encode };
 
+/** Both event and wall-clock fractions use the document's decimal separator. */
+const decimal = new Intl.NumberFormat(locale).formatToParts(0.1).find(part => part.type === 'decimal')?.value ?? '.';
+
+/** Keep the wire fraction alongside the localized UTC seconds because Date has millisecond precision. */
+const eventUtcText = iso => {
+    const fraction = /\.(\d+)Z$/.exec(iso);
+    const wholeSecond = fraction ? iso.slice(0, fraction.index) + 'Z' : iso;
+    const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'UTC' });
+    const parts = formatter.formatToParts(new Date(wholeSecond));
+    const display = parts.map(part => part.type === 'second' && fraction ? part.value + decimal + fraction[1] : part.value).join('');
+    return display + ' UTC';
+};
+
 /** The server already resolved this wall clock. UTC here carries its components for display only. */
 export const clockText = time => {
     if (time?.status !== 'available') return text('Unavailable', 'Unavailable');
@@ -20,8 +33,7 @@ export const clockText = time => {
     const seconds = absolute % 60 ? ':' + String(absolute % 60).padStart(2, '0') : '';
     const local = date(new Date(time.local + 'Z'), { dateStyle: 'medium', timeStyle: 'medium', hourCycle: 'h23', timeZone: 'UTC' });
     const fraction = time.local.split('.')[1];
-    const decimal = new Intl.NumberFormat(locale).formatToParts(0.1).find(part => part.type === 'decimal')?.value;
-    return `${local}${fraction ? (decimal ?? '.') + fraction : ''} · ${time.zoneId} · UTC${sign}${hours}:${minutes}${seconds}`;
+    return `${local}${fraction ? decimal + fraction : ''} · ${time.zoneId} · UTC${sign}${hours}:${minutes}${seconds}`;
 };
 /** Selected detail is independently authorized and never sourced from marker/page mutation evidence. */
 export const createCalendarDetail = (owner, mapView) => {
@@ -62,7 +74,7 @@ export const createCalendarDetail = (owner, mapView) => {
             content.innerHTML = `<p class="small">${html('RecordObservation', 'Record {0} · detail as of {1}. Detail retains this identity. Absence from the map or loaded pages can mean outside this scope, sampling or incomplete traversal; it does not establish deletion.', id, observedAt(detail.observedAtUtc))}</p>
                 <p><strong>${html('ViewerTimeLabel', 'Datetime (your timezone):')}</strong><br>${encode(clockText(record.viewerTime))}</p>
                 <p><strong>${html('RecordedTimeLabel', 'Recorded local time:')}</strong><br>${encode(clockText(record.captureTime))}</p>
-                <p><strong>${html('EventUtc', 'Event UTC:')}</strong> ${encode(record.eventUtc ? observedAt(record.eventUtc) : unavailable)}</p>
+                <p><strong>${html('EventUtc', 'Event UTC:')}</strong> ${encode(record.eventUtc ? eventUtcText(record.eventUtc) : unavailable)}</p>
                 <p><strong>${html('StoredZone', 'Stored timezone evidence:')}</strong> ${encode(record.storedTimeZoneId || unavailable)}</p>
                 <p>${location.coordinates ? `${html('Latitude', 'Latitude:')} ${coordinate(record.position.latitude)} ·
                     ${html('Longitude', 'Longitude:')} ${coordinate(record.position.longitude)}

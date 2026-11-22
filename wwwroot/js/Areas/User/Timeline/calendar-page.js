@@ -170,7 +170,9 @@ export class TimelinePage {
         const identity = matchingIdentity(response);
         if (this.identity && this.identity !== identity) {
             this.state.period = null; this.state.analysis = null; this.state.records = []; this.state.availability = null; this.state.statistics = null;
-            this.blocked = true; this.state.errors.identity = 'Matching interpretation changed. Refresh to revalidate the retained filters.'; this.emit();
+            this.blocked = true;
+            this.state.errors.identity = text('MatchingRulesChanged', 'Matching interpretation changed. Refresh to revalidate the retained filters.');
+            this.emit();
             throw new Error('Matching interpretation changed.');
         }
         if (!this.identity) {
