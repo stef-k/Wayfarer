@@ -16,6 +16,11 @@ public sealed partial class LocationMutationPostgresTests
     public async Task WebManualIntentAndBulkAppendUseFinalLockedContent()
     {
         var (owner, credential, id) = await SeedAsync();
+        // The native picker can show milliseconds while protected originals retain every stored microsecond.
+        var eventUtc = new DateTime(2026, 10, 29, 8, 15, 0, DateTimeKind.Utc).AddTicks(1_234_560);
+        await using (var seed = fixture.CreateContext())
+            await seed.Locations.Where(row => row.Id == id)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.LocalTimestamp, eventUtc));
         var fault = new BeforeCommit();
         await WithHostAsync(credential, async client =>
         {
@@ -29,7 +34,7 @@ public sealed partial class LocationMutationPostgresTests
                 var html = await new HtmlParser().ParseDocumentAsync(await page.Content.ReadAsStringAsync());
                 var embedded = JsonSerializer.Deserialize<JsonElement>(html.QuerySelector("#locationForm")!.GetAttribute("data-location-detail")!);
                 Assert.Equal(observed.GetProperty("record").GetProperty("eventUtc").GetString(), embedded.GetProperty("locationMutation").GetProperty("baseValues").GetProperty("eventUtc").GetProperty("value").GetString());
-                Assert.EndsWith(".000000", html.QuerySelector("#LocalTimestamp")!.GetAttribute("value"));
+                Assert.Equal("2026-10-29T10:15:00.123", html.QuerySelector("#LocalTimestamp")!.GetAttribute("value"));
             }
             var edit = await ProtectedLocationRequest.CreateAsync(client, id, new { notes = new { op = "set", html = "N1" },
                 position = new { op = "set", latitude = 40.7, longitude = -74.0 }, manualAddress = new { op = "set", fields = new { place = "  My place  ", country = (string?)null } } }, "web-edit", observed);
@@ -42,6 +47,7 @@ public sealed partial class LocationMutationPostgresTests
             await using var db = fixture.CreateContext(); var row = await db.Locations.SingleAsync(row => row.Id == id);
             Assert.Equal("N1 suffix", row.Notes); Assert.Equal("My place", row.Place); Assert.Null(row.Country);
             Assert.Contains("N1 SUFFIX", row.HistorySearchText);
+            Assert.Equal(eventUtc, row.LocalTimestamp);
             // Bulk has no single-operation receipt even at cardinality one.
             Assert.Single(await db.LocationMutationOperations.Where(row => row.UserId == owner).ToListAsync());
             var second = new Wayfarer.Models.Location { UserId = owner, TimeZoneId = "UTC", Coordinates = new(0, 0) { SRID = 4326 },
