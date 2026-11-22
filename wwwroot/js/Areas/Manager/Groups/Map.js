@@ -164,10 +164,21 @@ import {
       const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
     }
   }
-  /**
-   * Loads locations in current viewport with date filters applied
-   */
-  async function loadViewport() {
+  /** Orders history refreshes, including changes that do not start a request yet. */
+  let historyRequestVersion = 0;
+
+  /** Loads the current view's history and reports failures only while it owns the view. */
+  function loadViewport() {
+    const version = ++historyRequestVersion;
+    return loadViewportHistory(version).catch(() => {
+      if (version !== historyRequestVersion) return;
+      setGroupMapStatus('groupHistoryStatus',
+        t('HistoryFailed', 'Could not load group location history. Change the map view or date to retry.'), true);
+    });
+  }
+
+  /** Requests the selected members and date range, then renders the result for the current view. */
+  async function loadViewportHistory(version) {
     const url='/api/groups/' + groupId + '/locations/query';
     const selectedIds = selectedUsers().map(u=>u.id);
     // Avoid fetching all members when nothing is selected.
@@ -198,6 +209,7 @@ import {
     const shouldSkipHistorical = isViewingToday() && showHistoricalToggle && !showHistoricalToggle.checked;
 
     const res = await postJson(url, body);
+    if (version !== historyRequestVersion) return;
     const history = (res.results || []).filter(location => !location.isLatestLocation);
     setGroupMapStatus('groupHistoryStatus', shouldSkipHistorical || history.length ? ''
       : t('HistoryEmpty', 'No historical locations in this map area for the selected period.'));
@@ -230,11 +242,9 @@ import {
     });
   }
 
-  // Keep the two concurrent map reads responsible for their own localized feedback.
+  // Latest locations have their own localized feedback.
   const showLatestFailure = () => setGroupMapStatus('groupLatestStatus',
     t('LatestFailed', 'Could not load the latest group locations.'), true);
-  const showHistoryFailure = () => setGroupMapStatus('groupHistoryStatus',
-    t('HistoryFailed', 'Could not load group location history. Change the map view or date to retry.'), true);
 
   // initial
   function enforceMultiUserDayOnly(){
@@ -265,9 +275,15 @@ import {
   // Initialize historical toggle visibility
   updateHistoricalToggleVisibility();
   loadLatest().catch(showLatestFailure);
-  loadViewport().catch(showHistoryFailure);
+  loadViewport();
   // move refresh
-  let pending; map.on('moveend', ()=>{ clearTimeout(pending); pending=setTimeout(()=> loadViewport().catch(showHistoryFailure), 200); });
+  let pending;
+  map.on('moveend', () => {
+    // The previous bounds are obsolete during the debounce as well.
+    historyRequestVersion++;
+    clearTimeout(pending);
+    pending = setTimeout(loadViewport, 200);
+  });
 
   // Subscribe to consolidated group SSE stream (all group events: locations, membership, visibility)
   /**
@@ -293,7 +309,7 @@ import {
             const isSelected = selected.some(u => u.id === payload.userId);
             if (isSelected) {
               loadLatest([payload.userId], true).catch(showLatestFailure);
-              loadViewport().catch(showHistoryFailure);
+              loadViewport();
             }
           }
           // Handle location deletion events
@@ -344,7 +360,7 @@ import {
     });
 
     // Reload viewport to refresh historical locations display
-    loadViewport().catch(showHistoryFailure);
+    loadViewport();
     console.log(`Handled location deletion: locationId=${locationId}, userId=${userId}`);
   }
 
@@ -357,14 +373,14 @@ import {
     updateSelectAllState();
     enforceMultiUserDayOnly();
     loadLatest().catch(showLatestFailure);
-    loadViewport().catch(showHistoryFailure);
+    loadViewport();
   });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       updateSelectAllState();
       enforceMultiUserDayOnly();
       loadLatest().catch(showLatestFailure);
-      loadViewport().catch(showHistoryFailure);
+      loadViewport();
     });
   });
 
@@ -465,7 +481,7 @@ import {
       // Reload map with filtered selection (latest + historical).
       if (searchActive || wasSearchActive) {
         loadLatest().catch(showLatestFailure);
-        loadViewport().catch(showHistoryFailure);
+        loadViewport();
       }
       updateSelectAllState();
 
@@ -485,11 +501,11 @@ import {
     else if (viewMonth2 && viewMonth2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display=''; if (yearPicker2) yearPicker2.style.display='none'; }
     else if (viewYear2 && viewYear2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display='none'; if (yearPicker2) yearPicker2.style.display=''; }
   }
-  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(showHistoryFailure); }); });
-  if (datePicker2) datePicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(showHistoryFailure); });
-  if (monthPicker2) monthPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(showHistoryFailure); });
-  if (yearPicker2) yearPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(showHistoryFailure); });
-  const btnToday = document.getElementById('btnToday'); if (btnToday && datePicker2 && viewDay2) btnToday.addEventListener('click', ()=>{ datePicker2.value = currentDateInputValue(); viewDay2.checked=true; updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(showHistoryFailure); });
+  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport(); }); });
+  if (datePicker2) datePicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
+  if (monthPicker2) monthPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
+  if (yearPicker2) yearPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
+  const btnToday = document.getElementById('btnToday'); if (btnToday && datePicker2 && viewDay2) btnToday.addEventListener('click', ()=>{ datePicker2.value = currentDateInputValue(); viewDay2.checked=true; updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport(); });
   function shiftDay(delta){
     if (!datePicker2) return;
     const base = datePicker2.value ? new Date(datePicker2.value) : new Date();
@@ -498,7 +514,7 @@ import {
     if (viewDay2) viewDay2.checked=true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(showHistoryFailure);
+    loadViewport();
   }
   function shiftMonth(delta){
     if (!monthPicker2) return;
@@ -507,7 +523,7 @@ import {
     if (viewMonth2) viewMonth2.checked=true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(showHistoryFailure);
+    loadViewport();
   }
   function shiftYear(delta){
     if (!yearPicker2) return;
@@ -517,7 +533,7 @@ import {
     if (viewYear2) viewYear2.checked=true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(showHistoryFailure);
+    loadViewport();
   }
   const btnPrevDay=document.getElementById('btnPrevDay'); if (btnPrevDay) btnPrevDay.addEventListener('click', ()=> shiftDay(-1));
   const btnNextDay=document.getElementById('btnNextDay'); if (btnNextDay) btnNextDay.addEventListener('click', ()=> shiftDay(1));
@@ -531,12 +547,12 @@ import {
   const showHistoricalLocations = document.getElementById('showHistoricalLocations');
   if (showHistoricalLocations) {
     showHistoricalLocations.addEventListener('change', ()=> {
-      loadViewport().catch(showHistoryFailure);
+      loadViewport();
     });
   }
 
   // Date filter apply
-  const applyBtn = document.getElementById('applyDateFilter'); if (applyBtn) { applyBtn.addEventListener('click', ()=>{ loadViewport().catch(showHistoryFailure); }); }
+  const applyBtn = document.getElementById('applyDateFilter'); if (applyBtn) { applyBtn.addEventListener('click', ()=>{ loadViewport(); }); }
   // Show All / Hide All buttons
   const showAllBtn = document.getElementById('showAllUsers'); if (showAllBtn) {
     showAllBtn.addEventListener('click', ()=>{
@@ -544,7 +560,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(showLatestFailure); loadViewport().catch(showHistoryFailure);
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   }
   const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) {
@@ -553,7 +569,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(showLatestFailure); loadViewport().catch(showHistoryFailure);
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   }
   // Backend color/photo references refresh independently of location sharing.
@@ -599,7 +615,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(showLatestFailure); loadViewport().catch(showHistoryFailure);
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   });
 
@@ -626,7 +642,7 @@ import {
           this.closest('.user-item')?.remove();
           updateRemoveButtons();
           loadLatest().catch(showLatestFailure);
-          loadViewport().catch(showHistoryFailure);
+          loadViewport();
           wayfarer.showAlert?.('success', t('MemberRemoved', 'Member removed.'));
         } catch {
           wayfarer.showAlert?.('danger', t('Unconfirmed', 'The outcome could not be confirmed. Refresh the page before trying again.'));
