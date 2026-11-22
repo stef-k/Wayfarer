@@ -30,7 +30,8 @@ registration demonstrate `few` and `many`; they belong to the test assembly.
   `Editor` owns the Trip editing interface. `PublicPages` owns Home, the Privacy
   interface and Registration Closed. `Discovery` owns public Trip listing and
   preview. `PublicTimeline` owns the full and embedded Timeline interface,
-  location details and document errors.
+  location details and document errors. `Groups` owns account-area Group and
+  invitation workflows, including sharing controls and map-specific presentation.
 - Name full phrases for their intent and keep argument positions consistent
   between locales. Use `{0}`, `{1}` and subsequent positions for plain-text
   arguments. Put links, HTML, icons and accessibility relationships in the
@@ -76,7 +77,8 @@ for unsaved work.
 | 2 | Home, Privacy and Registration Closed. Public Trip grid/list, tag redirect, filters and pagination, quick preview and asynchronous feedback. Full and embedded public Timeline, map and location detail, summary, clipboard and unavailable or failed states. |
 | 3 | Identity and personal account. The compiled route inventory, presentation owners and language-navigation evidence are recorded below. |
 | 4 | User and Timeline Settings, Hidden Areas, app connection and personal location providers. The affected routes and evidence are recorded below. |
-| 5–8 | Group and invitation workflows, private Timeline, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Unintegrated protected workspaces and Location routes withhold switching. |
+| 5 | User and Manager Groups, invitation inbox and roster operations, sharing, and scoped map history. Route and live feedback owners are recorded below. |
+| 6–8 | Private Timeline, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Unintegrated protected workspaces and Location routes withhold switching. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
@@ -187,3 +189,14 @@ The managed Chromium check reached the Greek drawing toolbar at a narrow width
 in dark mode. Restoring the Leaflet stylesheet flag made the polygon control
 clickable. The browser fixture ended with an empty WKT field after its rapid
 vertex clicks. The complete drawn-polygon browser journey remains unqualified.
+
+
+### Area 5 Groups and invitations
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| User Groups list, create and leave. Manager Groups list, create, edit and delete. | Group type labels and field validation use the Groups catalog. The active membership role determines which management actions render. MVC change alerts carry a catalog key for the redirect destination. |
+| User and Manager Members. User Invitations inbox. | The shared Members client updates roster and pending invitations via the existing endpoints and SSE hints. The invitation-row helper reconciles refreshed Razor rows against confirmed removals, formats their dates in the document locale and preserves their actions. The inbox localizes accept and decline feedback and keeps authored Group and account fields as text. Shell keeps ownership of site-wide notices and badges. |
+| User and Manager Group maps. | Sharing controls use the current policy and role. The drawer names and exposes its controls when open and restores focus on close. The map localizes selected-period feedback, marker status and details. Scope, calendar inputs, coordinates sent over the wire and current-membership access follow the existing server contract. |
+| Focused route and client checks | `MobileGroupWorkflowPostgresTests` verifies Greek Owner, Group Manager and Member actions, a pending row and an English POST whose duplicate refusal renders in Greek at its redirect destination. `groupInvitationRows.test.mjs` verifies the same Greek refusal at the AJAX boundary and a refreshed pending row with its viewer-zone timestamp and cancel action. Group route, sharing and history tests continue to exercise the existing permissions and data contracts. |
+| Mounted check | `unavailableGroupInvite.spec.ts` checks the real stale-account rejection in Greek and the narrow map with localized drawer actions, focus restoration and a scoped history request. |

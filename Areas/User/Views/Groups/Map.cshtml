@@ -1,14 +1,17 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
     var groupId = (Guid)ViewBag.GroupId;
     var group = (Wayfarer.Models.Group)ViewBag.Group;
-    ViewData["Title"] = $"Map - {group.Name}";
+    ViewData["Title"] = T["Groups.MapTitle", group.Name];
     ViewData["LoadLeaflet"] = true;
     ViewData["BodyClass"] = "container-fluid d-flex flex-column flex-fill px-3 overflow-hidden";
 }
 
 <div class="group-map-header d-flex justify-content-between align-items-center mb-2">
   <h2>@ViewData["Title"]</h2>
-  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Back</a>
+  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">@T["Groups.Back"]</a>
   <input type="hidden" id="groupId" value="@groupId" />
   <input type="hidden" id="currentUserId" value="@ViewBag.CurrentUserId" />
   <input type="hidden" id="currentUserName" value="@ViewBag.CurrentUserName" />
@@ -17,52 +20,51 @@
 <!-- Chronological Controls Bar (match manager view) -->
 <div class="row mb-2">
   <div class="col-12">
-    <div class="bg-light border rounded p-2">
+    <div class="bg-body-tertiary border rounded p-2">
       <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="Previous Year">
-          <i class="bi bi-chevron-double-left"></i> Year
+        <button id="btnPrevYear" class="btn btn-sm btn-outline-secondary" title="@T["Groups.PreviousYear"]" aria-label="@T["Groups.PreviousYear"]">
+          <i class="bi bi-chevron-double-left"></i> @T["Groups.Year"]
         </button>
-        <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="Previous Month">
-          <i class="bi bi-chevron-left"></i> Month
+        <button id="btnPrevMonth" class="btn btn-sm btn-outline-secondary" title="@T["Groups.PreviousMonth"]" aria-label="@T["Groups.PreviousMonth"]">
+          <i class="bi bi-chevron-left"></i> @T["Groups.Month"]
         </button>
-        <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="Previous Day">
-          <i class="bi bi-arrow-left"></i> Day
+        <button id="btnPrevDay" class="btn btn-sm btn-outline-secondary" title="@T["Groups.PreviousDay"]" aria-label="@T["Groups.PreviousDay"]">
+          <i class="bi bi-arrow-left"></i> @T["Groups.Day"]
         </button>
 
         <div class="group-map-date-controls d-flex align-items-center gap-2 mx-3">
-          <button id="btnToday" class="btn btn-sm btn-success" title="Today">Today</button>
-          <input type="date" id="datePicker" class="form-control form-control-sm" style="width: auto;">
-          <input type="month" id="monthPicker" class="form-control form-control-sm" style="width: auto; display:none;">
-          <input type="number" id="yearPicker" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="YYYY" min="1900" max="2100">
+          <button id="btnToday" class="btn btn-sm btn-success" title="@T["Groups.Today"]">@T["Groups.Today"]</button>
+          <input type="date" id="datePicker" aria-label="@T["Groups.Day"]" class="form-control form-control-sm" style="width: auto;">
+          <input type="month" id="monthPicker" aria-label="@T["Groups.Month"]" class="form-control form-control-sm" style="width: auto; display:none;">
+          <input type="number" id="yearPicker" aria-label="@T["Groups.Year"]" class="form-control form-control-sm" style="width: 100px; display:none;" placeholder="@T["Groups.YearPlaceholder"]" min="1900" max="2100">
         </div>
 
-        <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="Next Day">
-          Day <i class="bi bi-arrow-right"></i>
+        <button id="btnNextDay" class="btn btn-sm btn-outline-secondary" title="@T["Groups.NextDay"]" aria-label="@T["Groups.NextDay"]">
+          @T["Groups.Day"] <i class="bi bi-arrow-right"></i>
         </button>
-        <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="Next Month">
-          Month <i class="bi bi-chevron-right"></i>
+        <button id="btnNextMonth" class="btn btn-sm btn-outline-secondary" title="@T["Groups.NextMonth"]" aria-label="@T["Groups.NextMonth"]">
+          @T["Groups.Month"] <i class="bi bi-chevron-right"></i>
         </button>
-        <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="Next Year">
-          Year <i class="bi bi-chevron-double-right"></i>
+        <button id="btnNextYear" class="btn btn-sm btn-outline-secondary" title="@T["Groups.NextYear"]" aria-label="@T["Groups.NextYear"]">
+          @T["Groups.Year"] <i class="bi bi-chevron-double-right"></i>
         </button>
 
         <div class="group-map-view-controls ms-auto d-flex gap-2">
-          <label class="form-label mb-0 align-self-center">View:</label>
-          <div class="btn-group btn-group-sm" role="group">
+          <label class="form-label mb-0 align-self-center">@T["Groups.ViewLabel"]</label>
+          <div class="btn-group btn-group-sm" role="group" aria-label="@T["Groups.ViewPeriod"]">
             <input type="radio" class="btn-check" name="viewType" id="viewDay" value="day" checked>
-            <label class="btn btn-outline-primary" for="viewDay">Day</label>
+            <label class="btn btn-outline-primary" for="viewDay">@T["Groups.Day"]</label>
 
             <input type="radio" class="btn-check" name="viewType" id="viewMonth" value="month">
-            <label class="btn btn-outline-primary" for="viewMonth">Month</label>
+            <label class="btn btn-outline-primary" for="viewMonth">@T["Groups.Month"]</label>
 
             <input type="radio" class="btn-check" name="viewType" id="viewYear" value="year">
-            <label class="btn btn-outline-primary" for="viewYear">Year</label>
+            <label class="btn btn-outline-primary" for="viewYear">@T["Groups.Year"]</label>
           </div>
         </div>
       </div>
       <small class="text-muted fst-italic d-block">
-        <i class="bi bi-info-circle"></i> Default shows live locations. Use the date picker for historical view.
-        Day view shows all locations. Month/Year may be sampled for large datasets.
+        <i class="bi bi-info-circle"></i> @T["Groups.MapHelp"]
       </small>
     </div>
   </div>
@@ -71,12 +73,12 @@
 
 <div id="group-map-view" class="group-map-view position-relative d-flex flex-grow-1 w-100 overflow-hidden" style="min-height:0;">
   <button type="button" class="group-map-members-toggle btn btn-sm btn-primary" aria-controls="group-map-members" aria-expanded="false">
-    <i class="bi bi-people" aria-hidden="true"></i> Members
+    <i class="bi bi-people" aria-hidden="true"></i> @T["Groups.Members"]
   </button>
-  <aside id="group-map-members" class="group-map-sidebar flex-shrink-0 border-end overflow-auto" aria-hidden="true">
+  <aside id="group-map-members" class="group-map-sidebar flex-shrink-0 border-end overflow-auto" aria-labelledby="group-map-members-label">
     <div class="group-map-sidebar-heading d-flex align-items-center justify-content-between">
-      <h5 class="mb-0">Members</h5>
-      <button type="button" class="group-map-members-close btn btn-sm btn-outline-secondary" aria-label="Close members panel">
+      <h5 class="mb-0" id="group-map-members-label">@T["Groups.Members"]</h5>
+      <button type="button" class="group-map-members-close btn btn-sm btn-outline-secondary" aria-label="@T["Groups.CloseMembers"]">
         <i class="bi bi-x-lg" aria-hidden="true"></i>
       </button>
     </div>
@@ -90,11 +92,11 @@
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="showHistoricalLocations">
         <label class="form-check-label" for="showHistoricalLocations">
-          <i class="bi bi-clock-history"></i> Show historical locations for today
+          <i class="bi bi-clock-history"></i> @T["Groups.ShowHistoryToday"]
         </label>
       </div>
       <small class="text-muted d-block mt-1">
-        When off, only latest/live locations are shown
+        @T["Groups.LatestOnlyHelp"]
       </small>
     </div>
 
@@ -102,21 +104,21 @@
     @await Html.PartialAsync("_GroupSharingControls", (group, (Wayfarer.Models.GroupMember)ViewBag.MyMembership))
 
     <div class="mb-2">
-      <input id="userSearch" type="search" class="form-control form-control-sm" placeholder="Search users..." autocomplete="off" />
+      <input id="userSearch" aria-label="@T["Groups.SearchUsers"]" type="search" class="form-control form-control-sm" placeholder="@T["Groups.SearchUsers"]" autocomplete="off" />
     </div>
     <div id="userSidebar" class="list-group" style="max-height:70vh; overflow:auto">
       @{
           var members = (IEnumerable<dynamic>)ViewBag.Members;
           var ownerId = ((Wayfarer.Models.Group)ViewBag.Group).OwnerUserId;
       }
-      <div class="list-group-item d-flex align-items-center justify-content-between">
+      <div class="list-group-item d-flex flex-wrap gap-2 align-items-center justify-content-between">
         <label class="mb-0">
           <input type="checkbox" id="selectAllUsers" class="form-check-input me-1" checked />
-          Select All
+          @T["Groups.SelectAll"]
         </label>
         <div class="btn-group btn-group-sm">
-          <button type="button" id="showAllUsers" class="btn btn-outline-secondary">Show All</button>
-          <button type="button" id="hideAllUsers" class="btn btn-outline-secondary">Hide All</button>
+          <button type="button" id="showAllUsers" class="btn btn-outline-secondary">@T["Groups.ShowAll"]</button>
+          <button type="button" id="hideAllUsers" class="btn btn-outline-secondary">@T["Groups.HideAll"]</button>
         </div>
       </div>
       @foreach (var u in members)
@@ -127,21 +129,24 @@
                   ? !group.OrgPeerVisibilityEnabled || u.OrgPeerVisibilityAccessDisabled
                   : string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase) && u.OrgPeerVisibilityAccessDisabled);
           var dimmedClass = peerVisDisabled ? "peer-visibility-disabled" : "";
-          <div class="list-group-item d-flex justify-content-between align-items-center user-item @dimmedClass" data-filter="@u.UserName @u.DisplayName">
-            <label class="mb-0 flex-grow-1">
+          <div class="list-group-item d-flex flex-wrap gap-2 justify-content-between align-items-center user-item @dimmedClass" data-filter="@u.UserName @u.DisplayName">
+            <label class="mb-0 flex-grow-1 text-break">
               <partial name="_ProfilePhoto" model="@(new Wayfarer.Services.ProfilePhotoBadge((string)u.DisplayName, (string)u.UserName, (string)u.ColorHex, (Wayfarer.Services.ProfilePhotoReference?)u.ProfilePhoto))" />
               <input type="checkbox" class="form-check-input me-1 user-select" checked data-user-id="@u.UserId" data-username="@u.UserName" data-display="@u.DisplayName" data-role="@u.GroupRole" data-color="@u.ColorHex" data-photo-url="@(u.ProfilePhoto?.Url)" data-owner="@(u.UserId == ownerId)" />
               @u.UserName (@u.DisplayName)
             </label>
             <div class="btn-group btn-group-sm">
               <button type="button" class="btn btn-outline-primary only-this" data-user-id="@u.UserId"
-                      data-tippy-content="Show only this member, hide all others.">Only</button>
+                      aria-label="@T["Groups.OnlyNamed", (string)u.UserName]" data-tippy-content="@T["Groups.OnlyHelp"]">@T["Groups.Only"]</button>
             </div>
           </div>
       }
     </div>
   </aside>
   <main class="group-map-canvas flex-grow-1 overflow-hidden" style="min-height:0;">
+    @* Keep live and historical read feedback scoped to the map. *@
+    <div id="groupLatestStatus" class="small text-danger" role="status" hidden></div>
+    <div id="groupHistoryStatus" class="small" role="status" hidden></div>
     <div id="groupMap" class="w-100" style="height: calc(100vh - 220px); min-height: calc(100vh - 220px);"></div>
   </main>
 </div>
@@ -156,8 +161,8 @@
   <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header text-bg-primary">
-        <h5 class="modal-title" id="locationModalLabel">Location Details</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title" id="locationModalLabel">@T["Groups.LocationDetails"]</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button>
       </div>
       <div class="modal-body">
         <div id="modalContent"></div>

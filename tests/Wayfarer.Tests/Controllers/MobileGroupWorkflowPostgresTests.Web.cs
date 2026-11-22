@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -72,6 +73,7 @@ public sealed partial class MobileGroupWorkflowPostgresTests
             HttpStatusCode.Conflict, "pending_exists");
         using var webDuplicate = await ownerWeb.PostAsync(path, InviteForm(groupId, target));
         Assert.Equal(HttpStatusCode.Conflict, webDuplicate.StatusCode);
+        ownerWeb.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
         await ExpectMembersRowsAsync(ownerWeb, groupId, replacementId, legacy.Id, old.Id);
 
         await db.GroupInvitations.Where(i => i.Id == replacementId)
@@ -164,5 +166,7 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         Assert.Contains($"""data-invite-id="{replacement}" """.TrimEnd(), html);
         Assert.Contains($"""data-invite-id="{legacy}" """.TrimEnd(), html);
         Assert.DoesNotContain($"""data-invite-id="{old}" """.TrimEnd(), html);
+        var document = await new HtmlParser().ParseDocumentAsync(html);
+        Assert.Equal("Ακύρωση πρόσκλησης", document.QuerySelector($"tr[data-invite-id='{replacement}'] button")?.TextContent.Trim());
     }
 }

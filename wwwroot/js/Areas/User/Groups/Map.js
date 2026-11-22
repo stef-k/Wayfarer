@@ -1,11 +1,11 @@
+import { encodeFeatureText as groupHtml } from '../../../util/feature-metadata.js';
 import { photoBadge, memberPhotoInfo, bindGroupPhotos } from '../../../profilePhotos.js';
-import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { bindGroupSharingControls, refreshGroupState } from '../../../groupSharingControls.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
-import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
+import { groupLocationDetails, groupLocationTooltip, setGroupMapStatus, setupGroupMapControls } from '../../../util/group-map-presentation.js';
+import { groupMessage as t } from '../../../util/group-web-messages.js';
 import {
-  formatViewerAndSourceTimes,
   isLiveLocation,
   scheduleLocationExpiry,
   currentDateInputValue,
@@ -17,34 +17,14 @@ import {
 
 (() => {
   const viewerTimeZone = getViewerTimeZone();
-  const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-  const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-  });
-  const renderTimestampBlock = location => {
-    const info = getLocationTimestampInfo(location);
-    const recorded = info.source
-      ? `<div>${info.source}</div>`
-      : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
-    const zone = getLocationSourceTimeZone(location);
-    return {
-      viewer: info.viewer,
-      recorded: recorded + (zone && !info.source ? `<div class="small text-muted">${zone}</div>` : ''),
-    };
-  };
-
   const mapEl = document.getElementById('groupMap');
   const groupId = document.getElementById('groupId')?.value;
   if (!mapEl || !groupId) return;
   bindGroupSharingControls(groupId);
 
-  const map = L.map('groupMap').setView([0, 0], 2);
+  const map = L.map('groupMap', { zoomControl: false }).setView([0, 0], 2);
   createTileLayer().addTo(map);
-  if (map.attributionControl && typeof map.attributionControl.setPrefix === 'function') {
-    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
-  }
+  setupGroupMapControls(map);
   try { addZoomLevelControl(map); } catch(e){}
   // Initialize default pickers to today/current if empty
   (function initDefaultPickers(){
@@ -127,29 +107,19 @@ import {
     return await resp.json();
   }
   function restIconHtml(baseColor){ return `<div class="wf-marker wf-marker--dot" style="--wf-color:${baseColor}"></div>`; }
-  function buildTooltipHtml(info, loc){
-    const u=escapeHtml(info.username||'') + (info.display? (' ('+escapeHtml(info.display)+')') : '');
-    const timestamps = getLocationTimestampInfo(loc);
-    const addr=locationAddressText(loc, loc.fullAddress||loc.address||loc.place||'');
-    let recordedLine = timestamps.source || 'Recorded time unavailable';
-    const zone = getLocationSourceTimeZone(loc);
-    if (!timestamps.source && zone) {
-      recordedLine = `${recordedLine} (${zone})`;
-    }
-    return `${u}<br/>${timestamps.viewer}<br/>Recorded: ${recordedLine}<br/>${escapeHtml(addr)}`;
-  }
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
     const info=idToInfoMap().get(userId)||{ username:'', display:''};
     const base=info.colorHex || '#808080';
     const live=isLiveLocation(loc);
     const icon=L.divIcon({ html: photoBadge(info), className: live ? 'wf-marker wf-marker--live profile-marker' : 'wf-marker wf-marker--latest profile-marker', iconSize:[32,32], iconAnchor:[16,16] });
-    const statusHtml = live ? ' <span style="color:#dc3545">Live Location</span>' : ' <span style="color:#198754">Latest Location</span>';
-    const tooltip = buildTooltipHtml(info, loc) + statusHtml;
+    const label = live ? t('LiveLocation', 'Live Location') : t('LatestLocation', 'Latest Location');
+    const statusHtml = ` <span style="color:${live ? '#dc3545' : '#198754'}">${groupHtml(label)}</span>`;
+    const tooltip = groupLocationTooltip(info, loc) + statusHtml;
     if (latestMarkers.has(userId)) { const m=latestMarkers.get(userId); m.setLatLng(latlng); m.setIcon(icon); m.bindTooltip(tooltip, {direction:'top'}); m.setZIndexOffset(live?10000:9000); }
     else {
       const m=L.marker(latlng, { icon, zIndexOffset: (live?10000:9000) }).bindTooltip(tooltip, {direction:'top'});
-      m.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} });
+      m.on('click', () => openLocationModal(loc, isLiveLocation(loc) ? 'live' : 'latest'));
       m.on('remove', () => clearTimeout(m.presenceExpiryTimer));
       m.addTo(map);
       latestMarkers.set(userId, m);
@@ -172,6 +142,7 @@ import {
     const include = userIds && userIds.length ? userIds : selectedUsers().map(u=>u.id);
     // Avoid fetching all members when nothing is selected.
     if (!include.length) {
+      setGroupMapStatus("groupLatestStatus");
       clearSelectionLayers();
       return;
     }
@@ -186,20 +157,33 @@ import {
       });
     }
     const data = await postJson(url, { includeUserIds: include });
+    setGroupMapStatus('groupLatestStatus');
     (Array.isArray(data)?data:[]).forEach(loc=>{ const uid=loc.userId; if (uid) upsertLatestForUser(uid, loc); });
     // Only fit bounds when loading all users, not for single-user SSE updates
     if (!skipMarkerCleanup) {
       const latlngs=Array.from(latestMarkers.values()).map(m=>m.getLatLng()); if (latlngs.length) map.fitBounds(L.latLngBounds(latlngs), { padding:[20,20] });
     }
   }
-  /**
-   * Loads locations in current viewport with date filters applied
-   */
-  async function loadViewport() {
+  /** Orders history refreshes, including changes that do not start a request yet. */
+  let historyRequestVersion = 0;
+
+  /** Loads the current view's history and reports failures only while it owns the view. */
+  function loadViewport() {
+    const version = ++historyRequestVersion;
+    return loadViewportHistory(version).catch(() => {
+      if (version !== historyRequestVersion) return;
+      setGroupMapStatus('groupHistoryStatus',
+        t('HistoryFailed', 'Could not load group location history. Change the map view or date to retry.'), true);
+    });
+  }
+
+  /** Requests the selected members and date range, then renders the result for the current view. */
+  async function loadViewportHistory(version) {
     const url='/api/groups/' + groupId + '/locations/query';
     const selectedIds = selectedUsers().map(u=>u.id);
     // Avoid fetching all members when nothing is selected.
     if (!selectedIds.length) {
+      setGroupMapStatus("groupHistoryStatus");
       clearSelectionLayers();
       return;
     }
@@ -224,7 +208,11 @@ import {
     const showHistoricalToggle = document.getElementById('showHistoricalLocations');
     const shouldSkipHistorical = isViewingToday() && showHistoricalToggle && !showHistoricalToggle.checked;
 
-    const res=await postJson(url, body);
+    const res = await postJson(url, body);
+    if (version !== historyRequestVersion) return;
+    const history = (res.results || []).filter(location => !location.isLatestLocation);
+    setGroupMapStatus('groupHistoryStatus', shouldSkipHistorical || history.length ? ''
+      : t('HistoryEmpty', 'No historical locations in this map area for the selected period.'));
     // clear existing clusters
     restClusters.forEach(g => map.removeLayer(g));
     restClusters.clear();
@@ -235,26 +223,28 @@ import {
     }
 
     // build clusters per user for consistent color coding
-    (res.results||[]).forEach(loc=>{
-      if (!loc.isLatestLocation) {
-        const uid = loc.userId || '';
-        const info = idToInfoMap().get(uid) || { username: uid, display: '' };
-        const base = info.colorHex || '#808080';
-        let group = restClusters.get(uid);
-        if (!group) {
-          group = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: true, chunkedLoading: true });
-          map.addLayer(group);
-          restClusters.set(uid, group);
-        }
-        const tooltip = buildTooltipHtml(info, loc);
-        const marker = L.marker([loc.coordinates.latitude, loc.coordinates.longitude], {
-          icon: L.divIcon({ html: restIconHtml(base), className:'', iconSize:[20,20], iconAnchor:[10,10] })
-        }).bindTooltip(tooltip, {direction:'top'});
-        marker.on('click', ()=>{ try{ openLocationModal(loc);}catch(e){} });
-        group.addLayer(marker);
+    history.forEach(loc => {
+      const uid = loc.userId || '';
+      const info = idToInfoMap().get(uid) || { username: uid, display: '' };
+      const base = info.colorHex || '#808080';
+      let group = restClusters.get(uid);
+      if (!group) {
+        group = L.markerClusterGroup({ maxClusterRadius: 40, disableClusteringAtZoom: 17, spiderfyOnMaxZoom: true, chunkedLoading: true });
+        map.addLayer(group);
+        restClusters.set(uid, group);
       }
+      const tooltip = groupLocationTooltip(info, loc);
+      const marker = L.marker([loc.coordinates.latitude, loc.coordinates.longitude], {
+        icon: L.divIcon({ html: restIconHtml(base), className:'', iconSize:[20,20], iconAnchor:[10,10] })
+      }).bindTooltip(tooltip, {direction:'top'});
+      marker.on('click', () => openLocationModal(loc, 'history'));
+      group.addLayer(marker);
     });
   }
+
+  // Latest locations have their own localized feedback.
+  const showLatestFailure = () => setGroupMapStatus('groupLatestStatus',
+    t('LatestFailed', 'Could not load the latest group locations.'), true);
 
   // initial
   // Ensure UI guard (multi-user day-only) before first viewport load
@@ -286,10 +276,16 @@ import {
   // Initialize historical toggle visibility
   updateHistoricalToggleVisibility();
   // Load latest and viewport immediately
-  loadLatest().catch(()=>{});
-  loadViewport().catch(()=>{});
+  loadLatest().catch(showLatestFailure);
+  loadViewport();
   // move refresh
-  let pending; map.on('moveend', ()=>{ clearTimeout(pending); pending=setTimeout(()=> loadViewport().catch(()=>{}), 200); });
+  let pending;
+  map.on('moveend', () => {
+    // The previous bounds are obsolete during the debounce as well.
+    historyRequestVersion++;
+    clearTimeout(pending);
+    pending = setTimeout(loadViewport, 200);
+  });
 
   // Subscribe to consolidated group SSE stream (all group events: locations, membership, visibility)
   /**
@@ -314,8 +310,8 @@ import {
             const selected = selectedUsers();
             const isSelected = selected.some(u => u.id === payload.userId);
             if (isSelected) {
-              loadLatest([payload.userId], true).catch(() => {});
-              loadViewport().catch(() => {});
+              loadLatest([payload.userId], true).catch(showLatestFailure);
+              loadViewport();
             }
           }
           // Handle location deletion events
@@ -366,7 +362,7 @@ import {
     });
 
     // Reload viewport to refresh historical locations display
-    loadViewport().catch(() => {});
+    loadViewport();
     console.log(`Handled location deletion: locationId=${locationId}, userId=${userId}`);
   }
 
@@ -378,15 +374,15 @@ import {
     document.querySelectorAll('#userSidebar input.user-select').forEach(el=>{el.checked=checked;});
     updateSelectAllState();
     enforceMultiUserDayOnly();
-    loadLatest().catch(()=>{});
-    loadViewport().catch(()=>{});
+    loadLatest().catch(showLatestFailure);
+    loadViewport();
   });
   document.querySelectorAll('#userSidebar input.user-select').forEach(cb=>{
     cb.addEventListener('change', ()=>{
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(()=>{});
-      loadViewport().catch(()=>{});
+      loadLatest().catch(showLatestFailure);
+      loadViewport();
     });
   });
 
@@ -397,7 +393,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = true;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   }
   const hideAllBtn = document.getElementById('hideAllUsers'); if (hideAllBtn) {
@@ -406,7 +402,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   }
 
@@ -506,8 +502,8 @@ import {
 
       // Reload map with filtered selection (latest + historical).
       if (searchActive || wasSearchActive) {
-        loadLatest().catch(() => {});
-        loadViewport().catch(() => {});
+        loadLatest().catch(showLatestFailure);
+        loadViewport();
       }
       updateSelectAllState();
 
@@ -527,12 +523,12 @@ import {
     else if (viewMonth2 && viewMonth2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display=''; if (yearPicker2) yearPicker2.style.display='none'; }
     else if (viewYear2 && viewYear2.checked) { if (datePicker2) datePicker2.style.display='none'; if (monthPicker2) monthPicker2.style.display='none'; if (yearPicker2) yearPicker2.style.display=''; }
   }
-  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); }); });
-  if (datePicker2) datePicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
-  if (monthPicker2) monthPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
-  if (yearPicker2) yearPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); });
+  [viewDay2, viewMonth2, viewYear2].forEach(el => { if (el) el.addEventListener('change', ()=>{ updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport(); }); });
+  if (datePicker2) datePicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
+  if (monthPicker2) monthPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
+  if (yearPicker2) yearPicker2.addEventListener('change', ()=> { updateHistoricalToggleVisibility(); loadViewport(); });
   // prev/next helpers
-  function shiftDay(delta){ if (!datePicker2) return; const d = datePicker2.value ? new Date(datePicker2.value) : new Date(); d.setDate(d.getDate()+delta); datePicker2.valueAsDate = d; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport().catch(()=>{}); }
+  function shiftDay(delta){ if (!datePicker2) return; const d = datePicker2.value ? new Date(datePicker2.value) : new Date(); d.setDate(d.getDate()+delta); datePicker2.valueAsDate = d; if (viewDay2) viewDay2.checked = true; updatePickerVisibility(); updateHistoricalToggleVisibility(); loadViewport(); }
   function shiftMonth(delta){
     if (!monthPicker2) return;
     const base = monthPicker2.value || currentMonthInputValue();
@@ -540,7 +536,7 @@ import {
     if (viewMonth2) viewMonth2.checked = true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(()=>{});
+    loadViewport();
   }
   function shiftYear(delta){
     if (!yearPicker2) return;
@@ -550,7 +546,7 @@ import {
     if (viewYear2) viewYear2.checked = true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(()=>{});
+    loadViewport();
   }
   document.getElementById('btnToday')?.addEventListener('click', ()=> {
     if (!datePicker2) return;
@@ -558,7 +554,7 @@ import {
     if (viewDay2) viewDay2.checked = true;
     updatePickerVisibility();
     updateHistoricalToggleVisibility();
-    loadViewport().catch(()=>{});
+    loadViewport();
   });
   document.getElementById('btnPrevDay')?.addEventListener('click', ()=> shiftDay(-1));
   document.getElementById('btnNextDay')?.addEventListener('click', ()=> shiftDay(1));
@@ -572,7 +568,7 @@ import {
   const showHistoricalLocations = document.getElementById('showHistoricalLocations');
   if (showHistoricalLocations) {
     showHistoricalLocations.addEventListener('change', ()=> {
-      loadViewport().catch(()=>{});
+      loadViewport();
     });
   }
 
@@ -590,7 +586,7 @@ import {
       const all = document.getElementById('selectAllUsers'); if (all) all.checked = false;
       updateSelectAllState();
       enforceMultiUserDayOnly();
-      loadLatest().catch(()=>{}); loadViewport().catch(()=>{});
+      loadLatest().catch(showLatestFailure); loadViewport();
     });
   });
 
@@ -598,39 +594,13 @@ import {
   enforceMultiUserDayOnly();
 
   // Modal generator aligned with public timeline
-  function googleMapsLink(location){
-    const addr=locationAddressText(location, location?.fullAddress||location?.address||location?.place||''); const lat=location?.coordinates?.latitude; const lon=location?.coordinates?.longitude;
-    const has=Number.isFinite(+lat)&&Number.isFinite(+lon);
-    const query = addr && has ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})` : has ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}` : addr;
-    const q=encodeURIComponent(query||'');
-    return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps"><i class="bi bi-globe-europe-africa"></i> Maps</a>`;
-  }
-  function openLocationModal(location){
-    const isLive = isLiveLocation(location);
-    // In group map context, displayed locations are always the latest for each user
-    const isLatest = !isLive;
-    const badge = isLive ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>' : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
-    const notes = notesHtmlForDisplay(location.notes);
-    const hasNotes = !!notes && notes.length>0;
-    const timestamps = renderTimestampBlock(location);
-    const html = `<div class=\"container-fluid\">`
-      + `<div class=\"row mb-2\"><div class=\"col-12\">${badge}</div></div>`
-      + `<div class=\"row mb-2\">`
-      + `<div class=\"col-6\"><strong>Datetime (your timezone):</strong><div>${timestamps.viewer}</div></div>`
-      + `<div class=\"col-6\"><strong>Recorded local time:</strong>${timestamps.recorded}</div>`
-      + `</div>`
-      + `<div class=\"row mb-2\">`
-      + `${renderLocationAddress(location, location.fullAddress || location.address || location.place)}${googleMapsLink(location)}`
-      + `</div>`
-      + `<div class=\"row mb-2\">`
-      + `<div class=\"col-6\"><strong>Latitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.latitude}</span></div>`
-      + `<div class=\"col-6\"><strong>Longitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.longitude}</span></div>`
-      + `</div>`
-      + `<div class=\"row mb-2\" ${hasNotes? '' : 'style=\"display:none;\"'}>`
-      + `<div class=\"col-12\"><strong>Notes:</strong><div class=\"border p-1\">${hasNotes? notes : ''}</div></div>`
-      + `</div>`
-      + `</div>`;
-    const el = document.getElementById('modalContent'); if (el) { el.innerHTML = html; const info = idToInfoMap().get(location.userId); if (info) el.prepend(photoBadge(info)); } new bootstrap.Modal(document.getElementById('locationModal')).show();
+  /** Opens localized details for the selected latest or historical marker. */
+  function openLocationModal(location, status) {
+    const content = document.getElementById('modalContent');
+    content.innerHTML = groupLocationDetails(location, status);
+    const info = idToInfoMap().get(location.userId);
+    if (info) content.prepend(photoBadge(info));
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('locationModal')).show();
   }
 
 })();

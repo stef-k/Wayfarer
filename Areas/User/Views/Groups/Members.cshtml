@@ -1,30 +1,33 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
     var group = (Wayfarer.Models.Group)ViewBag.Group;
     var members = (IEnumerable<dynamic>)ViewBag.Members;
     var invites = (IEnumerable<dynamic>)ViewBag.Invites;
-    ViewData["Title"] = $"Members - {group.Name}";
+    ViewData["Title"] = T["Groups.MembersTitle", group.Name];
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <h2>@ViewData["Title"]</h2>
-  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Back</a>
+  <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">@T["Groups.Back"]</a>
   </div>
 
 <div class="row">
   <div class="col-md-7">
-    <h4>Roster</h4>
+    <h4>@T["Groups.Roster"]</h4>
     <div class="table-responsive">
     <table id="rosterTable" class="table table-striped">
       <thead>
       <tr>
-        <th>User</th>
-        <th>Display Name</th>
+        <th>@T["Groups.User"]</th>
+        <th>@T["Groups.DisplayName"]</th>
         <th>
-            Role
+            @T["Groups.Role"]
             <i class="bi bi-question-circle text-muted ms-1"
-               data-tippy-content="Owner: full control, cannot leave the group. Member: can view locations."></i>
+               data-tippy-content="@T["Groups.RolesHelp"]"></i>
         </th>
-        <th>Status</th>
+        <th>@T["Groups.Status"]</th>
         <th></th>
       </tr>
       </thead>
@@ -34,18 +37,18 @@
           <tr data-user-id="@x.u.Id">
             <td>@x.u.UserName</td>
             <td><span data-photo-user="@x.u.Id"><partial name="_ProfilePhoto" model="@(new Wayfarer.Services.ProfilePhotoBadge((string)x.u.DisplayName, (string)x.u.UserName, new Wayfarer.Services.UserColorService().GetColorHex((string)x.u.UserName), x.u.IsActive ? Wayfarer.Services.ProfilePhotoReference.Group((Guid?)x.u.ProfilePhotoVersion, group.Id, (string)x.u.Id) : null))" /></span>@x.u.DisplayName</td>
-            <td>@x.m.Role</td>
-            <td>@x.m.Status</td>
+            <td>@(Wayfarer.Localization.GroupWebText.Role(T, (string)x.m.Role))</td>
+            <td>@T["Groups.StatusActive"]</td>
             <td>
               @{
                   bool isOwnerUser = string.Equals((string)x.u.Id, (string)group.OwnerUserId, StringComparison.OrdinalIgnoreCase);
               }
               @if (!isOwnerUser)
               {
-                  <form asp-area="User" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Remove Member" data-confirm-message="Are you sure you want to remove this member from the group?">
+                  <form asp-area="User" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="@T["Groups.RemoveMember"]" data-confirm-message="@T["Groups.RemoveConfirm"]">
                       <input type="hidden" name="groupId" value="@group.Id" />
                       <input type="hidden" name="userId" value="@x.u.Id" />
-                      <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                      <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="@T["Groups.RemoveNamed", (string)x.u.UserName]">@T["Groups.Remove"]</button>
                   </form>
               }
             </td>
@@ -57,10 +60,10 @@
   </div>
 
   <div class="col-md-5">
-    <h4>Invite</h4>
+    <h4>@T["Groups.Invite"]</h4>
     <div class="alert alert-light small mb-2">
         <i class="bi bi-lightbulb me-1"></i>
-        Search by username or display name. Invitees can accept or decline the invitation.
+        @T["Groups.InviteHelp"]
     </div>
     <form id="inviteForm" asp-area="User" asp-controller="Groups" asp-action="Invite" method="post">
       @Html.AntiForgeryToken()
@@ -68,38 +71,48 @@
       <input type="hidden" id="inviteeUserId" name="inviteeUserId" />
 
       <div class="mb-2">
-        <label class="form-label" for="userSearch">Search User</label>
+        <label class="form-label" for="userSearch">@T["Groups.SearchUser"]</label>
         <div class="input-group">
-          <input class="form-control" id="userSearch" placeholder="Type username or display name" />
-          <button type="button" id="userSearchBtn" class="btn btn-outline-secondary">Search</button>
+          <input class="form-control" id="userSearch" placeholder="@T["Groups.SearchPrompt"]" />
+          <button type="button" id="userSearchBtn" class="btn btn-outline-secondary">@T["Groups.Search"]</button>
           <span id="userSearchSpinner" class="ms-2 align-self-center d-none">
               <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
           </span>
         </div>
-        <div class="form-text">Type at least 2 characters; results update automatically (or click Search).</div>
+        <div class="form-text">@T["Groups.SearchHint"]</div>
+        <div id="groupUserSearchStatus" class="form-text" role="status"></div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="userResults">Results</label>
+        <label class="form-label" for="userResults">@T["Groups.Results"]</label>
         <select class="form-select" id="userResults"></select>
-        <div class="invalid-feedback">Please select a user to invite.</div>
-        <div class="form-text">Select a user and click Send Invite.</div>
+        <div class="invalid-feedback">@T["Groups.SelectInvitee"]</div>
       </div>
 
-      <button type="submit" class="btn btn-primary">Send Invite</button>
+      <button type="submit" class="btn btn-primary">@T["Groups.SendInvite"]</button>
     </form>
 
-    <h4 class="mt-4">Pending Invites</h4>
+    @* Clone the same accessible member action on a live roster update. *@
+    <template id="groupMemberRemoveTemplate">
+      <form asp-area="User" asp-controller="Groups" asp-action="RemoveMember" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="@T["Groups.RemoveMember"]" data-confirm-message="@T["Groups.RemoveConfirm"]">
+        <input type="hidden" name="groupId" value="@group.Id" />
+        <input type="hidden" name="userId" />
+        <button type="submit" class="btn btn-sm btn-outline-danger">@T["Groups.Remove"]</button>
+      </form>
+    </template>
+
+    <h4 class="mt-4">@T["Groups.PendingInvites"]</h4>
     <div class="table-responsive">
     <table id="invitesTable" class="table">
       <thead>
       <tr>
-        <th>Invitee</th>
-        <th>Created</th>
+        <th>@T["Groups.Invitee"]</th>
+        <th>@T["Groups.Created"]</th>
         <th></th>
       </tr>
       </thead>
       <tbody>
+      <tr class="js-invites-empty" hidden="@invites.Any()"><td colspan="3" class="text-muted text-center">@T["Groups.NoInvites"]</td></tr>
       @foreach (var inv in invites)
       {
           <tr data-invite-id="@inv.Id">
@@ -115,14 +128,14 @@
             </td>
             <td>
               <time class="js-invite-created" data-created-at="@inv.CreatedAt.ToString("O")">
-                  @inv.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                  @(((DateTime)inv.CreatedAt).ToString("g", T.DisplayCulture))
               </time>
             </td>
             <td>
-              <form asp-area="User" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="Cancel Invitation" data-confirm-message="Cancel this pending invite?">
+              <form asp-area="User" asp-controller="Groups" asp-action="RevokeInvite" method="post" class="d-inline js-confirm js-ajax" data-confirm-title="@T["Groups.RevokeInvite"]" data-confirm-message="@T["Groups.RevokeConfirm"]">
                 <input type="hidden" name="groupId" value="@group.Id" />
                 <input type="hidden" name="inviteId" value="@inv.Id" />
-                <button type="submit" class="btn btn-sm btn-outline-secondary">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-outline-secondary">@T["Groups.RevokeInvite"]</button>
               </form>
             </td>
           </tr>

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -45,7 +46,11 @@ public sealed class GroupSharingControlsRenderingTests : TestBase
         Assert.Equal(member.Id, Assert.IsType<GroupMember>(result.ViewData["MyMembership"]).Id);
         using var host = Host.CreateDefaultBuilder().ConfigureWebHostDefaults(web => web
             .UseSetting(WebHostDefaults.ApplicationKey, typeof(Group).Assembly.GetName().Name)
-            .ConfigureServices(services => services.AddControllersWithViews().AddApplicationPart(typeof(Group).Assembly))
+            .ConfigureServices((context, services) =>
+            {
+                services.AddControllersWithViews().AddApplicationPart(typeof(Group).Assembly);
+                services.AddWebLocalization(context.Configuration);
+            })
             .Configure(_ => { })).Build();
         using var scope = host.Services.CreateScope();
         var html = await RenderAsync(scope.ServiceProvider, group, member);

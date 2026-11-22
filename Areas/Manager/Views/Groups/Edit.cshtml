@@ -1,32 +1,38 @@
 @model Wayfarer.Models.Group
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewData["Title"] = "Edit Group";
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
+    ViewData["LanguageSafeGet"] = Url.Action("Edit", new { id = Model.Id });
+    ViewData["Title"] = T["Groups.EditGroup"];
 }
 
-<h2>Edit Group</h2>
+<h2>@T["Groups.EditGroup"]</h2>
 
 <form asp-area="Manager" asp-controller="Groups" asp-action="Edit" method="post" id="groupEditForm" novalidate>
     <input type="hidden" name="id" value="@Model.Id" />
     <div class="mb-3">
-        <label class="form-label" for="name">Name</label>
-        <input class="form-control" id="name" name="name" value="@Model.Name" required maxlength="200" />
-        <div class="invalid-feedback">Please provide a group name.</div>
+        <label class="form-label" for="name">@T["Groups.Name"]</label>
+        <input class="form-control" id="name" name="name" value="@(ViewData.ModelState["name"]?.AttemptedValue ?? Model.Name)" required maxlength="200" />
+        <div class="invalid-feedback">@T["Groups.NameRequired"]</div>
+        @Html.ValidationMessage("name", null, new { @class = "text-danger" })
     </div>
     <div class="mb-3">
-        <label class="form-label" for="description">Description</label>
-        <textarea class="form-control" id="description" name="description" rows="3">@Model.Description</textarea>
+        <label class="form-label" for="description">@T["Groups.Description"]</label>
+        <textarea class="form-control" id="description" name="description" rows="3">@(ViewData.ModelState["description"]?.AttemptedValue ?? Model.Description)</textarea>
     </div>
     <div class="mb-3">
-        <label class="form-label" for="groupType">Type</label>
+        <label class="form-label" for="groupType">@T["Groups.Type"]</label>
         <select class="form-select" id="groupType" name="groupType" value="@Model.GroupType" required>
-            <option value="Organization" selected="@(Model.GroupType == "Organization" ? "selected" : null)">Organization</option>
-            <option value="Family" selected="@(Model.GroupType == "Family" ? "selected" : null)">Family</option>
-            <option value="Friends" selected="@(Model.GroupType == "Friends" ? "selected" : null)">Friends</option>
+            <option value="Organization" selected="@((ViewData.ModelState["groupType"]?.AttemptedValue ?? Model.GroupType) == "Organization" ? "selected" : null)">@T["Groups.TypeOrganization"]</option>
+            <option value="Family" selected="@((ViewData.ModelState["groupType"]?.AttemptedValue ?? Model.GroupType) == "Family" ? "selected" : null)">@T["Groups.TypeFamily"]</option>
+            <option value="Friends" selected="@((ViewData.ModelState["groupType"]?.AttemptedValue ?? Model.GroupType) == "Friends" ? "selected" : null)">@T["Groups.TypeFriends"]</option>
         </select>
-        <div class="invalid-feedback">Please select a group type.</div>
+        <div class="invalid-feedback">@T["Groups.TypeRequired"]</div>
+        @Html.ValidationMessage("groupType", null, new { @class = "text-danger" })
     </div>
-    <button type="submit" class="btn btn-primary">Save</button>
-    <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">Cancel</a>
+    <button type="submit" class="btn btn-primary">@T["Groups.Save"]</button>
+    <a class="btn btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Index">@T["Shell.Cancel"]</a>
   </form>
 
 @section Scripts {

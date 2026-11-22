@@ -1,14 +1,19 @@
-import { formatDateTime, getViewerTimeZone } from './datetime.js';
+import { groupDateTime, groupMessage as t } from './group-web-messages.js';
 
 /** Shows the stored invitation timestamps in the viewer's time zone. */
 export const formatInviteRows = root => {
-    const displayTimeZone = getViewerTimeZone();
     root.querySelectorAll('.js-invite-created').forEach(time => {
         const iso = time.getAttribute('data-created-at');
         if (!iso) return;
-        const formatted = formatDateTime({ iso, displayTimeZone, includeOffset: true });
+        const formatted = groupDateTime(iso);
         if (formatted) time.textContent = formatted;
     });
+};
+
+/** Keeps the server-rendered empty state aligned with confirmed pending rows. */
+const showEmptyState = table => {
+    const empty = table?.querySelector('.js-invites-empty');
+    if (empty) empty.hidden = Boolean(table.querySelector('tr[data-invite-id]'));
 };
 
 const inviteRowsSelector = '#invitesTable tbody';
@@ -19,11 +24,13 @@ let latestRead;
 /** Records a confirmed removal even when the pending row is absent. */
 export const removeInviteRow = inviteId => {
     removedInviteIds.add(inviteId);
-    document.querySelector(inviteRowsSelector)?.querySelector(`tr[data-invite-id="${inviteId}"]`)?.remove();
+    const table = document.querySelector(inviteRowsSelector);
+    table?.querySelector(`tr[data-invite-id="${inviteId}"]`)?.remove();
+    showEmptyState(table);
 };
 
 /** Refreshes pending rows after a confirmed Invite and publishes only to the current Members view. */
-export const refreshInviteRows = async attachConfirmHandler => {
+export const refreshInviteRows = async () => {
     const current = document.querySelector(inviteRowsSelector);
     if (!current) return;
 
@@ -46,10 +53,10 @@ export const refreshInviteRows = async attachConfirmHandler => {
             if (removedInviteIds.has(row.dataset.inviteId)) row.remove();
         });
         formatInviteRows(incoming);
-        incoming.querySelectorAll('form.js-confirm').forEach(attachConfirmHandler);
         current.replaceChildren(...incoming.children);
+        showEmptyState(current);
     } catch {
         if (isCurrent())
-            wayfarer.showAlert?.('warning', 'Invitation sent. Refresh this page to update pending invitations.');
+            wayfarer.showAlert?.('warning', t('InviteRefreshFailed', 'Refresh this page to update pending invitations.'));
     }
 };

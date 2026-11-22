@@ -1,0 +1,498 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Groups.Accept" xml:space="preserve">
+    <value>Αποδοχή</value>
+  </data>
+  <data name="Groups.AcceptConfirm" xml:space="preserve">
+    <value>Θέλετε να γίνετε μέλος της ομάδας;</value>
+  </data>
+  <data name="Groups.AcceptFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποδοχή της πρόσκλησης.</value>
+  </data>
+  <data name="Groups.AcceptTitle" xml:space="preserve">
+    <value>Αποδοχή πρόσκλησης</value>
+  </data>
+  <data name="Groups.AccountUnavailable" xml:space="preserve">
+    <value>Αυτός ο λογαριασμός δεν είναι πλέον διαθέσιμος. Επιλέξτε άλλον λογαριασμό.</value>
+  </data>
+  <data name="Groups.Actions" xml:space="preserve">
+    <value>Ενέργειες</value>
+  </data>
+  <data name="Groups.AlreadyJoined" xml:space="preserve">
+    <value>Είστε ήδη ενεργό μέλος.</value>
+  </data>
+  <data name="Groups.AlreadyMember" xml:space="preserve">
+    <value>Ο χρήστης είναι ήδη ενεργό μέλος.</value>
+  </data>
+  <data name="Groups.Back" xml:space="preserve">
+    <value>Πίσω</value>
+  </data>
+  <data name="Groups.CloseMembers" xml:space="preserve">
+    <value>Κλείσιμο πίνακα μελών</value>
+  </data>
+  <data name="Groups.Create" xml:space="preserve">
+    <value>Δημιουργία</value>
+  </data>
+  <data name="Groups.CreateFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η δημιουργία της ομάδας. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Groups.Created" xml:space="preserve">
+    <value>Δημιουργήθηκε</value>
+  </data>
+  <data name="Groups.Day" xml:space="preserve">
+    <value>Ημέρα</value>
+  </data>
+  <data name="Groups.Decline" xml:space="preserve">
+    <value>Απόρριψη</value>
+  </data>
+  <data name="Groups.DeclineConfirm" xml:space="preserve">
+    <value>Να απορριφθεί αυτή η πρόσκληση;</value>
+  </data>
+  <data name="Groups.DeclineFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η απόρριψη της πρόσκλησης.</value>
+  </data>
+  <data name="Groups.DeclineTitle" xml:space="preserve">
+    <value>Απόρριψη πρόσκλησης</value>
+  </data>
+  <data name="Groups.Delete" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="Groups.DeleteConfirm" xml:space="preserve">
+    <value>Να διαγραφεί η ομάδα; Η ενέργεια δεν μπορεί να αναιρεθεί.</value>
+  </data>
+  <data name="Groups.DeleteGroup" xml:space="preserve">
+    <value>Διαγραφή ομάδας</value>
+  </data>
+  <data name="Groups.Description" xml:space="preserve">
+    <value>Περιγραφή</value>
+  </data>
+  <data name="Groups.DisplayName" xml:space="preserve">
+    <value>Εμφανιζόμενο όνομα</value>
+  </data>
+  <data name="Groups.DuplicateInvite" xml:space="preserve">
+    <value>Ο χρήστης έχει ήδη εκκρεμή πρόσκληση για την ομάδα.</value>
+  </data>
+  <data name="Groups.DuplicateName" xml:space="preserve">
+    <value>Έχετε ήδη ομάδα με αυτό το όνομα.</value>
+  </data>
+  <data name="Groups.Edit" xml:space="preserve">
+    <value>Επεξεργασία</value>
+  </data>
+  <data name="Groups.EditGroup" xml:space="preserve">
+    <value>Επεξεργασία ομάδας</value>
+  </data>
+  <data name="Groups.EmptyGroups" xml:space="preserve">
+    <value>Δεν διαχειρίζεστε ακόμη καμία ομάδα.</value>
+  </data>
+  <data name="Groups.EmptyJoined" xml:space="preserve">
+    <value>Δεν συμμετέχετε ακόμη σε κάποια ομάδα.</value>
+  </data>
+  <data name="Groups.Expires" xml:space="preserve">
+    <value>Λήξη</value>
+  </data>
+  <data name="Groups.Forbidden" xml:space="preserve">
+    <value>Δεν έχετε δικαίωμα να εκτελέσετε αυτή την ενέργεια στην ομάδα.</value>
+  </data>
+  <data name="Groups.GoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="Groups.Group" xml:space="preserve">
+    <value>Ομάδα</value>
+  </data>
+  <data name="Groups.GroupCreated" xml:space="preserve">
+    <value>Η ομάδα δημιουργήθηκε</value>
+  </data>
+  <data name="Groups.GroupDeleted" xml:space="preserve">
+    <value>Η ομάδα διαγράφηκε</value>
+  </data>
+  <data name="Groups.GroupMissing" xml:space="preserve">
+    <value>Αυτή η ομάδα δεν είναι πλέον διαθέσιμη.</value>
+  </data>
+  <data name="Groups.GroupUpdated" xml:space="preserve">
+    <value>Η ομάδα ενημερώθηκε</value>
+  </data>
+  <data name="Groups.HideAll" xml:space="preserve">
+    <value>Απόκρυψη όλων</value>
+  </data>
+  <data name="Groups.HistoricalLocation" xml:space="preserve">
+    <value>Τοποθεσία από το ιστορικό</value>
+  </data>
+  <data name="Groups.HistoryEmpty" xml:space="preserve">
+    <value>Δεν υπάρχουν καταγραφές τοποθεσίας σε αυτή την περιοχή του χάρτη για την επιλεγμένη περίοδο.</value>
+  </data>
+  <data name="Groups.HistoryFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του ιστορικού της ομάδας. Αλλάξτε την προβολή του χάρτη ή την ημερομηνία για να δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Groups.Intro" xml:space="preserve">
+    <value>Με τις ομάδες μπορείτε να κοινοποιείτε ζωντανά την τοποθεσία σας σε άτομα που εμπιστεύεστε και να βλέπετε τις κοινοποιημένες τοποθεσίες στον χάρτη της ομάδας.</value>
+  </data>
+  <data name="Groups.InvitationBeforeDeparture" xml:space="preserve">
+    <value>Δεν μπορείτε να χρησιμοποιήσετε αυτή την πρόσκληση μετά την αποχώρηση από την ομάδα. Ζητήστε νέα πρόσκληση.</value>
+  </data>
+  <data name="Groups.InvitationExpired" xml:space="preserve">
+    <value>Η πρόσκληση έχει λήξει.</value>
+  </data>
+  <data name="Groups.InvitationMissing" xml:space="preserve">
+    <value>Αυτή η πρόσκληση δεν είναι πλέον διαθέσιμη.</value>
+  </data>
+  <data name="Groups.InvitationSettled" xml:space="preserve">
+    <value>Η πρόσκληση δεν εκκρεμεί πλέον.</value>
+  </data>
+  <data name="Groups.InvitationsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των προσκλήσεων.</value>
+  </data>
+  <data name="Groups.InvitationsLoading" xml:space="preserve">
+    <value>Φόρτωση προσκλήσεων…</value>
+  </data>
+  <data name="Groups.Invite" xml:space="preserve">
+    <value>Πρόσκληση</value>
+  </data>
+  <data name="Groups.InviteAccepted" xml:space="preserve">
+    <value>Η πρόσκληση έγινε αποδεκτή.</value>
+  </data>
+  <data name="Groups.InviteDeclined" xml:space="preserve">
+    <value>Η πρόσκληση απορρίφθηκε.</value>
+  </data>
+  <data name="Groups.InviteFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποστολή της πρόσκλησης.</value>
+  </data>
+  <data name="Groups.InviteHelp" xml:space="preserve">
+    <value>Αναζητήστε με το όνομα χρήστη ή το εμφανιζόμενο όνομα. Οι προσκεκλημένοι μπορούν να αποδεχτούν ή να απορρίψουν την πρόσκληση.</value>
+  </data>
+  <data name="Groups.InviteRefreshFailed" xml:space="preserve">
+    <value>Ανανεώστε τη σελίδα για να ενημερώσετε τις εκκρεμείς προσκλήσεις.</value>
+  </data>
+  <data name="Groups.InviteRevoked" xml:space="preserve">
+    <value>Η πρόσκληση ακυρώθηκε.</value>
+  </data>
+  <data name="Groups.InviteSent" xml:space="preserve">
+    <value>Η πρόσκληση στάλθηκε.</value>
+  </data>
+  <data name="Groups.InvitedBy" xml:space="preserve">
+    <value>Πρόσκληση από</value>
+  </data>
+  <data name="Groups.Invitee" xml:space="preserve">
+    <value>Προσκεκλημένος</value>
+  </data>
+  <data name="Groups.LastManagerLeave" xml:space="preserve">
+    <value>Μεταβιβάστε τη διαχείριση ή προσθέστε άλλον διαχειριστή πριν αποχωρήσετε από τον οργανισμό.</value>
+  </data>
+  <data name="Groups.LastManagerRemove" xml:space="preserve">
+    <value>Δεν επιτρέπεται η αφαίρεση του τελευταίου διαχειριστή μιας ομάδας οργανισμού.</value>
+  </data>
+  <data name="Groups.LatestFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των πιο πρόσφατων τοποθεσιών της ομάδας.</value>
+  </data>
+  <data name="Groups.LatestLocation" xml:space="preserve">
+    <value>Πιο πρόσφατη τοποθεσία</value>
+  </data>
+  <data name="Groups.LatestOnlyHelp" xml:space="preserve">
+    <value>Όταν είναι απενεργοποιημένο, εμφανίζονται μόνο οι πιο πρόσφατες ή ζωντανές τοποθεσίες.</value>
+  </data>
+  <data name="Groups.Latitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος</value>
+  </data>
+  <data name="Groups.Leave" xml:space="preserve">
+    <value>Αποχώρηση</value>
+  </data>
+  <data name="Groups.LeaveConfirm" xml:space="preserve">
+    <value>Θέλετε να αποχωρήσετε από αυτή την ομάδα;</value>
+  </data>
+  <data name="Groups.LeaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποχώρηση από την ομάδα.</value>
+  </data>
+  <data name="Groups.LeaveGroup" xml:space="preserve">
+    <value>Αποχώρηση από την ομάδα</value>
+  </data>
+  <data name="Groups.LeftGroup" xml:space="preserve">
+    <value>Αποχωρήσατε από την ομάδα.</value>
+  </data>
+  <data name="Groups.LiveLocation" xml:space="preserve">
+    <value>Ζωντανή τοποθεσία</value>
+  </data>
+  <data name="Groups.LocationDetails" xml:space="preserve">
+    <value>Στοιχεία τοποθεσίας</value>
+  </data>
+  <data name="Groups.Longitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος</value>
+  </data>
+  <data name="Groups.ManagedTypesHelp" xml:space="preserve">
+    <value>Οι ομάδες οργανισμού χρειάζονται τουλάχιστον έναν διαχειριστή. Στις οικογενειακές ομάδες τα μέλη βλέπουν τις τοποθεσίες των άλλων μελών. Στις ομάδες φίλων κάθε μέλος αποφασίζει αν θα κοινοποιεί τις τοποθεσίες του.</value>
+  </data>
+  <data name="Groups.Map" xml:space="preserve">
+    <value>Χάρτης</value>
+  </data>
+  <data name="Groups.MapHelp" xml:space="preserve">
+    <value>Ο χάρτης εμφανίζει αρχικά ζωντανές τοποθεσίες. Επιλέξτε ημερομηνία για να δείτε το ιστορικό. Η προβολή ημέρας εμφανίζει όλες τις διαθέσιμες τοποθεσίες. Η προβολή μήνα ή έτους μπορεί να εμφανίζει δείγμα.</value>
+  </data>
+  <data name="Groups.MapTitle" xml:space="preserve">
+    <value>Χάρτης – {0}</value>
+  </data>
+  <data name="Groups.Maps" xml:space="preserve">
+    <value>Χάρτες</value>
+  </data>
+  <data name="Groups.MemberJoined" xml:space="preserve">
+    <value>Ένας χρήστης έγινε μέλος της ομάδας.</value>
+  </data>
+  <data name="Groups.MemberLeft" xml:space="preserve">
+    <value>Ένα μέλος αποχώρησε από την ομάδα.</value>
+  </data>
+  <data name="Groups.MemberRemoved" xml:space="preserve">
+    <value>Το μέλος αφαιρέθηκε.</value>
+  </data>
+  <data name="Groups.Members" xml:space="preserve">
+    <value>Μέλη</value>
+  </data>
+  <data name="Groups.MembersTitle" xml:space="preserve">
+    <value>Μέλη – {0}</value>
+  </data>
+  <data name="Groups.Month" xml:space="preserve">
+    <value>Μήνας</value>
+  </data>
+  <data name="Groups.Name" xml:space="preserve">
+    <value>Όνομα</value>
+  </data>
+  <data name="Groups.NameRequired" xml:space="preserve">
+    <value>Συμπληρώστε το όνομα της ομάδας.</value>
+  </data>
+  <data name="Groups.NewGroup" xml:space="preserve">
+    <value>Νέα ομάδα</value>
+  </data>
+  <data name="Groups.NextDay" xml:space="preserve">
+    <value>Επόμενη ημέρα</value>
+  </data>
+  <data name="Groups.NextMonth" xml:space="preserve">
+    <value>Επόμενος μήνας</value>
+  </data>
+  <data name="Groups.NextYear" xml:space="preserve">
+    <value>Επόμενο έτος</value>
+  </data>
+  <data name="Groups.NoExpiry" xml:space="preserve">
+    <value>Χωρίς λήξη</value>
+  </data>
+  <data name="Groups.NoInvites" xml:space="preserve">
+    <value>Δεν υπάρχουν εκκρεμείς προσκλήσεις.</value>
+  </data>
+  <data name="Groups.Only" xml:space="preserve">
+    <value>Μόνο</value>
+  </data>
+  <data name="Groups.OnlyHelp" xml:space="preserve">
+    <value>Εμφάνιση μόνο αυτού του μέλους και απόκρυψη των υπόλοιπων.</value>
+  </data>
+  <data name="Groups.OnlyNamed" xml:space="preserve">
+    <value>Εμφάνιση μόνο του μέλους {0}</value>
+  </data>
+  <data name="Groups.OrgSharingOff" xml:space="preserve">
+    <value>Η κοινοποίηση είναι ανενεργή. Κάθε μέλος βλέπει μόνο τις δικές του τοποθεσίες.</value>
+  </data>
+  <data name="Groups.OrgSharingOn" xml:space="preserve">
+    <value>Η κοινοποίηση είναι ενεργή. Κάθε μέλος μπορεί να αποκρύψει τις τοποθεσίες του.</value>
+  </data>
+  <data name="Groups.OrgSharingToggle" xml:space="preserve">
+    <value>Ενεργοποίηση κοινοποίησης τοποθεσιών μεταξύ μελών του οργανισμού</value>
+  </data>
+  <data name="Groups.OwnerLeaveSuccession" xml:space="preserve">
+    <value>Ορίστε ένα κατάλληλο μέλος ως διαχειριστή πριν αποχωρήσετε από τον οργανισμό ή διαγράψτε την ομάδα.</value>
+  </data>
+  <data name="Groups.OwnerProtected" xml:space="preserve">
+    <value>Δεν επιτρέπεται η αφαίρεση του κατόχου.</value>
+  </data>
+  <data name="Groups.OwnerRemoveSuccession" xml:space="preserve">
+    <value>Ορίστε ένα κατάλληλο μέλος ως διαχειριστή πριν αφαιρέσετε τον κάτοχο του οργανισμού ή διαγράψτε την ομάδα.</value>
+  </data>
+  <data name="Groups.PendingInvites" xml:space="preserve">
+    <value>Εκκρεμείς προσκλήσεις</value>
+  </data>
+  <data name="Groups.PersonalSharing" xml:space="preserve">
+    <value>Να επιτρέπεται στα μέλη της ομάδας να βλέπουν τις τοποθεσίες μου</value>
+  </data>
+  <data name="Groups.PersonalSharingHelp" xml:space="preserve">
+    <value>Η ρύθμιση αφορά τις δικές σας τοποθεσίες. Μπορείτε ακόμη να βλέπετε τις τοποθεσίες των μελών που τις κοινοποιούν.</value>
+  </data>
+  <data name="Groups.PersonalTypesHelp" xml:space="preserve">
+    <value>Στις οικογενειακές ομάδες τα μέλη βλέπουν τις τοποθεσίες των άλλων μελών. Στις ομάδες φίλων κάθε μέλος αποφασίζει αν θα κοινοποιεί τις τοποθεσίες του.</value>
+  </data>
+  <data name="Groups.PersonalTypesOnly" xml:space="preserve">
+    <value>Μπορείτε να επιλέξετε μόνο Οικογένεια ή Φίλοι.</value>
+  </data>
+  <data name="Groups.PreviousDay" xml:space="preserve">
+    <value>Προηγούμενη ημέρα</value>
+  </data>
+  <data name="Groups.PreviousMonth" xml:space="preserve">
+    <value>Προηγούμενος μήνας</value>
+  </data>
+  <data name="Groups.PreviousYear" xml:space="preserve">
+    <value>Προηγούμενο έτος</value>
+  </data>
+  <data name="Groups.RecordedTime" xml:space="preserve">
+    <value>Καταγεγραμμένη τοπική ώρα</value>
+  </data>
+  <data name="Groups.RecordedTooltip" xml:space="preserve">
+    <value>Καταγραφή: {0}</value>
+  </data>
+  <data name="Groups.RecordedUnavailable" xml:space="preserve">
+    <value>Η καταγεγραμμένη ώρα δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Groups.Remove" xml:space="preserve">
+    <value>Αφαίρεση</value>
+  </data>
+  <data name="Groups.RemoveConfirm" xml:space="preserve">
+    <value>Να αφαιρεθεί αυτό το μέλος από την ομάδα;</value>
+  </data>
+  <data name="Groups.RemoveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αφαίρεση του μέλους.</value>
+  </data>
+  <data name="Groups.RemoveMember" xml:space="preserve">
+    <value>Αφαίρεση μέλους</value>
+  </data>
+  <data name="Groups.RemoveNamed" xml:space="preserve">
+    <value>Αφαίρεση του μέλους {0} από την ομάδα</value>
+  </data>
+  <data name="Groups.Results" xml:space="preserve">
+    <value>Αποτελέσματα</value>
+  </data>
+  <data name="Groups.RevokeConfirm" xml:space="preserve">
+    <value>Να ακυρωθεί αυτή η εκκρεμής πρόσκληση;</value>
+  </data>
+  <data name="Groups.RevokeFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η ακύρωση της πρόσκλησης.</value>
+  </data>
+  <data name="Groups.RevokeInvite" xml:space="preserve">
+    <value>Ακύρωση πρόσκλησης</value>
+  </data>
+  <data name="Groups.Role" xml:space="preserve">
+    <value>Ρόλος</value>
+  </data>
+  <data name="Groups.RoleManager" xml:space="preserve">
+    <value>Διαχειριστής ομάδας</value>
+  </data>
+  <data name="Groups.RoleMember" xml:space="preserve">
+    <value>Μέλος</value>
+  </data>
+  <data name="Groups.RoleOwner" xml:space="preserve">
+    <value>Κάτοχος</value>
+  </data>
+  <data name="Groups.RolesHelp" xml:space="preserve">
+    <value>Ο κάτοχος διαχειρίζεται την ομάδα. Οι διαχειριστές ομάδας μπορούν να προσκαλούν και να αφαιρούν μέλη όπου επιτρέπεται. Τα μέλη μπορούν να βλέπουν τις κοινοποιημένες τοποθεσίες.</value>
+  </data>
+  <data name="Groups.Roster" xml:space="preserve">
+    <value>Κατάλογος μελών</value>
+  </data>
+  <data name="Groups.RosterRefreshFailed" xml:space="preserve">
+    <value>Ανανεώστε τη σελίδα για να ενημερώσετε τον κατάλογο μελών.</value>
+  </data>
+  <data name="Groups.Save" xml:space="preserve">
+    <value>Αποθήκευση</value>
+  </data>
+  <data name="Groups.Search" xml:space="preserve">
+    <value>Αναζήτηση</value>
+  </data>
+  <data name="Groups.SearchBusy" xml:space="preserve">
+    <value>Αναζήτηση χρηστών…</value>
+  </data>
+  <data name="Groups.SearchEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν χρήστες.</value>
+  </data>
+  <data name="Groups.SearchFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των χρηστών. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Groups.SearchHint" xml:space="preserve">
+    <value>Πληκτρολογήστε τουλάχιστον 2 χαρακτήρες για αυτόματη αναζήτηση ή επιλέξτε Αναζήτηση.</value>
+  </data>
+  <data name="Groups.SearchPrompt" xml:space="preserve">
+    <value>Πληκτρολογήστε όνομα χρήστη ή εμφανιζόμενο όνομα</value>
+  </data>
+  <data name="Groups.SearchUser" xml:space="preserve">
+    <value>Αναζήτηση χρήστη</value>
+  </data>
+  <data name="Groups.SearchUsers" xml:space="preserve">
+    <value>Αναζήτηση χρηστών…</value>
+  </data>
+  <data name="Groups.SelectAll" xml:space="preserve">
+    <value>Επιλογή όλων</value>
+  </data>
+  <data name="Groups.SelectInvitee" xml:space="preserve">
+    <value>Επιλέξτε τον χρήστη που θέλετε να προσκαλέσετε.</value>
+  </data>
+  <data name="Groups.SendInvite" xml:space="preserve">
+    <value>Αποστολή πρόσκλησης</value>
+  </data>
+  <data name="Groups.SessionEnded" xml:space="preserve">
+    <value>Συνδεθείτε ξανά και δοκιμάστε εκ νέου.</value>
+  </data>
+  <data name="Groups.SharingFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση της κοινοποίησης. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Groups.ShowAll" xml:space="preserve">
+    <value>Εμφάνιση όλων</value>
+  </data>
+  <data name="Groups.ShowHistoryToday" xml:space="preserve">
+    <value>Εμφάνιση ιστορικού τοποθεσιών για σήμερα</value>
+  </data>
+  <data name="Groups.SourceZoneUnavailable" xml:space="preserve">
+    <value>Η ζώνη ώρας της καταγραφής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Groups.Status" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="Groups.StatusActive" xml:space="preserve">
+    <value>Ενεργό</value>
+  </data>
+  <data name="Groups.SuccessorDuplicateName" xml:space="preserve">
+    <value>Ο διάδοχος έχει ήδη ομάδα με το ίδιο όνομα.</value>
+  </data>
+  <data name="Groups.Today" xml:space="preserve">
+    <value>Σήμερα</value>
+  </data>
+  <data name="Groups.Type" xml:space="preserve">
+    <value>Τύπος</value>
+  </data>
+  <data name="Groups.TypeFamily" xml:space="preserve">
+    <value>Οικογένεια</value>
+  </data>
+  <data name="Groups.TypeFriends" xml:space="preserve">
+    <value>Φίλοι</value>
+  </data>
+  <data name="Groups.TypeInvalid" xml:space="preserve">
+    <value>Ο τύπος ομάδας δεν είναι έγκυρος.</value>
+  </data>
+  <data name="Groups.TypeOrganization" xml:space="preserve">
+    <value>Οργανισμός</value>
+  </data>
+  <data name="Groups.TypeRequired" xml:space="preserve">
+    <value>Επιλέξτε τύπο ομάδας.</value>
+  </data>
+  <data name="Groups.Unconfirmed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επιβεβαίωση του αποτελέσματος. Ανανεώστε τη σελίδα πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Groups.User" xml:space="preserve">
+    <value>Χρήστης</value>
+  </data>
+  <data name="Groups.ViewLabel" xml:space="preserve">
+    <value>Προβολή:</value>
+  </data>
+  <data name="Groups.ViewPeriod" xml:space="preserve">
+    <value>Περίοδος προβολής</value>
+  </data>
+  <data name="Groups.ViewerTime" xml:space="preserve">
+    <value>Ημερομηνία και ώρα στη ζώνη ώρας σας</value>
+  </data>
+  <data name="Groups.Year" xml:space="preserve">
+    <value>Έτος</value>
+  </data>
+  <data name="Groups.YearPlaceholder" xml:space="preserve">
+    <value>ΕΕΕΕ</value>
+  </data>
+</root>

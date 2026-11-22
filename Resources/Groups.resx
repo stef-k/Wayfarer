@@ -1,0 +1,498 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Groups.Accept" xml:space="preserve">
+    <value>Accept</value>
+  </data>
+  <data name="Groups.AcceptConfirm" xml:space="preserve">
+    <value>Join this group?</value>
+  </data>
+  <data name="Groups.AcceptFailed" xml:space="preserve">
+    <value>Failed to accept invitation.</value>
+  </data>
+  <data name="Groups.AcceptTitle" xml:space="preserve">
+    <value>Accept Invitation</value>
+  </data>
+  <data name="Groups.AccountUnavailable" xml:space="preserve">
+    <value>This account is no longer available. Select another account.</value>
+  </data>
+  <data name="Groups.Actions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Groups.AlreadyJoined" xml:space="preserve">
+    <value>You are already an active member.</value>
+  </data>
+  <data name="Groups.AlreadyMember" xml:space="preserve">
+    <value>This user is already an active member.</value>
+  </data>
+  <data name="Groups.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Groups.CloseMembers" xml:space="preserve">
+    <value>Close members panel</value>
+  </data>
+  <data name="Groups.Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="Groups.CreateFailed" xml:space="preserve">
+    <value>The group could not be created. Please try again.</value>
+  </data>
+  <data name="Groups.Created" xml:space="preserve">
+    <value>Created</value>
+  </data>
+  <data name="Groups.Day" xml:space="preserve">
+    <value>Day</value>
+  </data>
+  <data name="Groups.Decline" xml:space="preserve">
+    <value>Decline</value>
+  </data>
+  <data name="Groups.DeclineConfirm" xml:space="preserve">
+    <value>Decline this invitation?</value>
+  </data>
+  <data name="Groups.DeclineFailed" xml:space="preserve">
+    <value>Failed to decline invitation.</value>
+  </data>
+  <data name="Groups.DeclineTitle" xml:space="preserve">
+    <value>Decline Invitation</value>
+  </data>
+  <data name="Groups.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Groups.DeleteConfirm" xml:space="preserve">
+    <value>Delete this group? This action cannot be undone.</value>
+  </data>
+  <data name="Groups.DeleteGroup" xml:space="preserve">
+    <value>Delete Group</value>
+  </data>
+  <data name="Groups.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Groups.DisplayName" xml:space="preserve">
+    <value>Display Name</value>
+  </data>
+  <data name="Groups.DuplicateInvite" xml:space="preserve">
+    <value>This user already has a pending invitation to the group.</value>
+  </data>
+  <data name="Groups.DuplicateName" xml:space="preserve">
+    <value>You already own a group with this name.</value>
+  </data>
+  <data name="Groups.Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Groups.EditGroup" xml:space="preserve">
+    <value>Edit Group</value>
+  </data>
+  <data name="Groups.EmptyGroups" xml:space="preserve">
+    <value>You do not manage any groups yet.</value>
+  </data>
+  <data name="Groups.EmptyJoined" xml:space="preserve">
+    <value>You have not joined any groups yet.</value>
+  </data>
+  <data name="Groups.Expires" xml:space="preserve">
+    <value>Expires</value>
+  </data>
+  <data name="Groups.Forbidden" xml:space="preserve">
+    <value>You do not have permission to perform this group action.</value>
+  </data>
+  <data name="Groups.GoogleMaps" xml:space="preserve">
+    <value>View in Google Maps</value>
+  </data>
+  <data name="Groups.Group" xml:space="preserve">
+    <value>Group</value>
+  </data>
+  <data name="Groups.GroupCreated" xml:space="preserve">
+    <value>Group created</value>
+  </data>
+  <data name="Groups.GroupDeleted" xml:space="preserve">
+    <value>Group deleted</value>
+  </data>
+  <data name="Groups.GroupMissing" xml:space="preserve">
+    <value>This group is no longer available.</value>
+  </data>
+  <data name="Groups.GroupUpdated" xml:space="preserve">
+    <value>Group updated</value>
+  </data>
+  <data name="Groups.HideAll" xml:space="preserve">
+    <value>Hide All</value>
+  </data>
+  <data name="Groups.HistoricalLocation" xml:space="preserve">
+    <value>Historical Location</value>
+  </data>
+  <data name="Groups.HistoryEmpty" xml:space="preserve">
+    <value>No historical locations in this map area for the selected period.</value>
+  </data>
+  <data name="Groups.HistoryFailed" xml:space="preserve">
+    <value>Could not load group location history. Change the map view or date to retry.</value>
+  </data>
+  <data name="Groups.Intro" xml:space="preserve">
+    <value>Groups let you share live locations with trusted people and see shared locations on the group map.</value>
+  </data>
+  <data name="Groups.InvitationBeforeDeparture" xml:space="preserve">
+    <value>This invitation cannot be used after leaving the group. Ask for a new invitation.</value>
+  </data>
+  <data name="Groups.InvitationExpired" xml:space="preserve">
+    <value>This invitation has expired.</value>
+  </data>
+  <data name="Groups.InvitationMissing" xml:space="preserve">
+    <value>This invitation is no longer available.</value>
+  </data>
+  <data name="Groups.InvitationSettled" xml:space="preserve">
+    <value>This invitation is no longer pending.</value>
+  </data>
+  <data name="Groups.InvitationsFailed" xml:space="preserve">
+    <value>Failed to load invitations.</value>
+  </data>
+  <data name="Groups.InvitationsLoading" xml:space="preserve">
+    <value>Loading invitations…</value>
+  </data>
+  <data name="Groups.Invite" xml:space="preserve">
+    <value>Invite</value>
+  </data>
+  <data name="Groups.InviteAccepted" xml:space="preserve">
+    <value>Invitation accepted.</value>
+  </data>
+  <data name="Groups.InviteDeclined" xml:space="preserve">
+    <value>Invitation declined.</value>
+  </data>
+  <data name="Groups.InviteFailed" xml:space="preserve">
+    <value>Failed to send invite.</value>
+  </data>
+  <data name="Groups.InviteHelp" xml:space="preserve">
+    <value>Search by username or display name. Invitees can accept or decline the invitation.</value>
+  </data>
+  <data name="Groups.InviteRefreshFailed" xml:space="preserve">
+    <value>Refresh this page to update pending invitations.</value>
+  </data>
+  <data name="Groups.InviteRevoked" xml:space="preserve">
+    <value>Invitation canceled.</value>
+  </data>
+  <data name="Groups.InviteSent" xml:space="preserve">
+    <value>Invitation sent.</value>
+  </data>
+  <data name="Groups.InvitedBy" xml:space="preserve">
+    <value>Invited By</value>
+  </data>
+  <data name="Groups.Invitee" xml:space="preserve">
+    <value>Invitee</value>
+  </data>
+  <data name="Groups.LastManagerLeave" xml:space="preserve">
+    <value>Transfer or add another Group Manager before leaving this Organization.</value>
+  </data>
+  <data name="Groups.LastManagerRemove" xml:space="preserve">
+    <value>Cannot remove the last manager from an Organization group.</value>
+  </data>
+  <data name="Groups.LatestFailed" xml:space="preserve">
+    <value>Could not load the latest group locations.</value>
+  </data>
+  <data name="Groups.LatestLocation" xml:space="preserve">
+    <value>Latest Location</value>
+  </data>
+  <data name="Groups.LatestOnlyHelp" xml:space="preserve">
+    <value>When off, only latest/live locations are shown.</value>
+  </data>
+  <data name="Groups.Latitude" xml:space="preserve">
+    <value>Latitude</value>
+  </data>
+  <data name="Groups.Leave" xml:space="preserve">
+    <value>Leave</value>
+  </data>
+  <data name="Groups.LeaveConfirm" xml:space="preserve">
+    <value>Are you sure you want to leave this group?</value>
+  </data>
+  <data name="Groups.LeaveFailed" xml:space="preserve">
+    <value>You could not leave the group.</value>
+  </data>
+  <data name="Groups.LeaveGroup" xml:space="preserve">
+    <value>Leave Group</value>
+  </data>
+  <data name="Groups.LeftGroup" xml:space="preserve">
+    <value>You left the group.</value>
+  </data>
+  <data name="Groups.LiveLocation" xml:space="preserve">
+    <value>Live Location</value>
+  </data>
+  <data name="Groups.LocationDetails" xml:space="preserve">
+    <value>Location Details</value>
+  </data>
+  <data name="Groups.Longitude" xml:space="preserve">
+    <value>Longitude</value>
+  </data>
+  <data name="Groups.ManagedTypesHelp" xml:space="preserve">
+    <value>Organization groups require at least one manager. Family members can see each other’s locations. Friends can control whether they share their own locations.</value>
+  </data>
+  <data name="Groups.Map" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="Groups.MapHelp" xml:space="preserve">
+    <value>The map starts with live locations. Choose a date to view history. Day view shows all available locations. Month and year views may show a sample.</value>
+  </data>
+  <data name="Groups.MapTitle" xml:space="preserve">
+    <value>Map – {0}</value>
+  </data>
+  <data name="Groups.Maps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="Groups.MemberJoined" xml:space="preserve">
+    <value>A user joined the group.</value>
+  </data>
+  <data name="Groups.MemberLeft" xml:space="preserve">
+    <value>A member left the group.</value>
+  </data>
+  <data name="Groups.MemberRemoved" xml:space="preserve">
+    <value>Member removed.</value>
+  </data>
+  <data name="Groups.Members" xml:space="preserve">
+    <value>Members</value>
+  </data>
+  <data name="Groups.MembersTitle" xml:space="preserve">
+    <value>Members – {0}</value>
+  </data>
+  <data name="Groups.Month" xml:space="preserve">
+    <value>Month</value>
+  </data>
+  <data name="Groups.Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Groups.NameRequired" xml:space="preserve">
+    <value>Please provide a group name.</value>
+  </data>
+  <data name="Groups.NewGroup" xml:space="preserve">
+    <value>New Group</value>
+  </data>
+  <data name="Groups.NextDay" xml:space="preserve">
+    <value>Next Day</value>
+  </data>
+  <data name="Groups.NextMonth" xml:space="preserve">
+    <value>Next Month</value>
+  </data>
+  <data name="Groups.NextYear" xml:space="preserve">
+    <value>Next Year</value>
+  </data>
+  <data name="Groups.NoExpiry" xml:space="preserve">
+    <value>Does not expire</value>
+  </data>
+  <data name="Groups.NoInvites" xml:space="preserve">
+    <value>No pending invitations.</value>
+  </data>
+  <data name="Groups.Only" xml:space="preserve">
+    <value>Only</value>
+  </data>
+  <data name="Groups.OnlyHelp" xml:space="preserve">
+    <value>Show only this member, hide all others.</value>
+  </data>
+  <data name="Groups.OnlyNamed" xml:space="preserve">
+    <value>Show only {0}</value>
+  </data>
+  <data name="Groups.OrgSharingOff" xml:space="preserve">
+    <value>Sharing is off; each member can see only their own locations.</value>
+  </data>
+  <data name="Groups.OrgSharingOn" xml:space="preserve">
+    <value>Sharing is on; each member can hide their own locations.</value>
+  </data>
+  <data name="Groups.OrgSharingToggle" xml:space="preserve">
+    <value>Enable peer location sharing in this Organization Group</value>
+  </data>
+  <data name="Groups.OwnerLeaveSuccession" xml:space="preserve">
+    <value>Promote an eligible member to Group Manager before leaving the Organization, or delete the group.</value>
+  </data>
+  <data name="Groups.OwnerProtected" xml:space="preserve">
+    <value>Owner cannot be removed.</value>
+  </data>
+  <data name="Groups.OwnerRemoveSuccession" xml:space="preserve">
+    <value>Promote an eligible member to Group Manager before removing the Organization’s owner, or delete the group.</value>
+  </data>
+  <data name="Groups.PendingInvites" xml:space="preserve">
+    <value>Pending Invitations</value>
+  </data>
+  <data name="Groups.PersonalSharing" xml:space="preserve">
+    <value>Allow group members to see my locations</value>
+  </data>
+  <data name="Groups.PersonalSharingHelp" xml:space="preserve">
+    <value>This controls your own sharing. You can still view other members who share.</value>
+  </data>
+  <data name="Groups.PersonalTypesHelp" xml:space="preserve">
+    <value>In Family groups, members can see each other’s locations. Friends can control whether they share their own locations.</value>
+  </data>
+  <data name="Groups.PersonalTypesOnly" xml:space="preserve">
+    <value>Only Family or Friends are allowed.</value>
+  </data>
+  <data name="Groups.PreviousDay" xml:space="preserve">
+    <value>Previous Day</value>
+  </data>
+  <data name="Groups.PreviousMonth" xml:space="preserve">
+    <value>Previous Month</value>
+  </data>
+  <data name="Groups.PreviousYear" xml:space="preserve">
+    <value>Previous Year</value>
+  </data>
+  <data name="Groups.RecordedTime" xml:space="preserve">
+    <value>Recorded local time</value>
+  </data>
+  <data name="Groups.RecordedTooltip" xml:space="preserve">
+    <value>Recorded: {0}</value>
+  </data>
+  <data name="Groups.RecordedUnavailable" xml:space="preserve">
+    <value>Recorded time unavailable</value>
+  </data>
+  <data name="Groups.Remove" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="Groups.RemoveConfirm" xml:space="preserve">
+    <value>Remove this member from the group?</value>
+  </data>
+  <data name="Groups.RemoveFailed" xml:space="preserve">
+    <value>The member could not be removed.</value>
+  </data>
+  <data name="Groups.RemoveMember" xml:space="preserve">
+    <value>Remove Member</value>
+  </data>
+  <data name="Groups.RemoveNamed" xml:space="preserve">
+    <value>Remove {0} from the group</value>
+  </data>
+  <data name="Groups.Results" xml:space="preserve">
+    <value>Results</value>
+  </data>
+  <data name="Groups.RevokeConfirm" xml:space="preserve">
+    <value>Cancel this pending invitation?</value>
+  </data>
+  <data name="Groups.RevokeFailed" xml:space="preserve">
+    <value>Unable to revoke invitation.</value>
+  </data>
+  <data name="Groups.RevokeInvite" xml:space="preserve">
+    <value>Cancel Invitation</value>
+  </data>
+  <data name="Groups.Role" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="Groups.RoleManager" xml:space="preserve">
+    <value>Group Manager</value>
+  </data>
+  <data name="Groups.RoleMember" xml:space="preserve">
+    <value>Member</value>
+  </data>
+  <data name="Groups.RoleOwner" xml:space="preserve">
+    <value>Owner</value>
+  </data>
+  <data name="Groups.RolesHelp" xml:space="preserve">
+    <value>The owner manages the group. Group managers can invite and remove members where permitted. Members can view shared locations.</value>
+  </data>
+  <data name="Groups.Roster" xml:space="preserve">
+    <value>Roster</value>
+  </data>
+  <data name="Groups.RosterRefreshFailed" xml:space="preserve">
+    <value>Refresh this page to update the roster.</value>
+  </data>
+  <data name="Groups.Save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Groups.Search" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Groups.SearchBusy" xml:space="preserve">
+    <value>Searching for users…</value>
+  </data>
+  <data name="Groups.SearchEmpty" xml:space="preserve">
+    <value>No matching users.</value>
+  </data>
+  <data name="Groups.SearchFailed" xml:space="preserve">
+    <value>Users could not be loaded. Please try again.</value>
+  </data>
+  <data name="Groups.SearchHint" xml:space="preserve">
+    <value>Enter at least 2 characters to search automatically, or select Search.</value>
+  </data>
+  <data name="Groups.SearchPrompt" xml:space="preserve">
+    <value>Type username or display name</value>
+  </data>
+  <data name="Groups.SearchUser" xml:space="preserve">
+    <value>Search User</value>
+  </data>
+  <data name="Groups.SearchUsers" xml:space="preserve">
+    <value>Search users…</value>
+  </data>
+  <data name="Groups.SelectAll" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="Groups.SelectInvitee" xml:space="preserve">
+    <value>Please select a user to invite.</value>
+  </data>
+  <data name="Groups.SendInvite" xml:space="preserve">
+    <value>Send Invite</value>
+  </data>
+  <data name="Groups.SessionEnded" xml:space="preserve">
+    <value>Sign in again and retry.</value>
+  </data>
+  <data name="Groups.SharingFailed" xml:space="preserve">
+    <value>Sharing could not be saved. Please try again.</value>
+  </data>
+  <data name="Groups.ShowAll" xml:space="preserve">
+    <value>Show All</value>
+  </data>
+  <data name="Groups.ShowHistoryToday" xml:space="preserve">
+    <value>Show historical locations for today</value>
+  </data>
+  <data name="Groups.SourceZoneUnavailable" xml:space="preserve">
+    <value>Source timezone unavailable</value>
+  </data>
+  <data name="Groups.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Groups.StatusActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Groups.SuccessorDuplicateName" xml:space="preserve">
+    <value>The successor already owns a group with the same name.</value>
+  </data>
+  <data name="Groups.Today" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Groups.Type" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="Groups.TypeFamily" xml:space="preserve">
+    <value>Family</value>
+  </data>
+  <data name="Groups.TypeFriends" xml:space="preserve">
+    <value>Friends</value>
+  </data>
+  <data name="Groups.TypeInvalid" xml:space="preserve">
+    <value>Invalid group type.</value>
+  </data>
+  <data name="Groups.TypeOrganization" xml:space="preserve">
+    <value>Organization</value>
+  </data>
+  <data name="Groups.TypeRequired" xml:space="preserve">
+    <value>Please select a group type.</value>
+  </data>
+  <data name="Groups.Unconfirmed" xml:space="preserve">
+    <value>The outcome could not be confirmed. Refresh the page before trying again.</value>
+  </data>
+  <data name="Groups.User" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="Groups.ViewLabel" xml:space="preserve">
+    <value>View:</value>
+  </data>
+  <data name="Groups.ViewPeriod" xml:space="preserve">
+    <value>View period</value>
+  </data>
+  <data name="Groups.ViewerTime" xml:space="preserve">
+    <value>Date and time in your timezone</value>
+  </data>
+  <data name="Groups.Year" xml:space="preserve">
+    <value>Year</value>
+  </data>
+  <data name="Groups.YearPlaceholder" xml:space="preserve">
+    <value>YYYY</value>
+  </data>
+</root>

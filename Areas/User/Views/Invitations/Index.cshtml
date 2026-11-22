@@ -1,9 +1,13 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
+    ViewData["Title"] = T["Shell.Invitations"];
     ViewData["BodyClass"] = "container";
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Invitations</h2>
+    <h2>@T["Shell.Invitations"]</h2>
 </div>
 
 <div class="card">
@@ -12,16 +16,17 @@
             <table class="table table-striped table-hover mb-0" id="invitationsTable">
                 <thead>
                 <tr>
-                    <th>Group</th>
-                    <th>Description</th>
-                    <th>Invited By</th>
-                    <th>Expires</th>
-                    <th class="text-end">Actions</th>
+                    <th>@T["Groups.Group"]</th>
+                    <th>@T["Groups.Description"]</th>
+                    <th>@T["Groups.InvitedBy"]</th>
+                    <th>@T["Groups.Expires"]</th>
+                    <th class="text-end">@T["Groups.Actions"]</th>
                 </tr>
                 </thead>
                 <tbody id="invitesTbody">
+                <tr id="invitesLoadingRow"><td colspan="5" role="status">@T["Groups.InvitationsLoading"]</td></tr>
                 <tr id="invitesEmptyRow" class="d-none">
-                    <td colspan="5" class="text-center text-muted">No pending invitations.</td>
+                    <td colspan="5" class="text-center text-muted">@T["Groups.NoInvites"]</td>
                 </tr>
                 </tbody>
             </table>

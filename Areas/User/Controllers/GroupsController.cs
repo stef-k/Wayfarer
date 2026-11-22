@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,7 +51,7 @@ public class GroupsController : BaseController
                             where m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active
                             join g in _dbContext.Groups on m.GroupId equals g.Id
                             where !g.IsArchived
-                            select new { g.Id, g.Name, g.Description, g.GroupType }).AsNoTracking().ToListAsync();
+                            select new { g.Id, g.Name, g.Description, g.GroupType, m.Role }).AsNoTracking().ToListAsync();
 
         // Active member counts per group (same approach as Manager UI)
         var joinedIds = joined.Select(x => (Guid)x.Id).ToList();
@@ -62,7 +63,6 @@ public class GroupsController : BaseController
         ViewBag.MemberCounts = counts.ToDictionary(x => x.GroupId, x => x.Count);
 
         ViewBag.Joined = joined;
-        SetPageTitle("My Groups");
         return View();
     }
 
@@ -72,7 +72,6 @@ public class GroupsController : BaseController
     [HttpGet]
     public IActionResult Create()
     {
-        SetPageTitle("Create Group");
         return View();
     }
 
@@ -81,18 +80,18 @@ public class GroupsController : BaseController
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(string name, string? description, string? groupType)
+    public async Task<IActionResult> Create(string? name, string? description, string? groupType, [FromServices] WebMessages? text = null)
     {
         var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(name))
         {
-            ModelState.AddModelError("name", "Name is required.");
+            ModelState.AddModelError("name", text?["Groups.NameRequired"] ?? "Name is required.");
             return View();
         }
         if (string.IsNullOrWhiteSpace(groupType))
         {
-            ModelState.AddModelError("groupType", "Group type is required.");
+            ModelState.AddModelError("groupType", text?["Groups.TypeRequired"] ?? "Group type is required.");
             return View();
         }
 
@@ -100,7 +99,7 @@ public class GroupsController : BaseController
         var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Family", "Friends" };
         if (!allowed.Contains(groupType))
         {
-            ModelState.AddModelError("groupType", "Only Family or Friends are allowed.");
+            ModelState.AddModelError("groupType", text?["Groups.PersonalTypesOnly"] ?? "Only Family or Friends are allowed.");
             return View();
         }
 
@@ -108,12 +107,14 @@ public class GroupsController : BaseController
         {
             await _groupService.CreateGroupAsync(userId, name.Trim(), description, GroupSharingPolicy.CanonicalType(groupType));
             LogAudit("GroupCreate", $"Created group {name}", "User UI");
-            return RedirectWithAlert("Index", "Groups", "Group created", "success", area: "User");
+            SetAlert("Group created", "success", "Groups.GroupCreated");
+            return RedirectToAction(nameof(Index));
         }
         catch (UnauthorizedAccessException) { return Unauthorized(); }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
+            var message = GroupOperationErrors.Message(ex, "create");
+            ModelState.AddModelError("name", text?[GroupWebText.ErrorKey(message, "Groups.CreateFailed")] ?? message);
             return View();
         }
     }
@@ -160,7 +161,6 @@ public class GroupsController : BaseController
         ViewBag.Members = members;
         ViewBag.Invites = invites;
         ViewBag.CurrentUserId = userId;
-        SetPageTitle($"Members - {group.Name}");
         return View();
     }
 
@@ -283,7 +283,6 @@ public class GroupsController : BaseController
         ViewBag.CurrentUserId = userId;
         var me = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
         ViewBag.CurrentUserName = me?.UserName;
-        SetPageTitle($"Map - {group.Name}");
         return View();
     }
 }
