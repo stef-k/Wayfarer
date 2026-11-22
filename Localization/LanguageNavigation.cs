@@ -67,7 +67,6 @@ public static class LanguageNavigation
         {
             "APITOKEN" => true,
             "TRIP" => action?.ToUpperInvariant() is "INDEX" or "COMPOSE" or "COPY" or "IMPORT" or "REVIEWIMPORT",
-            "TIMELINE" => action?.ToUpperInvariant() is "INDEX" or "CHRONOLOGICAL",
             "TIMELINECALENDAR" => true,
             "LOCATION" => true,
             _ => false

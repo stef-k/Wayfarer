@@ -298,6 +298,9 @@ export const prepareLocationDeletion = async id => {
     };
     const prior = preview.renew ? `The earlier action cannot produce future effects${preview.historicalUnknown ? '; its historical outcome remains unknown' : ''}. This is a new conditional deletion. Previously observed detail: ${JSON.stringify(preview.original?.record)}. ` : '';
     execute.message = `${prior}Delete the observed Location #${id}? This cannot be undone. Stored detail: ${JSON.stringify(detail.record)}. Unavailable facts: ${JSON.stringify(detail.unavailableFields)}.`;
+    // Structured display facts let localized clients preserve the existing confirmation evidence.
+    execute.confirmation = { id, prior: preview.renew, historicalUnknown: preview.historicalUnknown,
+        previousRecord: preview.original?.record, record: detail.record, unavailableFields: detail.unavailableFields };
     return execute;
 };
 

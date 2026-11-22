@@ -1,3 +1,5 @@
+import { date } from '../localization/messages.js';
+
 /**
  * Shared helpers for formatting location timestamps/numbers and expiring admitted observation presence.
  * Provides deterministic output (YYYY-MM-DD HH:mm) regardless of navigator language.
@@ -190,6 +192,21 @@ export const formatViewerAndSourceTimes = ({
     }
 
     return response;
+};
+
+/** Formats the event instant and retains the stored timezone label when falling back to UTC. */
+export const formatHistoryDate = (iso, timeZone, withTime = false) => {
+    const instant = new Date(iso);
+    if (!iso || !Number.isFinite(instant.getTime())) return '';
+    const options = withTime ? { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' } : { dateStyle: 'medium' };
+    let display;
+    try {
+        display = date(instant, { ...options, timeZone });
+    } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        display = date(instant, { ...options, timeZone: 'UTC' });
+    }
+    return withTime ? `${display} ${formatOffsetLabel(instant, timeZone)}`.trim() : display;
 };
 
 /**

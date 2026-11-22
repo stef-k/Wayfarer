@@ -1,5 +1,5 @@
 import { message, number } from '../../../localization/messages.js';
-import { formatTimelineDate } from './timelineDetail.js';
+import { formatHistoryDate } from '../../../util/datetime.js';
 
 /** Uses the public adapter's established paging envelope, keeping legacy error prose out of the UI. */
 export const readTimelineLocations = async (response, renderLocations) => {
@@ -19,8 +19,8 @@ export const readTimelineLocations = async (response, renderLocations) => {
 export const formatTimelineSummary = (stats, timeZone) => {
     const fields = [
         [stats.totalLocations, 'TotalLocations', 'Total locations: {0}', number],
-        [stats.fromDate, 'FromDate', 'From: {0}', value => formatTimelineDate(value, timeZone)],
-        [stats.toDate, 'ToDate', 'To: {0}', value => formatTimelineDate(value, timeZone)],
+        [stats.fromDate, 'FromDate', 'From: {0}', value => formatHistoryDate(value, timeZone)],
+        [stats.toDate, 'ToDate', 'To: {0}', value => formatHistoryDate(value, timeZone)],
         [stats.countriesVisited, 'Countries', 'Countries: {0}', number],
         [stats.regionsVisited, 'Regions', 'Regions: {0}', number],
         [stats.citiesVisited, 'Cities', 'Cities: {0}', number],

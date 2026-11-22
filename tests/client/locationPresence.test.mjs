@@ -43,6 +43,7 @@ for (const entry of ['Public/UsersTimeline/Timeline.js', 'User/Location/Index.js
             highlightLayer: layer(), mapContainer: { getZoom: () => 3, addLayer() {} },
             latestLocationMarker: 'latest', liveMarker: 'live',
             message: (_, readable) => readable, encodeFeatureText: value => value,
+            text: (_, readable) => readable, html: (_, readable) => readable,
             L: { layerGroup: layer, markerClusterGroup: layer, marker: (_, options) => {
                 icons.push(options.icon);
                 clock += renderDelay;

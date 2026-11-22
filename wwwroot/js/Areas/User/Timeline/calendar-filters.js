@@ -1,3 +1,4 @@
+import { coordinate, list, text } from './timeline-text.js';
 import { emptyFilters, viewportArea } from './calendar-intent.js';
 import { encode } from './calendar-detail.js';
 /** Optional non-date filters edit a local draft; active-chip removal is its own persisted commitment. */
@@ -9,14 +10,18 @@ export const createCalendarFilters = (owner, mapView, onRecovery) => {
     const draft = () => owner.editor?.kind === 'filters' ? owner.editor.draft : null;
     const areaCaption = () => {
         const area = draft()?.area;
-        document.getElementById('areaCaption').textContent = area ? `Saved rectangle: west ${area.west}, south ${area.south}, east ${area.east}, north ${area.north}${area.west > area.east ? ' (crosses dateline)' : ''}` : 'No saved area';
-        document.getElementById('captureArea').textContent = area ? 'Replace with current map area' : 'Use this map area';
+        document.getElementById('areaCaption').textContent = area ? [
+            text('SavedRectangle', 'Saved rectangle: west {0}, south {1}, east {2}, north {3}',
+                coordinate(area.west), coordinate(area.south), coordinate(area.east), coordinate(area.north)),
+            area.west > area.east ? text('CrossesDateline', '(crosses dateline)') : ''
+        ].filter(Boolean).join(' ') : text("NoArea", "No saved area");
+        document.getElementById('captureArea').textContent = area ? text("ReplaceArea", "Replace with current map area") : text("UseMapArea", "Use this map area");
     };
     const renderCatalog = () => {
         if (!draft()) return;
         const ids = draft().activityIds;
         const choices = [...catalog];
-        for (const id of ids) if (!choices.some(item => item.id === id)) choices.push({ id, name: `Retained activity ${id} (resolve or repair deliberately)` });
+        for (const id of ids) if (!choices.some(item => item.id === id)) choices.push({ id, name: text('RetainedActivity', 'Retained activity {0} (check or update selection)', id) });
         activities.innerHTML = choices.map(item => `<label class="d-block"><input type="checkbox" data-activity="${item.id}" ${ids.includes(item.id) ? 'checked' : ''}> ${encode(item.name)}</label>`).join('');
     };
     const loadCatalog = async () => {
@@ -29,7 +34,7 @@ export const createCalendarFilters = (owner, mapView, onRecovery) => {
             const values = await response.json();
             if (version !== catalogVersion || epoch !== owner.epoch) return;
             catalog = values.filter(item => Number.isInteger(item.id) && item.id > 0); renderCatalog();
-        } catch { if (version === catalogVersion && draft()) error.textContent = 'Activities unavailable. Existing selections are retained; refresh the catalog to repair deliberately.'; }
+        } catch { if (version === catalogVersion && draft()) error.textContent = text("ActivitiesUnavailable", "Activities unavailable. Existing selections are retained; refresh the catalog to repair deliberately."); }
     };
     const open = (recover = false) => {
         try {
@@ -68,17 +73,20 @@ export const createCalendarFilters = (owner, mapView, onRecovery) => {
         const container = document.getElementById('activeFilters'); container.replaceChildren();
         const chip = (caption, clear) => {
             const button = document.createElement('button'); button.className = 'btn btn-sm btn-outline-secondary text-break text-start';
-            button.style.maxWidth = '100%'; button.textContent = `${caption} ×`; button.setAttribute('aria-label', `Remove ${caption}`);
+            button.style.maxWidth = '100%'; button.textContent = `${caption} ×`; button.setAttribute('aria-label', text('RemoveFilter', 'Remove {0}', caption));
             button.addEventListener('click', () => { try { clear(); } catch (failure) { document.getElementById('timelineNotice').textContent = failure.message; } }); container.append(button);
         };
-        if (owner.filters.q) chip(`Search Notes and address: ${owner.filters.q}`, () => owner.commitFilters({ ...owner.filters, q: '' }));
-        if (owner.filters.activityIds.length || owner.filters.includeUnassigned) chip(`Activities: ${effective.activityIds.join(', ')}${effective.includeUnassigned ? ' · No activity' : ''}`,
+        if (owner.filters.q) chip(text('SearchChip', 'Search Notes and address: {0}', owner.filters.q), () => owner.commitFilters({ ...owner.filters, q: '' }));
+        if (owner.filters.activityIds.length || owner.filters.includeUnassigned) chip(text('ActivitiesChip', 'Activities: {0}', list([
+            ...effective.activityIds.map(String), effective.includeUnassigned ? text('NoActivity', 'No activity') : ''
+        ].filter(Boolean))),
             () => owner.commitFilters({ ...owner.filters, activityIds: [], includeUnassigned: false }));
         if (owner.filters.area) {
             const area = owner.filters.area;
-            chip(`Saved map area: ${area.west}, ${area.south} → ${area.east}, ${area.north}`, () => owner.commitFilters({ ...owner.filters, area: null }));
+            chip(text('AreaChip', 'Saved map area: {0}, {1} → {2}, {3}',
+                coordinate(area.west), coordinate(area.south), coordinate(area.east), coordinate(area.north)), () => owner.commitFilters({ ...owner.filters, area: null }));
         }
-        if (container.childElementCount) chip('Clear filters', () => owner.clearFilters());
+        if (container.childElementCount) chip(text("ClearFilters", "Clear filters"), () => owner.clearFilters());
     };
     return { open, render };
 };

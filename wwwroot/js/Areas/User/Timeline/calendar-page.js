@@ -1,3 +1,5 @@
+import { text } from './timeline-text.js';
+import { calendarReadFailure } from './calendar-read-text.js';
 import { validateSelection, selectionSearch } from './calendar-scope.js';
 import { emptyFilters, filterBody, filtersActive } from './calendar-intent.js';
 /** Stable structural comparison excludes response-local observation identities. */
@@ -30,13 +32,13 @@ export class TimelinePage {
         catch (error) { if (strict) throw error; this.state.storageError = error.message; }
     }
     openEditor(kind, draft) {
-        if (this.editor && this.editor.kind !== kind) throw new Error('Apply or Cancel the open query editor first.');
+        if (this.editor && this.editor.kind !== kind) throw new Error(text("ApplyOrCancel", "Apply or Cancel the open query editor first."));
         this.editor = { kind, draft }; this.emit();
     }
     cancelEditor() { this.editor = null; this.closeMonth(); this.emit(); }
     /** Filter persistence is the transaction boundary; failed writes change neither URL nor applied scope. */
     commitFilters(filters) {
-        if (this.authEnded) throw new Error('Sign in again before restoring Timeline.');
+        if (this.authEnded) throw new Error(text("SignInAgain", "Sign in again before restoring Timeline."));
         filterBody(filters);
         const context = filtersActive(filters) ? crypto.randomUUID() : null;
         this.intent.save(this.selection, context, filters, this.returnState());
@@ -47,7 +49,7 @@ export class TimelinePage {
     }
     clearFilters() { return this.commitFilters(emptyFilters()); }
     commitSelection(selection, fromDateEditor = false) {
-        if (this.editor && (this.editor.kind !== 'date' || !fromDateEditor)) throw new Error('Apply or Cancel the open query editor first.');
+        if (this.editor && (this.editor.kind !== 'date' || !fromDateEditor)) throw new Error(text("ApplyOrCancel", "Apply or Cancel the open query editor first."));
         validateSelection(selection, this.maximumOffset);
         this.selection = selection; this.fitOnNext = true; this.editor = null; this.closeMonth();
         this.replaceUrl(selectionSearch(selection, this.context)); this.retain();
@@ -114,7 +116,7 @@ export class TimelinePage {
     /** Account/session loss clears this page only; mutation drafts retain their original subject authority. */
     sessionEnded() {
         this.authEnded = true; this.epoch++; this.detailVersion++; this.blocked = true; this.active?.controller.abort(); this.closeMonth(); this.intent.clear();
-        this.filters = emptyFilters(); this.editor = null; this.state = { records: [], status: {}, errors: { session: 'Session ended or account changed. Sign in again before reading Timeline.' } };
+        this.filters = emptyFilters(); this.editor = null; this.state = { records: [], status: {}, errors: { session: text("SessionEnded", "Session ended or account changed. Sign in again before reading Timeline.") } };
         this.emit();
     }
     /** One serial chain prioritizes already-enqueued core work over optional consumers. */
@@ -140,7 +142,7 @@ export class TimelinePage {
                 if (!current()) return;
                 if (error.status === 401 || error.status === 403) { this.sessionEnded(); return; }
                 this.state.status[operation] = error.name === 'AbortError' ? 'cancelled' : 'failed';
-                this.state.errors[operation] = error.code || error.message || 'Read unavailable. Retain this scope and retry.';
+                this.state.errors[operation] = calendarReadFailure(error);
                 if (error.retryAfter) this.state.retryAt = Date.now() + error.retryAfter * 1000;
                 if (error.code === 'continuationInvalid') { this.state.records = []; this.state.nextContinuation = null; this.state.recordsStarted = false; }
             } finally {
@@ -168,14 +170,16 @@ export class TimelinePage {
         const identity = matchingIdentity(response);
         if (this.identity && this.identity !== identity) {
             this.state.period = null; this.state.analysis = null; this.state.records = []; this.state.availability = null; this.state.statistics = null;
-            this.blocked = true; this.state.errors.identity = 'Matching interpretation changed. Refresh to revalidate the retained filters.'; this.emit();
+            this.blocked = true;
+            this.state.errors.identity = text('MatchingRulesChanged', 'Matching interpretation changed. Refresh to revalidate the retained filters.');
+            this.emit();
             throw new Error('Matching interpretation changed.');
         }
         if (!this.identity) {
             this.identity = identity;
             this.effective = { q: response.scope.q, activityIds: response.scope.activityIds || [], includeUnassigned: response.scope.includeUnassigned, area: response.scope.area };
             const intended = [...this.filters.activityIds].sort((a, b) => a - b);
-            if (stable(intended) !== stable(this.effective.activityIds)) this.state.activityNotice = 'Retained activity IDs resolved to their current catalog identities.';
+            if (stable(intended) !== stable(this.effective.activityIds)) this.state.activityNotice = text("ActivitiesResolved", "Retained activity IDs resolved to their current catalog identities.");
             this.selection = { ...this.selection, viewerZone: response.scope.viewerZone };
             this.replaceUrl(selectionSearch(this.selection, this.context)); this.retain();
         }
@@ -189,9 +193,9 @@ export class TimelinePage {
     }
     /** Retry is deliberate and honors shared-admission backoff; it never removes filters to obtain success. */
     retry() {
-        if (this.authEnded) throw new Error('Sign in again before restoring Timeline.');
-        if (this.restorationPending) throw new Error('Re-enter the unavailable filters or explicitly Continue without filters before restoring Timeline.');
-        if (this.state.retryAt > Date.now()) throw new Error('Read admission is cooling down. Retry after the displayed time.');
+        if (this.authEnded) throw new Error(text("SignInAgain", "Sign in again before restoring Timeline."));
+        if (this.restorationPending) throw new Error(text("RecoverFilters", "Re-enter the unavailable filters or explicitly Continue without filters before restoring Timeline."));
+        if (this.state.retryAt > Date.now()) throw new Error(text("AdmissionCooldown", "Read admission is cooling down. Retry after the displayed time."));
         this.blocked = false; return this.refresh();
     }
 }

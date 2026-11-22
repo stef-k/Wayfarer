@@ -1,3 +1,4 @@
+import { text } from './timeline-text.js';
 /** Whole browser-local preferences are subject-bound; canonical binary64 rules never round through display text. */
 export const defaultRules = () => ({ maximumGapSeconds: 7200, speedEnabled: true, maximumSpeedMetresPerSecond: 350 });
 const validPositive = number => typeof number === 'number' && Number.isFinite(number) && number > 0;
@@ -25,7 +26,7 @@ export class CalendarPreferences {
                 if (saved.version !== 1 || !['capture', 'viewer'].includes(saved.timeBasis) || !validRules(saved.rules)) throw new Error();
                 this.value = saved;
             }
-        } catch { this.error = 'Saved Timeline preferences are unavailable or use an unknown version. Defaults are shown; Reset and Apply can replace them.'; }
+        } catch { this.error = text("PreferencesUnavailable", "Saved Timeline preferences are unavailable or use an unknown version. Defaults are shown; Reset and Apply can replace them."); }
     }
     /** Save/read-back succeeds before any applied generation changes. */
     save(value) {
@@ -33,7 +34,7 @@ export class CalendarPreferences {
         try {
             this.storage.setItem(this.key, raw);
             if (this.storage.getItem(this.key) !== raw) throw new Error();
-        } catch { throw new Error('Preferences could not be saved. Your applied rules and draft are retained. Retry Apply.'); }
+        } catch { throw new Error(text("PreferencesSaveFailed", "Preferences could not be saved. Your applied rules and draft are retained. Retry Apply.")); }
         this.value = JSON.parse(raw); this.error = null;
     }
     openDraft(retained = null) {
@@ -51,14 +52,14 @@ export class CalendarPreferences {
     }
     rulesFromDraft() {
         const draft = this.draft;
-        const numeric = text => {
-            if (!/^\s*[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\s*$/i.test(text)) throw new Error('Enter a positive finite number using a decimal point.');
-            return Number(text);
+        const numeric = input => {
+            if (!/^\s*[+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\s*$/i.test(input)) throw new Error(text("PositiveDotDecimal", "Enter a positive finite number using a decimal point."));
+            return Number(input);
         };
         const gap = draft.gapEdited ? numeric(draft.gap) * (draft.unit === 'hours' ? 3600 : 60) : draft.original.maximumGapSeconds;
         const speed = draft.speedEdited ? numeric(draft.speed) / 3.6 : draft.original.maximumSpeedMetresPerSecond;
         const rules = { maximumGapSeconds: gap, speedEnabled: draft.speedEnabled, maximumSpeedMetresPerSecond: speed };
-        if (!validRules(rules)) throw new Error('Rules must be positive finite values without overflow or underflow.');
+        if (!validRules(rules)) throw new Error(text("RulesOutOfRange", "Rules must be positive finite values without overflow or underflow."));
         return rules;
     }
     applyDraft() {

@@ -1,7 +1,8 @@
-/** Presentation rounds distance only; canonical controls live with the independent preference owner. */
-export const distanceText = metres => metres === 0 ? '0 m' : metres < 0.01 ? '<0.01 m'
-    : metres < 1000 ? `${metres.toLocaleString(undefined, { maximumFractionDigits: 2 })} m`
-        : `${(metres / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 })} km`;
+import { analysisFacts, distanceSummary } from './calendar-analysis-text.js';
+
+export { distanceText } from './calendar-analysis-text.js';
+
+/** Bind the connection-rule dialog to its retained draft and the current analysis observation. */
 export const createCalendarConnections = owner => {
     const modal = document.getElementById('rulesDialog');
     const gap = document.getElementById('maximumGap'), speed = document.getElementById('maximumSpeed');
@@ -38,13 +39,9 @@ export const createCalendarConnections = owner => {
     document.getElementById('cancelCalculation').addEventListener('click', () => owner.cancelCalculation());
     const render = () => {
         const analysis = owner.state.analysis, status = owner.state.status.analysis;
-        const label = !analysis || analysis.coverage === 'unknown' ? 'Distance unavailable'
-            : analysis.coverage === 'partial' ? 'Distance in available segments — Partial' : 'Distance between recorded locations';
-        document.getElementById('distanceSummary').textContent = `${label}${analysis?.distanceMetres != null ? ': ' + distanceText(analysis.distanceMetres) : ''} · ${status || 'pending'}${analysis ? ' · as of ' + analysis.asOfUtc : ''}${owner.path ? ' · path ' + (analysis?.geometry.state || 'pending') : ''}`;
+        document.getElementById('distanceSummary').textContent = distanceSummary(analysis, status, owner.path);
         document.getElementById('recordedPath').checked = owner.path;
-        document.getElementById('analysisFacts').textContent = analysis
-            ? `Source: ${analysis.source}\nCalendar: ${JSON.stringify(analysis.selection)}\nObservation: ${analysis.asOfUtc}\nCoverage: ${analysis.coverage}\nApplied gap: ${analysis.rules.maximumGapSeconds} seconds\nSpeed heuristic: ${analysis.rules.speedEnabled ? analysis.rules.maximumSpeedMetresPerSecond + ' m/s' : 'Off'}\nCounts: ${JSON.stringify(analysis.counts)}\nUnplaceable source event: ${analysis.unplaceableEventExists}\nGeometry: ${analysis.geometry.state}${analysis.geometry.reason ? ' · ' + analysis.geometry.reason : ''}\nThese are separate live observations from map, records and date marks.`
-            : 'No successful analysis observation yet. Refresh / Retry retains the applied scope.';
+        document.getElementById('analysisFacts').textContent = owner.state.errors.analysis || analysisFacts(analysis);
     };
     return { open, render };
 };

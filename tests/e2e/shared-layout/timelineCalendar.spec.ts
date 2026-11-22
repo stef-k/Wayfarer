@@ -37,14 +37,14 @@ test('private Timeline W2 calendar trip filters records and edit return', async 
     await expect(page.locator('#distanceSummary')).toContainText('Distance between recorded locations');
     await expect(page.locator('#recordedPath')).not.toBeChecked();
     await page.locator('#choosePeriod').click();
-    const date = page.getByRole('button', { name: /^2026-10-29, matching records/ });
+    const date = page.getByRole('button', { name: /^Thursday, October 29, 2026, matching records/ });
     await expect(date).toBeVisible(); await date.focus(); await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter');
-    await expect(page.locator('#choosePeriod')).toHaveText('2026-10-30');
+    await expect(page.locator('#choosePeriod')).toHaveText('Oct 30, 2026');
     await expect(page.locator('#choosePeriod')).toBeFocused();
     await page.locator('#periodMode').selectOption('custom');
     await page.locator('#rangeFrom').fill('2026-10-28'); await page.locator('#rangeThrough').fill('2026-10-31');
     await page.locator('#applyRange').click();
-    await expect(page.locator('#calendarCaption')).toContainText('custom');
+    await expect(page.locator('#calendarCaption')).toContainText('Custom');
     await expect(page.locator('#timeline-summary')).toContainText('1 known');
     await page.locator('#chooseFilters').click(); await page.locator('#filterSearch').fill('W2 blue door');
     await page.locator('#filterUnassigned').check(); await page.locator('#captureArea').click(); await page.locator('#applyFilters').click();
@@ -73,8 +73,8 @@ test('private Timeline W2 calendar trip filters records and edit return', async 
     expect(new URL(page.url()).searchParams.get('filterContext')).toBe(context);
     expect((await readIntent()).filters).toEqual(applied.filters);
     expect((await readIntent()).publicSelection).toBe(applied.publicSelection);
-    await expect(page.locator('#choosePeriod')).toHaveText('2026-10-28 – 2026-10-31');
-    await expect(page.locator('#calendarCaption')).toContainText('custom');
+    await expect(page.locator('#choosePeriod')).toHaveText('Oct 28, 2026 – Oct 31, 2026');
+    await expect(page.locator('#calendarCaption')).toContainText('Custom');
     await expect(page.locator('#timeline-summary')).toContainText('1 known');
     await expect(row).toBeVisible();
     await expect(row).toContainText('Your timezone:'); await expect(row).toContainText('Recorded local:');

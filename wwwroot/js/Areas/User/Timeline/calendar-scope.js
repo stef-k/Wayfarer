@@ -1,14 +1,15 @@
+import { text } from './timeline-text.js';
 /** Gregorian civil selection and URL adapter. UTC Date is used only as a civil arithmetic carrier. */
 const pad = number => String(number).padStart(2, '0');
 export const isoDate = date => `${date.year}-${pad(date.month)}-${pad(date.day)}`;
 export const civil = (year, month, day) => {
     const value = new Date(Date.UTC(year, month - 1, day));
     if (!Number.isInteger(year) || year < 1900 || year > 2100 || value.getUTCFullYear() !== year
-        || value.getUTCMonth() + 1 !== month || value.getUTCDate() !== day) throw new Error('Choose a valid date from 1900 through 2100.');
+        || value.getUTCMonth() + 1 !== month || value.getUTCDate() !== day) throw new Error(text("InvalidDate", "Choose a valid date from 1900 through 2100."));
     return { year, month, day };
 };
 export const parseCivil = value => {
-    if (!/^\d{4}-\d\d-\d\d$/.test(value)) throw new Error('Enter an exact date.');
+    if (!/^\d{4}-\d\d-\d\d$/.test(value)) throw new Error(text("ExactDate", "Enter an exact date."));
     return civil(...value.split('-').map(Number));
 };
 /** Civil successors never add an elapsed-day duration in the selected time zone. */
@@ -47,7 +48,7 @@ export const periodBounds = selection => {
     const anchor = civil(selection.year, selection.month, selection.day);
     if (selection.dateType === 'day') return { from: anchor, through: anchor };
     if (selection.dateType === 'week') {
-        if (!Number.isInteger(selection.weekStartsOn) || selection.weekStartsOn < 1 || selection.weekStartsOn > 7) throw new Error('This Week link needs its frozen week start.');
+        if (!Number.isInteger(selection.weekStartsOn) || selection.weekStartsOn < 1 || selection.weekStartsOn > 7) throw new Error(text("FrozenWeekRequired", "This Week link needs its frozen week start."));
         const from = shiftDays(anchor, -(weekday(anchor) - selection.weekStartsOn + 7) % 7);
         return { from, through: shiftDays(from, 6) };
     }
@@ -57,11 +58,16 @@ export const periodBounds = selection => {
 };
 export const validateSelection = (selection, maximumOffset, now) => {
     if (!['day', 'week', 'month', 'year', 'custom'].includes(selection.dateType)
-        || !['capture', 'viewer'].includes(selection.timeBasis)) throw new Error('Invalid Timeline selection.');
-    todayInZone(selection.viewerZone, now);
+        || !['capture', 'viewer'].includes(selection.timeBasis)) throw new Error(text("InvalidSelection", "Invalid Timeline selection."));
+    // Intl's RangeError is diagnostic text. Keep the zone input and report the expected validation failure.
+    try { todayInZone(selection.viewerZone, now); }
+    catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+        throw new Error(text('InvalidZone', 'Enter a valid time zone such as Europe/Athens.'));
+    }
     const bounds = periodBounds(selection);
-    if (isoDate(bounds.from) > isoDate(bounds.through)) throw new Error('From must be on or before Through.');
-    if (isoDate(bounds.from) > horizonDate(selection, maximumOffset, now)) throw new Error('This period starts after the browsing horizon.');
+    if (isoDate(bounds.from) > isoDate(bounds.through)) throw new Error(text("RangeOrder", "From must be on or before Through."));
+    if (isoDate(bounds.from) > horizonDate(selection, maximumOffset, now)) throw new Error(text("FutureSelection", "This period starts after the browsing horizon."));
     return selection;
 };
 export const anchorOf = selection => selection.dateType === 'custom' ? parseCivil(selection.fromDate) : civil(selection.year, selection.month, selection.day);
@@ -93,17 +99,17 @@ export const selectionSearch = (selection, context = null) => {
 export const readSelection = (search, basis, zone, maximumOffset, now = new Date()) => {
     const params = new URLSearchParams(search);
     const allowed = ['viewType', 'year', 'month', 'day', 'fromDate', 'throughDate', 'timeBasis', 'viewerZone', 'weekStartsOn', 'filterContext'];
-    for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new Error('Invalid or repeated Timeline link values.');
+    for (const [key] of params) if (!allowed.includes(key) || params.getAll(key).length !== 1) throw new Error(text("InvalidLink", "Invalid or repeated Timeline link values."));
     if (!params.size) return { selection: validateSelection(preset({ timeBasis: basis, viewerZone: zone }, 'day', todayInZone(zone, now)), maximumOffset, now), context: null, adopted: false };
     const type = params.get('viewType');
     const custom = type === 'custom';
     if (custom && ['year', 'month', 'day', 'weekStartsOn'].some(key => params.has(key))
         || !custom && ['fromDate', 'throughDate'].some(key => params.has(key))
-        || type !== 'week' && params.has('weekStartsOn') || params.has('timeBasis') !== params.has('viewerZone')) throw new Error('Conflicting Timeline link values.');
+        || type !== 'week' && params.has('weekStartsOn') || params.has('timeBasis') !== params.has('viewerZone')) throw new Error(text("ConflictingLink", "Conflicting Timeline link values."));
     const number = (key, fallback) => {
         const value = params.get(key);
         if (value === null && fallback !== undefined) return fallback;
-        if (!/^\d+$/.test(value)) throw new Error('Invalid Timeline date component.');
+        if (!/^\d+$/.test(value)) throw new Error(text("InvalidDateComponent", "Invalid Timeline date component."));
         return Number(value);
     };
     const selection = { dateType: type, timeBasis: params.get('timeBasis') || basis, viewerZone: params.get('viewerZone') || zone,
@@ -115,10 +121,10 @@ export const readSelection = (search, basis, zone, maximumOffset, now = new Date
 };
 /** Finite viewport normalization is an adapter to the shared rectangle contract, independent of camera movement. */
 export const viewportArea = ({ west, south, east, north }) => {
-    if (![west, south, east, north].every(Number.isFinite) || east <= west) throw new Error('Map area is unavailable.');
+    if (![west, south, east, north].every(Number.isFinite) || east <= west) throw new Error(text("AreaUnavailable", "Map area is unavailable."));
     const span = east - west;
     south = Math.max(-90, south); north = Math.min(90, north);
-    if (south >= north) throw new Error('Map area is empty.');
+    if (south >= north) throw new Error(text("AreaEmpty", "Map area is empty."));
     if (span >= 360) return { west: -180, south, east: 180, north };
     west = ((west + 180) % 360 + 360) % 360 - 180;
     east = west + span;

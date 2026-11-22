@@ -230,7 +230,7 @@ public sealed class WebLanguageHttpTests : TestBase
 
     /// <summary>Timeline validation preserves entered values and advertises a GET independent of its POST URL.</summary>
     [Fact]
-    public async Task TimelineValidationUsesOwnedGetAndProtectedTimelineWithholdsSwitching()
+    public async Task TimelineValidationUsesOwnedGetAndPrivateTimelineAllowsGuardedSwitching()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(displayName: "Alice <North>");
@@ -274,7 +274,9 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Equal("en-US", cleanPage.DocumentElement.GetAttribute("lang"));
         Assert.Empty(cleanPage.QuerySelector("#TimelineTitle")?.GetAttribute("value") ?? string.Empty);
         using var workspace = await client.GetAsync("/User/Timeline/Index");
-        Assert.Null((await ParseAsync(workspace)).QuerySelector("#language-open"));
+        var live = await ParseAsync(workspace);
+        Assert.Equal("", live.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get"));
+        Assert.Equal("Timeline of Alice <North>", live.QuerySelector("#timeline-header h1")?.TextContent);
     }
 
     /// <summary>Test-only registrations and resources take the same routing and Razor bootstrap path.</summary>

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { assertCalendarDetailClocks } from './fixtures/calendarDetail.mjs';
+import { createCalendarDetail } from '../../wwwroot/js/Areas/User/Timeline/calendar-detail.js';
 import { createCalendarPicker } from '../../wwwroot/js/Areas/User/Timeline/calendar-picker.js';
 import { TimelinePage } from '../../wwwroot/js/Areas/User/Timeline/calendar-page.js';
 import { CalendarIntent, emptyFilters, filterBody, viewportArea } from '../../wwwroot/js/Areas/User/Timeline/calendar-intent.js';
@@ -189,6 +191,10 @@ test('canonical activity redirects bind subsequent reads; a conflicting interpre
     assert.equal(owner.state.period, null); assert.equal(owner.state.analysis, null); assert.equal(owner.blocked, true);
 });
 
+/** The English detail document distinguishes exact UTC instants within a second. */
+test('English calendar details display exact Event UTC and the two local clocks', t =>
+    assertCalendarDetailClocks(t, createCalendarDetail, 'Event UTC:', '.'));
+
 test('foreign subject clears page data and its tab slot without touching preference or mutation storage', async () => {
     const { owner, intent } = setup(async (operation, body) => ({ ...observation(operation, body), subjectId: 'other' }));
     intent.save(selection(), null, emptyFilters(), {}); owner.state.records = [{ locationId: 1 }];
@@ -209,6 +215,7 @@ test('untouched rounded connection controls stay exact; explicit edits convert o
     assert.throws(() => prefs.applyDraft(), /retained/); assert.equal(prefs.value.rules.maximumGapSeconds, 7200.123456); assert.equal(prefs.draft.gap, '90');
     prefs.resetDraft(); assert.equal(prefs.rulesFromDraft().maximumGapSeconds, 7200); assert.equal(prefs.value.rules.maximumGapSeconds, 7200.123456);
     prefs.draft.gap = '1e-999'; prefs.draft.gapEdited = true; assert.throws(() => prefs.rulesFromDraft());
+    prefs.draft.gap = '2,5'; assert.throws(() => prefs.rulesFromDraft(), /using a decimal point/);
     assert.doesNotMatch(ruleDisplay(Number.MAX_VALUE, 1 / 3.6), /Infinity/);
 });
 
@@ -321,7 +328,7 @@ test('open picker renders invalidation, replacement failure and late old-month f
     picker.open(true); await owner.tail;
     const grid = elements.get('calendarGrid'), caption = elements.get('monthStatus');
     const day = () => grid.querySelector('[data-date="2026-05-17"]');
-    assert.match(day().textContent, /●/); assert.match(caption.textContent, /observed/);
+    assert.match(day().textContent, /●/); assert.match(caption.textContent, /May 2026 · As of/);
     const editor = owner.editor; elements.get('rangeThrough').value = '2026-05-25';
     elements.get('rangeThrough').listeners.input(); day().focus();
     const entered = deferred(), release = deferred(); pending = { entered, release };
@@ -337,7 +344,7 @@ test('open picker renders invalidation, replacement failure and late old-month f
     const oldEntered = deferred(), oldRelease = deferred(); pending = { entered: oldEntered, release: oldRelease };
     const old = owner.refresh(); await oldEntered.promise;
     elements.get('nextPickerMonth').listeners.click(); oldRelease.resolve(); await old; await owner.tail;
-    assert.match(caption.textContent, /2026-06/); assert.match(grid.querySelector('[data-date="2026-06-17"]').textContent, /●/);
+    assert.match(caption.textContent, /June 2026/); assert.match(grid.querySelector('[data-date="2026-06-17"]').textContent, /●/);
     const closedEntered = deferred(), closedRelease = deferred(); pending = { entered: closedEntered, release: closedRelease };
     const closing = owner.refresh(); await closedEntered.promise;
     elements.get('dateDialog').listeners['hidden.bs.modal'](); closedRelease.resolve(); await closing;

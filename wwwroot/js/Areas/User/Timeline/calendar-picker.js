@@ -1,5 +1,31 @@
+import { civilDate, count, observedAt, text, weekdayName } from './timeline-text.js';
 import { anchorOf, civil, horizonDate, isoDate, moveSelection, parseCivil, periodBounds, preset,
     regionalWeekStart, shiftDays, shiftMonth, validateSelection, weekday } from './calendar-scope.js';
+/** Describe one cell independently of its roving-focus and activation behavior. */
+const describeDate = (button, iso, day, today, positive, unknown, selected) => {
+    const symbol = positive ? '●' : unknown ? '?' : '○';
+    button.textContent = `${count(day)}${symbol}${today ? ' ' + text('TodayMarker', 'T') : ''}`;
+    button.setAttribute('aria-label', [
+        civilDate(iso, { dateStyle: 'full' }),
+        positive ? text('MatchingRecords', 'matching records') : unknown ? text('UnknownPresence', 'unknown presence')
+            : text('NoMatchesObserved', 'no matches at observation'),
+        selected ? text('SelectedRange', 'selected range') : text('OutsideRange', 'outside selected range'),
+        today ? text('Today', 'Today') : ''
+    ].filter(Boolean).join(', '));
+    button.setAttribute('aria-selected', String(selected));
+};
+
+/** The marks are a separate observation from the selected period. */
+const marksSummary = (marks, status) => {
+    if (!marks) return status === 'loading' ? text('LoadingDateMarks', 'Loading date marks…')
+        : text('DateMarksUnavailable', 'Date marks unavailable. Manual selection remains available.');
+    return [
+        civilDate(marks.displayedMonth + '-01', { month: 'long', year: 'numeric' }),
+        text('ObservedAt', 'As of {0}', observedAt(marks.asOfUtc)),
+        marks.hasUnresolvedCandidates ? text('UnknownDateMarks', 'Unmarked dates are unknown') : ''
+    ].filter(Boolean).join(' · ');
+};
+
 /** One date transaction: browsing/focus is separate from direct activation or Custom Apply. */
 export const createCalendarPicker = owner => {
     const element = document.getElementById('dateDialog');
@@ -18,7 +44,8 @@ export const createCalendarPicker = owner => {
         displayed = civil(date.year, date.month, 1); monthInput.value = isoDate(displayed).slice(0, 7);
         renderedKey = null; owner.openMonth(displayed.year, displayed.month);
     };
-    const endpointCaption = () => { document.getElementById('endpointCaption').textContent = `Calendar edits ${endpoint === 'fromDate' ? 'From' : 'Through'} only.`; };
+    const endpointCaption = () => { document.getElementById('endpointCaption').textContent = endpoint === 'fromDate'
+        ? text('EditsFrom', 'Calendar edits From only.') : text('EditsThrough', 'Calendar edits Through only.'); };
     const activate = date => {
         if (custom) {
             if (endpoint === 'fromDate') fromInput.value = isoDate(date); else throughInput.value = isoDate(date);
@@ -89,13 +116,15 @@ export const createCalendarPicker = owner => {
         if (key === renderedKey) return; renderedKey = key;
         const restoreFocus = grid.contains(document.activeElement);
         const starts = owner.selection.dateType === 'week' ? owner.selection.weekStartsOn : regional.day;
-        const weekNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        document.getElementById('weekOrder').textContent = `Week starts ${weekNames[starts - 1]}${owner.selection.dateType === 'week' ? ' (frozen selection)' : regional.fallback ? ' (Monday fallback)' : ' (browser formatting locale)'}.`;
-        document.getElementById('monthStatus').textContent = marks ? `${marks.displayedMonth} · observed ${marks.asOfUtc}${marks.hasUnresolvedCandidates ? ' · Unmarked dates are unknown' : ''}`
-            : `${status === 'loading' ? 'Loading date marks…' : 'Date marks unavailable. Manual selection remains available.'}`;
+        const firstDay = weekdayName(starts);
+        document.getElementById('weekOrder').textContent = owner.selection.dateType === 'week'
+            ? text('PickerFrozenWeek', 'Week starts {0} (frozen selection).', firstDay)
+            : regional.fallback ? text('PickerFallbackWeek', 'Week starts Monday (fallback).')
+                : text('PickerBrowserWeek', 'Week starts {0} (browser formatting locale).', firstDay);
+        document.getElementById('monthStatus').textContent = marksSummary(marks, status);
         grid.replaceChildren();
         const header = document.createElement('div'); header.setAttribute('role', 'row'); header.style.cssText = 'display:grid;grid-template-columns:repeat(7,minmax(0,1fr));';
-        for (let i = 0; i < 7; i++) { const label = document.createElement('span'); label.setAttribute('role', 'columnheader'); label.className = 'text-center small'; label.textContent = weekNames[(starts - 1 + i) % 7].slice(0, 2); header.append(label); }
+        for (let i = 0; i < 7; i++) { const label = document.createElement('span'); label.setAttribute('role', 'columnheader'); label.className = 'text-center small'; label.textContent = weekdayName((starts - 1 + i) % 7 + 1, 'short'); header.append(label); }
         grid.append(header);
         const offset = (weekday(displayed) - starts + 7) % 7;
         const count = new Date(Date.UTC(displayed.year, displayed.month, 0)).getUTCDate();
@@ -107,16 +136,12 @@ export const createCalendarPicker = owner => {
             if (index % 7 === 0) { row = document.createElement('div'); row.setAttribute('role', 'row'); row.style.cssText = header.style.cssText; grid.append(row); }
             const cell = document.createElement('div'); cell.setAttribute('role', 'gridcell'); row.append(cell);
             const number = index - offset + 1;
-            if (number < 1 || number > count) { cell.setAttribute('aria-label', 'Outside displayed month; not observed'); continue; }
+            if (number < 1 || number > count) { cell.setAttribute('aria-label', text('OutsideMonth', 'Outside displayed month; not observed')); continue; }
             const date = civil(displayed.year, displayed.month, number), iso = isoDate(date);
             const button = document.createElement('button'); button.type = 'button'; button.dataset.date = iso;
             button.className = `btn btn-sm w-100 p-1 rounded-0 ${iso >= from && iso <= through ? 'border border-primary border-2' : ''}`;
             button.tabIndex = isoDate(focusDate) === iso ? 0 : -1;
-            const positive = present.has(iso), unknown = !marks || marks.hasUnresolvedCandidates;
-            const symbol = positive ? '●' : unknown ? '?' : '○';
-            button.textContent = `${number}${symbol}${today === iso ? ' T' : ''}`;
-            button.setAttribute('aria-label', `${iso}, ${positive ? 'matching records' : unknown ? 'unknown presence' : 'no matches at observation'}${iso >= from && iso <= through ? ', selected range' : ', outside selected range'}${today === iso ? ', Today' : ''}`);
-            button.setAttribute('aria-selected', String(iso >= from && iso <= through));
+            describeDate(button, iso, number, today === iso, present.has(iso), !marks || marks.hasUnresolvedCandidates, iso >= from && iso <= through);
             let reason = '';
             try { if (!custom) validateSelection(preset(owner.selection, owner.selection.dateType === 'week' ? 'week' : 'day', date), owner.maximumOffset); }
             catch (failure) { reason = failure.message; button.setAttribute('aria-disabled', 'true'); button.title = reason; }

@@ -1,30 +1,30 @@
-import { prepareLocationDeletion } from '../../../util/location-mutation.js';
-import { notesHtmlForDisplay } from '../../../util/notes-images.js';
+import { confirmTimelineDeletion } from './timeline-delete.js';
 import { renderStatistics } from './statistics.js';
-﻿let locations = []; // Declare locations as a global variable
+let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
 let markerLayer, clusterLayer, highlightLayer;
 let stream;
+let sessionEnded = false;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
+import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
+import { count, html, installTimelineZoom, text } from './timeline-text.js';
+import { renderLiveLocation } from './timeline-location.js';
+import { message } from '../../../localization/messages.js';
 import {
-    formatViewerAndSourceTimes,
+    formatHistoryDate,
     isLiveLocation,
     scheduleLocationExpiry,
-    formatDate,
-    formatDecimal,
     getViewerTimeZone,
 } from '../../../util/datetime.js';
 import {
-    generateActivityEditorHtml,
     initActivitySelect,
     setupActivityEditorEvents,
 } from '../../../util/activity-editor.js';
 import {
-    generateWikipediaLinkHtml,
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
 
@@ -32,24 +32,21 @@ import {
 const urlParams = new URLSearchParams(window.location.search);
 const initialLat = parseFloat(urlParams.get('lat'));
 const initialLng = parseFloat(urlParams.get('lng'));
-const initialZoom = parseInt(urlParams.get('zoom'), 10);
 const z = parseInt(urlParams.get('zoom'), 10);
 zoomLevel = (!isNaN(z) && z >= 0) ? z : 3;
-let initialCenter = (
+const initialCenter = (
     !isNaN(initialLat) && !isNaN(initialLng)
         ? [initialLat, initialLng]
         : [20, 0]
 );
 
 const viewerTimeZone = getViewerTimeZone();
-const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-});
-const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
-const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
+/** HTML sinks and live observations share the initiating document's locale. */
+const sessionMessage = () => text('SessionEnded', 'Session ended or account changed. Sign in again before reading Timeline.');
+const sessionResponse = response => response.redirected || response.status === 401 || response.status === 403;
+const mapNotice = () => document.getElementById('liveTimelineNotice');
+const statisticsNotice = () => document.getElementById('liveTimelineStatsNotice');
+const streamNotice = () => document.getElementById('liveTimelineStreamNotice');
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the mapContainer and load location data
@@ -59,22 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
     getUserLocations();
     onZoomOrMoveChanges();
 
-    let username = document.getElementById('username').dataset.username;
-    try {
-        stream = new EventSource(`/api/sse/stream/location-update/${username}`);
-    } catch (e) {
-        console.error(`Could not connect to stream ${e}`);
-    }
-    if (!username) {
-        console.error('Username not found!');
-        return;
-    }
-
-    // handle the SSE stream
-    stream.onmessage = (event) => {
-        handleStream(event);
-        getUserStats();
-    }
+    const username = document.getElementById('username').dataset.username;
+    if (username) connectLiveUpdates(username);
 
     // Cleanup timers and streams on page unload
     window.addEventListener('beforeunload', () => {
@@ -104,28 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
 
-        let deleteProtected;
-        try { deleteProtected = await prepareLocationDeletion(locationId); }
-        catch (error) { alert(error.message); return; }
-        wayfarer.showConfirmationModal({
-            title: "Confirm Deletion",
-            message: deleteProtected.message,
-            confirmText: "Delete",
-            onConfirm: () => {
-                deleteProtected()
-                    .then(data => {
-                        if (data.success) {
-                            if (modalInstance) {
-                                modalInstance.hide();
-                            }
-                            mapContainer = initializeMap();
-                            getUserLocations();
-                        } else {
-                            alert(data.message || "Deletion outcome unknown. Inspect current history before deciding again.");
-                        }
-                    })
-                    .catch(error => console.error("Error:", error));
-            }
+        await confirmTimelineDeletion(locationId, () => {
+            modalInstance?.hide();
+            mapContainer = initializeMap();
+            mapBounds = mapContainer.getBounds();
+            onZoomOrMoveChanges();
+            getUserLocations();
         });
     });
 
@@ -146,28 +113,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Set up activity editor event handlers
-    setupActivityEditorEvents('#modalContent');
+    setupActivityEditorEvents('#modalContent', undefined, { protectLanguage: true });
 
     getUserStats();
 });
 
-/**
- * Sets up Map, Table, and Pagination and may be
- * used for initial or after data updates.
- */
+/** Stop private live publication once the authenticated document loses its session. */
+const endLiveSession = () => {
+    if (sessionEnded) return;
+    sessionEnded = true;
+    stream?.close();
+    clearTimeout(markerTransitionTimer);
+    locations = [];
+    displayLocationsOnMap(mapContainer, locations);
+    document.getElementById('timeline-summary').textContent = '';
+    document.getElementById('modalContent').textContent = sessionMessage();
+    document.getElementById('statsModalContent').textContent = sessionMessage();
+    mapNotice().textContent = sessionMessage();
+    statisticsNotice().textContent = streamNotice().textContent = '';
+};
 
-// Initialize mapContainer with the cache proxy tile layer.
+/** Connect live refresh independently of the viewport and statistics notices. */
+const connectLiveUpdates = username => {
+    try {
+        stream = new EventSource(`/api/sse/stream/location-update/${username}`);
+        stream.onmessage = () => { getUserLocations(); getUserStats(); };
+        stream.onopen = () => { streamNotice().textContent = ''; };
+        stream.onerror = () => {
+            if (sessionEnded) return;
+            streamNotice().textContent = stream.readyState === EventSource.CLOSED
+                ? text('LiveStreamClosed', 'Live updates stopped. Reload to reconnect.')
+                : text('LiveStreamFailed', 'Live updates are temporarily unavailable. The map will retry automatically.');
+        };
+    } catch {
+        streamNotice().textContent = text('LiveStreamClosed', 'Live updates stopped. Reload to reconnect.');
+    }
+};
+
+/** Initialize the map with the existing cached tile layer and localized control names. */
 const initializeMap = () => {
     if (mapContainer !== undefined && mapContainer !== null) {
         mapContainer.off();
         mapContainer.remove();
     }
     mapContainer = L.map('mapContainer', {
-        zoomAnimation: true
+        zoomAnimation: true, zoomControl: false
     }).setView(initialCenter, zoomLevel);
+    installTimelineZoom(mapContainer);
     createTileLayer().addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+    const credit = encode(message('Shell.WayfarerMapCredit', 'Powered by Wayfarer, made by Stef'));
+    const author = encode(message('Shell.AuthorSite', 'Hi, I am Stef check out my blog!'));
+    mapContainer.attributionControl.setPrefix(`&copy; <a href="https://wayfarer.stefk.me" title="${credit}" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="${author}" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>`);
+    mapContainer.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
 
     addZoomLevelControl(mapContainer);
 
@@ -214,7 +212,7 @@ const buildLayers = (locations) => {
                 const isLatestM = location.isLatestLocation;
 
                 document.getElementById('modalContent').innerHTML =
-                    generateLocationModalContent(location, { isLive: isLiveM, isLatest: isLatestM });
+                    renderLiveLocation(location, { isLive: isLiveM, isLatest: isLatestM }, viewerTimeZone);
 
                 new bootstrap.Modal(document.getElementById('locationModal')).show();
             });
@@ -222,9 +220,10 @@ const buildLayers = (locations) => {
 
         if (isHighlight && highlightLayer) {
             const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
-            const highlightMarker = L.marker(coords, { icon });
+            const alt = highlightCandidate.type === 'live' ? text('LiveBadge', 'LIVE LOCATION') : text('LatestBadge', 'LATEST LOCATION');
+            const highlightMarker = L.marker(coords, { icon, alt, title: alt });
             if (highlightCandidate?.type === 'latest') {
-                highlightMarker.bindTooltip("User's latest location.", {
+                highlightMarker.bindTooltip(html("LatestTooltip", "Your latest location."), {
                     direction: "top",
                     offset: [0, -25]
                 });
@@ -233,7 +232,8 @@ const buildLayers = (locations) => {
             highlightMarker.addTo(highlightLayer);
             highlightMarker.setZIndexOffset(1000);
         } else {
-            const marker = L.marker(coords, {});
+            const label = text('RecordId', 'Record {0}', location.id);
+            const marker = L.marker(coords, { title: label, alt: label });
             bindInteractions(marker);
 
             if (markerLayer) markerLayer.addLayer(marker);
@@ -289,124 +289,7 @@ const displayLocationsOnMap = (mapContainer, locations) => {
     buildLayers(locations);
 };
 
-// Generate the content for the modal when a marker is clicked
-const generateLocationModalContent = (location, {isLive, isLatest}) => {
-    // build your badge HTML
-    let badge = '';
-    if (isLive) {
-        badge = '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>';
-    } else if (isLatest) {
-        badge = '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>';
-    }
-
-    let dynamicMinHeight;
-    let style;
-    let charCount = location?.notes ? location.notes.length : 0;
-    if (charCount === 0) {
-        dynamicMinHeight = 0;
-        style = 'display: none;';
-    } else {
-        const lineHeightEm = 1.5;
-        const minLines = Math.ceil(charCount / 50);
-        dynamicMinHeight = 16 * (lineHeightEm * minLines);
-        style = `min-height: ${dynamicMinHeight}px; display: block;`;
-    }
-
-    const timestamps = getLocationTimestampInfo(location);
-    const sourceZone = getLocationSourceTimeZone(location);
-    const recordedTime = timestamps.source
-        ? `<div>${timestamps.source}</div>`
-        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
-
-    return `<div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-12">
-                ${badge}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6">
-                <strong>Datetime (your timezone):</strong>
-                <div>${timestamps.viewer}</div>
-            </div>
-            <div class="col-6">
-                <strong>Recorded local time:</strong>
-                ${recordedTime}
-                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12"><strong>Coordinates:</strong></div>
-            <div class="col-6">
-                <p class="mb-0">Latitude: <span class="fw-bold text-primary">${location.coordinates.latitude}</span></p>
-            </div>
-            <div class="col-6">
-                <p class="mb-0">Longitude: <span class="fw-bold text-primary">${location.coordinates.longitude}</span></p>
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6">${generateActivityEditorHtml(location)}</div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-6"><strong>Accuracy:</strong> <span>${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
-            <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
-        </div>
-        <div class="row mb-2">
-            ${renderLocationAddress(location)}<div class="col-12"><br/>
-            ${generateGoogleMapsLink(location)}
-            ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
-            </div>
-        </div>
-        <div class="row mb-2">
-            <div class="col-12" style="${style}"><strong>Notes:</strong>
-                <div class="border p-1" >
-                    ${notesHtmlForDisplay(location.notes) || 'No notes available'}
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-5">
-                <a href="${buildEditUrl(location.id)}" class="btn-link" title="Edit location">Edit</a>
-            </div>
-            <div class="col-5 offset-2">
-                <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="Delete location">Delete</a>
-            </div>
-        </div>
-    </div>
-`;
-};
-
-/**
- * Generates a link query for Google Maps and opens in new tab
- * @param {string} address
- * @returns {string} an <a> tag to open Google Maps
- */
-/**
- * Generates a Google Maps link combining address and coordinates for precision.
- * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
- */
-const generateGoogleMapsLink = location => {
-    const addr = locationAddressText(location);
-    const lat  = location?.coordinates?.latitude;
-    const lon  = location?.coordinates?.longitude;
-    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
-    const query = addr && hasCoords
-        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
-        : hasCoords
-            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
-            : addr;
-    const q = encodeURIComponent(query || '');
-    return `
-    <a
-      href="https://www.google.com/maps/search/?api=1&query=${q}"
-      target="_blank"
-      class="ms-2 btn btn-outline-primary btn-sm"
-      title="View in Google Maps"
-    ><i class="bi bi-globe-europe-africa"></i> Maps</a>
-  `;
-};
-
+/** Retain camera changes for the live map permalink and edit return. */
 const onZoomOrMoveChanges = () => {
     mapContainer.on("moveend zoomend", () => {
         let z = mapContainer.getZoom();
@@ -449,14 +332,14 @@ const onZoomOrMoveChanges = () => {
 const updateUrlWithMapState = () => {
     const c = mapContainer.getCenter();
     const z = mapContainer.getZoom();
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(window.location.search);
     params.set('lat',  c.lat.toFixed(6));
     params.set('lng',  c.lng.toFixed(6));
     params.set('zoom', z);
 
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    const newUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
     if (zoomLevel !== 3 || c.lat.toFixed(6) !== '20.000000' || c.lng.toFixed(6) !== '0.000000') {
-        history.replaceState(null, '', newUrl);
+        history.replaceState(history.state, '', newUrl);
     }
 };
 
@@ -469,8 +352,12 @@ const debounce = (func, delay) => {
     };
 };
 
-const getUserLocations = () => {
-    const url = `/api/Location/get-user-locations`;
+let viewportRead = 0;
+/** Read the existing viewport API and check its success envelope before displaying results. */
+const getUserLocations = async () => {
+    if (sessionEnded) return;
+    const generation = ++viewportRead;
+    mapNotice().textContent = text('LiveLoading', 'Loading locations…');
 
     let requestData = {
         minLongitude: mapBounds.getSouthWest().lng,
@@ -480,68 +367,62 @@ const getUserLocations = () => {
         zoomLevel: zoomLevel,
     };
 
-    // Send the requestData to your backend API (adjust the URL as needed)
-    fetch(url, {
-        method: "POST", credentials: 'include', headers: {
-            "Content-Type": "application/json", "Accept": "application/json",
-        }, body: JSON.stringify(requestData)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            // TODO: Update map with new data
-            locations = data.data; // Store the fetched locations in the global variable
-            if (locations && locations.length > 0) {
-                displayLocationsOnMap(mapContainer, locations);
-            } else {
-                // Set the mapContainer to a default view if no locations exist AND user is on zoom level 2
-                if (mapContainer.getZoom() <= 2) {
-                    mapContainer.setView([20, 0], 2);
-                }
-            }
-        })
-        .catch(error => console.error("Error fetching location data:", error));
-}
+    try {
+        const response = await fetch('/api/Location/get-user-locations', {
+            method: 'POST', credentials: 'include', headers: {
+                'Content-Type': 'application/json', Accept: 'application/json'
+            }, body: JSON.stringify(requestData)
+        });
+        if (sessionEnded || generation !== viewportRead) return;
+        if (sessionResponse(response)) { endLiveSession(); return; }
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        if (sessionEnded || generation !== viewportRead) return;
+        if (!data.success || !Array.isArray(data.data)) throw new Error();
+        locations = data.data;
+        displayLocationsOnMap(mapContainer, locations);
+        if (!locations.length && mapContainer.getZoom() <= 2) mapContainer.setView([20, 0], 2);
+        mapNotice().textContent = locations.length ? '' : text('LiveEmpty', 'No locations in this map view.');
+    } catch {
+        if (!sessionEnded && generation === viewportRead) mapNotice().textContent =
+            text('LiveReadFailed', 'Could not load locations. Move the map or reload to try again.');
+    }
+};
 
 const debouncedGetUserLocations = debounce(getUserLocations, 350);
 
+/** Load the independent all-history summary without clearing the current viewport. */
 const getUserStats = async () => {
-
-    const url = `/api/users/stats`;
-
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
-        }
-    });
-
-    if (!response.ok) {
-        // You can handle 404/403/other errors differently if you like
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
+    if (sessionEnded) return;
+    try {
+        const response = await fetch('/api/users/stats', { headers: { Accept: 'application/json' } });
+        if (sessionResponse(response)) { endLiveSession(); return; }
+        if (!response.ok) throw new Error();
+        const stats = await response.json();
+        if (sessionEnded) return;
+        renderSummary(stats);
+        statisticsNotice().textContent = '';
+    } catch {
+        if (!sessionEnded) statisticsNotice().textContent = text('LiveStatsFailed', 'Could not load location statistics. Reload to try again.');
     }
+};
 
-    // assuming the response is JSON matching UserLocationStatsDto
-    const stats = await response.json();
+/** Preserve the existing geographic drill-down links and viewer timezone. */
+const renderSummary = stats => {
     const summaryParts = [];
 
     if (stats.totalLocations != null)
-        summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
+        summaryParts.push(`<strong>${html('TotalLocations', 'Total Locations:')}</strong> ${count(stats.totalLocations)}`);
     if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
+        summaryParts.push(`<strong>${html('FromDate', 'From Date:')}</strong> ${encode(formatHistoryDate(stats.fromDate, viewerTimeZone))}`);
     if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
+        summaryParts.push(`<strong>${html('ToDate', 'To Date:')}</strong> ${encode(formatHistoryDate(stats.toDate, viewerTimeZone))}`);
     if (stats.countriesVisited != null)
-        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="countries">Countries:</a></strong> ${stats.countriesVisited}`);
+        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="countries">${html('CountriesLabel', 'Countries:')}</a></strong> ${count(stats.countriesVisited)}`);
     if (stats.regionsVisited != null)
-        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="regions">Regions:</a></strong> ${stats.regionsVisited}`);
+        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="regions">${html('RegionsLabel', 'Regions:')}</a></strong> ${count(stats.regionsVisited)}`);
     if (stats.citiesVisited != null)
-        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="cities">Cities:</a></strong> ${stats.citiesVisited}`);
+        summaryParts.push(`<strong><a href="#" class="text-decoration-none stat-link" data-stat-type="cities">${html('CitiesLabel', 'Cities:')}</a></strong> ${count(stats.citiesVisited)}`);
 
     const summary = summaryParts.join(" | ");
     document.getElementById("timeline-summary").innerHTML = summary;
@@ -569,11 +450,14 @@ const showDetailedStats = async (statType) => {
             }
         });
 
-        if (!response.ok) {
-            throw new Error('Detailed statistics request failed');
+        if (sessionResponse(response)) {
+            endLiveSession();
+            return;
         }
+        if (!response.ok) throw new Error();
 
         const detailedStats = await response.json();
+        if (sessionEnded) return;
 
         // Generate modal content
         const modalContent = generateStatsModalContent(detailedStats, statType);
@@ -601,7 +485,7 @@ const showDetailedStats = async (statType) => {
         });
 
     } catch {
-        wayfarer.showAlert('danger', 'Failed to load detailed statistics. Please try again.');
+        wayfarer.showAlert('danger', text('LiveDetailedStatsFailed', 'Failed to load detailed statistics. Please try again.'));
     }
 };
 
@@ -613,10 +497,5 @@ const showDetailedStats = async (statType) => {
  */
 const generateStatsModalContent = (stats, highlightType) => {
     return renderStatistics(stats, highlightType,
-        iso => formatDate({ iso, displayTimeZone: viewerTimeZone }));
+        iso => encode(formatHistoryDate(iso, viewerTimeZone)));
 };
-
-const handleStream = (event) => {
-    getUserLocations();
-};
-

@@ -36,20 +36,21 @@ namespace Wayfarer.Controllers
             _text = text;
         }
 
-        // Action to display the timeline for the logged-in user
+        /// <summary>Displays the current user’s live Timeline with an authored or localized default heading.</summary>
         public async Task<IActionResult> Index()
         {
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null)
             {
-                SetAlert("User not found.", "danger");
+                SetAlert("User not found.", "danger", "Settings.UserMissing");
                 return RedirectToAction("Index", "Home");
             }
 
             ViewData["Username"] = currentUser.UserName ?? string.Empty;
-            ViewData["TimelineTitle"] = currentUser.ResolveTimelineTitle();
-            
-            SetPageTitle("Private Timeline");
+            var displayName = string.IsNullOrWhiteSpace(currentUser.DisplayName)
+                ? currentUser.UserName ?? string.Empty : currentUser.DisplayName;
+            ViewData["TimelineTitle"] = string.IsNullOrWhiteSpace(currentUser.TimelineTitle)
+                ? _text["Timeline.Heading", displayName] : currentUser.TimelineTitle;
             return View();
         }
 
@@ -148,12 +149,11 @@ namespace Wayfarer.Controllers
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
             if (currentUser == null)
             {
-                SetAlert("User not found.", "danger");
+                SetAlert("User not found.", "danger", "Settings.UserMissing");
                 return RedirectToAction("Index", "Home");
             }
 
             ViewData["Username"] = currentUser.UserName;
-            SetPageTitle("Chronological Timeline");
             return View();
         }
 
