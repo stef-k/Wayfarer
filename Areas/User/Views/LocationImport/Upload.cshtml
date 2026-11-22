@@ -1,7 +1,8 @@
-@using Wayfarer.Models.Enums
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.LocationImportUploadViewModel
 @{
-    ViewData["Title"] = "Upload Location Data";
+    ViewData["Title"] = T["Shell.UploadLocationData"];
+    ViewData["LanguageSafeGet"] = Url.Action("Upload");
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -11,14 +12,14 @@
         <div class="col-md-8 offset-2">
             <div class="card shadow-sm">
                 <div class="card-header text-bg-primary mb-3">
-                    <h2>Upload Timeline File</h2>
+                    <h2>@T["Transfers.UploadHistory"]</h2>
                 </div>
 
                 <div class="card-body">
                     @if (!ViewData.ModelState.IsValid)
                     {
                         <div class="alert alert-danger">
-                            @Html.ValidationSummary("Please correct the errors below.", true)
+                            @Html.ValidationSummary(true, T["Transfers.CorrectErrors"])
                         </div>
 
                     }
@@ -26,34 +27,31 @@
                     @* Report the effective request policy, including multipart overhead. *@
                     @if (ViewBag.UploadsDisabled == true)
                     {
-                        <p class="alert alert-warning">File uploads are disabled by the administrator.</p>
+                        <p class="alert alert-warning">@T["Transfers.UploadsDisabled"]</p>
                     }
                     else
                     {
                         <p class="mb-3">
-                            Upload a supported location-history file. The complete upload request, including
-                            form fields and multipart overhead, must fit within <strong>@ViewBag.UploadLimit MiB</strong>.
+                            @T["Transfers.UploadLimit", T.DisplayNumber((int)ViewBag.UploadLimit)]
                         </p>
                     }
 
                     @* Explain the shared-catalog side effect before the owner submits history. *@
                     <p class="form-text mb-3">
-                        Valid Activity names reuse or create entries in the shared catalog, visible to all
-                        authenticated users. Missing names are optional. Invalid values leave the Location
-                        without an Activity and appear as a warning count in import history.
+                        @T["Transfers.ActivityHelp"]
                     </p>
 
                     <form asp-area="User" asp-controller="LocationImport" asp-action="Upload" method="post" enctype="multipart/form-data">
                         @Html.AntiForgeryToken()
 
                         <div class="mb-3">
-                            <label for="fileUpload" class="form-label">Select File:</label>
+                            <label for="fileUpload" class="form-label">@T["Transfers.SelectFile"]</label>
                             <input asp-for="File" id="fileUpload" class="form-control" accept="@ViewBag.AcceptedExtensions" />
                             @Html.ValidationMessageFor(m => m.File, "", new { @class = "text-danger" })
                         </div>
 
                         <div class="mb-3">
-                            <label for="fileType" class="form-label">File Type:</label>
+                            <label for="fileType" class="form-label">@T["Transfers.FileType"]</label>
                             @Html.DropDownListFor(m => m.FileType, (IEnumerable<SelectListItem>)ViewBag.FileTypes, new { id = "fileType", @class = "form-select" })
 
                             @Html.ValidationMessageFor(m => m.FileType, "", new { @class = "text-danger" })
@@ -62,17 +60,16 @@
                         <div class="form-check mb-1">
                             <input asp-for="EnrichmentRequested" class="form-check-input" />
                             <label asp-for="EnrichmentRequested" class="form-check-label">
-                                Continue filling missing addresses after the import completes
+                                @T["Transfers.ContinueEnrichment"]
                             </label>
                             <span asp-validation-for="EnrichmentRequested" class="text-danger"></span>
                         </div>
                         <p class="form-text mb-3">
-                            Import completion is independent. If selected, Wayfarer continues later enrichment in
-                            bounded scheduled batches; provider availability may pause it without removing imported data.
+                            @T["Transfers.ContinueHelp"]
                         </p>
 
                         <div class="d-grid gap-2 mt-3">
-                            <button type="submit" class="btn btn-outline-primary" disabled="@(ViewBag.UploadsDisabled == true)">Upload File</button>
+                            <button type="submit" class="btn btn-outline-primary" disabled="@(ViewBag.UploadsDisabled == true)">@T["Transfers.UploadFile"]</button>
                         </div>
                     </form>
                 </div>

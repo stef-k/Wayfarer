@@ -26,7 +26,7 @@ public static class WebLocalization
             {
                 var previous = options.DataAnnotationLocalizerProvider;
                 var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
-                var locations = new WebAnnotationLocalizer(messages, "Locations.");
+                var locations = new WebAnnotationLocalizer(messages, "Locations.", "Transfers.");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
                     SettingsValidationMetadata.Owns(type) ? settings
                     : LocationVisitValidationMetadata.Owns(type) ? locations

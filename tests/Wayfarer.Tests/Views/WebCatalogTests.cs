@@ -26,6 +26,7 @@ public sealed class WebCatalogTests
     [InlineData("Timeline")]
     [InlineData("Locations")]
     [InlineData("Visits")]
+    [InlineData("Transfers")]
     public void CatalogsHaveMatchingEntriesAndArguments(string owner)
     {
         var locales = WebLocalization.ReadLocales(new ConfigurationBuilder().Build());

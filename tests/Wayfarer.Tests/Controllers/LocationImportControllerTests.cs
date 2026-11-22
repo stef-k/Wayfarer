@@ -212,7 +212,7 @@ public class LocationImportControllerTests : TestBase
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),
             scheduler,
-            presentation.Object,
+            presentation.Object, TestWebMessages.Instance,
             contextFactory: new CloningFactory(db));
         var http = new DefaultHttpContext
         {

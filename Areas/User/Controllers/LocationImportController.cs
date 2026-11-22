@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Quartz;
-using Wayfarer.Jobs;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
@@ -18,13 +18,8 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class LocationImportController : BaseController
     {
-        /// <summary>
-        /// Quartz job group for location import jobs.
-        /// </summary>
-        private const string ImportJobGroup = "Imports";
-
         private readonly LocationImportStagedFiles _stagedFiles;
-        private readonly IScheduler        _scheduler;
+        private readonly WebMessages _text;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
         private readonly ILocationImportLifecycle _importLifecycle;
         private readonly ILocationEnrichmentPresentationProjector _enrichmentPresentation;
@@ -34,7 +29,7 @@ namespace Wayfarer.Areas.User.Controllers
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
             IScheduler scheduler,
-            ILocationEnrichmentPresentationProjector enrichmentPresentation,
+            ILocationEnrichmentPresentationProjector enrichmentPresentation, WebMessages text,
             IImportEnrichmentHandoff? enrichmentHandoff = null,
             IWorkflowScheduleProjection? workflowProjection = null,
             ILocationImportLifecycle? importLifecycle = null,
@@ -42,7 +37,7 @@ namespace Wayfarer.Areas.User.Controllers
             : base(logger, dbContext)
         {
             _stagedFiles = stagedFiles;
-            _scheduler = scheduler;
+            _text = text;
             _enrichmentPresentation = enrichmentPresentation;
             _enrichmentHandoff = enrichmentHandoff;
             _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
@@ -68,24 +63,16 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["ManagedFiles"] = await _dbContext.Set<MobileLocationImportUpload>()
                 .Where(row => row.UserId == userId && row.ImportId != null)
                 .ToDictionaryAsync(row => row.ImportId!.Value, row => row.FileState);
-            ViewData["UserId"] = userId;
             ViewData["EnrichmentPresentation"] = await _enrichmentPresentation.ProjectAsync(
                 userId, HttpContext.RequestAborted);
 
-            SetPageTitle("Location Imports");
             return View(imports);
         }
 
         /// <summary>Starts or idempotently reuses the authenticated user's one enrichment workflow.</summary>
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartEnrichment()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
-            var result = await _enrichmentHandoff.StartAsync(userId);
-            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
-        }
+        public Task<IActionResult> StartEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.StartAsync(userId));
 
         /// <summary>Persists authenticated pause intent before neutralizing Quartz work.</summary>
         [HttpPost, ValidateAntiForgeryToken]
@@ -108,10 +95,10 @@ namespace Wayfarer.Areas.User.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            if (_enrichmentHandoff is null) return EnrichmentConflict("control-unavailable");
             var result = await _enrichmentHandoff.RetryDeferredAsync(userId);
             var feedback = RetryFeedback(result);
-            SetAlert(feedback.Message, feedback.Type);
+            SetEnrichmentAlert(feedback, result.AffectedCount);
             return RedirectToAction(nameof(Index));
         }
 
@@ -121,50 +108,72 @@ namespace Wayfarer.Areas.User.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            if (_enrichmentHandoff is null) return EnrichmentConflict("control-unavailable");
             var result = await _enrichmentHandoff.RepairIncompleteAsync(userId);
             var feedback = result switch
             {
                 { Classification: LocationEnrichmentCommandResult.Applied, AffectedCount: > 0 } =>
-                    ($"Repair scheduled for {result.AffectedCount} incomplete locations.", "success"),
+                    ($"Repair scheduled for {result.AffectedCount} incomplete locations.", "success", "Transfers.RepairScheduled", true),
                 { Classification: LocationEnrichmentCommandResult.AlreadySatisfied, Code: "nothing-to-repair" } =>
-                    ("No incomplete provider addresses are currently eligible.", "info"),
+                    ("No incomplete provider addresses are currently eligible.", "info", "Transfers.NoRepair", false),
                 { Classification: LocationEnrichmentCommandResult.SchedulingPending, AffectedCount: > 0 } =>
-                    ($"Repair was saved for {result.AffectedCount} incomplete locations; scheduling requires reconciliation.", "warning"),
+                    ($"Repair was saved for {result.AffectedCount} incomplete locations; scheduling requires reconciliation.", "warning", "Transfers.RepairPending", true),
                 { Code: "authority-unavailable" } =>
-                    ("Current Geoapify geocoding authority is required before repairing incomplete addresses.", "warning"),
-                _ => ("Incomplete addresses could not be scheduled because the workflow changed. Refresh and try again.", "warning")
+                    ("Current Geoapify geocoding authority is required before repairing incomplete addresses.", "warning", "Transfers.RepairAuthority", false),
+                _ => ("Incomplete addresses could not be scheduled because the workflow changed. Refresh and try again.", "warning", "Transfers.RepairChanged", false)
             };
-            SetAlert(feedback.Item1, feedback.Item2);
+            SetEnrichmentAlert(feedback, result.AffectedCount);
             return RedirectToAction(nameof(Index));
         }
 
         /// <summary>Maps finite retry outcomes to credential-free user feedback.</summary>
-        private static (string Message, string Type) RetryFeedback(EnrichmentCommandResult result) => result switch
+        private static (string Message, string Type, string Key, bool Count) RetryFeedback(EnrichmentCommandResult result) => result switch
         {
             { Classification: LocationEnrichmentCommandResult.Applied, AffectedCount: > 0 } =>
-                ($"Retry scheduled for {result.AffectedCount} deferred locations.", "success"),
+                ($"Retry scheduled for {result.AffectedCount} deferred locations.", "success", "Transfers.RetryScheduled", true),
             { Classification: LocationEnrichmentCommandResult.AlreadySatisfied, Code: "nothing-to-retry" } =>
-                ("No deferred locations are currently eligible for retry.", "info"),
+                ("No deferred locations are currently eligible for retry.", "info", "Transfers.NoRetry", false),
             { Classification: LocationEnrichmentCommandResult.SchedulingPending, AffectedCount: > 0 } =>
-                ($"Retry was saved for {result.AffectedCount} deferred locations; scheduling requires reconciliation.", "warning"),
+                ($"Retry was saved for {result.AffectedCount} deferred locations; scheduling requires reconciliation.", "warning", "Transfers.RetryPending", true),
             { Code: "authority-unavailable" } =>
-                ("The current geocoding provider must be available before retrying.", "warning"),
+                ("The current geocoding provider must be available before retrying.", "warning", "Transfers.RetryAuthority", false),
             { Code: "invalid-state" } =>
-                ("The enrichment workflow changed state before retry could start.", "warning"),
-            _ => ("Deferred enrichment could not be retried because its state changed. Refresh and try again.", "warning")
+                ("The enrichment workflow changed state before retry could start.", "warning", "Transfers.RetryStateChanged", false),
+            _ => ("Deferred enrichment could not be retried because its state changed. Refresh and try again.", "warning", "Transfers.RetryChanged", false)
         };
 
+        /// <summary>Carries the outcome and optional count to the destination locale.</summary>
+        private void SetEnrichmentAlert((string Message, string Type, string Key, bool Count) feedback, int count)
+        {
+            SetAlert(feedback.Message, feedback.Type, feedback.Key);
+            if (feedback.Count) TempData["WebAlertCount"] = count;
+        }
+
+        /// <summary>Executes a control under the current user's workflow authority.</summary>
         private async Task<IActionResult> ExecuteEnrichmentAsync(
             Func<IImportEnrichmentHandoff, string, Task<EnrichmentCommandResult>> execute)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            if (_enrichmentHandoff is null) return EnrichmentConflict("control-unavailable");
             var result = await execute(_enrichmentHandoff, userId);
-            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
+            return result.Succeeded ? RedirectToAction(nameof(Index)) : EnrichmentConflict(result.Code);
         }
 
+        /// <summary>Renders a browser explanation while preserving the 409 and existing code response.</summary>
+        private IActionResult EnrichmentConflict(string code)
+        {
+            if (Request.GetTypedHeaders().Accept?.Any(value => value.Quality != 0 &&
+                    value.MediaType.Equals("text/html", StringComparison.OrdinalIgnoreCase)) != true)
+                return Conflict(code);
+
+            ViewData["TransferErrorKey"] = LocationTransferText.EnrichmentConflictKey(code);
+            var view = View("~/Views/Shared/Error.cshtml", new ErrorViewModel { RequestId = HttpContext.TraceIdentifier });
+            view.StatusCode = StatusCodes.Status409Conflict;
+            return view;
+        }
+
+        /// <summary>Starts or resumes the existing import using its persisted checkpoint.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StartImport(int id)
@@ -172,16 +181,18 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var result = await _importLifecycle.StartAsync(userId, id, HttpContext.RequestAborted);
-            SetAlert(result.Code switch
+            var (message, key) = result.Code switch
             {
-                LocationImportCommandCode.Accepted => "Import started successfully.",
-                LocationImportCommandCode.ProjectionPending => "Import accepted and awaiting scheduler recovery.",
-                LocationImportCommandCode.InvalidState => "Import cannot be started in its current state.",
-                _ => "Import record not found."
-            }, result.Succeeded ? "success" : "warning");
+                LocationImportCommandCode.Accepted => ("Import started successfully.", "Transfers.ImportStarted"),
+                LocationImportCommandCode.ProjectionPending => ("Import accepted and awaiting scheduler recovery.", "Transfers.StartPending"),
+                LocationImportCommandCode.InvalidState => ("Import cannot be started in its current state.", "Transfers.StartInvalidState"),
+                _ => ("Import record not found.", "Transfers.ImportNotFound")
+            };
+            SetAlert(message, result.Succeeded ? "success" : "warning", key);
             return RedirectToAction("Index");
         }
 
+        /// <summary>Requests a stop through the existing import lifecycle.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StopImport(int id)
@@ -190,7 +201,8 @@ namespace Wayfarer.Areas.User.Controllers
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var result = await _importLifecycle.StopAsync(userId, id, HttpContext.RequestAborted);
             SetAlert(result.Succeeded ? "Import stopping request submitted successfully." : "No active import was found.",
-                result.Succeeded ? "success" : "warning");
+                result.Succeeded ? "success" : "warning",
+                result.Succeeded ? "Transfers.StopRequested" : "Transfers.NoActiveImport");
             return RedirectToAction("Index");
         }
 
@@ -202,25 +214,25 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var result = await _importLifecycle.DeleteAsync(userId, id, HttpContext.RequestAborted);
-            var message = result.Code switch
+            var (message, key) = result.Code switch
             {
-                LocationImportCommandCode.Accepted => "Upload record removed successfully.",
+                LocationImportCommandCode.Accepted => ("Upload record removed successfully.", "Transfers.ImportRemoved"),
                 LocationImportCommandCode.ProjectionPending =>
-                    "Deletion requested. Upload cleanup is pending reconciliation.",
+                    ("Deletion requested. Upload cleanup is pending reconciliation.", "Transfers.DeletePending"),
                 LocationImportCommandCode.ExecutionActive =>
-                    "Upload is active or stopping and cannot be removed yet.",
-                LocationImportCommandCode.NotFound => "Upload record not found.",
-                _ => "Upload record could not be removed."
+                    ("Upload is active or stopping and cannot be removed yet.", "Transfers.DeleteActive"),
+                LocationImportCommandCode.NotFound => ("Upload record not found.", "Transfers.ImportNotFound"),
+                _ => ("Upload record could not be removed.", "Transfers.DeleteFailed")
             };
-            SetAlert(message, result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
+            SetAlert(message, result.Code == LocationImportCommandCode.Accepted ? "success" : "warning", key);
             return RedirectToAction("Index");
         }
 
+        /// <summary>Shows the effective policy and supported upload formats.</summary>
         [HttpGet]
         public IActionResult Upload()
         {
             PrepareUploadView();
-            SetPageTitle("Upload File");
             return View(new LocationImportUploadViewModel());
         }
 
@@ -233,11 +245,12 @@ namespace Wayfarer.Areas.User.Controllers
                 .Select(fileType => new SelectListItem
                 {
                     Value = fileType.ToString(),
-                    Text = $"{fileType} ({string.Join(", ", fileType.GetAllowedExtensions())})"
+                    Text = _text["Transfers.FormatOption", _text[$"Transfers.Format.{fileType}"],
+                        string.Join(", ", fileType.GetAllowedExtensions())]
                 })
                 .ToList();
 
-            fileTypes.Insert(0, new SelectListItem { Value = "", Text = "-- Select File Type --" });
+            fileTypes.Insert(0, new SelectListItem { Value = "", Text = _text["Transfers.SelectFormat"] });
             ViewBag.FileTypes = fileTypes;
 
             var acceptedExtensions = Enum.GetValues(typeof(LocationImportFileType))
@@ -251,7 +264,7 @@ namespace Wayfarer.Areas.User.Controllers
             // Display the same effective policy used before multipart buffering.
             var effectiveLimit = Wayfarer.Util.UploadRequestPolicy.EffectiveMiB(
                 uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB);
-            ViewBag.UploadLimit = effectiveLimit.ToString();
+            ViewBag.UploadLimit = effectiveLimit;
             ViewBag.UploadsDisabled = effectiveLimit < 0;
         }
 
@@ -259,13 +272,13 @@ namespace Wayfarer.Areas.User.Controllers
         private ViewResult InvalidUpload(LocationImportUploadViewModel model)
         {
             PrepareUploadView();
-            SetPageTitle("Upload File");
             return View("Upload", model);
         }
 
+        /// <summary>Validates the chosen input and stages an import under the current owner.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Wayfarer.Middleware.UserFileUpload]
+        [Wayfarer.Middleware.UserFileUpload(LocalizeRequestRefusal = true)]
         public async Task<IActionResult> Upload(LocationImportUploadViewModel model)
         {
             if (!ModelState.IsValid)
@@ -275,20 +288,20 @@ namespace Wayfarer.Areas.User.Controllers
 
             if (model.File == null || model.File.Length == 0)
             {
-                ModelState.AddModelError("", "Please select a valid file.");
+                ModelState.AddModelError(nameof(model.File), _text["Transfers.InvalidFile"]);
                 return InvalidUpload(model);
             }
 
             if (!model.FileType.HasValue)
             {
-                ModelState.AddModelError(nameof(model.FileType), "Please select a valid file type.");
+                ModelState.AddModelError(nameof(model.FileType), _text["Transfers.InvalidFormat"]);
                 return InvalidUpload(model);
             }
 
             if (!model.FileType.Value.IsSupportedUpload())
             {
                 ModelState.AddModelError(nameof(model.FileType),
-                    "Generic GeoJSON is not a supported location-history format. Select Wayfarer GeoJSON for Wayfarer exports.");
+                    _text["Transfers.UnsupportedGeoJson"]);
                 return InvalidUpload(model);
             }
 
@@ -296,7 +309,7 @@ namespace Wayfarer.Areas.User.Controllers
             if (!model.FileType.Value.IsExtensionValid(extension))
             {
                 ModelState.AddModelError(nameof(model.File),
-                    $"Invalid file extension '{extension}'. Allowed: {string.Join(", ", model.FileType.Value.GetAllowedExtensions())}");
+                    _text["Transfers.InvalidExtension", extension, string.Join(", ", model.FileType.Value.GetAllowedExtensions())]);
                 return InvalidUpload(model);
             }
 
@@ -308,7 +321,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetAlert("User not authenticated.", "danger", "Transfers.SignInRequired");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -402,7 +415,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
-                SetAlert("File uploaded successfully and is pending import.");
+                SetAlert("File uploaded successfully and is pending import.", "success", "Transfers.Uploaded");
             }
             catch (Exception)
             {
@@ -430,6 +443,7 @@ namespace Wayfarer.Areas.User.Controllers
             try
             {
                 TempData["AlertMessage"] = message;
+                TempData["WebAlertKey"] = "Transfers.UploadFailed";
             }
             catch (Exception)
             {

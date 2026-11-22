@@ -81,7 +81,8 @@ for unsaved work.
 | 4 | User and Timeline Settings, Hidden Areas, app connection and personal location providers. The affected routes and evidence are recorded below. |
 | 5 | User and Manager Groups, invitation inbox and roster operations, sharing, and scoped map history. Route and live feedback owners are recorded below. |
 | 6 | Private live Timeline and Chronological calendar. Date and filter controls, map areas, connection rules, analysis, statistics, details and edit return use the document locale. Both Timeline documents use the shared language selector with their draft owners. |
-| 7–8 | Location and Visit CRUD, location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Location routes withhold switching while their protected workspaces are pending integration. |
+| 7 | Location and Visit CRUD. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Protected Location workspaces use their existing draft and recovery rules. |
+| 8 | Location import, managed-file replay, address enrichment and Location exports. The Transfers catalog covers the Web controls and feedback. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
@@ -236,3 +237,12 @@ the PR. Inherited Timeline defects remain tracked in
 | `/User/Visit` and `/User/Visit/Edit/{id}` | Visits owns history, generated counts and status, filters, linked locations, UTC arrival and end fields, marker choices, and single and bulk deletion feedback. Stored icon and color keys and authored names, addresses and Notes retain their existing values. MVC redirect alerts resolve their message in the destination locale. |
 | Language switching | The Location lists consult the inline Activity draft owner and the split map consults its ruler. The lists hold switching during protected deletion preparation and execution. Conditional recovery uses the retained attempt and explicit inspection. An unconfirmed bulk deletion holds switching until the user deliberately refreshes history. Create, Edit and Bulk Notes withhold switching because they can retain mounted input or recovery state. Visit Edit uses the ordinary form and mounted Notes guards and an owned GET after validation. |
 | Focused evidence | `protectedLocation.spec.ts` exercises Greek Visit History, Greek Create binding and field feedback, protected Edit recovery and a real stale save. The assertions use the existing routes and check numeric, time, draft and return inputs. The existing English Create retry journey still checks preservation of unacknowledged edits. Area 7 independent review is pending. |
+
+
+### Area 8 Location transfers and enrichment
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| `/User/LocationImport` and `/api/sse/import` | The import list localizes persisted lifecycle, custody, checkpoints, counts, warnings and control outcomes. The existing enrichment projector determines available actions and holds. SSE carries a content-free refresh hint, so initial and refreshed documents use the same presentation. `locationTransferLanguage.spec.ts` checks a Greek stopped import before and after the reload. |
+| `/User/LocationImport/Upload` | Supported choices preserve their submitted format values. The Greek browser journey checks an invalid extension and the retained format choice. `UploadRequestBoundaryTests` exercises Kestrel and the real upload middleware for disabled and oversized requests, including a streamed oversized request. Authorization still precedes policy. |
+| Location export menu and `/LocationExport/{action}` | All four download controls and the error document use the Transfers catalog. `LocationTransferWebLanguageHttpTests` compares English and Greek GeoJSON bytes and checks the media type, filename convention, authored content and recovery metadata. It also checks the Greek error document for a GPX serialization failure. The existing PostgreSQL round trips exercise all four formats. |

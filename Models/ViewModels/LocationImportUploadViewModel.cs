@@ -5,10 +5,12 @@ namespace Wayfarer.Models.ViewModels;
 
 public class LocationImportUploadViewModel
 {
-    [Required(ErrorMessage = "Please select a file.")]
+    /// <summary>The uploaded location-history file.</summary>
+    [Required(ErrorMessage = "Transfers.RequiredFile")]
     public IFormFile File { get; set; } = default!;
     
-    [Required(ErrorMessage = "Please select a valid file type.")]
+    /// <summary>The selected parser format, transmitted as its existing enum value.</summary>
+    [Required(ErrorMessage = "Transfers.InvalidFormat")]
     public LocationImportFileType? FileType { get; set; }
 
     /// <summary>Whether remaining blank-address Locations should continue through the durable workflow.</summary>
