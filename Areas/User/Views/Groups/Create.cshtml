@@ -1,34 +1,40 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewData["Title"] = "Create Group";
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
+    ViewData["LanguageSafeGet"] = Url.Action("Create");
+    ViewData["Title"] = T["Shell.CreateGroup"];
 }
 
-<h2>Create Group</h2>
+<h2>@T["Shell.CreateGroup"]</h2>
 
 <form asp-area="User" asp-controller="Groups" asp-action="Create" method="post" id="userGroupCreateForm" novalidate>
     @Html.AntiForgeryToken()
     <div class="mb-3">
-        <label class="form-label" for="name">Name</label>
-        <input class="form-control" id="name" name="name" required maxlength="200" />
-        <div class="invalid-feedback">Please provide a group name.</div>
+        <label class="form-label" for="name">@T["Groups.Name"]</label>
+        <input class="form-control" id="name" name="name" value="@ViewData.ModelState["name"]?.AttemptedValue" required maxlength="200" />
+        <div class="invalid-feedback">@T["Groups.NameRequired"]</div>
+        @Html.ValidationMessage("name", null, new { @class = "text-danger" })
     </div>
     <div class="mb-3">
-        <label class="form-label" for="description">Description</label>
-        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+        <label class="form-label" for="description">@T["Groups.Description"]</label>
+        <textarea class="form-control" id="description" name="description" rows="3">@ViewData.ModelState["description"]?.AttemptedValue</textarea>
     </div>
     <div class="mb-3">
         <label class="form-label" for="groupType">
-            Type
+            @T["Groups.Type"]
             <i class="bi bi-question-circle text-muted ms-1"
-               data-tippy-content="Family: all members see each other. Friends: casual sharing with peer visibility controls."></i>
+               data-tippy-content="@T["Groups.PersonalTypesHelp"]"></i>
         </label>
         <select class="form-select" id="groupType" name="groupType" required>
-            <option value="Family">Family</option>
-            <option value="Friends">Friends</option>
+            <option value="Family" selected="@(ViewData.ModelState["groupType"]?.AttemptedValue == "Family" ? "selected" : null)">@T["Groups.TypeFamily"]</option>
+            <option value="Friends" selected="@(ViewData.ModelState["groupType"]?.AttemptedValue == "Friends" ? "selected" : null)">@T["Groups.TypeFriends"]</option>
         </select>
-        <div class="invalid-feedback">Please select a group type.</div>
+        <div class="invalid-feedback">@T["Groups.TypeRequired"]</div>
+        @Html.ValidationMessage("groupType", null, new { @class = "text-danger" })
     </div>
-    <button type="submit" class="btn btn-primary">Create</button>
-    <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">Cancel</a>
+    <button type="submit" class="btn btn-primary">@T["Groups.Create"]</button>
+    <a class="btn btn-secondary" asp-area="User" asp-controller="Groups" asp-action="Index">@T["Shell.Cancel"]</a>
   </form>
 
 <script>

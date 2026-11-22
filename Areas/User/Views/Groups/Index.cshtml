@@ -1,65 +1,69 @@
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewData["Title"] = "My Groups";
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
+    ViewData["Title"] = T["Shell.MyGroups"];
     ViewData["BodyClass"] = "container";
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h2>@ViewData["Title"]</h2>
-    <a class="btn btn-primary" asp-area="User" asp-controller="Groups" asp-action="Create">New Group</a>
+    <a class="btn btn-primary" asp-area="User" asp-controller="Groups" asp-action="Create">@T["Groups.NewGroup"]</a>
 </div>
 
 <div class="alert alert-light small mb-3">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Groups let you share live locations with trusted people. Create groups for family or friends.
-    Members can see each other's locations on the group map.
+    @T["Groups.Intro"]
 </div>
+
+@Html.AntiForgeryToken()
 
 <div class="table-responsive">
 <table class="table table-striped">
     <thead>
     <tr>
-        <th>Name</th>
-        <th>Description</th>
+        <th>@T["Groups.Name"]</th>
+        <th>@T["Groups.Description"]</th>
         <th>
-            Type
+            @T["Groups.Type"]
             <i class="bi bi-question-circle text-muted ms-1"
-               data-tippy-content="Family: all members see each other. Friends: casual sharing with peer visibility controls."></i>
+               data-tippy-content="@T["Groups.PersonalTypesHelp"]"></i>
         </th>
-        <th>Members</th>
+        <th>@T["Groups.Members"]</th>
         <th></th>
     </tr>
     </thead>
     <tbody id="groupsBody">
     @{
-        // Server-provided fallback rendering; JS will enhance/handle actions.
-        var joined = ViewBag.Joined as IEnumerable<dynamic>;
-        if (joined != null)
+        // The joined-group query supplies the current membership role for action visibility.
+        var joined = ViewBag.Joined as IEnumerable<dynamic> ?? [];
+        foreach (var g in joined)
         {
-            foreach (var g in joined)
-            {
-                <tr data-group-id="@g.Id">
-                    <td>@g.Name</td>
-                    <td>@g.Description</td>
-                    <td>@g.GroupType</td>
-                    <td>
-                        @{
-                            var counts = ViewBag.MemberCounts as IDictionary<Guid,int>;
-                            var gid = (Guid)g.Id;
-                            var cnt = counts != null && counts.ContainsKey(gid) ? counts[gid] : 0;
-                        }
-                        <span class="badge bg-secondary js-member-count" data-group-id="@g.Id">@cnt</span>
-                    </td>
-                    <td class="text-nowrap">
-                        <a class="btn btn-sm btn-primary" asp-area="User" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
-                        @if (string.Equals((string)g.GroupType, "Family", StringComparison.OrdinalIgnoreCase) || string.Equals((string)g.GroupType, "Friends", StringComparison.OrdinalIgnoreCase))
-                        {
-                            <a class="btn btn-sm btn-info" asp-area="User" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>
-                        }
-                        <button type="button" class="btn btn-sm btn-outline-danger js-leave" data-group-id="@g.Id">Leave</button>
-                    </td>
-                </tr>
-            }
+            <tr data-group-id="@g.Id">
+                <td>@g.Name</td>
+                <td>@g.Description</td>
+                <td>@(Wayfarer.Localization.GroupWebText.Type(T, (string?)g.GroupType))</td>
+                <td>
+                    @{
+                        var counts = ViewBag.MemberCounts as IDictionary<Guid,int>;
+                        var gid = (Guid)g.Id;
+                        var cnt = counts != null && counts.ContainsKey(gid) ? counts[gid] : 0;
+                    }
+                    <span class="badge bg-secondary js-member-count" data-group-id="@g.Id" data-count="@cnt.ToString(System.Globalization.CultureInfo.InvariantCulture)">@T.DisplayNumber(cnt)</span>
+                </td>
+                <td class="text-nowrap">
+                    <a class="btn btn-sm btn-primary" asp-area="User" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">@T["Groups.Map"]</a>
+                    @if ((string)g.Role == Wayfarer.Models.GroupMember.Roles.Owner &&
+                         (string.Equals((string?)g.GroupType, "Family", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals((string?)g.GroupType, "Friends", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        <a class="btn btn-sm btn-info" asp-area="User" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">@T["Groups.Members"]</a>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-danger js-leave" data-group-id="@g.Id">@T["Groups.Leave"]</button>
+                </td>
+            </tr>
         }
+        <tr id="groupsEmptyRow" hidden="@joined.Any()"><td colspan="5" class="text-muted text-center">@T["Groups.EmptyJoined"]</td></tr>
     }
     </tbody>
 </table>

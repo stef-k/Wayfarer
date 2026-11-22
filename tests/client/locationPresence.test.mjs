@@ -86,7 +86,7 @@ for (const area of ['User', 'Manager']) {
             clearTimeout: id => callbacks.delete(id) };
         const context = vm.createContext({ ...timers, latestMarkers, map: {},
             Date: class extends Date { static now() { return clock; } },
-            idToInfoMap: () => new Map(), photoBadge: () => 'photo', buildTooltipHtml: () => 'Location',
+            idToInfoMap: () => new Map(), photoBadge: () => 'photo', groupLocationTooltip: () => 'Location', t: (_, readable) => readable, groupHtml: value => value,
             openLocationModal: () => {},
             L: { divIcon: options => options, marker: (_, options) => { clock += renderDelay; return { icon: options.icon, handlers: {},
                 bindTooltip(text) { this.tooltip = text; return this; }, on(type, fn) { this.handlers[type] = fn; },

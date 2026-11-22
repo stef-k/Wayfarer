@@ -1,67 +1,39 @@
-// Lists joined groups and handles Leave via API.
-// Uses /api/groups?scope=joined and POST /api/groups/{id}/leave
+import { groupError, groupMessage as t } from '../../../util/group-web-messages.js';
 
-(() => {
-  const tbody = document.getElementById('groupsBody');
-  if (!tbody) return;
-
-  // Group descriptions remain plain text when inserted into table markup.
-  const encodeText = value => {
-    const span = document.createElement('span');
-    span.textContent = value ?? '';
-    return span.innerHTML;
-  };
-
-  async function loadJoined(){
-    try {
-      const resp = await fetch('/api/groups?scope=joined');
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (!Array.isArray(data)) return;
-      // If server rendered, skip replacing; else render
-      if (tbody.children.length === 0) {
-        tbody.innerHTML = data.map(g => `
-          <tr data-group-id="${g.id}">
-            <td>${g.name}</td>
-            <td>${encodeText(g.description)}</td>
-            <td></td>
-            <td class="text-nowrap">
-              <a class="btn btn-sm btn-primary" href="/User/Groups/Map?groupId=${g.id}">Map</a>
-              <button type="button" class="btn btn-sm btn-outline-danger js-leave" data-group-id="${g.id}">Leave</button>
-            </td>
-          </tr>`).join('');
-      }
-    } catch {}
-  }
-
-  async function leaveGroup(groupId){
-    try {
-      const resp = await fetch(`/api/groups/${groupId}/leave`, { method: 'POST', headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' } });
-      if (resp.ok) {
-        const row = tbody.querySelector(`tr[data-group-id="${groupId}"]`);
-        if (row) row.remove();
-      }
-    } catch {}
-  }
-
-  tbody.addEventListener('click', (e) => {
-    const btn = e.target.closest('.js-leave');
-    if (!btn) return;
-    const gid = btn.getAttribute('data-group-id');
-    if (!gid) return;
-
-    if (wayfarer.showConfirmationModal) {
-      wayfarer.showConfirmationModal({
-        title: 'Leave Group',
-        message: 'Are you sure you want to leave this group?',
-        confirmText: 'Leave',
-        onConfirm: () => leaveGroup(gid)
-      });
-    } else if (confirm('Leave this group?')) {
-      leaveGroup(gid);
+/** The server renders joined groups. Leave changes the row only after the existing API succeeds. */
+const tbody = document.getElementById('groupsBody');
+const leaveGroup = async groupId => {
+  try {
+    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const response = await fetch(`/api/groups/${groupId}/leave`, {
+      method: 'POST',
+      headers: { RequestVerificationToken: token },
+    });
+    if (!response.ok || response.redirected) {
+      wayfarer.showAlert?.('danger', await groupError(response, 'leave', t('LeaveFailed', 'You could not leave the group.')));
+      return;
     }
-  });
+    tbody.querySelector(`tr[data-group-id="${groupId}"]`)?.remove();
+    const empty = document.getElementById('groupsEmptyRow');
+    if (empty) empty.hidden = Boolean(tbody.querySelector('tr[data-group-id]'));
+    wayfarer.showAlert?.('success', t('LeftGroup', 'You left the group.'));
+  } catch {
+    wayfarer.showAlert?.('danger', t('Unconfirmed', 'The outcome could not be confirmed. Refresh the page before trying again.'));
+  }
+};
 
-  loadJoined();
-})();
-
+tbody?.addEventListener('click', event => {
+  const groupId = event.target.closest('.js-leave')?.getAttribute('data-group-id');
+  if (!groupId) return;
+  const text = t('LeaveConfirm', 'Are you sure you want to leave this group?');
+  if (wayfarer.showConfirmationModal) {
+    wayfarer.showConfirmationModal({
+      title: t('LeaveGroup', 'Leave Group'),
+      message: text,
+      confirmText: t('Leave', 'Leave'),
+      onConfirm: () => leaveGroup(groupId),
+    });
+  } else if (confirm(text)) {
+    void leaveGroup(groupId);
+  }
+});

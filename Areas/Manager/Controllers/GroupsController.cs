@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,10 +56,10 @@ namespace Wayfarer.Areas.Manager.Controllers;
                              join g in _dbContext.Groups on m.GroupId equals g.Id
                              where !g.IsArchived
                              orderby g.Name
-                             select g).AsNoTracking().ToListAsync();
+                             select new { Group = g, m.Role }).AsNoTracking().ToListAsync();
 
         // Limit counts to the same authorized groups as the listing.
-        var groupIds = model.Select(g => g.Id).ToList();
+        var groupIds = model.Select(row => row.Group.Id).ToList();
         var counts = await _dbContext.GroupMembers
             .Where(m => groupIds.Contains(m.GroupId) && m.Status == GroupMember.MembershipStatuses.Active)
             .GroupBy(m => m.GroupId)
@@ -66,8 +67,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
             .ToListAsync();
         ViewBag.MemberCounts = counts.ToDictionary(x => x.GroupId, x => x.Count);
 
-        SetPageTitle("Groups");
-        return View(model);
+        ViewBag.OwnerGroupIds = model.Where(row => row.Role == GroupMember.Roles.Owner).Select(row => row.Group.Id).ToHashSet();
+        return View(model.Select(row => row.Group).ToList());
     }
 
     /// <summary>
@@ -111,7 +112,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
         ViewBag.Invites = invites;
         ViewBag.CurrentUserId = userId;
 
-        SetPageTitle($"Members - {group.Name}");
         return View();
     }
 
@@ -125,13 +125,13 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             if (string.IsNullOrWhiteSpace(inviteeUserId))
             {
-                SetAlert("Please select a user to invite.", "danger");
+                SetAlert("Please select a user to invite.", "danger", "Groups.SelectInvitee");
                 return RedirectToAction(nameof(Members), new { groupId });
             }
             var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(invitation.InviteeUserId))
                 await _sse.BroadcastGroupNotificationAsync(invitation.InviteeUserId, SseService.InvitationStateHint);
-            SetAlert("Invitation sent.");
+            SetAlert("Invitation sent.", "success", "Groups.InviteSent");
         }
         catch (UnauthorizedAccessException)
         {
@@ -139,7 +139,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (Exception ex)
         {
-            SetAlert(GroupOperationErrors.Message(ex, "invite"), "danger");
+            var message = GroupOperationErrors.Message(ex, "invite");
+            SetAlert(message, "danger", GroupWebText.ErrorKey(message, "Groups.InviteFailed"));
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -156,7 +157,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
             await _sse.BroadcastGroupHintAsync(groupId, JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
             await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
-            SetAlert("Member removed.");
+            SetAlert("Member removed.", "success", "Groups.MemberRemoved");
         }
         catch (UnauthorizedAccessException)
         {
@@ -164,11 +165,13 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (InvalidOperationException ex)
         {
-            SetAlert(GroupOperationErrors.Message(ex, "remove"), "danger");
+            var message = GroupOperationErrors.Message(ex, "remove");
+            SetAlert(message, "danger", GroupWebText.ErrorKey(message, "Groups.RemoveFailed"));
         }
         catch (Exception ex)
         {
-            SetAlert(GroupOperationErrors.Message(ex, "remove"), "danger");
+            var message = GroupOperationErrors.Message(ex, "remove");
+            SetAlert(message, "danger", GroupWebText.ErrorKey(message, "Groups.RemoveFailed"));
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -183,7 +186,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             (groupId, var inviteeUserId) = await _invitationService.RevokeAsync(inviteId, actorId);
             await _sse.BroadcastInvitationRevocationAsync(groupId, inviteeUserId, JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
-            SetAlert("Invitation revoked.");
+            SetAlert("Invitation revoked.", "success", "Groups.InviteRevoked");
         }
         catch (UnauthorizedAccessException)
         {
@@ -191,7 +194,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (Exception)
         {
-            SetAlert("Unable to revoke invitation.", "danger");
+            SetAlert("Unable to revoke invitation.", "danger", "Groups.RevokeFailed");
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -201,7 +204,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
     [HttpGet]
     public IActionResult Create()
     {
-        SetPageTitle("Create Group");
         return View();
     }
 
@@ -218,7 +220,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             await _groupService.DeleteGroupAsync(id, userId);
             LogAudit("GroupDelete", $"Deleted group {id}", "Manager UI");
-            return RedirectWithAlert("Index", "Groups", "Group deleted", "success", area: "Manager");
+            SetAlert("Group deleted", "success", "Groups.GroupDeleted");
+            return RedirectToAction(nameof(Index));
         }
         catch (UnauthorizedAccessException)
         {
@@ -311,23 +314,23 @@ namespace Wayfarer.Areas.Manager.Controllers;
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(string name, string? description, string? groupType)
+    public async Task<IActionResult> Create(string? name, string? description, string? groupType, [FromServices] WebMessages? text = null)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(name))
         {
-            ModelState.AddModelError("name", "Name is required.");
+            ModelState.AddModelError("name", text?["Groups.NameRequired"] ?? "Name is required.");
             return View();
         }
         if (string.IsNullOrWhiteSpace(groupType))
         {
-            ModelState.AddModelError("groupType", "Group type is required.");
+            ModelState.AddModelError("groupType", text?["Groups.TypeRequired"] ?? "Group type is required.");
             return View();
         }
         if (!AllowedGroupTypes.Contains(groupType))
         {
-            ModelState.AddModelError("groupType", "Invalid group type.");
+            ModelState.AddModelError("groupType", text?["Groups.TypeInvalid"] ?? "Invalid group type.");
             return View();
         }
 
@@ -336,12 +339,14 @@ namespace Wayfarer.Areas.Manager.Controllers;
             await _groupService.CreateGroupAsync(userId, name.Trim(), description, GroupSharingPolicy.CanonicalType(groupType));
 
             LogAudit("GroupCreate", $"Created group {name}", "Manager UI");
-            return RedirectWithAlert("Index", "Groups", "Group created", "success", area: "Manager");
+            SetAlert("Group created", "success", "Groups.GroupCreated");
+            return RedirectToAction(nameof(Index));
         }
         catch (UnauthorizedAccessException) { return Unauthorized(); }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
+            var message = GroupOperationErrors.Message(ex, "create");
+            ModelState.AddModelError("name", text?[GroupWebText.ErrorKey(message, "Groups.CreateFailed")] ?? message);
             return View();
         }
     }
@@ -361,7 +366,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var isOwner = await _dbContext.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
         if (!isOwner) return Forbid();
 
-        SetPageTitle($"Edit {group.Name}");
         return View(group);
     }
 
@@ -370,7 +374,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(Guid id, string name, string? description, string? groupType)
+    public async Task<IActionResult> Edit(Guid id, string? name, string? description, string? groupType, [FromServices] WebMessages? text = null)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
@@ -382,17 +386,17 @@ namespace Wayfarer.Areas.Manager.Controllers;
 
         if (string.IsNullOrWhiteSpace(name))
         {
-            ModelState.AddModelError("name", "Name is required.");
+            ModelState.AddModelError("name", text?["Groups.NameRequired"] ?? "Name is required.");
             return View(group);
         }
         if (string.IsNullOrWhiteSpace(groupType))
         {
-            ModelState.AddModelError("groupType", "Group type is required.");
+            ModelState.AddModelError("groupType", text?["Groups.TypeRequired"] ?? "Group type is required.");
             return View(group);
         }
         if (!AllowedGroupTypes.Contains(groupType))
         {
-            ModelState.AddModelError("groupType", "Invalid group type.");
+            ModelState.AddModelError("groupType", text?["Groups.TypeInvalid"] ?? "Invalid group type.");
             return View(group);
         }
 
@@ -406,7 +410,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         catch (UnauthorizedAccessException) { return Forbid(); }
         catch (GroupRefusal refusal) when (refusal.Code == "group_name_taken")
         {
-            ModelState.AddModelError("name", "Group with the same name already exists for owner");
+            ModelState.AddModelError("name", text?["Groups.DuplicateName"] ?? "Group with the same name already exists for owner");
             return View(group);
         }
         // The durable policy transition finishes before notifying existing map subscribers.
@@ -414,7 +418,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
             await _sse.BroadcastGroupHintAsync(id, JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
         LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
 
-        return RedirectWithAlert("Index", "Groups", "Group updated", "success", area: "Manager");
+        SetAlert("Group updated", "success", "Groups.GroupUpdated");
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
@@ -436,7 +441,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
         ViewBag.CurrentUserId = userId;
         var members = await GroupRoster.ReadAsync(_dbContext, groupId, userId);
         ViewBag.Members = members;
-        SetPageTitle($"Map - {group.Name}");
         return View();
     }
 }

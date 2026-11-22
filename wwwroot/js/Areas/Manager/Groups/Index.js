@@ -1,3 +1,5 @@
+import { message, number } from '../../../localization/messages.js';
+
 (() => {
   const forms = [document.getElementById('groupCreateForm'), document.getElementById('groupEditForm')].filter(Boolean);
   forms.forEach(form => {
@@ -38,13 +40,33 @@
             if (!d || !d.type) return;
             const badge = row.querySelector('.js-member-count');
             if (!badge) return;
-            let n = parseInt(badge.textContent || '0', 10);
+            let n = Number(badge.dataset.count);
             if (d.type === 'member-joined') n += 1;
             if (d.type === 'member-left' || d.type === 'member-removed') n = Math.max(0, n - 1);
-            badge.textContent = String(n);
+            badge.dataset.count = String(n);
+            badge.textContent = number(n);
           } catch { /* ignore */ }
         };
       });
     } catch { /* ignore SSE errors */ }
   });
 })();
+
+
+/** Localized confirmation uses the existing MVC Delete form and its antiforgery token. */
+document.querySelectorAll('form.js-confirm').forEach(form => {
+  form.addEventListener('submit', event => {
+    const text = form.dataset.confirmMessage;
+    if (!wayfarer.showConfirmationModal) {
+      if (!confirm(text)) event.preventDefault();
+      return;
+    }
+    event.preventDefault();
+    wayfarer.showConfirmationModal({
+      title: form.dataset.confirmTitle,
+      message: text,
+      confirmText: message('Groups.Delete', 'Delete'),
+      onConfirm: () => form.submit(),
+    });
+  });
+});

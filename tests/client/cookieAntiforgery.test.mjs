@@ -120,9 +120,10 @@ test('group Leave event sends the page token on its bodyless POST', async () => 
     let click;
     let request;
     const tbody = { children: [{}], addEventListener: (_, callback) => { click = callback; }, querySelector: () => null };
-    vm.runInNewContext(await source('Areas/User/Groups/Index.js'), {
+    vm.runInNewContext((await source('Areas/User/Groups/Index.js')).replace(/^import .*;\n/gm, ''), {
         document: { ...documentToken, getElementById: () => tbody },
         fetch: async (url, options) => { if (options) request = { url, options }; return { ok: true, json: async () => [] }; },
+        t: (_, readable) => readable,
         wayfarer: { showConfirmationModal: options => options.onConfirm() }
     });
     click({ target: { closest: () => ({ getAttribute: () => 'group-id' }) } });
@@ -134,10 +135,10 @@ test('group Leave event sends the page token on its bodyless POST', async () => 
 test('Invitation Accept and Decline reuse the rendered token on bodyless POSTs', async () => {
     const requests = [];
     const script = await source('Areas/User/Invitations/Index.js');
-    await vm.runInNewContext(`${script}\nPromise.all([accept('invite'), decline('invite')]);`, {
+    await vm.runInNewContext(`${script.replace(/^import .*;\n/gm, '')}\nPromise.all([respond('invite-1', 'accept'), respond('invite-2', 'decline')]);`, {
         document: { ...documentToken, getElementById: () => null, addEventListener: () => {} },
         window: { __userInvitationsConfig: { acceptUrl: id => `/api/invitations/${id}/accept`, declineUrl: id => `/api/invitations/${id}/decline` } },
-        wayfarer: {},
+        wayfarer: {}, t: (_, readable) => readable,
         fetch: async (url, options) => { requests.push({ url, options }); return { ok: true, text: async () => '{}' }; }
     });
     assert.equal(requests.length, 2);

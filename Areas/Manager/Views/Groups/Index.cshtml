@@ -1,31 +1,34 @@
 @model IEnumerable<Wayfarer.Models.Group>
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewData["Title"] = "Groups";
+    // This document supplies one catalog for both rendered and live Group controls.
+    ViewData["WebCatalog"] = "Groups";
+    var ownerGroupIds = (HashSet<Guid>)ViewBag.OwnerGroupIds;
+    ViewData["Title"] = T["Shell.Groups"];
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h2>Groups</h2>
-    <a class="btn btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Create">New Group</a>
+    <h2>@T["Shell.Groups"]</h2>
+    <a class="btn btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Create">@T["Groups.NewGroup"]</a>
   </div>
 
 <div class="alert alert-light small mb-3">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Groups let you share live locations with trusted people. Create groups for family, friends, or teams.
-    Members can see each other's locations on the group map.
+    @T["Groups.Intro"]
 </div>
 
 <div class="table-responsive">
 <table class="table table-striped">
     <thead>
     <tr>
-        <th>Name</th>
-        <th>Description</th>
+        <th>@T["Groups.Name"]</th>
+        <th>@T["Groups.Description"]</th>
         <th>
-            Type
+            @T["Groups.Type"]
             <i class="bi bi-question-circle text-muted ms-1"
-               data-tippy-content="Organization: requires at least one manager. Family: all members see each other. Friends: casual sharing with flexible rules."></i>
+               data-tippy-content="@T["Groups.ManagedTypesHelp"]"></i>
         </th>
-        <th>Members</th>
+        <th>@T["Groups.Members"]</th>
         <th></th>
     </tr>
     </thead>
@@ -35,24 +38,34 @@
         <tr data-group-id="@g.Id">
             <td>@g.Name</td>
             <td>@g.Description</td>
-            <td>@g.GroupType</td>
+            <td>@(Wayfarer.Localization.GroupWebText.Type(T, (string?)g.GroupType))</td>
             <td>
                 @{
                     var counts = ViewBag.MemberCounts as IDictionary<Guid,int>;
                     var cnt = counts != null && counts.ContainsKey(g.Id) ? counts[g.Id] : 0;
                 }
-                <span class="badge bg-secondary js-member-count" data-group-id="@g.Id">@cnt</span>
+                <span class="badge bg-secondary js-member-count" data-group-id="@g.Id" data-count="@cnt.ToString(System.Globalization.CultureInfo.InvariantCulture)">@T.DisplayNumber(cnt)</span>
             </td>
             <td class="text-nowrap">
-                <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">Edit</a>
-                <a class="btn btn-sm btn-info" asp-area="Manager" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">Members</a>
-                <a class="btn btn-sm btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">Map</a>
-                <form asp-area="Manager" asp-controller="Groups" asp-action="ConfirmDelete" method="post" class="d-inline js-confirm" data-confirm-title="Delete Group" data-confirm-message="Are you sure you want to delete this group? This action cannot be undone.">
-                    <input type="hidden" name="id" value="@g.Id" />
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                </form>
+                @if (ownerGroupIds.Contains(g.Id))
+                {
+                    <a class="btn btn-sm btn-secondary" asp-area="Manager" asp-controller="Groups" asp-action="Edit" asp-route-id="@g.Id">@T["Groups.Edit"]</a>
+                }
+                <a class="btn btn-sm btn-info" asp-area="Manager" asp-controller="Groups" asp-action="Members" asp-route-groupId="@g.Id">@T["Groups.Members"]</a>
+                <a class="btn btn-sm btn-primary" asp-area="Manager" asp-controller="Groups" asp-action="Map" asp-route-groupId="@g.Id">@T["Groups.Map"]</a>
+                @if (ownerGroupIds.Contains(g.Id))
+                {
+                    <form asp-area="Manager" asp-controller="Groups" asp-action="ConfirmDelete" method="post" class="d-inline js-confirm" data-confirm-title="@T["Groups.DeleteGroup"]" data-confirm-message="@T["Groups.DeleteConfirm"]">
+                        <input type="hidden" name="id" value="@g.Id" />
+                        <button type="submit" class="btn btn-sm btn-outline-danger">@T["Groups.Delete"]</button>
+                    </form>
+                }
             </td>
         </tr>
+    }
+    @if (!Model.Any())
+    {
+        <tr><td colspan="5" class="text-muted text-center">@T["Groups.EmptyGroups"]</td></tr>
     }
     </tbody>
   </table>

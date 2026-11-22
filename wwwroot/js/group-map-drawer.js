@@ -14,7 +14,8 @@
         const isPhone = phoneViewport.matches;
         view.classList.toggle('group-map-members-open', isPhone && open);
         toggle.setAttribute('aria-expanded', String(isPhone && open));
-        panel.setAttribute('aria-hidden', String(isPhone && !open));
+        // A closed offscreen panel also leaves the keyboard order and accessibility tree.
+        panel.inert = isPhone && !open;
     };
 
     toggle.addEventListener('click', () => {

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { refreshInviteRows, removeInviteRow } from '../../wwwroot/js/util/group-invitation-rows.js';
 
 /** Models the pending rows and their Revoke forms in a Members snapshot. */
 const inviteTable = (...rows) => ({
@@ -11,7 +10,7 @@ const inviteTable = (...rows) => ({
       .find(row => selector === `tr[data-invite-id="${row.dataset.inviteId}"]`);
   },
   querySelectorAll(selector) {
-    if (selector === 'form.js-confirm') return this.children.flatMap(row => row.revoke ? [row.revoke] : []);
+    if (selector === '.js-invite-created') return this.children.flatMap(row => row.time ? [row.time] : []);
     if (selector !== 'tr[data-invite-id]') return [];
     return this.children.map(row => ({
       dataset: { inviteId: row.id },
@@ -24,9 +23,10 @@ const inviteTable = (...rows) => ({
 test('Invite refresh preserves new invitations and Revoke controls without restoring removed rows', async () => {
   const previous = { fetch: globalThis.fetch, window: globalThis.window, document: globalThis.document,
     DOMParser: globalThis.DOMParser, wayfarer: globalThis.wayfarer };
+  const timeZone = process.env.TZ;
   const url = '/User/Groups/Members?groupId=the-group';
-  const revoke = { id: 'revoke-new' };
-  const replacement = { id: 'replacement-row', revoke };
+  const time = { getAttribute: () => '2026-11-22T15:30:00Z', textContent: '' };
+  const replacement = { id: 'replacement-row', revoke: { id: 'revoke-new' }, time };
   const expired = { id: 'expired-row' };
   const accepted = { id: 'accepted-row', revoke: { id: 'revoke-accepted' } };
   const declined = { id: 'declined-row', revoke: { id: 'revoke-declined' } };
@@ -40,11 +40,27 @@ test('Invite refresh preserves new invitations and Revoke controls without resto
   let current = inviteTable(expired);
   const response = body => ({ ok: true, text: async () => body });
   const alerts = [];
-  const wired = [];
-  const attach = form => wired.push(form);
   try {
     globalThis.window = { location: { href: url } };
-    globalThis.document = { querySelector: selector => selector === '#invitesTable tbody' ? current : null };
+    process.env.TZ = 'Europe/Athens';
+    globalThis.document = {
+      getElementById: id => id === 'wayfarer-locale' ? { textContent: JSON.stringify({
+        locale: 'el-GR', fallback: 'en-US',
+        messages: {
+          'Groups.DuplicateInvite': 'Ο χρήστης έχει ήδη εκκρεμή πρόσκληση για την ομάδα.',
+          'Groups.InviteRefreshFailed': 'Ανανεώστε τη σελίδα για να ενημερώσετε τις εκκρεμείς προσκλήσεις.'
+        },
+        english: {}
+      }) } : null,
+      querySelector: selector => selector === '#invitesTable tbody' ? current : null
+    };
+    const { refreshInviteRows, removeInviteRow } = await import('../../wwwroot/js/util/group-invitation-rows.js');
+    const { groupError } = await import('../../wwwroot/js/util/group-web-messages.js');
+    // The Manager MVC test reaches the same Greek phrase through a real redirect.
+    const rejection = await groupError(Response.json({
+      message: 'A pending invitation already exists for this user in the specified group'
+    }, { status: 400 }), 'invite', 'Failed to send invite.');
+    assert.equal(rejection, 'Ο χρήστης έχει ήδη εκκρεμή πρόσκληση για την ομάδα.');
     globalThis.DOMParser = class {
       parseFromString(body, type) {
         assert.equal(type, 'text/html');
@@ -61,30 +77,30 @@ test('Invite refresh preserves new invitations and Revoke controls without resto
       assert.equal(options, undefined);
       return reads.shift();
     };
-    const olderRefresh = refreshInviteRows(attach);
-    const laterRefresh = refreshInviteRows(attach);
+    const olderRefresh = refreshInviteRows();
+    const laterRefresh = refreshInviteRows();
     later.resolve(response('newest'));
     await laterRefresh;
     assert.deepEqual(current.children, [replacement]);
+    assert.equal(current.children[0].revoke.id, 'revoke-new');
+    assert.equal(time.textContent, '22/11/26, 5:30 μ.μ. (GMT+2 Europe/Athens)');
 
     older.resolve(response('older'));
     await olderRefresh;
     assert.deepEqual(current.children, [replacement]);
-    assert.deepEqual(wired, [revoke]);
     assert.deepEqual(alerts, []);
 
     globalThis.fetch = async () => ({ ok: false });
-    await refreshInviteRows(attach);
+    await refreshInviteRows();
     assert.deepEqual(current.children, [replacement]);
-    assert.deepEqual(wired, [revoke]);
-    assert.deepEqual(alerts, [['warning', 'Invitation sent. Refresh this page to update pending invitations.']]);
+    assert.deepEqual(alerts, [['warning', 'Ανανεώστε τη σελίδα για να ενημερώσετε τις εκκρεμείς προσκλήσεις.']]);
 
     // A superseded failed read cannot replace that feedback, and a detached table cannot publish.
     const slowFailure = Promise.withResolvers();
     const failureReads = [slowFailure.promise, Promise.resolve(response('newest'))];
     globalThis.fetch = () => failureReads.shift();
-    const stale = refreshInviteRows(attach);
-    await refreshInviteRows(attach);
+    const stale = refreshInviteRows();
+    await refreshInviteRows();
     slowFailure.resolve({ ok: false });
     await stale;
     assert.equal(alerts.length, 1);
@@ -92,7 +108,7 @@ test('Invite refresh preserves new invitations and Revoke controls without resto
     const previousTable = current;
     const pending = Promise.withResolvers();
     globalThis.fetch = () => pending.promise;
-    const detached = refreshInviteRows(attach);
+    const detached = refreshInviteRows();
     current = inviteTable();
     pending.resolve(response('older'));
     await detached;
@@ -105,8 +121,7 @@ test('Invite refresh preserves new invitations and Revoke controls without resto
     removeInviteRow(accepted.id);
     const racingRead = Promise.withResolvers();
     globalThis.fetch = () => racingRead.promise;
-    wired.length = 0;
-    const reconciliation = refreshInviteRows(attach);
+    const reconciliation = refreshInviteRows();
     removeInviteRow(replacement.id);
     removeInviteRow(declined.id);
     removeInviteRow(revokedByNotification.id);
@@ -114,9 +129,10 @@ test('Invite refresh preserves new invitations and Revoke controls without resto
     racingRead.resolve(response('racing-removals'));
     await reconciliation;
     assert.deepEqual(current.children, [newInvite]);
-    assert.deepEqual(wired, [newInvite.revoke]);
     assert.equal(alerts.length, 1);
   } finally {
     Object.assign(globalThis, previous);
+    if (timeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = timeZone;
   }
 });
