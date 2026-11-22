@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 /** Runs the real upload and import document, then delivers one content-free status hint at the EventSource boundary. */
-test('Greek location transfer feedback survives an import status refresh', async ({ page, context }, testInfo) => {
+test('Greek location transfer feedback survives an import status refresh', async ({ page }, testInfo) => {
     const config = loadSharedLayoutConfig();
     await page.goto('/Identity/Account/Login');
     await page.getByLabel('Username').fill(config.username);
@@ -11,8 +11,10 @@ test('Greek location transfer feedback survives an import status refresh', async
         page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
         page.getByRole('button', { name: 'Log in' }).click()
     ]);
-    await context.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR' });
     await page.goto('/User/LocationImport/Upload');
+    await page.locator('#language-open').click();
+    await page.locator('#language-options [value="el-GR"]').check();
+    await page.locator('#language-apply').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
     await expect(page.getByRole('main')).not.toHaveAttribute('lang', 'en');
     await page.getByLabel('Τύπος αρχείου').selectOption('Csv');
