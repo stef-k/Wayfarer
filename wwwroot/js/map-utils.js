@@ -230,8 +230,9 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
         if (points.length > 1) finish();
     };
 
-    let onKey = (e) => {
-        if (e.key === 'Escape') {
+    // Native modal dialogs own Escape even though the keydown bubbles to the window.
+    const onKey = (event) => {
+        if (event.key === 'Escape' && !document.querySelector('dialog:modal')) {
             cancelTool();
         }
     };

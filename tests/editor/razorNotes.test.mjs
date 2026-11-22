@@ -24,6 +24,7 @@ test('ordinary Razor entries retain Notes, validation inputs and bulk operation 
       try {
         await page.setContent(`<div id="browser-antiforgery" data-subject-id="original"></div>
           <div id="location-create-private"><form id="${form}">
+          ${entry === 'location-bulk' ? '<p id="bulk-notes-feedback" role="status" class="text-danger"></p>' : ''}
           ${entry === 'location-create' ? `<input name="CreateKey" value="same-key" type="hidden">
           <input name="CreateIntent" value="owner-intent" type="hidden"><input name="AttemptedValues" type="hidden">
           <input name="CreateMayHaveEffect" value="false" type="hidden"><input name="__RequestVerificationToken" value="csrf" type="hidden">
