@@ -49,7 +49,11 @@ public sealed class LocationTransferWebLanguageHttpTests : TestBase
         var db = CreateDbContext();
         var location = SeedLocation(db, "Invalid XML \u0001");
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(),
-            IdentityRouteHost.WithStartupSettings, configureApp: app => app.UseExceptionHandler("/Home/Error"));
+            IdentityRouteHost.WithStartupSettings, configureApp: app =>
+            {
+                app.UseExceptionHandler("/Home/Error");
+                app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+            });
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, location.UserId));
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");

@@ -358,12 +358,12 @@ public class LocationImportControllerTests : TestBase
 
     /// <summary>The upload page reports the effective policy, including disabled historical values.</summary>
     [Theory]
-    [InlineData(100, "100", false)]
-    [InlineData(0, "100", false)]
-    [InlineData(102400, "100", false)]
-    [InlineData(-1, "-1", true)]
-    [InlineData(-2, "-1", true)]
-    public void Upload_Get_ReturnsView_WithFileTypes(int configured, string effective, bool disabled)
+    [InlineData(100, 100, false)]
+    [InlineData(0, 100, false)]
+    [InlineData(102400, 100, false)]
+    [InlineData(-1, -1, true)]
+    [InlineData(-2, -1, true)]
+    public void Upload_Get_ReturnsView_WithFileTypes(int configured, int effective, bool disabled)
     {
         var db = CreateDbContext();
         db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, UploadSizeLimitMB = configured });

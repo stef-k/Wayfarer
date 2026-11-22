@@ -14,6 +14,7 @@ test('Greek location transfer feedback survives an import status refresh', async
     await context.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR' });
     await page.goto('/User/LocationImport/Upload');
     await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.getByRole('main')).not.toHaveAttribute('lang', 'en');
     await page.getByLabel('Τύπος αρχείου').selectOption('Csv');
     await page.getByLabel('Επιλογή αρχείου').setInputFiles({
         name: 'history.txt', mimeType: 'text/plain', buffer: Buffer.from('Latitude,Longitude,TimestampUtc\n')
@@ -36,7 +37,7 @@ test('Greek location transfer feedback survives an import status refresh', async
         name: 'history.csv', mimeType: 'text/csv', buffer: Buffer.from('Latitude,Longitude,TimestampUtc\n')
     });
     await submit.click();
-    await expect(page.locator('main [role="alert"]')).toContainText('Το αρχείο μεταφορτώθηκε');
+    await expect(page.getByRole('alert').filter({ hasText: 'Το αρχείο μεταφορτώθηκε' })).toBeVisible();
     const status = page.locator('#locationImport .importStatus');
     await expect(status).toHaveText('Σε παύση');
 
@@ -46,6 +47,11 @@ test('Greek location transfer feedback survives an import status refresh', async
     await expect(status).toHaveText('Σε παύση');
     await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
     await expect(page.locator('#enrichment-status')).toHaveText('Δεν έχει επιλεγεί πάροχος γεωκωδικοποίησης.');
+    await page.getByRole('button', { name: 'Έναρξη εισαγωγής', exact: true }).click();
+    const confirm = page.getByRole('dialog').filter({ hasText: 'Να ξεκινήσει αυτή η εισαγωγή;' });
+    await expect(confirm).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(confirm).not.toBeVisible();
     await page.screenshot({ path: process.env.WAYFARER_AREA8_SCREENSHOT
         || testInfo.outputPath('location-transfers-el-GR.png'), fullPage: true });
 });
