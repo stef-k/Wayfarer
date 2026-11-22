@@ -567,4 +567,145 @@
   <data name="Shell.EditPolygonCancel" xml:space="preserve">
     <value>Κάντε κλικ στην «Ακύρωση» για να αναιρέσετε τις αλλαγές.</value>
   </data>
+  <data name="Shell.LocationActivityLabel" xml:space="preserve">
+    <value>Δραστηριότητα:</value>
+  </data>
+  <data name="Shell.LocationActivityEdit" xml:space="preserve">
+    <value>Επεξεργασία</value>
+  </data>
+  <data name="Shell.LocationActivityMissing" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμα στοιχεία δραστηριότητας</value>
+  </data>
+  <data name="Shell.LocationActivitySelect" xml:space="preserve">
+    <value>Επιλέξτε δραστηριότητα</value>
+  </data>
+  <data name="Shell.LocationActivitySave" xml:space="preserve">
+    <value>Αποθήκευση δραστηριότητας</value>
+  </data>
+  <data name="Shell.LocationActivityClear" xml:space="preserve">
+    <value>Αφαίρεση δραστηριότητας</value>
+  </data>
+  <data name="Shell.LocationActivitySearch" xml:space="preserve">
+    <value>Αναζήτηση δραστηριότητας…</value>
+  </data>
+  <data name="Shell.LocationActivityEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν δραστηριότητες</value>
+  </data>
+  <data name="Shell.LocationActivityLoadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των δραστηριοτήτων. Κλείστε και ανοίξτε ξανά τη λίστα για νέα προσπάθεια.</value>
+  </data>
+  <data name="Shell.LocationActivityNewerClear" xml:space="preserve">
+    <value>Η νεότερη αφαίρεση διατηρείται και χρειάζεται αποθήκευση.</value>
+  </data>
+  <data name="Shell.LocationConfirmDeletion" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής</value>
+  </data>
+  <data name="Shell.LocationDelete" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="Shell.LocationDeletionInspect" xml:space="preserve">
+    <value>Να διαγραφεί η καταγραφή #{0} που ελέγξατε; Η διαγραφή δεν αναιρείται. Αποθηκευμένα στοιχεία: {1}. Μη διαθέσιμα στοιχεία: {2}.</value>
+  </data>
+  <data name="Shell.LocationDeletionRenew" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια δεν μπορεί πλέον να εφαρμοστεί. Αυτή η νέα διαγραφή υπόκειται σε έλεγχο των στοιχείων. Στοιχεία που ελέγχθηκαν προηγουμένως: {0}.</value>
+  </data>
+  <data name="Shell.LocationDeletionRenewUnknown" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια δεν μπορεί πλέον να εφαρμοστεί και η έκβασή της παραμένει άγνωστη. Αυτή η νέα διαγραφή υπόκειται σε έλεγχο των στοιχείων. Στοιχεία που ελέγχθηκαν προηγουμένως: {0}.</value>
+  </data>
+  <data name="Shell.LocationMutationRejected" xml:space="preserve">
+    <value>Η αποθήκευση απορρίφθηκε. Το πρόχειρο και οι αρχικές τιμές διατηρούνται. Ελέγξτε το τρέχον ιστορικό.</value>
+  </data>
+  <data name="Shell.LocationMutationConflict" xml:space="preserve">
+    <value>Η καταγραφή άλλαξε αφού την ανοίξατε. Το πρόχειρο και οι αρχικές τιμές διατηρούνται. Ελέγξτε το τρέχον ιστορικό.</value>
+  </data>
+  <data name="Shell.LocationActivityFailed" xml:space="preserve">
+    <value>Η αλλαγή δραστηριότητας δεν επιβεβαιώθηκε. Ανοίξτε ξανά την επεξεργασία δραστηριότητας για έλεγχο.</value>
+  </data>
+  <data name="Shell.LocationDeletionUnknown" xml:space="preserve">
+    <value>Η έκβαση της διαγραφής είναι άγνωστη. Ελέγξτε το τρέχον ιστορικό πριν αποφασίσετε ξανά.</value>
+  </data>
+  <data name="Shell.LocationDeletionPrepareFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η προετοιμασία της διαγραφής. Ανοίξτε ξανά τις λεπτομέρειες για να ελέγξετε την τρέχουσα καταγραφή.</value>
+  </data>
+  <data name="Shell.LocationDetailUnavailable" xml:space="preserve">
+    <value>Οι λεπτομέρειες της καταγραφής δεν είναι διαθέσιμες. Το πρόχειρό σας διατηρείται.</value>
+  </data>
+  <data name="Shell.LocationMutationSessionEnded" xml:space="preserve">
+    <value>Η συνεδρία σας έληξε. Διατηρήστε το πρόχειρό σας πριν φύγετε.</value>
+  </data>
+  <data name="Shell.LocationDraftNotSaved" xml:space="preserve">
+    <value>Το πρόχειρο δεν αποθηκεύτηκε. Κρατήστε ανοιχτή αυτήν τη σελίδα.</value>
+  </data>
+  <data name="Shell.LocationEvidenceUnverified" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση των στοιχείων της καταγραφής. Το πρόχειρό σας διατηρείται.</value>
+  </data>
+  <data name="Shell.LocationBrowserUnsupported" xml:space="preserve">
+    <value>Το πρόγραμμα περιήγησης δεν μπορεί να αποθηκεύσει με ασφάλεια αυτό το πρόχειρο. Κρατήστε το ανοιχτό σε υποστηριζόμενο πρόγραμμα περιήγησης.</value>
+  </data>
+  <data name="Shell.LocationNewerDraft" xml:space="preserve">
+    <value>Οι νεότερες αλλαγές διατηρούνται και χρειάζονται έλεγχο.</value>
+  </data>
+  <data name="Shell.LocationCurrentStateSatisfied" xml:space="preserve">
+    <value>Η τρέχουσα καταγραφή συμφωνεί με το πρόχειρο. Η έκβαση της προηγούμενης ενέργειας παραμένει άγνωστη.</value>
+  </data>
+  <data name="Shell.LocationOriginalsChanged" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια δεν μπορεί πλέον να εφαρμοστεί. Η τρέχουσα καταγραφή διαφέρει από τις αρχικές τιμές σας. Το πρόχειρό σας διατηρείται. Ελέγξτε το τρέχον ιστορικό πριν υποβάλετε νέα αλλαγή.</value>
+  </data>
+  <data name="Shell.LocationEarlierResolved" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια έχει διευθετηθεί. Το νεότερο πρόχειρο διατηρείται. Συγκρίνετέ το με το τρέχον ιστορικό πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Shell.LocationEarlierExcluded" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια δεν μπορεί πλέον να εφαρμοστεί και η έκβασή της είναι άγνωστη. Το πρόχειρο και οι αρχικές τιμές διατηρούνται.</value>
+  </data>
+  <data name="Shell.LocationOutcomeUnknown" xml:space="preserve">
+    <value>Άγνωστη έκβαση. Το πρόχειρο και η ακριβής προσπάθεια διατηρούνται. Επιλέξτε ξανά αποθήκευση για έλεγχο της έκβασης.</value>
+  </data>
+  <data name="Shell.LocationOutcomeUnverified" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση της έκβασης. Το πρόχειρο και η προσπάθεια διατηρούνται.</value>
+  </data>
+  <data name="Shell.LocationSavePending" xml:space="preserve">
+    <value>Η αποθήκευση εκκρεμεί. Το πρόχειρό σας διατηρείται. Επιλέξτε ξανά αποθήκευση για έλεγχο της έκβασης.</value>
+  </data>
+  <data name="Shell.LocationSavedDetailUnavailable" xml:space="preserve">
+    <value>Η αποθήκευση ολοκληρώθηκε. Οι τρέχουσες λεπτομέρειες δεν είναι διαθέσιμες. Το πρόχειρο και η επιβεβαίωση διατηρούνται. Επιλέξτε ξανά αποθήκευση για ανανέωση.</value>
+  </data>
+  <data name="Shell.LocationEarlierSaved" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση ολοκληρώθηκε. Οι νεότερες αλλαγές διατηρούνται και χρειάζονται αποθήκευση.</value>
+  </data>
+  <data name="Shell.LocationDeleted" xml:space="preserve">
+    <value>Η καταγραφή διαγράφηκε.</value>
+  </data>
+  <data name="Shell.LocationSaved" xml:space="preserve">
+    <value>Η καταγραφή αποθηκεύτηκε.</value>
+  </data>
+  <data name="Shell.LocationEarlierMayExecute" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια μπορεί ακόμη να εφαρμοστεί. Ελέγξτε την έκβασή της πριν χρησιμοποιήσετε τα τρέχοντα στοιχεία.</value>
+  </data>
+  <data name="Shell.LocationWrongScope" xml:space="preserve">
+    <value>Τα τρέχοντα στοιχεία δεν αντιστοιχούν σε αυτήν την καταγραφή ή στον λογαριασμό.</value>
+  </data>
+  <data name="Shell.LocationCommandUnavailable" xml:space="preserve">
+    <value>Τα αποθηκευμένα στοιχεία της ενέργειας λείπουν ή είναι ασυνεπή. Κρατήστε το πρόχειρό σας. Δεν στάλθηκε αίτημα αποθήκευσης.</value>
+  </data>
+  <data name="Shell.LocationActivityObserve" xml:space="preserve">
+    <value>Ανοίξτε την επεξεργασία δραστηριότητας για να δείτε τις αρχικές τιμές πριν αποθηκεύσετε.</value>
+  </data>
+  <data name="Shell.LocationOperationExpired" xml:space="preserve">
+    <value>Η προσπάθεια αποθήκευσης έληξε. Ελέγξτε το τρέχον ιστορικό πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Shell.LocationInvalidActivity" xml:space="preserve">
+    <value>Η επιλεγμένη δραστηριότητα δεν είναι διαθέσιμη. Ανοίξτε ξανά την επεξεργασία και επιλέξτε διαθέσιμη δραστηριότητα.</value>
+  </data>
+  <data name="Shell.LocationInvalidMutation" xml:space="preserve">
+    <value>Η αλλαγή που υποβλήθηκε δεν ήταν έγκυρη. Ελέγξτε τα στοιχεία της καταγραφής και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Shell.LocationBaseUnavailable" xml:space="preserve">
+    <value>Τα αρχικά στοιχεία της καταγραφής δεν είναι διαθέσιμα. Το πρόχειρό σας διατηρείται. Ελέγξτε το τρέχον ιστορικό.</value>
+  </data>
+  <data name="Shell.LocationAlreadyDeleted" xml:space="preserve">
+    <value>Η καταγραφή έχει ήδη διαγραφεί. Ελέγξτε το τρέχον ιστορικό.</value>
+  </data>
+  <data name="Shell.LocationNoLongerAvailable" xml:space="preserve">
+    <value>Η καταγραφή δεν είναι πλέον διαθέσιμη. Ελέγξτε το τρέχον ιστορικό.</value>
+  </data>
 </root>

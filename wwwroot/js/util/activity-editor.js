@@ -1,4 +1,12 @@
 import { readLocationDetail, saveLocationMutation, locationWork, retainLocationDraft } from './location-mutation.js';
+import { message } from '../localization/messages.js';
+import { registerLanguageDraft } from '../localization/languageNavigation.js';
+import { encodeFeatureText as encode } from './feature-metadata.js';
+import { locationMutationText } from './location-mutation-text.js';
+
+/** Escape shared activity labels at the HTML sink. */
+const activityText = (key, english) => message(`Shell.LocationActivity${key}`, english);
+const label = (key, english) => encode(activityText(key, english));
 
 // Edit-start originals survive a pending or rejected save.
 const activityOriginals = new Map();
@@ -33,7 +41,7 @@ const retainActivitySelection = (locationId, activityTypeId) => {
 export const generateActivityEditorHtml = (location, options = {}) => {
     const { showLabel = true, compact = false } = options;
     const activityName = location.activityType || location.activity || null;
-    const currentActivity = activityName && activityName !== 'Unknown'
+    const currentActivity = activityName && (location.activityTypeId || activityName !== 'Unknown')
         ? activityName
         : null;
     const currentActivityId = location.activityTypeId || '';
@@ -42,20 +50,20 @@ export const generateActivityEditorHtml = (location, options = {}) => {
 
     return `
         <div class="activity-editor" data-location-id="${location.id}">
-            ${showLabel ? '<strong>Activity:</strong>' : ''}
+            ${showLabel ? `<strong>${label('Label', 'Activity:')}</strong>` : ''}
             <span class="activity-view align-items-center gap-2 ${spacingClass} d-inline-flex flex-wrap">
                 <a href="#"
                    class="activity-edit-toggle activity-current-link ${hasActivity ? '' : 'd-none'}"
                    data-location-id="${location.id}">
-                    ${currentActivity || ''}
+                    ${encode(currentActivity || '')}
                 </a>
                 <span class="activity-empty-icon ${hasActivity ? 'd-none' : ''}">
-                    <i class="bi bi-patch-question" title="No available data for Activity"></i>
+                    <i class="bi bi-patch-question" title="${label('Missing', 'No available data for Activity')}"></i>
                 </span>
                 <a href="#"
                    class="activity-edit-toggle activity-empty-link ${hasActivity ? 'd-none' : ''}"
                    data-location-id="${location.id}">
-                    Edit
+                    ${label('Edit', 'Edit')}
                 </a>
             </span>
             <div class="activity-edit d-none">
@@ -64,20 +72,20 @@ export const generateActivityEditorHtml = (location, options = {}) => {
                             class="form-select form-select-sm activity-select"
                             data-api-url="/api/activity"
                             data-location-id="${location.id}"
-                            style="flex: 1;">
-                        <option value="">Select an Activity</option>
-                        ${currentActivityId ? `<option value="${currentActivityId}" selected>${currentActivity}</option>` : ''}
+                            aria-label="${label('Select', 'Select an Activity')}" style="flex: 1;">
+                        <option value="">${label('Select', 'Select an Activity')}</option>
+                        ${currentActivityId ? `<option value="${currentActivityId}" selected>${encode(currentActivity || '')}</option>` : ''}
                     </select>
                     <button type="button"
                             class="btn btn-sm btn-outline-primary activity-save-btn"
                             data-location-id="${location.id}"
-                            title="Save activity">
+                            title="${label('Save', 'Save activity')}" aria-label="${label('Save', 'Save activity')}">
                         <i class="bi bi-check-lg"></i>
                     </button>
                     <button type="button"
                             class="btn btn-sm btn-outline-secondary activity-clear-btn"
                             data-location-id="${location.id}"
-                            title="Clear activity">
+                            title="${label('Clear', 'Clear activity')}" aria-label="${label('Clear', 'Clear activity')}">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
@@ -118,14 +126,26 @@ export const initActivitySelect = (locationId) => {
         searchField: ['name', 'description'],
         create: false,
         sortField: { field: 'name', direction: 'asc' },
-        placeholder: 'Search for an activity...',
+        placeholder: activityText('Search', 'Search for an activity…'),
         allowEmptyOption: true,
         preload: 'focus',
-        load: function(query, callback) {
-            fetch(apiUrl)
-                .then(response => response.json())
-                .then(data => callback(data))
-                .catch(() => callback());
+        render: { no_results: () => `<div class="no-results">${label('Empty', 'No matching activities')}</div>` },
+        load: async (_query, callback) => {
+            try {
+                const response = await fetch(apiUrl);
+                if (response.redirected || response.status === 401 || response.status === 403) {
+                    callback();
+                    showActivityFeedback(locationId, message('Shell.LocationMutationSessionEnded',
+                        'Your session has ended. Keep your draft before leaving.'), true);
+                    return;
+                }
+                if (!response.ok) throw new Error();
+                callback(await response.json());
+            } catch {
+                callback();
+                showActivityFeedback(locationId, activityText('LoadFailed',
+                    'Could not load activities. Close and reopen the list to try again.'), true);
+            }
         }
     });
 };
@@ -199,14 +219,14 @@ const setActivityEditMode = (editor, isEditing) => {
 const updateActivityView = (editor, activityName) => {
     if (!editor) return;
 
-    const trimmedName = typeof activityName === 'string' ? activityName.trim() : '';
+    const name = typeof activityName === 'string' ? activityName : '';
     const currentLink = editor.querySelector('.activity-current-link');
     const emptyIcon = editor.querySelector('.activity-empty-icon');
     const emptyLink = editor.querySelector('.activity-empty-link');
-    const hasActivity = trimmedName.length > 0;
+    const hasActivity = name.trim().length > 0;
 
     if (currentLink) {
-        currentLink.textContent = trimmedName;
+        currentLink.textContent = name;
         currentLink.classList.toggle('d-none', !hasActivity);
     }
 
@@ -219,96 +239,125 @@ const updateActivityView = (editor, activityName) => {
     }
 };
 
+/** Reads the activity owner's retained generations, plus changes whose storage write failed. */
+const activityDraftOwner = () => {
+    const observed = new Set(), unretained = new Set();
+    registerLanguageDraft(() => unretained.size > 0 || [...observed].some(id => {
+        try {
+            const state = locationWork(id, 'activity');
+            return state.draft && state.draft.generation !== state.settledGeneration;
+        } catch {
+            return true;
+        }
+    }));
+    return { observed, unretained };
+};
+
 /**
  * Sets up event delegation for activity save/clear buttons.
  * Call this once per page after the modal container exists.
  * @param {string} modalContentSelector - CSS selector for the modal content container
  * @param {Function} [onActivityUpdated] - Optional callback when activity is successfully updated
+ * @param {Object} [options] - Language draft integration for workspaces using a guarded reload.
  */
-export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdated) => {
+export const setupActivityEditorEvents = (modalContentSelector, onActivityUpdated, { protectLanguage = false } = {}) => {
     const container = document.querySelector(modalContentSelector);
     if (!container) {
         console.warn(`Modal content container not found: ${modalContentSelector}`);
         return;
     }
 
+    const draftOwner = protectLanguage ? activityDraftOwner() : null;
+    const feedback = result => protectLanguage ? locationMutationText(result, activityText('Failed',
+        'The activity change could not be confirmed. Reopen the activity editor to review it.')) : result.message;
+    const retainSelection = (id, activity) => {
+        draftOwner?.observed.add(id);
+        try {
+            retainActivitySelection(id, activity);
+            draftOwner?.unretained.delete(id);
+        } catch (error) {
+            draftOwner?.unretained.add(id);
+            throw error;
+        }
+    };
+
     // TomSelect forwards changes to its underlying select; native selection and Clear share the same owner.
     container.addEventListener('change', event => {
         const select = event.target.closest('.activity-select');
         if (!select) return;
         const locationId = Number(select.dataset.locationId || select.id?.replace('activitySelect-', ''));
-        try { retainActivitySelection(locationId, select.value ? Number(select.value) : null); }
-        catch (error) { showActivityFeedback(locationId, error.message, true); }
+        try { retainSelection(locationId, select.value ? Number(select.value) : null); }
+        catch (error) { showActivityFeedback(locationId, feedback(error), true); }
     });
-    // Use event delegation for dynamically created buttons.
-    container.addEventListener('click', async (e) => {
-        const editToggle = e.target.closest('.activity-edit-toggle');
-        const saveBtn = e.target.closest('.activity-save-btn');
-        const clearBtn = e.target.closest('.activity-clear-btn');
+    /** Read and restore the Activity draft before opening its list. */
+    const openEditor = async editToggle => {
+        const editor = editToggle.closest('.activity-editor');
+        const id = Number(editor?.dataset.locationId);
+        if (!editor || !Number.isInteger(id)) return;
+        try {
+            draftOwner?.observed.add(id);
+            const state = locationWork(id, 'activity');
+            const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
+            const completed = state.attempts.find(item => item.actionId === state.active)?.receipt?.state === 'applied';
+            const detail = (!completed && retained?.draft?.activityDetail) || await readLocationDetail(id);
+            activityOriginals.set(id, detail);
+            setActivityEditMode(editor, true);
+            const select = initActivitySelect(id);
+            // Restore unresolved intent against its original comparison base.
+            const desired = retained?.changes?.activity;
+            const activity = desired ? (desired.op === 'clear' ? null : desired.id) : detail.record.activityTypeId;
+            if (select && activity != null && !select.options?.[activity]) select.addOption({ id: activity,
+                name: activity === detail.record.activityTypeId ? detail.record.activityName || String(activity) : String(activity) });
+            select?.setValue(activity == null ? '' : String(activity), true);
+        } catch (error) { showActivityFeedback(id, feedback(error), true); }
+    };
 
+    /** Persist the desired Activity independently before asking the protected owner to submit it. */
+    const submitActivity = async (button, clear) => {
+        if (button.disabled) return;
+        const id = Number(button.dataset.locationId);
+        const select = document.getElementById(`activitySelect-${id}`);
+        const editor = button.closest('.activity-editor');
+        if (clear) {
+            // A clear is newer desired work even while an older save is pending.
+            select?.tomselect?.setValue('', true);
+            if (select) select.value = '';
+            try { retainSelection(id, null); }
+            catch (error) { showActivityFeedback(id, feedback(error), true); return; }
+            if (editor.dataset.activitySaving === 'true') {
+                showActivityFeedback(id, activityText('NewerClear', 'Newer Clear is retained and still needs saving.'), true);
+                return;
+            }
+        }
+        const activityId = select?.value ? Number(select.value) : null;
+        // The completed action never borrows a label selected during its request.
+        const submittedLabel = activityId ? select?.selectedOptions?.[0]?.textContent : null;
+        draftOwner?.observed.add(id);
+        button.disabled = true; editor.dataset.activitySaving = 'true';
+        const result = await updateLocationActivity(id, activityId, clear);
+        button.disabled = false; editor.dataset.activitySaving = 'false';
+
+        if (result.success) draftOwner?.unretained.delete(id);
+        showActivityFeedback(id, feedback(result), !result.success);
+        if (result.success || result.applied && result.detail) updateActivityView(editor, result.activityType || submittedLabel || null);
+        if (result.success) {
+            setActivityEditMode(editor, false);
+            onActivityUpdated?.(id, result.activityType);
+        }
+    };
+
+    // Delegate only events from the mounted activity editor.
+    container.addEventListener('click', event => {
+        const editToggle = event.target.closest('.activity-edit-toggle');
         if (editToggle) {
-            // Enter edit mode from the view-only link.
-            e.preventDefault();
-            const editor = editToggle.closest('.activity-editor');
-            if (!editor) return;
-
-            const locationId = parseInt(editor.dataset.locationId, 10);
-            if (!Number.isNaN(locationId)) {
-                try {
-                    const state = locationWork(locationId, 'activity');
-                    const retained = state.draft?.generation !== state.settledGeneration ? state.draft?.value : null;
-                    const completed = state.attempts.find(item => item.actionId === state.active)?.receipt?.state === 'applied';
-                    const detail = (!completed && retained?.draft?.activityDetail) || await readLocationDetail(locationId);
-                    activityOriginals.set(locationId, detail);
-                    setActivityEditMode(editor, true);
-                    const select = initActivitySelect(locationId);
-                    // Restore the unresolved desire against its original comparison base, never against a fresh row.
-                    const desired = retained?.changes?.activity;
-                    const activity = desired ? (desired.op === 'clear' ? null : desired.id) : detail.record.activityTypeId;
-                    if (select && activity != null && !select.options?.[activity]) select.addOption({ id: activity,
-                        name: activity === detail.record.activityTypeId ? detail.record.activityName || String(activity) : String(activity) });
-                    select?.setValue(activity == null ? '' : String(activity), true);
-                } catch (error) { showActivityFeedback(locationId, error.message, true); }
-            }
-
-            return;
+            event.preventDefault();
+            return openEditor(editToggle);
         }
-
-        if (saveBtn || clearBtn) {
-            e.preventDefault();
-            const button = saveBtn || clearBtn;
-            if (button.disabled) return;
-            const locationId = parseInt(button.dataset.locationId, 10);
-            const selectElement = document.getElementById(`activitySelect-${locationId}`);
-            const editor = button.closest('.activity-editor');
-            if (clearBtn) {
-                // Clear is new desired work before any await, including while an older save is pending.
-                selectElement?.tomselect?.setValue('', true);
-                if (selectElement) selectElement.value = '';
-                try { retainActivitySelection(locationId, null); }
-                catch (error) { showActivityFeedback(locationId, error.message, true); return; }
-                if (editor.dataset.activitySaving === 'true') {
-                    showActivityFeedback(locationId, 'Newer Clear is retained and still needs saving.', true);
-                    return;
-                }
-            }
-            const activityTypeId = selectElement?.value ? parseInt(selectElement.value, 10) : null;
-            // The completed action can never borrow a label selected during its request.
-            const submittedLabel = activityTypeId ? selectElement?.selectedOptions?.[0]?.textContent?.trim() : null;
-            button.disabled = true; editor.dataset.activitySaving = 'true';
-            const result = await updateLocationActivity(locationId, activityTypeId, !!clearBtn);
-            button.disabled = false; editor.dataset.activitySaving = 'false';
-
-            showActivityFeedback(locationId, result.message, !result.success);
-
-            if (result.success || result.applied && result.detail)
-                updateActivityView(editor, result.activityType || submittedLabel || null);
-            if (result.success) setActivityEditMode(editor, false);
-
-            if (result.success && onActivityUpdated) {
-                onActivityUpdated(locationId, result.activityType);
-            }
+        const save = event.target.closest('.activity-save-btn');
+        const clear = event.target.closest('.activity-clear-btn');
+        if (save || clear) {
+            event.preventDefault();
+            return submitActivity(save || clear, Boolean(clear));
         }
-
     });
 };

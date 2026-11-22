@@ -1,9 +1,10 @@
+import { html, installTimelineZoom, text } from './timeline-text.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
 /** Leaflet consumes observed records and geometry; camera movement never changes matching intent. */
 export const createCalendarMap = (select, moved) => {
-    const map = L.map('mapContainer').setView([20, 0], 3);
-    createTileLayer().addTo(map); addZoomLevelControl(map);
+    const map = L.map('mapContainer', { zoomControl: false }).setView([20, 0], 3);
+    installTimelineZoom(map); createTileLayer().addTo(map); addZoomLevelControl(map);
     const markers = L.markerClusterGroup({ maxClusterRadius: 50, chunkedLoading: false }).addTo(map);
     const path = L.layerGroup().addTo(map), area = L.layerGroup().addTo(map), selected = L.layerGroup().addTo(map);
     let observed = [], previousPeriod, previousAnalysis, previousArea;
@@ -22,14 +23,15 @@ export const createCalendarMap = (select, moved) => {
         select(record) {
             selected.clearLayers();
             if (record?.position?.status === 'available') L.circleMarker([record.position.latitude, record.position.longitude],
-                { radius: 10, fillOpacity: 0, color: '#8a3c00', weight: 3 }).bindTooltip('Selected record (outside map sample counts)').addTo(selected);
+                { radius: 10, fillOpacity: 0, color: '#8a3c00', weight: 3 }).bindTooltip(text("SelectedRecord", "Selected record (outside map sample counts)")).addTo(selected);
         },
         locate(record) { if (record?.position?.status === 'available') map.panTo([record.position.latitude, record.position.longitude]); },
         render(owner) {
             if (owner.state.period !== previousPeriod) {
                 previousPeriod = owner.state.period; observed = previousPeriod?.markers || []; markers.clearLayers();
                 for (const { record } of observed) if (record.position.status === 'available') {
-                    L.marker([record.position.latitude, record.position.longitude], { title: `Record ${record.locationId}` })
+                    const label = text('RecordId', 'Record {0}', record.locationId);
+                    L.marker([record.position.latitude, record.position.longitude], { title: label, alt: label })
                         .on('click', () => select(record.locationId)).addTo(markers);
                 }
             }

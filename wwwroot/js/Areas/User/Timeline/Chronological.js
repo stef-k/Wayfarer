@@ -1,3 +1,5 @@
+import { registerLanguageDraft } from '../../../localization/languageNavigation.js';
+import { text } from './timeline-text.js';
 import { TimelinePage } from './calendar-page.js';
 import { CalendarIntent, emptyFilters } from './calendar-intent.js';
 import { CalendarPreferences } from './calendar-preferences.js';
@@ -16,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subject = () => document.getElementById('browser-antiforgery')?.dataset.subjectId;
     const maximumOffset = Number(root.dataset.maximumOffset);
     const notice = document.getElementById('timelineNotice');
-    const guarded = run => { try { const result = run(); result?.catch?.(() => { notice.textContent = 'Read unavailable. Retain this scope and retry.'; }); } catch (error) { notice.textContent = error.message; } };
+    const guarded = run => { try { const result = run(); result?.catch?.(() => { notice.textContent = text("ReadUnavailable", "Read unavailable. Retain this scope and retry."); }); } catch (error) { notice.textContent = error.message; } };
     // Access to the storage object itself can be denied; wrappers keep that failure inside the owning transaction.
     const storage = name => ({ getItem: key => window[name].getItem(key), setItem: (key, value) => window[name].setItem(key, value), removeItem: key => window[name].removeItem(key) });
     const preferences = new CalendarPreferences(storage('localStorage'), subject(), location.origin);
@@ -39,15 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
             retryAfter: Number(response.headers.get('Retry-After')) || null });
         return body;
     };
+    // Canonical selection owns its parameters. Keep the current fragment and history entry.
+    const replaceSelection = search => history.replaceState(history.state, '', location.pathname + search + location.hash);
     let owner, detail, picker, filters, connections, display;
     const mapView = createCalendarMap(id => detail.open(id), camera => { if (owner) { owner.camera = camera; owner.retain(); } });
     owner = new TimelinePage({ subject: subject(), currentSubject: subject, selection: parsed.selection, context: parsed.context,
         ...restored, restorationPending: recovery, intent, preferences, maximumOffset, fetchRead,
-        replaceUrl: search => history.replaceState(null, '', location.pathname + search),
+        replaceUrl: replaceSelection,
         publish: () => {
             display?.render(); picker?.render(); filters?.render(); connections?.render();
             if (owner.state.errors.session) {
-                detail?.clear(); document.getElementById('statsModalContent').textContent = '';
+                detail?.clear(owner.state.errors.session);
+                document.getElementById('statsModalContent').textContent = owner.state.errors.session;
                 document.querySelectorAll('#dateDialog, #filtersDialog, #basisDialog').forEach(element => bootstrap.Modal.getInstance(element)?.hide());
                 document.getElementById('filterSearch').value = ''; document.getElementById('filterActivities').textContent = '';
                 root.querySelectorAll('button,select').forEach(element => { element.disabled = true; });
@@ -58,9 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value !== undefined) { recovery = value; document.getElementById('contextRecovery').hidden = !value; }
         return recovery;
     });
+    // Query editors own transient inputs. Connection rules have their own retained draft.
+    registerLanguageDraft(() => Boolean(owner.editor || owner.preferences.draft || owner.ruleDraft));
     connections = createCalendarConnections(owner); display = createCalendarDisplay(owner, mapView, detail);
     mapView.restore(owner.camera);
-    history.replaceState(null, '', location.pathname + selectionSearch(owner.selection, owner.context));
+    replaceSelection(selectionSearch(owner.selection, owner.context));
     const click = (id, action) => document.getElementById(id).addEventListener('click', () => guarded(action));
     click('choosePeriod', () => picker.open(owner.selection.dateType === 'custom'));
     click('chooseFilters', () => filters.open()); click('reenterFilters', () => filters.open(true));
@@ -92,8 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !owner.blocked) owner.refresh(); });
     window.addEventListener('pageshow', event => { if (event.persisted && !owner.blocked) owner.refresh(); });
     window.addEventListener('pagehide', () => { owner.retain(); owner.active?.controller.abort(); });
-    if (parsed.adopted) notice.textContent = 'Legacy date link adopted the remembered calendar basis and validated viewer zone.';
-    if (parsed.adopted) owner.state.adoptionNotice = 'Legacy date link adopted the remembered calendar basis and validated viewer zone.';
+    if (parsed.adopted) owner.state.adoptionNotice = text("AdoptionNotice", "Legacy date link adopted the remembered calendar basis and validated viewer zone.");
     owner.emit();
     if (!recovery) owner.refresh().then(() => { if (owner.selectedId && !owner.blocked) detail.open(owner.selectedId); });
 });

@@ -24,7 +24,7 @@ test('all-history Timeline uses the Wayfarer alert for detailed-statistics failu
   for (const path of timelineScripts.slice(0, 1)) {
     const source = await readFile(path, 'utf8');
     assert.match(source,
-      /wayfarer\.showAlert\('danger', 'Failed to load detailed statistics\. Please try again\.'\)/);
+      /wayfarer\.showAlert\('danger', text\('LiveDetailedStatsFailed', 'Failed to load detailed statistics\. Please try again\.'\)\)/);
     assert.doesNotMatch(source, /alert\('Failed to load detailed statistics/);
     assert.doesNotMatch(source, /Error fetching detailed stats/);
     assert.doesNotMatch(source, /Error \$\{response\.status\}: \$\{await response\.text\(\)\}/);
@@ -38,8 +38,7 @@ const render = async (path, stats) => {
   const start = source.indexOf('const generateStatsModalContent =');
   const end = source.indexOf('\n};', start) + 3;
   return vm.runInNewContext(`${source.slice(start, end)}; generateStatsModalContent(stats, 'countries')`, {
-    stats, renderStatistics, viewerTimeZone: 'UTC', formatDate: () => 'date',
-    formatDateDisplay: () => 'period', currentDate: new Date(), currentViewType: 'day'
+    stats, renderStatistics, viewerTimeZone: 'UTC', formatHistoryDate: () => 'date', encode: value => value
   });
 };
 
@@ -92,5 +91,5 @@ test('private geographic endpoints retain different capture clocks at the same e
   const response = { statistics: stats, endpoints: ['A', 'B'].map((country, index) => ({ kind: 'country', country, region: '', place: '', first: true, last: true,
     eventUtc: 'same', captureTime: clock(index ? '2026-05-18T01:00' : '2026-05-17T23:00'), viewerTime: clock('2026-05-18T00:00') })) };
   const html = renderPrivateStatistics(response, 'selected period', 'capture');
-  assert.match(html, /2026-05-17 23:00/); assert.match(html, /2026-05-18 01:00/);
+  assert.match(html, /May 17, 2026.*23:00/); assert.match(html, /May 18, 2026.*01:00/);
 });

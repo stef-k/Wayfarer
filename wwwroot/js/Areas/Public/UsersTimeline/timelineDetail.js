@@ -1,24 +1,9 @@
-import { date, message, number } from '../../../localization/messages.js';
-import { formatOffsetLabel } from '../../../util/datetime.js';
+import { message, number } from '../../../localization/messages.js';
+import { formatHistoryDate } from '../../../util/datetime.js';
 import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
 import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { generateWikipediaLinkHtml } from '../../../util/wikipedia-utils.js';
-
-/** Formats the event instant and retains the stored timezone label when falling back to UTC. */
-export const formatTimelineDate = (iso, timeZone, withTime = false) => {
-    const instant = new Date(iso);
-    if (!iso || !Number.isFinite(instant.getTime())) return '';
-    const options = withTime ? { dateStyle: 'medium', timeStyle: 'short', hourCycle: 'h23' } : { dateStyle: 'medium' };
-    let display;
-    try {
-        display = date(instant, { ...options, timeZone });
-    } catch (error) {
-        if (!(error instanceof RangeError)) throw error;
-        display = date(instant, { ...options, timeZone: 'UTC' });
-    }
-    return withTime ? `${display} ${formatOffsetLabel(instant, timeZone)}`.trim() : display;
-};
 
 /** Prepares an HTML-safe catalog phrase for the existing modal HTML sink. */
 const label = (key, readable, ...args) => encode(message(`PublicTimeline.${key}`, readable, ...args));
@@ -42,8 +27,8 @@ const measurement = (value, key, readable, missing) => value == null || !Number.
 export const renderTimelineLocation = (location, { isLive, isLatest }, viewerTimeZone) => {
     const { latitude, longitude } = location.coordinates;
     const sourceZone = location.timezone || location.timeZoneId || location.timeZone;
-    const viewer = formatTimelineDate(location.localTimestamp, viewerTimeZone, true);
-    const source = sourceZone ? formatTimelineDate(location.localTimestamp, sourceZone, true) : '';
+    const viewer = formatHistoryDate(location.localTimestamp, viewerTimeZone, true);
+    const source = sourceZone ? formatHistoryDate(location.localTimestamp, sourceZone, true) : '';
     const badge = isLive ? `<span class="badge bg-danger float-end ms-2">${label('Live', 'LIVE LOCATION')}</span>`
         : isLatest ? `<span class="badge bg-success float-end ms-2">${label('Latest', 'LATEST LOCATION')}</span>` : '';
     const missing = `<i class="bi bi-patch-question" role="img"

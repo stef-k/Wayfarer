@@ -32,6 +32,8 @@ registration demonstrate `few` and `many`; they belong to the test assembly.
   preview. `PublicTimeline` owns the full and embedded Timeline interface,
   location details and document errors. `Groups` owns account-area Group and
   invitation workflows, including sharing controls and map-specific presentation.
+  `Timeline` owns private live and chronological history. Shell owns the
+  shared location Activity controls and protected mutation feedback.
 - Name full phrases for their intent and keep argument positions consistent
   between locales. Use `{0}`, `{1}` and subsequent positions for plain-text
   arguments. Put links, HTML, icons and accessibility relationships in the
@@ -78,7 +80,8 @@ for unsaved work.
 | 3 | Identity and personal account. The compiled route inventory, presentation owners and language-navigation evidence are recorded below. |
 | 4 | User and Timeline Settings, Hidden Areas, app connection and personal location providers. The affected routes and evidence are recorded below. |
 | 5 | User and Manager Groups, invitation inbox and roster operations, sharing, and scoped map history. Route and live feedback owners are recorded below. |
-| 6–8 | Private Timeline, location/visit editing, and location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Unintegrated protected workspaces and Location routes withhold switching. |
+| 6 | Private live Timeline and Chronological calendar. Date and filter controls, map areas, connection rules, analysis, statistics, details and edit return use the document locale. Both Timeline documents use the shared language selector with their draft owners. |
+| 7–8 | Location and Visit CRUD, location transfer and enrichment. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Location routes withhold switching while their protected workspaces are pending integration. |
 | 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
@@ -200,3 +203,12 @@ vertex clicks. The complete drawn-polygon browser journey remains unqualified.
 | User and Manager Group maps. | Sharing controls use the current policy and role. The drawer names and exposes its controls when open and restores focus on close. The map localizes selected-period feedback, marker status and details. Scope, calendar inputs, coordinates sent over the wire and current-membership access follow the existing server contract. |
 | Focused route and client checks | `MobileGroupWorkflowPostgresTests` verifies Greek Owner, Group Manager and Member actions, a pending row and an English POST whose duplicate refusal renders in Greek at its redirect destination. `groupInvitationRows.test.mjs` verifies the same Greek refusal at the AJAX boundary and a refreshed pending row with its viewer-zone timestamp and cancel action. Group route, sharing and history tests continue to exercise the existing permissions and data contracts. |
 | Mounted check | `unavailableGroupInvite.spec.ts` checks the real stale-account rejection in Greek and the narrow map with localized drawer actions, focus restoration and a scoped history request. |
+
+### Area 6 private Timeline
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| `/User/Timeline` | Timeline owns the generated heading, viewport and live feedback, summary, geographic details and record actions. Authored headings and location data render as text. Map bounds, SSE and all-history statistics keep their existing requests. |
+| `/User/Timeline/Chronological` | The calendar uses localized civil dates, scope and weekday names. Browser-derived week start and the frozen value on a Week link retain their authority. Filters, saved rectangles, paging, time basis and analysis use the same request values. The calendar renders partial, empty, busy, failed and session-ended results with separate operation feedback. Dot decimals and scientific notation remain the connection-rule input syntax. |
+| Calendar and map location detail and edit return | Detail keeps recorded and viewer time, the Location mutation owner and its inspected conditional deletion. Timeline links carry the current map or calendar URL. Private filter values remain in tab storage. The independent Location Edit workspace uses the active locale and withholds its selector. Its form belongs to Area 7. |
+| Language draft and verification | The selector queries the Calendar editor and connection rule draft, inline Activity work and active protected deletion before changing language. `privateTimelineLanguage.spec.ts` exercises a frozen Week in English and Greek, canceling a switch with a retained dot-decimal rule, then checks the Greek date and failed read at the same scope. It also checks the Greek rules dialog at narrow width in dark mode and the live Timeline heading and statistics. `timelineCalendar.spec.ts` exercises range, filters and protected edit return. Existing catalog, calendar, geographic endpoint and Location mutation tests cover the underlying contracts. Independent review is pending. |

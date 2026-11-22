@@ -1,5 +1,8 @@
 @using Wayfarer.Services
+@inject Wayfarer.Localization.WebMessages T
 @{
+    ViewData["WebCatalog"] = "Timeline";
+    ViewData["Title"] = T["Timeline.ChronologicalTitle"];
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadTomSelect"] = true;
@@ -8,58 +11,58 @@
 <div id="calendarTimeline" data-maximum-offset="@HistoryPredicate.MaxCaptureOffset">
     <div class="border rounded bg-light p-2 mb-2">
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <button id="previousPeriod" class="btn btn-sm btn-outline-secondary">Previous</button>
-            <button id="choosePeriod" class="btn btn-sm btn-outline-primary" aria-haspopup="dialog">Choose date</button>
-            <button id="nextPeriod" class="btn btn-sm btn-outline-secondary">Next</button>
-            <button id="today" class="btn btn-sm btn-success">Today</button>
-            <label>Period <select id="periodMode" class="form-select form-select-sm d-inline-block w-auto">
-                <option value="day">Day</option><option value="week">Week</option><option value="month">Month</option>
-                <option value="year">Year</option><option value="custom">Custom…</option>
+            <button id="previousPeriod" class="btn btn-sm btn-outline-secondary">@T["Timeline.Previous"]</button>
+            <button id="choosePeriod" class="btn btn-sm btn-outline-primary" aria-haspopup="dialog">@T["Timeline.ChooseDate"]</button>
+            <button id="nextPeriod" class="btn btn-sm btn-outline-secondary">@T["Timeline.Next"]</button>
+            <button id="today" class="btn btn-sm btn-success">@T["Timeline.Today"]</button>
+            <label>@T["Timeline.Period"] <select id="periodMode" class="form-select form-select-sm d-inline-block w-auto">
+                <option value="day">@T["Timeline.Day"]</option><option value="week">@T["Timeline.Week"]</option><option value="month">@T["Timeline.Month"]</option>
+                <option value="year">@T["Timeline.Year"]</option><option value="custom">@T["Timeline.CustomOption"]</option>
             </select></label>
-            <button id="chooseBasis" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">Calendar basis</button>
-            <button id="chooseFilters" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">Filters…</button>
-            <button id="refreshTimeline" class="btn btn-sm btn-primary">Refresh / Retry</button>
-            <button id="fitPeriod" class="btn btn-sm btn-outline-secondary">Fit period</button>
+            <button id="chooseBasis" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">@T["Timeline.Basis"]</button>
+            <button id="chooseFilters" class="btn btn-sm btn-outline-secondary" aria-haspopup="dialog">@T["Timeline.FiltersOption"]</button>
+            <button id="refreshTimeline" class="btn btn-sm btn-primary">@T["Timeline.RefreshRetry"]</button>
+            <button id="fitPeriod" class="btn btn-sm btn-outline-secondary">@T["Timeline.FitPeriod"]</button>
         </div>
-        <details class="mt-2"><summary>Jump by day, month or year</summary>
+        <details class="mt-2"><summary>@T["Timeline.Jump"]</summary>
             <div class="d-flex flex-wrap gap-1 mt-1">
-                @foreach (var unit in new[] { "day", "month", "year" })
+                @foreach (var (unit, label) in new[] { ("day", "Day"), ("month", "Month"), ("year", "Year") })
                 {
-                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="-1">Previous @unit</button>
-                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="1">Next @unit</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="-1">@T["Timeline.Previous" + label]</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-jump="@unit" data-direction="1">@T["Timeline.Next" + label]</button>
                 }
             </div>
-            <small>Day shortcuts enter Day. From Custom, month/year shortcuts also enter Day using From as the anchor.</small>
+            <small>@T["Timeline.JumpHelp"]</small>
         </details>
         <p id="calendarCaption" class="small my-1"></p>
         <div id="activeFilters" class="d-flex flex-wrap gap-1"></div>
         <p id="timelineNotice" class="small text-danger my-1" role="status"></p>
         <div id="contextRecovery" hidden>
-            <p>Private filters are unavailable in this tab.</p>
-            <button id="reenterFilters" class="btn btn-sm btn-outline-primary">Re-enter filters</button>
-            <button id="continueUnfiltered" class="btn btn-sm btn-outline-secondary">Continue without filters</button>
+            <p>@T["Timeline.PrivateFiltersUnavailable"]</p>
+            <button id="reenterFilters" class="btn btn-sm btn-outline-primary">@T["Timeline.ReenterFilters"]</button>
+            <button id="continueUnfiltered" class="btn btn-sm btn-outline-secondary">@T["Timeline.ContinueUnfiltered"]</button>
         </div>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
         <span id="timeline-summary" class="small" role="status"></span>
-        <button id="geographicDetails" class="btn btn-sm btn-link">Geographic statistics</button>
+        <button id="geographicDetails" class="btn btn-sm btn-link">@T["Timeline.GeographicStatistics"]</button>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-        <span id="distanceSummary" role="status">Distance loading…</span>
-        <label class="small"><input id="recordedPath" type="checkbox"> Recorded path</label>
-        <button id="cancelCalculation" class="btn btn-sm btn-outline-secondary">Cancel calculation</button>
-        <button id="connectionSettings" class="btn btn-sm btn-link" aria-haspopup="dialog">Connections &amp; distance</button>
+        <span id="distanceSummary" role="status">@T["Timeline.DistanceLoading"]</span>
+        <label class="small"><input id="recordedPath" type="checkbox"> @T["Timeline.RecordedPath"]</label>
+        <button id="cancelCalculation" class="btn btn-sm btn-outline-secondary">@T["Timeline.CancelCalculation"]</button>
+        <button id="connectionSettings" class="btn btn-sm btn-link" aria-haspopup="dialog">@T["Timeline.Connections"]</button>
     </div>
-    <div class="d-flex gap-1 mb-1" role="group" aria-label="Timeline panels">
-        <button id="showMap" class="btn btn-sm btn-outline-primary">Map</button>
-        <button id="showRecords" class="btn btn-sm btn-outline-primary">Records</button>
+    <div class="d-flex gap-1 mb-1" role="group" aria-label="@T["Timeline.Panels"]">
+        <button id="showMap" class="btn btn-sm btn-outline-primary">@T["Timeline.Map"]</button>
+        <button id="showRecords" class="btn btn-sm btn-outline-primary">@T["Timeline.Records"]</button>
     </div>
     <div id="mapPanel"><div id="mapContainer" style="height: max(320px, calc(100dvh - 380px));"></div></div>
-    <section id="recordsPanel" aria-label="Known matching records" hidden>
+    <section id="recordsPanel" aria-label="@T["Timeline.KnownMatchingRecords"]" hidden>
         <p id="recordsStatus" class="small" role="status"></p>
-        <p class="small text-muted">Live pages observe history separately. Inserts or moved records can be missed between pages; reaching the end is not a snapshot of the whole period. Unresolved candidates are counted separately.</p>
+        <p class="small text-muted">@T["Timeline.LivePagesHelp"]</p>
         <div id="recordRows" class="list-group" style="max-height:55dvh;overflow:auto;"></div>
-        <button id="loadMore" class="btn btn-sm btn-primary mt-2">Load more</button>
+        <button id="loadMore" class="btn btn-sm btn-primary mt-2">@T["Timeline.LoadMore"]</button>
     </section>
 </div>
 
@@ -67,92 +70,92 @@
    Query dialogs own only their labelled drafts. Protected mutation and connection drafts have independent owners. *@
 <div class="modal" id="dateDialog" tabindex="-1" aria-labelledby="dateDialogTitle">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header"><h2 class="modal-title fs-5" id="dateDialogTitle">Choose period</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel date selection"></button></div>
+        <div class="modal-header"><h2 class="modal-title fs-5" id="dateDialogTitle">@T["Timeline.ChoosePeriod"]</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="@T["Timeline.CancelDate"]"></button></div>
         <div class="modal-body">
             <p id="dateError" class="text-danger small" role="status"></p>
             <form id="typedDateForm" class="d-flex flex-wrap gap-2 mb-2">
-                <label>Date <input id="typedDate" type="date" class="form-control form-control-sm" min="1900-01-01" max="2100-12-31" required></label>
-                <button class="btn btn-sm btn-outline-primary align-self-end">Go to date</button>
+                <label>@T["Timeline.Date"] <input id="typedDate" type="date" class="form-control form-control-sm" min="1900-01-01" max="2100-12-31" required></label>
+                <button class="btn btn-sm btn-outline-primary align-self-end">@T["Timeline.GoToDate"]</button>
             </form>
             <div id="customEndpoints" hidden>
-                <p class="small">Inclusive endpoints. Focus From or Through to choose which endpoint the calendar edits.</p>
-                <label class="d-block">From <input id="rangeFrom" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
-                <label class="d-block">Through <input id="rangeThrough" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
+                <p class="small">@T["Timeline.InclusiveRangeHelp"]</p>
+                <label class="d-block">@T["Timeline.From"] <input id="rangeFrom" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
+                <label class="d-block">@T["Timeline.Through"] <input id="rangeThrough" type="date" min="1900-01-01" max="2100-12-31" class="form-control"></label>
                 <p id="endpointCaption" class="small"></p>
             </div>
             <div class="d-flex flex-wrap gap-1 my-2 align-items-end">
-                <button id="previousPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="Browse previous year">− Year</button>
-                <button id="previousPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="Browse previous month">‹</button>
-                <label>Browse month <input id="pickerMonth" type="month" min="1900-01" max="2100-12" class="form-control form-control-sm"></label>
-                <button id="nextPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="Browse next month">›</button>
-                <button id="nextPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="Browse next year">+ Year</button>
+                <button id="previousPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="@T["Timeline.BrowsePreviousYear"]">− @T["Timeline.Year"]</button>
+                <button id="previousPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="@T["Timeline.BrowsePreviousMonth"]">‹</button>
+                <label>@T["Timeline.BrowseMonth"] <input id="pickerMonth" type="month" min="1900-01" max="2100-12" class="form-control form-control-sm"></label>
+                <button id="nextPickerMonth" class="btn btn-sm btn-outline-secondary" aria-label="@T["Timeline.BrowseNextMonth"]">›</button>
+                <button id="nextPickerYear" class="btn btn-sm btn-outline-secondary" aria-label="@T["Timeline.BrowseNextYear"]">+ @T["Timeline.Year"]</button>
             </div>
-            <div class="d-flex gap-1 mb-2"><button id="showPickerMonth" class="btn btn-sm btn-outline-primary">Show this month</button><button id="showPickerYear" class="btn btn-sm btn-outline-primary">Show this year</button></div>
+            <div class="d-flex gap-1 mb-2"><button id="showPickerMonth" class="btn btn-sm btn-outline-primary">@T["Timeline.ShowMonth"]</button><button id="showPickerYear" class="btn btn-sm btn-outline-primary">@T["Timeline.ShowYear"]</button></div>
             <p id="monthStatus" class="small" role="status" aria-live="polite"></p>
-            <div id="calendarGrid" role="grid" aria-label="Calendar dates"></div>
-            <p id="calendarLegend" class="small mt-2">● Matching records · ? Unknown · ○ No matches at observation. Selection uses a border; Today is labelled.</p>
+            <div id="calendarGrid" role="grid" aria-label="@T["Timeline.CalendarDates"]"></div>
+            <p id="calendarLegend" class="small mt-2">@T["Timeline.Legend"]</p>
             <p id="weekOrder" class="small text-muted"></p>
         </div>
-        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyRange" class="btn btn-primary" hidden>Apply range</button></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">@T["Shell.Cancel"]</button><button id="applyRange" class="btn btn-primary" hidden>@T["Timeline.ApplyRange"]</button></div>
     </div></div>
 </div>
 <div class="modal" id="filtersDialog" tabindex="-1" aria-labelledby="filtersDialogTitle">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header"><h2 id="filtersDialogTitle" class="modal-title fs-5">Filters</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel filters"></button></div>
+        <div class="modal-header"><h2 id="filtersDialogTitle" class="modal-title fs-5">@T["Timeline.Filters"]</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="@T["Timeline.CancelFilters"]"></button></div>
         <div class="modal-body">
             <p id="filterError" class="small text-danger" role="status"></p>
-            <label class="d-block">Search Notes and address <input id="filterSearch" type="text" class="form-control"></label>
-            <p class="small text-muted">Literal phrase across the existing Notes and address fields. Activities are alternatives; search, activities, saved area and dates combine.</p>
-            <fieldset><legend class="fs-6">Activities</legend><div id="filterActivities"></div>
-                <label><input id="filterUnassigned" type="checkbox"> No activity</label>
+            <label class="d-block">@T["Timeline.Search"] <input id="filterSearch" type="text" class="form-control"></label>
+            <p class="small text-muted">@T["Timeline.SearchHelp"]</p>
+            <fieldset><legend class="fs-6">@T["Timeline.Activities"]</legend><div id="filterActivities"></div>
+                <label><input id="filterUnassigned" type="checkbox"> @T["Timeline.NoActivity"]</label>
             </fieldset>
-            <button id="reloadActivities" class="btn btn-sm btn-link">Refresh activities</button>
+            <button id="reloadActivities" class="btn btn-sm btn-link">@T["Timeline.RefreshActivities"]</button>
             <p id="areaCaption" class="small"></p>
-            <button id="captureArea" class="btn btn-sm btn-outline-primary">Use this map area</button>
-            <button id="clearArea" class="btn btn-sm btn-outline-secondary">Clear area</button>
-            <p class="small text-muted">Panning and zooming never change the saved rectangle. Replace it explicitly here.</p>
+            <button id="captureArea" class="btn btn-sm btn-outline-primary">@T["Timeline.UseMapArea"]</button>
+            <button id="clearArea" class="btn btn-sm btn-outline-secondary">@T["Timeline.ClearArea"]</button>
+            <p class="small text-muted">@T["Timeline.MapAreaHelp"]</p>
         </div>
-        <div class="modal-footer"><button id="clearFilters" class="btn btn-outline-danger">Clear filters</button><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyFilters" class="btn btn-primary">Apply filters</button></div>
+        <div class="modal-footer"><button id="clearFilters" class="btn btn-outline-danger">@T["Timeline.ClearFilters"]</button><button class="btn btn-secondary" data-bs-dismiss="modal">@T["Shell.Cancel"]</button><button id="applyFilters" class="btn btn-primary">@T["Timeline.ApplyFilters"]</button></div>
     </div></div>
 </div>
 <div class="modal" id="basisDialog" tabindex="-1" aria-labelledby="basisDialogTitle">
     <div class="modal-dialog"><div class="modal-content">
-        <div class="modal-header"><h2 id="basisDialogTitle" class="modal-title fs-5">Calendar basis</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Cancel calendar basis"></button></div>
+        <div class="modal-header"><h2 id="basisDialogTitle" class="modal-title fs-5">@T["Timeline.Basis"]</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="@T["Timeline.CancelBasis"]"></button></div>
         <div class="modal-body">
             <p id="basisError" class="small text-danger" role="status"></p>
-            <label class="d-block">Dates <select id="basisSelect" class="form-select"><option value="capture">Recorded-location calendar</option><option value="viewer">My time zone</option></select></label>
-            <label class="d-block mt-2">Frozen viewer zone <input id="viewerZone" class="form-control" type="text"></label>
-            <button id="currentBrowserZone" class="btn btn-sm btn-link">Use current browser zone</button>
-            <p class="small">The civil selection stays fixed. Today is seeded in this viewer zone. Capture dates use each record's qualified location zone.</p>
+            <label class="d-block">@T["Timeline.Dates"] <select id="basisSelect" class="form-select"><option value="capture">@T["Timeline.RecordedCalendar"]</option><option value="viewer">@T["Timeline.ViewerCalendar"]</option></select></label>
+            <label class="d-block mt-2">@T["Timeline.FrozenViewerZone"] <input id="viewerZone" class="form-control" type="text"></label>
+            <button id="currentBrowserZone" class="btn btn-sm btn-link">@T["Timeline.UseBrowserZone"]</button>
+            <p class="small">@T["Timeline.BasisHelp"]</p>
         </div>
-        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button id="applyBasis" class="btn btn-primary">Apply basis</button></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">@T["Shell.Cancel"]</button><button id="applyBasis" class="btn btn-primary">@T["Timeline.ApplyBasis"]</button></div>
     </div></div>
 </div>
 <div class="modal" id="rulesDialog" tabindex="-1" aria-labelledby="rulesDialogTitle" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header"><h2 id="rulesDialogTitle" class="modal-title fs-5">Connections &amp; distance</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close connection rules"></button></div>
+        <div class="modal-header"><h2 id="rulesDialogTitle" class="modal-title fs-5">@T["Timeline.Connections"]</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="@T["Timeline.CloseRules"]"></button></div>
         <div class="modal-body">
             <p id="rulesError" class="small text-danger" role="status"></p>
-            <p>Approximate great-circle connections between stored locations. Both endpoints must match. Excluded, uncertain, unmapped and conflicting equal-time intermediates break connections. Lines sit behind markers; display sampling never changes analytical distance.</p>
-            <label>Maximum gap <input id="maximumGap" type="text" inputmode="decimal" class="form-control"></label>
-            <label>Gap unit <select id="gapUnit" class="form-select"><option value="hours">Hours</option><option value="minutes">Minutes</option></select></label>
-            <label class="d-block mt-2"><input id="speedEnabled" type="checkbox"> Skip very fast connections</label>
-            <label>Maximum speed (km/h) <input id="maximumSpeed" type="text" inputmode="decimal" class="form-control"></label>
-            <p class="small">Positive finite decimal numbers; scientific notation is accepted. Untouched text retains exact saved seconds and m/s. Threshold equality is included.</p>
+            <p>@T["Timeline.RulesHelp"]</p>
+            <label>@T["Timeline.MaximumGap"] <input id="maximumGap" type="text" inputmode="decimal" class="form-control"></label>
+            <label>@T["Timeline.GapUnit"] <select id="gapUnit" class="form-select"><option value="hours">@T["Timeline.Hours"]</option><option value="minutes">@T["Timeline.Minutes"]</option></select></label>
+            <label class="d-block mt-2"><input id="speedEnabled" type="checkbox"> @T["Timeline.SkipFastConnections"]</label>
+            <label>@T["Timeline.MaximumSpeed"] <input id="maximumSpeed" type="text" inputmode="decimal" class="form-control"></label>
+            <p class="small">@T["Timeline.RulesInputHelp"]</p>
             <pre id="analysisFacts" class="small text-wrap"></pre>
-            <p class="small">Active time is not calculated. Gaps and sparse history cannot establish time spent travelling.</p>
+            <p class="small">@T["Timeline.ActiveTimeHelp"]</p>
         </div>
-        <div class="modal-footer"><button id="resetRules" class="btn btn-outline-secondary">Reset to defaults</button><button id="cancelRules" class="btn btn-secondary">Cancel</button><button id="applyRules" class="btn btn-primary">Apply rules</button></div>
+        <div class="modal-footer"><button id="resetRules" class="btn btn-outline-secondary">@T["Timeline.ResetRules"]</button><button id="cancelRules" class="btn btn-secondary">@T["Shell.Cancel"]</button><button id="applyRules" class="btn btn-primary">@T["Timeline.ApplyRules"]</button></div>
     </div></div>
 </div>
 @* Existing detail and geographic drill-down surfaces keep their individual protected edit owners. *@
 @foreach (var kind in new[] { "location", "stats" })
 {
-    var title = kind == "location" ? "Location details" : "Geographic statistics";
+    var title = T[kind == "location" ? "Timeline.LocationDetails" : "Timeline.GeographicStatistics"];
     var contentId = kind == "location" ? "modalContent" : "statsModalContent";
     <div class="modal" id="@(kind)Modal" tabindex="-1" aria-labelledby="@(kind)ModalLabel" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered"><div class="modal-content">
-            <div class="modal-header text-bg-primary"><h2 class="modal-title fs-5" id="@(kind)ModalLabel">@title</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-header text-bg-primary"><h2 class="modal-title fs-5" id="@(kind)ModalLabel">@title</h2><button class="btn-close" data-bs-dismiss="modal" aria-label="@T["Shell.Close"]"></button></div>
             <div class="modal-body"><div id="@contentId"></div></div>
         </div></div>
     </div>

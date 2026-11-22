@@ -567,4 +567,145 @@
   <data name="Shell.EditPolygonCancel" xml:space="preserve">
     <value>Click Cancel to undo changes.</value>
   </data>
+  <data name="Shell.LocationActivityLabel" xml:space="preserve">
+    <value>Activity:</value>
+  </data>
+  <data name="Shell.LocationActivityEdit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Shell.LocationActivityMissing" xml:space="preserve">
+    <value>No available data for Activity</value>
+  </data>
+  <data name="Shell.LocationActivitySelect" xml:space="preserve">
+    <value>Select an Activity</value>
+  </data>
+  <data name="Shell.LocationActivitySave" xml:space="preserve">
+    <value>Save activity</value>
+  </data>
+  <data name="Shell.LocationActivityClear" xml:space="preserve">
+    <value>Clear activity</value>
+  </data>
+  <data name="Shell.LocationActivitySearch" xml:space="preserve">
+    <value>Search for an activity…</value>
+  </data>
+  <data name="Shell.LocationActivityEmpty" xml:space="preserve">
+    <value>No matching activities</value>
+  </data>
+  <data name="Shell.LocationActivityLoadFailed" xml:space="preserve">
+    <value>Could not load activities. Close and reopen the list to try again.</value>
+  </data>
+  <data name="Shell.LocationActivityNewerClear" xml:space="preserve">
+    <value>Newer Clear is retained and still needs saving.</value>
+  </data>
+  <data name="Shell.LocationConfirmDeletion" xml:space="preserve">
+    <value>Confirm deletion</value>
+  </data>
+  <data name="Shell.LocationDelete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Shell.LocationDeletionInspect" xml:space="preserve">
+    <value>Delete the observed location #{0}? This cannot be undone. Stored detail: {1}. Unavailable facts: {2}.</value>
+  </data>
+  <data name="Shell.LocationDeletionRenew" xml:space="preserve">
+    <value>The earlier action can no longer take effect. This is a new conditional deletion. Previously observed detail: {0}.</value>
+  </data>
+  <data name="Shell.LocationDeletionRenewUnknown" xml:space="preserve">
+    <value>The earlier action can no longer take effect and its historical outcome is unknown. This is a new conditional deletion. Previously observed detail: {0}.</value>
+  </data>
+  <data name="Shell.LocationMutationRejected" xml:space="preserve">
+    <value>Save rejected. Your draft and originals are retained. Review current history.</value>
+  </data>
+  <data name="Shell.LocationMutationConflict" xml:space="preserve">
+    <value>The record changed since you opened it. Your draft and originals are retained. Review current history.</value>
+  </data>
+  <data name="Shell.LocationActivityFailed" xml:space="preserve">
+    <value>The activity change could not be confirmed. Reopen the activity editor to review it.</value>
+  </data>
+  <data name="Shell.LocationDeletionUnknown" xml:space="preserve">
+    <value>Deletion outcome unknown. Inspect current history before deciding again.</value>
+  </data>
+  <data name="Shell.LocationDeletionPrepareFailed" xml:space="preserve">
+    <value>Deletion could not be prepared. Reopen the location details to inspect the current record.</value>
+  </data>
+  <data name="Shell.LocationDetailUnavailable" xml:space="preserve">
+    <value>Location detail unavailable. Your draft is retained.</value>
+  </data>
+  <data name="Shell.LocationMutationSessionEnded" xml:space="preserve">
+    <value>Your session has ended. Keep your draft before leaving.</value>
+  </data>
+  <data name="Shell.LocationDraftNotSaved" xml:space="preserve">
+    <value>Draft was not saved. Keep this page open.</value>
+  </data>
+  <data name="Shell.LocationEvidenceUnverified" xml:space="preserve">
+    <value>Location evidence could not be verified. Your draft is retained.</value>
+  </data>
+  <data name="Shell.LocationBrowserUnsupported" xml:space="preserve">
+    <value>This browser cannot safely save this draft. Keep it open in a supported browser.</value>
+  </data>
+  <data name="Shell.LocationNewerDraft" xml:space="preserve">
+    <value>Newer typing is retained and still needs review.</value>
+  </data>
+  <data name="Shell.LocationCurrentStateSatisfied" xml:space="preserve">
+    <value>Current state satisfies this draft; historical outcome remains unknown.</value>
+  </data>
+  <data name="Shell.LocationOriginalsChanged" xml:space="preserve">
+    <value>Old future effects are excluded; current content differs from your originals. Your draft is retained. Review current history before an informed new conditional edit.</value>
+  </data>
+  <data name="Shell.LocationEarlierResolved" xml:space="preserve">
+    <value>The earlier action is resolved. Your newer draft is retained; review it against current history before saving.</value>
+  </data>
+  <data name="Shell.LocationEarlierExcluded" xml:space="preserve">
+    <value>Historical outcome unknown; old future effects are excluded. Your draft and originals are retained.</value>
+  </data>
+  <data name="Shell.LocationOutcomeUnknown" xml:space="preserve">
+    <value>Outcome unknown. Your draft and exact attempt are retained. Save again to check recovery.</value>
+  </data>
+  <data name="Shell.LocationOutcomeUnverified" xml:space="preserve">
+    <value>Outcome could not be verified. Your draft and attempt are retained.</value>
+  </data>
+  <data name="Shell.LocationSavePending" xml:space="preserve">
+    <value>Save is pending. Your draft is retained. Save again to check recovery.</value>
+  </data>
+  <data name="Shell.LocationSavedDetailUnavailable" xml:space="preserve">
+    <value>The save committed. Current detail is unavailable; your draft and receipt are retained. Save again to refresh.</value>
+  </data>
+  <data name="Shell.LocationEarlierSaved" xml:space="preserve">
+    <value>The earlier save committed. Newer typing is retained and still needs saving.</value>
+  </data>
+  <data name="Shell.LocationDeleted" xml:space="preserve">
+    <value>Location deleted.</value>
+  </data>
+  <data name="Shell.LocationSaved" xml:space="preserve">
+    <value>Location saved.</value>
+  </data>
+  <data name="Shell.LocationEarlierMayExecute" xml:space="preserve">
+    <value>The earlier action may still execute. Recover it before adopting current facts.</value>
+  </data>
+  <data name="Shell.LocationWrongScope" xml:space="preserve">
+    <value>Current facts have the wrong scope.</value>
+  </data>
+  <data name="Shell.LocationCommandUnavailable" xml:space="preserve">
+    <value>Saved command evidence is unavailable or inconsistent. Keep your draft; no save was sent.</value>
+  </data>
+  <data name="Shell.LocationActivityObserve" xml:space="preserve">
+    <value>Open the Activity editor to observe its originals before saving.</value>
+  </data>
+  <data name="Shell.LocationOperationExpired" xml:space="preserve">
+    <value>The save attempt expired. Review current history before trying again.</value>
+  </data>
+  <data name="Shell.LocationInvalidActivity" xml:space="preserve">
+    <value>The selected activity is unavailable. Reopen the editor and choose an available activity.</value>
+  </data>
+  <data name="Shell.LocationInvalidMutation" xml:space="preserve">
+    <value>The submitted change was invalid. Review the recorded details and try again.</value>
+  </data>
+  <data name="Shell.LocationBaseUnavailable" xml:space="preserve">
+    <value>The original record evidence is unavailable. Your draft is retained. Review current history.</value>
+  </data>
+  <data name="Shell.LocationAlreadyDeleted" xml:space="preserve">
+    <value>This record has already been deleted. Review current history.</value>
+  </data>
+  <data name="Shell.LocationNoLongerAvailable" xml:space="preserve">
+    <value>This record is no longer available. Review current history.</value>
+  </data>
 </root>

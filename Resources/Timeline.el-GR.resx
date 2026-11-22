@@ -1,0 +1,864 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Timeline.Accuracy" xml:space="preserve">
+    <value>Ακρίβεια:</value>
+  </data>
+  <data name="Timeline.ActiveTimeHelp" xml:space="preserve">
+    <value>Ο χρόνος κίνησης δεν υπολογίζεται. Τα κενά και οι αραιές καταγραφές δεν αρκούν για να προσδιοριστεί ο χρόνος διαδρομής.</value>
+  </data>
+  <data name="Timeline.Activities" xml:space="preserve">
+    <value>Δραστηριότητες</value>
+  </data>
+  <data name="Timeline.ActivitiesChip" xml:space="preserve">
+    <value>Δραστηριότητες: {0}</value>
+  </data>
+  <data name="Timeline.ActivitiesResolved" xml:space="preserve">
+    <value>Τα αποθηκευμένα αναγνωριστικά δραστηριοτήτων αντιστοιχίστηκαν στις τρέχουσες εγγραφές του καταλόγου.</value>
+  </data>
+  <data name="Timeline.ActivitiesUnavailable" xml:space="preserve">
+    <value>Οι δραστηριότητες δεν είναι διαθέσιμες. Οι υπάρχουσες επιλογές διατηρούνται. Ανανεώστε τον κατάλογο για να τις ελέγξετε.</value>
+  </data>
+  <data name="Timeline.AdmissionCooldown" xml:space="preserve">
+    <value>Η ανάγνωση έχει περιοριστεί προσωρινά. Δοκιμάστε ξανά μετά την ώρα που εμφανίζεται.</value>
+  </data>
+  <data name="Timeline.AdoptionNotice" xml:space="preserve">
+    <value>Ο παλαιότερος σύνδεσμος ημερομηνίας χρησιμοποίησε την αποθηκευμένη βάση ημερολογίου και την έγκυρη ζώνη ώρας προβολής.</value>
+  </data>
+  <data name="Timeline.Altitude" xml:space="preserve">
+    <value>Υψόμετρο:</value>
+  </data>
+  <data name="Timeline.Analysis" xml:space="preserve">
+    <value>Ανάλυση</value>
+  </data>
+  <data name="Timeline.AnalysisCalendar" xml:space="preserve">
+    <value>Ημερολόγιο: {0} · {1} · {2} · {3}</value>
+  </data>
+  <data name="Timeline.AnalysisCoverage" xml:space="preserve">
+    <value>Κάλυψη: {0}</value>
+  </data>
+  <data name="Timeline.AnalysisPending" xml:space="preserve">
+    <value>Δεν έχει ολοκληρωθεί επιτυχής ανάλυση. Η ανανέωση ή η νέα προσπάθεια διατηρεί την ενεργή επιλογή.</value>
+  </data>
+  <data name="Timeline.AppliedGap" xml:space="preserve">
+    <value>Ενεργό χρονικό διάστημα: {0} δευτ.</value>
+  </data>
+  <data name="Timeline.ApplyBasis" xml:space="preserve">
+    <value>Εφαρμογή βάσης</value>
+  </data>
+  <data name="Timeline.ApplyFilters" xml:space="preserve">
+    <value>Εφαρμογή φίλτρων</value>
+  </data>
+  <data name="Timeline.ApplyOrCancel" xml:space="preserve">
+    <value>Εφαρμόστε ή ακυρώστε πρώτα την ανοιχτή επεξεργασία κριτηρίων.</value>
+  </data>
+  <data name="Timeline.ApplyRange" xml:space="preserve">
+    <value>Εφαρμογή εύρους</value>
+  </data>
+  <data name="Timeline.ApplyRules" xml:space="preserve">
+    <value>Εφαρμογή κανόνων</value>
+  </data>
+  <data name="Timeline.AreaChip" xml:space="preserve">
+    <value>Αποθηκευμένη ζώνη του χάρτη: ({0} · {1}) → ({2} · {3})</value>
+  </data>
+  <data name="Timeline.AreaEmpty" xml:space="preserve">
+    <value>Η ζώνη του χάρτη είναι κενή.</value>
+  </data>
+  <data name="Timeline.AreaUnavailable" xml:space="preserve">
+    <value>Η ζώνη του χάρτη δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Timeline.Basis" xml:space="preserve">
+    <value>Βάση ημερολογίου</value>
+  </data>
+  <data name="Timeline.BasisHelp" xml:space="preserve">
+    <value>Οι επιλεγμένες ημερομηνίες παραμένουν ίδιες. Το «Σήμερα» υπολογίζεται στη ζώνη ώρας προβολής. Οι ημερομηνίες καταγραφής χρησιμοποιούν την επιβεβαιωμένη ζώνη ώρας κάθε τοποθεσίας.</value>
+  </data>
+  <data name="Timeline.BeyondHorizon" xml:space="preserve">
+    <value>Περιλαμβάνονται ημερομηνίες μετά το όριο περιήγησης. Τα αποτελέσματα αφορούν ολόκληρο το εύρος.</value>
+  </data>
+  <data name="Timeline.BrowseMonth" xml:space="preserve">
+    <value>Περιήγηση σε μήνα</value>
+  </data>
+  <data name="Timeline.BrowseNextMonth" xml:space="preserve">
+    <value>Περιήγηση στον επόμενο μήνα</value>
+  </data>
+  <data name="Timeline.BrowseNextYear" xml:space="preserve">
+    <value>Περιήγηση στο επόμενο έτος</value>
+  </data>
+  <data name="Timeline.BrowsePreviousMonth" xml:space="preserve">
+    <value>Περιήγηση στον προηγούμενο μήνα</value>
+  </data>
+  <data name="Timeline.BrowsePreviousYear" xml:space="preserve">
+    <value>Περιήγηση στο προηγούμενο έτος</value>
+  </data>
+  <data name="Timeline.CalendarDates" xml:space="preserve">
+    <value>Ημερομηνίες ημερολογίου</value>
+  </data>
+  <data name="Timeline.CancelBasis" xml:space="preserve">
+    <value>Ακύρωση επιλογής βάσης ημερολογίου</value>
+  </data>
+  <data name="Timeline.CancelCalculation" xml:space="preserve">
+    <value>Ακύρωση υπολογισμού</value>
+  </data>
+  <data name="Timeline.CancelDate" xml:space="preserve">
+    <value>Ακύρωση επιλογής ημερομηνίας</value>
+  </data>
+  <data name="Timeline.CancelFilters" xml:space="preserve">
+    <value>Ακύρωση φίλτρων</value>
+  </data>
+  <data name="Timeline.Cancelled" xml:space="preserve">
+    <value>Ακυρώθηκε</value>
+  </data>
+  <data name="Timeline.CaptureTime" xml:space="preserve">
+    <value>Στον τοπικό χρόνο καταγραφής: {0}</value>
+  </data>
+  <data name="Timeline.ChooseDate" xml:space="preserve">
+    <value>Επιλογή ημερομηνίας</value>
+  </data>
+  <data name="Timeline.ChoosePeriod" xml:space="preserve">
+    <value>Επιλογή περιόδου</value>
+  </data>
+  <data name="Timeline.ChronologicalTitle" xml:space="preserve">
+    <value>Χρονολόγιο κατά ημερομηνία</value>
+  </data>
+  <data name="Timeline.CitiesCount" xml:space="preserve">
+    <value>Πόλεις ({0})</value>
+  </data>
+  <data name="Timeline.CitiesLabel" xml:space="preserve">
+    <value>Πόλεις:</value>
+  </data>
+  <data name="Timeline.ClearArea" xml:space="preserve">
+    <value>Αφαίρεση ζώνης</value>
+  </data>
+  <data name="Timeline.ClearFilters" xml:space="preserve">
+    <value>Αφαίρεση φίλτρων</value>
+  </data>
+  <data name="Timeline.CloseRules" xml:space="preserve">
+    <value>Κλείσιμο κανόνων σύνδεσης</value>
+  </data>
+  <data name="Timeline.ConflictingLink" xml:space="preserve">
+    <value>Ο σύνδεσμος χρονολογίου περιέχει τιμές που συγκρούονται.</value>
+  </data>
+  <data name="Timeline.Connections" xml:space="preserve">
+    <value>Συνδέσεις και απόσταση</value>
+  </data>
+  <data name="Timeline.ContinuationInvalid" xml:space="preserve">
+    <value>Η σελίδα καταγραφών έληξε ή άλλαξε. Φορτώστε ξανά τις καταγραφές για να ξεκινήσετε με την ίδια επιλογή.</value>
+  </data>
+  <data name="Timeline.ContinueUnfiltered" xml:space="preserve">
+    <value>Συνέχεια χωρίς φίλτρα</value>
+  </data>
+  <data name="Timeline.Coordinates" xml:space="preserve">
+    <value>Συντεταγμένες:</value>
+  </data>
+  <data name="Timeline.CountriesCount" xml:space="preserve">
+    <value>Χώρες ({0})</value>
+  </data>
+  <data name="Timeline.CountriesLabel" xml:space="preserve">
+    <value>Χώρες:</value>
+  </data>
+  <data name="Timeline.CountryMissing" xml:space="preserve">
+    <value>Δεν έχει καταγραφεί χώρα</value>
+  </data>
+  <data name="Timeline.CoverageComplete" xml:space="preserve">
+    <value>Πλήρης</value>
+  </data>
+  <data name="Timeline.CoveragePartial" xml:space="preserve">
+    <value>Μερική</value>
+  </data>
+  <data name="Timeline.CoverageUnknown" xml:space="preserve">
+    <value>Άγνωστη</value>
+  </data>
+  <data name="Timeline.CrossesDateline" xml:space="preserve">
+    <value>(διασχίζει τη γραμμή αλλαγής ημερομηνίας)</value>
+  </data>
+  <data name="Timeline.Current" xml:space="preserve">
+    <value>ενημερωμένο</value>
+  </data>
+  <data name="Timeline.Custom" xml:space="preserve">
+    <value>Προσαρμοσμένο εύρος</value>
+  </data>
+  <data name="Timeline.CustomOption" xml:space="preserve">
+    <value>Προσαρμοσμένο εύρος…</value>
+  </data>
+  <data name="Timeline.Date" xml:space="preserve">
+    <value>Ημερομηνία</value>
+  </data>
+  <data name="Timeline.DateMarks" xml:space="preserve">
+    <value>Ενδείξεις ημερομηνιών</value>
+  </data>
+  <data name="Timeline.DateMarksUnavailable" xml:space="preserve">
+    <value>Οι ενδείξεις ημερομηνιών δεν είναι διαθέσιμες. Μπορείτε ακόμη να επιλέξετε ημερομηνία.</value>
+  </data>
+  <data name="Timeline.DateRange" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="Timeline.DateRangeLabel" xml:space="preserve">
+    <value>Εύρος ημερομηνιών:</value>
+  </data>
+  <data name="Timeline.Dates" xml:space="preserve">
+    <value>Ημερομηνίες</value>
+  </data>
+  <data name="Timeline.Day" xml:space="preserve">
+    <value>Ημέρα</value>
+  </data>
+  <data name="Timeline.DeleteLocation" xml:space="preserve">
+    <value>Διαγραφή καταγραφής</value>
+  </data>
+  <data name="Timeline.DistanceComplete" xml:space="preserve">
+    <value>Απόσταση μεταξύ καταγεγραμμένων τοποθεσιών</value>
+  </data>
+  <data name="Timeline.DistanceLoading" xml:space="preserve">
+    <value>Φόρτωση απόστασης…</value>
+  </data>
+  <data name="Timeline.DistancePartial" xml:space="preserve">
+    <value>Μερική απόσταση στα διαθέσιμα τμήματα</value>
+  </data>
+  <data name="Timeline.DistanceUnavailable" xml:space="preserve">
+    <value>Η απόσταση δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Timeline.EditLocation" xml:space="preserve">
+    <value>Επεξεργασία καταγραφής</value>
+  </data>
+  <data name="Timeline.EditsFrom" xml:space="preserve">
+    <value>Το ημερολόγιο αλλάζει μόνο την ημερομηνία «Από».</value>
+  </data>
+  <data name="Timeline.EditsThrough" xml:space="preserve">
+    <value>Το ημερολόγιο αλλάζει μόνο την ημερομηνία «Έως».</value>
+  </data>
+  <data name="Timeline.EligibleEdges" xml:space="preserve">
+    <value>Επιλέξιμες συνδέσεις: {0}</value>
+  </data>
+  <data name="Timeline.EndAtObservation" xml:space="preserve">
+    <value>τέλος κατά την τελευταία ανάγνωση</value>
+  </data>
+  <data name="Timeline.EqualTimeDisagreements" xml:space="preserve">
+    <value>Ομάδες με διαφωνίες την ίδια χρονική στιγμή: {0}</value>
+  </data>
+  <data name="Timeline.EventUtc" xml:space="preserve">
+    <value>Χρόνος συμβάντος (UTC):</value>
+  </data>
+  <data name="Timeline.ExactDate" xml:space="preserve">
+    <value>Εισαγάγετε πλήρη ημερομηνία.</value>
+  </data>
+  <data name="Timeline.ExaminedRows" xml:space="preserve">
+    <value>Εξετάστηκαν καταγραφές πηγής: {0}</value>
+  </data>
+  <data name="Timeline.Failed" xml:space="preserve">
+    <value>Απέτυχε</value>
+  </data>
+  <data name="Timeline.Filters" xml:space="preserve">
+    <value>Φίλτρα</value>
+  </data>
+  <data name="Timeline.FiltersOption" xml:space="preserve">
+    <value>Φίλτρα…</value>
+  </data>
+  <data name="Timeline.FiltersTooLarge" xml:space="preserve">
+    <value>Οι τιμές των φίλτρων υπερβαίνουν το επιτρεπόμενο μέγεθος αιτήματος.</value>
+  </data>
+  <data name="Timeline.FitPeriod" xml:space="preserve">
+    <value>Προσαρμογή χάρτη στην περίοδο</value>
+  </data>
+  <data name="Timeline.From" xml:space="preserve">
+    <value>Από</value>
+  </data>
+  <data name="Timeline.FromDate" xml:space="preserve">
+    <value>Από:</value>
+  </data>
+  <data name="Timeline.FrozenViewerZone" xml:space="preserve">
+    <value>Σταθερή ζώνη ώρας προβολής</value>
+  </data>
+  <data name="Timeline.FrozenWeek" xml:space="preserve">
+    <value>Σταθερή πρώτη ημέρα εβδομάδας: {0}</value>
+  </data>
+  <data name="Timeline.FrozenWeekRequired" xml:space="preserve">
+    <value>Ο σύνδεσμος εβδομάδας πρέπει να καθορίζει την πρώτη ημέρα της εβδομάδας.</value>
+  </data>
+  <data name="Timeline.FutureSelection" xml:space="preserve">
+    <value>Η περίοδος ξεκινά μετά το όριο περιήγησης.</value>
+  </data>
+  <data name="Timeline.GapBreaks" xml:space="preserve">
+    <value>Διακοπές λόγω χρονικού κενού: {0}</value>
+  </data>
+  <data name="Timeline.GapUnit" xml:space="preserve">
+    <value>Μονάδα χρονικού διαστήματος</value>
+  </data>
+  <data name="Timeline.GeographicCounts" xml:space="preserve">
+    <value>Χώρες: {0} · Περιφέρειες: {1} · Πόλεις: {2}</value>
+  </data>
+  <data name="Timeline.GeographicStatistics" xml:space="preserve">
+    <value>Γεωγραφικά στατιστικά</value>
+  </data>
+  <data name="Timeline.GeometryAvailable" xml:space="preserve">
+    <value>Διαθέσιμη</value>
+  </data>
+  <data name="Timeline.GeometryBudget" xml:space="preserve">
+    <value>Η διαδρομή υπερβαίνει το όριο απεικόνισης.</value>
+  </data>
+  <data name="Timeline.GeometryUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη</value>
+  </data>
+  <data name="Timeline.GoToDate" xml:space="preserve">
+    <value>Μετάβαση στην ημερομηνία</value>
+  </data>
+  <data name="Timeline.GoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="Timeline.GoogleMapsLabel" xml:space="preserve">
+    <value>Χάρτες Google</value>
+  </data>
+  <data name="Timeline.Heading" xml:space="preserve">
+    <value>Χρονολόγιο του χρήστη {0}</value>
+  </data>
+  <data name="Timeline.Home" xml:space="preserve">
+    <value>Χώρα κατοικίας</value>
+  </data>
+  <data name="Timeline.Hours" xml:space="preserve">
+    <value>Ώρες</value>
+  </data>
+  <data name="Timeline.InclusiveRangeHelp" xml:space="preserve">
+    <value>Το εύρος περιλαμβάνει και τις δύο ημερομηνίες. Επιλέξτε το πεδίο «Από» ή «Έως» για να ορίσετε ποια ημερομηνία αλλάζει από το ημερολόγιο.</value>
+  </data>
+  <data name="Timeline.InvalidActivities" xml:space="preserve">
+    <value>Επιλέξτε έγκυρες δραστηριότητες.</value>
+  </data>
+  <data name="Timeline.InvalidArea" xml:space="preserve">
+    <value>Επιλέξτε έγκυρη αποθηκευμένη ζώνη του χάρτη.</value>
+  </data>
+  <data name="Timeline.InvalidDate" xml:space="preserve">
+    <value>Επιλέξτε έγκυρη ημερομηνία από το 1900 έως το 2100.</value>
+  </data>
+  <data name="Timeline.InvalidDateComponent" xml:space="preserve">
+    <value>Μη έγκυρο στοιχείο ημερομηνίας στον σύνδεσμο χρονολογίου.</value>
+  </data>
+  <data name="Timeline.InvalidLink" xml:space="preserve">
+    <value>Ο σύνδεσμος χρονολογίου περιέχει μη έγκυρες ή επαναλαμβανόμενες τιμές.</value>
+  </data>
+  <data name="Timeline.InvalidSelection" xml:space="preserve">
+    <value>Μη έγκυρη επιλογή χρονολογίου.</value>
+  </data>
+  <data name="Timeline.InvalidZone" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη ζώνη ώρας, π.χ. Europe/Athens.</value>
+  </data>
+  <data name="Timeline.Jump" xml:space="preserve">
+    <value>Μετάβαση ανά ημέρα, μήνα ή έτος</value>
+  </data>
+  <data name="Timeline.JumpHelp" xml:space="preserve">
+    <value>Οι συντομεύσεις ημέρας ανοίγουν την προβολή ημέρας. Από προσαρμοσμένο εύρος, οι συντομεύσεις μήνα και έτους ανοίγουν επίσης την προβολή ημέρας με αφετηρία την ημερομηνία «Από».</value>
+  </data>
+  <data name="Timeline.Kilometres" xml:space="preserve">
+    <value>{0} χλμ.</value>
+  </data>
+  <data name="Timeline.KilometresPerHour" xml:space="preserve">
+    <value>{0} χλμ./ώρα</value>
+  </data>
+  <data name="Timeline.KnownAtObservation" xml:space="preserve">
+    <value>Γνωστές καταγραφές: {0}, κατά την ανάγνωση της περιόδου στις {1}</value>
+  </data>
+  <data name="Timeline.KnownMatches" xml:space="preserve">
+    <value>Γνωστές αντιστοιχίες: {0}</value>
+  </data>
+  <data name="Timeline.KnownMatchingRecords" xml:space="preserve">
+    <value>Γνωστές καταγραφές που ταιριάζουν</value>
+  </data>
+  <data name="Timeline.LabelValue" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Timeline.LatestBadge" xml:space="preserve">
+    <value>ΤΕΛΕΥΤΑΙΑ ΤΟΠΟΘΕΣΙΑ</value>
+  </data>
+  <data name="Timeline.LatestPage" xml:space="preserve">
+    <value>Τελευταία σελίδα: {0}</value>
+  </data>
+  <data name="Timeline.LatestTooltip" xml:space="preserve">
+    <value>Η τελευταία σας τοποθεσία.</value>
+  </data>
+  <data name="Timeline.Latitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος:</value>
+  </data>
+  <data name="Timeline.Legend" xml:space="preserve">
+    <value>● Καταγραφές που ταιριάζουν · ? Άγνωστο · ○ Χωρίς αντιστοιχίες κατά την ανάγνωση. Η επιλογή έχει περίγραμμα και η σημερινή ημέρα έχει ένδειξη.</value>
+  </data>
+  <data name="Timeline.LessThanMetres" xml:space="preserve">
+    <value>&lt;{0} μ.</value>
+  </data>
+  <data name="Timeline.LiveBadge" xml:space="preserve">
+    <value>ΖΩΝΤΑΝΗ ΤΟΠΟΘΕΣΙΑ</value>
+  </data>
+  <data name="Timeline.LiveDetailedStatsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των αναλυτικών στατιστικών. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Timeline.LiveEmpty" xml:space="preserve">
+    <value>Δεν υπάρχουν τοποθεσίες σε αυτήν την προβολή χάρτη.</value>
+  </data>
+  <data name="Timeline.LiveLoading" xml:space="preserve">
+    <value>Φόρτωση καταγραφών…</value>
+  </data>
+  <data name="Timeline.LivePagesHelp" xml:space="preserve">
+    <value>Κάθε σελίδα διαβάζει το ιστορικό εκ νέου. Μεταξύ των αναγνώσεων μπορεί να παραλειφθούν νέες καταγραφές ή καταγραφές που μετακινήθηκαν. Η τελευταία σελίδα δεν αποτελεί στιγμιότυπο όλης της περιόδου. Οι καταγραφές με αβέβαιη αντιστοίχιση μετρώνται χωριστά.</value>
+  </data>
+  <data name="Timeline.LiveReadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των τοποθεσιών. Μετακινήστε τον χάρτη ή ανανεώστε τη σελίδα για νέα προσπάθεια.</value>
+  </data>
+  <data name="Timeline.LiveStatsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των στατιστικών τοποθεσιών. Ανανεώστε τη σελίδα για νέα προσπάθεια.</value>
+  </data>
+  <data name="Timeline.LiveStreamClosed" xml:space="preserve">
+    <value>Οι ζωντανές ενημερώσεις σταμάτησαν. Ανανεώστε τη σελίδα για νέα σύνδεση.</value>
+  </data>
+  <data name="Timeline.LiveStreamFailed" xml:space="preserve">
+    <value>Οι ζωντανές ενημερώσεις είναι προσωρινά μη διαθέσιμες. Ο χάρτης θα δοκιμάσει ξανά αυτόματα.</value>
+  </data>
+  <data name="Timeline.LoadMore" xml:space="preserve">
+    <value>Φόρτωση περισσότερων</value>
+  </data>
+  <data name="Timeline.LoadRecords" xml:space="preserve">
+    <value>Φόρτωση καταγραφών / Νέα προσπάθεια</value>
+  </data>
+  <data name="Timeline.Loading" xml:space="preserve">
+    <value>Φόρτωση…</value>
+  </data>
+  <data name="Timeline.LoadingDateMarks" xml:space="preserve">
+    <value>Φόρτωση ενδείξεων ημερομηνιών…</value>
+  </data>
+  <data name="Timeline.Locate" xml:space="preserve">
+    <value>Εντοπισμός</value>
+  </data>
+  <data name="Timeline.LocationDetails" xml:space="preserve">
+    <value>Λεπτομέρειες καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Timeline.LocationStatistics" xml:space="preserve">
+    <value>Στατιστικά τοποθεσιών</value>
+  </data>
+  <data name="Timeline.Longitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος:</value>
+  </data>
+  <data name="Timeline.Map" xml:space="preserve">
+    <value>Χάρτης</value>
+  </data>
+  <data name="Timeline.MapAreaHelp" xml:space="preserve">
+    <value>Η μετακίνηση και η εστίαση του χάρτη δεν αλλάζουν το αποθηκευμένο ορθογώνιο. Για να το αντικαταστήσετε, χρησιμοποιήστε αυτό το κουμπί.</value>
+  </data>
+  <data name="Timeline.MappedMatches" xml:space="preserve">
+    <value>Αντιστοιχίες στον χάρτη: {0}</value>
+  </data>
+  <data name="Timeline.MarkersSampled" xml:space="preserve">
+    <value>Δείγμα: οι πέντε πιο πρόσφατες ανά κελί geohash-5, έως 3.000</value>
+  </data>
+  <data name="Timeline.MatchingRecords" xml:space="preserve">
+    <value>καταγραφές που ταιριάζουν</value>
+  </data>
+  <data name="Timeline.MaximumGap" xml:space="preserve">
+    <value>Μέγιστο χρονικό διάστημα</value>
+  </data>
+  <data name="Timeline.MaximumSpeed" xml:space="preserve">
+    <value>Μέγιστη ταχύτητα (χλμ./ώρα)</value>
+  </data>
+  <data name="Timeline.Metres" xml:space="preserve">
+    <value>{0} μ.</value>
+  </data>
+  <data name="Timeline.MetresPerSecond" xml:space="preserve">
+    <value>{0} μ./δευτ.</value>
+  </data>
+  <data name="Timeline.Minutes" xml:space="preserve">
+    <value>Λεπτά</value>
+  </data>
+  <data name="Timeline.Month" xml:space="preserve">
+    <value>Μήνας</value>
+  </data>
+  <data name="Timeline.MoreAvailable" xml:space="preserve">
+    <value>Υπάρχουν περισσότερες καταγραφές</value>
+  </data>
+  <data name="Timeline.MovePeriod" xml:space="preserve">
+    <value>Μετακίνηση ολόκληρης της επιλεγμένης περιόδου</value>
+  </data>
+  <data name="Timeline.Next" xml:space="preserve">
+    <value>Επόμενο</value>
+  </data>
+  <data name="Timeline.NextCustom" xml:space="preserve">
+    <value>Επόμενο εύρος</value>
+  </data>
+  <data name="Timeline.NextDay" xml:space="preserve">
+    <value>Επόμενη ημέρα</value>
+  </data>
+  <data name="Timeline.NextMonth" xml:space="preserve">
+    <value>Επόμενος μήνας</value>
+  </data>
+  <data name="Timeline.NextWeek" xml:space="preserve">
+    <value>Επόμενη εβδομάδα</value>
+  </data>
+  <data name="Timeline.NextYear" xml:space="preserve">
+    <value>Επόμενο έτος</value>
+  </data>
+  <data name="Timeline.NoActivity" xml:space="preserve">
+    <value>Χωρίς δραστηριότητα</value>
+  </data>
+  <data name="Timeline.NoArea" xml:space="preserve">
+    <value>Χωρίς αποθηκευμένη ζώνη</value>
+  </data>
+  <data name="Timeline.NoCities" xml:space="preserve">
+    <value>Δεν υπάρχουν πόλεις σε αυτήν την περιφέρεια</value>
+  </data>
+  <data name="Timeline.NoCountries" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμα στοιχεία χωρών</value>
+  </data>
+  <data name="Timeline.NoMatches" xml:space="preserve">
+    <value>Δεν βρέθηκαν καταγραφές για αυτήν την επιλογή.</value>
+  </data>
+  <data name="Timeline.NoMatchesObserved" xml:space="preserve">
+    <value>χωρίς αντιστοιχίες κατά την ανάγνωση</value>
+  </data>
+  <data name="Timeline.NoNotes" xml:space="preserve">
+    <value>Δεν υπάρχουν σημειώσεις</value>
+  </data>
+  <data name="Timeline.NoPosition" xml:space="preserve">
+    <value>Χωρίς θέση στον χάρτη</value>
+  </data>
+  <data name="Timeline.NoRegions" xml:space="preserve">
+    <value>Δεν υπάρχουν περιφέρειες σε αυτήν τη χώρα</value>
+  </data>
+  <data name="Timeline.NoSourceZone" xml:space="preserve">
+    <value>Η ζώνη ώρας καταγραφής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Timeline.NoValue" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμα στοιχεία</value>
+  </data>
+  <data name="Timeline.NotLoaded" xml:space="preserve">
+    <value>Δεν έχει φορτωθεί</value>
+  </data>
+  <data name="Timeline.ObservedAt" xml:space="preserve">
+    <value>Κατά την ανάγνωση στις {0}</value>
+  </data>
+  <data name="Timeline.Off" xml:space="preserve">
+    <value>Απενεργοποιημένο</value>
+  </data>
+  <data name="Timeline.OperationFailure" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Timeline.OutsideMonth" xml:space="preserve">
+    <value>Εκτός του εμφανιζόμενου μήνα, χωρίς ανάγνωση</value>
+  </data>
+  <data name="Timeline.OutsideRange" xml:space="preserve">
+    <value>εκτός επιλεγμένου εύρους</value>
+  </data>
+  <data name="Timeline.Overview" xml:space="preserve">
+    <value>Επισκόπηση</value>
+  </data>
+  <data name="Timeline.PageTitle" xml:space="preserve">
+    <value>Ιδιωτικό χρονολόγιο</value>
+  </data>
+  <data name="Timeline.Panels" xml:space="preserve">
+    <value>Προβολές χρονολογίου</value>
+  </data>
+  <data name="Timeline.PartialMatches" xml:space="preserve">
+    <value>Ορισμένες καταγραφές δεν ήταν δυνατό να αξιολογηθούν. Εμφανίζονται τα γνωστά αποτελέσματα.</value>
+  </data>
+  <data name="Timeline.PathState" xml:space="preserve">
+    <value>Διαδρομή: {0}</value>
+  </data>
+  <data name="Timeline.Pending" xml:space="preserve">
+    <value>Σε αναμονή</value>
+  </data>
+  <data name="Timeline.Period" xml:space="preserve">
+    <value>Περίοδος</value>
+  </data>
+  <data name="Timeline.PeriodCounts" xml:space="preserve">
+    <value>{0} γνωστές · {1} στον χάρτη · {2} χωρίς θέση στον χάρτη · {3} με αβέβαιη αντιστοίχιση · {4} δείκτες χάρτη</value>
+  </data>
+  <data name="Timeline.PeriodPending" xml:space="preserve">
+    <value>Περίοδος: {0}. Δεν έχει ολοκληρωθεί επιτυχής ανάγνωση για αυτήν την επιλογή.</value>
+  </data>
+  <data name="Timeline.PickerBrowserWeek" xml:space="preserve">
+    <value>Έναρξη εβδομάδας: {0} (τοπικές ρυθμίσεις του προγράμματος περιήγησης).</value>
+  </data>
+  <data name="Timeline.PickerFallbackWeek" xml:space="preserve">
+    <value>Η εβδομάδα αρχίζει τη Δευτέρα (προεπιλογή).</value>
+  </data>
+  <data name="Timeline.PickerFrozenWeek" xml:space="preserve">
+    <value>Έναρξη εβδομάδας: {0} (σταθερή επιλογή).</value>
+  </data>
+  <data name="Timeline.PositiveDotDecimal" xml:space="preserve">
+    <value>Εισαγάγετε θετικό πεπερασμένο αριθμό με τελεία για τα δεκαδικά.</value>
+  </data>
+  <data name="Timeline.PreferencesSaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση των προτιμήσεων. Οι ενεργοί κανόνες και το πρόχειρό σας διατηρούνται. Δοκιμάστε ξανά την εφαρμογή.</value>
+  </data>
+  <data name="Timeline.PreferencesUnavailable" xml:space="preserve">
+    <value>Οι αποθηκευμένες προτιμήσεις χρονολογίου δεν είναι διαθέσιμες ή έχουν άγνωστη έκδοση. Εμφανίζονται οι προεπιλογές. Μπορείτε να τις αντικαταστήσετε με επαναφορά και εφαρμογή.</value>
+  </data>
+  <data name="Timeline.Previous" xml:space="preserve">
+    <value>Προηγούμενο</value>
+  </data>
+  <data name="Timeline.PreviousCustom" xml:space="preserve">
+    <value>Προηγούμενο εύρος</value>
+  </data>
+  <data name="Timeline.PreviousDay" xml:space="preserve">
+    <value>Προηγούμενη ημέρα</value>
+  </data>
+  <data name="Timeline.PreviousMonth" xml:space="preserve">
+    <value>Προηγούμενος μήνας</value>
+  </data>
+  <data name="Timeline.PreviousWeek" xml:space="preserve">
+    <value>Προηγούμενη εβδομάδα</value>
+  </data>
+  <data name="Timeline.PreviousYear" xml:space="preserve">
+    <value>Προηγούμενο έτος</value>
+  </data>
+  <data name="Timeline.PrivateFiltersUnavailable" xml:space="preserve">
+    <value>Τα ιδιωτικά φίλτρα δεν είναι διαθέσιμα σε αυτήν την καρτέλα.</value>
+  </data>
+  <data name="Timeline.RangeOrder" xml:space="preserve">
+    <value>Η ημερομηνία «Από» πρέπει να είναι ίδια ή προγενέστερη από την ημερομηνία «Έως».</value>
+  </data>
+  <data name="Timeline.ReadBudget" xml:space="preserve">
+    <value>Η ανάγνωση ξεπέρασε το χρονικό όριο. Κρατήστε την επιλογή σας και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Timeline.ReadBusy" xml:space="preserve">
+    <value>Υπάρχουν πολλές αναγνώσεις χρονολογίου σε εξέλιξη. Κρατήστε την επιλογή σας και δοκιμάστε ξανά μετά την ώρα που εμφανίζεται.</value>
+  </data>
+  <data name="Timeline.ReadCancelled" xml:space="preserve">
+    <value>Η ανάγνωση ακυρώθηκε. Επιλέξτε ανανέωση ή νέα προσπάθεια για την ίδια επιλογή.</value>
+  </data>
+  <data name="Timeline.ReadInvalid" xml:space="preserve">
+    <value>Η ανάγνωση δεν δέχτηκε τις ημερομηνίες ή τα φίλτρα. Ελέγξτε την επιλογή σας.</value>
+  </data>
+  <data name="Timeline.ReadStoreUnavailable" xml:space="preserve">
+    <value>Το ιστορικό χρονολογίου είναι προσωρινά μη διαθέσιμο. Κρατήστε την επιλογή σας και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Timeline.ReadUnavailable" xml:space="preserve">
+    <value>Η ανάγνωση δεν είναι διαθέσιμη. Κρατήστε την επιλογή σας και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Timeline.RecordCount.one" xml:space="preserve">
+    <value>{0} καταγραφή</value>
+  </data>
+  <data name="Timeline.RecordCount.other" xml:space="preserve">
+    <value>{0} καταγραφές</value>
+  </data>
+  <data name="Timeline.RecordFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση της καταγραφής. Ανοίξτε ξανά τις λεπτομέρειες για νέα προσπάθεια.</value>
+  </data>
+  <data name="Timeline.RecordId" xml:space="preserve">
+    <value>Καταγραφή {0}</value>
+  </data>
+  <data name="Timeline.RecordIdentityMismatch" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση του αναγνωριστικού της καταγραφής.</value>
+  </data>
+  <data name="Timeline.RecordLoading" xml:space="preserve">
+    <value>Φόρτωση καταγραφής {0}…</value>
+  </data>
+  <data name="Timeline.RecordObservation" xml:space="preserve">
+    <value>Καταγραφή {0} · λεπτομέρειες κατά την ανάγνωση στις {1}. Το αναγνωριστικό της καταγραφής διατηρείται. Αν λείπει από τον χάρτη ή τις φορτωμένες σελίδες, μπορεί να είναι εκτός επιλογής ή να παραλείφθηκε λόγω δειγματοληψίας ή ελλιπούς φόρτωσης. Η απουσία της δεν αποδεικνύει διαγραφή.</value>
+  </data>
+  <data name="Timeline.RecordUnavailable" xml:space="preserve">
+    <value>Η καταγραφή δεν είναι διαθέσιμη ή βρίσκεται εκτός του προσβάσιμου ιστορικού. Το αποθηκευμένο αναγνωριστικό της δεν αποδεικνύει διαγραφή.</value>
+  </data>
+  <data name="Timeline.RecordedCalendar" xml:space="preserve">
+    <value>Ημερολόγιο στον τοπικό χρόνο καταγραφής</value>
+  </data>
+  <data name="Timeline.RecordedLocation" xml:space="preserve">
+    <value>Καταγεγραμμένη τοποθεσία</value>
+  </data>
+  <data name="Timeline.RecordedPath" xml:space="preserve">
+    <value>Καταγεγραμμένη διαδρομή</value>
+  </data>
+  <data name="Timeline.RecordedTimeLabel" xml:space="preserve">
+    <value>Τοπική ώρα καταγραφής:</value>
+  </data>
+  <data name="Timeline.Records" xml:space="preserve">
+    <value>Καταγραφές</value>
+  </data>
+  <data name="Timeline.RecordsLoaded" xml:space="preserve">
+    <value>Φορτώθηκαν: {0}</value>
+  </data>
+  <data name="Timeline.RecoverFilters" xml:space="preserve">
+    <value>Εισαγάγετε ξανά τα μη διαθέσιμα φίλτρα ή επιλέξτε «Συνέχεια χωρίς φίλτρα» για να επαναφέρετε το χρονολόγιο.</value>
+  </data>
+  <data name="Timeline.ReenterFilters" xml:space="preserve">
+    <value>Νέα εισαγωγή φίλτρων</value>
+  </data>
+  <data name="Timeline.RefreshActivities" xml:space="preserve">
+    <value>Ανανέωση δραστηριοτήτων</value>
+  </data>
+  <data name="Timeline.RefreshRetry" xml:space="preserve">
+    <value>Ανανέωση / Νέα προσπάθεια</value>
+  </data>
+  <data name="Timeline.Refreshing" xml:space="preserve">
+    <value>Ανανέωση…</value>
+  </data>
+  <data name="Timeline.RegionMissing" xml:space="preserve">
+    <value>Δεν έχει καταγραφεί περιφέρεια</value>
+  </data>
+  <data name="Timeline.RegionsCount" xml:space="preserve">
+    <value>Περιφέρειες ({0})</value>
+  </data>
+  <data name="Timeline.RegionsLabel" xml:space="preserve">
+    <value>Περιφέρειες:</value>
+  </data>
+  <data name="Timeline.RemoveFilter" xml:space="preserve">
+    <value>Αφαίρεση: {0}</value>
+  </data>
+  <data name="Timeline.ReplaceArea" xml:space="preserve">
+    <value>Αντικατάσταση με την τρέχουσα ζώνη του χάρτη</value>
+  </data>
+  <data name="Timeline.ResetRules" xml:space="preserve">
+    <value>Επαναφορά προεπιλογών</value>
+  </data>
+  <data name="Timeline.RestoreSaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση της κατάστασης της καρτέλας. Τα ενεργά φίλτρα και το πρόχειρό σας διατηρούνται. Δοκιμάστε ξανά την εφαρμογή.</value>
+  </data>
+  <data name="Timeline.RetainedActivity" xml:space="preserve">
+    <value>Αποθηκευμένη δραστηριότητα {0} (ελέγξτε ή αλλάξτε την επιλογή)</value>
+  </data>
+  <data name="Timeline.RetryAt" xml:space="preserve">
+    <value>Δοκιμάστε ξανά μετά τις {0}</value>
+  </data>
+  <data name="Timeline.RulesHelp" xml:space="preserve">
+    <value>Κατά προσέγγιση συνδέσεις μέγιστου κύκλου μεταξύ αποθηκευμένων τοποθεσιών. Και τα δύο άκρα πρέπει να πληρούν τα κριτήρια. Η σύνδεση διακόπτεται αν παρεμβάλλεται καταγραφή που εξαιρείται, είναι αβέβαιη, δεν έχει θέση στον χάρτη ή διαφωνεί με άλλη καταγραφή της ίδιας χρονικής στιγμής. Οι γραμμές εμφανίζονται πίσω από τους δείκτες. Η δειγματοληψία στην προβολή δεν αλλάζει την υπολογισμένη απόσταση.</value>
+  </data>
+  <data name="Timeline.RulesInputHelp" xml:space="preserve">
+    <value>Εισαγάγετε θετικούς πεπερασμένους αριθμούς με τελεία για τα δεκαδικά (π.χ. 2.5). Επιτρέπεται η επιστημονική γραφή. Αν δεν αλλάξετε το κείμενο, διατηρούνται οι ακριβείς αποθηκευμένες τιμές σε δευτερόλεπτα και μ./δευτ. Συμπεριλαμβάνονται τιμές ίσες με το όριο.</value>
+  </data>
+  <data name="Timeline.RulesOutOfRange" xml:space="preserve">
+    <value>Οι κανόνες απαιτούν θετικές πεπερασμένες τιμές εντός του υποστηριζόμενου αριθμητικού εύρους.</value>
+  </data>
+  <data name="Timeline.SavedRectangle" xml:space="preserve">
+    <value>Αποθηκευμένο ορθογώνιο: δυτικά {0}, νότια {1}, ανατολικά {2}, βόρεια {3}</value>
+  </data>
+  <data name="Timeline.Search" xml:space="preserve">
+    <value>Αναζήτηση σε σημειώσεις και διεύθυνση</value>
+  </data>
+  <data name="Timeline.SearchChip" xml:space="preserve">
+    <value>Αναζήτηση σε σημειώσεις και διεύθυνση: {0}</value>
+  </data>
+  <data name="Timeline.SearchHelp" xml:space="preserve">
+    <value>Αναζήτηση της φράσης όπως γράφτηκε στα πεδία σημειώσεων και διεύθυνσης. Αρκεί μία από τις επιλεγμένες δραστηριότητες. Η αναζήτηση, οι δραστηριότητες, η αποθηκευμένη ζώνη και οι ημερομηνίες εφαρμόζονται μαζί.</value>
+  </data>
+  <data name="Timeline.SearchLimit" xml:space="preserve">
+    <value>Η αναζήτηση μπορεί να περιέχει έως 256 έγκυρους χαρακτήρες Unicode.</value>
+  </data>
+  <data name="Timeline.SelectedRange" xml:space="preserve">
+    <value>εντός επιλεγμένου εύρους</value>
+  </data>
+  <data name="Timeline.SelectedRecord" xml:space="preserve">
+    <value>Επιλεγμένη καταγραφή (εκτός του πλήθους δείγματος του χάρτη)</value>
+  </data>
+  <data name="Timeline.SelectionCaption" xml:space="preserve">
+    <value>{0} · {1} · σταθερή ζώνη ώρας προβολής: {2}</value>
+  </data>
+  <data name="Timeline.SeparateObservations" xml:space="preserve">
+    <value>Η ανάλυση γίνεται με ξεχωριστή ανάγνωση από τον χάρτη, τις καταγραφές και τις ενδείξεις ημερομηνιών.</value>
+  </data>
+  <data name="Timeline.SessionEnded" xml:space="preserve">
+    <value>Η συνεδρία έληξε ή ο λογαριασμός άλλαξε. Συνδεθείτε ξανά για να δείτε το χρονολόγιο.</value>
+  </data>
+  <data name="Timeline.ShiftAnchor" xml:space="preserve">
+    <value>Μετακίνηση της ημερομηνίας αναφοράς</value>
+  </data>
+  <data name="Timeline.ShowMonth" xml:space="preserve">
+    <value>Προβολή αυτού του μήνα</value>
+  </data>
+  <data name="Timeline.ShowYear" xml:space="preserve">
+    <value>Προβολή αυτού του έτους</value>
+  </data>
+  <data name="Timeline.SignInAgain" xml:space="preserve">
+    <value>Συνδεθείτε ξανά πριν επαναφέρετε το χρονολόγιο.</value>
+  </data>
+  <data name="Timeline.SkipFastConnections" xml:space="preserve">
+    <value>Παράλειψη πολύ γρήγορων συνδέσεων</value>
+  </data>
+  <data name="Timeline.SourceHistory" xml:space="preserve">
+    <value>Πηγή: αποθηκευμένο ιστορικό τοποθεσιών αυτού του λογαριασμού</value>
+  </data>
+  <data name="Timeline.Speed" xml:space="preserve">
+    <value>Ταχύτητα:</value>
+  </data>
+  <data name="Timeline.SpeedBreaks" xml:space="preserve">
+    <value>Διακοπές λόγω ταχύτητας: {0}</value>
+  </data>
+  <data name="Timeline.SpeedHeuristic" xml:space="preserve">
+    <value>Φίλτρο ταχύτητας: {0}</value>
+  </data>
+  <data name="Timeline.StatisticsInvalidated" xml:space="preserve">
+    <value>Τα στατιστικά δεν είναι διαθέσιμα ή δεν ισχύουν πλέον. Ανοίξτε ξανά τα γεωγραφικά στατιστικά για ανάγνωση της ίδιας επιλογής.</value>
+  </data>
+  <data name="Timeline.StatisticsLoading" xml:space="preserve">
+    <value>Φόρτωση γεωγραφικών στατιστικών…</value>
+  </data>
+  <data name="Timeline.StoredZone" xml:space="preserve">
+    <value>Αποθηκευμένη ζώνη ώρας:</value>
+  </data>
+  <data name="Timeline.Through" xml:space="preserve">
+    <value>Έως</value>
+  </data>
+  <data name="Timeline.ToDate" xml:space="preserve">
+    <value>Έως:</value>
+  </data>
+  <data name="Timeline.Today" xml:space="preserve">
+    <value>Σήμερα</value>
+  </data>
+  <data name="Timeline.TodayMarker" xml:space="preserve">
+    <value>Σ</value>
+  </data>
+  <data name="Timeline.TotalLocations" xml:space="preserve">
+    <value>Σύνολο τοποθεσιών:</value>
+  </data>
+  <data name="Timeline.Unavailable" xml:space="preserve">
+    <value>Μη διαθέσιμο</value>
+  </data>
+  <data name="Timeline.UnknownDateMarks" xml:space="preserve">
+    <value>Άγνωστη παρουσία καταγραφών στις ημερομηνίες χωρίς ένδειξη</value>
+  </data>
+  <data name="Timeline.UnknownPresence" xml:space="preserve">
+    <value>άγνωστη παρουσία καταγραφών</value>
+  </data>
+  <data name="Timeline.UnmappedMatches" xml:space="preserve">
+    <value>Αντιστοιχίες χωρίς θέση στον χάρτη: {0}</value>
+  </data>
+  <data name="Timeline.UnplaceableEventAbsent" xml:space="preserve">
+    <value>Όλα τα συμβάντα του ιστορικού έχουν αξιοποιήσιμη χρονική σήμανση.</value>
+  </data>
+  <data name="Timeline.UnplaceableEventPresent" xml:space="preserve">
+    <value>Τουλάχιστον ένα συμβάν του ιστορικού δεν έχει αξιοποιήσιμη χρονική σήμανση.</value>
+  </data>
+  <data name="Timeline.UnplaceableEventTime" xml:space="preserve">
+    <value>Ένα συμβάν του ιστορικού δεν έχει αξιοποιήσιμη χρονική σήμανση.</value>
+  </data>
+  <data name="Timeline.UnresolvedPlaceable" xml:space="preserve">
+    <value>Αβέβαιες αντιστοιχίες με αξιοποιήσιμη χρονική σήμανση: {0}</value>
+  </data>
+  <data name="Timeline.UseBrowserZone" xml:space="preserve">
+    <value>Χρήση της τρέχουσας ζώνης ώρας του προγράμματος περιήγησης</value>
+  </data>
+  <data name="Timeline.UseMapArea" xml:space="preserve">
+    <value>Χρήση αυτής της ζώνης του χάρτη</value>
+  </data>
+  <data name="Timeline.ViewOnMap" xml:space="preserve">
+    <value>Προβολή στον χάρτη</value>
+  </data>
+  <data name="Timeline.ViewerCalendar" xml:space="preserve">
+    <value>Η ζώνη ώρας μου</value>
+  </data>
+  <data name="Timeline.ViewerTime" xml:space="preserve">
+    <value>Στη ζώνη ώρας σας: {0}</value>
+  </data>
+  <data name="Timeline.ViewerTimeLabel" xml:space="preserve">
+    <value>Ημερομηνία και ώρα (στη ζώνη ώρας σας):</value>
+  </data>
+  <data name="Timeline.Week" xml:space="preserve">
+    <value>Εβδομάδα</value>
+  </data>
+  <data name="Timeline.Year" xml:space="preserve">
+    <value>Έτος</value>
+  </data>
+</root>
