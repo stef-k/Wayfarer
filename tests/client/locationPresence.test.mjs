@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { locationText, locationHtml } from '../../wwwroot/js/util/location-history-text.js';
 import { isLiveLocation, scheduleLocationExpiry } from '../../wwwroot/js/util/datetime.js';
 
 const now = Date.parse('2026-10-19T12:00:00Z');
@@ -44,6 +45,7 @@ for (const entry of ['Public/UsersTimeline/Timeline.js', 'User/Location/Index.js
             latestLocationMarker: 'latest', liveMarker: 'live',
             message: (_, readable) => readable, encodeFeatureText: value => value,
             text: (_, readable) => readable, html: (_, readable) => readable,
+            locationText, locationHtml,
             L: { layerGroup: layer, markerClusterGroup: layer, marker: (_, options) => {
                 icons.push(options.icon);
                 clock += renderDelay;
