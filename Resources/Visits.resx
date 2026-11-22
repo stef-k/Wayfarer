@@ -1,0 +1,261 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Visits.History" xml:space="preserve">
+    <value>Visit History</value>
+  </data>
+  <data name="Visits.Edit" xml:space="preserve">
+    <value>Edit Visit</value>
+  </data>
+  <data name="Visits.EditTitle" xml:space="preserve">
+    <value>Edit Visit - {0}</value>
+  </data>
+  <data name="Visits.Details" xml:space="preserve">
+    <value>Visit Details</value>
+  </data>
+  <data name="Visits.VisitDate" xml:space="preserve">
+    <value>Visit Date</value>
+  </data>
+  <data name="Visits.DeleteSelectedHelp" xml:space="preserve">
+    <value>Delete selected visits</value>
+  </data>
+  <data name="Visits.AllTrips" xml:space="preserve">
+    <value>All Trips</value>
+  </data>
+  <data name="Visits.OpenStill" xml:space="preserve">
+    <value>Open (Still visiting)</value>
+  </data>
+  <data name="Visits.Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Visits.Closed" xml:space="preserve">
+    <value>Closed</value>
+  </data>
+  <data name="Visits.StillVisiting" xml:space="preserve">
+    <value>Still visiting</value>
+  </data>
+  <data name="Visits.StillOpen" xml:space="preserve">
+    <value>Visit still open</value>
+  </data>
+  <data name="Visits.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Visits.PlaceName" xml:space="preserve">
+    <value>Place Name</value>
+  </data>
+  <data name="Visits.PlaceSearch" xml:space="preserve">
+    <value>Search place name…</value>
+  </data>
+  <data name="Visits.RegionSearch" xml:space="preserve">
+    <value>Search region…</value>
+  </data>
+  <data name="Visits.Trip" xml:space="preserve">
+    <value>Trip</value>
+  </data>
+  <data name="Visits.OpenTrip" xml:space="preserve">
+    <value>Go to trip</value>
+  </data>
+  <data name="Visits.Dwell" xml:space="preserve">
+    <value>Dwell Time</value>
+  </data>
+  <data name="Visits.Minutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="Visits.HoursMinutes" xml:space="preserve">
+    <value>{0}h {1}m</value>
+  </data>
+  <data name="Visits.Arrived" xml:space="preserve">
+    <value>Arrived</value>
+  </data>
+  <data name="Visits.Ended" xml:space="preserve">
+    <value>Ended</value>
+  </data>
+  <data name="Visits.ArrivedUtc" xml:space="preserve">
+    <value>Arrived At (UTC)</value>
+  </data>
+  <data name="Visits.EndedUtc" xml:space="preserve">
+    <value>Ended At (UTC)</value>
+  </data>
+  <data name="Visits.EndHelp" xml:space="preserve">
+    <value>Leave empty if visit is still open</value>
+  </data>
+  <data name="Visits.MapClick" xml:space="preserve">
+    <value>Click on the map to update the location.</value>
+  </data>
+  <data name="Visits.VisitLocation" xml:space="preserve">
+    <value>Visit Location</value>
+  </data>
+  <data name="Visits.Icon" xml:space="preserve">
+    <value>Icon</value>
+  </data>
+  <data name="Visits.Color" xml:space="preserve">
+    <value>Marker Color</value>
+  </data>
+  <data name="Visits.Delete" xml:space="preserve">
+    <value>Delete Visit</value>
+  </data>
+  <data name="Visits.DeletePrompt" xml:space="preserve">
+    <value>Are you sure you want to delete this visit? This cannot be undone.</value>
+  </data>
+  <data name="Visits.DeleteBulk.one" xml:space="preserve">
+    <value>Delete {0} selected visit? This cannot be undone.</value>
+  </data>
+  <data name="Visits.DeleteBulk.other" xml:space="preserve">
+    <value>Delete {0} selected visits? This cannot be undone.</value>
+  </data>
+  <data name="Visits.DeleteUnknown" xml:space="preserve">
+    <value>Deletion could not be confirmed. Refresh Visit History and check which visits remain. The earlier action may still finish.</value>
+  </data>
+  <data name="Visits.DeleteNoMatches" xml:space="preserve">
+    <value>No matching visits found.</value>
+  </data>
+  <data name="Visits.DeleteNoIds" xml:space="preserve">
+    <value>No visits were submitted for deletion.</value>
+  </data>
+  <data name="Visits.DeleteDone.one" xml:space="preserve">
+    <value>{0} visit deleted.</value>
+  </data>
+  <data name="Visits.DeleteDone.other" xml:space="preserve">
+    <value>{0} visits deleted.</value>
+  </data>
+  <data name="Visits.NoSelected" xml:space="preserve">
+    <value>No visits selected.</value>
+  </data>
+  <data name="Visits.NotFound" xml:space="preserve">
+    <value>Visit not found.</value>
+  </data>
+  <data name="Visits.EditDenied" xml:space="preserve">
+    <value>Visit not found or you don't have permission to edit it.</value>
+  </data>
+  <data name="Visits.Saved" xml:space="preserve">
+    <value>Visit updated successfully.</value>
+  </data>
+  <data name="Visits.DeletedPlace" xml:space="preserve">
+    <value>Visit to '{0}' deleted successfully.</value>
+  </data>
+  <data name="Visits.Total.one" xml:space="preserve">
+    <value>Total: {0} visit</value>
+  </data>
+  <data name="Visits.Total.other" xml:space="preserve">
+    <value>Total: {0} visits</value>
+  </data>
+  <data name="Visits.NoMatches" xml:space="preserve">
+    <value>No visits found.</value>
+  </data>
+  <data name="Visits.LoadFailed" xml:space="preserve">
+    <value>Could not load visits.</value>
+  </data>
+  <data name="Visits.TripsFailed" xml:space="preserve">
+    <value>Could not load the trips filter.</value>
+  </data>
+  <data name="Visits.Locations" xml:space="preserve">
+    <value>Locations</value>
+  </data>
+  <data name="Visits.LocationsHelp" xml:space="preserve">
+    <value>GPS pings recorded during this visit within the place's proximity radius</value>
+  </data>
+  <data name="Visits.RelevantLocations" xml:space="preserve">
+    <value>Relevant Locations</value>
+  </data>
+  <data name="Visits.NoLocations" xml:space="preserve">
+    <value>No relevant locations found for this visit.</value>
+  </data>
+  <data name="Visits.LocationsFailed" xml:space="preserve">
+    <value>Failed to load relevant locations.</value>
+  </data>
+  <data name="Visits.CountsFailed" xml:space="preserve">
+    <value>Could not load location counts.</value>
+  </data>
+  <data name="Visits.ShowMore" xml:space="preserve">
+    <value>Show More</value>
+  </data>
+  <data name="Visits.ViewLocations.one" xml:space="preserve">
+    <value>View all {0} location</value>
+  </data>
+  <data name="Visits.ViewLocations.other" xml:space="preserve">
+    <value>View all {0} locations</value>
+  </data>
+  <data name="Visits.Timestamp" xml:space="preserve">
+    <value>Timestamp</value>
+  </data>
+  <data name="Visits.Icon.marker" xml:space="preserve">
+    <value>Marker</value>
+  </data>
+  <data name="Visits.Icon.star" xml:space="preserve">
+    <value>Star</value>
+  </data>
+  <data name="Visits.Icon.camera" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="Visits.Icon.museum" xml:space="preserve">
+    <value>Museum</value>
+  </data>
+  <data name="Visits.Icon.eat" xml:space="preserve">
+    <value>Eat</value>
+  </data>
+  <data name="Visits.Icon.drink" xml:space="preserve">
+    <value>Drink</value>
+  </data>
+  <data name="Visits.Icon.hotel" xml:space="preserve">
+    <value>Hotel</value>
+  </data>
+  <data name="Visits.Icon.info" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="Visits.Icon.help" xml:space="preserve">
+    <value>Help</value>
+  </data>
+  <data name="Visits.Icon.flag" xml:space="preserve">
+    <value>Flag</value>
+  </data>
+  <data name="Visits.Icon.danger" xml:space="preserve">
+    <value>Danger</value>
+  </data>
+  <data name="Visits.Icon.beach" xml:space="preserve">
+    <value>Beach</value>
+  </data>
+  <data name="Visits.Icon.hike" xml:space="preserve">
+    <value>Hike</value>
+  </data>
+  <data name="Visits.Icon.wc" xml:space="preserve">
+    <value>WC</value>
+  </data>
+  <data name="Visits.Icon.sos" xml:space="preserve">
+    <value>SOS</value>
+  </data>
+  <data name="Visits.Icon.map" xml:space="preserve">
+    <value>Map</value>
+  </data>
+  <data name="Visits.Color.bg-blue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="Visits.Color.bg-red" xml:space="preserve">
+    <value>Red</value>
+  </data>
+  <data name="Visits.Color.bg-green" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="Visits.Color.bg-purple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="Visits.Color.bg-black" xml:space="preserve">
+    <value>Black</value>
+  </data>
+  <data name="Visits.UnknownPlace" xml:space="preserve">
+    <value>Unknown Place</value>
+  </data>
+  <data name="Visits.MarkerName" xml:space="preserve">
+    <value>Visit marker</value>
+  </data>
+</root>

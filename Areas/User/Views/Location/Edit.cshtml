@@ -1,8 +1,11 @@
+@inject Wayfarer.Localization.WebMessages T
 @using Microsoft.AspNetCore.Mvc.ViewFeatures
 @model Wayfarer.Models.ViewModels.AddLocationViewModel
 @inject IWebHostEnvironment Environment
 
 @{
+    ViewData["WebCatalog"] = "Locations";
+    ViewData["Title"] = T["Locations.Edit"];
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-edit.js");
@@ -11,7 +14,7 @@
         .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
     addressSummary ??= string.Join(", ", new[] { Model.Place, Model.Region, Model.Country }
         .Where(value => !string.IsNullOrWhiteSpace(value)));
-    if (string.IsNullOrWhiteSpace(addressSummary)) addressSummary = "No address details";
+    if (string.IsNullOrWhiteSpace(addressSummary)) addressSummary = T["Shell.LocationAddressUnavailable"];
     // Serialize only server-restored presentation metadata; Razor encodes the attribute boundary.
     var addressPresentation = System.Text.Json.JsonSerializer.Serialize(new {
         fullAddress = Model.FullAddress, address = Model.Address, streetName = Model.StreetName,
@@ -32,26 +35,26 @@
     <div class="col-md-5">
         <div class="card shadow-sm mb-4">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Edit Location</h2>
+                <h2 class="fs-4">@T["Locations.Edit"]</h2>
             </div>
             <div class="card-body">
                 <form asp-action="Edit" method="post" id="locationForm" data-location-id="@Model.Id"
                       data-location-detail="@ViewData["LocationDetail"]" data-time-zone="@ViewData["InputTimeZone"]">
                     <p id="location-save-status" role="status" aria-live="polite"></p>
-                    <details id="location-conflict" hidden><summary>Review retained draft and current facts</summary><pre></pre>
-                        <button type="button" id="location-adopt-current" class="btn btn-outline-warning">Use these current facts as new originals, keeping my draft</button>
+                    <details id="location-conflict" hidden><summary>@T["Locations.ReviewDraft"]</summary><pre></pre>
+                        <button type="button" id="location-adopt-current" class="btn btn-outline-warning">@T["Locations.AdoptOriginals"]</button>
                     </details>
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ReturnUrl" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
-                        <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>
+                        <label for="Latitude" class="col-sm-2 col-form-label">@T["Locations.Latitude"] <span class="text-danger">*</span></label>
                         <div class="col-sm-4">
                             <!-- Preserve the posted value and show the server coordinate validation error. -->
                             <input asp-for="Latitude" type="text" class="form-control" required />
                             <span asp-validation-for="Latitude" class="text-danger"></span>
                         </div>
-                        <label for="Longitude" class="col-sm-2 col-form-label">Longitude <span class="text-danger">*</span></label>
+                        <label for="Longitude" class="col-sm-2 col-form-label">@T["Locations.Longitude"] <span class="text-danger">*</span></label>
                         <div class="col-sm-4">
                             <!-- Preserve the posted value and show the server coordinate validation error. -->
                             <input asp-for="Longitude" type="text" class="form-control" required />
@@ -59,31 +62,32 @@
                         </div>
                     </div>
                     <small id="coordinatesHelp" class="form-text text-muted">
-                        Click on the map to select your location. The latitude and longitude will be automatically filled in.
+                        @T["Locations.CoordinateHelp"]
                     </small>
 
                     <div class="row">
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="Altitude">Altitude (meters)</label>
-                                <input type="number" class="form-control mt-2" id="Altitude" name="Altitude" value="@Model.Altitude" step="any" />
+                                <label for="Altitude">@T["Locations.AltitudeMeters"]</label>
+                                <input type="number" class="form-control mt-2" id="Altitude" name="Altitude" value="@(Model.Altitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" step="any" />
                             </div>
                         </div>
 
                         <div class="col-md-9">
                             <div class="form-group">
-                                <label for="SelectedActivityId" class="form-label">Activity Type</label>
+                                <label for="SelectedActivityId" class="form-label">@T["Locations.ActivityType"]</label>
                                 @{
                                     var selectedActivity = Model.ActivityTypes?.FirstOrDefault(a => a.Selected);
                                 }
                                 <select asp-for="SelectedActivityId" id="activitySelect" class="form-select"
                                         data-api-url="/api/activity">
-                                    <option value="">Select an Activity</option>
+                                    <option value="">@T["Locations.ActivitySelect"]</option>
                                     @if (selectedActivity != null)
                                     {
                                         <option value="@selectedActivity.Value" selected>@selectedActivity.Text</option>
                                     }
                                 </select>
+                                <p data-activity-feedback class="text-danger mb-0" role="status"></p>
                                 @Html.ValidationMessageFor(m => m.SelectedActivityId, "", new { @class = "text-danger" })
                             </div>
                         </div>
@@ -93,92 +97,92 @@
                         @* Keep the native summary marker; layout belongs inside the disclosure control. *@
                         <summary class="p-2" style="cursor: pointer;">
                             <span class="d-inline-flex flex-column gap-1 align-top" style="max-width: calc(100% - 1.5rem); min-width: 0;">
-                                <span class="fw-semibold">Address details</span>
-                                <span id="location-address-summary" class="text-break" data-address="@addressPresentation">Recorded address text: @addressSummary</span>
+                                <span class="fw-semibold">@T["Locations.AddressDetails"]</span>
+                                <span id="location-address-summary" class="text-break" data-address="@addressPresentation">@T["Locations.RecordedAddress", addressSummary]</span>
                             </span>
                         </summary>
                         <div class="border-top p-2">
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <label asp-for="FullAddress" class="form-label">Full address</label>
+                                    <label asp-for="FullAddress" class="form-label">@T["Locations.FullAddress"]</label>
                                     <input asp-for="FullAddress" class="form-control" maxlength="500" />
                                     <span asp-validation-for="FullAddress" class="text-danger"></span>
                                 </div>
                                 <div class="col-12">
-                                    <label asp-for="Address" class="form-label">Address line</label>
+                                    <label asp-for="Address" class="form-label">@T["Locations.AddressLine"]</label>
                                     <input asp-for="Address" class="form-control" maxlength="500" />
                                     <span asp-validation-for="Address" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-lg-8">
-                                    <label asp-for="StreetName" class="form-label">Street</label>
+                                    <label asp-for="StreetName" class="form-label">@T["Locations.Street"]</label>
                                     <input asp-for="StreetName" class="form-control" maxlength="500" />
                                     <span asp-validation-for="StreetName" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-lg-4">
-                                    <label asp-for="AddressNumber" class="form-label">House number</label>
+                                    <label asp-for="AddressNumber" class="form-label">@T["Locations.HouseNumber"]</label>
                                     <input asp-for="AddressNumber" class="form-control" maxlength="500" />
                                     <span asp-validation-for="AddressNumber" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-md-4">
-                                    <label asp-for="PostCode" class="form-label">Postcode</label>
+                                    <label asp-for="PostCode" class="form-label">@T["Locations.Postcode"]</label>
                                     <input asp-for="PostCode" class="form-control" maxlength="500" />
                                     <span asp-validation-for="PostCode" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-md-8">
-                                    <label asp-for="Place" class="form-label">City / place</label>
+                                    <label asp-for="Place" class="form-label">@T["Locations.CityPlace"]</label>
                                     <input asp-for="Place" class="form-control" maxlength="500" />
                                     <span asp-validation-for="Place" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-md-6">
-                                    <label asp-for="Region" class="form-label">Region</label>
+                                    <label asp-for="Region" class="form-label">@T["Locations.Region"]</label>
                                     <input asp-for="Region" class="form-control" maxlength="500" />
                                     <span asp-validation-for="Region" class="text-danger"></span>
                                 </div>
                                 <div class="col-12 col-md-6">
-                                    <label asp-for="Country" class="form-label">Country</label>
+                                    <label asp-for="Country" class="form-label">@T["Locations.Country"]</label>
                                     <input asp-for="Country" class="form-control" maxlength="500" />
                                     <span asp-validation-for="Country" class="text-danger"></span>
                                 </div>
                             </div>
-                            <p class="form-text mb-0">Editing any address field makes the address manual and clears provider attribution.</p>
+                            <p class="form-text mb-0">@T["Locations.ManualAddressHelp"]</p>
                         </div>
                     </details>
                     <div class="form-group">
-                        <label for="LocalTimestamp">Local Date and Time <span class="text-danger">*</span></label>
+                        <label for="LocalTimestamp">@T["Locations.LocalTime"] <span class="text-danger">*</span></label>
                         <input type="datetime-local"
                                class="form-control"
                                id="LocalTimestamp"
                                asp-for="LocalTimestamp"
-                               step="any" value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.ffffff")" />
+                               step="any" value="@Model.LocalTimestamp.ToString("yyyy-MM-ddTHH:mm:ss.ffffff", System.Globalization.CultureInfo.InvariantCulture)" />
                         @Html.ValidationMessageFor(m => m.LocalTimestamp, "", new { @class = "text-danger" })
                     </div>
 
-                    <p class="form-text">Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone <span id="location-input-time-zone">@ViewData["InputTimeZone"]</span>.</p>
-                    <label for="timeAmbiguity">If this local time occurs twice</label>
-                    <select id="timeAmbiguity" class="form-select"><option value="">Choose when needed</option><option value="earlier">Earlier occurrence</option><option value="later">Later occurrence</option></select>
+                    <p class="form-text">@T["Locations.PositionTimeHelp"] <span id="location-input-time-zone">@ViewData["InputTimeZone"]</span>.</p>
+                    <label for="timeAmbiguity">@T["Locations.AmbiguousTime"]</label>
+                    <select id="timeAmbiguity" class="form-select"><option value="">@T["Locations.ChooseWhenNeeded"]</option><option value="earlier">@T["Locations.Earlier"]</option><option value="later">@T["Locations.Later"]</option></select>
                     @* Recovery is limited to retained drafts missing their original time interpretation. *@
                     <div id="location-time-recovery" class="border rounded p-2 my-2" hidden>
-                        <p id="location-time-recovery-help">The saved time’s zone is unavailable. Review or re-enter the intended Local Date and Time above and choose an occurrence if needed. Enter the intended time zone, then review and confirm it. Your other edits stay retained. If the time is unchanged, you can save other fields without this step.</p>
-                        <label for="location-recovery-zone" class="form-label">Time zone for this retained time</label>
-                        <input id="location-recovery-zone" type="text" class="form-control" placeholder="Europe/Athens or UTC"
+                        <p id="location-time-recovery-help">@T["Locations.TimeRecoveryHelp"]</p>
+                        <label for="location-recovery-zone" class="form-label">@T["Locations.RecoveryZone"]</label>
+                        <input id="location-recovery-zone" type="text" class="form-control" placeholder="@T["Locations.ZoneExample"]"
                                aria-describedby="location-time-recovery-help" autocomplete="off" />
-                        <button id="location-confirm-time-zone" type="button" class="btn btn-outline-primary mt-2">Review time and zone</button>
+                        <button id="location-confirm-time-zone" type="button" class="btn btn-outline-primary mt-2">@T["Locations.ReviewTime"]</button>
                     </div>
                     <div class="form-group">
-                        <label id="notes-label">Add Notes</label>
+                        <label id="notes-label">@T["Locations.AddNotes"]</label>
                         <partial name="_NotesToolbar" model="@(false)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>
                         <!-- Hidden input field for the notes content -->
                         <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))" />
                         <small class="text-muted">
-                            Older formatting may need adjustment when edited. Use the Image button to insert an HTTP(S) image URL.
+                            @T["Shell.NotesLegacyFormatting"]
                         </small>
                         <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <div class="form-group">
                         <small class="text-muted">
-                            <span class="text-danger">*</span> Fields are required.
+                            <span class="text-danger">*</span> @T["Locations.RequiredFields"]
                         </small>
                     </div>
                     <div class="d-flex gap-2">
@@ -186,12 +190,12 @@
                                 class="btn btn-primary"
                                 name="saveAction"
                                 value="save"
-                                title="Save your changes and keep editing">Save</button>
+                                title="@T["Locations.SaveKeep"]">@T["Shell.Save"]</button>
                         <button type="submit"
                                 class="btn btn-outline-secondary"
                                 name="saveAction"
                                 value="return"
-                                title="Save your changes and go back to the previous view">Save &amp; Return</button>
+                                title="@T["Locations.SaveBack"]">@T["Locations.SaveReturn"]</button>
                     </div>
                 </form>
             </div>
@@ -201,24 +205,24 @@
         {
             <details class="card shadow-sm">
                 <summary class="card-header text-bg-secondary" style="cursor: pointer;">
-                    <span class="fs-6">Capture Details</span>
+                    <span class="fs-6">@T["Locations.Capture"]</span>
                 </summary>
                 <div class="card-body">
                     <dl class="row small mb-0">
                         @if (!string.IsNullOrEmpty(Model.Source))
                         {
-                            <dt class="col-sm-4 text-muted">Source</dt>
+                            <dt class="col-sm-4 text-muted">@T["Locations.Source"]</dt>
                             <dd class="col-sm-8">@Model.Source</dd>
                         }
                         @if (Model.IsUserInvoked.HasValue)
                         {
-                            <dt class="col-sm-4 text-muted">Manual Check-in</dt>
-                            <dd class="col-sm-8">@(Model.IsUserInvoked.Value ? "Yes" : "No")</dd>
+                            <dt class="col-sm-4 text-muted">@T["Locations.CheckIn"]</dt>
+                            <dd class="col-sm-8">@(T[Model.IsUserInvoked.Value ? "Shell.Yes" : "Shell.No"])</dd>
                         }
                         @if (!string.IsNullOrEmpty(Model.Provider))
                         {
-                            <dt class="col-sm-4 text-muted">Location Provider</dt>
-                            <dd class="col-sm-8">@Model.Provider.ToUpperInvariant()</dd>
+                            <dt class="col-sm-4 text-muted">@T["Locations.Provider"]</dt>
+                            <dd class="col-sm-8">@Model.Provider</dd>
                         }
                         @if (Model.Bearing.HasValue)
                         {
@@ -234,28 +238,28 @@
                                 >= 247.5 and < 292.5 => "W",
                                 _ => "NW"
                             };
-                            <dt class="col-sm-4 text-muted">Bearing</dt>
-                            <dd class="col-sm-8">@bearing.ToString("F0")° (@direction)</dd>
+                            <dt class="col-sm-4 text-muted">@T["Locations.Bearing"]</dt>
+                            <dd class="col-sm-8">@bearing.ToString("F0", T.DisplayCulture)° (@T["Locations.Direction." + direction])</dd>
                         }
                         @if (!string.IsNullOrEmpty(Model.DeviceModel))
                         {
-                            <dt class="col-sm-4 text-muted">Device</dt>
+                            <dt class="col-sm-4 text-muted">@T["Locations.Device"]</dt>
                             <dd class="col-sm-8">@Model.DeviceModel</dd>
                         }
                         @if (!string.IsNullOrEmpty(Model.OsVersion))
                         {
-                            <dt class="col-sm-4 text-muted">OS Version</dt>
+                            <dt class="col-sm-4 text-muted">@T["Locations.OsVersion"]</dt>
                             <dd class="col-sm-8">@Model.OsVersion</dd>
                         }
                         @if (!string.IsNullOrEmpty(Model.AppVersion))
                         {
-                            <dt class="col-sm-4 text-muted">App Version</dt>
+                            <dt class="col-sm-4 text-muted">@T["Locations.AppVersion"]</dt>
                             <dd class="col-sm-8">@Model.AppVersion@(string.IsNullOrEmpty(Model.AppBuild) ? "" : $" ({Model.AppBuild})")</dd>
                         }
                         @if (Model.BatteryLevel.HasValue)
                         {
-                            <dt class="col-sm-4 text-muted">Battery</dt>
-                            <dd class="col-sm-8">@Model.BatteryLevel%@(Model.IsCharging == true ? " (Charging)" : "")</dd>
+                            <dt class="col-sm-4 text-muted">@T["Locations.Battery"]</dt>
+                            <dd class="col-sm-8">@((Model.BatteryLevel.Value / 100d).ToString("P0", T.DisplayCulture))@(Model.IsCharging == true ? $" ({T["Locations.Charging"]})" : "")</dd>
                         }
                     </dl>
                 </div>
@@ -267,13 +271,13 @@
     <div class="col-md-7">
         <div class="card shadow-sm">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Map View</h2>
+                <h2 class="fs-4">@T["Locations.MapView"]</h2>
             </div>
             <div class="card-body p-1">
-                <div id="mapContainer" style="height: 575px;" data-lat="@Model.Latitude" data-lon="@Model.Longitude"></div>
+                <div id="mapContainer" style="height: 575px;" data-lat="@(Model.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture))" data-lon="@(Model.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture))"></div>
             </div>
             <div class="card-footer">
-                <button type="button" class="btn btn-outline-danger" id="clearButton">Clear Location</button>
+                <button type="button" class="btn btn-outline-danger" id="clearButton">@T["Locations.ClearLocation"]</button>
             </div>
         </div>
     </div>

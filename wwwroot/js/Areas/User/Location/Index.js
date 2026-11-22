@@ -1,4 +1,8 @@
-import { prepareLocationDeletion } from '../../../util/location-mutation.js';
+import { confirmLocationHistoryDeletion, bindLocationBulkDeletion } from '../../../util/location-history-actions.js';
+import { locationText, locationHtml, locationMapsLink, locationTimes, sourceTimeZone, displayCoordinate,
+    measurement, renderLocationStats, readLocationHistory } from '../../../util/location-history-text.js';
+import { message, number } from '../../../localization/messages.js';
+import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 let locations = []; // Declare locations as a global variable
 let mapContainer = null;
@@ -9,15 +13,13 @@ let isSearchPanelOpen = false;
 let markerLayer, clusterLayer, highlightLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText, renderAddressComponent } from '../../../util/location-address.js';
+import { installLocationMapControls } from '../../../util/location-map-controls.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
+import { renderLocationAddress, renderAddressComponent } from '../../../util/location-address.js';
 import {
-    formatViewerAndSourceTimes,
     isLiveLocation,
     scheduleLocationExpiry,
-    formatDate,
-    formatDecimal,
     currentDateInputValue,
-    getViewerTimeZone,
 } from '../../../util/datetime.js';
 import {
     generateActivityEditorHtml,
@@ -41,13 +43,6 @@ let initialCenter = (
         : [20, 0]
 );
 
-const viewerTimeZone = getViewerTimeZone();
-const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-});
 const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
 const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
 const syncLocationActivity = (locationId, activityType) => {
@@ -166,28 +161,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.querySelector(".modal.show");
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
 
-        let deleteProtected;
-        try { deleteProtected = await prepareLocationDeletion(locationId); }
-        catch (error) { alert(error.message); return; }
-        wayfarer.showConfirmationModal({
-            title: "Confirm Deletion",
-            message: deleteProtected.message,
-            confirmText: "Delete",
-            onConfirm: () => {
-                deleteProtected()
-                    .then(data => {
-                        if (data.success) {
-                            if (modalInstance) {
-                                modalInstance.hide();
-                            }
-                            mapContainer = initializeMap();
-                            getUserLocations();
-                        } else {
-                            alert(data.message || "Deletion outcome unknown. Inspect current history before deciding again.");
-                        }
-                    })
-                    .catch(error => console.error("Error:", error));
-            }
+        confirmLocationHistoryDeletion(locationId, () => {
+            modalInstance?.hide();
+            mapContainer = initializeMap();
+            getUserLocations();
         });
     });
 
@@ -208,10 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Set up event delegation for activity editor save/clear buttons.
-    setupActivityEditorEvents('#modalContent', syncLocationActivity);
-    setupActivityEditorEvents('#locationsTable', syncLocationActivity);
+    setupActivityEditorEvents('#modalContent', syncLocationActivity, { protectLanguage: true });
+    setupActivityEditorEvents('#locationsTable', syncLocationActivity, { protectLanguage: true });
 
-    getUserStats();
+    renderLocationStats();
 });
 
 /**
@@ -226,13 +203,14 @@ const initializeMap = () => {
         mapContainer.remove();
     }
     mapContainer = L.map('mapContainer', {
+        zoomControl: false,
         zoomAnimation: true
     }).setView(initialCenter, zoomLevel);
     createTileLayer().addTo(mapContainer);
 
-    mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+    installLocationMapControls(mapContainer);
 
-    addZoomLevelControl(mapContainer);
+    addZoomLevelControl(mapContainer, { protectLanguage: true });
 
     if (!highlightLayer) {
         highlightLayer = L.featureGroup();
@@ -258,9 +236,10 @@ const fetchFilteredLocations = (mapContainer, page = 1, pageSize = 20, searchPar
         method: 'GET',
         credentials: 'include'
     })
-        .then(response => response.json())
+        .then(readLocationHistory)
         .then(data => {
-            locations = data.data; // Store the fetched locations in the global variable
+            document.getElementById('location-read-status').textContent = '';
+            locations = data.data ?? []; // Store the fetched locations in the global variable
             if (locations && locations.length > 0) {
                 displayLocationsOnMap(mapContainer, locations);
             } else {
@@ -271,7 +250,8 @@ const fetchFilteredLocations = (mapContainer, page = 1, pageSize = 20, searchPar
             updatePagination(data.TotalItems, page, pageSize);
         })
         .catch(error => {
-            console.error("Error fetching filtered location data:", error);
+            console.error(error);
+            document.getElementById('location-read-status').textContent = locationText('LoadFailed', 'Could not load locations.');
         });
 }
 
@@ -317,9 +297,9 @@ const buildLayers = (locations) => {
 
         if (isHighlight && highlightLayer) {
             const icon = highlightCandidate?.type === 'live' ? liveMarker : latestLocationMarker;
-            const highlightMarker = L.marker(coords, { icon });
+            const highlightMarker = L.marker(coords, { icon, alt: locationText('LatestMarker', "User's latest location.") });
             if (highlightCandidate?.type === 'latest') {
-                highlightMarker.bindTooltip("User's latest location.", {
+                highlightMarker.bindTooltip(locationHtml('LatestMarker', "User's latest location."), {
                     direction: "top",
                     offset: [0, -25]
                 });
@@ -328,7 +308,7 @@ const buildLayers = (locations) => {
             highlightMarker.addTo(highlightLayer);
             highlightMarker.setZIndexOffset(1000);
         } else {
-            const marker = L.marker(coords, {});
+            const marker = L.marker(coords, { alt: locationText('Details', 'Location Details') });
             bindInteractions(marker);
 
             if (markerLayer) markerLayer.addLayer(marker);
@@ -398,55 +378,55 @@ const generateLocationModalContent = location => {
         dynamicMinHeight = 16 * (lineHeightEm * minLines);
         style = `min-height: ${dynamicMinHeight}px; display: block;`;
     }
-    const timestamps = getLocationTimestampInfo(location);
+    const timestamps = locationTimes(location);
     const isLive = isLiveLocation(location);
     const isLatest = !!location.isLatestLocation;
     const badge = isLive
-        ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>'
-        : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
-    const sourceZone = getLocationSourceTimeZone(location);
+        ? `<span class="badge bg-danger float-end ms-2">${locationHtml('Live', 'LIVE LOCATION')}</span>`
+        : (isLatest ? `<span class="badge bg-success float-end ms-2">${locationHtml('Latest', 'LATEST LOCATION')}</span>` : '');
+    const sourceZone = sourceTimeZone(location);
     const recordedTime = timestamps.source
-        ? `<div>${timestamps.source}</div>`
-        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
+        ? `<div>${encode(timestamps.source)}</div>`
+        : `<div class="fst-italic text-muted">${locationHtml('SourceZoneUnavailable', 'Source timezone unavailable')}</div>`;
     return `<div class="container-fluid">
         ${badge ? `<div class="row mb-2"><div class="col-12">${badge}</div></div>` : ''}
         <div class="row mb-2">
             <div class="col-6">
-                <strong>Datetime (your timezone):</strong>
+                <strong>${locationHtml('ViewerTime', 'Datetime (your timezone)')}:</strong>
                 <div>${timestamps.viewer}</div>
             </div>
             <div class="col-6">
-                <strong>Recorded local time:</strong>
+                <strong>${locationHtml('RecordedTime', 'Recorded local time')}:</strong>
                 ${recordedTime}
-                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
+                ${sourceZone && !timestamps.source ? `<div class="small text-muted">${encode(sourceZone)}</div>` : ''}
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-12"><strong>Coordinates:</strong></div>
+            <div class="col-12"><strong>${locationHtml('Coordinates', 'Coordinates')}:</strong></div>
             <div class="col-6">
-                <p class="mb-0">Latitude: <span class="fw-bold text-primary">${location.coordinates.latitude}</span></p>
+                <p class="mb-0">${locationHtml('Latitude', 'Latitude')}: <span class="fw-bold text-primary">${displayCoordinate(location.coordinates.latitude)}</span></p>
             </div>
             <div class="col-6">
-                <p class="mb-0">Longitude: <span class="fw-bold text-primary">${location.coordinates.longitude}</span></p>
+                <p class="mb-0">${locationHtml('Longitude', 'Longitude')}: <span class="fw-bold text-primary">${displayCoordinate(location.coordinates.longitude)}</span></p>
             </div>
         </div>
         <div class="row mb-2">
             <div class="col-6">${generateActivityEditorHtml(location)}</div>
-            <div class="col-6"><strong>Altitude:</strong> <span>${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</span></div>
+            <div class="col-6"><strong>${locationHtml('Altitude', 'Altitude')}:</strong> <span>${measurement(location.altitude, 'Altitude', 'Altitude', ' m')}</span></div>
         </div>
         <div class="row mb-2">
-            <div class="col-6"><strong>Accuracy:</strong> <span>${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) + ' m' : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</span></div>
-            <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
+            <div class="col-6"><strong>${locationHtml('Accuracy', 'Accuracy')}:</strong> <span>${measurement(location.accuracy, 'Accuracy', 'Accuracy', ' m')}</span></div>
+            <div class="col-6"><strong>${locationHtml('Speed', 'Speed')}:</strong> <span>${measurement(location.speed, 'Speed', 'Speed', ' km/h')}</span></div>
         </div>
         <div class="row mb-2">
             ${renderLocationAddress(location)}<div class="col-12">
             <br/>
-            ${generateGoogleMapsLink(location)}
+            ${locationMapsLink(location)}
             ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
             </div>
         </div>
         <div class="row mb-2">
-            <div class="col-12" style="${style}"><strong>Notes:</strong>
+            <div class="col-12" style="${style}"><strong>${encode(message('Shell.Notes', 'Notes'))}:</strong>
                 <div class="border p-1">
                     ${notesHtmlForDisplay(location.notes)}
                 </div>
@@ -454,40 +434,17 @@ const generateLocationModalContent = location => {
         </div>
         <div class="row">
             <div class="col-5">
-                <a href="${buildEditUrl(location.id)}" class="btn-link" title="Edit location">Edit</a>
+                <a href="${buildEditUrl(location.id)}" class="btn-link" title="${locationHtml('EditAction', 'Edit location')}">${encode(message('Shell.Edit', 'Edit'))}</a>
             </div>
             <div class="col-5 offset-2">
-                <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="Delete location">Delete</a>
+                <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}" title="${locationHtml('DeleteAction', 'Delete location')}">${encode(message('Shell.Delete', 'Delete'))}</a>
             </div>
         </div>
     </div>
 `
 };
 
-/**
- * Generates a Google Maps link combining address and coordinates for precision.
- * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
- */
-const generateGoogleMapsLink = location => {
-    const addr = locationAddressText(location);
-    const lat  = location?.coordinates?.latitude;
-    const lon  = location?.coordinates?.longitude;
-    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
-    const query = addr && hasCoords
-        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
-        : hasCoords
-            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
-            : addr;
-    const q = encodeURIComponent(query || '');
-    return `
-    <a
-      href="https://www.google.com/maps/search/?api=1&query=${q}"
-      target="_blank"
-      class="ms-2 btn btn-outline-primary btn-sm"
-      title="View in Google Maps"
-    ><i class="bi bi-globe-europe-africa"></i> Maps</a>
-  `;
-};
+
 
 // Display locations in the table
 const displayLocationsInTable = (locations) => {
@@ -496,40 +453,40 @@ const displayLocationsInTable = (locations) => {
 
     if (locations.length === 0) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td colspan="9" class="text-center">No locations match the search criteria.</td>`;
+        row.innerHTML = `<td colspan="9" class="text-center">${locationHtml('NoMatches', 'No locations match the criteria.')}</td>`;
         tableBody.appendChild(row);
     } else {
         locations.forEach(location => {
             const row = document.createElement('tr');
-            const timestamps = getLocationTimestampInfo(location);
-            const sourceZone = getLocationSourceTimeZone(location);
+            const timestamps = locationTimes(location);
+            const sourceZone = sourceTimeZone(location);
             const recordedTime = timestamps.source
-                ? `<div class="small text-muted">Recorded: ${timestamps.source}</div>`
-                : `<div class="small text-muted fst-italic">Recorded timezone unavailable</div>`;
-            const recordedZone = sourceZone ? `<div class="small text-muted">${sourceZone}</div>` : '';
+                ? `<div class="small text-muted">${locationHtml('Recorded', 'Recorded: {0}', timestamps.source)}</div>`
+                : `<div class="small text-muted fst-italic">${locationHtml('RecordedZoneUnavailable', 'Recorded timezone unavailable')}</div>`;
+            const recordedZone = sourceZone ? `<div class="small text-muted">${encode(sourceZone)}</div>` : '';
             // Embed the inline activity editor for table rows.
             const activityEditorHtml = generateActivityEditorHtml(location, { showLabel: false, compact: true });
             row.innerHTML = `
                 <td>
-                    <input type="checkbox" name="locationCheckbox" value="${location.id}" />
+                    <input type="checkbox" name="locationCheckbox" aria-label="${encode(message('Shell.SelectRow', 'Select row'))}" value="${location.id}" />
                 </td>
                 <td>
                     <div><i class="bi bi-clock me-1"></i>${timestamps.viewer}</div>
                     ${recordedTime}
                     ${recordedZone}
                 </td>
-                <td>${location.coordinates.latitude}</td>
-                <td>${location.coordinates.longitude}</td>
-                <td class="text-center">${formatDecimal(location.accuracy) != null ? formatDecimal(location.accuracy) : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
-                <td class="text-center">${formatDecimal(location.speed) != null ? formatDecimal(location.speed) : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
-                <td class="text-center">${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
+                <td>${displayCoordinate(location.coordinates.latitude)}</td>
+                <td>${displayCoordinate(location.coordinates.longitude)}</td>
+                <td class="text-center">${measurement(location.accuracy, 'Accuracy', 'Accuracy')}</td>
+                <td class="text-center">${measurement(location.speed, 'Speed', 'Speed')}</td>
+                <td class="text-center">${measurement(location.altitude, 'Altitude', 'Altitude')}</td>
                 <td>${activityEditorHtml}</td>
                 <td>${renderLocationAddress(location, location.address)}</td>
-                <td>${renderAddressComponent(location.place, "Place")}</td>
-                <td>${renderAddressComponent(location.country, "Country")}</td>
+                <td>${renderAddressComponent(location.place, locationText("Place", "Place"))}</td>
+                <td>${renderAddressComponent(location.country, locationText("Country", "Country"))}</td>
                 <td>
-                    <a href="#" class="btn btn-primary btn-sm view-location"  data-id="${location.id}">View</a>
-                    <a href="${buildEditUrl(location.id)}" class="btn btn-secondary btn-sm">Edit</a>
+                    <a href="#" class="btn btn-primary btn-sm view-location"  data-id="${location.id}">${encode(message('Shell.View', 'View'))}</a>
+                    <a href="${buildEditUrl(location.id)}" class="btn btn-secondary btn-sm">${encode(message('Shell.Edit', 'Edit'))}</a>
                 </td>
             `;
             tableBody.appendChild(row);
@@ -553,7 +510,7 @@ const updatePagination = (totalItems, currentPage, pageSize) => {
     let paginationHtml = '';
 
     for (let i = 1; i <= totalPages; i++) {
-        paginationHtml += `<a href="#" onclick="getUserLocations(mapContainer, ${i}, ${pageSize})" class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-light'}">${i}</a>`;
+        paginationHtml += `<a href="#" onclick="getUserLocations(mapContainer, ${i}, ${pageSize})" class="btn btn-sm ${i === currentPage ? 'btn-primary' : 'btn-light'}">${number(i)}</a>`;
     }
 
     // Safely update pagination
@@ -566,45 +523,9 @@ const updatePagination = (totalItems, currentPage, pageSize) => {
 }
 
 
-document.getElementById('deleteSelected').addEventListener('click', () => {
-    const selectedIds = [];
-    document.querySelectorAll('input[name="locationCheckbox"]:checked').forEach(checkbox => {
-        const parsedId = Number.parseInt(checkbox.value, 10);
-        if (!Number.isNaN(parsedId)) {
-            // Keep payload numeric for the API's List<int> binder.
-            selectedIds.push(parsedId);
-        }
-    });
-
-    if (selectedIds.length > 0) {
-        // Use the showConfirmationModal helper to confirm deletion
-        wayfarer.showConfirmationModal({
-            title: 'Confirm Deletion',
-            message: 'Delete the then-current selected records, even if their content changed? If the reply is lost, inspect history before deliberately trying again.',
-            confirmText: 'Delete',
-            onConfirm: () => {
-                // Perform the deletion action after confirmation
-                fetch('/api/Location/bulk-delete', {
-                    method: 'POST',
-                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Content-Type': 'application/json'},
-                    body: JSON.stringify({ operationScope: 'bulk', locationIds: selectedIds })
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            mapContainer = initializeMap();
-                            getUserLocations();
-                            fetchLocations(mapContainer);
-                        } else {
-                            alert('Bulk outcome unknown. Refresh history before deliberately trying again.');
-                        }
-                    })
-                    .catch(error => console.error('Error:', error));
-            }
-        });
-    } else {
-        alert('No locations selected');
-    }
+bindLocationBulkDeletion(() => {
+    mapContainer = initializeMap();
+    getUserLocations();
 });
 
 const onZoomOrMoveChanges = () => {
@@ -696,52 +617,17 @@ const getUserLocations = () => {
             return response.json();
         })
         .then(data => {
-            locations = data.data; // Store the fetched locations in the global variable
+            document.getElementById('location-read-status').textContent = '';
+            locations = data.data ?? []; // Store the fetched locations in the global variable
             if (locations && locations.length > 0) {
                 displayLocationsOnMap(mapContainer, locations);
-                displayLocationsInTable(locations);
             }
+            displayLocationsInTable(locations);
         })
-        .catch(error => console.error("Error fetching location data:", error));
+        .catch(error => {
+            console.error(error);
+            document.getElementById('location-read-status').textContent = locationText('LoadFailed', 'Could not load locations.');
+        });
 }
 
 const debouncedGetUserLocations = debounce(getUserLocations, 350);
-
-const getUserStats = async () => {
-
-    const url = `/api/users/stats`;
-
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
-        }
-    });
-
-    if (!response.ok) {
-        // You can handle 404/403/other errors differently if you like
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
-    }
-
-    // assuming the response is JSON matching UserLocationStatsDto
-    const stats = await response.json();
-    const summaryParts = [];
-
-    if (stats.totalLocations != null)
-        summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
-    if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.countriesVisited != null)
-        summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
-    if (stats.regionsVisited != null)
-        summaryParts.push(`<strong>Regions:</strong> ${stats.regionsVisited}`);
-    if (stats.citiesVisited != null)
-        summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
-
-    const summary = summaryParts.join(" | ");
-    document.getElementById("timeline-summary").innerHTML  = summary;
-};
-

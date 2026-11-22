@@ -17,14 +17,20 @@ public static class WebLocalization
         services.AddOptions<RequestLocalizationOptions>()
             .Configure<WebLocales>((options, locales) => locales.Configure(options));
         services.AddOptions<MvcOptions>().Configure<WebMessages>((options, messages) =>
-            options.ModelMetadataDetailsProviders.Add(new SettingsValidationMetadata(messages)));
+            {
+            options.ModelMetadataDetailsProviders.Add(new SettingsValidationMetadata(messages));
+            options.ModelMetadataDetailsProviders.Add(new LocationVisitValidationMetadata(messages));
+        });
         services.AddOptions<MvcDataAnnotationsLocalizationOptions>()
             .PostConfigure<WebMessages>((options, messages) =>
             {
                 var previous = options.DataAnnotationLocalizerProvider;
                 var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
+                var locations = new WebAnnotationLocalizer(messages, "Locations.");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
-                    SettingsValidationMetadata.Owns(type) ? settings : previous?.Invoke(type, factory) ?? factory.Create(type);
+                    SettingsValidationMetadata.Owns(type) ? settings
+                    : LocationVisitValidationMetadata.Owns(type) ? locations
+                    : previous?.Invoke(type, factory) ?? factory.Create(type);
             });
     }
 

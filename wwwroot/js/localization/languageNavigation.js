@@ -1,7 +1,7 @@
 // A navigation can consult several beforeunload listeners. All receive the same event.
 const key = Symbol.for('wayfarer.languageNavigation');
 // Vite and the regular shell can load separate copies of this module.
-const state = globalThis[key] ??= { allowedUnload: false, allowedEvents: new WeakSet(), draftOwners: new Set() };
+const state = globalThis[key] ??= { allowedUnload: false, allowedEvents: new WeakSet(), draftOwners: new Set(), holds: new Set() };
 
 /** Registers a read-only query of a mounted workspace's draft state. */
 export const registerLanguageDraft = (owner) => {
@@ -11,6 +11,20 @@ export const registerLanguageDraft = (owner) => {
 
 /** Queries only current owners and never invokes an editor's close or discard workflow. */
 export const hasLanguageDraft = () => [...state.draftOwners].some(owner => owner());
+
+/** Temporarily withholds the preference action while a feature owns a required inspection. */
+export const holdLanguageNavigation = () => {
+    const hold = Symbol();
+    state.holds.add(hold);
+    window.dispatchEvent(new Event('wayfarer:language-availability'));
+    return () => {
+        state.holds.delete(hold);
+        window.dispatchEvent(new Event('wayfarer:language-availability'));
+    };
+};
+
+/** A pending operation or unresolved mounted inspection takes precedence over discard consent. */
+export const isLanguageNavigationHeld = () => state.holds.size > 0;
 
 /** Explicitly permits the one unload initiated by the successful preference request. */
 export const navigateInLanguage = (destination, navigate = url => url === location.href ? location.reload() : location.assign(url)) => {

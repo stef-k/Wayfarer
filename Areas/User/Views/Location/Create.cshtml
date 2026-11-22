@@ -1,7 +1,10 @@
+@inject Wayfarer.Localization.WebMessages T
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @model Wayfarer.Models.ViewModels.AddLocationViewModel
 
 @{
+    ViewData["WebCatalog"] = "Locations";
+    ViewData["Title"] = T["Locations.Add"];
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
     var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-create.js");
@@ -16,7 +19,7 @@
     <div class="col-md-5">
         <div class="card shadow-sm mb-4">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Location Entry</h2>
+                <h2 class="fs-4">@T["Locations.Entry"]</h2>
             </div>
             <div class="card-body">
                 <form asp-action="Create" method="post">
@@ -26,16 +29,22 @@
                     <input asp-for="CreateIntent" type="hidden" />
                     <input asp-for="AttemptedValues" type="hidden" />
                     <input asp-for="CreateMayHaveEffect" type="hidden" />
-                    <div id="create-status" class="alert alert-warning" role="status" aria-live="polite" hidden="@(Model.CreateStatus == null)">@Model.CreateStatus</div>
+                    <div id="create-status" class="alert alert-warning" role="status" aria-live="polite" hidden="@(Model.CreateStatusKey == null)">@(Model.CreateStatusKey is { } status ? T[status] : null)</div>
                     @if (Model.SavedLocationId is { } savedId)
                     {
-                        <p><a asp-action="Edit" asp-route-id="@savedId" class="btn btn-outline-primary">Open saved Location / Edit</a></p>
+                        <p><a asp-action="Edit" asp-route-id="@savedId" class="btn btn-outline-primary">@T["Locations.OpenSaved"]</a></p>
                     }
                     @if (ViewData["CreateWinner"] is Wayfarer.Models.Location winner)
                     {
-                        <div class="border rounded p-2 mb-3" aria-label="Actual saved location">
-                            <strong>Actual saved location</strong>
-                            <p>@winner.LocalTimestamp.ToString("O") · @winner.Coordinates.Y, @winner.Coordinates.X</p>
+                        // Keep the acknowledged UTC instant and its full precision in the saved summary.
+                        var instant = winner.LocalTimestamp;
+                        var fraction = (instant.Ticks % TimeSpan.TicksPerSecond).ToString("D7").TrimEnd('0');
+                        var displayed = instant.ToString("d", T.DisplayCulture) + " " + instant.ToString("HH:mm:ss", T.DisplayCulture);
+                        if (fraction.Length > 0) displayed += T.DisplayCulture.NumberFormat.NumberDecimalSeparator + fraction;
+                        <div class="border rounded p-2 mb-3" aria-label="@T["Locations.ActualSaved"]">
+                            <strong>@T["Locations.ActualSaved"]</strong>
+                            <p><time datetime="@instant.ToString("O", System.Globalization.CultureInfo.InvariantCulture)">@displayed UTC</time>
+                                · @winner.Coordinates.Y.ToString("G", T.DisplayCulture) / @winner.Coordinates.X.ToString("G", T.DisplayCulture)</p>
                             <p>@winner.Address</p>
                             <div>@Html.Raw(Wayfarer.Util.RichNotes.Normalize(winner.Notes))</div>
                         </div>
@@ -52,9 +61,9 @@
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
                         <label for="Latitude" class="col-sm-3 col-form-label">
-                            Latitude <span class="text-danger">*</span>
+                            @T["Locations.Latitude"] <span class="text-danger">*</span>
                             <i class="bi bi-question-circle text-muted ms-1"
-                               data-tippy-content="Decimal degrees format (e.g., 37.9838). Click on the map to auto-fill."></i>
+                               data-tippy-content="@T["Locations.CoordinateExample", "37.9838"]"></i>
                         </label>
                         <div class="col-sm-3">
                             <!-- Start blank; retain attempted input and its server validation error on redisplay. -->
@@ -62,9 +71,9 @@
                             <span asp-validation-for="Latitude" class="text-danger"></span>
                         </div>
                         <label for="Longitude" class="col-sm-3 col-form-label">
-                            Longitude <span class="text-danger">*</span>
+                            @T["Locations.Longitude"] <span class="text-danger">*</span>
                             <i class="bi bi-question-circle text-muted ms-1"
-                               data-tippy-content="Decimal degrees format (e.g., 23.7275). Click on the map to auto-fill."></i>
+                               data-tippy-content="@T["Locations.CoordinateExample", "23.7275"]"></i>
                         </label>
                         <div class="col-sm-3">
                             <!-- Start blank; retain attempted input and its server validation error on redisplay. -->
@@ -73,27 +82,30 @@
                         </div>
                     </div>
                     <small id="coordinatesHelp" class="form-text text-muted">
-                        Click on the map to select your location. The latitude and longitude will be automatically filled in.
+                        @T["Locations.CoordinateHelp"]
                     </small>
 
                     <div class="row ">
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="Altitude">Altitude (meters)</label>
-                                <input type="number" class="form-control  mt-2" id="Altitude" asp-for="Altitude" step="any" />
+                                <label for="Altitude">@T["Locations.AltitudeMeters"]</label>
+                                <input type="number" class="form-control mt-2" id="Altitude" name="Altitude" step="any"
+                                       value="@(ViewData.ModelState["Altitude"]?.AttemptedValue ?? Model.Altitude?.ToString(System.Globalization.CultureInfo.InvariantCulture))" />
+                                <span asp-validation-for="Altitude" class="text-danger"></span>
                             </div>
                         </div>
 
                         <div class="col-md-9">
                             <div class="form-group">
-                                <label for="SelectedActivityId" class="form-label">Activity Type</label>
+                                <label for="SelectedActivityId" class="form-label">@T["Locations.ActivityType"]</label>
                                 <select asp-for="SelectedActivityId" id="activitySelect" class="form-select"
                                         data-api-url="/api/activity">
-                                    <option value="">Select an Activity</option>
+                                    <option value="">@T["Locations.ActivitySelect"]</option>
                                     @foreach (var activity in Model.ActivityTypes ?? [])
                                     { <option value="@activity.Value">@activity.Text</option> }
                                 </select>
 
+                                <p data-activity-feedback class="text-danger mb-0" role="status"></p>
                                 @Html.ValidationMessageFor(m => m.SelectedActivityId, "", new { @class = "text-danger" })
                             </div>
                         </div>
@@ -102,14 +114,15 @@
 
 
                     <div class="form-group">
-                        <label for="Address">Address</label>
+                        <label for="Address">@T["Locations.Address"]</label>
                         <input type="text" class="form-control" id="Address" asp-for="Address" />
+                        <span asp-validation-for="Address" class="text-danger"></span>
                     </div>
                     <div class="form-group">
                         <label for="LocalTimestamp">
-                            Local Date and Time <span class="text-danger">*</span>
+                            @T["Locations.LocalTime"] <span class="text-danger">*</span>
                             <i class="bi bi-question-circle text-muted ms-1"
-                               data-tippy-content="Enter the local time at this location. The time will be stored as UTC and displayed in your configured timezone."></i>
+                               data-tippy-content="@T["Locations.LocalTimeHelp"]"></i>
                         </label>
                         <!-- ModelState retains attempted validation input; fresh pages initialize browser-local time. -->
                         <input type="datetime-local"
@@ -122,23 +135,23 @@
                     </div>
 
                     <div class="form-group">
-                        <label id="notes-label">Add Notes</label>
+                        <label id="notes-label">@T["Locations.AddNotes"]</label>
                         <partial name="_NotesToolbar" model="@(false)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>
                         <input type="hidden" id="Notes" name="Notes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))" />
                         <span asp-validation-for="Notes" class="text-danger"></span>
-                        <small class="text-muted">Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
+                        <small class="text-muted">@T["Shell.NotesLegacyFormatting"]</small>
                         <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <div class="form-group">
                         <small class="text-muted">
-                            <span class="text-danger">*</span> Fields are required.
+                            <span class="text-danger">*</span> @T["Locations.RequiredFields"]
                         </small>
                     </div>
                     @if (!Model.CreateTerminal)
-                    { <button type="submit" class="btn btn-primary">@(Model.CreateMayHaveEffect ? "Retry original save" : "Add Location")</button> }
-                    <a asp-action="Create" class="btn btn-outline-secondary">Start a separate new location</a>
+                    { <button type="submit" class="btn btn-primary">@(T[Model.CreateMayHaveEffect ? "Locations.RetryCreate" : "Locations.Add"])</button> }
+                    <a asp-action="Create" class="btn btn-outline-secondary">@T["Locations.SeparateCreate"]</a>
                 </form>
             </div>
         </div>
@@ -148,13 +161,13 @@
     <div class="col-md-7">
         <div class="card shadow-sm">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Map View</h2>
+                <h2 class="fs-4">@T["Locations.MapView"]</h2>
             </div>
             <div class="card-body p-1">
                 <div id="mapContainer" style="height: 575px;"></div>
             </div>
             <div class="card-footer">
-                <button type="button" class="btn btn-outline-danger" id="clearButton">Clear Location</button>
+                <button type="button" class="btn btn-outline-danger" id="clearButton">@T["Locations.ClearLocation"]</button>
             </div>
         </div>
     </div>

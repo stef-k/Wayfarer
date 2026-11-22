@@ -1,12 +1,13 @@
-import { prepareLocationDeletion } from '../../../util/location-mutation.js';
+import { renderHistoryPagination } from '../../../util/history-pagination.js';
+import { confirmLocationHistoryDeletion, bindLocationBulkDeletion } from '../../../util/location-history-actions.js';
+import { locationText, locationHtml, locationMapsLink, locationTimes, sourceTimeZone, displayCoordinate,
+    measurement, renderLocationStats, readLocationHistory } from '../../../util/location-history-text.js';
+import { message } from '../../../localization/messages.js';
+import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
 import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 // AllLocations.js
 import {
-    formatViewerAndSourceTimes,
-    formatDate,
-    formatDecimal,
     currentDateInputValue,
-    getViewerTimeZone,
 } from '../../../util/datetime.js';
 import {
     generateActivityEditorHtml,
@@ -16,20 +17,14 @@ import {
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
-} from '../../../util/wikipedia-utils.js'; import { renderLocationAddress, locationAddressText, renderAddressComponent } from '../../../util/location-address.js';
+} from '../../../util/wikipedia-utils.js';
+import { renderLocationAddress, renderAddressComponent } from '../../../util/location-address.js';
 
 let locations = [];
 let currentPage = 1;
 const pageSize = 20;
 let currentFilters = {};
 
-const viewerTimeZone = getViewerTimeZone();
-const getLocationSourceTimeZone = location => location?.timezone || location?.timeZoneId || location?.timeZone || null;
-const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
-    iso: location?.localTimestamp,
-    sourceTimeZone: getLocationSourceTimeZone(location),
-    viewerTimeZone,
-});
 const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
 const buildEditUrl = id => `/User/Location/Edit/${id}?returnUrl=${returnUrlParam}`;
 const syncLocationActivity = (locationId, activityType) => {
@@ -44,10 +39,10 @@ const syncLocationActivity = (locationId, activityType) => {
 };
 
 const renderTimestampBlock = location => {
-    const info = getLocationTimestampInfo(location);
+    const info = locationTimes(location);
     const sourceLabel = info.source
-        ? `<div class="small text-muted">Recorded: ${info.source}</div>`
-        : `<div class="small text-muted fst-italic">Recorded timezone unavailable</div>`;
+        ? `<div class="small text-muted">${locationHtml('Recorded', 'Recorded: {0}', info.source)}</div>`
+        : `<div class="small text-muted fst-italic">${locationHtml('RecordedZoneUnavailable', 'Recorded timezone unavailable')}</div>`;
     return `<div>${info.viewer}</div>${sourceLabel}`;
 };
 
@@ -122,30 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // Get the current open modal instance
             const modalEl = document.getElementById('locationModal');
             const modalInstance = bootstrap.Modal.getInstance(modalEl);
-            let deleteProtected;
-            try { deleteProtected = await prepareLocationDeletion(id); }
-            catch (error) { alert(error.message); return; }
-            wayfarer.showConfirmationModal({
-                title: "Confirm Deletion",
-                message: deleteProtected.message,
-                confirmText: "Delete",
-                onConfirm: () => {
-                    deleteProtected()
-                        .then(d => {
-                            if (d.success) {
-                                loadLocations(currentPage);
-                                // Hide the modal now that the record is gone
-                                modalInstance.hide();
-                            }
-                            else alert(d.message || 'Deletion outcome unknown. Your attempt is retained.');
-                        });
-                }
+            confirmLocationHistoryDeletion(id, () => {
+                loadLocations(currentPage);
+                modalInstance?.hide();
             });
         }
     });
-
-    // PAGINATION (dynamic links)
-    window.goToPage = (page) => loadLocations(page);
 
     // INIT MODAL WIKI POP-OVERS and ACTIVITY EDITOR
     const modalEl = document.getElementById('locationModal');
@@ -162,49 +139,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Set up event delegation for activity editor save/clear buttons.
-    setupActivityEditorEvents('#modalContent', syncLocationActivity);
-    setupActivityEditorEvents('#locationsTable', syncLocationActivity);
+    setupActivityEditorEvents('#modalContent', syncLocationActivity, { protectLanguage: true });
+    setupActivityEditorEvents('#locationsTable', syncLocationActivity, { protectLanguage: true });
 
-    // BULK DELETE
-    document.getElementById('deleteSelected').addEventListener('click', () => {
-        // 1) Gather all checked row-IDs
-        const selectedIds = Array.from(
-            document.querySelectorAll('input[name="locationCheckbox"]:checked')
-        ).map(cb => +cb.value);
+    bindLocationBulkDeletion(() => loadLocations(currentPage));
 
-        if (selectedIds.length === 0) {
-            alert('No locations selected');
-            return;
-        }
-
-        // 2) Confirm, then POST to /bulk-delete
-        wayfarer.showConfirmationModal({
-            title: 'Confirm Bulk Deletion',
-            message: `Are you sure you want to delete ${selectedIds.length} location(s) with their then-current content? A lost reply is uncertain; inspect history before trying again.`,
-            confirmText: 'Delete',
-            onConfirm: () => {
-                fetch('/api/Location/bulk-delete', {
-                    method: 'POST',
-                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
-                    body: JSON.stringify({ operationScope: 'bulk', locationIds: selectedIds })
-                })
-                    .then(r => r.json())
-                    .then(d => {
-                        if (d.success) {
-                            loadLocations(currentPage);   // refresh current page
-                        } else {
-                            alert('Bulk delete failed: ' + (d.message || 'Unknown error'));
-                        }
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        wayfarer.showAlert('danger', typeof err === 'string' ? err : 'Could not delete locations');
-                    });
-            }
-        });
-    });
-
-    getUserStats();
+    renderLocationStats();
 });
 
 const loadLocations = (page = 1) => {
@@ -225,8 +165,9 @@ const loadLocations = (page = 1) => {
     const url = `/api/Location/search?${params.toString()}`;
 
     fetch(url, { credentials: 'include' })
-        .then(r => r.json())
+        .then(readLocationHistory)
         .then(res => {
+            document.getElementById('location-read-status').textContent = '';
             locations = res.data || res.Data || [];
             displayLocationsInTable(locations);
             updatePagination(res.TotalItems || res.totalItems, currentPage);
@@ -236,7 +177,10 @@ const loadLocations = (page = 1) => {
             selectAll.checked = false;
             selectAll.indeterminate = false;
         })
-        .catch(console.error);
+        .catch(error => {
+            console.error(error);
+            document.getElementById('location-read-status').textContent = locationText('LoadFailed', 'Could not load locations.');
+        });
 };
 
 
@@ -244,7 +188,7 @@ const displayLocationsInTable = (locations) => {
     const tbody = document.querySelector('#locationsTable tbody');
     tbody.innerHTML = '';
     if (!locations.length) {
-        tbody.innerHTML = `<tr><td colspan="11" class="text-center">No locations match the criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center">${locationHtml('NoMatches', 'No locations match the criteria.')}</td></tr>`;
         return;
     }
     for (const loc of locations) {
@@ -253,120 +197,32 @@ const displayLocationsInTable = (locations) => {
         const activityEditorHtml = generateActivityEditorHtml(loc, { showLabel: false, compact: true });
         tbody.insertAdjacentHTML('beforeend', `
       <tr>
-        <td><input type="checkbox" name="locationCheckbox" value="${loc.id}"></td>
+        <td><input type="checkbox" name="locationCheckbox" aria-label="${encode(message('Shell.SelectRow', 'Select row'))}" value="${loc.id}"></td>
         <td>
           <i class="bi bi-clock me-1"></i>
           ${timestampHtml}
         </td>
-        <td>${loc.coordinates.latitude}</td>
-        <td>${loc.coordinates.longitude}</td>
-        <td class="text-center">${formatDecimal(loc.accuracy) != null ? formatDecimal(loc.accuracy) : '<i class="bi bi-patch-question" title="No available data for Accuracy"></i>'}</td>
-        <td class="text-center">${formatDecimal(loc.speed) != null ? formatDecimal(loc.speed) : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
-        <td class="text-center">${formatDecimal(loc.altitude) != null ? formatDecimal(loc.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
+        <td>${displayCoordinate(loc.coordinates.latitude)}</td>
+        <td>${displayCoordinate(loc.coordinates.longitude)}</td>
+        <td class="text-center">${measurement(loc.accuracy, 'Accuracy', 'Accuracy')}</td>
+        <td class="text-center">${measurement(loc.speed, 'Speed', 'Speed')}</td>
+        <td class="text-center">${measurement(loc.altitude, 'Altitude', 'Altitude')}</td>
         <td>${activityEditorHtml}</td>
         <td>${renderLocationAddress(loc)}</td>
-        <td>${renderAddressComponent(loc.place, "Place")}</td>
-        <td>${renderAddressComponent(loc.country, "Country")}</td>
+        <td>${renderAddressComponent(loc.place, locationText("Place", "Place"))}</td>
+        <td>${renderAddressComponent(loc.country, locationText("Country", "Country"))}</td>
         <td>
-          <a href="#" class="btn btn-primary btn-sm view-location" data-id="${loc.id}">View</a>
-          <a href="${buildEditUrl(loc.id)}" class="btn btn-secondary btn-sm">Edit</a>
+          <a href="#" class="btn btn-primary btn-sm view-location" data-id="${loc.id}">${encode(message('Shell.View', 'View'))}</a>
+          <a href="${buildEditUrl(loc.id)}" class="btn btn-secondary btn-sm">${encode(message('Shell.Edit', 'Edit'))}</a>
         </td>
       </tr>
     `);
     }
 }
 
-const updatePagination = (totalItems, currentPage) => {
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const container  = document.getElementById('pagination');
-    if (totalPages <= 1) {
-        container.innerHTML = ''; // no pager needed
-        return;
-    }
-
-    // remember for jumpToPage
-    window._totalPages = totalPages;
-
-    // sliding window
-    const delta = 3;
-    const start = Math.max(1, currentPage - delta);
-    const end   = Math.min(totalPages, currentPage + delta);
-
-    // build the nav
-    let html = `
-<nav aria-label="Page navigation" class="mt-2">
-  <div class="d-flex justify-content-center align-items-center">
-    <ul class="pagination mb-0">
-      <li class="page-item ${currentPage===1 ? 'disabled':''}">
-        <a class="page-link" href="#" onclick="goToPage(1)">First</a>
-      </li>
-      <li class="page-item ${currentPage===1 ? 'disabled':''}">
-        <a class="page-link" href="#" onclick="goToPage(${Math.max(1, currentPage-1)})">Previous</a>
-      </li>`;
-
-    if (start>1) {
-        html += `
-      <li class="page-item disabled">
-        <span class="page-link">…</span>
-      </li>`;
-    }
-
-    for (let i=start; i<=end; i++) {
-        html += `
-      <li class="page-item ${i===currentPage ? 'active':''}">
-        <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
-      </li>`;
-    }
-
-    if (end<totalPages) {
-        html += `
-      <li class="page-item disabled">
-        <span class="page-link">…</span>
-      </li>`;
-    }
-
-    html += `
-      <li class="page-item ${currentPage===totalPages ? 'disabled':''}">
-        <a class="page-link" href="#" onclick="goToPage(${Math.min(totalPages, currentPage+1)})">Next</a>
-      </li>
-      <li class="page-item ${currentPage===totalPages ? 'disabled':''}">
-        <a class="page-link" href="#" onclick="goToPage(${totalPages})">Last</a>
-      </li>
-    </ul>
-
-    <!-- Jump-to-Page input -->
-    <div class="input-group input-group-sm ms-2" style="width:120px;">
-      <input
-        type="number"
-        id="jumpPageInput"
-        class="form-control"
-        min="1" max="${totalPages}"
-        placeholder="Page"
-      />
-      <button
-        class="btn btn-outline-secondary"
-        type="button"
-        onclick="jumpToPage()"
-      >Go</button>
-    </div>
-
-  </div>
-</nav>`;
-
-    container.innerHTML = html;
-}
-
-// helper to read the input, clamp it, and call goToPage
-window.jumpToPage = function() {
-    const inp = document.getElementById('jumpPageInput');
-    const val = parseInt(inp.value, 10);
-    if (!isNaN(val) && val >= 1 && val <= window._totalPages) {
-        goToPage(val);
-    } else {
-        // optional: reset invalid entries
-        inp.value = '';
-    }
-};
+/** Keep the selected filter values while navigating between table pages. */
+const updatePagination = (totalItems, page) =>
+    renderHistoryPagination(document.getElementById('pagination'), Math.ceil(totalItems / pageSize), page, loadLocations);
 
 const viewLocationDetails = (loc) => {
     document.getElementById('modalContent').innerHTML = generateLocationModalContent(loc);
@@ -377,114 +233,58 @@ const viewLocationDetails = (loc) => {
 const generateLocationModalContent = (location) => {
     const charCount = location.notes ? location.notes.length : 0;
     const style = charCount === 0 ? 'display:none;' : `min-height:${16 * Math.ceil(charCount / 50) * 1.5}px;`;
-    const timestamps = getLocationTimestampInfo(location);
-    const sourceZone = getLocationSourceTimeZone(location);
+    const timestamps = locationTimes(location);
+    const sourceZone = sourceTimeZone(location);
     const recordedBlock = timestamps.source
-        ? `<div>${timestamps.source}</div>`
-        : `<div class="fst-italic text-muted">Source timezone unavailable</div>`;
+        ? `<div>${encode(timestamps.source)}</div>`
+        : `<div class="fst-italic text-muted">${locationHtml('SourceZoneUnavailable', 'Source timezone unavailable')}</div>`;
     return `
     <div class="container-fluid">
       <div class="row mb-2">
         <div class="col-6">
-            <strong>Datetime (your timezone):</strong>
+            <strong>${locationHtml('ViewerTime', 'Datetime (your timezone)')}:</strong>
             <div>${timestamps.viewer}</div>
         </div>
         <div class="col-6">
-            <strong>Recorded local time:</strong>
+            <strong>${locationHtml('RecordedTime', 'Recorded local time')}:</strong>
               ${recordedBlock}
-              ${sourceZone && !timestamps.source ? `<div class="small text-muted">${sourceZone}</div>` : ''}
+              ${sourceZone && !timestamps.source ? `<div class="small text-muted">${encode(sourceZone)}</div>` : ''}
         </div>
       </div>
       <div class="row mb-2">
         <div class="col-6">
-            <strong>Latitude:</strong> ${location.coordinates.latitude}
+            <strong>${locationHtml('Latitude', 'Latitude')}:</strong> ${displayCoordinate(location.coordinates.latitude)}
         </div>
         <div class="col-6">
-            <strong>Longitude:</strong> ${location.coordinates.longitude}
+            <strong>${locationHtml('Longitude', 'Longitude')}:</strong> ${displayCoordinate(location.coordinates.longitude)}
         </div>
       </div>
       <div class="row mb-2">
         <div class="col-6">${generateActivityEditorHtml(location)}</div>
         <div class="col-6">
-            <strong>Altitude:</strong> ${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) + ' m' : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}
+            <strong>${locationHtml('Altitude', 'Altitude')}:</strong> ${measurement(location.altitude, 'Altitude', 'Altitude', ' m')}
         </div>
       </div>
       <div class="row mb-2">
         <div class="col-12">
             ${renderLocationAddress(location)}
-                ${generateGoogleMapsLink(location)}
+                ${locationMapsLink(location)}
             ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
         </div>
       </div>
       <div class="row mb-2">
         <div class="col-12" style="${style}">
-            <strong>Notes:</strong><div class="border p-1">${notesHtmlForDisplay(location.notes)}
+            <strong>${encode(message('Shell.Notes', 'Notes'))}:</strong><div class="border p-1">${notesHtmlForDisplay(location.notes)}
         </div>
       </div>
       <div class="row">
         <div class="col-5">
-            <a href="${buildEditUrl(location.id)}" class="btn-link">Edit</a>
+            <a href="${buildEditUrl(location.id)}" class="btn-link">${encode(message('Shell.Edit', 'Edit'))}</a>
         </div>
         <div class="col-5 offset-2">
-            <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}">Delete</a>
+            <a href="#" class="btn-link text-danger delete-location-from-popup" data-location-id="${location.id}">${encode(message('Shell.Delete', 'Delete'))}</a>
         </div>
       </div>
     </div>
   `;
 }
-
-/**
- * Generates a Google Maps link combining address and coordinates for precision.
- * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
- */
-const generateGoogleMapsLink = (location) => {
-    const addr = locationAddressText(location);
-    const lat  = location?.coordinates?.latitude;
-    const lon  = location?.coordinates?.longitude;
-    const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
-    const query = addr && hasCoords
-        ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})`
-        : hasCoords
-            ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}`
-            : addr;
-    const q = encodeURIComponent(query || '');
-    return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="ms-2 btn btn-outline-primary btn-sm" title="View in Google Maps">
-    <i class="bi bi-globe-europe-africa"></i> Maps
-</a>`;
-}
-
-const getUserStats = async () => {
-
-    const response = await fetch('/api/users/stats', {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
-        }
-    });
-
-    if (!response.ok) {
-        // You can handle 404/403/other errors differently if you like
-        const errorText = await response.text();
-        throw new Error(`Error ${response.status}: ${errorText}`);
-    }
-
-    // assuming the response is JSON matching UserLocationStatsDto
-    const stats = await response.json();
-    const summaryParts = [];
-
-    if (stats.totalLocations != null)
-        summaryParts.push(`<strong>Total Locations:</strong> ${stats.totalLocations}`);
-    if (stats.fromDate)
-        summaryParts.push(`<strong>From Date:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.toDate)
-        summaryParts.push(`<strong>To Date:</strong> ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}`);
-    if (stats.countriesVisited != null)
-        summaryParts.push(`<strong>Countries:</strong> ${stats.countriesVisited}`);
-    if (stats.regionsVisited != null)
-        summaryParts.push(`<strong>Regions:</strong> ${stats.regionsVisited}`);
-    if (stats.citiesVisited != null)
-        summaryParts.push(`<strong>Cities:</strong> ${stats.citiesVisited}`);
-
-    const summary = summaryParts.join(" | ");
-    document.getElementById("timeline-summary").innerHTML  = summary;
-};

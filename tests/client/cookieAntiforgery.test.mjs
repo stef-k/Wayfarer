@@ -72,10 +72,9 @@ test('protected Activity command sends the authentic page token with its immutab
 });
 
 test('JSON location and visit deletions send tokens on every modal and bulk path', async () => {
-    for (const path of ['Areas/User/Location/Index.js', 'Areas/User/Location/AllLocations.js',
-        'Areas/User/Visit/Index.js']) {
+    for (const path of ['util/location-history-actions.js', 'Areas/User/Visit/Index.js']) {
         const calls = await capturedRequests(path, '/bulk-delete', {
-            locationId: 1, selectedIds: [1, 2], id: 'visit-id'
+            ids: path.includes('/Visit/') ? ['visit-id'] : [1, 2]
         });
         for (const { options } of calls) {
             assert.equal(options.method, 'POST');
@@ -88,11 +87,15 @@ test('JSON location and visit deletions send tokens on every modal and bulk path
 });
 
 test('every per-row Location deletion uses the protected owner instead of a bare-ID bulk bypass', async () => {
-    for (const path of ['Areas/User/Location/Index.js', 'Areas/User/Location/AllLocations.js',
-        'Areas/User/Timeline/timeline-delete.js']) {
+    for (const path of ['util/location-history-actions.js', 'Areas/User/Timeline/timeline-delete.js']) {
         const text = await source(path);
         assert.match(text, /prepareLocationDeletion\(/, path);
         assert.match(text, /(?:deleteProtected|execute)\(\)/, path);
+        assert.doesNotMatch(text, /locationIds:\s*\[/, path);
+    }
+    for (const path of ['Areas/User/Location/Index.js', 'Areas/User/Location/AllLocations.js']) {
+        const text = await source(path);
+        assert.match(text, /confirmLocationHistoryDeletion\(/, path);
         assert.doesNotMatch(text, /locationIds:\s*\[/, path);
     }
     for (const path of ['Areas/User/Timeline/Index.js', 'Areas/User/Timeline/calendar-detail.js']) {

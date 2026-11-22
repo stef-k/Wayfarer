@@ -1,62 +1,65 @@
+@inject Wayfarer.Localization.WebMessages T
 @using Microsoft.AspNetCore.Mvc.Rendering
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @model Wayfarer.Models.ViewModels.BulkEditNotesViewModel
 
 @{
+    ViewData["WebCatalog"] = "Locations";
+    ViewData["Title"] = T["Locations.BulkTitle"];
     ViewData["BodyClass"] = "container-fluid";
     var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/location-bulk.js");
-    ViewData["Title"] = "Bulk Edit Location Notes";
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
 
 <div class="alert alert-light small mb-3 mx-auto" style="max-width: 700px;">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Bulk edit allows you to add or replace notes on multiple locations at once.
-    Use the filters to target specific records by country, region, city, or date range.
+    @T["Locations.BulkHelp"]
 </div>
 
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm mb-4">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Filters &amp; Notes</h2>
+                <h2 class="fs-4">@T["Locations.BulkFilters"]</h2>
             </div>
             <div class="card-body">
                 <form asp-action="BulkEditNotes" method="post" id="locationForm">
                     <input type="hidden" name="OperationScope" value="bulk" />
-                    <p>Applies to records matching at Apply time. Replace and Clear overwrite current Notes; Append uses current Notes. Preview counts are advisory. If the reply is lost, inspect history before deliberately submitting again.</p>
+                    <p>@T["Locations.BulkScope"]</p>
                     @Html.AntiForgeryToken()
+                    <div asp-validation-summary="All" class="text-danger"></div>
+                    <p id="bulk-notes-feedback" role="status" class="text-danger"></p>
 
                     <!-- ==== Filters ==== -->
                     <div class="row g-3 mb-3">
                         <div class="col-md-4">
-                            <label asp-for="Country" class="form-label"></label>
+                            <label asp-for="Country" class="form-label">@T["Locations.Country"]</label>
                             <select asp-for="Country" class="form-select" asp-items="Model.Countries">
-                                <option value="">All</option>
+                                <option value="">@T["Shell.All"]</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label asp-for="Region" class="form-label"></label>
+                            <label asp-for="Region" class="form-label">@T["Locations.Region"]</label>
                             <select asp-for="Region" class="form-select" asp-items="Model.Regions">
-                                <option value="">All</option>
+                                <option value="">@T["Shell.All"]</option>
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label asp-for="Place" class="form-label"></label>
+                            <label asp-for="Place" class="form-label">@T["Locations.Place"]</label>
                             <select asp-for="Place" class="form-select" asp-items="Model.Places">
-                                <option value="">All</option>
+                                <option value="">@T["Shell.All"]</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label asp-for="FromDate" class="form-label"></label>
+                            <label asp-for="FromDate" class="form-label">@T["Locations.FromDate"]</label>
                             <input asp-for="FromDate" class="form-control"/>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="ToDate" class="form-label"></label>
+                            <label asp-for="ToDate" class="form-label">@T["Locations.ToDate"]</label>
                             <input asp-for="ToDate" class="form-control"/>
                         </div>
                     </div>
@@ -66,8 +69,9 @@
                                class="form-check-input"
                                id="Append"/>
                         <label asp-for="Append" class="form-check-label">
+                            @T["Locations.BulkAppend"]
                             <i class="bi bi-question-circle text-muted ms-1"
-                               data-tippy-content="Checked: append notes after existing content. Unchecked: replace existing notes entirely."></i>
+                               data-tippy-content="@T["Locations.BulkAppendHelp"]"></i>
                         </label>
                     </div>
 
@@ -76,26 +80,26 @@
                                class="form-check-input"
                                id="ClearNotes"/>
                         <label asp-for="ClearNotes" class="form-check-label">
-                            @Html.DisplayNameFor(m => m.ClearNotes)
+                            @T["Locations.BulkClear"]
                         </label>
                     </div>
 
 
                     <!-- Notes are independent of the separate ClearNotes operation. -->
                     <div class="form-group mb-4">
-                        <label id="notes-label" class="form-label">Notes (HTML)</label>
+                        <label id="notes-label" class="form-label">@T["Locations.NotesHtml"]</label>
                         <partial name="_NotesToolbar" model="@(false)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"></div>
                         <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"/>
                         <small class="text-muted d-block">
-                            Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.
+                            @T["Shell.NotesLegacyFormatting"]
                         </small>
                         <span asp-validation-for="Notes" class="text-danger"></span>
                         <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <button type="submit" class="btn btn-primary" id="applyBtn">
-                        Apply to @(Model.AffectedCount ?? 0) locations
+                        @T.Count("Locations.ApplyCount", Model.AffectedCount ?? 0)
                     </button>
                 </form>
             </div>

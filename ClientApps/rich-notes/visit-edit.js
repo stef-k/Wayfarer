@@ -1,4 +1,7 @@
 import { mountRazorNotes } from './razor';
+import { date, message, number } from '../../wwwroot/js/localization/messages.js';
+import { encodeFeatureText as encode } from '../../wwwroot/js/util/feature-metadata.js';
+import { installLocationMapControls } from '../../wwwroot/js/util/location-map-controls.js';
 import { registerLanguageDraft } from '../../wwwroot/js/localization/languageNavigation.js';
 /**
  * Visit Edit - Form + Map for editing a visit event
@@ -46,12 +49,12 @@ const initMap = () => {
     const icon = container.dataset.icon || 'marker';
     const color = container.dataset.color || 'bg-blue';
 
-    map = L.map('mapContainer').setView([lat, lon], 15);
+    map = L.map('mapContainer', { zoomControl: false }).setView([lat, lon], 15);
 
     createTileLayer().addTo(map);
 
     // Set standard attribution prefix (matches Timeline)
-    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+    installLocationMapControls(map);
 
     // Add initial marker
     const iconUrl = buildPngIconUrl(icon, color);
@@ -62,7 +65,9 @@ const initMap = () => {
         className: 'map-icon'
     });
 
-    marker = L.marker([lat, lon], { icon: leafletIcon, draggable: true }).addTo(map);
+    marker = L.marker([lat, lon], {
+        icon: leafletIcon, draggable: true, alt: message('Visits.MarkerName', 'Visit marker')
+    }).addTo(map);
 
     // Update coordinates on marker drag
     marker.on('dragend', () => {
@@ -157,9 +162,9 @@ const initDeleteConfirmation = () => {
     if (btnDelete && deleteForm) {
         btnDelete.addEventListener('click', () => {
             wayfarer.showConfirmationModal({
-                title: 'Confirm Deletion',
-                message: 'Are you sure you want to delete this visit? This action cannot be undone.',
-                confirmText: 'Delete',
+                title: message('Shell.LocationConfirmDeletion', 'Confirm deletion'),
+                message: message('Visits.DeletePrompt', 'Are you sure you want to delete this visit? This cannot be undone.'),
+                confirmText: message('Shell.Delete', 'Delete'),
                 onConfirm: () => {
                     deleteForm.submit();
                 }
@@ -170,7 +175,6 @@ const initDeleteConfirmation = () => {
 
 // === Relevant Locations Section ===
 let locationPingsPage = 0;
-let locationPingsTotalItems = 0;
 const locationPingsPageSize = 10;
 
 /**
@@ -184,7 +188,6 @@ const initLocationPings = () => {
     const collapse = document.getElementById('locationPingsCollapse');
 
     // Load data immediately (card is expanded by default)
-    fetchLocationPingsCount();
     loadLocationPings();
 
     // Toggle chevron icon on expand
@@ -202,58 +205,47 @@ const initLocationPings = () => {
 };
 
 /**
- * Fetch the total count of relevant locations for the badge display.
- */
-const fetchLocationPingsCount = async () => {
-    const visitId = document.getElementById('locationPingsCard')?.dataset.visitId;
-    if (!visitId) return;
-
-    try {
-        const res = await fetch(`/api/visit/${visitId}/locations?page=1&pageSize=1`);
-        const data = await res.json();
-        if (data.success) {
-            document.getElementById('locationPingsCount').textContent = data.totalItems;
-        }
-    } catch (e) {
-        console.error('Failed to fetch relevant locations count', e);
-    }
-};
-
-/**
  * Load a page of relevant locations and append to the table.
  */
 const loadLocationPings = async () => {
     const visitId = document.getElementById('locationPingsCard')?.dataset.visitId;
     if (!visitId) return;
 
-    locationPingsPage++;
+    const nextPage = locationPingsPage + 1;
+    const more = document.getElementById('loadMoreLocationsBtn');
+    if (more.disabled) return;
+    more.disabled = true;
 
     try {
-        const res = await fetch(`/api/visit/${visitId}/locations?page=${locationPingsPage}&pageSize=${locationPingsPageSize}`);
+        const res = await fetch(`/api/visit/${visitId}/locations?page=${nextPage}&pageSize=${locationPingsPageSize}`);
+        if (!res.ok) throw new Error(`Visit locations returned HTTP ${res.status}`);
         const data = await res.json();
+        if (!data.success) throw new Error('Visit locations response was incomplete');
+        locationPingsPage = nextPage;
+        document.getElementById('locationPingsCount').textContent = number(data.totalItems);
+        document.getElementById('locationPingsEmpty').style.display = 'none';
 
         document.getElementById('locationPingsLoading').style.display = 'none';
 
-        if (data.success) {
-            locationPingsTotalItems = data.totalItems;
+        if (data.totalItems === 0) {
+            document.getElementById('locationPingsEmpty').style.display = 'block';
+        } else {
+            document.getElementById('locationPingsTableWrapper').style.display = 'block';
+            renderLocationPings(data.data);
 
-            if (data.totalItems === 0) {
-                document.getElementById('locationPingsEmpty').style.display = 'block';
-            } else {
-                document.getElementById('locationPingsTableWrapper').style.display = 'block';
-                renderLocationPings(data.data);
-
-                // Show/hide load more button based on remaining items
-                const loadedCount = locationPingsPage * locationPingsPageSize;
-                document.getElementById('locationPingsLoadMore').style.display =
-                    loadedCount < data.totalItems ? 'block' : 'none';
-            }
+            // Show/hide load more button based on remaining items
+            const loadedCount = locationPingsPage * locationPingsPageSize;
+            document.getElementById('locationPingsLoadMore').style.display =
+                loadedCount < data.totalItems ? 'block' : 'none';
         }
     } catch (e) {
         console.error('Failed to load relevant locations', e);
         document.getElementById('locationPingsLoading').style.display = 'none';
+        document.getElementById('locationPingsCount').textContent = '–';
         document.getElementById('locationPingsEmpty').style.display = 'block';
-        document.getElementById('locationPingsEmpty').textContent = 'Failed to load relevant locations.';
+        document.getElementById('locationPingsEmpty').textContent = message('Visits.LocationsFailed', 'Failed to load relevant locations.');
+    } finally {
+        more.disabled = false;
     }
 };
 
@@ -269,13 +261,13 @@ const renderLocationPings = (locations) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td class="small">${formatLocationTimestamp(loc.localTimestamp)}</td>
-            <td class="small font-monospace">${loc.latitude?.toFixed(5)}, ${loc.longitude?.toFixed(5)}</td>
-            <td class="text-end small">${loc.accuracy ? loc.accuracy + 'm' : '-'}</td>
-            <td class="text-end small">${loc.speed ? (loc.speed * 3.6).toFixed(1) + ' km/h' : '-'}</td>
-            <td class="small">${loc.activity || '-'}</td>
-            <td class="small text-truncate" style="max-width:150px;" title="${loc.address || ''}">${loc.address || '-'}</td>
+            <td class="small font-monospace">${loc.latitude == null ? '–' : number(loc.latitude, { minimumFractionDigits: 5, maximumFractionDigits: 5 })}, ${loc.longitude == null ? '–' : number(loc.longitude, { minimumFractionDigits: 5, maximumFractionDigits: 5 })}</td>
+            <td class="text-end small">${loc.accuracy ? number(loc.accuracy) + ' m' : '-'}</td>
+            <td class="text-end small">${loc.speed ? number(loc.speed * 3.6, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' km/h' : '-'}</td>
+            <td class="small">${encode(loc.activity || '-')}</td>
+            <td class="small text-truncate" style="max-width:150px;" title="${encode(loc.address || '')}">${encode(loc.address || '-')}</td>
             <td>
-                <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrl}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit location"><i class="bi bi-pencil"></i></a>
+                <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrl}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="${encode(message('Locations.EditAction', 'Edit location'))}" aria-label="${encode(message('Locations.EditAction', 'Edit location'))}"><i class="bi bi-pencil"></i></a>
             </td>
         `;
         tbody.appendChild(row);
@@ -289,8 +281,7 @@ const renderLocationPings = (locations) => {
  */
 const formatLocationTimestamp = (ts) => {
     if (!ts) return '-';
-    const d = new Date(ts);
-    return d.toLocaleString('en-GB', {
+    return date(new Date(ts), {
         day: '2-digit', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });

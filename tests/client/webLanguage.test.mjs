@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createMessages } from '../../wwwroot/js/localization/messages.js';
-import { isLanguageUnload, languageDestination, navigateInLanguage } from '../../wwwroot/js/localization/languageNavigation.js';
+import { holdLanguageNavigation, isLanguageUnload, languageDestination, navigateInLanguage } from '../../wwwroot/js/localization/languageNavigation.js';
 import { resolveViewerCamera, writeViewerCamera } from '../../wwwroot/js/Trip/viewerCamera.js';
 import { pdfProgressText } from '../../wwwroot/js/Trip/viewerExports.js';
 import { populateViewerPrint } from '../../wwwroot/js/Trip/viewerPrint.js';
@@ -112,7 +112,7 @@ const verifyLanguageForm = async (safeGet, editPolygon = false) => {
     reload: () => navigations.push(['reload', current]),
     assign: target => navigations.push(['assign', target])
   };
-  globalThis.window = { location: globalThis.location };
+  globalThis.window = Object.assign(new EventTarget(), { location: globalThis.location });
   globalThis.HTMLSelectElement = class {};
   globalThis.FormData = class { get(name) { assert.equal(name, 'locale'); return 'el-GR'; } };
   globalThis.fetch = async (url, options) => {
@@ -123,6 +123,21 @@ const verifyLanguageForm = async (safeGet, editPolygon = false) => {
     await import(`../../wwwroot/js/localization/languageSelector.js?form=${editPolygon ? 'polygon' : safeGet ? 'post' : 'get'}`);
     const open = () => handlers.get('language-open:click')();
     const submit = () => handlers.get('language-form:submit')({ preventDefault() {} });
+    if (!safeGet && !editPolygon) {
+      // A feature hold takes precedence even over an already-open preference dialog.
+      open();
+      const releaseHold = holdLanguageNavigation();
+      try {
+        assert.equal(controls['language-open'].hidden, true);
+        assert.equal(dialog.open, false);
+        open();
+        await submit();
+        assert.deepEqual(submits, []);
+      } finally {
+        releaseHold();
+      }
+      assert.equal(controls['language-open'].hidden, false);
+    }
     if (editPolygon) {
       // During a drag the feature group owns the draft and the hidden field still holds the saved geometry.
       mapEvents.get(events.EDITSTART)();

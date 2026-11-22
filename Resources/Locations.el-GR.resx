@@ -1,0 +1,519 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Locations.Management" xml:space="preserve">
+    <value>Διαχείριση καταγραφών τοποθεσίας</value>
+  </data>
+  <data name="Locations.Entry" xml:space="preserve">
+    <value>Καταχώριση τοποθεσίας</value>
+  </data>
+  <data name="Locations.Add" xml:space="preserve">
+    <value>Προσθήκη καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Locations.AddHelp" xml:space="preserve">
+    <value>Προσθέστε χειροκίνητα μια καταγραφή τοποθεσίας με τον χάρτη.</value>
+  </data>
+  <data name="Locations.Edit" xml:space="preserve">
+    <value>Επεξεργασία καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Locations.Details" xml:space="preserve">
+    <value>Στοιχεία καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Locations.HistoryHelp" xml:space="preserve">
+    <value>Το ιστορικό εμφανίζει σημεία GPS από το Wayfarer Mobile ή από εισαγωγές άλλων καταγραφικών. Με την Αναζήτηση μπορείτε να φιλτράρετε κατά ημερομηνία, δραστηριότητα, διεύθυνση ή τοποθεσία. Επιλέξτε ένα σημείο στον χάρτη ή μια γραμμή στον πίνακα για λεπτομέρειες.</value>
+  </data>
+  <data name="Locations.DeleteSelectedHelp" xml:space="preserve">
+    <value>Διαγραφή επιλεγμένων καταγραφών τοποθεσίας</value>
+  </data>
+  <data name="Locations.FromDate" xml:space="preserve">
+    <value>Από ημερομηνία</value>
+  </data>
+  <data name="Locations.ToDate" xml:space="preserve">
+    <value>Έως ημερομηνία</value>
+  </data>
+  <data name="Locations.Latitude" xml:space="preserve">
+    <value>Γεωγραφικό πλάτος</value>
+  </data>
+  <data name="Locations.Longitude" xml:space="preserve">
+    <value>Γεωγραφικό μήκος</value>
+  </data>
+  <data name="Locations.Coordinates" xml:space="preserve">
+    <value>Συντεταγμένες</value>
+  </data>
+  <data name="Locations.CoordinateExample" xml:space="preserve">
+    <value>Δεκαδικές μοίρες (π.χ. {0}). Επιλέξτε σημείο στον χάρτη για αυτόματη συμπλήρωση.</value>
+  </data>
+  <data name="Locations.CoordinateHelp" xml:space="preserve">
+    <value>Επιλέξτε σημείο στον χάρτη. Το γεωγραφικό πλάτος και μήκος θα συμπληρωθούν αυτόματα.</value>
+  </data>
+  <data name="Locations.Activity" xml:space="preserve">
+    <value>Δραστηριότητα</value>
+  </data>
+  <data name="Locations.ActivityType" xml:space="preserve">
+    <value>Τύπος δραστηριότητας</value>
+  </data>
+  <data name="Locations.ActivitySelect" xml:space="preserve">
+    <value>Επιλέξτε δραστηριότητα</value>
+  </data>
+  <data name="Locations.Address" xml:space="preserve">
+    <value>Διεύθυνση</value>
+  </data>
+  <data name="Locations.Country" xml:space="preserve">
+    <value>Χώρα</value>
+  </data>
+  <data name="Locations.Region" xml:space="preserve">
+    <value>Περιοχή</value>
+  </data>
+  <data name="Locations.City" xml:space="preserve">
+    <value>Πόλη</value>
+  </data>
+  <data name="Locations.Place" xml:space="preserve">
+    <value>Τοποθεσία</value>
+  </data>
+  <data name="Locations.DateZone" xml:space="preserve">
+    <value>Ημερομηνία, ώρα και ζώνη ώρας</value>
+  </data>
+  <data name="Locations.Accuracy" xml:space="preserve">
+    <value>Ακρίβεια</value>
+  </data>
+  <data name="Locations.Speed" xml:space="preserve">
+    <value>Ταχύτητα</value>
+  </data>
+  <data name="Locations.Altitude" xml:space="preserve">
+    <value>Υψόμετρο</value>
+  </data>
+  <data name="Locations.AccuracyMeters" xml:space="preserve">
+    <value>Ακρίβεια (m)</value>
+  </data>
+  <data name="Locations.SpeedKilometers" xml:space="preserve">
+    <value>Ταχύτητα (km/h)</value>
+  </data>
+  <data name="Locations.AltitudeMeters" xml:space="preserve">
+    <value>Υψόμετρο (m)</value>
+  </data>
+  <data name="Locations.MapView" xml:space="preserve">
+    <value>Προβολή χάρτη</value>
+  </data>
+  <data name="Locations.ClearLocation" xml:space="preserve">
+    <value>Καθαρισμός συντεταγμένων</value>
+  </data>
+  <data name="Locations.LocalTime" xml:space="preserve">
+    <value>Τοπική ημερομηνία και ώρα</value>
+  </data>
+  <data name="Locations.LocalTimeHelp" xml:space="preserve">
+    <value>Εισαγάγετε την τοπική ώρα της τοποθεσίας. Η ώρα αποθηκεύεται σε UTC και εμφανίζεται στη ζώνη ώρας που έχετε ορίσει.</value>
+  </data>
+  <data name="Locations.AddNotes" xml:space="preserve">
+    <value>Προσθήκη σημειώσεων</value>
+  </data>
+  <data name="Locations.RetryCreate" xml:space="preserve">
+    <value>Επανάληψη αρχικής αποθήκευσης</value>
+  </data>
+  <data name="Locations.SeparateCreate" xml:space="preserve">
+    <value>Έναρξη ξεχωριστής καταγραφής</value>
+  </data>
+  <data name="Locations.OpenSaved" xml:space="preserve">
+    <value>Άνοιγμα και επεξεργασία αποθηκευμένης καταγραφής</value>
+  </data>
+  <data name="Locations.ActualSaved" xml:space="preserve">
+    <value>Καταγραφή που αποθηκεύτηκε</value>
+  </data>
+  <data name="Locations.RequiredFields" xml:space="preserve">
+    <value>Τα πεδία με αστερίσκο είναι υποχρεωτικά.</value>
+  </data>
+  <data name="Locations.RecordedAddress" xml:space="preserve">
+    <value>Καταγεγραμμένη διεύθυνση: {0}</value>
+  </data>
+  <data name="Locations.AddressDetails" xml:space="preserve">
+    <value>Στοιχεία διεύθυνσης</value>
+  </data>
+  <data name="Locations.FullAddress" xml:space="preserve">
+    <value>Πλήρης διεύθυνση</value>
+  </data>
+  <data name="Locations.AddressLine" xml:space="preserve">
+    <value>Γραμμή διεύθυνσης</value>
+  </data>
+  <data name="Locations.Street" xml:space="preserve">
+    <value>Οδός</value>
+  </data>
+  <data name="Locations.HouseNumber" xml:space="preserve">
+    <value>Αριθμός</value>
+  </data>
+  <data name="Locations.Postcode" xml:space="preserve">
+    <value>Ταχυδρομικός κώδικας</value>
+  </data>
+  <data name="Locations.CityPlace" xml:space="preserve">
+    <value>Πόλη / τοποθεσία</value>
+  </data>
+  <data name="Locations.ManualAddressHelp" xml:space="preserve">
+    <value>Η αλλαγή οποιουδήποτε πεδίου διεύθυνσης ορίζει τη διεύθυνση ως χειροκίνητη και καταργεί την αναφορά στον πάροχο.</value>
+  </data>
+  <data name="Locations.PositionTimeHelp" xml:space="preserve">
+    <value>Η μετακίνηση του σημείου διατηρεί την ακριβή στιγμή καταγραφής και ενημερώνει την τοπική της εμφάνιση. Οι αλλαγές ώρας ερμηνεύονται στη ζώνη</value>
+  </data>
+  <data name="Locations.AmbiguousTime" xml:space="preserve">
+    <value>Αν αυτή η τοπική ώρα εμφανίζεται δύο φορές</value>
+  </data>
+  <data name="Locations.ChooseWhenNeeded" xml:space="preserve">
+    <value>Επιλέξτε όταν χρειάζεται</value>
+  </data>
+  <data name="Locations.Earlier" xml:space="preserve">
+    <value>Πρώτη εμφάνιση</value>
+  </data>
+  <data name="Locations.Later" xml:space="preserve">
+    <value>Δεύτερη εμφάνιση</value>
+  </data>
+  <data name="Locations.TimeRecoveryHelp" xml:space="preserve">
+    <value>Η ζώνη της αποθηκευμένης ώρας δεν είναι διαθέσιμη. Ελέγξτε ή εισαγάγετε ξανά την τοπική ημερομηνία και ώρα και επιλέξτε εμφάνιση, αν χρειάζεται. Εισαγάγετε τη ζώνη ώρας, ελέγξτε και επιβεβαιώστε την. Οι υπόλοιπες αλλαγές διατηρούνται. Αν δεν αλλάξετε την ώρα, μπορείτε να αποθηκεύσετε άλλα πεδία χωρίς αυτό το βήμα.</value>
+  </data>
+  <data name="Locations.RecoveryZone" xml:space="preserve">
+    <value>Ζώνη ώρας για τη διατηρημένη ώρα</value>
+  </data>
+  <data name="Locations.ZoneExample" xml:space="preserve">
+    <value>Europe/Athens ή UTC</value>
+  </data>
+  <data name="Locations.ReviewTime" xml:space="preserve">
+    <value>Έλεγχος ώρας και ζώνης</value>
+  </data>
+  <data name="Locations.ReviewDraft" xml:space="preserve">
+    <value>Έλεγχος διατηρημένου προσχεδίου και τρεχόντων στοιχείων</value>
+  </data>
+  <data name="Locations.AdoptOriginals" xml:space="preserve">
+    <value>Χρήση των τρεχόντων στοιχείων ως νέα αρχική βάση με διατήρηση του προσχεδίου</value>
+  </data>
+  <data name="Locations.SaveKeep" xml:space="preserve">
+    <value>Αποθηκεύστε τις αλλαγές και συνεχίστε την επεξεργασία</value>
+  </data>
+  <data name="Locations.SaveBack" xml:space="preserve">
+    <value>Αποθηκεύστε τις αλλαγές και επιστρέψτε</value>
+  </data>
+  <data name="Locations.SaveReturn" xml:space="preserve">
+    <value>Αποθήκευση και επιστροφή</value>
+  </data>
+  <data name="Locations.Capture" xml:space="preserve">
+    <value>Στοιχεία καταγραφής</value>
+  </data>
+  <data name="Locations.Source" xml:space="preserve">
+    <value>Προέλευση</value>
+  </data>
+  <data name="Locations.CheckIn" xml:space="preserve">
+    <value>Χειροκίνητη καταγραφή παρουσίας</value>
+  </data>
+  <data name="Locations.Provider" xml:space="preserve">
+    <value>Πάροχος τοποθεσίας</value>
+  </data>
+  <data name="Locations.Bearing" xml:space="preserve">
+    <value>Διόπτευση</value>
+  </data>
+  <data name="Locations.Device" xml:space="preserve">
+    <value>Συσκευή</value>
+  </data>
+  <data name="Locations.OsVersion" xml:space="preserve">
+    <value>Έκδοση λειτουργικού</value>
+  </data>
+  <data name="Locations.AppVersion" xml:space="preserve">
+    <value>Έκδοση εφαρμογής</value>
+  </data>
+  <data name="Locations.Battery" xml:space="preserve">
+    <value>Μπαταρία</value>
+  </data>
+  <data name="Locations.Charging" xml:space="preserve">
+    <value>Φορτίζει</value>
+  </data>
+  <data name="Locations.BulkTitle" xml:space="preserve">
+    <value>Μαζική επεξεργασία σημειώσεων τοποθεσίας</value>
+  </data>
+  <data name="Locations.BulkHelp" xml:space="preserve">
+    <value>Η μαζική επεξεργασία προσθέτει ή αντικαθιστά σημειώσεις σε πολλές καταγραφές. Χρησιμοποιήστε τα φίλτρα για να επιλέξετε καταγραφές κατά χώρα, περιοχή, πόλη ή εύρος ημερομηνιών.</value>
+  </data>
+  <data name="Locations.BulkFilters" xml:space="preserve">
+    <value>Φίλτρα και σημειώσεις</value>
+  </data>
+  <data name="Locations.BulkScope" xml:space="preserve">
+    <value>Η εφαρμογή αφορά τις καταγραφές που ταιριάζουν τη στιγμή της υποβολής. Η αντικατάσταση και ο καθαρισμός αλλάζουν τις τρέχουσες σημειώσεις. Η προσθήκη συμπληρώνει τις υπάρχουσες σημειώσεις. Το πλήθος της προεπισκόπησης είναι ενδεικτικό. Αν χαθεί η απάντηση, ελέγξτε το ιστορικό πριν αποφασίσετε να υποβάλετε ξανά.</value>
+  </data>
+  <data name="Locations.BulkAppend" xml:space="preserve">
+    <value>Προσθήκη στις υπάρχουσες σημειώσεις;</value>
+  </data>
+  <data name="Locations.BulkAppendHelp" xml:space="preserve">
+    <value>Ενεργό: προσθέστε τις σημειώσεις μετά το υπάρχον περιεχόμενο. Ανενεργό: αντικαταστήστε πλήρως τις υπάρχουσες σημειώσεις.</value>
+  </data>
+  <data name="Locations.BulkClear" xml:space="preserve">
+    <value>Καθαρισμός υπαρχουσών σημειώσεων;</value>
+  </data>
+  <data name="Locations.NotesHtml" xml:space="preserve">
+    <value>Σημειώσεις (HTML)</value>
+  </data>
+  <data name="Locations.ApplyCount.one" xml:space="preserve">
+    <value>Εφαρμογή σε {0} καταγραφή τοποθεσίας</value>
+  </data>
+  <data name="Locations.ApplyCount.other" xml:space="preserve">
+    <value>Εφαρμογή σε {0} καταγραφές τοποθεσίας</value>
+  </data>
+  <data name="Locations.BulkUpdated.one" xml:space="preserve">
+    <value>Ενημερώθηκε {0} καταγραφή τοποθεσίας.</value>
+  </data>
+  <data name="Locations.BulkUpdated.other" xml:space="preserve">
+    <value>Ενημερώθηκαν {0} καταγραφές τοποθεσίας.</value>
+  </data>
+  <data name="Locations.PreviewFailed" xml:space="preserve">
+    <value>Το πλήθος της προεπισκόπησης δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="Locations.RegionsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των περιοχών.</value>
+  </data>
+  <data name="Locations.PlacesFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των τοποθεσιών.</value>
+  </data>
+  <data name="Locations.CreateDeleted" xml:space="preserve">
+    <value>Η καταγραφή διαγράφηκε. Η επανάληψη δεν μπορεί να την επαναφέρει. Τα στοιχεία που εισαγάγατε παραμένουν διαθέσιμα.</value>
+  </data>
+  <data name="Locations.CreateUnconfirmed" xml:space="preserve">
+    <value>Η αποθήκευση δεν επιβεβαιώθηκε. Η επανάληψη χρησιμοποιεί τις αρχικές τιμές και το αρχικό UUID της προσπάθειας. Οι τρέχουσες αλλαγές δεν έχουν αποθηκευτεί. Η προηγούμενη ενέργεια μπορεί ακόμη να ολοκληρωθεί.</value>
+  </data>
+  <data name="Locations.CreateEarlierUnconfirmed" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση παραμένει ανεπιβεβαίωτη. Κρατήστε ανοιχτή τη φόρμα και επαναλάβετε την αρχική προσπάθεια.</value>
+  </data>
+  <data name="Locations.CreateInvalid" xml:space="preserve">
+    <value>Διορθώστε τα σφάλματα στα πεδία. Αυτή η υποβολή δεν δημιούργησε καταγραφή τοποθεσίας.</value>
+  </data>
+  <data name="Locations.CreateSaved" xml:space="preserve">
+    <value>Η καταγραφή τοποθεσίας αποθηκεύτηκε.</value>
+  </data>
+  <data name="Locations.CreateFound" xml:space="preserve">
+    <value>Βρέθηκε η αρχική καταγραφή. Δεν δημιουργήθηκε επιπλέον καταγραφή.</value>
+  </data>
+  <data name="Locations.CreateDifferent" xml:space="preserve">
+    <value>Η καταγραφή έχει ήδη δημιουργηθεί. Οι τρέχουσες αλλαγές της φόρμας δεν εφαρμόστηκαν και παραμένουν μη αποθηκευμένες. Ανοίξτε την αποθηκευμένη καταγραφή για να εφαρμόσετε τις αλλαγές.</value>
+  </data>
+  <data name="Locations.NotFound" xml:space="preserve">
+    <value>Η καταγραφή τοποθεσίας δεν βρέθηκε.</value>
+  </data>
+  <data name="Locations.BindingInvalid" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη τιμή για αυτό το πεδίο.</value>
+  </data>
+  <data name="Locations.LatitudeInvalid" xml:space="preserve">
+    <value>Το γεωγραφικό πλάτος πρέπει να είναι πεπερασμένος αριθμός μεταξύ -90 και 90.</value>
+  </data>
+  <data name="Locations.LongitudeInvalid" xml:space="preserve">
+    <value>Το γεωγραφικό μήκος πρέπει να είναι πεπερασμένος αριθμός μεταξύ -180 και 180.</value>
+  </data>
+  <data name="Locations.Required" xml:space="preserve">
+    <value>Συμπληρώστε αυτό το πεδίο.</value>
+  </data>
+  <data name="Locations.AddressLength" xml:space="preserve">
+    <value>Το πεδίο διεύθυνσης δεν μπορεί να υπερβαίνει τους {1} χαρακτήρες.</value>
+  </data>
+  <data name="Locations.Recorded" xml:space="preserve">
+    <value>Καταγραφή: {0}</value>
+  </data>
+  <data name="Locations.RecordedZoneUnavailable" xml:space="preserve">
+    <value>Η ζώνη ώρας καταγραφής δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Locations.SourceZoneUnavailable" xml:space="preserve">
+    <value>Η αρχική ζώνη ώρας δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Locations.ViewerTime" xml:space="preserve">
+    <value>Ώρα προβολής</value>
+  </data>
+  <data name="Locations.RecordedTime" xml:space="preserve">
+    <value>Ώρα καταγραφής</value>
+  </data>
+  <data name="Locations.NoMatches" xml:space="preserve">
+    <value>Δεν βρέθηκαν καταγραφές που να ταιριάζουν με τα κριτήρια.</value>
+  </data>
+  <data name="Locations.LoadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των καταγραφών.</value>
+  </data>
+  <data name="Locations.StatsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των στατιστικών καταγραφών.</value>
+  </data>
+  <data name="Locations.Total" xml:space="preserve">
+    <value>Σύνολο καταγραφών τοποθεσίας</value>
+  </data>
+  <data name="Locations.Countries" xml:space="preserve">
+    <value>Χώρες</value>
+  </data>
+  <data name="Locations.Regions" xml:space="preserve">
+    <value>Περιοχές</value>
+  </data>
+  <data name="Locations.Cities" xml:space="preserve">
+    <value>Πόλεις</value>
+  </data>
+  <data name="Locations.Live" xml:space="preserve">
+    <value>ΖΩΝΤΑΝΗ ΤΟΠΟΘΕΣΙΑ</value>
+  </data>
+  <data name="Locations.Latest" xml:space="preserve">
+    <value>ΤΕΛΕΥΤΑΙΑ ΚΑΤΑΓΡΑΦΗ</value>
+  </data>
+  <data name="Locations.EditAction" xml:space="preserve">
+    <value>Επεξεργασία καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Locations.DeleteAction" xml:space="preserve">
+    <value>Διαγραφή καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Locations.Maps" xml:space="preserve">
+    <value>Χάρτες</value>
+  </data>
+  <data name="Locations.GoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="Locations.NoSelected" xml:space="preserve">
+    <value>Δεν έχουν επιλεγεί καταγραφές τοποθεσίας.</value>
+  </data>
+  <data name="Locations.BulkDelete.one" xml:space="preserve">
+    <value>Να διαγραφεί {0} επιλεγμένη καταγραφή με το τρέχον περιεχόμενό της; Αν χαθεί η απάντηση, ελέγξτε το ιστορικό πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Locations.BulkDelete.other" xml:space="preserve">
+    <value>Να διαγραφούν {0} επιλεγμένες καταγραφές με το τρέχον περιεχόμενό τους; Αν χαθεί η απάντηση, ελέγξτε το ιστορικό πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Locations.BulkDeleteUnknown" xml:space="preserve">
+    <value>Η μαζική διαγραφή δεν επιβεβαιώθηκε. Ανανεώστε το ιστορικό και ελέγξτε τις τρέχουσες καταγραφές πριν δοκιμάσετε ξανά. Η προηγούμενη ενέργεια μπορεί ακόμη να ολοκληρωθεί.</value>
+  </data>
+  <data name="Locations.BulkDeleteDone.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} καταγραφή τοποθεσίας.</value>
+  </data>
+  <data name="Locations.BulkDeleteDone.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} καταγραφές τοποθεσίας.</value>
+  </data>
+  <data name="Locations.SavingCreate" xml:space="preserve">
+    <value>Γίνεται αποθήκευση. Οι τρέχουσες αλλαγές παραμένουν διαθέσιμες μέχρι να επιβεβαιωθεί το αποτέλεσμα.</value>
+  </data>
+  <data name="Locations.CreateOwnerChanged" xml:space="preserve">
+    <value>Η συνεδρία σας άλλαξε. Η προσπάθεια παραμένει συνδεδεμένη με τον αρχικό λογαριασμό. Συνδεθείτε ξανά στον ίδιο λογαριασμό σε άλλη καρτέλα και ελέγξτε ξανά τη φόρμα. Κρατήστε αυτή τη σελίδα ανοιχτή.</value>
+  </data>
+  <data name="Locations.CreateOwnerUnknown" xml:space="preserve">
+    <value>Η αποθήκευση και ο λογαριασμός δεν επιβεβαιώθηκαν. Κρατήστε αυτή τη σελίδα ανοιχτή και ελέγξτε τον αρχικό λογαριασμό πριν επαναλάβετε. Αν χρειάζεται, συνδεθείτε ξανά στον ίδιο λογαριασμό σε άλλη καρτέλα.</value>
+  </data>
+  <data name="Locations.CreateOwnerRecheck" xml:space="preserve">
+    <value>Επανέλεγχος αρχικού λογαριασμού</value>
+  </data>
+  <data name="Locations.CreateOwnerRestored" xml:space="preserve">
+    <value>Η προηγούμενη αποθήκευση παραμένει ανεπιβεβαίωτη. Η επανάληψη χρησιμοποιεί το αρχικό UUID και τις αρχικές τιμές. Οι τρέχουσες αλλαγές δεν έχουν αποθηκευτεί.</value>
+  </data>
+  <data name="Locations.CreateNewerDraft" xml:space="preserve">
+    <value>Οι τρέχουσες αλλαγές δεν εφαρμόστηκαν και παραμένουν μη αποθηκευμένες. Ανοίξτε την αποθηκευμένη καταγραφή για επεξεργασία ή επαναλάβετε την αρχική αποθήκευση αν παραμένει ανεπιβεβαίωτη.</value>
+  </data>
+  <data name="Locations.EditUnavailable" xml:space="preserve">
+    <value>Ο επεξεργαστής, τα αποθηκευμένα αποδεικτικά ή ο τοπικός χώρος αποθήκευσης δεν είναι διαθέσιμα. Κρατήστε το προσχέδιο σε αυτή τη σελίδα. Δεν στάλθηκε αποθήκευση.</value>
+  </data>
+  <data name="Locations.Restored" xml:space="preserve">
+    <value>Το διατηρημένο προσχέδιο επανήλθε. Η αποθήκευση ελέγχει πρώτα κάθε προηγούμενη εκκρεμή ενέργεια.</value>
+  </data>
+  <data name="Locations.ZoneUnavailable" xml:space="preserve">
+    <value>μη διαθέσιμη για αυτό το προσχέδιο</value>
+  </data>
+  <data name="Locations.DraftStorageFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η διατήρηση του προσχεδίου σε αυτό το πρόγραμμα περιήγησης. Κρατήστε τη σελίδα ανοιχτή.</value>
+  </data>
+  <data name="Locations.ZoneRequired" xml:space="preserve">
+    <value>Εισαγάγετε ζώνη ώρας, π.χ. Europe/Athens ή UTC.</value>
+  </data>
+  <data name="Locations.ConfirmTime" xml:space="preserve">
+    <value>Να επιβεβαιωθεί αυτή η ερμηνεία της ώρας;&#10;Τοπική ώρα: {0}&#10;Ζώνη ώρας: {1}&#10;Εμφάνιση λόγω αλλαγής ώρας: {2}&#10;Στιγμή UTC: {3}&#10;Οι υπόλοιπες αλλαγές διατηρούνται. Η αποθήκευση θα ελέγξει πρώτα κάθε προηγούμενη εκκρεμή ενέργεια.</value>
+  </data>
+  <data name="Locations.TimeUnambiguous" xml:space="preserve">
+    <value>μοναδική</value>
+  </data>
+  <data name="Locations.TimeConfirmed" xml:space="preserve">
+    <value>Η ώρα και η ζώνη επιβεβαιώθηκαν και διατηρήθηκαν. Η αποθήκευση ελέγχει κάθε προηγούμενη εκκρεμή ενέργεια πριν από την υποβολή.</value>
+  </data>
+  <data name="Locations.TimeError" xml:space="preserve">
+    <value>Δεν ήταν δυνατό να επαληθευτούν η ώρα και η ζώνη. Ελέγξτε τις τιμές και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Locations.TimeNeedsZone" xml:space="preserve">
+    <value>Η ζώνη της αποθηκευμένης ώρας δεν είναι διαθέσιμη. Ελέγξτε την τοπική ώρα και την εμφάνισή της, εισαγάγετε τη ζώνη ώρας και επιλέξτε Έλεγχος ώρας και ζώνης.</value>
+  </data>
+  <data name="Locations.NoChanges" xml:space="preserve">
+    <value>Δεν έχουν επιλεγεί αλλαγές.</value>
+  </data>
+  <data name="Locations.Saving" xml:space="preserve">
+    <value>Γίνεται αποθήκευση…</value>
+  </data>
+  <data name="Locations.EditUnknown" xml:space="preserve">
+    <value>Η αλλαγή της καταγραφής δεν επιβεβαιώθηκε. Κρατήστε τη σελίδα ανοιχτή και ελέγξτε το προσχέδιο.</value>
+  </data>
+  <data name="Locations.Adopted" xml:space="preserve">
+    <value>Τα εμφανιζόμενα στοιχεία ορίστηκαν ως νέα αρχική βάση. Το προσχέδιο διατηρείται. Αποθηκεύστε για να υποβάλετε νέα ενέργεια με έλεγχο αλλαγών.</value>
+  </data>
+  <data name="Locations.AdoptFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η χρήση των τρεχόντων στοιχείων. Το προσχέδιο διατηρείται.</value>
+  </data>
+  <data name="Locations.InvalidWallTime" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη τοπική ημερομηνία και ώρα.</value>
+  </data>
+  <data name="Locations.MissingWallTime" xml:space="preserve">
+    <value>Αυτή η τοπική ώρα δεν υπάρχει στη ζώνη {0}. Επιλέξτε άλλη ώρα.</value>
+  </data>
+  <data name="Locations.DoubleWallTime" xml:space="preserve">
+    <value>Αυτή η τοπική ώρα εμφανίζεται δύο φορές στη ζώνη {0}. Επιλέξτε την πρώτη ή τη δεύτερη εμφάνιση.</value>
+  </data>
+  <data name="Locations.CoordinatesRequired" xml:space="preserve">
+    <value>Απαιτούνται και οι δύο συντεταγμένες.</value>
+  </data>
+  <data name="Locations.CoordinatesFinite" xml:space="preserve">
+    <value>Οι συντεταγμένες πρέπει να είναι πεπερασμένοι αριθμοί.</value>
+  </data>
+  <data name="Locations.Export" xml:space="preserve">
+    <value>Εξαγωγή δεδομένων τοποθεσίας</value>
+  </data>
+  <data name="Locations.ExportHelp" xml:space="preserve">
+    <value>Εξαγάγετε όλα τα δεδομένα τοποθεσίας σε μία από τις μορφές CSV, GPX, GeoJSON ή KML.</value>
+  </data>
+  <data name="Locations.ExportFormats" xml:space="preserve">
+    <value>GeoJSON για χάρτες και λογισμικό GIS, CSV για υπολογιστικά φύλλα, GPX για συσκευές GPS, KML για το Google Earth.</value>
+  </data>
+  <data name="Locations.Direction.N" xml:space="preserve">
+    <value>Β</value>
+  </data>
+  <data name="Locations.Direction.NE" xml:space="preserve">
+    <value>ΒΑ</value>
+  </data>
+  <data name="Locations.Direction.E" xml:space="preserve">
+    <value>Α</value>
+  </data>
+  <data name="Locations.Direction.SE" xml:space="preserve">
+    <value>ΝΑ</value>
+  </data>
+  <data name="Locations.Direction.S" xml:space="preserve">
+    <value>Ν</value>
+  </data>
+  <data name="Locations.Direction.SW" xml:space="preserve">
+    <value>ΝΔ</value>
+  </data>
+  <data name="Locations.Direction.W" xml:space="preserve">
+    <value>Δ</value>
+  </data>
+  <data name="Locations.Direction.NW" xml:space="preserve">
+    <value>ΒΔ</value>
+  </data>
+  <data name="Locations.AuthorBlog" xml:space="preserve">
+    <value>Δείτε το ιστολόγιό μου</value>
+  </data>
+  <data name="Locations.BulkDeleteNoMatches" xml:space="preserve">
+    <value>Δεν βρέθηκαν καταγραφές για διαγραφή.</value>
+  </data>
+  <data name="Locations.BulkDeleteNoIds" xml:space="preserve">
+    <value>Δεν υποβλήθηκαν καταγραφές για διαγραφή.</value>
+  </data>
+  <data name="Locations.ActivityNoResults" xml:space="preserve">
+    <value>Δεν βρέθηκαν δραστηριότητες που να ταιριάζουν στην αναζήτηση.</value>
+  </data>
+  <data name="Locations.LatestMarker" xml:space="preserve">
+    <value>Τελευταία καταγραφή τοποθεσίας του χρήστη.</value>
+  </data>
+  <data name="Locations.SelectedMarker" xml:space="preserve">
+    <value>Επιλεγμένη τοποθεσία</value>
+  </data>
+</root>

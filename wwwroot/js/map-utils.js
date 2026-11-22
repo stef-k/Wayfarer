@@ -1,3 +1,4 @@
+import { registerLanguageDraft } from './localization/languageNavigation.js';
 import { message, number } from './localization/messages.js';
 import { formatMapDistance, measureInstructions } from './localization/mapMeasurementText.js';
 
@@ -38,6 +39,8 @@ const ZoomLevelControl = L.Control.extend({
 
         let measureActive = false;
         let currentTool = null;
+        // Language navigation queries the same owner that controls the ruler and its drawn layers.
+        if (this.options.protectLanguage) this.releaseDraft = registerLanguageDraft(() => measureActive);
 
         L.DomEvent.on(measureBtn, 'click', (e) => {
             L.DomEvent.stopPropagation(e);
@@ -111,13 +114,14 @@ const ZoomLevelControl = L.Control.extend({
         return container;
     },
 
-    onRemove: function (map) {
-        // No cleanup needed - CSS handles theming
+    onRemove: function () {
+        this.releaseDraft?.();
     }
 });
 
-export const addZoomLevelControl = (map) => {
-    const zoomLevelControl = new ZoomLevelControl({ position: 'topright' });
+/** Mounts the shared map control with draft awareness on integrated history routes. */
+export const addZoomLevelControl = (map, { protectLanguage = false } = {}) => {
+    const zoomLevelControl = new ZoomLevelControl({ position: 'topright', protectLanguage });
     map.addControl(zoomLevelControl);
 };
 

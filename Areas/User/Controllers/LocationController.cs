@@ -76,7 +76,7 @@ namespace Wayfarer.Areas.User.Controllers
                 if (location == null)
                 {
                     _logger.LogWarning("Edit[GET] Location not found (Id={Id}, User={User})", id, userId);
-                    SetAlert("Location not found.", "danger");
+                    SetAlert("Location not found.", "danger", "Locations.NotFound");
                     return RedirectToAction("Index");
                 }
 
@@ -325,7 +325,8 @@ namespace Wayfarer.Areas.User.Controllers
             await _dbContext.SaveChangesAsync();
             if (bulkTransaction != null) await bulkTransaction.CommitAsync(HttpContext.RequestAborted);
 
-            SetAlert($"{model.AffectedCount} location(s) updated.", "success");
+            SetAlert($"{model.AffectedCount} location(s) updated.", "success", "Locations.BulkUpdated");
+            TempData["WebAlertCount"] = list.Count;
 
             var allLocations2 = _dbContext.Locations.Where(l => l.UserId == userId2);
 

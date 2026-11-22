@@ -65,4 +65,4 @@ export const renderLocationAddress = (location, fallback) => {
 
 /** Encodes an individual address component in Location tables, retaining the missing-data icon. */
 export const renderAddressComponent = (value, label) => value ? encodeFeatureText(value)
-    : `<i class="bi bi-patch-question" title="No available data for ${encodeFeatureText(label)}"></i>`;
+    : `<i class="bi bi-patch-question" title="${encodeFeatureText(message('Shell.MissingData', 'No available data for {0}', label))}"></i>`;

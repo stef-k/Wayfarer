@@ -265,7 +265,7 @@ const mountedForm = async (zone = 'Europe/Athens') => {
     const status = { textContent: '' }, listeners = {}, editorListeners = {}, clicks = {}, button = { disabled: false };
     globalThis.confirm = () => true;
     const elements = { 'browser-antiforgery': { dataset: { subjectId: 'owner-a' } }, 'location-save-status': status,
-        timeAmbiguity: { value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} },
+        timeAmbiguity: { selectedOptions: [], value: '' }, 'location-input-time-zone': { textContent: zone }, 'location-adopt-current': { addEventListener: () => {} },
         'location-time-recovery': { hidden: true }, 'location-recovery-zone': { value: '' },
         'location-confirm-time-zone': { addEventListener: (_type, callback) => { clicks.confirmZone = callback; } } };
     globalThis.document = { getElementById: id => elements[id], querySelector: () => ({ value: 'csrf' }),
@@ -308,7 +308,7 @@ test('missing-zone time recovery explicitly confirms and retains the intended in
     f.confirmZone();
     assert.match(f.status.textContent, /occurs twice/);
     assert.deepEqual(locationWork(421).draft, before, 'ambiguous time requires an explicit occurrence');
-    f.elements.timeAmbiguity.value = 'later'; f.input();
+    f.elements.timeAmbiguity.value = 'later'; f.elements.timeAmbiguity.selectedOptions = [{ textContent: 'Later occurrence' }]; f.input();
     const reviewed = locationWork(421).draft;
     let confirmation;
     globalThis.confirm = message => { confirmation = message; return true; };
@@ -317,7 +317,7 @@ test('missing-zone time recovery explicitly confirms and retains the intended in
     assert.notEqual(recovered.generation, reviewed.generation);
     assert.deepEqual(recovered.value, { ...reviewed.value, inputTimeZone: 'Europe/Athens' });
     assert.match(confirmation, /2026-10-25T03:30:00.123456/); assert.match(confirmation, /Europe\/Athens/);
-    assert.match(confirmation, /later/); assert.match(confirmation, /2026-10-25T01:30:00.123456Z/);
+    assert.match(confirmation, /Later occurrence/); assert.match(confirmation, /2026-10-25T01:30:00.123456Z/);
     assert.equal(calls, 0); assert.equal(locationWork(421).attempts.length, 0);
     // A full remount uses durable interpretation, even when the server renders a different zone.
     f.elements.timeAmbiguity.value = ''; f.mount();
@@ -407,7 +407,7 @@ test('missing-zone confirmation cannot unblock a time save when durable persiste
     globalThis.localStorage.setItem = () => { throw new Error('storage unavailable'); };
     let calls = 0; globalThis.fetch = async () => { calls++; throw new Error('No dispatch'); };
     f.elements['location-recovery-zone'].value = 'Europe/Athens'; f.confirmZone();
-    assert.match(f.status.textContent, /storage unavailable/);
+    assert.match(f.status.textContent, /Could not retain the draft in this browser/);
     assert.deepEqual(locationWork(421), before);
     await f.submit(); assert.equal(calls, 0);
     assert.equal(f.elements['location-time-recovery'].hidden, false);
@@ -783,7 +783,8 @@ test('actual page map picks retain both programmatic coordinates through the edi
     const { mountProtectedLocationForm } = await import('../../wwwroot/js/util/location-edit-form.js');
     const source = await readFile(new URL('../../ClientApps/rich-notes/location-edit.js', import.meta.url), 'utf8');
     vm.runInNewContext(source.replace(/^import .*;$/gm, ''), { document, Event, window: { addEventListener() {} },
-        mountProtectedLocationForm, mountRazorNotes: () => f.notesEditor, createTileLayer: () => ({ addTo: () => {} }),
+        mountProtectedLocationForm, mountRazorNotes: () => f.notesEditor,
+        message: (_key, fallback) => fallback, installLocationMapControls() {}, mountLocationActivitySelect() {}, createTileLayer: () => ({ addTo: () => {} }),
         L: { map: () => map, marker: () => ({ addTo: () => ({ remove: () => {} }) }) } });
     ready();
     pick({ latlng: { lat: 51.5, lng: 0 } });

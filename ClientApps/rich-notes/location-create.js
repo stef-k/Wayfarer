@@ -1,18 +1,23 @@
+import { message } from '../../wwwroot/js/localization/messages.js';
+import { installLocationMapControls } from '../../wwwroot/js/util/location-map-controls.js';
+import { mountLocationActivitySelect } from '../../wwwroot/js/util/location-activity-select.js';
 import { mountRazorNotes } from './razor';
 import { attachLocationCreate } from '../../wwwroot/js/util/location-create.js';
 import { createTileLayer } from '../../wwwroot/js/retryTileLayer.js';
 
+/** Mount the draft anew when an acknowledged response redisplays the existing form. */
 const mountLocationCreate = () => {
-
+    let mapContainer;
     if (typeof L !== 'undefined') {
         // Initialize the map with a global zoom level (default zoom level for demonstration)
-        var mapContainer = L.map('mapContainer', {
+        mapContainer = L.map('mapContainer', {
+            zoomControl: false,
             zoomAnimation: true
         }).setView([51.505, -0.09], 2); // Default view (Global zoom)
 
         // Add the tile layer from the cache proxy.
         createTileLayer().addTo(mapContainer);
-        mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+        installLocationMapControls(mapContainer);
         // Marker variable to store the placed marker
         var marker;
 
@@ -29,7 +34,7 @@ const mountLocationCreate = () => {
             }
 
             // Place a new marker
-            marker = L.marker([lat, lng]).addTo(mapContainer);
+            marker = L.marker([lat, lng], { alt: message('Locations.SelectedMarker', 'Selected location') }).addTo(mapContainer);
 
             // Update the Coordinates input field with the selected latitude and longitude
             document.getElementById('Latitude').value = lat.toFixed(8);  // Limit to 8 decimal places
@@ -82,34 +87,7 @@ const mountLocationCreate = () => {
     });
     window.addEventListener('pagehide', event => { if (!event.persisted) notes.dispose(); });
 
-    // Initialize TomSelect on Activity dropdown with API-based loading
-    if (typeof TomSelect !== 'undefined') {
-        const activitySelect = document.getElementById('activitySelect');
-        if (activitySelect) {
-            const apiUrl = activitySelect.dataset.apiUrl || '/api/activity';
-            new TomSelect(activitySelect, {
-                valueField: 'id',
-                labelField: 'name',
-                searchField: ['name', 'description'],
-                create: false,
-                sortField: { field: 'name', direction: 'asc' },
-                placeholder: 'Search for an activity...',
-                allowEmptyOption: true,
-                preload: 'focus',
-                load: function(query, callback) {
-                    fetch(apiUrl)
-                        .then(response => response.json())
-                        .then(data => {
-                            callback(data);
-                        })
-                        .catch(() => {
-                            callback();
-                        });
-                }
-            });
-        }
-    }
-
+    mountLocationActivitySelect(document.getElementById('activitySelect'));
 };
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mountLocationCreate, { once: true });

@@ -1,7 +1,9 @@
+import { message } from '../localization/messages.js';
+
 /** Resolves a wall time in the edit-start zone; nonexistent/ambiguous DST times never silently pick an instant. */
 export const locationWallTimeUtc = (wall, zone, ambiguity = '') => {
     const match = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)(?::(\d\d)(\.\d{1,6})?)?$/.exec(wall);
-    if (!match) throw new Error('Enter a valid local date and time.');
+    if (!match) throw new Error(message('Locations.InvalidWallTime', 'Enter a valid local date and time.'));
     const [, year, month, day, hour, minute, seconds = '00', fraction = ''] = match;
     const base = new Date(0);
     base.setUTCFullYear(Number(year), Number(month) - 1, Number(day));
@@ -19,8 +21,8 @@ export const locationWallTimeUtc = (wall, zone, ambiguity = '') => {
         offsets.add(Date.parse(`${formatted(probe)}Z`) - probe);
     }
     const candidates = [...offsets].map(offset => nominal - offset).filter(value => formatted(value) === wanted).sort((a, b) => a - b);
-    if (!candidates.length) throw new Error(`That local time does not exist in ${zone}. Choose another time.`);
-    if (candidates.length > 1 && !['earlier', 'later'].includes(ambiguity)) throw new Error(`That local time occurs twice in ${zone}. Choose earlier or later.`);
+    if (!candidates.length) throw new Error(message('Locations.MissingWallTime', 'That local time does not exist in {0}. Choose another time.', zone));
+    if (candidates.length > 1 && !['earlier', 'later'].includes(ambiguity)) throw new Error(message('Locations.DoubleWallTime', 'That local time occurs twice in {0}. Choose earlier or later.', zone));
     const chosen = candidates[ambiguity === 'later' ? candidates.length - 1 : 0];
     return new Date(chosen).toISOString().replace('.000Z', `${fraction}Z`);
 };
@@ -30,9 +32,9 @@ export const locationEditCommand = (initial, current, explicitManual, clearNotes
     const changes = {};
     const groups = new Set(['uuid']);
     if (Number(current.Latitude) !== Number(initial.Latitude) || Number(current.Longitude) !== Number(initial.Longitude)) {
-        if (!current.Latitude.trim() || !current.Longitude.trim()) throw new Error('Both coordinates are required.');
+        if (!current.Latitude.trim() || !current.Longitude.trim()) throw new Error(message('Locations.CoordinatesRequired', 'Both coordinates are required.'));
         changes.position = { op: 'set', latitude: Number(current.Latitude), longitude: Number(current.Longitude) };
-        if (!Number.isFinite(changes.position.latitude) || !Number.isFinite(changes.position.longitude)) throw new Error('Coordinates must be finite.');
+        if (!Number.isFinite(changes.position.latitude) || !Number.isFinite(changes.position.longitude)) throw new Error(message('Locations.CoordinatesFinite', 'Coordinates must be finite.'));
         groups.add('position'); groups.add('address');
     }
     if (current.LocalTimestamp !== initial.LocalTimestamp) {

@@ -68,7 +68,7 @@ public static class LanguageNavigation
             "APITOKEN" => true,
             "TRIP" => action?.ToUpperInvariant() is "INDEX" or "COMPOSE" or "COPY" or "IMPORT" or "REVIEWIMPORT",
             "TIMELINECALENDAR" => true,
-            "LOCATION" => true,
+            "LOCATION" => action?.ToUpperInvariant() is not ("INDEX" or "ALLLOCATIONS"),
             _ => false
         };
     }
