@@ -221,10 +221,10 @@ public sealed class RichNotesTests
         Assert.Equal(0, directRequests);
     }
 
-    /// <summary>Uses real DOM parsing to keep note-derived and Group description text inert in JS templates.</summary>
+    /// <summary>Uses real DOM parsing to keep note-derived popup text inert in the JavaScript template.</summary>
     [Fact]
     [Trait("Category", "RequiresPlaywright")]
-    public async Task BrowserNegative_PopupAndGroupTextCannotBecomeMarkup()
+    public async Task BrowserNegative_PopupTextCannotBecomeMarkup()
     {
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
         using var playwright = await Playwright.CreateAsync();
@@ -233,10 +233,9 @@ public sealed class RichNotesTests
         await page.RouteAsync("http://notes.test/**", async route =>
         {
             var path = new Uri(route.Request.Url).AbsolutePath;
-            var body = path == "/" ? "<table><tbody id='groupsBody'></tbody></table>"
-                : path == "/api/groups" ? "[{\"id\":\"group\",\"name\":\"Group\",\"description\":\"<img src=x onerror=window.executed=true>\"}]"
+            var body = path == "/" ? "<main></main>"
                 : await File.ReadAllTextAsync(Path.Combine(root, "wwwroot", path.TrimStart('/')));
-            await route.FulfillAsync(new() { Body = body, ContentType = path.EndsWith(".js") ? "text/javascript" : path == "/api/groups" ? "application/json" : "text/html" });
+            await route.FulfillAsync(new() { Body = body, ContentType = path.EndsWith(".js") ? "text/javascript" : "text/html" });
         });
         await page.GotoAsync("http://notes.test/");
         await page.EvaluateAsync("""
@@ -246,11 +245,8 @@ public sealed class RichNotesTests
                     notes:'&lt;img src=x onerror=window.executed=true&gt;'}));
             }
             """);
-        await page.AddScriptTagAsync(new() { Url = "http://notes.test/js/Areas/User/Groups/Index.js" });
-        await page.WaitForFunctionAsync("() => document.querySelector('#groupsBody tr') !== null");
         Assert.Equal(0, await page.Locator("img, [onerror]").CountAsync());
         Assert.Contains("<img", await page.Locator(".popup-notes").InnerTextAsync());
-        Assert.Contains("<img", await page.Locator("#groupsBody").InnerTextAsync());
         Assert.False(await page.EvaluateAsync<bool>("() => window.executed === true"));
     }
 

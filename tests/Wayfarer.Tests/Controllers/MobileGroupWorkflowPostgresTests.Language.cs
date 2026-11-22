@@ -11,7 +11,7 @@ namespace Wayfarer.Tests.Controllers;
 
 public sealed partial class MobileGroupWorkflowPostgresTests
 {
-    /// <summary>Greek action visibility follows active Group roles and the same duplicate rule governs both invite routes.</summary>
+    /// <summary>Checks localized role actions, plain-text descriptions, and matching invite refusals.</summary>
     [PostgresFact]
     public async Task GroupWebLanguage_PreservesActionsAndLocalizesRedirectDestination()
     {
@@ -21,7 +21,8 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         var member = await SeedBearerAsync(db);
         var invitee = await SeedBearerAsync(db);
         var name = $"Group <{Guid.NewGuid():N}>";
-        var group = await new GroupService(db).CreateGroupAsync(owner, name, null, "Organization");
+        const string description = "Group <strong>description</strong> & notes";
+        var group = await new GroupService(db).CreateGroupAsync(owner, name, description, "Organization");
         db.GroupMembers.AddRange(
             new GroupMember { GroupId = group.Id, UserId = manager, Role = GroupMember.Roles.Manager },
             new GroupMember { GroupId = group.Id, UserId = member, Role = GroupMember.Roles.Member });
@@ -48,6 +49,9 @@ public sealed partial class MobileGroupWorkflowPostgresTests
         Assert.Null(managerIndex.QuerySelector(selector + " a[href*='/Edit/']"));
         Assert.Null(managerIndex.QuerySelector(selector + " form"));
         var memberIndex = await GroupDocumentAsync(await memberWeb.GetAsync("/User/Groups"));
+        var descriptionCell = Assert.IsAssignableFrom<IElement>(memberIndex.QuerySelector(selector + " td:nth-child(2)"));
+        Assert.Equal(description, descriptionCell.TextContent);
+        Assert.Empty(descriptionCell.Children);
         Assert.Equal("Χάρτης", memberIndex.QuerySelector(selector + " a[href*='/Map']")?.TextContent);
         Assert.Equal("Αποχώρηση", memberIndex.QuerySelector(selector + " .js-leave")?.TextContent);
         Assert.Null(memberIndex.QuerySelector(selector + " a[href*='/Members']"));
