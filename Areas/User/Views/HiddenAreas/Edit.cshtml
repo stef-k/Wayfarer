@@ -1,138 +1,46 @@
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.HiddenAreaEditViewModel
 @{
-    ViewData["Title"] = "Edit Hidden Area";
-    Layout = "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = T["HiddenAreas.Edit"];
     ViewData["BodyClass"] = "container";
     ViewData["LoadLeaflet"] = true;
+    ViewData["WebCatalog"] = "HiddenAreas";
+    // A validation result can return to the owning GET after discard consent.
+    ViewData["LanguageSafeGet"] = Url.Action("Edit", "HiddenAreas", new { area = "User", id = Model.Id });
 }
 
-<h2>Edit Hidden Area</h2>
+<h2>@ViewData["Title"]</h2>
 
 <form asp-area="User" asp-controller="HiddenAreas" asp-action="Edit" method="post">
     <input type="hidden" asp-for="Id"/>
 
     <div class="form-group">
-        <label asp-for="Name"></label>
+        <label asp-for="Name">@T["HiddenAreas.Name"]</label>
         <input asp-for="Name" class="form-control"/>
         <span asp-validation-for="Name" class="text-danger"></span>
     </div>
 
     <div class="form-group">
-        <label asp-for="Description"></label>
+        <label asp-for="Description">@T["HiddenAreas.Description"]</label>
         <textarea asp-for="Description" class="form-control"></textarea>
         <span asp-validation-for="Description" class="text-danger"></span>
     </div>
 
+    @* The polygon editor reads and updates the model-bound WKT field. *@
     <div class="form-group">
-        <label>Edit Hidden Area on Map</label>
-        <div id="map" style="height: 550px" class="border rounded"></div>
-        <input type="hidden" asp-for="AreaWKT" id="areaInput"/>
+        <div id="area-map-label">@T["HiddenAreas.EditMap"]</div>
+        <div id="hidden-area-map" role="region" aria-labelledby="area-map-label" aria-describedby="area-map-help"
+             data-create="false" style="height: 550px;" class="border rounded mb-2"></div>
+        <input type="hidden" asp-for="AreaWKT" id="areaInput" />
         <span asp-validation-for="AreaWKT" class="text-danger"></span>
-        <span class="form-text text-muted">Edit or redraw the hidden area polygon.</span>
+        <span id="area-map-error" class="text-danger" role="alert" hidden>@T["HiddenAreas.InvalidDrawing"]</span>
+        <small id="area-map-help" class="form-text text-muted">@T["HiddenAreas.EditHelp"]</small>
     </div>
 
-    <button type="submit" class="btn btn-primary">Save</button>
-    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary">@T["HiddenAreas.Save"]</button>
+    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">@T["Shell.Cancel"]</a>
 </form>
 
 @section Scripts {
-    <script>
-        const map = L.map('map').setView([0, 0], 2);
-
-        // Map tiles config (proxy URL + attribution) injected by layout.
-        const tilesConfig = window.wayfarerTileConfig || {};
-        const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-        const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
-
-        const tileLayer = L.tileLayer(tilesUrl, {
-            maxZoom: 19,
-            attribution: tilesAttribution
-        }).addTo(map);
-
-        // Retry failed tiles with backoff (max 5 attempts, matching retryTileLayer.js).
-        // Inline fallback for views that cannot use ES module imports.
-        // Note: unlike retryTileLayer.js (which uses fetch() to detect 503 vs 404),
-        // this img-based approach retries ALL errors indiscriminately. Acceptable for
-        // these admin-only views with low traffic — worst case is 5 wasted retries
-        // per genuinely missing tile.
-        (function () {
-            var retryCounts = {};
-            tileLayer.on('tileerror', function (e) {
-                var src = e.tile.src;
-                if (!src) return;
-                var key = src.split('?')[0];
-                retryCounts[key] = (retryCounts[key] || 0) + 1;
-                if (retryCounts[key] <= 5) {
-                    setTimeout(function () {
-                        e.tile.src = src;
-                    }, 1000 * Math.pow(2, retryCounts[key] - 1));
-                }
-            });
-        })();
-
-        map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
-
-        const drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
-
-        const drawControl = new L.Control.Draw({
-            draw: false,
-            edit: {
-                featureGroup: drawnItems,
-                edit: true,
-                remove: true
-            }
-        });
-        map.addControl(drawControl);
-
-        // Load existing WKT polygon into map
-        const wkt = @Html.Raw(Json.Serialize(Model.AreaWKT?.Replace("POLYGON ((", "POLYGON((").Replace("\n", "").Replace("\r", "") ?? ""));
-
-        if (wkt.startsWith("POLYGON")) {
-            try {
-                const raw = wkt
-                    .replace("POLYGON((", "")
-                    .replace("))", "")
-                    .trim();
-
-                const coords = raw
-                    .split(",")
-                    .map(pair => {
-                        const [lngStr, latStr] = pair.trim().split(/\s+/);
-                        const lng = parseFloat(lngStr);
-                        const lat = parseFloat(latStr);
-                        if (isNaN(lat) || isNaN(lng)) throw new Error("Invalid coordinates");
-                        return [lat, lng]; // [lat, lng] for Leaflet
-                    });
-
-                const polygon = L.polygon(coords);
-                drawnItems.addLayer(polygon);
-                map.fitBounds(polygon.getBounds());
-
-                document.getElementById('areaInput').value = wkt;
-            } catch (err) {
-                console.error("WKT parsing error:", err, "WKT:", wkt);
-            }
-
-
-        }
-
-        function updateWktFromLayer(layer) {
-            const latlngs = layer.getLatLngs()[0];
-            let wkt = "POLYGON((";
-            for (let i = 0; i < latlngs.length; i++) {
-                wkt += `${latlngs[i].lng} ${latlngs[i].lat}, `;
-            }
-            wkt += `${latlngs[0].lng} ${latlngs[0].lat}))`;
-            document.getElementById('areaInput').value = wkt;
-        }
-
-        map.on(L.Draw.Event.EDITED, function (e) {
-            e.layers.eachLayer(updateWktFromLayer);
-        });
-
-        map.on(L.Draw.Event.DELETED, function () {
-            document.getElementById('areaInput').value = "";
-        });
-    </script>
+    <script type="module" src="~/js/Areas/User/HiddenAreas/drawing.js" asp-append-version="true"></script>
 }

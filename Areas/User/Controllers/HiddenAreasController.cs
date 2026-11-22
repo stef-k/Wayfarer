@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO;
 using NetTopologySuite.Geometries;
 using NetTopologySuite;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 
@@ -14,12 +15,16 @@ namespace Wayfarer.Areas.User.Controllers
     [Authorize(Roles = "User")]
     public class HiddenAreasController : BaseController
     {
-        public HiddenAreasController(ILogger<BaseController> logger, ApplicationDbContext dbContext)
+        private readonly WebMessages _text;
+
+        /// <summary>Creates the owner-scoped Hidden Areas controller.</summary>
+        public HiddenAreasController(ILogger<BaseController> logger, ApplicationDbContext dbContext, WebMessages text)
             : base(logger, dbContext)
         {
+            _text = text;
         }
 
-        // GET: User/HiddenAreas
+        /// <summary>Displays the owner’s hidden areas.</summary>
         public async Task<IActionResult> Index()
         {
             var userId = User.Identity?.Name;
@@ -30,31 +35,29 @@ namespace Wayfarer.Areas.User.Controllers
             return View(user?.HiddenAreas.ToList() ?? new List<HiddenArea>());
         }
 
-        // GET: User/HiddenAreas/Create
+        /// <summary>Displays a blank drawing form.</summary>
         public IActionResult Create()
         {
             var model = new HiddenAreaCreateViewModel();
             return View(model);
         }
 
-
-        // POST: User/HiddenAreas/Create
+        /// <summary>Saves a new hidden area with the drawing’s coordinates.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(HiddenAreaCreateViewModel vm)
         {
-            if (!ModelState.IsValid || string.IsNullOrWhiteSpace(vm.AreaWKT))
-            {
-                ModelState.AddModelError("AreaWKT", "Please draw a polygon area.");
+            if (string.IsNullOrWhiteSpace(vm.AreaWKT) && !ModelState.ContainsKey(nameof(vm.AreaWKT)))
+                ModelState.AddModelError(nameof(vm.AreaWKT), _text["HiddenAreas.DrawRequired"]);
+            if (!ModelState.IsValid)
                 return View(vm);
-            }
 
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId))
                 {
-                    SetAlert("User not authenticated.", "danger");
+                    SetAlert("User not authenticated.", "danger", "Settings.UserUnauthenticated");
                     return RedirectToAction("Index", "Home", new { area = "" });
                 }
 
@@ -70,24 +73,23 @@ namespace Wayfarer.Areas.User.Controllers
                 _dbContext.HiddenAreas.Add(hiddenArea);
                 await _dbContext.SaveChangesAsync();
 
-                SetAlert("Hidden area added successfully.", "success");
+                SetAlert("Hidden area added successfully.", "success", "HiddenAreas.Added");
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                SetAlert("Failed to add hidden area.", "error");
-                HandleError(ex);
+                HandleError(ex, "HiddenAreas.AddFailed");
                 return View(vm);
             }
         }
 
-// GET Edit
+        /// <summary>Loads an owned area for editing.</summary>
         public async Task<IActionResult> Edit(int id)
         {
             var userId = User.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetAlert("User not authenticated.", "danger", "Settings.UserUnauthenticated");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -111,7 +113,7 @@ namespace Wayfarer.Areas.User.Controllers
             return View(vm);
         }
 
-// POST Edit
+        /// <summary>Saves changes to an owned area.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(HiddenAreaEditViewModel vm)
@@ -124,7 +126,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetAlert("User not authenticated.", "danger", "Settings.UserUnauthenticated");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -142,7 +144,7 @@ namespace Wayfarer.Areas.User.Controllers
                 var polygon = ReadDrawingGeometry(vm.AreaWKT) as Polygon;
                 if (polygon == null)
                 {
-                    SetAlert("Invalid area geometry.", "error");
+                    SetAlert("Invalid area geometry.", "danger", "HiddenAreas.InvalidGeometry");
                     return View(vm);
                 }
                 // Validate before mutating tracked data: HandleError also saves its audit entry.
@@ -152,13 +154,12 @@ namespace Wayfarer.Areas.User.Controllers
 
                 await _dbContext.SaveChangesAsync();
 
-                SetAlert("Hidden area updated successfully.", "success");
+                SetAlert("Hidden area updated successfully.", "success", "HiddenAreas.Updated");
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
-                SetAlert("Failed to update hidden area.", "error");
-                HandleError(ex);
+                HandleError(ex, "HiddenAreas.UpdateFailed");
                 return View(vm);
             }
         }
@@ -176,7 +177,7 @@ namespace Wayfarer.Areas.User.Controllers
             return geometry;
         }
 
-        // GET: User/HiddenAreas/Delete/5
+        /// <summary>Confirms deletion of an owned area.</summary>
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null)
@@ -185,7 +186,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetAlert("User not authenticated.", "danger", "Settings.UserUnauthenticated");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -199,7 +200,7 @@ namespace Wayfarer.Areas.User.Controllers
             return View(hiddenArea);
         }
 
-        // POST: User/HiddenAreas/Delete/5
+        /// <summary>Deletes the area only when it belongs to the caller.</summary>
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -207,7 +208,7 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.Identity?.Name;
             if (string.IsNullOrEmpty(userId))
             {
-                SetAlert("User not authenticated.", "danger");
+                SetAlert("User not authenticated.", "danger", "Settings.UserUnauthenticated");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
@@ -219,7 +220,7 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 _dbContext.HiddenAreas.Remove(hiddenArea);
                 await _dbContext.SaveChangesAsync();
-                SetAlert("Hidden area deleted successfully.");
+                SetAlert("Hidden area deleted successfully.", "success", "HiddenAreas.Deleted");
             }
 
             return RedirectToAction(nameof(Index));

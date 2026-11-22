@@ -1,0 +1,111 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Connection.Title" xml:space="preserve">
+    <value>Σύνδεση εφαρμογών στο Wayfarer</value>
+  </data>
+  <data name="Connection.ShortTitle" xml:space="preserve">
+    <value>Σύνδεση εφαρμογών</value>
+  </data>
+  <data name="Connection.Intro" xml:space="preserve">
+    <value>Συνδέστε το WayfarerMobile, καταγραφείς GPS ή άλλες εφαρμογές με τον λογαριασμό σας στο Wayfarer.</value>
+  </data>
+  <data name="Connection.Account" xml:space="preserve">
+    <value>Λογαριασμός:</value>
+  </data>
+  <data name="Connection.ServerAddress" xml:space="preserve">
+    <value>Διεύθυνση διακομιστή:</value>
+  </data>
+  <data name="Connection.CopyServer" xml:space="preserve">
+    <value>Αντιγραφή διεύθυνσης διακομιστή</value>
+  </data>
+  <data name="Connection.Token" xml:space="preserve">
+    <value>Διακριτικό σύνδεσης</value>
+  </data>
+  <data name="Connection.TokenHelp" xml:space="preserve">
+    <value>Το διακριτικό σύνδεσης (διακριτικό API) επιτρέπει σε μια αξιόπιστη εφαρμογή να διαβάζει και να αλλάζει τα δεδομένα σας μέσω των υποστηριζόμενων API του Wayfarer. Κρατήστε το μυστικό. Είναι ανεξάρτητο από τον κωδικό πρόσβασης, τον έλεγχο ταυτότητας δύο παραγόντων και τα προσωπικά κλειδιά παρόχων.</value>
+  </data>
+  <data name="Connection.Absent" xml:space="preserve">
+    <value>Δεν υπάρχει διακριτικό σύνδεσης</value>
+  </data>
+  <data name="Connection.Exists" xml:space="preserve">
+    <value>Υπάρχει διακριτικό σύνδεσης</value>
+  </data>
+  <data name="Connection.IssuedAt" xml:space="preserve">
+    <value>Τελευταία έκδοση: {0} UTC</value>
+  </data>
+  <data name="Connection.Create" xml:space="preserve">
+    <value>Δημιουργία διακριτικού σύνδεσης</value>
+  </data>
+  <data name="Connection.Replace" xml:space="preserve">
+    <value>Αντικατάσταση διακριτικού σύνδεσης</value>
+  </data>
+  <data name="Connection.ReplaceWarning" xml:space="preserve">
+    <value>Η αντικατάσταση ακυρώνει το παλιό διακριτικό για τα τηλέφωνα και τις άλλες εφαρμογές που το χρησιμοποιούν. Συνδέστε τα ξανά με το νέο διακριτικό.</value>
+  </data>
+  <data name="Connection.ConfirmReplace" xml:space="preserve">
+    <value>Αντικατάσταση διακριτικού και επανασύνδεση εφαρμογών</value>
+  </data>
+  <data name="Connection.RevealHelp" xml:space="preserve">
+    <value>Αντιγράψτε ή σαρώστε τώρα. Το διακριτικό εμφανίζεται μόνο μία φορά.</value>
+  </data>
+  <data name="Connection.CopyToken" xml:space="preserve">
+    <value>Αντιγραφή διακριτικού</value>
+  </data>
+  <data name="Connection.Hide" xml:space="preserve">
+    <value>Τέλος — απόκρυψη διακριτικού</value>
+  </data>
+  <data name="Connection.RecoveryHelp" xml:space="preserve">
+    <value>Αντιγράψτε ή σαρώστε πριν επιλέξετε «Τέλος» ή αποχωρήσετε από τη σελίδα. Οι εφαρμογές παραμένουν συνδεδεμένες μετά την απόκρυψη. Αν χάσετε το διακριτικό ή αν διαρρεύσει, αντικαταστήστε το και συνδέστε ξανά τις εφαρμογές σας.</value>
+  </data>
+  <data name="Connection.MobileHelp" xml:space="preserve">
+    <value>Χρησιμοποιήστε την επιλογή σάρωσης κωδικού QR στον οδηγό ρύθμισης της εφαρμογής ή εισαγάγετε χειροκίνητα τη διεύθυνση του διακομιστή και το διακριτικό.</value>
+  </data>
+  <data name="Connection.PairingQr" xml:space="preserve">
+    <value>Κωδικός QR για σύνδεση με το WayfarerMobile</value>
+  </data>
+  <data name="Connection.MobileGuide" xml:space="preserve">
+    <value>Ρύθμιση του WayfarerMobile</value>
+  </data>
+  <data name="Connection.Loggers" xml:space="preserve">
+    <value>Καταγραφείς GPS και άλλες εφαρμογές</value>
+  </data>
+  <data name="Connection.LoggerHelp" xml:space="preserve">
+    <value>Το GPSLogger του mendhak για Android μπορεί να στέλνει καταγραφές τοποθεσίας με αυτό το διακριτικό. Εφαρμογές που υποστηρίζουν προσαρμοσμένα αιτήματα JSON μέσω HTTPS με κεφαλίδα Authorization ενδέχεται επίσης να μπορούν να στέλνουν καταγραφές.</value>
+  </data>
+  <data name="Connection.LoggerGuide" xml:space="preserve">
+    <value>Χρήση καταγραφέων GPS και άλλων εφαρμογών</value>
+  </data>
+  <data name="Connection.IntegrationGuide" xml:space="preserve">
+    <value>Δημιουργία προσαρμοσμένης διασύνδεσης</value>
+  </data>
+  <data name="Connection.RefreshRequired" xml:space="preserve">
+    <value>Ανανεώστε τη σελίδα για να ελέγξετε την κατάσταση του διακριτικού σύνδεσης πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Connection.Unconfirmed" xml:space="preserve">
+    <value>Δεν είναι δυνατή η εμφάνιση του διακριτικού. Το αίτημα μπορεί να ολοκληρώθηκε και να διέκοψε τη σύνδεση εφαρμογών που χρησιμοποιούν το παλιό διακριτικό. Γίνεται έλεγχος της κατάστασης. Επιλέξτε αντικατάσταση αν χρειάζεται.</value>
+  </data>
+  <data name="Connection.PendingHide" xml:space="preserve">
+    <value>Το αίτημα μπορεί να έχει ήδη ολοκληρωθεί. Γίνεται έλεγχος της κατάστασης πριν από άλλη ενέργεια.</value>
+  </data>
+  <data name="Connection.Copied" xml:space="preserve">
+    <value>Αντιγράφηκε.</value>
+  </data>
+  <data name="Connection.CopyFailed" xml:space="preserve">
+    <value>Η αντιγραφή δεν ήταν διαθέσιμη. Επιλέξτε και αντιγράψτε χειροκίνητα την τιμή που εμφανίζεται.</value>
+  </data>
+  <data name="Connection.HttpsRequired" xml:space="preserve">
+    <value>Απαιτείται HTTPS για τη σύνδεση εφαρμογών. Διορθώστε τη ρύθμιση του διακομιστή ή του διαμεσολαβητή.</value>
+  </data>
+</root>

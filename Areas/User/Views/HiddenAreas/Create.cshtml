@@ -1,171 +1,44 @@
+@inject Wayfarer.Localization.WebMessages T
 @model Wayfarer.Models.ViewModels.HiddenAreaCreateViewModel
 @{
-ViewData["Title"] = "Add Hidden Area";
-Layout = "~/Views/Shared/_Layout.cshtml";
-ViewData["BodyClass"] = "container";
-ViewData["LoadLeaflet"] = true;  // Make sure your _Layout includes leaflet and leaflet.draw based on this
+    ViewData["Title"] = T["HiddenAreas.Add"];
+    ViewData["BodyClass"] = "container";
+    ViewData["LoadLeaflet"] = true;
+    ViewData["WebCatalog"] = "HiddenAreas";
+    // A validation result can return to the owning GET after discard consent.
+    ViewData["LanguageSafeGet"] = Url.Action("Create", "HiddenAreas", new { area = "User" });
 }
 
-<h2>Add Hidden Area</h2>
+<h2>@ViewData["Title"]</h2>
 
 <form asp-area="User" asp-controller="HiddenAreas" asp-action="Create" method="post" novalidate>
     <div class="form-group">
-        <label asp-for="Name"></label>
+        <label asp-for="Name">@T["HiddenAreas.Name"]</label>
         <input asp-for="Name" class="form-control" />
         <span asp-validation-for="Name" class="text-danger"></span>
     </div>
 
     <div class="form-group">
-        <label asp-for="Description"></label>
+        <label asp-for="Description">@T["HiddenAreas.Description"]</label>
         <textarea asp-for="Description" class="form-control"></textarea>
         <span asp-validation-for="Description" class="text-danger"></span>
     </div>
 
+    @* The polygon editor reads and updates the model-bound WKT field. *@
     <div class="form-group">
-        <label>Draw Hidden Area on Map</label>
-        <div id="map" style="height: 550px;" class="border rounded mb-2"></div>
-
-        <!-- Hidden input bound to AreaWKT property -->
+        <div id="area-map-label">@T["HiddenAreas.DrawMap"]</div>
+        <div id="hidden-area-map" role="region" aria-labelledby="area-map-label" aria-describedby="area-map-help"
+             data-create="true" style="height: 550px;" class="border rounded mb-2"></div>
         <input type="hidden" asp-for="AreaWKT" id="areaInput" />
         <span asp-validation-for="AreaWKT" class="text-danger"></span>
-        <small class="form-text text-muted">Use the polygon tool to draw the area to be hidden.</small>
+        <span id="area-map-error" class="text-danger" role="alert" hidden>@T["HiddenAreas.InvalidDrawing"]</span>
+        <small id="area-map-help" class="form-text text-muted">@T["HiddenAreas.DrawHelp"]</small>
     </div>
 
-    <button type="submit" class="btn btn-success">Save</button>
-    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">Cancel</a>
+    <button type="submit" class="btn btn-success">@T["HiddenAreas.Save"]</button>
+    <a asp-area="User" asp-controller="HiddenAreas" asp-action="Index" class="btn btn-secondary">@T["Shell.Cancel"]</a>
 </form>
 
 @section Scripts {
-<script>
-    // Initialize map centered roughly globally
-    const map = L.map('map').setView([0, 0], 3);
-
-    // Map tiles config (proxy URL + attribution) injected by layout.
-    const tilesConfig = window.wayfarerTileConfig || {};
-    const tilesUrl = tilesConfig.tilesUrl || `${window.location.origin}/Public/tiles/{z}/{x}/{y}.png`;
-    const tilesAttribution = tilesConfig.attribution || '&copy; OpenStreetMap contributors';
-
-    // Add tile layer from the cache proxy.
-    const tileLayer = L.tileLayer(tilesUrl, {
-        maxZoom: 19,
-        attribution: tilesAttribution
-    }).addTo(map);
-
-    // Retry failed tiles with backoff (max 5 attempts, matching retryTileLayer.js).
-    // Inline fallback for views that cannot use ES module imports.
-    // Note: unlike retryTileLayer.js (which uses fetch() to detect 503 vs 404),
-    // this img-based approach retries ALL errors indiscriminately. Acceptable for
-    // these admin-only views with low traffic — worst case is 5 wasted retries
-    // per genuinely missing tile.
-    (function () {
-        var retryCounts = {};
-        tileLayer.on('tileerror', function (e) {
-            var src = e.tile.src;
-            if (!src) return;
-            var key = src.split('?')[0];
-            retryCounts[key] = (retryCounts[key] || 0) + 1;
-            if (retryCounts[key] <= 5) {
-                setTimeout(function () {
-                    e.tile.src = src;
-                }, 1000 * Math.pow(2, retryCounts[key] - 1));
-            }
-        });
-    })();
-
-    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
-
-    // Layer to hold drawn polygons
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-
-    // Initialize Leaflet Draw control with polygon only
-    const drawControl = new L.Control.Draw({
-        draw: {
-            polyline: false,
-            rectangle: false,
-            circle: false,
-            circlemarker: false,
-            marker: false,
-            polygon: {
-                allowIntersection: false,
-                showArea: true,
-                shapeOptions: {
-                    color: '#ff7800',
-                    weight: 3
-                }
-            }
-        },
-        edit: {
-            featureGroup: drawnItems,
-            edit: true,
-            remove: true
-        }
-    });
-    map.addControl(drawControl);
-
-    // Helper: Parse WKT polygon to Leaflet latlngs array
-    function wktToLatLngs(wkt) {
-        // Example WKT: POLYGON((lng lat, lng lat, ...))
-        const matches = wkt.match(/\(\((.*)\)\)/);
-        if (!matches || matches.length < 2) return null;
-
-        const coords = matches[1].split(",").map(pair => {
-            const [lng, lat] = pair.trim().split(" ").map(Number);
-            return [lat, lng]; // Leaflet uses [lat, lng]
-        });
-        return coords;
-    }
-
-    // Load existing polygon from Model.AreaWKT if present
-    const wktString = '@(Model.AreaWKT ?? "")'.trim();
-    if (wktString) {
-        const latlngs = wktToLatLngs(wktString);
-        if (latlngs) {
-            const polygon = L.polygon(latlngs, {color: '#ff7800'});
-            drawnItems.addLayer(polygon);
-            map.fitBounds(polygon.getBounds());
-            document.getElementById('areaInput').value = wktString;
-        }
-    }
-
-    // Update hidden input with WKT polygon when a polygon is created or edited
-    function updateAreaWKTFromLayer(layer) {
-        const latlngs = layer.getLatLngs()[0]; // Outer ring only
-        let wkt = "POLYGON((";
-        for (let i = 0; i < latlngs.length; i++) {
-            wkt += `${latlngs[i].lng} ${latlngs[i].lat}, `;
-        }
-        // Close the polygon by repeating the first point without trailing comma
-        wkt += `${latlngs[0].lng} ${latlngs[0].lat}))`;
-        document.getElementById('areaInput').value = wkt;
-    }
-
-    // When a new polygon is drawn, clear existing polygons and add the new one
-    map.on(L.Draw.Event.CREATED, function (e) {
-        drawnItems.clearLayers();
-        const layer = e.layer;
-        drawnItems.addLayer(layer);
-        updateAreaWKTFromLayer(layer);
-    });
-
-    // When polygons are edited, update hidden input WKT accordingly
-    map.on(L.Draw.Event.EDITED, function (e) {
-        const layers = e.layers;
-        if (layers.getLayers().length === 0) {
-            document.getElementById('areaInput').value = '';
-            return;
-        }
-
-        // Assuming only one polygon in drawnItems
-        layers.eachLayer(layer => {
-            updateAreaWKTFromLayer(layer);
-        });
-    });
-
-    // When polygons are deleted, clear the hidden input
-    map.on(L.Draw.Event.DELETED, function (e) {
-        document.getElementById('areaInput').value = '';
-    });
-    
-</script>
+    <script type="module" src="~/js/Areas/User/HiddenAreas/drawing.js" asp-append-version="true"></script>
 }

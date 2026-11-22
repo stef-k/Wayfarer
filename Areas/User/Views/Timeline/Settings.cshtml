@@ -1,9 +1,11 @@
-﻿@model Wayfarer.Models.ViewModels.TimelineSettingsViewModel
+﻿@inject Wayfarer.Localization.WebMessages T
+@model Wayfarer.Models.ViewModels.TimelineSettingsViewModel
 
 @{
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
     // The validation response can safely return to Settings without replaying UpdateSettings.
     ViewData["LanguageSafeGet"] = Url.Action("Settings", "Timeline", new { area = "User" });
-    ViewData["Title"] = "Timeline Settings";
+    ViewData["Title"] = T["Settings.Timeline"];
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -13,13 +15,13 @@
         <div class="col-12 col-md-8 offset-md-2">
             <div class="card shadow-sm">
                 <div class="card-header text-bg-primary mb-3">
-                    <h2>Edit Timeline Settings</h2>
+                    <h2>@T["Settings.EditTimeline"]</h2>
                 </div>
                 <div class="card-body">
                     @if (!ViewData.ModelState.IsValid)
                     {
                         <div class="alert alert-danger">
-                            @Html.ValidationSummary("Please correct the errors below.", true)
+                            @Html.ValidationSummary(false, T["Settings.FixErrors"])
                         </div>
                     }
 
@@ -31,72 +33,64 @@
                             @Model.PublicTimelineStatus
                             @if (Model.HasInvalidPublicTimelineThreshold)
                             {
-                                <div>Select a valid threshold and save to make the timeline publicly available.</div>
+                                <div>@T["Settings.ReplaceThreshold"]</div>
                             }
                         </div>
 
                         <!-- Optional visible map heading. -->
                         <div class="mb-3">
-                            <label asp-for="TimelineTitle" class="form-label">Timeline Title</label>
+                            <label asp-for="TimelineTitle" class="form-label">@T["Settings.TimelineTitle"]</label>
                             <input asp-for="TimelineTitle" class="form-control" maxlength="80" />
-                            <div class="form-text">Maximum 80 characters.</div>
-                            <div class="form-text">Optional. Leave blank to restore the default: <strong>@Model.DefaultTimelineTitle</strong>.</div>
+                            <div class="form-text">@T["Settings.TitleLength"]</div>
+                            <div class="form-text">@T["Settings.TitleHelp"] <strong>@Model.DefaultTimelineTitle</strong></div>
                             <span asp-validation-for="TimelineTitle" class="text-danger"></span>
                         </div>
 
                         <!-- Public Timeline Toggle -->
                         <div class="form-check form-switch mb-4">
                             <input type="checkbox" class="form-check-input" id="IsTimelinePublic" asp-for="IsTimelinePublic" role="switch" />
-                            <label for="IsTimelinePublic" class="form-check-label">Make Timeline Public</label>
-                            <div class="form-text">!!! Set if you want to make your timeline public.</div>
-                            <div class="form-text text-danger">!!! Caution, think before you set this; it may be dangerous to make your current location public !!!</div>
-                            <div class="form-text">You can adjust up to what point in time you want to make your timeline public with the bellow setting.</div>
+                            <label for="IsTimelinePublic" class="form-check-label">@T["Settings.MakePublic"]</label>
+                            <div class="form-text">@T["Settings.PublicHelp"]</div>
+                            <div class="form-text text-danger">@T["Settings.PublicWarning"]</div>
                         </div>
 
                         <!-- Time Threshold Dropdown with Custom Option -->
                         <div class="mb-3">
-                            <label for="PublicTimelineTimeThreshold" class="form-label">Time Threshold</label>
-                            <select asp-for="PublicTimelineTimeThreshold" class="form-select" id="TimeThresholdDropdown">
-                                <option value="">Select a threshold</option>
-                                <option value="now">Now - Everyone will know where you are at now!!!</option>
-                                <option value="1h">Up to 1 hour ago</option>
-                                <option value="1d">Up to 1 day ago</option>
-                                <option value="1w">Up to 1 week ago</option>
-                                <option value="1m">Up to 1 month ago</option>
-                                <option value="1y">Up to 1 year ago</option>
-                                <option value="custom">Custom</option>
+                            <label for="PublicTimelineTimeThreshold" class="form-label">@T["Settings.TimeThreshold"]</label>
+                            <select asp-for="PublicTimelineTimeThreshold" class="form-select" id="TimeThresholdDropdown" data-saved-threshold="@Model.PublicTimelineTimeThreshold">
+                                <option value="">@T["Settings.SelectThreshold"]</option>
+                                <option value="now">@T["Settings.ThresholdNow"]</option>
+                                <option value="1h">@T["Settings.ThresholdHour"]</option>
+                                <option value="1d">@T["Settings.ThresholdDay"]</option>
+                                <option value="1w">@T["Settings.ThresholdWeek"]</option>
+                                <option value="1m">@T["Settings.ThresholdMonth"]</option>
+                                <option value="1y">@T["Settings.ThresholdYear"]</option>
+                                <option value="custom" selected="@(!string.IsNullOrEmpty(Model.CustomThreshold))">@T["Settings.ThresholdCustom"]</option>
                             </select>
                             @Html.ValidationMessageFor(m => m.PublicTimelineTimeThreshold, "", new { @class = "text-danger" })
-                            <div class="form-text">Time threshold up to what point in time relative to current date time you want to show publicly if you set your timeline public.</div>
-                            <div id="DelayedSharingHint" class="form-text" hidden>Sharing will be delayed one day when you save.</div>
+                            <div class="form-text">@T["Settings.ThresholdHelp"]</div>
+                            <div id="DelayedSharingHint" class="form-text" hidden>@T["Settings.DelayedHint"]</div>
                         </div>
 
                         <!-- Live sharing requires an explicit acknowledgement on the submitted form. -->
                         <div id="LiveConfirmation" class="form-check mb-3" hidden>
                             <input asp-for="ConfirmLivePublicTimeline" class="form-check-input" />
-                            <label asp-for="ConfirmLivePublicTimeline" class="form-check-label">I confirm that my current location will be publicly available live.</label>
+                            <label asp-for="ConfirmLivePublicTimeline" class="form-check-label">@T["Settings.ConfirmLive"]</label>
                             <span asp-validation-for="ConfirmLivePublicTimeline" class="text-danger"></span>
                         </div>
 
                         <!-- Custom Time Input (Hidden by default) -->
                         <div id="CustomTimeInput" class="mb-3" style="display:none;">
-                            <label for="CustomThreshold" class="form-label">Custom Time Threshold</label>
-                            <input type="text" class="form-control" id="CustomThreshold" name="CustomThreshold" placeholder="Enter custom time (e.g., 2d, 5h)" />
-                            <div class="form-text">
-                                Use <strong>y</strong> for years, <strong>m</strong> for months, <strong>
-                                    d
-                                </strong> for days, <strong>
-                                    h
-                                </strong> for hours.
-                                If you want to refer to minutes say 10 minutes, use 0.1h <br />
-                            Examples: 1m = show timeline up to 1 month before now. <br />
-                            2w = show timeline up to 2 weeks before now. <br />
-                            1.5d = show timeline up to 1 & half days before now.
-                            </div>
+                            <label for="CustomThreshold" class="form-label">@T["Settings.CustomThreshold"]</label>
+                            <input type="text" class="form-control" asp-for="CustomThreshold" placeholder="@T["Settings.CustomPlaceholder"]" />
+                            @* Show field-specific errors and retain the original delay notation. *@
+                            <span asp-validation-for="CustomThreshold" class="text-danger"></span>
+                            <div class="form-text">@T["Settings.CustomUnits"]</div>
+                            <div class="form-text">@T["Settings.CustomExamples"]</div>
                         </div>
 
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                            <button type="submit" class="btn btn-primary">@T["Settings.SaveChanges"]</button>
                         </div>
                     </form>
                 </div>
@@ -116,7 +110,7 @@
             const liveConfirmationField = document.getElementById('ConfirmLivePublicTimeline');
             const delayedSharingHint = document.getElementById('DelayedSharingHint');
 
-            const savedValue = '@Model.PublicTimelineTimeThreshold';
+            const savedValue = thresholdDropdown.dataset.savedThreshold;
             const options = Array.from(thresholdDropdown.options).map(option => option.value);
 
             if (savedValue && !options.includes(savedValue)) {

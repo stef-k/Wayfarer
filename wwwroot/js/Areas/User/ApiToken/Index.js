@@ -1,3 +1,5 @@
+import { date, message as text } from '../../../localization/messages.js';
+
 /** One owner controls transient plaintext, QR state and asynchronous generations for the connection page. */
 export const createConnectionPage = ({ root, browser = window, request = fetch, QrCode = window.QRCode }) => {
     const find = id => root.querySelector(`#${id}`);
@@ -19,9 +21,10 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
 
     /** Mutation controls remain blocked whenever current safe status is uncertain. */
     const renderStatus = () => {
-        find('connection-status').textContent = status ? 'Connection token exists' : 'No connection token';
-        find('connection-issued').textContent = status ? `Last issued: ${status.issuedAt}` : '';
-        issueButton.textContent = status ? 'Replace connection token' : 'Create connection token';
+        find('connection-status').textContent = status ? text('Connection.Exists', 'Connection token exists') : text('Connection.Absent', 'No connection token');
+        find('connection-issued').textContent = status ? text('Connection.IssuedAt', 'Last issued: {0} UTC',
+            date(new Date(status.issuedAt), { dateStyle: 'short', timeStyle: 'short', timeZone: 'UTC' })) : '';
+        issueButton.textContent = status ? text('Connection.Replace', 'Replace connection token') : text('Connection.Create', 'Create connection token');
         issueButton.disabled = !https || phase !== 'ready';
         find('confirm-replacement').disabled = issueButton.disabled;
     };
@@ -70,7 +73,7 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
             phase = 'ready';
             renderStatus();
         } catch {
-            if (observed === generation) showMessage('Refresh this page to check connection token status before trying again.');
+            if (observed === generation) showMessage(text('Connection.RefreshRequired', 'Refresh this page to check connection token status before trying again.'));
         }
     };
 
@@ -111,7 +114,7 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
         } catch {
             if (observed !== generation) return;
             clear();
-            showMessage('No token can be shown. The request may have committed and stopped apps using the old token. Checking safe status; choose replacement explicitly if needed.');
+            showMessage(text('Connection.Unconfirmed', 'No token can be shown. The request may have completed and stopped apps using the old token. Checking status. Choose replacement explicitly if needed.'));
             await refreshStatus();
         }
     };
@@ -121,7 +124,7 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
         const uncertain = phase === 'pending';
         clear();
         if (uncertain) {
-            showMessage('The request may already have committed. Checking safe status before another explicit action.');
+            showMessage(text('Connection.PendingHide', 'The request may already have completed. Checking status before another action.'));
             void refreshStatus();
         } else renderStatus();
     };
@@ -133,9 +136,9 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
             const copying = browser.navigator.clipboard.writeText(value);
             value = '';
             await copying;
-            if (observed === generation) showMessage('Copied.');
+            if (observed === generation) showMessage(text('Connection.Copied', 'Copied.'));
         } catch {
-            if (observed === generation) showMessage('Copy was unavailable. Select and copy the displayed value manually.');
+            if (observed === generation) showMessage(text('Connection.CopyFailed', 'Copy was unavailable. Select and copy the displayed value manually.'));
         }
     };
 
@@ -161,7 +164,7 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
     clear();
     find('connection-origin').textContent = origin;
     find('copy-server').disabled = !https;
-    if (!https) showMessage('HTTPS is required to connect apps. The instance or proxy configuration needs correction.');
+    if (!https) showMessage(text('Connection.HttpsRequired', 'HTTPS is required to connect apps. The instance or proxy configuration needs correction.'));
     renderStatus();
     return { hide, issue };
 };

@@ -51,6 +51,28 @@ public class TimelineSettingsControllerTests : TestBase
         Assert.Equal("now", user.PublicTimelineTimeThreshold);
     }
 
+    /// <summary>Preserves the accepted delay syntax and authored title in persisted settings.</summary>
+    [Fact]
+    public async Task UpdateSettings_PreservesFractionalWeekDelayAndCustomTitle()
+    {
+        var (db, user) = await CreateUserAsync();
+        var controller = BuildController(db, user);
+        var result = await controller.UpdateSettings(new TimelineSettingsViewModel
+        {
+            IsTimelinePublic = true,
+            PublicTimelineTimeThreshold = "custom",
+            CustomThreshold = "2.5w",
+            TimelineTitle = "Σαββατοκύριακο <Β>"
+        });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        var saved = db.Users.Single();
+        Assert.True(saved.IsTimelinePublic);
+        Assert.Equal("2.5w", saved.PublicTimelineTimeThreshold);
+        Assert.Equal("Σαββατοκύριακο <Β>", saved.TimelineTitle);
+    }
+
     [Fact]
     public async Task UpdateSettings_DoesNotRepairExistingPublicInvalidThreshold_WhenBlankPosted()
     {
@@ -113,7 +135,7 @@ public class TimelineSettingsControllerTests : TestBase
         var store = new Mock<IUserStore<ApplicationUser>>();
         var manager = new Mock<UserManager<ApplicationUser>>(store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         manager.Setup(value => value.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(user);
-        var controller = new TimelineController(NullLogger<BaseController>.Instance, db, manager.Object, new LocationService(db), new LocationStatsService(db));
+        var controller = new TimelineController(NullLogger<BaseController>.Instance, db, manager.Object, new LocationService(db), new LocationStatsService(db), WebText);
         controller.TempData = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = CreateUserPrincipal(user.Id) } };
         return controller;

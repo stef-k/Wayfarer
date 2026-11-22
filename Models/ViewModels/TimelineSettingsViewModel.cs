@@ -1,4 +1,7 @@
-﻿namespace Wayfarer.Models.ViewModels
+﻿using Wayfarer.Localization;
+using Wayfarer.Services;
+
+namespace Wayfarer.Models.ViewModels
 {
     public class TimelineSettingsViewModel
     {
@@ -11,7 +14,7 @@
         /// </summary>
         public string DefaultTimelineTitle { get; set; } = string.Empty;
 
-        [System.ComponentModel.DataAnnotations.StringLength(80, ErrorMessage = "Timeline title must be 80 characters or fewer.")]
+        [System.ComponentModel.DataAnnotations.StringLength(80, ErrorMessage = "Settings.TitleLength")]
         public string? TimelineTitle
         {
             get => _timelineTitle;
@@ -41,25 +44,34 @@
         /// <summary>
         /// Creates settings for the authenticated timeline owner.
         /// </summary>
-        public static TimelineSettingsViewModel FromUser(ApplicationUser user)
+        public static TimelineSettingsViewModel FromUser(ApplicationUser user, WebMessages text)
         {
-            var eligibility = Wayfarer.Services.PublicTimelineEligibilityResolver.Resolve(user);
-            return new()
+            var eligibility = PublicTimelineEligibilityResolver.Resolve(user);
+            var threshold = eligibility.IsThresholdValid ? user.PublicTimelineTimeThreshold : string.Empty;
+            var model = new TimelineSettingsViewModel
             {
                 IsTimelinePublic = user.IsTimelinePublic,
-                DefaultTimelineTitle = user.ResolveDefaultTimelineTitle(),
                 TimelineTitle = user.TimelineTitle,
-                PublicTimelineTimeThreshold = eligibility.IsThresholdValid ? user.PublicTimelineTimeThreshold : string.Empty,
-                ConfirmLivePublicTimeline = eligibility.IsEffectivelyPublic && eligibility.IsLive,
-                PublicTimelineStatus = eligibility.IsEffectivelyPublic
-                    ? eligibility.IsLive
-                        ? "Public timeline: live"
-                        : $"Public timeline: delayed by {eligibility.Delay}"
-                    : user.IsTimelinePublic
-                        ? "Public timeline unavailable until a valid threshold is selected and saved."
-                        : "Timeline is not publicly available.",
-                HasInvalidPublicTimelineThreshold = user.IsTimelinePublic && !eligibility.IsThresholdValid
+                PublicTimelineTimeThreshold = threshold,
+                CustomThreshold = threshold is null or "" or "now" or "1h" or "1d" or "1w" or "1m" or "1y"
+                    ? string.Empty : threshold,
+                ConfirmLivePublicTimeline = eligibility.IsEffectivelyPublic && eligibility.IsLive
             };
+            model.SetPersistedPresentation(user, eligibility, text);
+            return model;
+        }
+
+        /// <summary>Displays saved availability independently of any submitted draft.</summary>
+        internal void SetPersistedPresentation(ApplicationUser user, PublicTimelineEligibility eligibility, WebMessages text)
+        {
+            var displayName = string.IsNullOrWhiteSpace(user.DisplayName) ? user.UserName : user.DisplayName;
+            DefaultTimelineTitle = text["PublicTimeline.Heading", displayName ?? string.Empty];
+            HasInvalidPublicTimelineThreshold = user.IsTimelinePublic && !eligibility.IsThresholdValid;
+            PublicTimelineStatus = eligibility.IsEffectivelyPublic
+                ? eligibility.IsLive
+                    ? text["Settings.StatusLive"]
+                    : text["Settings.StatusDelayed", eligibility.Delay?.ToString("g", text.DisplayCulture)]
+                : text[HasInvalidPublicTimelineThreshold ? "Settings.StatusInvalid" : "Settings.StatusPrivate"];
         }
     }
 }

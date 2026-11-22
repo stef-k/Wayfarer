@@ -180,7 +180,7 @@ public class HiddenAreasControllerTests : TestBase
     {
         var controller = new HiddenAreasController(
             NullLogger<BaseController>.Instance,
-            db);
+            db, WebText);
         var httpContext = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]

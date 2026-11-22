@@ -484,7 +484,7 @@ public class TimelineControllerTests : TestBase
             db,
             userManager.Object,
             locationService,
-            statsService);
+            statsService, WebText);
         controller.TempData = new TempDataDictionary(new DefaultHttpContext(), Mock.Of<ITempDataProvider>());
         return controller;
     }

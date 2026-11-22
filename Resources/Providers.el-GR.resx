@@ -1,0 +1,420 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Providers.Title" xml:space="preserve">
+    <value>Προσωπικοί πάροχοι τοποθεσίας</value>
+  </data>
+  <data name="Providers.CredentialPrivacy" xml:space="preserve">
+    <value>Τα διαπιστευτήρια προστατεύονται. Δεν εμφανίζονται ξανά ούτε στέλνονται στο WayfarerMobile.</value>
+  </data>
+  <data name="Providers.Guide" xml:space="preserve">
+    <value>Οδηγός διαπιστευτηρίων και χρήσης</value>
+  </data>
+  <data name="Providers.MigrationConflict" xml:space="preserve">
+    <value>Η μεταφορά των παλιών διαπιστευτηρίων Mapbox απαιτεί ανάκτηση. Οι αντικρουόμενες αποθηκευμένες τιμές διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.MigrationUnavailable" xml:space="preserve">
+    <value>Δεν είναι δυνατή η ασφαλής ανάγνωση του προστατευμένου διαπιστευτηρίου Mapbox αυτή τη στιγμή. Τα παλιά αντίγραφα ανάκτησης διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.MigrationRevoked" xml:space="preserve">
+    <value>Η πρόσβαση στο Mapbox παραμένει ανακλημένη. Η μεταφορά δεν μπορεί να την ενεργοποιήσει ξανά.</value>
+  </data>
+  <data name="Providers.MigrationPending" xml:space="preserve">
+    <value>Εκκρεμεί η μεταφορά του παλιού διαπιστευτηρίου Mapbox. Χρησιμοποιήστε την παρακάτω επιλογή για έλεγχο και μεταφορά.</value>
+  </data>
+  <data name="Providers.Migrate" xml:space="preserve">
+    <value>Μεταφορά παλιού διαπιστευτηρίου Mapbox</value>
+  </data>
+  <data name="Providers.UsageNotice" xml:space="preserve">
+    <value>Το Wayfarer μετρά μόνο τα δικά του αιτήματα. Άλλες εφαρμογές μπορεί να καταναλώνουν το όριο του λογαριασμού στον πάροχο. Χρησιμοποιήστε ξεχωριστό κλειδί για το Wayfarer όταν είναι δυνατό. Πολλαπλά κλειδιά μπορεί να μοιράζονται το ίδιο όριο.</value>
+  </data>
+  <data name="Providers.Credential" xml:space="preserve">
+    <value>Διαπιστευτήριο:</value>
+  </data>
+  <data name="Providers.Configured" xml:space="preserve">
+    <value>έχει ρυθμιστεί</value>
+  </data>
+  <data name="Providers.Unconfigured" xml:space="preserve">
+    <value>δεν έχει ρυθμιστεί</value>
+  </data>
+  <data name="Providers.MaskedCredential" xml:space="preserve">
+    <value>{0} (έχει ρυθμιστεί)</value>
+  </data>
+  <data name="Providers.Replacement" xml:space="preserve">
+    <value>Νέο διαπιστευτήριο</value>
+  </data>
+  <data name="Providers.MapboxReplacementHelp" xml:space="preserve">
+    <value>Υποβάλετε τη φόρμα μόνο για αντικατάσταση διαπιστευτηρίου. Η αντικατάσταση ακυρώνει τη συγκατάθεση και την επαλήθευση. Οι αποθηκευμένες επιλογές παραμένουν σε αναστολή μέχρι νέα επαλήθευση.</value>
+  </data>
+  <data name="Providers.SaveCredential" xml:space="preserve">
+    <value>Αποθήκευση διαπιστευτηρίου</value>
+  </data>
+  <data name="Providers.ConsentTitle" xml:space="preserve">
+    <value>Συγκατάθεση για Permanent Geocoding</value>
+  </data>
+  <data name="Providers.Consent" xml:space="preserve">
+    <value>Συγκατάθεση:</value>
+  </data>
+  <data name="Providers.ConsentCurrent" xml:space="preserve">
+    <value>σε ισχύ (έκδοση {0}, {1} UTC)</value>
+  </data>
+  <data name="Providers.ConsentMissing" xml:space="preserve">
+    <value>εκκρεμεί</value>
+  </data>
+  <data name="Providers.StorageAck" xml:space="preserve">
+    <value>Επιλέγω εμπλουτισμό με αποθήκευση μέσω Mapbox Permanent Geocoding.</value>
+  </data>
+  <data name="Providers.BillingAck" xml:space="preserve">
+    <value>Κατανοώ ότι το Permanent Geocoding τιμολογείται χωριστά και μπορεί να επιφέρει χρεώσεις.</value>
+  </data>
+  <data name="Providers.EligibilityAck" xml:space="preserve">
+    <value>Ο λογαριασμός μου στο Mapbox έχει επιλέξιμη πιστωτική κάρτα ή εταιρική σύμβαση.</value>
+  </data>
+  <data name="Providers.MeterAck" xml:space="preserve">
+    <value>Ο μετρητής του Wayfarer καταγράφει μόνο τα αιτήματα του Wayfarer.</value>
+  </data>
+  <data name="Providers.ExternalAck" xml:space="preserve">
+    <value>Άλλες εφαρμογές ή διακριτικά μπορεί να καταναλώνουν το ίδιο όριο του λογαριασμού.</value>
+  </data>
+  <data name="Providers.SaveConsent" xml:space="preserve">
+    <value>Καταχώριση συγκατάθεσης</value>
+  </data>
+  <data name="Providers.VerificationTitle" xml:space="preserve">
+    <value>Επαλήθευση Permanent Geocoding</value>
+  </data>
+  <data name="Providers.VerificationHelp" xml:space="preserve">
+    <value>Αποστέλλεται ένα επιτρεπόμενο αίτημα Permanent που μπορεί να χρεωθεί, με σταθερές, μη προσωπικές συντεταγμένες. Το Mapbox παραμένει ανενεργό μέχρι να το επιλέξετε.</value>
+  </data>
+  <data name="Providers.VerifyMapbox" xml:space="preserve">
+    <value>Επαλήθευση Mapbox Permanent Geocoding</value>
+  </data>
+  <data name="Providers.GeoapifyReplacementHelp" xml:space="preserve">
+    <value>Η αντικατάσταση απενεργοποιεί και τις δύο λειτουργίες μέχρι να επαληθευτούν ξανά. Οι αποθηκευμένες επιλογές παρόχου διατηρούνται.</value>
+  </data>
+  <data name="Providers.ReplaceCredential" xml:space="preserve">
+    <value>Αντικατάσταση διαπιστευτηρίου</value>
+  </data>
+  <data name="Providers.BackfillHelp" xml:space="preserve">
+    <value>Η αναδρομική συμπλήρωση επεξεργάζεται με χρονολογική σειρά τις καταγραφές τοποθεσίας χωρίς καθόλου εμπλουτισμό και αποθηκεύει την πρόοδο μετά από το πολύ 10 υποψήφιες καταγραφές. Ο υπάρχων, χειροκίνητος και εισαγόμενος εμπλουτισμός διατηρείται.</value>
+  </data>
+  <data name="Providers.Backfill" xml:space="preserve">
+    <value>Έναρξη αναδρομικής συμπλήρωσης</value>
+  </data>
+  <data name="Providers.PermanentMeter" xml:space="preserve">
+    <value>Μετρητής Permanent Geocoding:</value>
+  </data>
+  <data name="Providers.MeterCycle" xml:space="preserve">
+    <value>{0} / {1} αιτήματα. Ο κύκλος ξεκινά στις {2} (UTC) και μηδενίζεται στην αρχή του επόμενου μήνα UTC.</value>
+  </data>
+  <data name="Providers.MeterNoCycle" xml:space="preserve">
+    <value>{0} / {1} αιτήματα. Η χρήση μηδενίζεται στην αρχή του επόμενου μήνα UTC.</value>
+  </data>
+  <data name="Providers.GuardDisabledNotice" xml:space="preserve">
+    <value>Το όριο ασφαλείας είναι απενεργοποιημένο. Τα αιτήματα ενδέχεται να χρεωθούν.</value>
+  </data>
+  <data name="Providers.PausedReason" xml:space="preserve">
+    <value>Λόγος αναστολής:</value>
+  </data>
+  <data name="Providers.PermanentExhausted" xml:space="preserve">
+    <value>Το όριο του Permanent Geocoding έχει εξαντληθεί.</value>
+  </data>
+  <data name="Providers.Active" xml:space="preserve">
+    <value>ενεργό</value>
+  </data>
+  <data name="Providers.MapboxNotSelected" xml:space="preserve">
+    <value>Το Mapbox δεν έχει επιλεγεί</value>
+  </data>
+  <data name="Providers.DirectionsGuard" xml:space="preserve">
+    <value>Όριο αιτημάτων δρομολόγησης:</value>
+  </data>
+  <data name="Providers.DirectionsCycle" xml:space="preserve">
+    <value>{0} / {1} αιτήματα. Η δρομολόγηση έχει ξεχωριστό μηνιαίο κύκλο ασφαλείας Wayfarer σε UTC.</value>
+  </data>
+  <data name="Providers.DirectionsEnabled" xml:space="preserve">
+    <value>Ενεργό όριο δρομολόγησης</value>
+  </data>
+  <data name="Providers.DirectionsLimit" xml:space="preserve">
+    <value>Όριο δρομολόγησης</value>
+  </data>
+  <data name="Providers.SaveDirectionsGuard" xml:space="preserve">
+    <value>Αποθήκευση ορίου δρομολόγησης</value>
+  </data>
+  <data name="Providers.AdmittedUsage" xml:space="preserve">
+    <value>Χρήση που εγκρίθηκε από το Wayfarer:</value>
+  </data>
+  <data name="Providers.Guard" xml:space="preserve">
+    <value>Όριο ασφαλείας:</value>
+  </data>
+  <data name="Providers.Enabled" xml:space="preserve">
+    <value>ενεργό</value>
+  </data>
+  <data name="Providers.Disabled" xml:space="preserve">
+    <value>ανενεργό</value>
+  </data>
+  <data name="Providers.CreditsUsed" xml:space="preserve">
+    <value>{0} / {1} μονάδες. Το Wayfarer χρησιμοποιεί κοινό κυλιόμενο παράθυρο 24 ωρών για γεωκωδικοποίηση και δρομολόγηση.</value>
+  </data>
+  <data name="Providers.PermanentContacts" xml:space="preserve">
+    <value>{0} / {1} αιτήματα Permanent Geocoding στον μηνιαίο κύκλο ασφαλείας Wayfarer σε UTC.</value>
+  </data>
+  <data name="Providers.Exhausted" xml:space="preserve">
+    <value>Η αποστολή νέων αιτημάτων έχει ανασταλεί. Τα αποθηκευμένα δεδομένα παραμένουν διαθέσιμα.</value>
+  </data>
+  <data name="Providers.GuardEnabled" xml:space="preserve">
+    <value>Ενεργό όριο ασφαλείας</value>
+  </data>
+  <data name="Providers.GuardLimit" xml:space="preserve">
+    <value>Όριο στις μονάδες του παρόχου</value>
+  </data>
+  <data name="Providers.SaveGuard" xml:space="preserve">
+    <value>Αποθήκευση ορίου ασφαλείας</value>
+  </data>
+  <data name="Providers.RevokeAck" xml:space="preserve">
+    <value>Επιβεβαιώστε την ανάκληση. Οι συντεταγμένες, οι διευθύνσεις, τα ταξίδια, οι τοποθεσίες, οι εισαγωγές και τα δεδομένα συγχρονισμού διατηρούνται.</value>
+  </data>
+  <data name="Providers.Revoke" xml:space="preserve">
+    <value>Ανάκληση</value>
+  </data>
+  <data name="Providers.Geocoding" xml:space="preserve">
+    <value>Γεωκωδικοποίηση</value>
+  </data>
+  <data name="Providers.Directions" xml:space="preserve">
+    <value>Δρομολόγηση</value>
+  </data>
+  <data name="Providers.CredentialStatus" xml:space="preserve">
+    <value>Κατάσταση διαπιστευτηρίου:</value>
+  </data>
+  <data name="Providers.GeocodingVerifyHelp" xml:space="preserve">
+    <value>Η επαλήθευση στέλνει ακριβώς ένα επιτρεπόμενο αίτημα ρύθμισης. Το Mapbox απαιτεί επίσης συγκατάθεση σε ισχύ για το Permanent Geocoding.</value>
+  </data>
+  <data name="Providers.VerifyGeoapifyGeocoding" xml:space="preserve">
+    <value>Επαλήθευση γεωκωδικοποίησης Geoapify</value>
+  </data>
+  <data name="Providers.VerifyGeoapifyDirections" xml:space="preserve">
+    <value>Επαλήθευση δρομολόγησης Geoapify</value>
+  </data>
+  <data name="Providers.Provider" xml:space="preserve">
+    <value>Πάροχος</value>
+  </data>
+  <data name="Providers.NoProvider" xml:space="preserve">
+    <value>Χωρίς πάροχο</value>
+  </data>
+  <data name="Providers.VerificationRequired" xml:space="preserve">
+    <value>{0} (απαιτείται επαλήθευση)</value>
+  </data>
+  <data name="Providers.SaveGeocoding" xml:space="preserve">
+    <value>Αποθήκευση παρόχου γεωκωδικοποίησης</value>
+  </data>
+  <data name="Providers.SaveDirections" xml:space="preserve">
+    <value>Αποθήκευση παρόχου δρομολόγησης</value>
+  </data>
+  <data name="Providers.State" xml:space="preserve">
+    <value>Κατάσταση:</value>
+  </data>
+  <data name="Providers.MapboxDirectionsUnavailable" xml:space="preserve">
+    <value>Η δρομολόγηση με Mapbox δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Providers.ReuseHelp" xml:space="preserve">
+    <value>Η επαναχρησιμοποίηση προσωρινών ή αποθηκευμένων αποτελεσμάτων δεν καταναλώνει νέες μονάδες. Η εξάντληση του ορίου αναστέλλει τα νέα αιτήματα και διατηρεί τα πηγαία και ιστορικά δεδομένα. Η απενεργοποίηση ορίου μπορεί να επιφέρει χρεώσεις. Οι εισαγωγές και η αναδρομική συμπλήρωση μοιράζονται το υπόλοιπο.</value>
+  </data>
+  <data name="Providers.Unverified" xml:space="preserve">
+    <value>Χωρίς επαλήθευση</value>
+  </data>
+  <data name="Providers.Verified" xml:space="preserve">
+    <value>Επαληθευμένο</value>
+  </data>
+  <data name="Providers.VerificationFailed" xml:space="preserve">
+    <value>Η επαλήθευση απέτυχε</value>
+  </data>
+  <data name="Providers.VerificationUnavailable" xml:space="preserve">
+    <value>Η επαλήθευση δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Providers.NotSelectedGeocoding" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί πάροχος. Επαληθεύστε ένα διαπιστευτήριο και επιλέξτε τον πάροχο.</value>
+  </data>
+  <data name="Providers.NotSelectedDirections" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί πάροχος. Επαληθεύστε το Geoapify και επιλέξτε το.</value>
+  </data>
+  <data name="Providers.ReadyWith" xml:space="preserve">
+    <value>Έτοιμο με {0}.</value>
+  </data>
+  <data name="Providers.BlockedCredential" xml:space="preserve">
+    <value>Σε αναστολή. Αντικαταστήστε το διαπιστευτήριο και επαληθεύστε το ξανά.</value>
+  </data>
+  <data name="Providers.BlockedDirections" xml:space="preserve">
+    <value>Σε αναστολή. Η δρομολόγηση με Mapbox δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Providers.BlockedAuthorization" xml:space="preserve">
+    <value>Σε αναστολή. Ενεργοποιήστε τη λειτουργία και επαληθεύστε την ξανά.</value>
+  </data>
+  <data name="Providers.BlockedConsent" xml:space="preserve">
+    <value>Σε αναστολή. Ανανεώστε τη συγκατάθεση για Permanent Geocoding και επαληθεύστε ξανά.</value>
+  </data>
+  <data name="Providers.BlockedVerification" xml:space="preserve">
+    <value>Σε αναστολή. Επαληθεύστε ξανά τη λειτουργία.</value>
+  </data>
+  <data name="Providers.BlockedUnknown" xml:space="preserve">
+    <value>Σε αναστολή. Ελέγξτε τις ρυθμίσεις του παρόχου και επαληθεύστε ξανά.</value>
+  </data>
+  <data name="Providers.Validation.Provider" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενο πάροχο.</value>
+  </data>
+  <data name="Providers.Validation.Capability" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενη λειτουργία και πάροχο.</value>
+  </data>
+  <data name="Providers.Validation.CredentialRequired" xml:space="preserve">
+    <value>Εισαγάγετε νέο διαπιστευτήριο.</value>
+  </data>
+  <data name="Providers.Validation.CredentialLength" xml:space="preserve">
+    <value>Το διαπιστευτήριο είναι πολύ μεγάλο.</value>
+  </data>
+  <data name="Providers.Validation.CredentialFormat" xml:space="preserve">
+    <value>Τα διαπιστευτήρια δεν μπορούν να περιέχουν κενά ή χαρακτήρες ελέγχου.</value>
+  </data>
+  <data name="Providers.Validation.GuardKey" xml:space="preserve">
+    <value>Επιλέξτε υποστηριζόμενο όριο ασφαλείας.</value>
+  </data>
+  <data name="Providers.Validation.GuardLimit" xml:space="preserve">
+    <value>Εισαγάγετε όριο από {1} έως {2}.</value>
+  </data>
+  <data name="Providers.Validation.Storage" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι επιλέξατε εμπλουτισμό με αποθήκευση μέσω Mapbox.</value>
+  </data>
+  <data name="Providers.Validation.Billing" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι το Permanent Geocoding ενδέχεται να επιφέρει χρεώσεις.</value>
+  </data>
+  <data name="Providers.Validation.Eligibility" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι πληρούνται οι όροι χρέωσης ή εταιρικής σύμβασης του Mapbox.</value>
+  </data>
+  <data name="Providers.Validation.Meter" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι το Wayfarer μετρά μόνο τα δικά του αιτήματα.</value>
+  </data>
+  <data name="Providers.Validation.External" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι άλλες εφαρμογές μπορεί να καταναλώνουν το ίδιο όριο.</value>
+  </data>
+  <data name="Providers.Validation.ConsentCredential" xml:space="preserve">
+    <value>Ρυθμίστε ένα αναγνώσιμο διαπιστευτήριο Mapbox πριν δώσετε συγκατάθεση.</value>
+  </data>
+  <data name="Providers.Status.Migrated" xml:space="preserve">
+    <value>Το παλιό διαπιστευτήριο Mapbox προετοιμάστηκε με ασφάλεια. Η χρήση του Mapbox εξακολουθεί να απαιτεί συγκατάθεση, επαλήθευση και ρητή επιλογή.</value>
+  </data>
+  <data name="Providers.Status.NoMigration" xml:space="preserve">
+    <value>Κανένα παλιό διαπιστευτήριο Mapbox δεν χρειάζεται μετατροπή.</value>
+  </data>
+  <data name="Providers.Status.MigrationConflict" xml:space="preserve">
+    <value>Η μεταφορά των παλιών διαπιστευτηρίων Mapbox απαιτεί ανάκτηση. Τα αντικρουόμενα αντίγραφα ανάκτησης διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.Status.MigrationUnavailable" xml:space="preserve">
+    <value>Δεν είναι δυνατή η ασφαλής ανάγνωση του προστατευμένου διαπιστευτηρίου Mapbox αυτή τη στιγμή. Τα παλιά αντίγραφα ανάκτησης διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.Status.MigrationRevoked" xml:space="preserve">
+    <value>Η πρόσβαση στο Mapbox παραμένει ανακλημένη. Η μεταφορά διατήρησε το Mapbox ανενεργό και κράτησε τα παλιά αντίγραφα ανάκτησης.</value>
+  </data>
+  <data name="Providers.Status.CredentialReplaced" xml:space="preserve">
+    <value>Το διαπιστευτήριο αντικαταστάθηκε. Οι υπάρχουσες επιλογές παρόχου παραμένουν σε αναστολή μέχρι να επαληθευτεί ξανά κάθε λειτουργία.</value>
+  </data>
+  <data name="Providers.Status.ChoiceSaved" xml:space="preserve">
+    <value>Η επιλογή παρόχου αποθηκεύτηκε για τη λειτουργία «{0}».</value>
+  </data>
+  <data name="Providers.Status.ChoiceBlocked" xml:space="preserve">
+    <value>Επαληθεύστε τον πάροχο για τη συγκεκριμένη λειτουργία πριν τον επιλέξετε.</value>
+  </data>
+  <data name="Providers.Status.ConsentRecorded" xml:space="preserve">
+    <value>Η συγκατάθεση για Permanent Geocoding καταχωρίστηκε.</value>
+  </data>
+  <data name="Providers.Status.MapboxNeedsSetup" xml:space="preserve">
+    <value>Πριν από την επαλήθευση, ρυθμίστε ένα αναγνώσιμο διαπιστευτήριο και επιβεβαιώστε τους ισχύοντες όρους του Permanent Geocoding.</value>
+  </data>
+  <data name="Providers.Status.MapboxVerified" xml:space="preserve">
+    <value>Το Mapbox Permanent Geocoding επαληθεύτηκε. Επιλέξτε το για να ξεκινήσει ο εμπλουτισμός.</value>
+  </data>
+  <data name="Providers.Status.MapboxRejected" xml:space="preserve">
+    <value>Το Mapbox απέρριψε την εξουσιοδότηση για Permanent Geocoding.</value>
+  </data>
+  <data name="Providers.Status.MapboxVerifyUnavailable" xml:space="preserve">
+    <value>Η επαλήθευση του Mapbox Permanent Geocoding δεν είναι διαθέσιμη. Τα αποθηκευμένα δεδομένα διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.Status.GeoapifyInvalidCapability" xml:space="preserve">
+    <value>Επιλέξτε γεωκωδικοποίηση ή δρομολόγηση για επαλήθευση.</value>
+  </data>
+  <data name="Providers.Status.GeoapifyNeedsCredential" xml:space="preserve">
+    <value>Ρυθμίστε ένα αναγνώσιμο διαπιστευτήριο Geoapify πριν από την επαλήθευση.</value>
+  </data>
+  <data name="Providers.Status.GeoVerified" xml:space="preserve">
+    <value>Η επαλήθευση του Geoapify για τη λειτουργία «{0}» ολοκληρώθηκε. Επιλέξτε τον πάροχο για να τον χρησιμοποιήσετε.</value>
+  </data>
+  <data name="Providers.Status.GeoAuthorizationDisabled" xml:space="preserve">
+    <value>Η εξουσιοδότηση Geoapify για τη λειτουργία «{0}» είναι απενεργοποιημένη. Ενεργοποιήστε την πριν από την επαλήθευση.</value>
+  </data>
+  <data name="Providers.Status.GeoCredentialUnavailable" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση Geoapify για τη λειτουργία «{0}». Αντικαταστήστε το διαπιστευτήριο που λείπει, έχει ανακληθεί ή δεν μπορεί να διαβαστεί.</value>
+  </data>
+  <data name="Providers.Status.GeoGuardExhausted" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση Geoapify για τη λειτουργία «{0}». Το τοπικό όριο χρήσης του Wayfarer εξαντλήθηκε.</value>
+  </data>
+  <data name="Providers.Status.GeoProviderRejected" xml:space="preserve">
+    <value>Το Geoapify απέρριψε το διαπιστευτήριο ή τη λειτουργία κατά την επαλήθευση για «{0}».</value>
+  </data>
+  <data name="Providers.Status.GeoRateLimited" xml:space="preserve">
+    <value>Το Geoapify απέρριψε την επαλήθευση για «{0}» λόγω ορίων αιτημάτων ή χρήσης.</value>
+  </data>
+  <data name="Providers.Status.GeoTemporaryFailure" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επαλήθευση Geoapify για τη λειτουργία «{0}». Η υπηρεσία ή το δίκτυο δεν είναι προσωρινά διαθέσιμα.</value>
+  </data>
+  <data name="Providers.Status.GeoInvalidResponse" xml:space="preserve">
+    <value>Το Geoapify επέστρεψε μη έγκυρη ή μη συμβατή απάντηση κατά την επαλήθευση για «{0}».</value>
+  </data>
+  <data name="Providers.Status.GeoAuthorityChanged" xml:space="preserve">
+    <value>Οι ρυθμίσεις του Geoapify άλλαξαν κατά την επαλήθευση για «{0}». Ελέγξτε την τρέχουσα διαμόρφωση και επαληθεύστε ξανά.</value>
+  </data>
+  <data name="Providers.Status.BackfillScheduled" xml:space="preserve">
+    <value>Ο εμπλουτισμός ελλιπών διευθύνσεων προγραμματίστηκε στην αποθηκευμένη ροή εργασίας.</value>
+  </data>
+  <data name="Providers.Status.BackfillReview" xml:space="preserve">
+    <value>Υπάρχει ήδη ροή εμπλουτισμού που χρειάζεται προσοχή. Ελέγξτε την κατάστασή της πριν ξεκινήσετε ξανά.</value>
+  </data>
+  <data name="Providers.Status.BackfillAuthority" xml:space="preserve">
+    <value>Επαληθεύστε και επιλέξτε κατάλληλο διαπιστευτήριο Geoapify για γεωκωδικοποίηση πριν ξεκινήσετε τον εμπλουτισμό.</value>
+  </data>
+  <data name="Providers.Status.BackfillEmpty" xml:space="preserve">
+    <value>Δεν υπάρχουν επιλέξιμες καταγραφές για εμπλουτισμό ελλιπών διευθύνσεων.</value>
+  </data>
+  <data name="Providers.Status.BackfillChanged" xml:space="preserve">
+    <value>Η κατάσταση εμπλουτισμού άλλαξε. Ελέγξτε την τρέχουσα ροή πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Providers.Status.BackfillUnconfirmed" xml:space="preserve">
+    <value>Ο προγραμματισμός εμπλουτισμού δεν επιβεβαιώθηκε. Ελέγξτε την τρέχουσα ροή πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Providers.Status.BackfillUnavailable" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η έναρξη εμπλουτισμού ελλιπών διευθύνσεων. Ελέγξτε την κατάσταση του παρόχου και της ροής εργασίας.</value>
+  </data>
+  <data name="Providers.Status.RevokeRequired" xml:space="preserve">
+    <value>Επιβεβαιώστε ότι θέλετε να ανακαλέσετε το διαπιστευτήριο.</value>
+  </data>
+  <data name="Providers.Status.Revoked" xml:space="preserve">
+    <value>Το διαπιστευτήριο ανακλήθηκε. Τα αποθηκευμένα δεδομένα διατηρήθηκαν.</value>
+  </data>
+  <data name="Providers.Status.RevokeMissing" xml:space="preserve">
+    <value>Δεν βρέθηκε αποθηκευμένο διαπιστευτήριο παρόχου για ανάκληση.</value>
+  </data>
+  <data name="Providers.Status.GuardSaved" xml:space="preserve">
+    <value>Το όριο χρήσης αποθηκεύτηκε.</value>
+  </data>
+  <data name="Providers.Status.GuardInvalid" xml:space="preserve">
+    <value>Επιλέξτε έγκυρο όριο ασφαλείας και εισαγάγετε τιμή από 0 έως 10.000.000.</value>
+  </data>
+  <data name="Providers.Status.Unknown" xml:space="preserve">
+    <value>Ελέγξτε τις τρέχουσες ρυθμίσεις παρόχου πριν δοκιμάσετε ξανά.</value>
+  </data>
+</root>

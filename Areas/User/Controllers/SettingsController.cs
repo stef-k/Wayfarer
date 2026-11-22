@@ -16,20 +16,23 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly UserManager<ApplicationUser> _userManager = userManager;
         private readonly IApplicationSettingsService _settingsService = settingsService;
 
+        /// <summary>Displays the owner’s settings and the server’s logging thresholds.</summary>
         public async Task<IActionResult> Index()
         {
             string? userId = _userManager.GetUserId(User);
 
             if (string.IsNullOrEmpty(userId))
             {
-                return RedirectWithAlert("Login", "Account", "User not authenticated", "error", null, null);
+                SetAlert("User not authenticated.", "error", "Settings.UserUnauthenticated");
+                return RedirectToAction("Login", "Account");
             }
 
             ApplicationUser? user = await _userManager.FindByIdAsync(userId);
 
             if (user == null)
             {
-                return RedirectWithAlert("Login", "Account", "User not found", "error", null, null);
+                SetAlert("User not found.", "error", "Settings.UserMissing");
+                return RedirectToAction("Login", "Account");
             }
 
             var settings = _settingsService.GetSettings();
@@ -37,7 +40,6 @@ namespace Wayfarer.Areas.User.Controllers
             ViewData["LocationDistanceThresholdMeters"] = settings.LocationDistanceThresholdMeters;
             ViewData["LocationAccuracyThresholdMeters"] = settings.LocationAccuracyThresholdMeters;
 
-            SetPageTitle("Settings Management");
             return View(user);
         }
     }

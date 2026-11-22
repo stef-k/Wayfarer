@@ -424,7 +424,7 @@ public class UserHiddenAreasControllerTests : TestBase
     {
         var controller = new HiddenAreasController(
             NullLogger<BaseController>.Instance,
-            db);
+            db, WebText);
         var httpContext = BuildHttpContextWithUser("alice");
         controller.ControllerContext = new ControllerContext
         {

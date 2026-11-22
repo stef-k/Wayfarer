@@ -19,17 +19,18 @@ public sealed class LocationProviderSettingsViewModel
 /// <summary>Accepts a credential replacement without changing provider choice implicitly.</summary>
 public sealed class LocationProviderCredentialInput
 {
-    [Required, RegularExpression("^(?:geoapify|mapbox)$")] public string ProviderKey { get; set; } = string.Empty;
-    [Required, DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
-        ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
+    [Required(ErrorMessage = "Providers.Validation.Provider"), RegularExpression("^(?:geoapify|mapbox)$", ErrorMessage = "Providers.Validation.Provider")] public string ProviderKey { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Providers.Validation.CredentialRequired"), DataType(DataType.Password),
+        StringLength(2048, ErrorMessage = "Providers.Validation.CredentialLength"), RegularExpression(@"^[^\s\p{Cc}]*$",
+        ErrorMessage = "Providers.Validation.CredentialFormat")]
     public string ReplacementCredential { get; set; } = string.Empty;
 }
 
 /// <summary>Accepts one capability-oriented provider choice.</summary>
 public sealed class LocationProviderChoiceInput
 {
-    [Required, RegularExpression("^(?:Geocoding|Routing)$")] public string Capability { get; set; } = string.Empty;
-    [StringLength(32)] public string ProviderKey { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Providers.Validation.Capability"), RegularExpression("^(?:Geocoding|Routing)$", ErrorMessage = "Providers.Validation.Capability")] public string Capability { get; set; } = string.Empty;
+    [StringLength(32, ErrorMessage = "Providers.Validation.Provider")] public string ProviderKey { get; set; } = string.Empty;
 }
 
 /// <summary>Presents bounded profile, capability, and provider-native usage state.</summary>
@@ -47,9 +48,9 @@ public sealed record LocationProviderProfileViewModel(
 /// <summary>Accepts explicit profile replacement/authorization and independent selection.</summary>
 public sealed class LocationProviderProfileInput
 {
-    [Required, RegularExpression("^(?:geoapify|mapbox)$")] public string ProviderKey { get; set; } = string.Empty;
-    [DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
-        ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
+    [Required(ErrorMessage = "Providers.Validation.Provider"), RegularExpression("^(?:geoapify|mapbox)$", ErrorMessage = "Providers.Validation.Provider")] public string ProviderKey { get; set; } = string.Empty;
+    [DataType(DataType.Password), StringLength(2048, ErrorMessage = "Providers.Validation.CredentialLength"), RegularExpression(@"^[^\s\p{Cc}]*$",
+        ErrorMessage = "Providers.Validation.CredentialFormat")]
     public string? ReplacementCredential { get; set; }
     public bool GeocodingAuthorized { get; set; }
     public bool RoutingAuthorized { get; set; }
@@ -60,17 +61,17 @@ public sealed class LocationProviderProfileInput
 /// <summary>Accepts one bounded provider-native guard setting.</summary>
 public sealed class LocationProviderGuardInput
 {
-    [Required, RegularExpression("^(?:geoapify|mapbox-permanent|mapbox-directions)$")] public string GuardKey { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Providers.Validation.GuardKey"), RegularExpression("^(?:geoapify|mapbox-permanent|mapbox-directions)$", ErrorMessage = "Providers.Validation.GuardKey")] public string GuardKey { get; set; } = string.Empty;
     public bool Enabled { get; set; }
-    [Range(0, 10_000_000)] public int Limit { get; set; }
+    [Range(0, 10_000_000, ErrorMessage = "Providers.Validation.GuardLimit")] public int Limit { get; set; }
 }
 
 /// <summary>Accepts all explicit acknowledgements required for Mapbox Permanent Geocoding.</summary>
 public sealed class MapboxPermanentConsentInput
 {
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that stored Mapbox enrichment was chosen.")] public bool StorageAcknowledged { get; set; }
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that Permanent Geocoding may incur charges.")] public bool BillingAcknowledged { get; set; }
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm eligible Mapbox billing or enterprise terms.")] public bool BillingEligibilityAcknowledged { get; set; }
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that Wayfarer meters only its own contacts.")] public bool WayfarerMeterAcknowledged { get; set; }
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm external applications may consume the allowance.")] public bool ExternalUsageAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Providers.Validation.Storage")] public bool StorageAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Providers.Validation.Billing")] public bool BillingAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Providers.Validation.Eligibility")] public bool BillingEligibilityAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Providers.Validation.Meter")] public bool WayfarerMeterAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Providers.Validation.External")] public bool ExternalUsageAcknowledged { get; set; }
 }

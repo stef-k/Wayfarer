@@ -49,9 +49,9 @@ function localizeLeafletDraw(drawLocal: DrawLocale, geometry: DrawGeometryUtil):
 
   const { polygon, polyline } = drawLocal.draw.handlers;
   polygon.tooltip = {
-    start: tooltipText('Editor.DrawPolygonStart', 'Click to start drawing the area.'),
-    cont: tooltipText('Editor.DrawPolygonContinue', 'Click to add another vertex.'),
-    end: tooltipText('Editor.DrawPolygonFinish', 'Click the first vertex to close the area.')
+    start: tooltipText('Shell.DrawPolygonStart', 'Click to start drawing the area.'),
+    cont: tooltipText('Shell.DrawPolygonContinue', 'Click to add another vertex.'),
+    end: tooltipText('Shell.DrawPolygonFinish', 'Click the first vertex to close the area.')
   };
   polyline.tooltip = {
     start: tooltipText('Editor.DrawPolylineStart', 'Click to start drawing the route.'),
@@ -59,10 +59,10 @@ function localizeLeafletDraw(drawLocal: DrawLocale, geometry: DrawGeometryUtil):
     end: tooltipText('Editor.DrawPolylineFinish', 'Click the last point to finish the route.')
   };
   // Leaflet.Draw shares this crossing error with polygon drawing and vertex editing.
-  polyline.error = tooltipText('Editor.DrawEdgesCannotCross', 'Area edges cannot cross.');
+  polyline.error = tooltipText('Shell.DrawEdgesCannotCross', 'Area edges cannot cross.');
   drawLocal.edit.handlers.edit.tooltip = {
-    text: tooltipText('Editor.EditPolygonHandles', 'Drag the handles to edit the area.'),
-    subtext: tooltipText('Editor.EditPolygonCancel', 'Click Cancel to undo changes.')
+    text: tooltipText('Shell.EditPolygonHandles', 'Drag the handles to edit the area.'),
+    subtext: tooltipText('Shell.EditPolygonCancel', 'Click Cancel to undo changes.')
   };
 
   const parts = new Intl.NumberFormat(locale).formatToParts(12345.6);

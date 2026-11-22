@@ -1,0 +1,111 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Connection.Title" xml:space="preserve">
+    <value>Connect apps to Wayfarer</value>
+  </data>
+  <data name="Connection.ShortTitle" xml:space="preserve">
+    <value>Connect apps</value>
+  </data>
+  <data name="Connection.Intro" xml:space="preserve">
+    <value>Pair WayfarerMobile or connect GPS loggers and other apps to your Wayfarer account.</value>
+  </data>
+  <data name="Connection.Account" xml:space="preserve">
+    <value>Account:</value>
+  </data>
+  <data name="Connection.ServerAddress" xml:space="preserve">
+    <value>Server address:</value>
+  </data>
+  <data name="Connection.CopyServer" xml:space="preserve">
+    <value>Copy server address</value>
+  </data>
+  <data name="Connection.Token" xml:space="preserve">
+    <value>Connection token</value>
+  </data>
+  <data name="Connection.TokenHelp" xml:space="preserve">
+    <value>A connection token (API token) lets a trusted app read and change your data through the supported Wayfarer APIs. Keep it private. It is separate from your password, two-factor authentication and personal provider keys.</value>
+  </data>
+  <data name="Connection.Absent" xml:space="preserve">
+    <value>No connection token</value>
+  </data>
+  <data name="Connection.Exists" xml:space="preserve">
+    <value>Connection token exists</value>
+  </data>
+  <data name="Connection.IssuedAt" xml:space="preserve">
+    <value>Last issued: {0} UTC</value>
+  </data>
+  <data name="Connection.Create" xml:space="preserve">
+    <value>Create connection token</value>
+  </data>
+  <data name="Connection.Replace" xml:space="preserve">
+    <value>Replace connection token</value>
+  </data>
+  <data name="Connection.ReplaceWarning" xml:space="preserve">
+    <value>Replacing this token stops phones and other apps from using it. Connect each one again with the new token.</value>
+  </data>
+  <data name="Connection.ConfirmReplace" xml:space="preserve">
+    <value>Replace token and reconnect apps</value>
+  </data>
+  <data name="Connection.RevealHelp" xml:space="preserve">
+    <value>Copy or scan now. This token can only be shown once.</value>
+  </data>
+  <data name="Connection.CopyToken" xml:space="preserve">
+    <value>Copy token</value>
+  </data>
+  <data name="Connection.Hide" xml:space="preserve">
+    <value>Done — hide token</value>
+  </data>
+  <data name="Connection.RecoveryHelp" xml:space="preserve">
+    <value>Copy or scan before selecting Done or leaving this page. Hiding the token leaves apps connected. If you lose or expose it, replace it and reconnect your apps.</value>
+  </data>
+  <data name="Connection.MobileHelp" xml:space="preserve">
+    <value>Use Scan QR Code in the app's setup wizard, or enter the server address and token manually.</value>
+  </data>
+  <data name="Connection.PairingQr" xml:space="preserve">
+    <value>WayfarerMobile pairing QR</value>
+  </data>
+  <data name="Connection.MobileGuide" xml:space="preserve">
+    <value>Set up WayfarerMobile</value>
+  </data>
+  <data name="Connection.Loggers" xml:space="preserve">
+    <value>GPS loggers and other apps</value>
+  </data>
+  <data name="Connection.LoggerHelp" xml:space="preserve">
+    <value>GPSLogger for Android by mendhak can send locations using this token. Apps that can send a custom HTTPS JSON request with an Authorization header may also be able to send locations.</value>
+  </data>
+  <data name="Connection.LoggerGuide" xml:space="preserve">
+    <value>Use GPS loggers and other apps</value>
+  </data>
+  <data name="Connection.IntegrationGuide" xml:space="preserve">
+    <value>Build a custom integration</value>
+  </data>
+  <data name="Connection.RefreshRequired" xml:space="preserve">
+    <value>Refresh this page to check connection token status before trying again.</value>
+  </data>
+  <data name="Connection.Unconfirmed" xml:space="preserve">
+    <value>No token can be shown. The request may have completed and stopped apps using the old token. Checking status. Choose replacement explicitly if needed.</value>
+  </data>
+  <data name="Connection.PendingHide" xml:space="preserve">
+    <value>The request may already have completed. Checking status before another action.</value>
+  </data>
+  <data name="Connection.Copied" xml:space="preserve">
+    <value>Copied.</value>
+  </data>
+  <data name="Connection.CopyFailed" xml:space="preserve">
+    <value>Copy was unavailable. Select and copy the displayed value manually.</value>
+  </data>
+  <data name="Connection.HttpsRequired" xml:space="preserve">
+    <value>HTTPS is required to connect apps. The instance or proxy configuration needs correction.</value>
+  </data>
+</root>

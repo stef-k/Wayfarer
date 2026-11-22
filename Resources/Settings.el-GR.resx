@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Settings.Title" xml:space="preserve">
+    <value>Διαχείριση ρυθμίσεων</value>
+  </data>
+  <data name="Settings.Timeline" xml:space="preserve">
+    <value>Ρυθμίσεις χρονολογίου</value>
+  </data>
+  <data name="Settings.DisplayName" xml:space="preserve">
+    <value>Εμφανιζόμενο όνομα</value>
+  </data>
+  <data name="Settings.NotSet" xml:space="preserve">
+    <value>Δεν έχει οριστεί</value>
+  </data>
+  <data name="Settings.Public" xml:space="preserve">
+    <value>Δημόσιο χρονολόγιο</value>
+  </data>
+  <data name="Settings.Yes" xml:space="preserve">
+    <value>Ναι</value>
+  </data>
+  <data name="Settings.No" xml:space="preserve">
+    <value>Όχι</value>
+  </data>
+  <data name="Settings.PublicLink" xml:space="preserve">
+    <value>Το δημόσιο χρονολόγιό σας είναι διαθέσιμο στην παρακάτω διεύθυνση. Μπορείτε να κοινοποιήσετε τον σύνδεσμο.</value>
+  </data>
+  <data name="Settings.EmbedHelp" xml:space="preserve">
+    <value>Ενσωματώστε το δημόσιο χρονολόγιό σας στον ιστότοπό σας.</value>
+  </data>
+  <data name="Settings.TimelineThreshold" xml:space="preserve">
+    <value>Χρονικό όριο χρονολογίου</value>
+  </data>
+  <data name="Settings.NoThreshold" xml:space="preserve">
+    <value>Μπορείτε να ορίσετε χρονική καθυστέρηση για το δημόσιο χρονολόγιό σας.</value>
+  </data>
+  <data name="Settings.Live" xml:space="preserve">
+    <value>Ζωντανά</value>
+  </data>
+  <data name="Settings.LiveWarning" xml:space="preserve">
+    <value>Οποιοσδήποτε μπορεί να δει την τρέχουσα τοποθεσία σας.</value>
+  </data>
+  <data name="Settings.ManageTimeline" xml:space="preserve">
+    <value>Διαχείριση ρυθμίσεων χρονολογίου</value>
+  </data>
+  <data name="Settings.LoggingThresholds" xml:space="preserve">
+    <value>Όρια καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Settings.LoggingHelp" xml:space="preserve">
+    <value>Ο διακομιστής εφαρμόζει αυτά τα όρια στις εισερχόμενες καταγραφές. Βοηθούν στη μείωση της κατανάλωσης μπαταρίας στις κινητές συσκευές και αποτρέπουν την αποθήκευση περιττών σημείων.</value>
+  </data>
+  <data name="Settings.TimeThreshold" xml:space="preserve">
+    <value>Χρονικό όριο</value>
+  </data>
+  <data name="Settings.DistanceThreshold" xml:space="preserve">
+    <value>Όριο απόστασης</value>
+  </data>
+  <data name="Settings.AccuracyThreshold" xml:space="preserve">
+    <value>Όριο ακρίβειας</value>
+  </data>
+  <data name="Settings.Minutes" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Settings.TimeHelp" xml:space="preserve">
+    <value>Παραλείπονται σημεία που λαμβάνονται σε λιγότερο από {0} λεπ. από την προηγούμενη καταγραφή.</value>
+  </data>
+  <data name="Settings.DistanceHelp" xml:space="preserve">
+    <value>Παραλείπονται σημεία σε απόσταση έως {0} μ. από την προηγούμενη καταγραφή.</value>
+  </data>
+  <data name="Settings.AccuracyHelp" xml:space="preserve">
+    <value>Απορρίπτονται σημεία με απόκλιση GPS μεγαλύτερη από {0} μ.</value>
+  </data>
+  <data name="Settings.LoggingNotice" xml:space="preserve">
+    <value>Για νέα καταγραφή πρέπει να ξεπεραστούν τα όρια χρόνου και απόστασης. Η ακρίβεια GPS πρέπει επίσης να είναι εντός του αντίστοιχου ορίου. Η λειτουργία Check-in παρακάμπτει τα όρια χρόνου και απόστασης για χειροκίνητη καταγραφή. Τις ρυθμίσεις ορίζει ο διαχειριστής του διακομιστή.</value>
+  </data>
+  <data name="Settings.Locations" xml:space="preserve">
+    <value>Ρυθμίσεις τοποθεσίας</value>
+  </data>
+  <data name="Settings.DeleteAll" xml:space="preserve">
+    <value>Διαγραφή όλων των καταγραφών</value>
+  </data>
+  <data name="Settings.DeleteTitle" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής</value>
+  </data>
+  <data name="Settings.DeletePrompt" xml:space="preserve">
+    <value>Να διαγραφούν όλες οι καταγραφές τοποθεσίας σας; Η ενέργεια αυτή δεν αναιρείται.</value>
+  </data>
+  <data name="Settings.Delete" xml:space="preserve">
+    <value>Διαγραφή</value>
+  </data>
+  <data name="Settings.DeleteSucceeded" xml:space="preserve">
+    <value>Όλες οι καταγραφές τοποθεσίας διαγράφηκαν.</value>
+  </data>
+  <data name="Settings.DeleteFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η διαγραφή των καταγραφών. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Settings.DeleteDenied" xml:space="preserve">
+    <value>Δεν έχετε δικαίωμα διαγραφής αυτών των καταγραφών. Συνδεθείτε ξανά αν έληξε η συνεδρία σας.</value>
+  </data>
+  <data name="Settings.UserMissing" xml:space="preserve">
+    <value>Ο χρήστης δεν βρέθηκε.</value>
+  </data>
+  <data name="Settings.UserUnauthenticated" xml:space="preserve">
+    <value>Ο χρήστης δεν έχει συνδεθεί.</value>
+  </data>
+  <data name="Settings.EditTimeline" xml:space="preserve">
+    <value>Επεξεργασία ρυθμίσεων χρονολογίου</value>
+  </data>
+  <data name="Settings.FixErrors" xml:space="preserve">
+    <value>Διορθώστε τα παρακάτω σφάλματα.</value>
+  </data>
+  <data name="Settings.ValidationFailed" xml:space="preserve">
+    <value>Υπάρχουν σφάλματα επικύρωσης. Διορθώστε τα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Settings.ReplaceThreshold" xml:space="preserve">
+    <value>Επιλέξτε έγκυρο χρονικό όριο και αποθηκεύστε τις αλλαγές για να γίνει διαθέσιμο το δημόσιο χρονολόγιο.</value>
+  </data>
+  <data name="Settings.TimelineTitle" xml:space="preserve">
+    <value>Τίτλος χρονολογίου</value>
+  </data>
+  <data name="Settings.TitleLength" xml:space="preserve">
+    <value>Ο τίτλος του χρονολογίου δεν μπορεί να υπερβαίνει τους 80 χαρακτήρες.</value>
+  </data>
+  <data name="Settings.TitleHelp" xml:space="preserve">
+    <value>Προαιρετικό. Αφήστε το πεδίο κενό για επαναφορά του προεπιλεγμένου τίτλου.</value>
+  </data>
+  <data name="Settings.MakePublic" xml:space="preserve">
+    <value>Δημοσίευση χρονολογίου</value>
+  </data>
+  <data name="Settings.PublicHelp" xml:space="preserve">
+    <value>Όταν το χρονολόγιο είναι δημόσιο, μπορεί να το δει οποιοσδήποτε.</value>
+  </data>
+  <data name="Settings.PublicWarning" xml:space="preserve">
+    <value>Σκεφτείτε προσεκτικά πριν κοινοποιήσετε δημόσια την τρέχουσα τοποθεσία σας. Μπορεί να θέσετε σε κίνδυνο την ιδιωτικότητα και την ασφάλειά σας.</value>
+  </data>
+  <data name="Settings.ThresholdHelp" xml:space="preserve">
+    <value>Επιλέξτε πόσος χρόνος θα περνά πριν εμφανιστεί μια καταγραφή στο δημόσιο χρονολόγιό σας.</value>
+  </data>
+  <data name="Settings.SelectThreshold" xml:space="preserve">
+    <value>Επιλέξτε χρονικό όριο</value>
+  </data>
+  <data name="Settings.ThresholdNow" xml:space="preserve">
+    <value>Τώρα — οποιοσδήποτε μπορεί να δει την τρέχουσα τοποθεσία σας</value>
+  </data>
+  <data name="Settings.ThresholdHour" xml:space="preserve">
+    <value>Έως πριν από 1 ώρα</value>
+  </data>
+  <data name="Settings.ThresholdDay" xml:space="preserve">
+    <value>Έως πριν από 1 ημέρα</value>
+  </data>
+  <data name="Settings.ThresholdWeek" xml:space="preserve">
+    <value>Έως πριν από 1 εβδομάδα</value>
+  </data>
+  <data name="Settings.ThresholdMonth" xml:space="preserve">
+    <value>Έως πριν από 1 μήνα</value>
+  </data>
+  <data name="Settings.ThresholdYear" xml:space="preserve">
+    <value>Έως πριν από 1 έτος</value>
+  </data>
+  <data name="Settings.ThresholdCustom" xml:space="preserve">
+    <value>Προσαρμοσμένο</value>
+  </data>
+  <data name="Settings.DelayedHint" xml:space="preserve">
+    <value>Με την αποθήκευση, η κοινοποίηση θα γίνεται με καθυστέρηση μίας ημέρας.</value>
+  </data>
+  <data name="Settings.ConfirmLive" xml:space="preserve">
+    <value>Επιβεβαιώνω ότι η τρέχουσα τοποθεσία μου θα είναι δημόσια διαθέσιμη σε πραγματικό χρόνο.</value>
+  </data>
+  <data name="Settings.CustomThreshold" xml:space="preserve">
+    <value>Προσαρμοσμένο χρονικό όριο</value>
+  </data>
+  <data name="Settings.CustomPlaceholder" xml:space="preserve">
+    <value>Εισαγάγετε καθυστέρηση (π.χ. 2d, 5h)</value>
+  </data>
+  <data name="Settings.CustomUnits" xml:space="preserve">
+    <value>Χρησιμοποιήστε y για έτη, m για μήνες, w για εβδομάδες, d για ημέρες και h για ώρες. Χρησιμοποιήστε τελεία για δεκαδικούς αριθμούς.</value>
+  </data>
+  <data name="Settings.CustomExamples" xml:space="preserve">
+    <value>Για παράδειγμα, 0.5h σημαίνει 30 λεπτά, 1.5d σημαίνει μιάμιση ημέρα και 2.5w σημαίνει δυόμισι εβδομάδες.</value>
+  </data>
+  <data name="Settings.SaveChanges" xml:space="preserve">
+    <value>Αποθήκευση αλλαγών</value>
+  </data>
+  <data name="Settings.InvalidCustom" xml:space="preserve">
+    <value>Μη έγκυρη μορφή χρονικού ορίου. Χρησιμοποιήστε τιμές όπως 1d, 2.5w ή 0.1h.</value>
+  </data>
+  <data name="Settings.InvalidThreshold" xml:space="preserve">
+    <value>Επιλέξτε έγκυρο χρονικό όριο.</value>
+  </data>
+  <data name="Settings.LiveRequired" xml:space="preserve">
+    <value>Επιβεβαιώστε τη ζωντανή δημόσια κοινοποίηση πριν από την αποθήκευση.</value>
+  </data>
+  <data name="Settings.TimelineSaved" xml:space="preserve">
+    <value>Οι ρυθμίσεις του χρονολογίου ενημερώθηκαν.</value>
+  </data>
+  <data name="Settings.TimelineSaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση των ρυθμίσεων χρονολογίου. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Settings.StatusLive" xml:space="preserve">
+    <value>Δημόσιο χρονολόγιο: ζωντανή κοινοποίηση</value>
+  </data>
+  <data name="Settings.StatusDelayed" xml:space="preserve">
+    <value>Καθυστέρηση δημόσιου χρονολογίου: {0}</value>
+  </data>
+  <data name="Settings.StatusInvalid" xml:space="preserve">
+    <value>Το δημόσιο χρονολόγιο δεν είναι διαθέσιμο μέχρι να επιλέξετε και να αποθηκεύσετε έγκυρο χρονικό όριο.</value>
+  </data>
+  <data name="Settings.StatusPrivate" xml:space="preserve">
+    <value>Το χρονολόγιο δεν είναι δημόσια διαθέσιμο.</value>
+  </data>
+  <data name="Settings.BindingInvalid" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη τιμή σε αυτό το πεδίο.</value>
+  </data>
+</root>

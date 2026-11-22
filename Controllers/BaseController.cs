@@ -36,7 +36,10 @@ public abstract class BaseController : Controller
     /// </summary>
     /// <param name="message">The message to show</param>
     /// <param name="alertType">The type of alert to display (default is "success"). Can be "success", "danger", "warning", "info", etc.</param>
-    protected void SetAlert(string message, string alertType = "success")
+    protected void SetAlert(string message, string alertType = "success") => SetAlert(message, alertType, null);
+
+    /// <summary>Logs the standard alert and supplies a presentation key for the destination view.</summary>
+    protected void SetAlert(string message, string alertType, string? webKey)
     {
         // Log success message to Serilog (console/file)
         _logger.LogInformation($"Alert: {message}");
@@ -45,6 +48,7 @@ public abstract class BaseController : Controller
         {
             TempData["AlertMessage"] = message;
             TempData["AlertType"] = alertType;
+            TempData["WebAlertKey"] = webKey;
         }
     }
 
@@ -53,7 +57,10 @@ public abstract class BaseController : Controller
     /// and sets a user-friendly alert message in TempData.
     /// </summary>
     /// <param name="ex">The exception that occurred.</param>
-    protected void HandleError(Exception ex)
+    protected void HandleError(Exception ex) => HandleError(ex, null);
+
+    /// <summary>Reports an exception with the standard audit entry and a localized action-specific alert.</summary>
+    protected void HandleError(Exception ex, string? webKey)
     {
         // Log to Serilog (console/file)
         _logger.LogError("An error occurred during an action: {ExceptionType}; request {RequestId}",
@@ -64,7 +71,7 @@ public abstract class BaseController : Controller
             $"{ex.GetType().Name}; request {HttpContext.TraceIdentifier}");
 
         // Optionally, set a user-friendly alert message
-        SetAlert("An unexpected error occurred. Please try again later.", "danger");
+        SetAlert("An unexpected error occurred. Please try again later.", "danger", webKey);
     }
 
     /// <summary>
@@ -130,7 +137,10 @@ public abstract class BaseController : Controller
     /// Validates the model state for errors and logs validation failures.
     /// </summary>
     /// <returns>True if the model state is valid; otherwise, false.</returns>
-    protected bool ValidateModelState()
+    protected bool ValidateModelState() => ValidateModelState(null);
+
+    /// <summary>Validates and audits the submission with an optional localized alert.</summary>
+    protected bool ValidateModelState(string? webKey)
     {
         if (!ModelState.IsValid)
         {
@@ -140,7 +150,7 @@ public abstract class BaseController : Controller
             // Log validation failure to PostgreSQL for audit tracking
             LogAudit("Validation Error", "Model validation failed", "Validation errors present.");
 
-            SetAlert("There are some validation errors. Please correct them and try again.", "danger");
+            SetAlert("There are some validation errors. Please correct them and try again.", "danger", webKey);
             return false;
         }
         return true;

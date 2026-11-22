@@ -4,6 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 
 namespace Wayfarer.Tests.Infrastructure;
@@ -15,6 +18,10 @@ public abstract class TestBase : IDisposable
 {
     private readonly List<ApplicationDbContext> _contexts = new();
     private readonly List<TestDirectory> _directories = new();
+
+    /// <summary>Uses the shipped Web catalogs for ordinary direct-controller test construction.</summary>
+    protected static WebMessages WebText { get; } = new(
+        WebLocalization.ReadLocales(new ConfigurationBuilder().Build()), NullLogger<WebMessages>.Instance);
 
     /// <summary>Allocates an exact test-owned root removed with this test, including on failure.</summary>
     protected string CreateTestDirectory()

@@ -528,4 +528,43 @@
   <data name="Shell.ApproximateRegion" xml:space="preserve">
     <value>Κατά προσέγγιση διεύθυνση, σε επίπεδο ευρύτερης περιοχής.</value>
   </data>
+  <data name="Shell.CopyEmbedUrl" xml:space="preserve">
+    <value>Αντιγραφή URL ενσωμάτωσης</value>
+  </data>
+  <data name="Shell.CopyEmbedHtml" xml:space="preserve">
+    <value>Αντιγραφή HTML ενσωμάτωσης</value>
+  </data>
+  <data name="Shell.EmbedUrlCopied" xml:space="preserve">
+    <value>Το URL ενσωμάτωσης αντιγράφηκε στο πρόχειρο!</value>
+  </data>
+  <data name="Shell.EmbedHtmlCopied" xml:space="preserve">
+    <value>Ο κώδικας HTML ενσωμάτωσης αντιγράφηκε στο πρόχειρο!</value>
+  </data>
+  <data name="Shell.EmbedUrlCopyFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αντιγραφή του URL ενσωμάτωσης.</value>
+  </data>
+  <data name="Shell.EmbedHtmlCopyFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αντιγραφή του κώδικα HTML ενσωμάτωσης.</value>
+  </data>
+  <data name="Shell.EmbedPublicHttps" xml:space="preserve">
+    <value>Ανοίξτε το Wayfarer στη δημόσια διεύθυνση HTTPS για να αντιγράψετε τον κώδικα ενσωμάτωσης.</value>
+  </data>
+  <data name="Shell.DrawPolygonStart" xml:space="preserve">
+    <value>Κάντε κλικ για να αρχίσετε τη σχεδίαση της ζώνης.</value>
+  </data>
+  <data name="Shell.DrawPolygonContinue" xml:space="preserve">
+    <value>Κάντε κλικ για να προσθέσετε άλλη κορυφή.</value>
+  </data>
+  <data name="Shell.DrawPolygonFinish" xml:space="preserve">
+    <value>Κάντε κλικ στην πρώτη κορυφή για να κλείσετε τη ζώνη.</value>
+  </data>
+  <data name="Shell.DrawEdgesCannotCross" xml:space="preserve">
+    <value>Οι πλευρές της ζώνης δεν επιτρέπεται να τέμνονται.</value>
+  </data>
+  <data name="Shell.EditPolygonHandles" xml:space="preserve">
+    <value>Σύρετε τις λαβές για να επεξεργαστείτε τη ζώνη.</value>
+  </data>
+  <data name="Shell.EditPolygonCancel" xml:space="preserve">
+    <value>Κάντε κλικ στην «Ακύρωση» για να αναιρέσετε τις αλλαγές.</value>
+  </data>
 </root>

@@ -1,0 +1,225 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Settings.Title" xml:space="preserve">
+    <value>Settings Management</value>
+  </data>
+  <data name="Settings.Timeline" xml:space="preserve">
+    <value>Timeline Settings</value>
+  </data>
+  <data name="Settings.DisplayName" xml:space="preserve">
+    <value>Display Name</value>
+  </data>
+  <data name="Settings.NotSet" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="Settings.Public" xml:space="preserve">
+    <value>Timeline Public</value>
+  </data>
+  <data name="Settings.Yes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Settings.No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Settings.PublicLink" xml:space="preserve">
+    <value>Your public timeline is available at the following address. You can share this link.</value>
+  </data>
+  <data name="Settings.EmbedHelp" xml:space="preserve">
+    <value>Embed your public timeline on your website.</value>
+  </data>
+  <data name="Settings.TimelineThreshold" xml:space="preserve">
+    <value>Timeline Threshold</value>
+  </data>
+  <data name="Settings.NoThreshold" xml:space="preserve">
+    <value>You can set a time threshold for your public timeline.</value>
+  </data>
+  <data name="Settings.Live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="Settings.LiveWarning" xml:space="preserve">
+    <value>Anyone can see your current location.</value>
+  </data>
+  <data name="Settings.ManageTimeline" xml:space="preserve">
+    <value>Manage Timeline Settings</value>
+  </data>
+  <data name="Settings.LoggingThresholds" xml:space="preserve">
+    <value>Location Logging Thresholds</value>
+  </data>
+  <data name="Settings.LoggingHelp" xml:space="preserve">
+    <value>The server applies these thresholds to incoming location data. They help reduce battery drain on mobile devices and avoid storing redundant location points.</value>
+  </data>
+  <data name="Settings.TimeThreshold" xml:space="preserve">
+    <value>Time Threshold</value>
+  </data>
+  <data name="Settings.DistanceThreshold" xml:space="preserve">
+    <value>Distance Threshold</value>
+  </data>
+  <data name="Settings.AccuracyThreshold" xml:space="preserve">
+    <value>Accuracy Threshold</value>
+  </data>
+  <data name="Settings.Minutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="Settings.TimeHelp" xml:space="preserve">
+    <value>Locations received less than {0} min after the last logged location are skipped.</value>
+  </data>
+  <data name="Settings.DistanceHelp" xml:space="preserve">
+    <value>Locations within {0} m of the last logged location are skipped.</value>
+  </data>
+  <data name="Settings.AccuracyHelp" xml:space="preserve">
+    <value>Locations with GPS accuracy worse than {0} m are rejected.</value>
+  </data>
+  <data name="Settings.LoggingNotice" xml:space="preserve">
+    <value>Both time and distance thresholds must be exceeded before a location is logged. GPS accuracy must also be within the accuracy threshold. The Check-in endpoint bypasses time and distance limits for manual logging. The server administrator configures these settings.</value>
+  </data>
+  <data name="Settings.Locations" xml:space="preserve">
+    <value>Location Settings</value>
+  </data>
+  <data name="Settings.DeleteAll" xml:space="preserve">
+    <value>Delete All Locations</value>
+  </data>
+  <data name="Settings.DeleteTitle" xml:space="preserve">
+    <value>Confirm deletion</value>
+  </data>
+  <data name="Settings.DeletePrompt" xml:space="preserve">
+    <value>Delete all of your location records? This action cannot be undone.</value>
+  </data>
+  <data name="Settings.Delete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Settings.DeleteSucceeded" xml:space="preserve">
+    <value>All locations deleted successfully.</value>
+  </data>
+  <data name="Settings.DeleteFailed" xml:space="preserve">
+    <value>Could not delete locations. Try again.</value>
+  </data>
+  <data name="Settings.DeleteDenied" xml:space="preserve">
+    <value>You are not authorized to delete these locations. Sign in again if your session ended.</value>
+  </data>
+  <data name="Settings.UserMissing" xml:space="preserve">
+    <value>User not found.</value>
+  </data>
+  <data name="Settings.UserUnauthenticated" xml:space="preserve">
+    <value>User not authenticated.</value>
+  </data>
+  <data name="Settings.EditTimeline" xml:space="preserve">
+    <value>Edit Timeline Settings</value>
+  </data>
+  <data name="Settings.FixErrors" xml:space="preserve">
+    <value>Please correct the errors below.</value>
+  </data>
+  <data name="Settings.ValidationFailed" xml:space="preserve">
+    <value>There are some validation errors. Please correct them and try again.</value>
+  </data>
+  <data name="Settings.ReplaceThreshold" xml:space="preserve">
+    <value>Select a valid threshold and save to make the timeline publicly available.</value>
+  </data>
+  <data name="Settings.TimelineTitle" xml:space="preserve">
+    <value>Timeline Title</value>
+  </data>
+  <data name="Settings.TitleLength" xml:space="preserve">
+    <value>Timeline title must be 80 characters or fewer.</value>
+  </data>
+  <data name="Settings.TitleHelp" xml:space="preserve">
+    <value>Optional. Leave blank to restore the default title.</value>
+  </data>
+  <data name="Settings.MakePublic" xml:space="preserve">
+    <value>Make Timeline Public</value>
+  </data>
+  <data name="Settings.PublicHelp" xml:space="preserve">
+    <value>Anyone can see your timeline when it is public.</value>
+  </data>
+  <data name="Settings.PublicWarning" xml:space="preserve">
+    <value>Think carefully before sharing your current location publicly. It can put your privacy and safety at risk.</value>
+  </data>
+  <data name="Settings.ThresholdHelp" xml:space="preserve">
+    <value>Choose how long to wait before a location appears on your public timeline.</value>
+  </data>
+  <data name="Settings.SelectThreshold" xml:space="preserve">
+    <value>Select a threshold</value>
+  </data>
+  <data name="Settings.ThresholdNow" xml:space="preserve">
+    <value>Now — anyone can see your current location</value>
+  </data>
+  <data name="Settings.ThresholdHour" xml:space="preserve">
+    <value>Up to 1 hour ago</value>
+  </data>
+  <data name="Settings.ThresholdDay" xml:space="preserve">
+    <value>Up to 1 day ago</value>
+  </data>
+  <data name="Settings.ThresholdWeek" xml:space="preserve">
+    <value>Up to 1 week ago</value>
+  </data>
+  <data name="Settings.ThresholdMonth" xml:space="preserve">
+    <value>Up to 1 month ago</value>
+  </data>
+  <data name="Settings.ThresholdYear" xml:space="preserve">
+    <value>Up to 1 year ago</value>
+  </data>
+  <data name="Settings.ThresholdCustom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="Settings.DelayedHint" xml:space="preserve">
+    <value>Sharing will be delayed one day when you save.</value>
+  </data>
+  <data name="Settings.ConfirmLive" xml:space="preserve">
+    <value>I confirm that my current location will be publicly available live.</value>
+  </data>
+  <data name="Settings.CustomThreshold" xml:space="preserve">
+    <value>Custom Time Threshold</value>
+  </data>
+  <data name="Settings.CustomPlaceholder" xml:space="preserve">
+    <value>Enter a delay (e.g., 2d, 5h)</value>
+  </data>
+  <data name="Settings.CustomUnits" xml:space="preserve">
+    <value>Use y for years, m for months, w for weeks, d for days and h for hours. Use a period for decimals.</value>
+  </data>
+  <data name="Settings.CustomExamples" xml:space="preserve">
+    <value>For example, 0.5h means 30 minutes, 1.5d means one and a half days and 2.5w means two and a half weeks.</value>
+  </data>
+  <data name="Settings.SaveChanges" xml:space="preserve">
+    <value>Save Changes</value>
+  </data>
+  <data name="Settings.InvalidCustom" xml:space="preserve">
+    <value>Invalid time threshold format. Use values like 1d, 2.5w or 0.1h.</value>
+  </data>
+  <data name="Settings.InvalidThreshold" xml:space="preserve">
+    <value>Select a valid time threshold.</value>
+  </data>
+  <data name="Settings.LiveRequired" xml:space="preserve">
+    <value>Confirm live public sharing before saving.</value>
+  </data>
+  <data name="Settings.TimelineSaved" xml:space="preserve">
+    <value>Timeline settings updated successfully.</value>
+  </data>
+  <data name="Settings.TimelineSaveFailed" xml:space="preserve">
+    <value>Could not save Timeline settings. Try again.</value>
+  </data>
+  <data name="Settings.StatusLive" xml:space="preserve">
+    <value>Public timeline: live</value>
+  </data>
+  <data name="Settings.StatusDelayed" xml:space="preserve">
+    <value>Public timeline delay: {0}</value>
+  </data>
+  <data name="Settings.StatusInvalid" xml:space="preserve">
+    <value>Public timeline unavailable until a valid threshold is selected and saved.</value>
+  </data>
+  <data name="Settings.StatusPrivate" xml:space="preserve">
+    <value>Timeline is not publicly available.</value>
+  </data>
+  <data name="Settings.BindingInvalid" xml:space="preserve">
+    <value>Enter a valid value for this field.</value>
+  </data>
+</root>
