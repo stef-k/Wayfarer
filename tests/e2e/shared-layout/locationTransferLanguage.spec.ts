@@ -49,11 +49,11 @@ test('Greek location transfer feedback survives an import status refresh', async
     await expect(status).toHaveText('Σε παύση');
     await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
     await expect(page.locator('#enrichment-status')).toHaveText('Δεν έχει επιλεγεί πάροχος γεωκωδικοποίησης.');
+    await page.screenshot({ path: process.env.WAYFARER_AREA8_SCREENSHOT
+        || testInfo.outputPath('location-transfers-el-GR.png'), fullPage: true });
     await page.getByRole('button', { name: 'Έναρξη εισαγωγής', exact: true }).click();
     const confirm = page.getByRole('dialog').filter({ hasText: 'Να ξεκινήσει αυτή η εισαγωγή;' });
     await expect(confirm).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(confirm).not.toBeVisible();
-    await page.screenshot({ path: process.env.WAYFARER_AREA8_SCREENSHOT
-        || testInfo.outputPath('location-transfers-el-GR.png'), fullPage: true });
+    await confirm.getByRole('button', { name: 'Ακύρωση', exact: true }).click();
+    await expect(confirm).toBeHidden();
 });
