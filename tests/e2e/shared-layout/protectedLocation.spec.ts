@@ -49,6 +49,7 @@ test('protected Location Web form preserves capture instant and retained conflic
     await expect(page.locator('#Latitude')).toHaveValue('37.98123456');
     await expect(page.locator('#Longitude')).toHaveValue('23.72123456');
     await expect(page.locator('#Altitude')).toHaveValue('123.45');
+    await expect(page.locator('#LocalTimestamp')).toHaveValue('2026-10-29T10:15');
     await expect(page.locator('#ReturnUrl')).toHaveValue(returnUrl);
     const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
     const detail = async () => {
@@ -94,6 +95,12 @@ test('protected Location Web form preserves capture instant and retained conflic
     await expect(page.locator('#location-save-status')).toContainText('Το διατηρημένο προσχέδιο επανήλθε.');
     await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     expect((await detail()).record.notesHtml).toBe('Newer server Notes');
+
+    await expect(page.locator('#LocalTimestamp')).toHaveValue('2026-10-29T04:15');
+    if (await page.locator('body').getAttribute('data-bs-theme') !== 'dark') await page.locator('#themeToggle').click();
+    await expect(page.locator('body')).toHaveAttribute('data-bs-theme', 'dark');
+    await page.setViewportSize({ width: 640, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: process.env.WAYFARER_AREA7_SCREENSHOT || testInfo.outputPath('protected-location-retained-draft.png'), fullPage: true });
 });
 
