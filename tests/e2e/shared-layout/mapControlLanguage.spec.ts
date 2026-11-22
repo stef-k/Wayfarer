@@ -104,3 +104,57 @@ test('Area 1 Greek map drawing and distance rulers', async ({ page }) => {
   await expect(map.locator('[data-route-point-key]')).toHaveCount(2);
   await expect(work).toContainText('2 σημεία διαδρομής · 2 επεξεργάσιμα');
 });
+
+/** Escape cancels the language dialog first and clears the measurement when the map receives it. */
+test('Location ruler survives Escape from language discard confirmation', async ({ page }) => {
+  const { username, password } = loadSharedLayoutConfig();
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url());
+    return !['localhost', '127.0.0.1'].includes(url.hostname) || /^\/(api|public)\/tiles/i.test(url.pathname)
+      ? route.abort() : route.continue();
+  });
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(username);
+  await page.getByLabel('Password').fill(password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+
+  await page.goto('/User/Location');
+  const language = page.locator('#language-open');
+  const selectLanguage = async (locale: string) => {
+    await language.click();
+    await page.locator(`#language-options [value="${locale}"]`).check();
+    await page.locator('#language-apply').click();
+  };
+  await selectLanguage('el-GR');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+  let preferenceRequests = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/Language/Set') preferenceRequests++;
+  });
+
+  const map = page.locator('#mapContainer');
+  const ruler = map.getByRole('button', { name: 'Μέτρηση απόστασης' });
+  const label = map.locator('.distance-label');
+  await ruler.click();
+  await map.click({ position: { x: 160, y: 170 } });
+  await map.click({ position: { x: 240, y: 170 } });
+  await expect(label).toHaveText(/^\d[\d.]*,\d{2} χλμ\.$/);
+  const distance = await label.innerText();
+
+  await selectLanguage('en-US');
+  await expect(page.locator('#language-keep')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#language-dialog')).toBeHidden();
+  await expect(language).toBeFocused();
+  await expect(ruler).toHaveClass(/\bactive\b/);
+  await expect(label).toHaveText(distance);
+  await expect(label).toBeVisible();
+
+  await map.focus();
+  await expect(map).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(ruler).not.toHaveClass(/\bactive\b/);
+  await expect(label).toHaveCount(0);
+  expect(preferenceRequests).toBe(0);
+});

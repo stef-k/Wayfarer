@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
-/** One real form save with response loss, followed by one focused conflict/draft observation. */
+/** Greek Location binding and protected recovery run through the real routes and persisted row. */
 test('protected Location Web form preserves capture instant and retained conflict drafts', async ({ page }, testInfo) => {
     const config = loadSharedLayoutConfig();
     await page.route('**/*', async route => {
@@ -14,20 +14,52 @@ test('protected Location Web form preserves capture instant and retained conflic
     await page.getByLabel('Username').fill(config.username);
     await page.getByLabel('Password').fill(config.password);
     await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
-    // Established Web Create supplies one run-owned history row; no fixture or creation refactoring.
+    await page.goto('/User/Visit');
+    await page.locator('#language-open').click();
+    await page.locator('#language-options [value="el-GR"]').check();
+    await Promise.all([page.waitForEvent('domcontentloaded'), page.locator('#language-apply').click()]);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.locator('#visit-summary')).toHaveText('Σύνολο: 0 επισκέψεις');
+
+    // Create supplies one run-owned row. A valid field must survive the first rejected submission.
+    const returnUrl = '/User/Location/AllLocations?keep=1#history';
     await page.goto('/User/Location/Create');
-    await page.locator('#Latitude').fill('37.98'); await page.locator('#Longitude').fill('23.72');
+    await expect(page.locator('#language-open')).toHaveCount(0);
+    await page.locator('#Latitude').fill('92.5');
+    await page.locator('#Longitude').fill('23.72123456');
+    await page.locator('#Altitude').fill('123.45');
     await page.locator('#LocalTimestamp').fill('2026-10-29T10:15');
+    await page.locator('#Address').fill('Original & authored');
     await page.locator('.rich-notes-content').fill('Original notes');
-    await page.getByRole('button', { name: 'Add Location', exact: true }).click();
-    await page.getByRole('link', { name: 'Open saved Location / Edit' }).click();
-    await page.waitForURL(/\/User\/Location\/Edit\//);
+    const add = page.getByRole('button', { name: 'Προσθήκη καταγραφής τοποθεσίας', exact: true });
+    await add.click();
+    await expect(page.locator('[data-valmsg-for="Latitude"]')).toContainText('μεταξύ -90 και 90');
+    await expect(page.locator('#Latitude')).toHaveValue('92.5');
+    await expect(page.locator('#Longitude')).toHaveValue('23.72123456');
+    await expect(page.locator('#Altitude')).toHaveValue('123.45');
+    await expect(page.locator('#LocalTimestamp')).toHaveValue('2026-10-29T10:15');
+    await page.locator('#Latitude').fill('37.98123456');
+    await add.click();
+    const saved = page.getByRole('link', { name: 'Άνοιγμα και επεξεργασία αποθηκευμένης καταγραφής' });
+    await expect(saved).toBeVisible();
+    const edit = new URL((await saved.getAttribute('href'))!, page.url());
+    edit.searchParams.set('returnUrl', returnUrl);
+    await page.goto(edit.href);
+    await expect(page.locator('#language-open')).toHaveCount(0);
+    await expect(page.locator('#Latitude')).toHaveValue('37.98123456');
+    await expect(page.locator('#Longitude')).toHaveValue('23.72123456');
+    await expect(page.locator('#Altitude')).toHaveValue('123.45');
+    await expect(page.locator('#LocalTimestamp')).toHaveValue('2026-10-29T10:15');
+    await expect(page.locator('#ReturnUrl')).toHaveValue(returnUrl);
     const id = Number(await page.locator('#locationForm').getAttribute('data-location-id'));
     const detail = async () => {
         const response = await page.request.get(`/api/location/history/${id}?viewerZone=UTC`);
         expect(response.status()).toBe(200); return response.json();
     };
     const before = await detail();
+    expect(before.record.position).toMatchObject({ latitude: 37.98123456, longitude: 23.72123456 });
+    expect(before.record.altitude).toBe(123.45);
+    expect(Date.parse(before.record.eventUtc)).toBe(Date.parse('2026-10-29T08:15Z'));
     let dropped = false;
     let posted: any = null;
     await page.route('**/api/location/*/mutations/*/*', async route => {
@@ -39,7 +71,7 @@ test('protected Location Web form preserves capture instant and retained conflic
         return route.continue();
     });
     await page.locator('#Latitude').fill('40.7'); await page.locator('#Longitude').fill('-74');
-    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Save', exact: true }).click()]);
+    await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Αποθήκευση', exact: true }).click()]);
     expect(dropped).toBe(true); expect(posted.changes.eventUtc).toBeUndefined();
     expect(posted.changes.manualAddress).toBeUndefined();
     const moved = await detail();
@@ -56,14 +88,20 @@ test('protected Location Web form preserves capture instant and retained conflic
     });
     expect(external.status()).toBe(200);
     await page.locator('#notes [contenteditable=true]').fill('My retained draft');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.locator('#location-save-status')).toContainText('locationBaseStale');
+    await page.getByRole('button', { name: 'Αποθήκευση', exact: true }).click();
+    await expect(page.locator('#location-save-status')).toContainText('Η καταγραφή άλλαξε αφού την ανοίξατε.');
     await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     await page.reload();
-    await expect(page.locator('#location-save-status')).toContainText('Restored your retained draft');
+    await expect(page.locator('#location-save-status')).toContainText('Το διατηρημένο προσχέδιο επανήλθε.');
     await expect(page.locator('#notes [contenteditable=true]')).toContainText('My retained draft');
     expect((await detail()).record.notesHtml).toBe('Newer server Notes');
-    await page.screenshot({ path: testInfo.outputPath('protected-location-retained-draft.png'), fullPage: true });
+
+    await expect(page.locator('#LocalTimestamp')).toHaveValue('2026-10-29T04:15');
+    if (await page.locator('body').getAttribute('data-bs-theme') !== 'dark') await page.locator('#themeToggle').click();
+    await expect(page.locator('body')).toHaveAttribute('data-bs-theme', 'dark');
+    await page.setViewportSize({ width: 640, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: process.env.WAYFARER_AREA7_SCREENSHOT || testInfo.outputPath('protected-location-retained-draft.png'), fullPage: true });
 });
 
 /** W971-1 requires a mounted ordinary form to prove real transport loss and retained newer input. */

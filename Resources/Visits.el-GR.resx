@@ -1,0 +1,261 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Visits.History" xml:space="preserve">
+    <value>Ιστορικό επισκέψεων</value>
+  </data>
+  <data name="Visits.Edit" xml:space="preserve">
+    <value>Επεξεργασία επίσκεψης</value>
+  </data>
+  <data name="Visits.EditTitle" xml:space="preserve">
+    <value>Επεξεργασία επίσκεψης - {0}</value>
+  </data>
+  <data name="Visits.Details" xml:space="preserve">
+    <value>Στοιχεία επίσκεψης</value>
+  </data>
+  <data name="Visits.VisitDate" xml:space="preserve">
+    <value>Ημερομηνία επίσκεψης</value>
+  </data>
+  <data name="Visits.DeleteSelectedHelp" xml:space="preserve">
+    <value>Διαγραφή επιλεγμένων επισκέψεων</value>
+  </data>
+  <data name="Visits.AllTrips" xml:space="preserve">
+    <value>Όλα τα ταξίδια</value>
+  </data>
+  <data name="Visits.OpenStill" xml:space="preserve">
+    <value>Ανοιχτή (σε εξέλιξη)</value>
+  </data>
+  <data name="Visits.Open" xml:space="preserve">
+    <value>Ανοιχτή</value>
+  </data>
+  <data name="Visits.Closed" xml:space="preserve">
+    <value>Ολοκληρωμένη</value>
+  </data>
+  <data name="Visits.StillVisiting" xml:space="preserve">
+    <value>Επίσκεψη σε εξέλιξη</value>
+  </data>
+  <data name="Visits.StillOpen" xml:space="preserve">
+    <value>Η επίσκεψη παραμένει ανοιχτή</value>
+  </data>
+  <data name="Visits.Status" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="Visits.PlaceName" xml:space="preserve">
+    <value>Όνομα τοποθεσίας</value>
+  </data>
+  <data name="Visits.PlaceSearch" xml:space="preserve">
+    <value>Αναζήτηση ονόματος τοποθεσίας…</value>
+  </data>
+  <data name="Visits.RegionSearch" xml:space="preserve">
+    <value>Αναζήτηση περιοχής…</value>
+  </data>
+  <data name="Visits.Trip" xml:space="preserve">
+    <value>Ταξίδι</value>
+  </data>
+  <data name="Visits.OpenTrip" xml:space="preserve">
+    <value>Μετάβαση στο ταξίδι</value>
+  </data>
+  <data name="Visits.Dwell" xml:space="preserve">
+    <value>Χρόνος παραμονής</value>
+  </data>
+  <data name="Visits.Minutes" xml:space="preserve">
+    <value>{0} λεπ.</value>
+  </data>
+  <data name="Visits.HoursMinutes" xml:space="preserve">
+    <value>{0} ώ. {1} λεπ.</value>
+  </data>
+  <data name="Visits.Arrived" xml:space="preserve">
+    <value>Άφιξη</value>
+  </data>
+  <data name="Visits.Ended" xml:space="preserve">
+    <value>Λήξη</value>
+  </data>
+  <data name="Visits.ArrivedUtc" xml:space="preserve">
+    <value>Ώρα άφιξης (UTC)</value>
+  </data>
+  <data name="Visits.EndedUtc" xml:space="preserve">
+    <value>Ώρα λήξης (UTC)</value>
+  </data>
+  <data name="Visits.EndHelp" xml:space="preserve">
+    <value>Αφήστε το κενό αν η επίσκεψη είναι σε εξέλιξη</value>
+  </data>
+  <data name="Visits.MapClick" xml:space="preserve">
+    <value>Επιλέξτε σημείο στον χάρτη για να αλλάξετε την τοποθεσία.</value>
+  </data>
+  <data name="Visits.VisitLocation" xml:space="preserve">
+    <value>Τοποθεσία επίσκεψης</value>
+  </data>
+  <data name="Visits.Icon" xml:space="preserve">
+    <value>Εικονίδιο</value>
+  </data>
+  <data name="Visits.Color" xml:space="preserve">
+    <value>Χρώμα δείκτη</value>
+  </data>
+  <data name="Visits.Delete" xml:space="preserve">
+    <value>Διαγραφή επίσκεψης</value>
+  </data>
+  <data name="Visits.DeletePrompt" xml:space="preserve">
+    <value>Να διαγραφεί αυτή η επίσκεψη; Η διαγραφή είναι οριστική.</value>
+  </data>
+  <data name="Visits.DeleteBulk.one" xml:space="preserve">
+    <value>Να διαγραφεί {0} επιλεγμένη επίσκεψη; Η διαγραφή είναι οριστική.</value>
+  </data>
+  <data name="Visits.DeleteBulk.other" xml:space="preserve">
+    <value>Να διαγραφούν {0} επιλεγμένες επισκέψεις; Η διαγραφή είναι οριστική.</value>
+  </data>
+  <data name="Visits.DeleteUnknown" xml:space="preserve">
+    <value>Η διαγραφή δεν επιβεβαιώθηκε. Ανανεώστε το ιστορικό και ελέγξτε ποιες επισκέψεις παραμένουν. Η προηγούμενη ενέργεια μπορεί ακόμη να ολοκληρωθεί.</value>
+  </data>
+  <data name="Visits.DeleteNoMatches" xml:space="preserve">
+    <value>Δεν βρέθηκαν επισκέψεις που να ταιριάζουν.</value>
+  </data>
+  <data name="Visits.DeleteNoIds" xml:space="preserve">
+    <value>Δεν υποβλήθηκαν επισκέψεις για διαγραφή.</value>
+  </data>
+  <data name="Visits.DeleteDone.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} επίσκεψη.</value>
+  </data>
+  <data name="Visits.DeleteDone.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} επισκέψεις.</value>
+  </data>
+  <data name="Visits.NoSelected" xml:space="preserve">
+    <value>Δεν έχουν επιλεγεί επισκέψεις.</value>
+  </data>
+  <data name="Visits.NotFound" xml:space="preserve">
+    <value>Η επίσκεψη δεν βρέθηκε.</value>
+  </data>
+  <data name="Visits.EditDenied" xml:space="preserve">
+    <value>Η επίσκεψη δεν βρέθηκε ή δεν έχετε δικαίωμα επεξεργασίας.</value>
+  </data>
+  <data name="Visits.Saved" xml:space="preserve">
+    <value>Η επίσκεψη ενημερώθηκε.</value>
+  </data>
+  <data name="Visits.DeletedPlace" xml:space="preserve">
+    <value>Η επίσκεψη στην τοποθεσία «{0}» διαγράφηκε.</value>
+  </data>
+  <data name="Visits.Total.one" xml:space="preserve">
+    <value>Σύνολο: {0} επίσκεψη</value>
+  </data>
+  <data name="Visits.Total.other" xml:space="preserve">
+    <value>Σύνολο: {0} επισκέψεις</value>
+  </data>
+  <data name="Visits.NoMatches" xml:space="preserve">
+    <value>Δεν βρέθηκαν επισκέψεις.</value>
+  </data>
+  <data name="Visits.LoadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των επισκέψεων.</value>
+  </data>
+  <data name="Visits.TripsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του φίλτρου ταξιδιών.</value>
+  </data>
+  <data name="Visits.Locations" xml:space="preserve">
+    <value>Καταγραφές τοποθεσίας</value>
+  </data>
+  <data name="Visits.LocationsHelp" xml:space="preserve">
+    <value>Σημεία GPS που καταγράφηκαν κατά την επίσκεψη εντός της ακτίνας εγγύτητας της τοποθεσίας</value>
+  </data>
+  <data name="Visits.RelevantLocations" xml:space="preserve">
+    <value>Σχετικές καταγραφές τοποθεσίας</value>
+  </data>
+  <data name="Visits.NoLocations" xml:space="preserve">
+    <value>Δεν βρέθηκαν σχετικές καταγραφές τοποθεσίας για αυτή την επίσκεψη.</value>
+  </data>
+  <data name="Visits.LocationsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των σχετικών καταγραφών τοποθεσίας.</value>
+  </data>
+  <data name="Visits.CountsFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του πλήθους καταγραφών.</value>
+  </data>
+  <data name="Visits.ShowMore" xml:space="preserve">
+    <value>Εμφάνιση περισσότερων</value>
+  </data>
+  <data name="Visits.ViewLocations.one" xml:space="preserve">
+    <value>Προβολή της {0} καταγραφής τοποθεσίας</value>
+  </data>
+  <data name="Visits.ViewLocations.other" xml:space="preserve">
+    <value>Προβολή όλων των καταγραφών τοποθεσίας ({0})</value>
+  </data>
+  <data name="Visits.Timestamp" xml:space="preserve">
+    <value>Χρονική σήμανση</value>
+  </data>
+  <data name="Visits.Icon.marker" xml:space="preserve">
+    <value>Δείκτης</value>
+  </data>
+  <data name="Visits.Icon.star" xml:space="preserve">
+    <value>Αστέρι</value>
+  </data>
+  <data name="Visits.Icon.camera" xml:space="preserve">
+    <value>Κάμερα</value>
+  </data>
+  <data name="Visits.Icon.museum" xml:space="preserve">
+    <value>Μουσείο</value>
+  </data>
+  <data name="Visits.Icon.eat" xml:space="preserve">
+    <value>Φαγητό</value>
+  </data>
+  <data name="Visits.Icon.drink" xml:space="preserve">
+    <value>Ποτό</value>
+  </data>
+  <data name="Visits.Icon.hotel" xml:space="preserve">
+    <value>Ξενοδοχείο</value>
+  </data>
+  <data name="Visits.Icon.info" xml:space="preserve">
+    <value>Πληροφορίες</value>
+  </data>
+  <data name="Visits.Icon.help" xml:space="preserve">
+    <value>Βοήθεια</value>
+  </data>
+  <data name="Visits.Icon.flag" xml:space="preserve">
+    <value>Σημαία</value>
+  </data>
+  <data name="Visits.Icon.danger" xml:space="preserve">
+    <value>Κίνδυνος</value>
+  </data>
+  <data name="Visits.Icon.beach" xml:space="preserve">
+    <value>Παραλία</value>
+  </data>
+  <data name="Visits.Icon.hike" xml:space="preserve">
+    <value>Πεζοπορία</value>
+  </data>
+  <data name="Visits.Icon.wc" xml:space="preserve">
+    <value>Τουαλέτα</value>
+  </data>
+  <data name="Visits.Icon.sos" xml:space="preserve">
+    <value>SOS</value>
+  </data>
+  <data name="Visits.Icon.map" xml:space="preserve">
+    <value>Χάρτης</value>
+  </data>
+  <data name="Visits.Color.bg-blue" xml:space="preserve">
+    <value>Μπλε</value>
+  </data>
+  <data name="Visits.Color.bg-red" xml:space="preserve">
+    <value>Κόκκινο</value>
+  </data>
+  <data name="Visits.Color.bg-green" xml:space="preserve">
+    <value>Πράσινο</value>
+  </data>
+  <data name="Visits.Color.bg-purple" xml:space="preserve">
+    <value>Μοβ</value>
+  </data>
+  <data name="Visits.Color.bg-black" xml:space="preserve">
+    <value>Μαύρο</value>
+  </data>
+  <data name="Visits.UnknownPlace" xml:space="preserve">
+    <value>Άγνωστη τοποθεσία</value>
+  </data>
+  <data name="Visits.MarkerName" xml:space="preserve">
+    <value>Δείκτης επίσκεψης</value>
+  </data>
+</root>

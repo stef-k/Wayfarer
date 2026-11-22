@@ -3,58 +3,48 @@
  * Provides search, filtering, bulk delete, and view/edit actions.
  */
 
-import {
-    formatViewerAndSourceTimes,
-    formatDate,
-    currentDateInputValue,
-    getViewerTimeZone,
-} from '../../../util/datetime.js';
+import { currentDateInputValue } from '../../../util/datetime.js';
+import { date, message, number, plural } from '../../../localization/messages.js';
+import { holdLanguageNavigation } from '../../../localization/languageNavigation.js';
+import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
+import { renderHistoryPagination } from '../../../util/history-pagination.js';
 
 let visits = [];
 let currentPage = 1;
 const pageSize = 20;
 let currentFilters = {};
 
-const viewerTimeZone = getViewerTimeZone();
 const returnUrlParam = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
 const buildEditUrl = id => `/User/Visit/Edit/${id}?returnUrl=${returnUrlParam}`;
 
-/**
- * Proxy external image URLs in HTML content for display
- * @param {string} html - HTML content with potential external images
- * @returns {string} - HTML with image sources proxied
- */
-const proxyImagesInHtml = (html) => {
-    if (!html) return '';
-    const div = document.createElement('div');
-    div.innerHTML = html;
-    div.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('src');
-        if (src && !src.startsWith('data:') && !src.startsWith('/Public/ProxyImage')) {
-            img.setAttribute('src', `/Public/ProxyImage?url=${encodeURIComponent(src)}`);
-        }
-    });
-    return div.innerHTML;
+/** Read existing Visit results and report known session expiry independently of other request failures. */
+class VisitReadFailure extends Error {}
+
+const readVisitResponse = async (response, failure) => {
+    if (response.redirected || [401, 403].includes(response.status)) {
+        throw new VisitReadFailure(message('Shell.SessionEnded', 'Your session has ended. Sign in again.'));
+    }
+    if (!response.ok) throw new VisitReadFailure(failure);
+    return response.json();
 };
 
 /**
  * Format dwell time for display
  */
 const formatDwellTime = (arrivedAt, endedAt) => {
-    if (!endedAt) return '<span class="badge bg-warning text-dark">Open</span>';
-
     const arrived = new Date(arrivedAt);
     const ended = new Date(endedAt);
     const diffMs = ended - arrived;
     const diffMins = Math.floor(diffMs / 60000);
 
     if (diffMins < 60) {
-        return `${diffMins} min`;
+        return message('Visits.Minutes', '{0} min', number(diffMins));
     }
 
     const hours = Math.floor(diffMins / 60);
     const mins = diffMins % 60;
-    return `${hours}h ${mins}m`;
+    return message('Visits.HoursMinutes', '{0}h {1}m', number(hours), number(mins));
 };
 
 /**
@@ -62,8 +52,7 @@ const formatDwellTime = (arrivedAt, endedAt) => {
  */
 const formatVisitTimestamp = (isoTimestamp) => {
     if (!isoTimestamp) return '-';
-    const date = new Date(isoTimestamp);
-    return date.toLocaleString(undefined, {
+    return date(new Date(isoTimestamp), {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -137,66 +126,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Delete from modal
-    document.addEventListener('click', e => {
-        const del = e.target.closest('.delete-visit-from-popup');
-        if (del) {
-            e.preventDefault();
-            const id = del.dataset.visitId;
-            const modalEl = document.getElementById('visitModal');
-            const modalInstance = bootstrap.Modal.getInstance(modalEl);
-
-            wayfarer.showConfirmationModal({
-                title: 'Confirm Deletion',
-                message: 'Are you sure you want to delete this visit? This cannot be undone.',
-                confirmText: 'Delete',
-                onConfirm: () => {
-                    deleteVisit(id).then(() => {
-                        loadVisits(currentPage);
-                        modalInstance.hide();
-                    });
-                }
-            });
-        }
+    // Both actions use the existing bulk endpoint. The detail modal closes after a confirmed single deletion.
+    document.addEventListener('click', event => {
+        const link = event.target.closest('.delete-visit-from-popup');
+        if (!link) return;
+        event.preventDefault();
+        confirmVisitDeletion([link.dataset.visitId], () => {
+            bootstrap.Modal.getInstance(document.getElementById('visitModal'))?.hide();
+            loadVisits(currentPage);
+        }, true);
     });
-
-    // Pagination
-    window.goToPage = (page) => loadVisits(page);
-
-    // Bulk delete
     document.getElementById('deleteSelected').addEventListener('click', () => {
-        const selectedIds = Array.from(
-            document.querySelectorAll('input[name="visitCheckbox"]:checked')
-        ).map(cb => cb.value);
-
-        if (selectedIds.length === 0) {
-            alert('No visits selected');
+        const ids = Array.from(document.querySelectorAll('input[name="visitCheckbox"]:checked'), row => row.value);
+        if (ids.length === 0) {
+            wayfarer.showAlert('warning', message('Visits.NoSelected', 'No visits selected.'));
             return;
         }
-
-        wayfarer.showConfirmationModal({
-            title: 'Confirm Bulk Deletion',
-            message: `Are you sure you want to delete ${selectedIds.length} visit(s)? This cannot be undone.`,
-            confirmText: 'Delete',
-            onConfirm: async () => {
-                try {
-                    const response = await fetch('/api/Visit/bulk-delete', {
-                        method: 'POST',
-                        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
-                        body: JSON.stringify({ visitIds: selectedIds })
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        loadVisits(currentPage);
-                    } else {
-                        alert('Bulk delete failed: ' + (data.message || 'Unknown error'));
-                    }
-                } catch (err) {
-                    console.error(err);
-                    wayfarer.showAlert('danger', 'Could not delete visits');
-                }
-            }
-        });
+        confirmVisitDeletion(ids, () => loadVisits(currentPage));
     });
 });
 
@@ -214,16 +160,12 @@ const loadVisits = async (page = 1) => {
         }
     });
 
+    const feedback = document.getElementById('visit-read-status');
     try {
         const response = await fetch(`/api/Visit/search?${params.toString()}`, { credentials: 'include' });
 
-        if (!response.ok) {
-            console.error('Visit API error:', response.status, response.statusText);
-            return;
-        }
-
-        const res = await response.json();
-
+        const res = await readVisitResponse(response, message('Visits.LoadFailed', 'Could not load visits.'));
+        feedback.textContent = '';
         visits = res.data || [];
         displayVisitsInTable(visits);
         updatePagination(res.totalItems || 0, currentPage);
@@ -234,6 +176,7 @@ const loadVisits = async (page = 1) => {
         selectAll.indeterminate = false;
     } catch (err) {
         console.error('[Visit] Failed to load visits:', err);
+        feedback.textContent = err instanceof VisitReadFailure ? err.message : message('Visits.LoadFailed', 'Could not load visits.');
     }
 };
 
@@ -243,7 +186,7 @@ const loadVisits = async (page = 1) => {
 const loadTripOptions = async () => {
     try {
         const response = await fetch('/api/Visit/trips', { credentials: 'include' });
-        const trips = await response.json();
+        const trips = await readVisitResponse(response, message('Visits.TripsFailed', 'Could not load the trips filter.'));
 
         const select = document.getElementById('tripFilter');
         trips.forEach(trip => {
@@ -254,8 +197,18 @@ const loadTripOptions = async () => {
         });
     } catch (err) {
         console.error('Failed to load trips:', err);
+        document.getElementById('visit-filter-status').textContent = err instanceof VisitReadFailure
+            ? err.message : message('Visits.TripsFailed', 'Could not load the trips filter.');
     }
 };
+
+/** Render the same Visit status in the row and the detail. */
+const statusBadge = ended => ended
+    ? `<span class="badge bg-success">${encode(message('Visits.Closed', 'Closed'))}</span>`
+    : `<span class="badge bg-warning text-dark">${encode(message('Visits.Open', 'Open'))}</span>`;
+
+/** Only the generated open badge contains markup. Duration remains plain display text. */
+const dwellDisplay = (arrived, ended) => ended ? encode(formatDwellTime(arrived, ended)) : statusBadge(false);
 
 /**
  * Display visits in table
@@ -265,36 +218,33 @@ const displayVisitsInTable = (visits) => {
     tbody.innerHTML = '';
 
     if (!visits.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center">No visits found.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center">${encode(message('Visits.NoMatches', 'No visits found.'))}</td></tr>`;
         return;
     }
 
     for (const v of visits) {
-        const statusBadge = v.endedAtUtc
-            ? '<span class="badge bg-success">Closed</span>'
-            : '<span class="badge bg-warning text-dark">Open</span>';
 
         // Show spinner initially, will be replaced by actual count
-        const locationSpinner = `<span class="location-count-cell" data-visit-id="${v.id}"><span class="spinner-border spinner-border-sm" role="status"></span></span>`;
+        const locationSpinner = `<span class="location-count-cell" data-visit-id="${v.id}"><span class="spinner-border spinner-border-sm" role="status" aria-label="${encode(message('Shell.Loading', 'Loading…'))}"></span></span>`;
 
         tbody.insertAdjacentHTML('beforeend', `
             <tr>
-                <td><input type="checkbox" name="visitCheckbox" value="${v.id}"></td>
+                <td><input type="checkbox" name="visitCheckbox" aria-label="${encode(message('Shell.SelectRow', 'Select row'))}" value="${v.id}"></td>
                 <td>
                     <i class="bi bi-clock me-1"></i>
                     ${formatVisitTimestamp(v.arrivedAtUtc)}
                 </td>
                 <td>
-                    <strong>${v.placeNameSnapshot || 'Unknown'}</strong>
+                    <strong>${encode(v.placeNameSnapshot || message('Shell.Unknown', 'Unknown'))}</strong>
                 </td>
-                <td>${v.tripNameSnapshot || 'Unknown'}</td>
-                <td>${v.regionNameSnapshot || '-'}</td>
-                <td class="text-center">${formatDwellTime(v.arrivedAtUtc, v.endedAtUtc)}</td>
+                <td>${encode(v.tripNameSnapshot || message('Shell.Unknown', 'Unknown'))}</td>
+                <td>${encode(v.regionNameSnapshot || '-')}</td>
+                <td class="text-center">${dwellDisplay(v.arrivedAtUtc, v.endedAtUtc)}</td>
                 <td class="text-center">${locationSpinner}</td>
-                <td class="text-center">${statusBadge}</td>
+                <td class="text-center">${statusBadge(v.endedAtUtc)}</td>
                 <td>
-                    <a href="#" class="btn btn-primary btn-sm view-visit" data-id="${v.id}">View</a>
-                    <a href="${buildEditUrl(v.id)}" class="btn btn-secondary btn-sm">Edit</a>
+                    <a href="#" class="btn btn-primary btn-sm view-visit" data-id="${v.id}">${encode(message('Shell.View', 'View'))}</a>
+                    <a href="${buildEditUrl(v.id)}" class="btn btn-secondary btn-sm">${encode(message('Shell.Edit', 'Edit'))}</a>
                 </td>
             </tr>
         `);
@@ -318,106 +268,31 @@ const loadLocationCounts = async (visitIds) => {
             body: JSON.stringify({ visitIds })
         });
 
-        const data = await response.json();
+        const data = await readVisitResponse(response, message('Visits.CountsFailed', 'Could not load location counts.'));
+        if (!data.success || !data.counts) throw new Error('Location counts response was incomplete');
 
-        if (data.success && data.counts) {
-            // Update each cell with the count
-            for (const [visitId, count] of Object.entries(data.counts)) {
-                const cell = document.querySelector(`.location-count-cell[data-visit-id="${visitId}"]`);
-                if (cell) {
-                    const badge = count > 0
-                        ? `<span class="badge bg-info">${count}</span>`
-                        : '<span class="badge bg-secondary">0</span>';
-                    cell.innerHTML = badge;
-
-                    // Also update the visit object in memory for modal use
-                    const visit = visits.find(v => v.id === visitId);
-                    if (visit) visit.locationCount = count;
-                }
-            }
+        // Keep the fetched count available for the modal as well as the table.
+        for (const [visitId, count] of Object.entries(data.counts)) {
+            const cell = document.querySelector(`.location-count-cell[data-visit-id="${visitId}"]`);
+            if (!cell) continue;
+            cell.innerHTML = `<span class="badge ${count > 0 ? 'bg-info' : 'bg-secondary'}">${number(count)}</span>`;
+            const visit = visits.find(v => v.id === visitId);
+            if (visit) visit.locationCount = count;
         }
     } catch (e) {
         console.error('Failed to load location counts', e);
         // Replace spinners with error indicator
         document.querySelectorAll('.location-count-cell').forEach(cell => {
             if (cell.querySelector('.spinner-border')) {
-                cell.innerHTML = '<span class="badge bg-secondary">-</span>';
+                cell.innerHTML = `<span class="badge bg-secondary" title="${encode(message('Visits.CountsFailed', 'Could not load location counts.'))}">-</span>`;
             }
         });
     }
 };
 
-/**
- * Update pagination controls
- */
-const updatePagination = (totalItems, currentPage) => {
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const container = document.getElementById('pagination');
-
-    if (totalPages <= 1) {
-        container.innerHTML = '';
-        return;
-    }
-
-    window._totalPages = totalPages;
-
-    const delta = 3;
-    const start = Math.max(1, currentPage - delta);
-    const end = Math.min(totalPages, currentPage + delta);
-
-    let html = `
-        <nav aria-label="Page navigation" class="mt-2">
-            <div class="d-flex justify-content-center align-items-center">
-                <ul class="pagination mb-0">
-                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="goToPage(1)">First</a>
-                    </li>
-                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="goToPage(${Math.max(1, currentPage - 1)})">Previous</a>
-                    </li>`;
-
-    if (start > 1) {
-        html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-
-    for (let i = start; i <= end; i++) {
-        html += `
-            <li class="page-item ${i === currentPage ? 'active' : ''}">
-                <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
-            </li>`;
-    }
-
-    if (end < totalPages) {
-        html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
-    }
-
-    html += `
-                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="goToPage(${Math.min(totalPages, currentPage + 1)})">Next</a>
-                    </li>
-                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                        <a class="page-link" href="#" onclick="goToPage(${totalPages})">Last</a>
-                    </li>
-                </ul>
-                <div class="input-group input-group-sm ms-2" style="width:120px;">
-                    <input type="number" id="jumpPageInput" class="form-control" min="1" max="${totalPages}" placeholder="Page" />
-                    <button class="btn btn-outline-secondary" type="button" onclick="jumpToPage()">Go</button>
-                </div>
-            </div>
-        </nav>`;
-
-    container.innerHTML = html;
-};
-
-window.jumpToPage = function () {
-    const inp = document.getElementById('jumpPageInput');
-    const val = parseInt(inp.value, 10);
-    if (!isNaN(val) && val >= 1 && val <= window._totalPages) {
-        goToPage(val);
-    } else {
-        inp.value = '';
-    }
-};
+/** Visit paging retains the current filters and only changes the numeric page. */
+const updatePagination = (totalItems, page) =>
+    renderHistoryPagination(document.getElementById('pagination'), Math.ceil(totalItems / pageSize), page, loadVisits);
 
 /**
  * Update summary display
@@ -425,7 +300,7 @@ window.jumpToPage = function () {
 const updateSummary = (total) => {
     const summary = document.getElementById('visit-summary');
     if (summary) {
-        summary.textContent = `Total: ${total} visit${total !== 1 ? 's' : ''}`;
+        summary.textContent = plural('Visits.Total', total, 'Total: {0} visit', 'Total: {0} visits');
     }
 };
 
@@ -447,50 +322,47 @@ const viewVisitDetails = async (visit) => {
  * Generate modal content for visit details
  */
 const generateVisitModalContent = (v) => {
-    const dwellTime = formatDwellTime(v.arrivedAtUtc, v.endedAtUtc);
-    const statusBadge = v.endedAtUtc
-        ? '<span class="badge bg-success">Closed</span>'
-        : '<span class="badge bg-warning text-dark">Open</span>';
+    const dwellTime = dwellDisplay(v.arrivedAtUtc, v.endedAtUtc);
 
     const locationBadge = v.locationCount === undefined
-        ? '<span class="spinner-border spinner-border-sm" role="status"></span>'
+        ? `<span class="spinner-border spinner-border-sm" role="status" aria-label="${encode(message('Shell.Loading', 'Loading…'))}"></span>`
         : (v.locationCount > 0
-            ? `<span class="badge bg-info">${v.locationCount}</span>`
+            ? `<span class="badge bg-info">${number(v.locationCount)}</span>`
             : '<span class="badge bg-secondary">0</span>');
 
     return `
         <div class="container-fluid">
             <div class="row mb-3">
                 <div class="col-12">
-                    <h5>${v.placeNameSnapshot || 'Unknown Place'}</h5>
-                    <small class="text-muted">${v.tripNameSnapshot} / ${v.regionNameSnapshot}</small>
+                    <h5>${encode(v.placeNameSnapshot || message('Visits.UnknownPlace', 'Unknown Place'))}</h5>
+                    <small class="text-muted">${encode(v.tripNameSnapshot)} / ${encode(v.regionNameSnapshot)}</small>
                 </div>
             </div>
             <div class="row mb-2">
                 <div class="col-6">
-                    <strong>Arrived:</strong><br/>
+                    <strong>${encode(message('Visits.Arrived', 'Arrived'))}:</strong><br/>
                     ${formatVisitTimestamp(v.arrivedAtUtc)}
                 </div>
                 <div class="col-6">
-                    <strong>Ended:</strong><br/>
-                    ${v.endedAtUtc ? formatVisitTimestamp(v.endedAtUtc) : '<em>Still visiting</em>'}
+                    <strong>${encode(message('Visits.Ended', 'Ended'))}:</strong><br/>
+                    ${v.endedAtUtc ? formatVisitTimestamp(v.endedAtUtc) : `<em>${encode(message('Visits.StillVisiting', 'Still visiting'))}</em>`}
                 </div>
             </div>
             <div class="row mb-2">
                 <div class="col-6">
-                    <strong>Dwell Time:</strong> ${dwellTime}
+                    <strong>${encode(message('Visits.Dwell', 'Dwell Time'))}:</strong> ${dwellTime}
                 </div>
                 <div class="col-6">
-                    <strong>Status:</strong> ${statusBadge}
+                    <strong>${encode(message('Visits.Status', 'Status'))}:</strong> ${statusBadge(v.endedAtUtc)}
                 </div>
             </div>
             ${v.latitude && v.longitude ? `
             <div class="row mb-2">
                 <div class="col-12">
-                    <strong>Location:</strong> ${v.latitude.toFixed(6)}, ${v.longitude.toFixed(6)}
+                    <strong>${encode(message('Visits.VisitLocation', 'Location'))}:</strong> ${number(v.latitude, { minimumFractionDigits: 6, maximumFractionDigits: 6 })}, ${number(v.longitude, { minimumFractionDigits: 6, maximumFractionDigits: 6 })}
                     <a href="https://www.google.com/maps/search/?api=1&query=${v.latitude},${v.longitude}"
                        target="_blank" class="ms-2 btn btn-outline-primary btn-sm">
-                        <i class="bi bi-globe-europe-africa"></i> Maps
+                        <i class="bi bi-globe-europe-africa"></i> ${encode(message('Locations.Maps', 'Maps'))}
                     </a>
                 </div>
             </div>
@@ -498,46 +370,78 @@ const generateVisitModalContent = (v) => {
             ${v.notesHtml ? `
             <div class="row mb-2">
                 <div class="col-12">
-                    <strong>Notes:</strong>
-                    <div class="border p-2 mt-1">${proxyImagesInHtml(v.notesHtml)}</div>
+                    <strong>${encode(message('Shell.Notes', 'Notes'))}:</strong>
+                    <div class="border p-2 mt-1">${notesHtmlForDisplay(v.notesHtml)}</div>
                 </div>
             </div>
             ` : ''}
             <div class="row mb-2">
                 <div class="col-12">
-                    <strong>Relevant Locations:</strong> ${locationBadge}
+                    <strong>${encode(message('Visits.RelevantLocations', 'Relevant Locations'))}:</strong> ${locationBadge}
                     <div id="modalLocationsContainer" class="mt-2">
-                        ${v.locationCount === 0 ? '<span class="text-muted small">No relevant locations recorded</span>' : '<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Loading...</div>'}
+                        ${v.locationCount === 0 ? `<span class="text-muted small">${encode(message('Visits.NoLocations', 'No relevant locations found for this visit.'))}</span>` : `<div class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> ${encode(message('Shell.Loading', 'Loading…'))}</div>`}
                     </div>
                 </div>
             </div>
             <hr/>
             <div class="row">
                 <div class="col-6">
-                    <a href="${buildEditUrl(v.id)}" class="btn btn-primary btn-sm">Edit</a>
+                    <a href="${buildEditUrl(v.id)}" class="btn btn-primary btn-sm">${encode(message('Shell.Edit', 'Edit'))}</a>
                 </div>
                 <div class="col-6 text-end">
-                    <a href="#" class="btn btn-outline-danger btn-sm delete-visit-from-popup" data-visit-id="${v.id}">Delete</a>
+                    <a href="#" class="btn btn-outline-danger btn-sm delete-visit-from-popup" data-visit-id="${v.id}">${encode(message('Shell.Delete', 'Delete'))}</a>
                 </div>
             </div>
         </div>
     `;
 };
 
-/**
- * Delete a single visit
- */
-const deleteVisit = async (id) => {
-    const response = await fetch('/api/Visit/bulk-delete', {
-        method: 'POST',
-        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
-        body: JSON.stringify({ visitIds: [id] })
-    });
-    const data = await response.json();
-    if (!data.success) {
-        throw new Error(data.message || 'Delete failed');
+/** A definite rejection and a lost reply need different instructions at the Web boundary. */
+const confirmVisitDeletion = (ids, deleted, single = false) => wayfarer.showConfirmationModal({
+    title: message('Shell.LocationConfirmDeletion', 'Confirm deletion'),
+    message: single ? message('Visits.DeletePrompt', 'Are you sure you want to delete this visit? This cannot be undone.')
+        : plural('Visits.DeleteBulk', ids.length,
+            'Delete {0} selected visit? This cannot be undone.', 'Delete {0} selected visits? This cannot be undone.'),
+    confirmText: message('Shell.Delete', 'Delete'),
+    onConfirm: async () => {
+        const release = holdLanguageNavigation();
+        try {
+            const response = await fetch('/api/Visit/bulk-delete', {
+                method: 'POST',
+                headers: {
+                    'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ visitIds: ids })
+            });
+            if (response.redirected || [401, 403].includes(response.status)) {
+                release();
+                wayfarer.showAlert('warning', message('Shell.SessionEnded', 'Your session has ended. Sign in again.'));
+                return;
+            }
+            const result = await response.json();
+            if (response.ok && result.success) {
+                release();
+                wayfarer.showAlert('success', plural('Visits.DeleteDone', result.deletedCount, '{0} visit deleted.', '{0} visits deleted.'));
+                deleted();
+                return;
+            }
+            if ([400, 404].includes(response.status)) {
+                release();
+                const feedback = response.status === 404 ? message('Visits.DeleteNoMatches', 'No matching visits found.')
+                    : message('Visits.DeleteNoIds', 'No visits were submitted for deletion.');
+                wayfarer.showAlert('warning', feedback);
+                return;
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        const status = document.getElementById('visit-deletion-status');
+        status.textContent = message('Visits.DeleteUnknown',
+            'Deletion could not be confirmed. Refresh Visit History and check which visits remain.');
+        status.hidden = false;
     }
-};
+});
 
 /**
  * Load locations for the visit modal
@@ -548,34 +452,36 @@ const loadVisitLocationsForModal = async (visitId) => {
 
     try {
         const response = await fetch(`/api/visit/${visitId}/locations?page=1&pageSize=5`);
-        const data = await response.json();
+        const failure = message('Visits.LocationsFailed', 'Failed to load relevant locations.');
+        const data = await readVisitResponse(response, failure);
+        if (!data.success) throw new Error('Visit locations response was incomplete');
 
-        if (data.success && data.data.length > 0) {
+        if (data.data.length > 0) {
             const locationsHtml = data.data.map(loc => `
                 <div class="small border-bottom py-1">
                     <div class="d-flex justify-content-between align-items-center">
                         <span>
                             <i class="bi bi-geo-alt text-muted me-1"></i>
                             ${formatModalLocationTimestamp(loc.localTimestamp)}
-                            <span class="font-monospace text-muted ms-2">${loc.latitude?.toFixed(4)}, ${loc.longitude?.toFixed(4)}</span>
+                            <span class="font-monospace text-muted ms-2">${loc.latitude == null ? '–' : number(loc.latitude, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}, ${loc.longitude == null ? '–' : number(loc.longitude, { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</span>
                         </span>
-                        <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrlParam}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Edit location"><i class="bi bi-pencil"></i></a>
+                        <a href="/User/Location/Edit/${loc.id}?returnUrl=${returnUrlParam}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="${encode(message('Locations.EditAction', 'Edit location'))}" aria-label="${encode(message('Locations.EditAction', 'Edit location'))}"><i class="bi bi-pencil"></i></a>
                     </div>
-                    ${loc.address ? `<small class="text-muted d-block text-truncate">${loc.address}</small>` : ''}
+                    ${loc.address ? `<small class="text-muted d-block text-truncate">${encode(loc.address)}</small>` : ''}
                 </div>
             `).join('');
 
             const moreHtml = data.totalItems > 5
-                ? `<div class="text-center mt-2"><a href="${buildEditUrl(visitId)}" class="btn btn-sm btn-outline-secondary">View all ${data.totalItems} locations</a></div>`
+                ? `<div class="text-center mt-2"><a href="${buildEditUrl(visitId)}" class="btn btn-sm btn-outline-secondary">${encode(plural('Visits.ViewLocations', data.totalItems, 'View all {0} location', 'View all {0} locations'))}</a></div>`
                 : '';
 
             container.innerHTML = locationsHtml + moreHtml;
         } else {
-            container.innerHTML = '<span class="text-muted small">No relevant locations found</span>';
+            container.innerHTML = `<span class="text-muted small">${encode(message('Visits.NoLocations', 'No relevant locations found for this visit.'))}</span>`;
         }
     } catch (e) {
         console.error('Failed to load visit locations', e);
-        container.innerHTML = '<span class="text-danger small">Failed to load locations</span>';
+        container.innerHTML = `<span class="text-danger small">${encode(e instanceof VisitReadFailure ? e.message : message('Visits.LocationsFailed', 'Failed to load relevant locations.'))}</span>`;
     }
 };
 
@@ -584,8 +490,7 @@ const loadVisitLocationsForModal = async (visitId) => {
  */
 const formatModalLocationTimestamp = (ts) => {
     if (!ts) return '-';
-    const d = new Date(ts);
-    return d.toLocaleString(undefined, {
+    return date(new Date(ts), {
         month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });

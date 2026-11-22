@@ -1,6 +1,8 @@
+import { message, plural } from '../../wwwroot/js/localization/messages.js';
 import { mountRazorNotes } from './razor';
 // JavaScript for the Bulk Edit Notes view
 
+/** Mount the advisory preview independently of the ordinary bulk POST. */
 const mountLocationBulk = () => {
     // Cache filter elements and submit button
     const countrySelect = document.getElementById('Country');
@@ -9,11 +11,19 @@ const mountLocationBulk = () => {
     const fromDateInput = document.getElementById('FromDate');
     const toDateInput = document.getElementById('ToDate');
     const applyBtn = document.getElementById('applyBtn');
+    const feedback = document.getElementById('bulk-notes-feedback');
+
+    // A failed preview cannot be mistaken for a current match count.
+    const read = async url => {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Bulk Notes read returned HTTP ${response.status}`);
+        return response.json();
+    };
 
     // Utility to populate a <select> with string values
     function populate(select, items, includeAll = true) {
         select.innerHTML = '';
-        if (includeAll) select.appendChild(new Option('All', ''));
+        if (includeAll) select.appendChild(new Option(message('Shell.All', 'All'), ''));
         items.forEach(text => select.appendChild(new Option(text, text)));
     }
 
@@ -32,24 +42,27 @@ const mountLocationBulk = () => {
         if (toDate && !isNaN(Date.parse(toDate))) params.append('toDate', toDate);
 
         try {
-            const resp = await fetch(`/User/Location/PreviewCount?${params}`);
-            const count = await resp.json();
-            applyBtn.textContent = `Apply to ${count} locations`;
+            const count = await read(`/User/Location/PreviewCount?${params}`);
+            if (!Number.isInteger(count)) throw new Error('Invalid preview count');
+            feedback.textContent = '';
+            applyBtn.textContent = plural('Locations.ApplyCount', count, 'Apply to {0} location', 'Apply to {0} locations');
         } catch (e) {
             console.error('Failed to fetch preview count', e);
+            applyBtn.textContent = message('Shell.Apply', 'Apply');
+            feedback.textContent = message('Locations.PreviewFailed', 'The preview count is unavailable.');
         }
     }
 
     // When country changes: fetch regions, clear place, update count
     countrySelect.addEventListener('change', async () => {
         try {
-            const resp = await fetch(`/User/Location/GetRegions?country=${encodeURIComponent(countrySelect.value)}`);
-            const regions = await resp.json();
+            const regions = await read(`/User/Location/GetRegions?country=${encodeURIComponent(countrySelect.value)}`);
             populate(regionSelect, regions);
             populate(placeSelect, []);
             await updateCount();
         } catch (e) {
             console.error('Failed to fetch regions', e);
+            feedback.textContent = message('Locations.RegionsFailed', 'Could not load regions.');
         }
     });
 
@@ -60,12 +73,12 @@ const mountLocationBulk = () => {
                 country: countrySelect.value,
                 region: regionSelect.value
             });
-            const resp = await fetch(`/User/Location/GetPlaces?${params}`);
-            const places = await resp.json();
+            const places = await read(`/User/Location/GetPlaces?${params}`);
             populate(placeSelect, places);
             await updateCount();
         } catch (e) {
             console.error('Failed to fetch places', e);
+            feedback.textContent = message('Locations.PlacesFailed', 'Could not load places.');
         }
     });
 

@@ -1,5 +1,5 @@
 import { locale } from './messages.js';
-import { hasLanguageDraft, languageDestination, navigateInLanguage } from './languageNavigation.js';
+import { hasLanguageDraft, languageDestination, navigateInLanguage, isLanguageNavigationHeld } from './languageNavigation.js';
 
 const dialog = document.getElementById('language-dialog');
 const form = document.getElementById('language-form');
@@ -52,8 +52,15 @@ const setApplying = (busy) => {
     dialog.setAttribute('aria-busy', String(busy));
 };
 
-open.hidden = false;
+/** The feature retains ownership of pending work and its existing recovery instructions. */
+const syncAvailability = () => {
+    open.hidden = isLanguageNavigationHeld();
+    if (open.hidden && dialog.open && !applying) dialog.close();
+};
+window.addEventListener('wayfarer:language-availability', syncAvailability);
+syncAvailability();
 open.addEventListener('click', () => {
+    if (isLanguageNavigationHeld()) return;
     form.reset();
     error.hidden = true;
     showConfirmation(false);
@@ -66,7 +73,7 @@ dialog.addEventListener('close', () => open.focus());
 
 form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (applying) return;
+    if (applying || isLanguageNavigationHeld()) return;
     const data = new FormData(form);
     const different = data.get('locale') !== locale;
     const destination = languageDestination(window.location.href, safeGet);

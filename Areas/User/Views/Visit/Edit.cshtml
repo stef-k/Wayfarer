@@ -1,8 +1,18 @@
+@inject Wayfarer.Localization.WebMessages T
 @inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @model Wayfarer.Models.ViewModels.VisitEditViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
 @{
+    ViewData["WebCatalog"] = "Visits";
+    ViewData["WebRelatedCatalog"] = "Locations";
+    ViewData["Title"] = T["Visits.EditTitle", Model.PlaceNameSnapshot];
+    // A validation POST can discard back to this owned GET without replaying the edit.
+    ViewData["LanguageSafeGet"] = Url.Action("Edit", new { id = Model.Id, returnUrl = Model.ReturnUrl });
     ViewData["BodyClass"] = "container-fluid";
     ViewData["LoadLeaflet"] = true;
+    // Translate display options, retaining the exact submitted icon and color keys.
+    var iconOptions = Model.IconOptions.Select(option => new SelectListItem(T["Visits.Icon." + option.Value], option.Value, option.Selected));
+    var colorOptions = Model.ColorOptions.Select(option => new SelectListItem(T["Visits.Color." + option.Value], option.Value, option.Selected));
     var notesAssets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/rich-notes/visit-edit.js");
 }
 
@@ -13,7 +23,7 @@
     <div class="col-md-5">
         <div class="card shadow-sm mb-4">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Edit Visit</h2>
+                <h2 class="fs-4">@T["Visits.Edit"]</h2>
             </div>
             <div class="card-body">
                 <form asp-action="Edit" method="post" id="visitForm">
@@ -29,20 +39,20 @@
                     <div class="mb-3 p-2 bg-body-secondary rounded">
                         <div class="row">
                             <div class="col-12 mb-1">
-                                <strong>Place:</strong> @Model.PlaceNameSnapshot
+                                <strong>@T["Locations.Place"]:</strong> @Model.PlaceNameSnapshot
                                 @if (Model.PlaceId.HasValue)
                                 {
                                     <a href="@Url.Action("Edit", "Trip", new { area = "User", id = Model.TripId })"
-                                       class="ms-2 text-decoration-none" title="Go to trip">
+                                       class="ms-2 text-decoration-none" title="@T["Visits.OpenTrip"]">
                                         <i class="bi bi-box-arrow-up-right"></i>
                                     </a>
                                 }
                             </div>
                             <div class="col-6">
-                                <strong>Trip:</strong> @Model.TripNameSnapshot
+                                <strong>@T["Visits.Trip"]:</strong> @Model.TripNameSnapshot
                             </div>
                             <div class="col-6">
-                                <strong>Region:</strong> @Model.RegionNameSnapshot
+                                <strong>@T["Locations.Region"]:</strong> @Model.RegionNameSnapshot
                             </div>
                         </div>
                     </div>
@@ -50,16 +60,16 @@
                     <!-- Timestamps -->
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label asp-for="ArrivedAtUtc" class="form-label">Arrived At (UTC) <span class="text-danger">*</span></label>
+                            <label asp-for="ArrivedAtUtc" class="form-label">@T["Visits.ArrivedUtc"] <span class="text-danger">*</span></label>
                             <input type="datetime-local" class="form-control" asp-for="ArrivedAtUtc"
-                                   value="@Model.ArrivedAtUtc.ToString("yyyy-MM-ddTHH:mm")" required />
+                                   value="@Model.ArrivedAtUtc.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture)" required />
                             <span asp-validation-for="ArrivedAtUtc" class="text-danger"></span>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="EndedAtUtc" class="form-label">Ended At (UTC)</label>
+                            <label asp-for="EndedAtUtc" class="form-label">@T["Visits.EndedUtc"]</label>
                             <input type="datetime-local" class="form-control" asp-for="EndedAtUtc"
-                                   value="@(Model.EndedAtUtc?.ToString("yyyy-MM-ddTHH:mm") ?? "")" />
-                            <small class="text-muted">Leave empty if visit is still open</small>
+                                   value="@(Model.EndedAtUtc?.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture) ?? "")" />
+                            <small class="text-muted">@T["Visits.EndHelp"]</small>
                             <span asp-validation-for="EndedAtUtc" class="text-danger"></span>
                         </div>
                     </div>
@@ -68,15 +78,15 @@
                     @if (Model.DwellTime.HasValue)
                     {
                         <div class="mb-3">
-                            <strong>Dwell Time:</strong>
+                            <strong>@T["Visits.Dwell"]:</strong>
                             <span class="badge bg-info">
                                 @if (Model.DwellTime.Value.TotalHours >= 1)
                                 {
-                                    @($"{(int)Model.DwellTime.Value.TotalHours}h {Model.DwellTime.Value.Minutes}m")
+                                    @T["Visits.HoursMinutes", T.DisplayNumber((int)Model.DwellTime.Value.TotalHours), T.DisplayNumber(Model.DwellTime.Value.Minutes)]
                                 }
                                 else
                                 {
-                                    @($"{(int)Model.DwellTime.Value.TotalMinutes} min")
+                                    @T["Visits.Minutes", T.DisplayNumber((int)Model.DwellTime.Value.TotalMinutes)]
                                 }
                             </span>
                         </div>
@@ -84,56 +94,56 @@
                     else
                     {
                         <div class="mb-3">
-                            <span class="badge bg-warning text-dark">Visit still open</span>
+                            <span class="badge bg-warning text-dark">@T["Visits.StillOpen"]</span>
                         </div>
                     }
 
                     <!-- Location -->
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label asp-for="Latitude" class="form-label">Latitude <span class="text-danger">*</span></label>
+                            <label asp-for="Latitude" class="form-label">@T["Locations.Latitude"] <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="Latitude" asp-for="Latitude" required />
                             <span asp-validation-for="Latitude" class="text-danger"></span>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="Longitude" class="form-label">Longitude <span class="text-danger">*</span></label>
+                            <label asp-for="Longitude" class="form-label">@T["Locations.Longitude"] <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="Longitude" asp-for="Longitude" required />
                             <span asp-validation-for="Longitude" class="text-danger"></span>
                         </div>
                     </div>
                     <small class="form-text text-muted mb-3 d-block">
-                        Click on the map to update the location.
+                        @T["Visits.MapClick"]
                     </small>
 
                     <!-- Appearance -->
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label asp-for="IconNameSnapshot" class="form-label">Icon</label>
-                            <select asp-for="IconNameSnapshot" class="form-select" asp-items="Model.IconOptions"></select>
+                            <label asp-for="IconNameSnapshot" class="form-label">@T["Visits.Icon"]</label>
+                            <select asp-for="IconNameSnapshot" class="form-select" asp-items="iconOptions"></select>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="MarkerColorSnapshot" class="form-label">Marker Color</label>
-                            <select asp-for="MarkerColorSnapshot" class="form-select" asp-items="Model.ColorOptions"></select>
+                            <label asp-for="MarkerColorSnapshot" class="form-label">@T["Visits.Color"]</label>
+                            <select asp-for="MarkerColorSnapshot" class="form-select" asp-items="colorOptions"></select>
                         </div>
                     </div>
 
                     <!-- Notes -->
                     <div class="mb-3">
-                        <label id="notes-label" class="form-label">Notes</label>
+                        <label id="notes-label" class="form-label">@T["Shell.Notes"]</label>
                         <partial name="_NotesToolbar" model="@(true)" />
                         <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.NotesHtml))"></div>
                         <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.NotesHtml))" />
                         <span asp-validation-for="NotesHtml" class="text-danger"></span>
-                        <small class="text-muted">Older formatting may need adjustment when edited. Use Image to insert an HTTP(S) image URL.</small>
+                        <small class="text-muted">@T["Shell.NotesLegacyFormatting"]</small>
                         <p id="notes-feedback" role="status" aria-live="polite"></p>
                     </div>
 
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary" name="saveAction" value="save"
-                                title="Save your changes and keep editing">Save</button>
+                                title="@T["Locations.SaveKeep"]">@T["Shell.Save"]</button>
                         <button type="submit" class="btn btn-outline-secondary" name="saveAction" value="return"
-                                title="Save your changes and go back">Save &amp; Return</button>
-                        <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">Cancel</a>
+                                title="@T["Locations.SaveBack"]">@T["Locations.SaveReturn"]</button>
+                        <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">@T["Shell.Cancel"]</a>
                     </div>
                 </form>
 
@@ -144,7 +154,7 @@
                     <input type="hidden" name="id" value="@Model.Id" />
                     <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
                     <button type="button" class="btn btn-outline-danger" id="btnDelete">
-                        <i class="bi bi-trash me-1"></i>Delete Visit
+                        <i class="bi bi-trash me-1"></i>@T["Visits.Delete"]
                     </button>
                 </form>
             </div>
@@ -155,12 +165,12 @@
     <div class="col-md-7">
         <div class="card shadow-sm">
             <div class="card-header text-bg-primary">
-                <h2 class="fs-4">Visit Location</h2>
+                <h2 class="fs-4">@T["Visits.VisitLocation"]</h2>
             </div>
             <div class="card-body p-1">
                 <div id="mapContainer" style="height: 575px;"
-                     data-lat="@Model.Latitude"
-                     data-lon="@Model.Longitude"
+                     data-lat="@(Model.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                     data-lon="@(Model.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture))"
                      data-icon="@(Model.IconNameSnapshot ?? "marker")"
                      data-color="@(Model.MarkerColorSnapshot ?? "bg-blue")"></div>
             </div>
@@ -172,7 +182,7 @@
                  role="button" data-bs-toggle="collapse" data-bs-target="#locationPingsCollapse"
                  aria-expanded="true" aria-controls="locationPingsCollapse">
                 <h2 class="fs-5 mb-0">
-                    <i class="bi bi-geo-alt me-1"></i>Relevant Locations
+                    <i class="bi bi-geo-alt me-1"></i>@T["Visits.RelevantLocations"]
                     <span id="locationPingsCount" class="badge bg-secondary ms-2">...</span>
                 </h2>
                 <i class="bi bi-chevron-up" id="collapseIcon"></i>
@@ -181,18 +191,18 @@
                 <div class="card-body p-2">
                     <div id="locationPingsLoading" class="text-center py-3">
                         <div class="spinner-border spinner-border-sm" role="status"></div>
-                        <span class="ms-2">Loading...</span>
+                        <span class="ms-2">@T["Shell.Loading"]</span>
                     </div>
                     <div class="table-responsive" id="locationPingsTableWrapper" style="display:none; max-height:220px; overflow-y:auto;">
                         <table class="table table-sm table-hover mb-0" id="locationPingsTable">
                             <thead class="sticky-top bg-white">
                                 <tr>
-                                    <th>Timestamp</th>
-                                    <th>Coordinates</th>
-                                    <th class="text-end">Accuracy</th>
-                                    <th class="text-end">Speed</th>
-                                    <th>Activity</th>
-                                    <th>Address</th>
+                                    <th>@T["Visits.Timestamp"]</th>
+                                    <th>@T["Locations.Coordinates"]</th>
+                                    <th class="text-end">@T["Locations.Accuracy"]</th>
+                                    <th class="text-end">@T["Locations.Speed"]</th>
+                                    <th>@T["Locations.Activity"]</th>
+                                    <th>@T["Locations.Address"]</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -201,11 +211,11 @@
                     </div>
                     <div id="locationPingsLoadMore" class="text-center mt-2" style="display:none;">
                         <button class="btn btn-outline-primary btn-sm" id="loadMoreLocationsBtn">
-                            Show More
+                            @T["Visits.ShowMore"]
                         </button>
                     </div>
                     <div id="locationPingsEmpty" class="text-muted text-center py-3" style="display:none;">
-                        No relevant locations found for this visit.
+                        @T["Visits.NoLocations"]
                     </div>
                 </div>
             </div>

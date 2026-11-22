@@ -1,3 +1,4 @@
+import { message } from '../../wwwroot/js/localization/messages.js';
 import { Editor } from '@tiptap/core';
 import { EditorState } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
@@ -69,7 +70,7 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
     const unsafeImage = [...template.content.querySelectorAll('img')].some(image =>
       isUnsafeImageSource(canonicalNoteImageSource(image.getAttribute('src') ?? '')));
     if (!transfer?.files.length && !unsafeImage) return false;
-    feedback('Pasted or dropped files and unsupported image sources cannot be inserted. Use an HTTP(S) image URL.');
+    feedback(message('Shell.NotesEmbeddedImage', 'Pasted or dropped files and unsupported image sources cannot be inserted. Use an HTTP(S) image URL.'));
     return true;
   }
 
@@ -86,7 +87,7 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
 
   /** Image errors leave the canonical reference intact, including already-stored failed references. */
   const imageError = (event: Event) => {
-    if (event.target instanceof HTMLImageElement) feedback('Image preview unavailable. Its URL is retained; no direct image connection was attempted.');
+    if (event.target instanceof HTMLImageElement) feedback(message('Shell.NotesImageUnavailable', 'Image preview unavailable. Its URL is retained; no direct image connection was attempted.'));
   };
   host.addEventListener('error', imageError, true);
 
@@ -124,7 +125,7 @@ export const createNotesEditor = (host: HTMLElement, value: string, labelId: str
       try {
         const url = new URL(source);
         if (!['http:', 'https:'].includes(url.protocol)) throw new Error('scheme');
-      } catch { feedback('Enter an absolute HTTP(S) image URL.'); return false; }
+      } catch { feedback(message('Shell.NoteAbsoluteImage', 'Enter an absolute HTTP(S) image URL.')); return false; }
       return editor.chain().focus().setImage({ src: source }).run();
     },
     dispose: () => {

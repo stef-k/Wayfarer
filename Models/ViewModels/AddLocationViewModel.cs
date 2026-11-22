@@ -14,8 +14,8 @@ namespace Wayfarer.Models.ViewModels
         public string? AttemptedValues { get; set; }
         /// <summary>Once uncertain, validation of a later form cannot establish that the earlier request had no effect.</summary>
         public bool CreateMayHaveEffect { get; set; }
-        /// <summary>Persistent form feedback, including unsaved input and terminal deletion.</summary>
-        [BindNever] public string? CreateStatus { get; set; }
+        /// <summary>Presentation key for the retained form outcome, including unsaved input and terminal deletion.</summary>
+        [BindNever] public string? CreateStatusKey { get; set; }
         [BindNever] public int? SavedLocationId { get; set; }
         [BindNever] public bool CreateTerminal { get; set; }
 
@@ -30,23 +30,23 @@ namespace Wayfarer.Models.ViewModels
         public List<SelectListItem>? ActivityTypes { get; set; } // For dropdown in the view
 
         /// <summary>Full forms require a supplied finite latitude, including explicit zero.</summary>
-        [BindRequired, Required]
-        [Range(-90d, 90d, ErrorMessage = "Latitude must be a finite number between -90 and 90.")]
+        [BindRequired, Required(ErrorMessage = "Locations.Required")]
+        [Range(-90d, 90d, ErrorMessage = "Locations.LatitudeInvalid")]
         public double Latitude { get; set; } // Used to construct Point
 
         /// <summary>Full forms require a supplied finite longitude, including explicit zero.</summary>
-        [BindRequired, Required]
-        [Range(-180d, 180d, ErrorMessage = "Longitude must be a finite number between -180 and 180.")]
+        [BindRequired, Required(ErrorMessage = "Locations.Required")]
+        [Range(-180d, 180d, ErrorMessage = "Locations.LongitudeInvalid")]
         public double Longitude { get; set; } // Used to construct Point
 
-        [MaxLength(500)] public string? Address { get; set; }
-        [MaxLength(500)] public string? FullAddress { get; set; }
-        [MaxLength(500)] public string? AddressNumber { get; set; }
-        [MaxLength(500)] public string? StreetName { get; set; }
-        [MaxLength(500)] public string? PostCode { get; set; }
-        [MaxLength(500)] public string? Place { get; set; }
-        [MaxLength(500)] public string? Region { get; set; }
-        [MaxLength(500)] public string? Country { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? Address { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? FullAddress { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? AddressNumber { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? StreetName { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? PostCode { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? Place { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? Region { get; set; }
+        [MaxLength(500, ErrorMessage = "Locations.AddressLength")] public string? Country { get; set; }
 
         /// <summary>Read-only detected provider feature displayed alongside editable address values.</summary>
         /// <summary>Server-owned Location presentation metadata, separate from posted concurrency tokens.</summary>

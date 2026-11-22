@@ -51,7 +51,7 @@ public class VisitController : BaseController
 
         if (visit == null)
         {
-            SetAlert("Visit not found.", "danger");
+            SetAlert("Visit not found.", "danger", "Visits.NotFound");
             return RedirectToAction("Index");
         }
 
@@ -101,7 +101,7 @@ public class VisitController : BaseController
 
         if (visit == null)
         {
-            SetAlert("Visit not found or you don't have permission to edit it.", "danger");
+            SetAlert("Visit not found or you don't have permission to edit it.", "danger", "Visits.EditDenied");
             return RedirectToAction("Index");
         }
 
@@ -117,7 +117,7 @@ public class VisitController : BaseController
 
         await _dbContext.SaveChangesAsync();
 
-        SetAlert("Visit updated successfully.", "success");
+        SetAlert("Visit updated successfully.", "success", "Visits.Saved");
         LogAction("UpdateVisit", $"Visit {model.Id} updated for place {model.PlaceNameSnapshot}");
 
         var safeReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
@@ -145,7 +145,7 @@ public class VisitController : BaseController
 
         if (visit == null)
         {
-            SetAlert("Visit not found.", "danger");
+            SetAlert("Visit not found.", "danger", "Visits.NotFound");
             return RedirectToAction("Index");
         }
 
@@ -153,7 +153,8 @@ public class VisitController : BaseController
         _dbContext.PlaceVisitEvents.Remove(visit);
         await _dbContext.SaveChangesAsync();
 
-        SetAlert($"Visit to '{placeName}' deleted successfully.", "success");
+        SetAlert($"Visit to '{placeName}' deleted successfully.", "success", "Visits.DeletedPlace");
+        TempData["WebAlertArgument"] = placeName;
         LogAction("DeleteVisit", $"Visit {id} deleted for place {placeName}");
 
         var safeReturnUrl = GetSafeReturnUrl(returnUrl);

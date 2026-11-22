@@ -33,7 +33,7 @@ public class VisitEditViewModel
     // === Editable Timestamp Fields ===
 
     /// <summary>When the visit started (UTC).</summary>
-    [Required]
+    [Required(ErrorMessage = "Locations.Required")]
     [Display(Name = "Arrived At")]
     public DateTime ArrivedAtUtc { get; set; }
 
@@ -47,13 +47,13 @@ public class VisitEditViewModel
     // === Editable Location Fields ===
 
     /// <summary>Latitude of the visit location.</summary>
-    [Required]
-    [Range(-90, 90)]
+    [Required(ErrorMessage = "Locations.Required")]
+    [Range(-90, 90, ErrorMessage = "Locations.LatitudeInvalid")]
     public double Latitude { get; set; }
 
     /// <summary>Longitude of the visit location.</summary>
-    [Required]
-    [Range(-180, 180)]
+    [Required(ErrorMessage = "Locations.Required")]
+    [Range(-180, 180, ErrorMessage = "Locations.LongitudeInvalid")]
     public double Longitude { get; set; }
 
     // === Editable Appearance Fields ===

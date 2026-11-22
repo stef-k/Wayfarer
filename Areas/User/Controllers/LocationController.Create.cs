@@ -54,7 +54,7 @@ public partial class LocationController
         if (await LocationDeletionFence.IsDeletedAsync(_dbContext, owner, model.CreateKey, HttpContext.RequestAborted))
         {
             model.CreateTerminal = true;
-            model.CreateStatus = "This location was deleted. This retry cannot restore it. Your input remains available.";
+            model.CreateStatusKey = "Locations.CreateDeleted";
             return await CreateFormAsync(model);
         }
         var existing = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(row => row.UserId == owner && row.IdempotencyKey == model.CreateKey);
@@ -87,7 +87,7 @@ public partial class LocationController
         catch (LocationDeletedException)
         {
             model.CreateTerminal = true;
-            model.CreateStatus = "This location was deleted. This retry cannot restore it. Your input remains available.";
+            model.CreateStatusKey = "Locations.CreateDeleted";
         }
         catch (Exception error)
         {
@@ -98,7 +98,7 @@ public partial class LocationController
                 if (await LocationDeletionFence.IsDeletedAsync(_dbContext, owner, model.CreateKey, HttpContext.RequestAborted))
                 {
                     model.CreateTerminal = true;
-                    model.CreateStatus = "This location was deleted. This retry cannot restore it. Your input remains available.";
+                    model.CreateStatusKey = "Locations.CreateDeleted";
                 }
                 else
                 {
@@ -108,7 +108,7 @@ public partial class LocationController
             }
             catch (Exception recoveryError)
             { _logger.LogWarning("Web location recovery is unconfirmed. Failure type: {FailureType}", recoveryError.GetType().Name); }
-            model.CreateStatus ??= "The save could not be confirmed. Retry uses the original attempted values and UUID. Current form changes remain unsaved.";
+            model.CreateStatusKey ??= "Locations.CreateUnconfirmed";
         }
         return await CreateFormAsync(model);
     }
@@ -117,14 +117,13 @@ public partial class LocationController
     private async Task<IActionResult> RejectCreateAsync(AddLocationViewModel model)
     {
         if (model.CreateMayHaveEffect)
-            model.CreateStatus = "The earlier save is still unconfirmed. Keep this form and retry the original attempt.";
+            model.CreateStatusKey = "Locations.CreateEarlierUnconfirmed";
         else
         {
             model.AttemptedValues = null;
             ModelState.Remove(nameof(model.AttemptedValues));
-            model.CreateStatus = "Correct the field errors. This submission did not create a location.";
+            model.CreateStatusKey = "Locations.CreateInvalid";
         }
-        ModelState.AddModelError("", model.CreateStatus);
         return await CreateFormAsync(model);
     }
 
@@ -183,8 +182,8 @@ public partial class LocationController
             catch (Exception error) when (error is ArgumentException or InvalidOperationException)
             { _logger.LogWarning("Saved location found; current input could not be compared. Failure type: {FailureType}", error.GetType().Name); }
         }
-        model.CreateStatus = matches ? created ? "The location was saved." : "The original creation was found. No additional record was created."
-            : "This location was already created. Your current form changes were not applied and remain unsaved. Open the saved location and use Edit to apply differences.";
+        model.CreateStatusKey = matches ? created ? "Locations.CreateSaved" : "Locations.CreateFound"
+            : "Locations.CreateDifferent";
         ViewData["CreateWinner"] = winner.ForPublication();
         if (created)
         {

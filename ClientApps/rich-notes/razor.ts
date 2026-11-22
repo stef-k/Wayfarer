@@ -1,3 +1,4 @@
+import { message } from '../../wwwroot/js/localization/messages.js';
 import { createNotesEditor, isSafeNotesLink } from './editor';
 import './editor.css';
 
@@ -70,7 +71,7 @@ export const mountRazorNotes = (host: HTMLElement) => {
   /** One labelled native dialog provides Escape, focus containment and explicit safe-follow actions. */
   function openDialog(next: 'link' | 'image') {
     handle.saveSelection(); kind = next;
-    title.textContent = next === 'link' ? 'Edit link' : 'Insert image URL';
+    title.textContent = next === 'link' ? message('Shell.NoteEditLink', 'Edit link') : message('Shell.NoteInsertImageUrl', 'Insert image URL');
     urlInput.value = next === 'link' ? editor.getAttributes('link').href ?? '' : '';
     error.textContent = '';
     dialog.querySelectorAll<HTMLElement>('[data-link-only]').forEach(control => { control.hidden = next !== 'link'; });
@@ -80,12 +81,12 @@ export const mountRazorNotes = (host: HTMLElement) => {
   document.getElementById('notes-dialog-cancel')!.addEventListener('click', () => dialog.close(), events);
   document.getElementById('notes-dialog-apply')!.addEventListener('click', () => {
     const value = urlInput.value.trim();
-    if (!value || kind === 'link' && !isSafeNotesLink(value)) { error.textContent = 'Enter a safe link or HTTP(S) image URL.'; return; }
+    if (!value || kind === 'link' && !isSafeNotesLink(value)) { error.textContent = message('Shell.NoteSafeLink', 'Enter a safe link or HTTP(S) image URL.'); return; }
     handle.restoreSelection();
     const success = kind === 'image' ? handle.insertImage(value)
       : editor.chain().focus().extendMarkRange('link').setLink({ href: value }).run();
     if (success) { handle.saveSelection(); dialog.close(); }
-    else error.textContent = 'Image URL was rejected. Use an absolute HTTP(S) URL.';
+    else error.textContent = message('Shell.NotesRejectedImage', 'Image URL was rejected. Use an absolute HTTP(S) URL.');
   }, events);
   document.getElementById('notes-dialog-unlink')!.addEventListener('click', () => {
     handle.restoreSelection(); editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -94,7 +95,7 @@ export const mountRazorNotes = (host: HTMLElement) => {
   document.getElementById('notes-dialog-follow')!.addEventListener('click', () => {
     const value = urlInput.value.trim();
     if (value && isSafeNotesLink(value)) window.open(value, '_blank', 'noopener,noreferrer');
-    else error.textContent = 'Enter a safe link before following it.';
+    else error.textContent = message('Shell.NoteFollowSafeLink', 'Enter a safe link before following it.');
   }, events);
   return { ...handle, isClear: () => clearIntent, onChange: (listener: () => void) => { changed.add(listener); },
     adopt: (html: string) => { clearIntent = false; handle.adopt(html); },

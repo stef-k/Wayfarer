@@ -1,0 +1,519 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Locations.Management" xml:space="preserve">
+    <value>Location Management</value>
+  </data>
+  <data name="Locations.Entry" xml:space="preserve">
+    <value>Location Entry</value>
+  </data>
+  <data name="Locations.Add" xml:space="preserve">
+    <value>Add Location</value>
+  </data>
+  <data name="Locations.AddHelp" xml:space="preserve">
+    <value>Add a new location manually using the map.</value>
+  </data>
+  <data name="Locations.Edit" xml:space="preserve">
+    <value>Edit Location</value>
+  </data>
+  <data name="Locations.Details" xml:space="preserve">
+    <value>Location Details</value>
+  </data>
+  <data name="Locations.HistoryHelp" xml:space="preserve">
+    <value>Your location history shows GPS points collected from Wayfarer Mobile or imported from third-party loggers. Use the Search button to filter by date, activity, address, or location. Click markers on the map or rows in the table to view details.</value>
+  </data>
+  <data name="Locations.DeleteSelectedHelp" xml:space="preserve">
+    <value>Delete selected locations</value>
+  </data>
+  <data name="Locations.FromDate" xml:space="preserve">
+    <value>From Date</value>
+  </data>
+  <data name="Locations.ToDate" xml:space="preserve">
+    <value>To Date</value>
+  </data>
+  <data name="Locations.Latitude" xml:space="preserve">
+    <value>Latitude</value>
+  </data>
+  <data name="Locations.Longitude" xml:space="preserve">
+    <value>Longitude</value>
+  </data>
+  <data name="Locations.Coordinates" xml:space="preserve">
+    <value>Coordinates</value>
+  </data>
+  <data name="Locations.CoordinateExample" xml:space="preserve">
+    <value>Decimal degrees format (e.g., {0}). Click on the map to auto-fill.</value>
+  </data>
+  <data name="Locations.CoordinateHelp" xml:space="preserve">
+    <value>Click on the map to select your location. The latitude and longitude will be automatically filled in.</value>
+  </data>
+  <data name="Locations.Activity" xml:space="preserve">
+    <value>Activity</value>
+  </data>
+  <data name="Locations.ActivityType" xml:space="preserve">
+    <value>Activity Type</value>
+  </data>
+  <data name="Locations.ActivitySelect" xml:space="preserve">
+    <value>Select an Activity</value>
+  </data>
+  <data name="Locations.Address" xml:space="preserve">
+    <value>Address</value>
+  </data>
+  <data name="Locations.Country" xml:space="preserve">
+    <value>Country</value>
+  </data>
+  <data name="Locations.Region" xml:space="preserve">
+    <value>Region</value>
+  </data>
+  <data name="Locations.City" xml:space="preserve">
+    <value>City</value>
+  </data>
+  <data name="Locations.Place" xml:space="preserve">
+    <value>Place</value>
+  </data>
+  <data name="Locations.DateZone" xml:space="preserve">
+    <value>Date, Time and Time Zone</value>
+  </data>
+  <data name="Locations.Accuracy" xml:space="preserve">
+    <value>Accuracy</value>
+  </data>
+  <data name="Locations.Speed" xml:space="preserve">
+    <value>Speed</value>
+  </data>
+  <data name="Locations.Altitude" xml:space="preserve">
+    <value>Altitude</value>
+  </data>
+  <data name="Locations.AccuracyMeters" xml:space="preserve">
+    <value>Accuracy (m)</value>
+  </data>
+  <data name="Locations.SpeedKilometers" xml:space="preserve">
+    <value>Speed (km/h)</value>
+  </data>
+  <data name="Locations.AltitudeMeters" xml:space="preserve">
+    <value>Altitude (m)</value>
+  </data>
+  <data name="Locations.MapView" xml:space="preserve">
+    <value>Map View</value>
+  </data>
+  <data name="Locations.ClearLocation" xml:space="preserve">
+    <value>Clear Location</value>
+  </data>
+  <data name="Locations.LocalTime" xml:space="preserve">
+    <value>Local Date and Time</value>
+  </data>
+  <data name="Locations.LocalTimeHelp" xml:space="preserve">
+    <value>Enter the local time at this location. The time will be stored as UTC and displayed in your configured timezone.</value>
+  </data>
+  <data name="Locations.AddNotes" xml:space="preserve">
+    <value>Add Notes</value>
+  </data>
+  <data name="Locations.RetryCreate" xml:space="preserve">
+    <value>Retry original save</value>
+  </data>
+  <data name="Locations.SeparateCreate" xml:space="preserve">
+    <value>Start a separate new location</value>
+  </data>
+  <data name="Locations.OpenSaved" xml:space="preserve">
+    <value>Open saved Location / Edit</value>
+  </data>
+  <data name="Locations.ActualSaved" xml:space="preserve">
+    <value>Actual saved location</value>
+  </data>
+  <data name="Locations.RequiredFields" xml:space="preserve">
+    <value>Fields are required.</value>
+  </data>
+  <data name="Locations.RecordedAddress" xml:space="preserve">
+    <value>Recorded address text: {0}</value>
+  </data>
+  <data name="Locations.AddressDetails" xml:space="preserve">
+    <value>Address details</value>
+  </data>
+  <data name="Locations.FullAddress" xml:space="preserve">
+    <value>Full address</value>
+  </data>
+  <data name="Locations.AddressLine" xml:space="preserve">
+    <value>Address line</value>
+  </data>
+  <data name="Locations.Street" xml:space="preserve">
+    <value>Street</value>
+  </data>
+  <data name="Locations.HouseNumber" xml:space="preserve">
+    <value>House number</value>
+  </data>
+  <data name="Locations.Postcode" xml:space="preserve">
+    <value>Postcode</value>
+  </data>
+  <data name="Locations.CityPlace" xml:space="preserve">
+    <value>City / place</value>
+  </data>
+  <data name="Locations.ManualAddressHelp" xml:space="preserve">
+    <value>Editing any address field makes the address manual and clears provider attribution.</value>
+  </data>
+  <data name="Locations.PositionTimeHelp" xml:space="preserve">
+    <value>Moving the point preserves the exact capture instant and updates its local display. Explicit time edits use the input zone</value>
+  </data>
+  <data name="Locations.AmbiguousTime" xml:space="preserve">
+    <value>If this local time occurs twice</value>
+  </data>
+  <data name="Locations.ChooseWhenNeeded" xml:space="preserve">
+    <value>Choose when needed</value>
+  </data>
+  <data name="Locations.Earlier" xml:space="preserve">
+    <value>Earlier occurrence</value>
+  </data>
+  <data name="Locations.Later" xml:space="preserve">
+    <value>Later occurrence</value>
+  </data>
+  <data name="Locations.TimeRecoveryHelp" xml:space="preserve">
+    <value>The saved time’s zone is unavailable. Review or re-enter the intended Local Date and Time above and choose an occurrence if needed. Enter the intended time zone, then review and confirm it. Your other edits stay retained. If the time is unchanged, you can save other fields without this step.</value>
+  </data>
+  <data name="Locations.RecoveryZone" xml:space="preserve">
+    <value>Time zone for this retained time</value>
+  </data>
+  <data name="Locations.ZoneExample" xml:space="preserve">
+    <value>Europe/Athens or UTC</value>
+  </data>
+  <data name="Locations.ReviewTime" xml:space="preserve">
+    <value>Review time and zone</value>
+  </data>
+  <data name="Locations.ReviewDraft" xml:space="preserve">
+    <value>Review retained draft and current facts</value>
+  </data>
+  <data name="Locations.AdoptOriginals" xml:space="preserve">
+    <value>Use these current facts as new originals, keeping my draft</value>
+  </data>
+  <data name="Locations.SaveKeep" xml:space="preserve">
+    <value>Save your changes and keep editing</value>
+  </data>
+  <data name="Locations.SaveBack" xml:space="preserve">
+    <value>Save your changes and go back</value>
+  </data>
+  <data name="Locations.SaveReturn" xml:space="preserve">
+    <value>Save &amp; Return</value>
+  </data>
+  <data name="Locations.Capture" xml:space="preserve">
+    <value>Capture Details</value>
+  </data>
+  <data name="Locations.Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Locations.CheckIn" xml:space="preserve">
+    <value>Manual Check-in</value>
+  </data>
+  <data name="Locations.Provider" xml:space="preserve">
+    <value>Location Provider</value>
+  </data>
+  <data name="Locations.Bearing" xml:space="preserve">
+    <value>Bearing</value>
+  </data>
+  <data name="Locations.Device" xml:space="preserve">
+    <value>Device</value>
+  </data>
+  <data name="Locations.OsVersion" xml:space="preserve">
+    <value>OS Version</value>
+  </data>
+  <data name="Locations.AppVersion" xml:space="preserve">
+    <value>App Version</value>
+  </data>
+  <data name="Locations.Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="Locations.Charging" xml:space="preserve">
+    <value>Charging</value>
+  </data>
+  <data name="Locations.BulkTitle" xml:space="preserve">
+    <value>Bulk Edit Location Notes</value>
+  </data>
+  <data name="Locations.BulkHelp" xml:space="preserve">
+    <value>Bulk edit allows you to add or replace notes on multiple locations at once. Use the filters to target specific records by country, region, city, or date range.</value>
+  </data>
+  <data name="Locations.BulkFilters" xml:space="preserve">
+    <value>Filters &amp; Notes</value>
+  </data>
+  <data name="Locations.BulkScope" xml:space="preserve">
+    <value>Applies to records matching at Apply time. Replace and Clear overwrite current Notes; Append uses current Notes. Preview counts are advisory. If the reply is lost, inspect history before deliberately submitting again.</value>
+  </data>
+  <data name="Locations.BulkAppend" xml:space="preserve">
+    <value>Append to Existing Notes?</value>
+  </data>
+  <data name="Locations.BulkAppendHelp" xml:space="preserve">
+    <value>Checked: append notes after existing content. Unchecked: replace existing notes entirely.</value>
+  </data>
+  <data name="Locations.BulkClear" xml:space="preserve">
+    <value>Clear Existing Notes?</value>
+  </data>
+  <data name="Locations.NotesHtml" xml:space="preserve">
+    <value>Notes (HTML)</value>
+  </data>
+  <data name="Locations.ApplyCount.one" xml:space="preserve">
+    <value>Apply to {0} location</value>
+  </data>
+  <data name="Locations.ApplyCount.other" xml:space="preserve">
+    <value>Apply to {0} locations</value>
+  </data>
+  <data name="Locations.BulkUpdated.one" xml:space="preserve">
+    <value>{0} location updated.</value>
+  </data>
+  <data name="Locations.BulkUpdated.other" xml:space="preserve">
+    <value>{0} locations updated.</value>
+  </data>
+  <data name="Locations.PreviewFailed" xml:space="preserve">
+    <value>The preview count is unavailable.</value>
+  </data>
+  <data name="Locations.RegionsFailed" xml:space="preserve">
+    <value>Could not load regions.</value>
+  </data>
+  <data name="Locations.PlacesFailed" xml:space="preserve">
+    <value>Could not load places.</value>
+  </data>
+  <data name="Locations.CreateDeleted" xml:space="preserve">
+    <value>This location was deleted. This retry cannot restore it. Your input remains available.</value>
+  </data>
+  <data name="Locations.CreateUnconfirmed" xml:space="preserve">
+    <value>The save could not be confirmed. Retry uses the original attempted values and UUID. Current form changes remain unsaved. The earlier action may still finish.</value>
+  </data>
+  <data name="Locations.CreateEarlierUnconfirmed" xml:space="preserve">
+    <value>The earlier save is still unconfirmed. Keep this form and retry the original attempt.</value>
+  </data>
+  <data name="Locations.CreateInvalid" xml:space="preserve">
+    <value>Correct the field errors. This submission did not create a location.</value>
+  </data>
+  <data name="Locations.CreateSaved" xml:space="preserve">
+    <value>The location was saved.</value>
+  </data>
+  <data name="Locations.CreateFound" xml:space="preserve">
+    <value>The original creation was found. No additional record was created.</value>
+  </data>
+  <data name="Locations.CreateDifferent" xml:space="preserve">
+    <value>This location was already created. Your current form changes were not applied and remain unsaved. Open the saved location and use Edit to apply differences.</value>
+  </data>
+  <data name="Locations.NotFound" xml:space="preserve">
+    <value>Location not found.</value>
+  </data>
+  <data name="Locations.BindingInvalid" xml:space="preserve">
+    <value>Enter a valid value for this field.</value>
+  </data>
+  <data name="Locations.LatitudeInvalid" xml:space="preserve">
+    <value>Latitude must be a finite number between -90 and 90.</value>
+  </data>
+  <data name="Locations.LongitudeInvalid" xml:space="preserve">
+    <value>Longitude must be a finite number between -180 and 180.</value>
+  </data>
+  <data name="Locations.Required" xml:space="preserve">
+    <value>Enter a value for this field.</value>
+  </data>
+  <data name="Locations.AddressLength" xml:space="preserve">
+    <value>The address field cannot exceed {1} characters.</value>
+  </data>
+  <data name="Locations.Recorded" xml:space="preserve">
+    <value>Recorded: {0}</value>
+  </data>
+  <data name="Locations.RecordedZoneUnavailable" xml:space="preserve">
+    <value>Recorded timezone unavailable</value>
+  </data>
+  <data name="Locations.SourceZoneUnavailable" xml:space="preserve">
+    <value>Source timezone unavailable</value>
+  </data>
+  <data name="Locations.ViewerTime" xml:space="preserve">
+    <value>Viewer time</value>
+  </data>
+  <data name="Locations.RecordedTime" xml:space="preserve">
+    <value>Recorded time</value>
+  </data>
+  <data name="Locations.NoMatches" xml:space="preserve">
+    <value>No locations match the criteria.</value>
+  </data>
+  <data name="Locations.LoadFailed" xml:space="preserve">
+    <value>Could not load locations.</value>
+  </data>
+  <data name="Locations.StatsFailed" xml:space="preserve">
+    <value>Could not load location statistics.</value>
+  </data>
+  <data name="Locations.Total" xml:space="preserve">
+    <value>Total Locations</value>
+  </data>
+  <data name="Locations.Countries" xml:space="preserve">
+    <value>Countries</value>
+  </data>
+  <data name="Locations.Regions" xml:space="preserve">
+    <value>Regions</value>
+  </data>
+  <data name="Locations.Cities" xml:space="preserve">
+    <value>Cities</value>
+  </data>
+  <data name="Locations.Live" xml:space="preserve">
+    <value>LIVE LOCATION</value>
+  </data>
+  <data name="Locations.Latest" xml:space="preserve">
+    <value>LATEST LOCATION</value>
+  </data>
+  <data name="Locations.EditAction" xml:space="preserve">
+    <value>Edit location</value>
+  </data>
+  <data name="Locations.DeleteAction" xml:space="preserve">
+    <value>Delete location</value>
+  </data>
+  <data name="Locations.Maps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="Locations.GoogleMaps" xml:space="preserve">
+    <value>View in Google Maps</value>
+  </data>
+  <data name="Locations.NoSelected" xml:space="preserve">
+    <value>No locations selected.</value>
+  </data>
+  <data name="Locations.BulkDelete.one" xml:space="preserve">
+    <value>Delete {0} selected location with its current content? If the reply is lost, inspect history before deliberately trying again.</value>
+  </data>
+  <data name="Locations.BulkDelete.other" xml:space="preserve">
+    <value>Delete {0} selected locations with their current content? If the reply is lost, inspect history before deliberately trying again.</value>
+  </data>
+  <data name="Locations.BulkDeleteUnknown" xml:space="preserve">
+    <value>Bulk deletion could not be confirmed. Refresh history and inspect the current records before deliberately trying again. The earlier action may still finish.</value>
+  </data>
+  <data name="Locations.BulkDeleteDone.one" xml:space="preserve">
+    <value>{0} location deleted.</value>
+  </data>
+  <data name="Locations.BulkDeleteDone.other" xml:space="preserve">
+    <value>{0} locations deleted.</value>
+  </data>
+  <data name="Locations.SavingCreate" xml:space="preserve">
+    <value>Saving. Current form changes remain available until the result is confirmed.</value>
+  </data>
+  <data name="Locations.CreateOwnerChanged" xml:space="preserve">
+    <value>Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.</value>
+  </data>
+  <data name="Locations.CreateOwnerUnknown" xml:space="preserve">
+    <value>The save could not be confirmed, and your account could not be verified. Keep this page open and recheck the original account before retrying. If needed, sign back in to that account in another tab.</value>
+  </data>
+  <data name="Locations.CreateOwnerRecheck" xml:space="preserve">
+    <value>Recheck original account</value>
+  </data>
+  <data name="Locations.CreateOwnerRestored" xml:space="preserve">
+    <value>The earlier save is unconfirmed. Retry uses its original UUID and attempted values; current form changes remain unsaved.</value>
+  </data>
+  <data name="Locations.CreateNewerDraft" xml:space="preserve">
+    <value>Your current form changes were not applied and remain unsaved. Open the saved location and use Edit, or retry the original save if it is still unconfirmed.</value>
+  </data>
+  <data name="Locations.EditUnavailable" xml:space="preserve">
+    <value>Editor, saved proof or local storage is unavailable. Keep your draft on this page; no save was sent.</value>
+  </data>
+  <data name="Locations.Restored" xml:space="preserve">
+    <value>Restored your retained draft. Save checks any earlier uncertain action first.</value>
+  </data>
+  <data name="Locations.ZoneUnavailable" xml:space="preserve">
+    <value>unavailable for this retained draft</value>
+  </data>
+  <data name="Locations.DraftStorageFailed" xml:space="preserve">
+    <value>Could not retain the draft in this browser. Keep this page open.</value>
+  </data>
+  <data name="Locations.ZoneRequired" xml:space="preserve">
+    <value>Enter a time zone such as Europe/Athens or UTC.</value>
+  </data>
+  <data name="Locations.ConfirmTime" xml:space="preserve">
+    <value>Confirm this time interpretation?&#10;Local time: {0}&#10;Time zone: {1}&#10;DST occurrence: {2}&#10;UTC instant: {3}&#10;Your other edits are kept. Save still checks any earlier uncertain action.</value>
+  </data>
+  <data name="Locations.TimeUnambiguous" xml:space="preserve">
+    <value>unambiguous</value>
+  </data>
+  <data name="Locations.TimeConfirmed" xml:space="preserve">
+    <value>Time and zone confirmed and retained. Save checks any earlier uncertain action before submitting.</value>
+  </data>
+  <data name="Locations.TimeError" xml:space="preserve">
+    <value>Could not verify the time and zone. Check both values and try again.</value>
+  </data>
+  <data name="Locations.TimeNeedsZone" xml:space="preserve">
+    <value>The saved time’s zone is unavailable. Review the local time and DST occurrence, enter its time zone below, then choose Review time and zone.</value>
+  </data>
+  <data name="Locations.NoChanges" xml:space="preserve">
+    <value>No changes selected.</value>
+  </data>
+  <data name="Locations.Saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="Locations.EditUnknown" xml:space="preserve">
+    <value>The location change could not be confirmed. Keep this page open and review the draft.</value>
+  </data>
+  <data name="Locations.Adopted" xml:space="preserve">
+    <value>You adopted the displayed current facts as new originals. Your draft is retained. Save to submit a new conditional action.</value>
+  </data>
+  <data name="Locations.AdoptFailed" xml:space="preserve">
+    <value>Could not adopt the current facts. Your draft is retained.</value>
+  </data>
+  <data name="Locations.InvalidWallTime" xml:space="preserve">
+    <value>Enter a valid local date and time.</value>
+  </data>
+  <data name="Locations.MissingWallTime" xml:space="preserve">
+    <value>That local time does not exist in {0}. Choose another time.</value>
+  </data>
+  <data name="Locations.DoubleWallTime" xml:space="preserve">
+    <value>That local time occurs twice in {0}. Choose earlier or later.</value>
+  </data>
+  <data name="Locations.CoordinatesRequired" xml:space="preserve">
+    <value>Both coordinates are required.</value>
+  </data>
+  <data name="Locations.CoordinatesFinite" xml:space="preserve">
+    <value>Coordinates must be finite.</value>
+  </data>
+  <data name="Locations.Export" xml:space="preserve">
+    <value>Export Location Data</value>
+  </data>
+  <data name="Locations.ExportHelp" xml:space="preserve">
+    <value>Export all of your location data in a selected format (CSV, GPX, GeoJSON, KML)</value>
+  </data>
+  <data name="Locations.ExportFormats" xml:space="preserve">
+    <value>GeoJSON: for maps and GIS software. CSV: for spreadsheets. GPX: for GPS devices. KML: for Google Earth.</value>
+  </data>
+  <data name="Locations.Direction.N" xml:space="preserve">
+    <value>N</value>
+  </data>
+  <data name="Locations.Direction.NE" xml:space="preserve">
+    <value>NE</value>
+  </data>
+  <data name="Locations.Direction.E" xml:space="preserve">
+    <value>E</value>
+  </data>
+  <data name="Locations.Direction.SE" xml:space="preserve">
+    <value>SE</value>
+  </data>
+  <data name="Locations.Direction.S" xml:space="preserve">
+    <value>S</value>
+  </data>
+  <data name="Locations.Direction.SW" xml:space="preserve">
+    <value>SW</value>
+  </data>
+  <data name="Locations.Direction.W" xml:space="preserve">
+    <value>W</value>
+  </data>
+  <data name="Locations.Direction.NW" xml:space="preserve">
+    <value>NW</value>
+  </data>
+  <data name="Locations.AuthorBlog" xml:space="preserve">
+    <value>Check my blog</value>
+  </data>
+  <data name="Locations.BulkDeleteNoMatches" xml:space="preserve">
+    <value>No locations found for deletion.</value>
+  </data>
+  <data name="Locations.BulkDeleteNoIds" xml:space="preserve">
+    <value>No locations were submitted for deletion.</value>
+  </data>
+  <data name="Locations.ActivityNoResults" xml:space="preserve">
+    <value>No activities match the search.</value>
+  </data>
+  <data name="Locations.LatestMarker" xml:space="preserve">
+    <value>User's latest location.</value>
+  </data>
+  <data name="Locations.SelectedMarker" xml:space="preserve">
+    <value>Selected location</value>
+  </data>
+</root>

@@ -81,3 +81,14 @@ export const locationDeletionText = ({ id, prior, historicalUnknown, previousRec
         id, JSON.stringify(record), JSON.stringify(unavailableFields));
     return earlier ? earlier + ' ' + current : current;
 };
+
+
+/** An unsettled delete recovers through the inspection action, which has no Save button. */
+export const locationDeletionOutcomeText = (result, fallback) => {
+    const key = legacyKeys.get(result?.message);
+    if (['Shell.LocationOutcomeUnknown', 'Shell.LocationOutcomeUnverified', 'Shell.LocationSavePending'].includes(key)) {
+        return message('Shell.LocationDeletionRecover',
+            'Deletion could not be confirmed. The earlier action may still finish. Open the location details and choose Delete to review the retained attempt.');
+    }
+    return locationMutationText(result, fallback);
+};

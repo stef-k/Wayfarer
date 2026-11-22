@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -100,7 +101,11 @@ public sealed class LocationCreateRenderingTests : TestBase
             .UseContentRoot(Directory.GetCurrentDirectory())
             .UseWebRoot(webRoot)
             .UseSetting(WebHostDefaults.ApplicationKey, typeof(Trip).Assembly.GetName().Name)
-            .ConfigureServices(services => services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly))
+            .ConfigureServices((context, services) =>
+            {
+                services.AddControllersWithViews().AddApplicationPart(typeof(Trip).Assembly);
+                services.AddWebLocalization(context.Configuration);
+            })
             .Configure(_ => { }))
         .Build();
 }

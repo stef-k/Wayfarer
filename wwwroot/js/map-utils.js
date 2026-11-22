@@ -1,3 +1,4 @@
+import { registerLanguageDraft } from './localization/languageNavigation.js';
 import { message, number } from './localization/messages.js';
 import { formatMapDistance, measureInstructions } from './localization/mapMeasurementText.js';
 
@@ -38,6 +39,8 @@ const ZoomLevelControl = L.Control.extend({
 
         let measureActive = false;
         let currentTool = null;
+        // Language navigation queries the same owner that controls the ruler and its drawn layers.
+        if (this.options.protectLanguage) this.releaseDraft = registerLanguageDraft(() => measureActive);
 
         L.DomEvent.on(measureBtn, 'click', (e) => {
             L.DomEvent.stopPropagation(e);
@@ -111,13 +114,14 @@ const ZoomLevelControl = L.Control.extend({
         return container;
     },
 
-    onRemove: function (map) {
-        // No cleanup needed - CSS handles theming
+    onRemove: function () {
+        this.releaseDraft?.();
     }
 });
 
-export const addZoomLevelControl = (map) => {
-    const zoomLevelControl = new ZoomLevelControl({ position: 'topright' });
+/** Mounts the shared map control with draft awareness on integrated history routes. */
+export const addZoomLevelControl = (map, { protectLanguage = false } = {}) => {
+    const zoomLevelControl = new ZoomLevelControl({ position: 'topright', protectLanguage });
     map.addControl(zoomLevelControl);
 };
 
@@ -226,8 +230,9 @@ export const initDistanceMeasureTool = (map, options   = {}) => {
         if (points.length > 1) finish();
     };
 
-    let onKey = (e) => {
-        if (e.key === 'Escape') {
+    // Native modal dialogs own Escape even though the keydown bubbles to the window.
+    const onKey = (event) => {
+        if (event.key === 'Escape' && !document.querySelector('dialog:modal')) {
             cancelTool();
         }
     };

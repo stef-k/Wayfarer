@@ -1,3 +1,5 @@
+import { message } from '../localization/messages.js';
+
 /** Ordinary form retry state: one UUID and one attempted payload, with current authored values kept separately. */
 const numeric = ['Latitude', 'Longitude', 'SelectedActivityId', 'Accuracy', 'Altitude', 'Speed'];
 const text = ['LocalTimestamp', 'Notes', 'Address', 'FullAddress', 'AddressNumber', 'StreetName', 'PostCode', 'Place', 'Region', 'Country'];
@@ -30,7 +32,7 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
         form.elements.CreateMayHaveEffect.value = 'true';
         const status = form.querySelector('#create-status');
         status.hidden = false;
-        status.textContent = 'Saving. Current form changes remain available until the result is confirmed.';
+        status.textContent = message('Locations.SavingCreate', 'Saving. Current form changes remain available until the result is confirmed.');
         try {
             const response = await fetch(form.action, { method: 'POST', body: current, credentials: 'same-origin', cache: 'no-store' });
             const html = await response.text();
@@ -49,13 +51,13 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                 warning.className = 'alert alert-warning';
                 warning.setAttribute('role', 'alert');
                 warning.textContent = foreignOwner
-                    ? 'Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.'
-                    : 'The save could not be confirmed, and your account could not be verified. Keep this page open and recheck the original account before retrying. If needed, sign back in to that account in another tab.';
+                    ? message('Locations.CreateOwnerChanged', 'Your session changed. This attempt remains bound to its original account. Sign back in to that account in another tab, then recheck this form. Keep this page open.')
+                    : message('Locations.CreateOwnerUnknown', 'The save could not be confirmed, and your account could not be verified. Keep this page open and recheck the original account before retrying. If needed, sign back in to that account in another tab.');
                 status.textContent = warning.textContent;
                 const recheck = document.createElement('button');
                 recheck.type = 'button';
                 recheck.className = 'btn btn-outline-primary ms-2';
-                recheck.textContent = 'Recheck original account';
+                recheck.textContent = message('Locations.CreateOwnerRecheck', 'Recheck original account');
                 recheck.addEventListener('click', async () => {
                     if (rechecking || !requiresOwnerCheck || !privateContent.isConnected) return;
                     rechecking = true;
@@ -73,7 +75,7 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                         privateContent.hidden = false;
                         warning.remove();
                         status.hidden = false;
-                        status.textContent = 'The earlier save is unconfirmed. Retry uses its original UUID and attempted values; current form changes remain unsaved.';
+                        status.textContent = message('Locations.CreateOwnerRestored', 'The earlier save is unconfirmed. Retry uses its original UUID and attempted values; current form changes remain unsaved.');
                     } catch { /* Keep the private surface fenced and the original attempt intact until owner proof succeeds. */ }
                     finally { rechecking = false; recheck.disabled = false; }
                 });
@@ -90,9 +92,9 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
                 for (const name of [...numeric, ...text]) if (next.elements[name]) next.elements[name].value = latest.get(name) ?? '';
                 const notes = page.getElementById('notes');
                 if (notes) notes.dataset.notesContent = latest.get('Notes') ?? '';
-                const message = page.getElementById('create-status');
-                message.hidden = false;
-                message.textContent = 'Your current form changes were not applied and remain unsaved. Open the saved location and use Edit, or retry the original save if it is still unconfirmed.';
+                const feedback = page.getElementById('create-status');
+                feedback.hidden = false;
+                feedback.textContent = message('Locations.CreateNewerDraft', 'Your current form changes were not applied and remain unsaved. Open the saved location and use Edit, or retry the original save if it is still unconfirmed.');
             }
             // Reuse the rendered MVC content and the existing Create mount owner; unrelated layout state stays intact.
             const content = page.querySelector('.site-content');
@@ -100,8 +102,8 @@ export const attachLocationCreate = (form, notesValue, redisplay) => {
             redisplay(content);
         } catch {
             status.hidden = false;
-            form.querySelector('button[type=submit]').textContent = 'Retry original save';
-            status.textContent = 'The save could not be confirmed. Retry uses the original attempted values and UUID. Current form changes remain unsaved.';
+            form.querySelector('button[type=submit]').textContent = message('Locations.RetryCreate', 'Retry original save');
+            status.textContent = message('Locations.CreateUnconfirmed', 'The save could not be confirmed. Retry uses the original attempted values and UUID. Current form changes remain unsaved.');
         } finally { sending = false; }
     });
 };

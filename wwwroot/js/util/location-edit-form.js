@@ -1,3 +1,5 @@
+import { message } from '../localization/messages.js';
+import { locationMutationText } from './location-mutation-text.js';
 import { locationWork, retainLocationDraft, saveLocationMutation, readLocationDetail, adoptLocationOriginals } from './location-mutation.js';
 import { locationEditCommand, locationWallTimeUtc } from './location-edit-state.js';
 
@@ -19,8 +21,8 @@ export const mountProtectedLocationForm = (form, notes) => {
     let inspected = null;
     const state = locationWork(id);
     const stored = state.draft?.value?.draft || state.draft?.value;
-    if (state.currentObservation?.generation === state.settledGeneration)
-        status.textContent = 'Current state satisfied this draft; historical outcome remains unknown.';
+    if (state.currentObservation && state.currentObservation.generation === state.settledGeneration)
+        status.textContent = message('Shell.LocationCurrentStateSatisfied', 'Current state satisfies this draft; historical outcome remains unknown.');
     if (stored?.initial && state.draft.generation !== state.settledGeneration) {
         initial = stored.initial; detail = stored.detail;
         for (const name of names) input(name).value = stored.current[name];
@@ -30,35 +32,48 @@ export const mountProtectedLocationForm = (form, notes) => {
         // A refreshed row may have moved; retained wall strings keep their edit-start interpretation.
         inputTimeZone = stored.inputTimeZone;
         timeAmbiguity.value = stored.timeAmbiguity || '';
-        status.textContent = 'Restored your retained draft. Save checks any earlier uncertain action first.';
+        status.textContent = message('Locations.Restored', 'Restored your retained draft. Save checks any earlier uncertain action first.');
     }
     const timeZoneLabel = document.getElementById('location-input-time-zone');
-    if (timeZoneLabel) timeZoneLabel.textContent = inputTimeZone || 'unavailable for this retained draft';
+    if (timeZoneLabel) timeZoneLabel.textContent = inputTimeZone || message('Locations.ZoneUnavailable', 'unavailable for this retained draft');
     const timeRecovery = document.getElementById('location-time-recovery');
     const recoveryZone = document.getElementById('location-recovery-zone');
     if (timeRecovery) timeRecovery.hidden = !!inputTimeZone;
     const draft = () => ({ initial, current: values(), explicitManual: [...manual], clearNotes: notes.isClear() || restoredClear,
         detail, inputTimeZone, timeAmbiguity: timeAmbiguity.value });
+    const storageFailure = error => locationMutationText(error, message('Locations.DraftStorageFailed',
+        'Could not retain the draft in this browser. Keep this page open.'));
+    const timeFailure = error => error instanceof RangeError ? message('Locations.TimeError',
+        'Could not verify the time and zone. Check both values and try again.') : error.message;
     const retain = () => {
         try { retainLocationDraft(id, draft()); }
-        catch (error) { status.textContent = `Not saved locally: ${error.message}`; }
+        catch (error) { status.textContent = storageFailure(error); }
     };
     // Only explicit confirmation supplies a missing interpretation; it never replaces originals or old attempts.
     document.getElementById('location-confirm-time-zone')?.addEventListener('click', () => {
         if (inputTimeZone) return;
+        const zone = recoveryZone.value.trim();
+        if (!zone) {
+            status.textContent = message('Locations.ZoneRequired', 'Enter a time zone such as Europe/Athens or UTC.');
+            return;
+        }
+        const reviewed = { ...draft(), inputTimeZone: zone };
+        let instant;
+        try { instant = locationWallTimeUtc(reviewed.current.LocalTimestamp, zone, reviewed.timeAmbiguity); }
+        catch (error) { status.textContent = timeFailure(error); return; }
+        const occurrence = (timeAmbiguity.value && timeAmbiguity.selectedOptions[0]?.textContent)
+            || message('Locations.TimeUnambiguous', 'unambiguous');
+        if (!confirm(message('Locations.ConfirmTime',
+            'Confirm this time interpretation?\nLocal time: {0}\nTime zone: {1}\nDST occurrence: {2}\nUTC instant: {3}\nYour other edits are kept. Save still checks any earlier uncertain action.',
+            reviewed.current.LocalTimestamp, zone, occurrence, instant))) return;
         try {
-            const zone = recoveryZone.value.trim();
-            if (!zone) throw new Error('Enter a time zone such as Europe/Athens or UTC.');
-            const reviewed = { ...draft(), inputTimeZone: zone };
-            const instant = locationWallTimeUtc(reviewed.current.LocalTimestamp, zone, reviewed.timeAmbiguity);
-            if (!confirm(`Confirm this time interpretation?\nLocal time: ${reviewed.current.LocalTimestamp}\nTime zone: ${zone}\nDST occurrence: ${reviewed.timeAmbiguity || 'not ambiguous'}\nUTC instant: ${instant}\nYour other edits are kept. Save still checks any earlier uncertain action.`)) return;
             // Persist the new desired generation before enabling time submission, including after reload.
             retainLocationDraft(id, reviewed);
             inputTimeZone = zone;
             timeZoneLabel.textContent = zone;
             timeRecovery.hidden = true;
-            status.textContent = 'Time and zone confirmed and retained. Save checks any earlier uncertain action before submitting.';
-        } catch (error) { status.textContent = error.message; }
+            status.textContent = message('Locations.TimeConfirmed', 'Time and zone confirmed and retained. Save checks any earlier uncertain action before submitting.');
+        } catch (error) { status.textContent = storageFailure(error); }
     });
     form.addEventListener('input', event => {
         if (event.target === recoveryZone) return;
@@ -75,22 +90,28 @@ export const mountProtectedLocationForm = (form, notes) => {
         const buttons = [...form.querySelectorAll('button[type="submit"]')];
         if (buttons.some(button => button.disabled)) return;
         const returnAfterSave = event.submitter?.value === 'return';
+        let selection;
         try {
             if (input('LocalTimestamp').value !== initial.LocalTimestamp && !inputTimeZone)
-                throw new Error('The saved time’s zone is unavailable. Review the local time and DST occurrence, enter its time zone below, then choose Review time and zone.');
-            const selection = locationEditCommand(initial, values(), [...manual], notes.isClear() || restoredClear, inputTimeZone, timeAmbiguity.value);
-            if (!Object.keys(selection.changes).length) { status.textContent = 'No changes selected.'; return; }
+                throw new Error(message('Locations.TimeNeedsZone', 'The saved time’s zone is unavailable. Review the local time and DST occurrence, enter its time zone below, then choose Review time and zone.'));
+            selection = locationEditCommand(initial, values(), [...manual], notes.isClear() || restoredClear, inputTimeZone, timeAmbiguity.value);
+        } catch (error) {
+            status.textContent = timeFailure(error);
+            return;
+        }
+        try {
+            if (!Object.keys(selection.changes).length) { status.textContent = message('Locations.NoChanges', 'No changes selected.'); return; }
             const expected = Object.fromEntries(selection.groups.map(group => [group, detail.locationMutation.baseValues[group]]));
             buttons.forEach(button => { button.disabled = true; });
-            status.textContent = 'Saving…';
+            status.textContent = message('Locations.Saving', 'Saving…');
             const result = await saveLocationMutation(id, detail, 'update', selection.changes, expected, draft());
-            status.textContent = result.message;
+            status.textContent = locationMutationText(result, message('Locations.EditUnknown', 'The location change could not be confirmed. Keep this page open and review the draft.'));
             if (result.success) {
                 if (returnAfterSave) {
                     const target = new URL(form.elements.namedItem('ReturnUrl').value || '/User/Location', location.origin);
                     location.assign(target.origin === location.origin ? target.href : '/User/Location');
                 } else location.reload();
-            } else if (result.terminal || result.message.includes('excluded')) {
+            } else if (result.terminal || result.excluded) {
                 try {
                     inspected = await readLocationDetail(id);
                     const panel = document.getElementById('location-conflict'); panel.hidden = false; panel.open = true;
@@ -98,7 +119,7 @@ export const mountProtectedLocationForm = (form, notes) => {
                         current: inspected.locationMutation.baseValues, originalCreateAddressPublication: inspected.locationMutation.originalCreateAddressPublication }, null, 2);
                 } catch { /* Known applied evidence remains retained if a fresh read fails. */ }
             }
-        } catch (error) { status.textContent = error.message; }
+        } catch (error) { status.textContent = locationMutationText(error, message('Locations.EditUnknown', 'The location change could not be confirmed. Keep this page open and review the draft.')); }
         finally { buttons.forEach(button => { button.disabled = false; }); }
     });
     document.getElementById('location-adopt-current').addEventListener('click', async () => {
@@ -106,8 +127,8 @@ export const mountProtectedLocationForm = (form, notes) => {
             if (!inspected) return;
             await adoptLocationOriginals(id, inspected);
             detail = inspected; retain();
-            status.textContent = 'You adopted the displayed current facts as new originals. Your draft is retained. Save to submit a new conditional action.';
+            status.textContent = message('Locations.Adopted', 'You adopted the displayed current facts as new originals. Your draft is retained. Save to submit a new conditional action.');
             document.getElementById('location-conflict').hidden = true;
-        } catch (error) { status.textContent = error.message; }
+        } catch (error) { status.textContent = locationMutationText(error, message('Locations.AdoptFailed', 'Could not adopt the current facts. Your draft is retained.')); }
     });
 };

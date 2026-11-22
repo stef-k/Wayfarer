@@ -1,4 +1,4 @@
 @using Wayfarer.Localization
 @inject WebMessages T
 @* Uses System.Text.Json's HTML-safe encoder before writing inert JSON. *@
-<script id="wayfarer-locale" type="application/json">@Html.Raw(T.Bootstrap("Shell", ViewData["WebCatalog"] as string ?? "Shell"))</script>
+<script id="wayfarer-locale" type="application/json">@Html.Raw(T.Bootstrap("Shell", ViewData["WebCatalog"] as string ?? "Shell", ViewData["WebRelatedCatalog"] as string ?? "Shell"))</script>
