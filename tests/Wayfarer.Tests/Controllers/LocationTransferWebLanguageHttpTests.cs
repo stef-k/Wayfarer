@@ -23,7 +23,13 @@ public sealed class LocationTransferWebLanguageHttpTests : TestBase
         client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, location.UserId));
         using var english = await client.GetAsync("/LocationExport/GeoJson");
         client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
-        using var greek = await client.GetAsync("/LocationExport/GeoJson");
+        using var menu = await client.GetAsync("/User/Location/AllLocations");
+        menu.EnsureSuccessStatusCode();
+        var page = await new HtmlParser().ParseDocumentAsync(await menu.Content.ReadAsStringAsync());
+        var download = Assert.Single(page.QuerySelectorAll("a"), link => link.TextContent.Trim() == "Λήψη GeoJSON");
+        var href = Assert.IsType<string>(download.GetAttribute("href"));
+        Assert.Equal("/LocationExport/GeoJson", href);
+        using var greek = await client.GetAsync(href);
         foreach (var response in new[] { english, greek })
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
