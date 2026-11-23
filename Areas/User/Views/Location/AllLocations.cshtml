@@ -15,6 +15,7 @@
 
     <!-- Right: Export dropdown + Add button -->
     <div class="d-flex flex-wrap align-items-center gap-2">
+        @* Format identifiers stay the same in the download URLs and payloads. *@
         <div class="btn-group">
             <button
                 type="button"
@@ -25,10 +26,10 @@
                 @T["Locations.Export"]
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="GeoJson">GeoJSON</a></li>
-                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Csv">CSV</a></li>
-                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Gpx">GPX</a></li>
-                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Kml">KML</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="GeoJson">@T["Transfers.ExportGeoJSON"]</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Csv">@T["Transfers.ExportCSV"]</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Gpx">@T["Transfers.ExportGPX"]</a></li>
+                <li><a class="dropdown-item" asp-controller="LocationExport" asp-action="Kml">@T["Transfers.ExportKML"]</a></li>
             </ul>
         </div>
         <i class="bi bi-question-circle text-muted"

@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Moq;
 using Quartz;
 using Wayfarer.Areas.User.Controllers;
+using Wayfarer.Localization;
 using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
@@ -44,6 +45,7 @@ public sealed class UploadRequestBoundaryTests : TestBase
         var settings = Settings(limit);
         using var host = await StartHost(db, staging, settings, Mock.Of<ITripImportService>());
         using var client = Client(host, authenticated);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
         var token = await client.GetStringAsync("/test-antiforgery");
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent(token), "__RequestVerificationToken");
@@ -53,6 +55,15 @@ public sealed class UploadRequestBoundaryTests : TestBase
         if (chunked) request.Headers.TransferEncodingChunked = true;
         using var response = await client.SendAsync(request);
         Assert.Equal(status, (int)response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        if (status == 403)
+            Assert.Contains("Οι μεταφορτώσεις αρχείων έχουν απενεργοποιηθεί", body);
+        else if (status == 413)
+            Assert.Contains("Το αίτημα μεταφόρτωσης υπερβαίνει το επιτρεπόμενο μέγεθος", body);
+        else
+            Assert.Empty(body);
+        if (status is 403 or 413)
+            Assert.Equal("el-GR", Assert.Single(response.Content.Headers.ContentLanguage));
         settings.Verify(s => s.GetSettings(), authenticated ? Times.Once() : Times.Never());
         Assert.Equal(status == 302 ? 1 : 0, db.LocationImports.Count());
         Assert.Equal(status == 302 ? 1 : 0, Directory.Exists(staging.DirectoryPath)
@@ -169,7 +180,7 @@ public sealed class UploadRequestBoundaryTests : TestBase
     /// <summary>Uses a real host body feature, application controllers and the production middleware order.</summary>
     private static Task<IHost> StartHost(ApplicationDbContext db, LocationImportStagedFiles staging,
         Mock<IApplicationSettingsService> settings, ITripImportService trips) => new HostBuilder()
-        .ConfigureWebHost(web => web.UseKestrel().UseUrls("http://127.0.0.1:0").ConfigureServices(services =>
+        .ConfigureWebHost(web => web.UseKestrel().UseUrls("http://127.0.0.1:0").ConfigureServices((context, services) =>
         {
             services.AddSingleton(db);
             services.AddSingleton(staging);
@@ -179,6 +190,7 @@ public sealed class UploadRequestBoundaryTests : TestBase
             services.AddSingleton(Mock.Of<ILocationEnrichmentPresentationProjector>());
             services.AddSingleton(Mock.Of<ILocationImportLifecycle>());
             services.AddControllersWithViews().AddApplicationPart(typeof(TripImportController).Assembly);
+            services.AddWebLocalization(context.Configuration);
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
                 options.Events.OnRedirectToLogin = context =>
                 {
@@ -187,6 +199,7 @@ public sealed class UploadRequestBoundaryTests : TestBase
                 });
         }).Configure(app =>
         {
+            app.UseWebLocalization();
             app.UseMiddleware<DynamicRequestSizeMiddleware>();
             app.UseRouting();
             app.UseAuthentication();

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Metadata;
+using Wayfarer.Localization;
 using Wayfarer.Parsers;
 using Wayfarer.Util;
 
@@ -12,7 +13,8 @@ public sealed class UserFileUploadMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context)
     {
         var endpoint = context.GetEndpoint();
-        if (endpoint?.Metadata.GetMetadata<UserFileUploadAttribute>() is null)
+        var upload = endpoint?.Metadata.GetMetadata<UserFileUploadAttribute>();
+        if (upload is null)
         {
             await next(context);
             return;
@@ -23,18 +25,18 @@ public sealed class UserFileUploadMiddleware(RequestDelegate next)
         var limit = UploadRequestPolicy.EffectiveBytes(settings.UploadSizeLimitMB);
         if (limit == 0)
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await RejectAsync(context, upload, StatusCodes.Status403Forbidden);
             return;
         }
 
-        if (endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize is long endpointLimit)
+        if (endpoint?.Metadata.GetMetadata<IRequestSizeLimitMetadata>()?.MaxRequestBodySize is long endpointLimit)
             limit = Math.Min(limit, endpointLimit);
         var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
         if (feature?.MaxRequestBodySize is long currentLimit)
             limit = Math.Min(limit, currentLimit);
         if (context.Request.ContentLength > limit)
         {
-            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            await RejectAsync(context, upload, StatusCodes.Status413PayloadTooLarge);
             return;
         }
 
@@ -42,7 +44,7 @@ public sealed class UserFileUploadMiddleware(RequestDelegate next)
         if (feature is null || (feature.IsReadOnly &&
             (feature.MaxRequestBodySize is null || feature.MaxRequestBodySize > limit)))
         {
-            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await RejectAsync(context, upload, StatusCodes.Status503ServiceUnavailable);
             return;
         }
         if (!feature.IsReadOnly)
@@ -63,8 +65,33 @@ public sealed class UserFileUploadMiddleware(RequestDelegate next)
         catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge
             && !context.Response.HasStarted)
         {
-            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            await RejectAsync(context, upload, StatusCodes.Status413PayloadTooLarge);
+            return;
         }
         finally { context.Request.Body = originalBody; }
+
+        // A caught form-reader rejection can leave an empty MVC response that we can still explain.
+        if (body.SizeRejected && !context.Response.HasStarted)
+            await RejectAsync(context, upload, StatusCodes.Status413PayloadTooLarge);
+    }
+
+    /// <summary>Preserves the policy status and writes a safe document response only for opted-in forms.</summary>
+    private static Task RejectAsync(HttpContext context, UserFileUploadAttribute upload, int statusCode)
+    {
+        var response = context.Response;
+        response.StatusCode = statusCode;
+        if (!upload.LocalizeRequestRefusal) return Task.CompletedTask;
+
+        var key = statusCode switch
+        {
+            StatusCodes.Status403Forbidden => "Transfers.UploadsDisabled",
+            StatusCodes.Status413PayloadTooLarge => "Transfers.UploadTooLarge",
+            _ => "Transfers.UploadUnavailable"
+        };
+        var text = context.RequestServices.GetRequiredService<WebMessages>();
+        response.ContentType = "text/plain; charset=utf-8";
+        response.Headers.ContentLanguage = text.Locale.Tag;
+        response.Headers.CacheControl = "no-store";
+        return response.WriteAsync(text[key]);
     }
 }

@@ -1,125 +1,116 @@
-@using Wayfarer.Models.LocationEnrichment
+@using System.Globalization
+@using Wayfarer.Localization
+@inject WebMessages T
 @model IEnumerable<Wayfarer.Models.LocationImport>
 @using Wayfarer.Services.LocationEnrichment
 @{
+    ViewData["Title"] = T["Shell.LocationImports"];
+    ViewData["WebCatalog"] = "Transfers";
+    var managedFiles = ViewData["ManagedFiles"] as Dictionary<int, string>;
     ViewData["BodyClass"] = "container-fluid";
 }
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h2>@ViewData["Title"]</h2>
     <a asp-controller="LocationImport" asp-action="Upload" class="btn btn-primary">
-        <i class="bi bi-upload"></i> Upload New File
+        <i class="bi bi-upload"></i> @T["Transfers.UploadNew"]
     </a>
 </div>
 
 <div class="alert alert-light small mb-3">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Import location history from Google Timeline (JSON format from Google Takeout).
-    Large files are processed in the background - you can leave this page and check back later.
+    @T["Transfers.HowItWorks"]
 </div>
 
 <!-- Keep the dense import-history table inside its own horizontal scroll surface on phones. -->
 <div class="table-responsive">
-<table class="table table-striped" id="locationImport" data-user-id="@ViewData["UserId"]">
+<table class="table table-striped" id="locationImport">
     <thead>
         <tr>
-            <th>File Name</th>
-            <th>Uploaded At</th>
+            <th>@T["Transfers.FileName"]</th>
+            <th>@T["Transfers.UploadedAt"]</th>
             <th>
-                Status
+                @T["Transfers.Status"]
                 <i class="bi bi-question-circle text-muted ms-1"
-                   data-tippy-content="InProgress: currently processing. Completed: file processed; check deleted-record and Activity counts. Stopped: paused by user. Failed: encountered errors."></i>
+                   data-tippy-content="@T["Transfers.StatusHelp"]"></i>
             </th>
-            <th>Processed Records</th>
-            <th>Last Processed Record</th>
-            <th>Errors</th>
-            <th>Actions</th>
+            <th>@T["Transfers.ProcessedRecords"]</th>
+            <th>@T["Transfers.LastRecord"]</th>
+            <th>@T["Transfers.Errors"]</th>
+            <th>@T["Shell.Actions"]</th>
         </tr>
     </thead>
     <tbody>
     @foreach (var import in Model)
     {
+        var (statusKey, badge) = LocationTransferText.ImportStatusDisplay(import.Status);
+        var managedState = managedFiles?.GetValueOrDefault(import.Id);
+        var failureKey = LocationTransferText.ImportFailureKey(import);
         <tr>
             <td class="filePath">@Wayfarer.Services.LocationImports.LocationImportStagedFiles.DisplayName(import.FilePath)</td>
-            <td>@import.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-            <td class="importStatus">
-                @if (import.Status == ImportStatus.Stopped)
+            <td><time datetime="@import.CreatedAt.ToString("O", CultureInfo.InvariantCulture)">@import.CreatedAt.ToString("g", T.DisplayCulture)</time></td>
+            <td class="importStatus"><span class="badge @badge">@T[statusKey]</span></td>
+            <td class="text-center lastProcessedIndex">
+                @T["Transfers.Progress", T.DisplayNumber(import.LastProcessedIndex), T.DisplayNumber(import.TotalRecords)]
+                @if (import.SkippedDuplicates > 0)
                 {
-                    <span class="badge bg-dark">@import.Status</span>
+                    <div class="text-body-secondary">@T.Count("Transfers.DuplicatesSkipped", import.SkippedDuplicates)</div>
                 }
-                else if (import.Status == ImportStatus.Completed)
-                {
-                    <span class="badge bg-success">@import.Status</span>
-                }
-                else if (import.Status == ImportStatus.Failed)
-                {
-                    <span class="badge bg-danger">@import.Status</span>
-                }
-                else if (import.Status == ImportStatus.InProgress)
-                {
-                    <span class="badge bg-info">@import.Status</span>
-                }
-                else if (import.Status == ImportStatus.Stopping)
-                {
-                    <span class="badge bg-secondary">@import.Status</span>
-                }
-            </td>
-            <td class="text-center lastProcessedIndex" data-total-records="@import.TotalRecords">
-                @import.LastProcessedIndex of @import.TotalRecords
                 @* Suppressed records are processed without restoring intentionally deleted history. *@
                 @if (import.SkippedDeleted > 0)
                 {
-                    <div class="text-body-secondary" role="status">Deleted records skipped: @import.SkippedDeleted</div>
+                    <div class="text-body-secondary" role="status">@T.Count("Transfers.DeletedSkipped", import.SkippedDeleted)</div>
                 }
             </td>
-            <td class="text-center lastImportedRecord">
-                @import.LastImportedRecord
-            </td>
+            <td class="text-center lastImportedRecord">@LocationTransferText.LastRecord(T, import.LastImportedRecord)</td>
             <td class="text-center errorMessage">
-                @import.ErrorMessage
-                @* Completed result history remains visible after automatic managed payload removal. *@
+                @if (failureKey != null)
+                {
+                    <div>@T[failureKey]</div>
+                }
                 @if (import.ManagedUpload)
                 {
-                    var states = ViewData["ManagedFiles"] as Dictionary<int, string>;
-                    <div class="text-body-secondary">Managed payload: @(states?.GetValueOrDefault(import.Id) ?? "unavailable").</div>
+                    <div class="text-body-secondary">@T["Transfers.ManagedPayload", T[LocationTransferText.CustodyKey(managedState)]]</div>
                 }
-                @* Durable classification feedback survives reload/restart and stays separate from terminal errors. *@
+                @if (import.DeletionRequestedAtUtc.HasValue)
+                {
+                    <div class="text-body-secondary" role="status">@T["Transfers.DeletePending"]</div>
+                }
+                @* Classification feedback remains distinct from processing failures. *@
                 @if (import.UnclassifiedActivityCount > 0)
                 {
                     <div class="text-warning-emphasis" role="status">
-                        Invalid Activity: @import.UnclassifiedActivityCount @(import.UnclassifiedActivityCount == 1 ? "Location" : "Locations") with unresolved Activity (invalid value).
-                        Correct these Locations through ordinary location editing.
+                        @T.Count("Transfers.InvalidActivity", import.UnclassifiedActivityCount)
                     </div>
                 }
             </td>
             <td>
                 @{
-                    // decide which primary button to show
+                    // Existing lifecycle and custody values decide which controls to display.
                     bool showDropdown = false;
-                    string? primaryLabel = null, primaryAction = null;
+                    string? primaryKey = null, primaryAction = null;
 
                     // Only persisted Retained custody permits a managed restart; Web antiforgery remains unchanged.
-                    var managedFiles = ViewData["ManagedFiles"] as Dictionary<int, string>;
-                    var managedState = managedFiles?.GetValueOrDefault(import.Id);
-                    if (import.ManagedUpload && managedState != "Retained")
+                    if (import.ManagedUpload && managedState != ManagedImportFileState.Retained)
                     {
-                        primaryLabel = managedState == "Removed" ? "Payload removed" : "Payload cleanup pending";
+                        primaryKey = managedState == ManagedImportFileState.Removed ? "PayloadRemoved" : "PayloadCleanup";
                         showDropdown = true;
                     }
                     else if (import.Status == ImportStatus.Stopped || import.Status == ImportStatus.Failed)
                     {
-                        primaryLabel  = "Start";
+                        primaryKey = import.Status == ImportStatus.Failed ? "Retry"
+                            : import.StopRequestedAtUtc.HasValue || import.LastProcessedIndex > 0 ? "Resume" : "Start";
                         primaryAction = "start";
                         showDropdown  = true;
                     }
                     else if (import.Status == ImportStatus.InProgress)
                     {
-                        primaryLabel  = "Stop";
+                        primaryKey = "Stop";
                         primaryAction = "stop";
                         showDropdown  = true;
                     }
                     else if (import.Status == ImportStatus.Stopping)
                     {
-                        primaryLabel = "Stopping…";
+                        primaryKey = "Stopping";
                         // disabled, no action
                     }
                     else if (import.Status == ImportStatus.Completed)
@@ -131,15 +122,16 @@
 
                 <div class="btn-group">
                     @* Primary action button *@
-                    @if (primaryLabel != null)
+                    @if (primaryKey != null)
                     {
                         <button
                             type="button"
                             class="btn btn-sm btn-primary js-import-action"
                             data-action="@primaryAction"
+                            data-text-key="@primaryKey"
                             data-id="@import.Id"
-                            @(primaryAction == null ? "disabled" : "")>
-                            @primaryLabel
+                            disabled="@(primaryAction == null)">
+                            @T[$"Transfers.Action.{primaryKey}"]
                         </button>
                     }
 
@@ -150,15 +142,14 @@
                                 class="btn btn-sm btn-primary dropdown-toggle dropdown-toggle-split"
                                 data-bs-toggle="dropdown"
                                 aria-expanded="false">
-                            <span class="visually-hidden">Toggle Dropdown</span>
+                            <span class="visually-hidden">@T["Transfers.MoreActions"]</span>
                         </button>
                         <ul class="dropdown-menu">
                             <li>
                                 <a href="#"
                                    class="dropdown-item text-danger js-delete-import"
-                                   data-id="@import.Id"
-                                   data-status="@import.Status">
-                                    Delete
+                                   data-id="@import.Id">
+                                    @T["Shell.Delete"]
                                 </a>
                             </li>
                         </ul>
@@ -173,7 +164,7 @@
 
 @if (!Model.Any())
 {
-    <div class="alert alert-info">No location import records found.</div>
+    <div class="alert alert-info">@T["Transfers.Empty"]</div>
 }
 
 @* Hidden antiforgery token *@
@@ -188,8 +179,6 @@
         startImportUrl : '@Url.Action("StartImport", "LocationImport")',
         stopImportUrl  : '@Url.Action("StopImport",  "LocationImport")'
     };
-    const locationImport = document.getElementById('locationImport');
-    const userId = locationImport.dataset.userId;
 </script>
 
 @section Scripts {
@@ -201,60 +190,60 @@
 }
 <section class="card mb-3" aria-labelledby="enrichment-heading">
     <div class="card-body">
-        <h2 id="enrichment-heading" class="h5">Missing-address enrichment</h2>
-        <p class="small">Importing may finish before enrichment. Imported Locations remain safe if enrichment is paused,
-            cancelled, or fails, and large histories may take days. Cancelling enrichment does not cancel or delete imports.</p>
-        <dl class="row" aria-label="Durable enrichment status">
-            <dt class="col-sm-4">Workflow state</dt><dd class="col-sm-8">@enrichment.StatusText</dd>
-            <dt class="col-sm-4">Provider</dt><dd class="col-sm-8">@enrichment.ProviderDisplayName</dd>
-            <dt class="col-sm-4">Provider availability</dt><dd class="col-sm-8">@enrichment.ProviderAvailabilitySummary</dd>
-            <dt class="col-sm-4">Wayfarer usage</dt><dd class="col-sm-8">@enrichment.ProviderUsage of @enrichment.ProviderLimit @enrichment.UsageUnit; @enrichment.UsageWindowDescription. Guard/meter @(enrichment.GuardEnabled ? "enabled" : "disabled").</dd>
+        <h2 id="enrichment-heading" class="h5">@T["Transfers.EnrichmentHeading"]</h2>
+        <p class="small">@T["Transfers.EnrichmentHelp"]</p>
+        <dl class="row" aria-label="@T["Transfers.EnrichmentStatus"]">
+            <dt class="col-sm-4">@T["Transfers.WorkflowState"]</dt><dd class="col-sm-8">@T[$"Transfers.Workflow.{enrichment.StatusText}"]</dd>
+            <dt class="col-sm-4">@T["Transfers.Provider"]</dt><dd class="col-sm-8">@(enrichment.ProviderKey is null ? T["Transfers.ProviderNotSelected"] : enrichment.ProviderDisplayName)</dd>
+            <dt class="col-sm-4">@T["Transfers.ProviderAvailability"]</dt><dd class="col-sm-8">@T[LocationTransferText.AvailabilityKey(enrichment)]</dd>
+            <dt class="col-sm-4">@T["Transfers.WayfarerUsage"]</dt><dd class="col-sm-8">@T["Transfers.UsageSummary", T.DisplayNumber(enrichment.ProviderUsage), T.DisplayNumber(enrichment.ProviderLimit),
+                T[enrichment.UsageUnit == "contacts" ? "Transfers.Contacts" : "Transfers.Credits"]]
+                @T[enrichment.ProviderKey switch
+                {
+                    "geoapify" => "Transfers.GeoapifyWindow",
+                    "mapbox" => "Transfers.MapboxWindow",
+                    _ => "Transfers.NoUsageWindow"
+                }]
+                @T[enrichment.GuardEnabled ? "Transfers.GuardEnabled" : "Transfers.GuardDisabled"]</dd>
             @if (enrichment.ProviderNextAvailableAtUtc.HasValue)
-            { <dt class="col-sm-4">Provider capacity returns</dt><dd class="col-sm-8"><time datetime="@enrichment.ProviderNextAvailableAtUtc.Value.ToString("O")">@enrichment.ProviderNextAvailableAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
-            <dt class="col-sm-4">Processed candidates (cumulative)</dt><dd class="col-sm-8">@enrichment.Processed</dd>
-            <dt class="col-sm-4">Enriched (cumulative)</dt><dd class="col-sm-8">@enrichment.Enriched</dd>
-            <dt class="col-sm-4">Skipped (cumulative)</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
-            <dt class="col-sm-4">Runnable now</dt><dd class="col-sm-8">@enrichment.RunnableRemaining</dd>
-            <dt class="col-sm-4">Retryable later</dt><dd class="col-sm-8">@enrichment.FutureDue</dd>
+            { <dt class="col-sm-4">@T["Transfers.CapacityReturns"]</dt><dd class="col-sm-8"><time datetime="@enrichment.ProviderNextAvailableAtUtc.Value.ToString("O", CultureInfo.InvariantCulture)">@LocationTransferText.UtcDate(T, enrichment.ProviderNextAvailableAtUtc.Value)</time></dd> }
+            <dt class="col-sm-4">@T["Transfers.ProcessedCandidates"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.Processed)</dd>
+            <dt class="col-sm-4">@T["Transfers.Enriched"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.Enriched)</dd>
+            <dt class="col-sm-4">@T["Transfers.EnrichmentSkipped"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.Skipped)</dd>
+            <dt class="col-sm-4">@T["Transfers.Runnable"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.RunnableRemaining)</dd>
+            <dt class="col-sm-4">@T["Transfers.FutureDue"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.FutureDue)</dd>
             @* Operation ownership is distinct from readiness and stored address shape. *@
-            <dt class="col-sm-4">In flight (current owned operations)</dt><dd class="col-sm-8">@enrichment.InFlight</dd>
-            <dt class="col-sm-4">Awaiting recovery</dt><dd class="col-sm-8">@enrichment.AwaitingRecovery</dd>
-            <dt class="col-sm-4">Manual retry available</dt><dd class="col-sm-8">@enrichment.ManualRetryAvailable</dd>
-            <dt class="col-sm-4">Cannot be retried</dt><dd class="col-sm-8">@enrichment.CannotBeRetried</dd>
-            <dt class="col-sm-4">Incomplete provider addresses</dt><dd class="col-sm-8">@enrichment.IncompleteProviderAddresses</dd>
-            <dt class="col-sm-4">Failed batches (cumulative)</dt><dd class="col-sm-8">@enrichment.FailedBatches</dd>
-            <dt class="col-sm-4">Last outcome</dt><dd class="col-sm-8">@enrichment.LastOutcome</dd>
+            <dt class="col-sm-4">@T["Transfers.InFlight"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.InFlight)</dd>
+            <dt class="col-sm-4">@T["Transfers.AwaitingRecovery"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.AwaitingRecovery)</dd>
+            <dt class="col-sm-4">@T["Transfers.ManualRetry"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.ManualRetryAvailable)</dd>
+            <dt class="col-sm-4">@T["Transfers.CannotRetry"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.CannotBeRetried)</dd>
+            <dt class="col-sm-4">@T["Transfers.IncompleteAddresses"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.IncompleteProviderAddresses)</dd>
+            <dt class="col-sm-4">@T["Transfers.FailedBatches"]</dt><dd class="col-sm-8">@T.DisplayNumber(enrichment.FailedBatches)</dd>
+            <dt class="col-sm-4">@T["Transfers.LastOutcome"]</dt><dd class="col-sm-8">@T[$"Transfers.Outcome.{enrichment.LastOutcome}"]</dd>
             @if (enrichment.NextAttemptAtUtc.HasValue)
-            { <dt class="col-sm-4">Next attempt</dt><dd class="col-sm-8"><time datetime="@enrichment.NextAttemptAtUtc.Value.ToString("O")">@enrichment.NextAttemptAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
+            { <dt class="col-sm-4">@T["Transfers.NextAttempt"]</dt><dd class="col-sm-8"><time datetime="@enrichment.NextAttemptAtUtc.Value.ToString("O", CultureInfo.InvariantCulture)">@LocationTransferText.UtcDate(T, enrichment.NextAttemptAtUtc.Value)</time></dd> }
         </dl>
-        <p class="small">Geoapify geocoding and routing share Wayfarer's rolling pool; usage elsewhere in your
-            provider account is not visible here. Mapbox Permanent requires separate consent and uses Wayfarer's
-            independent monthly meter. Deleting import history does not delete Locations or enrichment.</p>
+        <p class="small">@T["Transfers.ProviderUsageHelp"]</p>
         @if (enrichment.IncompleteProviderAddresses > 0)
         {
-            <p class="small">Incomplete addresses describe stored fields, not additional scheduled requests.
-                Unprepared addresses need an explicit Repair action. Transient repairs appear under Retryable later;
-                a Next attempt is shown only while execution intent is enabled. Manual correction remains available.</p>
+            <p class="small">@T["Transfers.IncompleteHelp"]</p>
         }
         @if (enrichment.RepairsWithoutLocality > 0)
         {
-            <p class="small">For @enrichment.RepairsWithoutLocality attempted repairs, the provider did not supply a city/place
-                or usable result. Those addresses remain incomplete; no automatic retry is scheduled for that outcome.
-                You can explicitly Repair again when stopped, or correct the address manually.</p>
+            <p class="small">@T.Count("Transfers.RepairsWithoutLocality", enrichment.RepairsWithoutLocality)</p>
         }
         @if (!enrichment.IntentEnabled && enrichment.FutureDue > 0)
         {
-            <p class="small">Retained retry times do not schedule an automatic wake while enrichment is stopped.</p>
+            <p class="small">@T["Transfers.StoppedRetryHelp"]</p>
         }
-        <p id="enrichment-status" role="status">@(enrichment.PausedReason ?? enrichment.NoActionReason
-            ?? "Choose an available enrichment action.")</p>
-        <div class="d-flex gap-2 flex-wrap" aria-label="Enrichment actions">
-            @if (enrichment.Start.Visible) { <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit" aria-describedby="enrichment-status">Start enrichment</button></form> }
-            @if (enrichment.Pause.Visible) { <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit" aria-describedby="enrichment-status">Pause enrichment</button></form> }
-            @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.Resume.Enabled)">Resume enrichment</button></form> }
-            @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" aria-describedby="enrichment-status">Cancel enrichment</button></form> }
-            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">Retry deferred enrichment</button><div class="form-text">Retrying may consume additional provider credits.</div></form> }
-            @if (enrichment.RepairIncomplete.Visible) { <form asp-action="RepairIncompleteAddresses" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.RepairIncomplete.Enabled)">Repair incomplete addresses</button><div class="form-text">Repairing may consume additional provider credits.</div></form> }
+        <p id="enrichment-status" role="status">@T[LocationTransferText.EnrichmentReasonKey(enrichment)]</p>
+        <div class="d-flex gap-2 flex-wrap" aria-label="@T["Transfers.EnrichmentActions"]">
+            @if (enrichment.Start.Visible) { <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit" aria-describedby="enrichment-status">@T["Transfers.StartEnrichment"]</button></form> }
+            @if (enrichment.Pause.Visible) { <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit" aria-describedby="enrichment-status">@T["Transfers.PauseEnrichment"]</button></form> }
+            @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.Resume.Enabled)">@T["Transfers.ResumeEnrichment"]</button></form> }
+            @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" aria-describedby="enrichment-status">@T["Transfers.CancelEnrichment"]</button></form> }
+            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">@T["Transfers.RetryEnrichment"]</button><div class="form-text">@T["Transfers.RetryCost"]</div></form> }
+            @if (enrichment.RepairIncomplete.Visible) { <form asp-action="RepairIncompleteAddresses" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.RepairIncomplete.Enabled)">@T["Transfers.RepairIncomplete"]</button><div class="form-text">@T["Transfers.RepairCost"]</div></form> }
         </div>
     </div>
 </section>

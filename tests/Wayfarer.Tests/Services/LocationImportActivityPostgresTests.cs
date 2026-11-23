@@ -439,7 +439,7 @@ public sealed class LocationImportActivityPostgresTests(PostgresImportTestFixtur
             using var response = await client.GetAsync("/User/LocationImport");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var html = await response.Content.ReadAsStringAsync();
-            Assert.Contains("Invalid Activity: 1 Location with unresolved Activity (invalid value).", html);
+            Assert.Contains("Invalid Activity in 1 Location. Correct it by editing the Location.", html);
             Assert.Contains("Completed", html);
             using var upload = await client.GetAsync("/User/LocationImport/Upload");
             Assert.Equal(HttpStatusCode.OK, upload.StatusCode);

@@ -36,6 +36,7 @@ public sealed class LocationImportStagingPostgresTests(PostgresImportTestFixture
         await using var db = fixture.CreateContext(new FailImportSave(fail));
         var controller = new LocationImportController(files, db, NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(), Scheduler(), Mock.Of<ILocationEnrichmentPresentationProjector>(),
+            TestWebMessages.Instance,
             importLifecycle: Mock.Of<ILocationImportLifecycle>());
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext
         {

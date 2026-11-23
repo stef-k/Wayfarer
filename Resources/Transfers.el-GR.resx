@@ -1,0 +1,585 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Transfers.UploadNew" xml:space="preserve">
+    <value>Μεταφόρτωση νέου αρχείου</value>
+  </data>
+  <data name="Transfers.HowItWorks" xml:space="preserve">
+    <value>Εισαγάγετε ιστορικό τοποθεσιών από το Χρονολόγιο Google (Google Takeout) ή από υποστηριζόμενο αρχείο εξαγωγής του Wayfarer. Η επεξεργασία μεγάλων αρχείων γίνεται στο παρασκήνιο. Μπορείτε να φύγετε από τη σελίδα και να επιστρέψετε αργότερα.</value>
+  </data>
+  <data name="Transfers.FileName" xml:space="preserve">
+    <value>Όνομα αρχείου</value>
+  </data>
+  <data name="Transfers.UploadedAt" xml:space="preserve">
+    <value>Χρόνος μεταφόρτωσης</value>
+  </data>
+  <data name="Transfers.Status" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="Transfers.StatusHelp" xml:space="preserve">
+    <value>Σε εξέλιξη: γίνεται επεξεργασία του αρχείου. Ολοκληρώθηκε: δείτε το πλήθος των διαγραμμένων καταγραφών και τις προειδοποιήσεις δραστηριότητας. Σε παύση: η εισαγωγή διακόπηκε από τον χρήστη. Απέτυχε: δείτε τις λεπτομέρειες του σφάλματος.</value>
+  </data>
+  <data name="Transfers.ProcessedRecords" xml:space="preserve">
+    <value>Επεξεργασμένες καταγραφές</value>
+  </data>
+  <data name="Transfers.LastRecord" xml:space="preserve">
+    <value>Τελευταία επεξεργασμένη καταγραφή</value>
+  </data>
+  <data name="Transfers.Errors" xml:space="preserve">
+    <value>Σφάλματα και προειδοποιήσεις</value>
+  </data>
+  <data name="Transfers.State.InProgress" xml:space="preserve">
+    <value>Σε εξέλιξη</value>
+  </data>
+  <data name="Transfers.State.Stopping" xml:space="preserve">
+    <value>Διακόπτεται</value>
+  </data>
+  <data name="Transfers.State.Stopped" xml:space="preserve">
+    <value>Σε παύση</value>
+  </data>
+  <data name="Transfers.State.Completed" xml:space="preserve">
+    <value>Ολοκληρώθηκε</value>
+  </data>
+  <data name="Transfers.State.Failed" xml:space="preserve">
+    <value>Απέτυχε</value>
+  </data>
+  <data name="Transfers.Progress" xml:space="preserve">
+    <value>{0} από {1}</value>
+  </data>
+  <data name="Transfers.DuplicatesSkipped.one" xml:space="preserve">
+    <value>Παραλείφθηκε {0} διπλότυπη καταγραφή</value>
+  </data>
+  <data name="Transfers.DuplicatesSkipped.other" xml:space="preserve">
+    <value>Παραλείφθηκαν {0} διπλότυπες καταγραφές</value>
+  </data>
+  <data name="Transfers.DeletedSkipped.one" xml:space="preserve">
+    <value>Παραλείφθηκε {0} διαγραμμένη καταγραφή</value>
+  </data>
+  <data name="Transfers.DeletedSkipped.other" xml:space="preserve">
+    <value>Παραλείφθηκαν {0} διαγραμμένες καταγραφές</value>
+  </data>
+  <data name="Transfers.InvalidActivity.one" xml:space="preserve">
+    <value>Μη έγκυρη δραστηριότητα σε {0} καταγραφή τοποθεσίας. Διορθώστε τη μέσω επεξεργασίας της καταγραφής.</value>
+  </data>
+  <data name="Transfers.InvalidActivity.other" xml:space="preserve">
+    <value>Μη έγκυρη δραστηριότητα σε {0} καταγραφές τοποθεσίας. Διορθώστε τις μέσω επεξεργασίας των καταγραφών.</value>
+  </data>
+  <data name="Transfers.LastRecordTimestamp" xml:space="preserve">
+    <value>Χρόνος καταγραφής: {0}</value>
+  </data>
+  <data name="Transfers.LastRecordWithAddress" xml:space="preserve">
+    <value>Χρόνος καταγραφής: {0}, {1}</value>
+  </data>
+  <data name="Transfers.Unavailable" xml:space="preserve">
+    <value>Μη διαθέσιμο</value>
+  </data>
+  <data name="Transfers.ManagedPayload" xml:space="preserve">
+    <value>Διαχειριζόμενο αρχείο: {0}</value>
+  </data>
+  <data name="Transfers.PayloadRetained" xml:space="preserve">
+    <value>διατηρείται</value>
+  </data>
+  <data name="Transfers.PayloadRemoved" xml:space="preserve">
+    <value>έχει αφαιρεθεί</value>
+  </data>
+  <data name="Transfers.PayloadCleanup" xml:space="preserve">
+    <value>εκκρεμεί εκκαθάριση</value>
+  </data>
+  <data name="Transfers.PayloadUploading" xml:space="preserve">
+    <value>μεταφορτώνεται</value>
+  </data>
+  <data name="Transfers.Action.PayloadRemoved" xml:space="preserve">
+    <value>Το αρχείο αφαιρέθηκε</value>
+  </data>
+  <data name="Transfers.Action.PayloadCleanup" xml:space="preserve">
+    <value>Εκκρεμεί εκκαθάριση αρχείου</value>
+  </data>
+  <data name="Transfers.Action.Start" xml:space="preserve">
+    <value>Έναρξη εισαγωγής</value>
+  </data>
+  <data name="Transfers.Action.Resume" xml:space="preserve">
+    <value>Συνέχιση εισαγωγής</value>
+  </data>
+  <data name="Transfers.Action.Retry" xml:space="preserve">
+    <value>Επανάληψη εισαγωγής</value>
+  </data>
+  <data name="Transfers.Action.Stop" xml:space="preserve">
+    <value>Διακοπή εισαγωγής</value>
+  </data>
+  <data name="Transfers.Action.Stopping" xml:space="preserve">
+    <value>Διακόπτεται…</value>
+  </data>
+  <data name="Transfers.Confirm.Start" xml:space="preserve">
+    <value>Να ξεκινήσει αυτή η εισαγωγή;</value>
+  </data>
+  <data name="Transfers.Confirm.Resume" xml:space="preserve">
+    <value>Να συνεχιστεί η εισαγωγή από το αποθηκευμένο σημείο;</value>
+  </data>
+  <data name="Transfers.Confirm.Retry" xml:space="preserve">
+    <value>Να επαναληφθεί αυτή η εισαγωγή;</value>
+  </data>
+  <data name="Transfers.Confirm.Stop" xml:space="preserve">
+    <value>Να διακοπεί αυτή η εισαγωγή;</value>
+  </data>
+  <data name="Transfers.Confirm.Remove" xml:space="preserve">
+    <value>Να αφαιρεθεί αυτή η εγγραφή εισαγωγής; Η ενέργεια δεν μπορεί να αναιρεθεί.</value>
+  </data>
+  <data name="Transfers.RemoveImport" xml:space="preserve">
+    <value>Αφαίρεση εγγραφής εισαγωγής</value>
+  </data>
+  <data name="Transfers.MoreActions" xml:space="preserve">
+    <value>Περισσότερες ενέργειες εισαγωγής</value>
+  </data>
+  <data name="Transfers.Empty" xml:space="preserve">
+    <value>Δεν βρέθηκαν εγγραφές εισαγωγής τοποθεσιών.</value>
+  </data>
+  <data name="Transfers.StagedUnavailable" xml:space="preserve">
+    <value>Το αποθηκευμένο αρχείο εισαγωγής δεν είναι διαθέσιμο. Μεταφορτώστε το ξανά για να συνεχίσετε.</value>
+  </data>
+  <data name="Transfers.RecoveryHeld" xml:space="preserve">
+    <value>Τα δεδομένα ανάκτησης του Wayfarer είναι ελλιπή ή δεν υποστηρίζονται. Διορθώστε το αρχείο πριν από την εισαγωγή.</value>
+  </data>
+  <data name="Transfers.InvalidKey" xml:space="preserve">
+    <value>Μια τιμή IdempotencyKey δεν είναι έγκυρη. Διορθώστε τις τιμές UUID και μεταφορτώστε το διορθωμένο αρχείο ως νέα εισαγωγή.</value>
+  </data>
+  <data name="Transfers.MultipleZeroKeys" xml:space="preserve">
+    <value>Πολλές τιμές IdempotencyKey είναι μηδενικές. Δώστε σε κάθε ξεχωριστή καταγραφή μοναδικό μη μηδενικό UUID και μεταφορτώστε το διορθωμένο αρχείο ως νέα εισαγωγή.</value>
+  </data>
+  <data name="Transfers.InvalidCheckpoint" xml:space="preserve">
+    <value>Η αποθηκευμένη πρόοδος δεν συμφωνεί πλέον με το αρχείο. Μεταφορτώστε το ως νέα εισαγωγή για να συνεχίσετε.</value>
+  </data>
+  <data name="Transfers.ImportProcessingFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επεξεργασία του αρχείου. Ελέγξτε το και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Transfers.ImportStarted" xml:space="preserve">
+    <value>Η εισαγωγή ξεκίνησε.</value>
+  </data>
+  <data name="Transfers.StartPending" xml:space="preserve">
+    <value>Η εισαγωγή έγινε αποδεκτή και περιμένει την αποκατάσταση του προγραμματισμού.</value>
+  </data>
+  <data name="Transfers.StartInvalidState" xml:space="preserve">
+    <value>Η εισαγωγή δεν μπορεί να ξεκινήσει στην τρέχουσα κατάστασή της.</value>
+  </data>
+  <data name="Transfers.ImportNotFound" xml:space="preserve">
+    <value>Δεν βρέθηκε η εγγραφή εισαγωγής.</value>
+  </data>
+  <data name="Transfers.StopRequested" xml:space="preserve">
+    <value>Υποβλήθηκε αίτημα διακοπής της εισαγωγής.</value>
+  </data>
+  <data name="Transfers.NoActiveImport" xml:space="preserve">
+    <value>Δεν βρέθηκε ενεργή εισαγωγή.</value>
+  </data>
+  <data name="Transfers.ImportRemoved" xml:space="preserve">
+    <value>Η εγγραφή μεταφόρτωσης αφαιρέθηκε.</value>
+  </data>
+  <data name="Transfers.DeletePending" xml:space="preserve">
+    <value>Ζητήθηκε διαγραφή. Η εκκαθάριση του αρχείου εκκρεμεί μέχρι να αποκατασταθεί η επεξεργασία της.</value>
+  </data>
+  <data name="Transfers.DeleteActive" xml:space="preserve">
+    <value>Η εισαγωγή είναι ενεργή ή διακόπτεται και δεν μπορεί ακόμη να αφαιρεθεί.</value>
+  </data>
+  <data name="Transfers.DeleteFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αφαίρεση της εγγραφής μεταφόρτωσης.</value>
+  </data>
+  <data name="Transfers.UploadHistory" xml:space="preserve">
+    <value>Μεταφόρτωση ιστορικού τοποθεσιών</value>
+  </data>
+  <data name="Transfers.CorrectErrors" xml:space="preserve">
+    <value>Διορθώστε τα παρακάτω σφάλματα.</value>
+  </data>
+  <data name="Transfers.UploadsDisabled" xml:space="preserve">
+    <value>Οι μεταφορτώσεις αρχείων έχουν απενεργοποιηθεί από τον διαχειριστή.</value>
+  </data>
+  <data name="Transfers.UploadTooLarge" xml:space="preserve">
+    <value>Το αίτημα μεταφόρτωσης υπερβαίνει το επιτρεπόμενο μέγεθος. Επιλέξτε μικρότερο αρχείο και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Transfers.UploadUnavailable" xml:space="preserve">
+    <value>Η μεταφόρτωση δεν μπορεί να γίνει δεκτή αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Transfers.UploadLimit" xml:space="preserve">
+    <value>Μεταφορτώστε ένα υποστηριζόμενο αρχείο ιστορικού τοποθεσιών. Το συνολικό αίτημα, μαζί με τα πεδία της φόρμας και τα πρόσθετα δεδομένα αποστολής, δεν πρέπει να υπερβαίνει τα {0} MiB.</value>
+  </data>
+  <data name="Transfers.ActivityHelp" xml:space="preserve">
+    <value>Τα έγκυρα ονόματα δραστηριοτήτων αντιστοιχίζονται σε υπάρχουσες ή νέες εγγραφές του κοινού καταλόγου, ο οποίος είναι ορατός σε όλους τους συνδεδεμένους χρήστες. Τα ονόματα είναι προαιρετικά. Μη έγκυρες τιμές αφήνουν τις καταγραφές χωρίς δραστηριότητα και εμφανίζονται ως πλήθος σε προειδοποίηση στο ιστορικό εισαγωγών.</value>
+  </data>
+  <data name="Transfers.SelectFile" xml:space="preserve">
+    <value>Επιλογή αρχείου</value>
+  </data>
+  <data name="Transfers.FileType" xml:space="preserve">
+    <value>Τύπος αρχείου</value>
+  </data>
+  <data name="Transfers.SelectFormat" xml:space="preserve">
+    <value>Επιλέξτε τύπο αρχείου</value>
+  </data>
+  <data name="Transfers.FormatOption" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Transfers.Format.GoogleTimeline" xml:space="preserve">
+    <value>Χρονολόγιο Google</value>
+  </data>
+  <data name="Transfers.Format.WayfarerGeoJson" xml:space="preserve">
+    <value>GeoJSON του Wayfarer</value>
+  </data>
+  <data name="Transfers.Format.Gpx" xml:space="preserve">
+    <value>GPX</value>
+  </data>
+  <data name="Transfers.Format.Kml" xml:space="preserve">
+    <value>KML</value>
+  </data>
+  <data name="Transfers.Format.Csv" xml:space="preserve">
+    <value>CSV</value>
+  </data>
+  <data name="Transfers.ContinueEnrichment" xml:space="preserve">
+    <value>Συνέχιση συμπλήρωσης διευθύνσεων μετά την ολοκλήρωση της εισαγωγής</value>
+  </data>
+  <data name="Transfers.ContinueHelp" xml:space="preserve">
+    <value>Η εισαγωγή ολοκληρώνεται ανεξάρτητα. Αν ενεργοποιήσετε την επιλογή, το Wayfarer συμπληρώνει τις διευθύνσεις σε προγραμματισμένες παρτίδες. Η διαθεσιμότητα του παρόχου μπορεί να διακόψει προσωρινά τη συμπλήρωση χωρίς να αφαιρεθούν τα δεδομένα που εισήχθησαν.</value>
+  </data>
+  <data name="Transfers.UploadFile" xml:space="preserve">
+    <value>Μεταφόρτωση αρχείου</value>
+  </data>
+  <data name="Transfers.RequiredFile" xml:space="preserve">
+    <value>Επιλέξτε ένα αρχείο.</value>
+  </data>
+  <data name="Transfers.InvalidFile" xml:space="preserve">
+    <value>Επιλέξτε ένα έγκυρο, μη κενό αρχείο.</value>
+  </data>
+  <data name="Transfers.InvalidFormat" xml:space="preserve">
+    <value>Επιλέξτε έναν έγκυρο τύπο αρχείου.</value>
+  </data>
+  <data name="Transfers.InvalidUploadValue" xml:space="preserve">
+    <value>Η τιμή που υποβάλατε δεν είναι έγκυρη.</value>
+  </data>
+  <data name="Transfers.UnsupportedGeoJson" xml:space="preserve">
+    <value>Το γενικό GeoJSON δεν υποστηρίζεται για εισαγωγή ιστορικού τοποθεσιών. Για αρχεία εξαγωγής του Wayfarer, επιλέξτε GeoJSON του Wayfarer.</value>
+  </data>
+  <data name="Transfers.InvalidExtension" xml:space="preserve">
+    <value>Η κατάληξη αρχείου «{0}» δεν είναι έγκυρη. Επιτρεπόμενες καταλήξεις: {1}.</value>
+  </data>
+  <data name="Transfers.SignInRequired" xml:space="preserve">
+    <value>Συνδεθείτε για να μεταφορτώσετε ιστορικό τοποθεσιών.</value>
+  </data>
+  <data name="Transfers.Uploaded" xml:space="preserve">
+    <value>Το αρχείο μεταφορτώθηκε και η εισαγωγή του εκκρεμεί.</value>
+  </data>
+  <data name="Transfers.UploadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση του αρχείου για εισαγωγή. Δοκιμάστε να το μεταφορτώσετε ξανά αργότερα.</value>
+  </data>
+  <data name="Transfers.EnrichmentHeading" xml:space="preserve">
+    <value>Συμπλήρωση διευθύνσεων που λείπουν</value>
+  </data>
+  <data name="Transfers.EnrichmentHelp" xml:space="preserve">
+    <value>Η εισαγωγή μπορεί να ολοκληρωθεί πριν από τη συμπλήρωση διευθύνσεων. Η συμπλήρωση μεγάλου ιστορικού μπορεί να διαρκέσει ημέρες. Η παύση, η ακύρωση ή η αποτυχία της διατηρεί τις καταγραφές που εισήχθησαν και η ακύρωση δεν ακυρώνει ούτε διαγράφει εισαγωγές.</value>
+  </data>
+  <data name="Transfers.EnrichmentStatus" xml:space="preserve">
+    <value>Αποθηκευμένη κατάσταση συμπλήρωσης διευθύνσεων</value>
+  </data>
+  <data name="Transfers.WorkflowState" xml:space="preserve">
+    <value>Κατάσταση εργασίας</value>
+  </data>
+  <data name="Transfers.Provider" xml:space="preserve">
+    <value>Πάροχος</value>
+  </data>
+  <data name="Transfers.ProviderAvailability" xml:space="preserve">
+    <value>Διαθεσιμότητα παρόχου</value>
+  </data>
+  <data name="Transfers.ProviderNotSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί</value>
+  </data>
+  <data name="Transfers.WayfarerUsage" xml:space="preserve">
+    <value>Χρήση στο Wayfarer</value>
+  </data>
+  <data name="Transfers.UsageSummary" xml:space="preserve">
+    <value>{0} από {1} {2}.</value>
+  </data>
+  <data name="Transfers.Contacts" xml:space="preserve">
+    <value>αιτήματα</value>
+  </data>
+  <data name="Transfers.Credits" xml:space="preserve">
+    <value>μονάδες</value>
+  </data>
+  <data name="Transfers.GeoapifyWindow" xml:space="preserve">
+    <value>Το Wayfarer μετρά τη γεωκωδικοποίηση και τη δρομολόγηση μαζί σε κυλιόμενο 24ωρο.</value>
+  </data>
+  <data name="Transfers.MapboxWindow" xml:space="preserve">
+    <value>Το Wayfarer μετρά τη μόνιμη γεωκωδικοποίηση ανά ημερολογιακό μήνα σε UTC.</value>
+  </data>
+  <data name="Transfers.NoUsageWindow" xml:space="preserve">
+    <value>Δεν υπάρχει ενεργή περίοδος μέτρησης.</value>
+  </data>
+  <data name="Transfers.GuardEnabled" xml:space="preserve">
+    <value>Το όριο χρήσης ή ο μετρητής είναι ενεργός.</value>
+  </data>
+  <data name="Transfers.GuardDisabled" xml:space="preserve">
+    <value>Το όριο χρήσης ή ο μετρητής είναι ανενεργός.</value>
+  </data>
+  <data name="Transfers.CapacityReturns" xml:space="preserve">
+    <value>Νέα διαθέσιμη χωρητικότητα παρόχου</value>
+  </data>
+  <data name="Transfers.ProcessedCandidates" xml:space="preserve">
+    <value>Υποψήφιες καταγραφές που ελέγχθηκαν (συνολικά)</value>
+  </data>
+  <data name="Transfers.Enriched" xml:space="preserve">
+    <value>Διευθύνσεις που συμπληρώθηκαν (συνολικά)</value>
+  </data>
+  <data name="Transfers.EnrichmentSkipped" xml:space="preserve">
+    <value>Παραλείφθηκαν (συνολικά)</value>
+  </data>
+  <data name="Transfers.Runnable" xml:space="preserve">
+    <value>Έτοιμες για επεξεργασία</value>
+  </data>
+  <data name="Transfers.FutureDue" xml:space="preserve">
+    <value>Επανάληψη αργότερα</value>
+  </data>
+  <data name="Transfers.InFlight" xml:space="preserve">
+    <value>Ενεργά αιτήματα της τρέχουσας εργασίας</value>
+  </data>
+  <data name="Transfers.AwaitingRecovery" xml:space="preserve">
+    <value>Σε αναμονή αποκατάστασης</value>
+  </data>
+  <data name="Transfers.ManualRetry" xml:space="preserve">
+    <value>Διαθέσιμη μη αυτόματη επανάληψη</value>
+  </data>
+  <data name="Transfers.CannotRetry" xml:space="preserve">
+    <value>Χωρίς δυνατότητα επανάληψης</value>
+  </data>
+  <data name="Transfers.IncompleteAddresses" xml:space="preserve">
+    <value>Ελλιπείς διευθύνσεις από τον πάροχο</value>
+  </data>
+  <data name="Transfers.FailedBatches" xml:space="preserve">
+    <value>Παρτίδες που απέτυχαν (συνολικά)</value>
+  </data>
+  <data name="Transfers.LastOutcome" xml:space="preserve">
+    <value>Τελευταίο αποτέλεσμα</value>
+  </data>
+  <data name="Transfers.NextAttempt" xml:space="preserve">
+    <value>Επόμενη προσπάθεια</value>
+  </data>
+  <data name="Transfers.ProviderUsageHelp" xml:space="preserve">
+    <value>Η γεωκωδικοποίηση και η δρομολόγηση μέσω Geoapify μοιράζονται το κυλιόμενο όριο του Wayfarer. Η χρήση του λογαριασμού σας εκτός Wayfarer δεν εμφανίζεται εδώ. Το Mapbox Permanent απαιτεί ξεχωριστή συγκατάθεση και χρησιμοποιεί ξεχωριστό μηνιαίο μετρητή στο Wayfarer. Η διαγραφή του ιστορικού εισαγωγών δεν διαγράφει τις καταγραφές τοποθεσιών ή τις συμπληρωμένες διευθύνσεις.</value>
+  </data>
+  <data name="Transfers.IncompleteHelp" xml:space="preserve">
+    <value>Οι ελλιπείς διευθύνσεις αφορούν αποθηκευμένα πεδία και δεν αντιστοιχούν σε επιπλέον προγραμματισμένα αιτήματα. Ξεκινήστε επιδιόρθωση για να τις προετοιμάσετε. Οι προσωρινές αποτυχίες επιδιόρθωσης εμφανίζονται στην «Επανάληψη αργότερα». Η επόμενη προσπάθεια εμφανίζεται όσο η εργασία είναι ενεργοποιημένη. Μπορείτε επίσης να διορθώσετε μια διεύθυνση με επεξεργασία.</value>
+  </data>
+  <data name="Transfers.RepairsWithoutLocality.one" xml:space="preserve">
+    <value>Σε {0} προσπάθεια επιδιόρθωσης, ο πάροχος δεν έδωσε πόλη, οικισμό ή αξιοποιήσιμο αποτέλεσμα. Η διεύθυνση παραμένει ελλιπής και δεν θα υποβληθεί ξανά αυτόματα. Μπορείτε να επαναλάβετε την επιδιόρθωση όσο η συμπλήρωση είναι σε παύση ή να επεξεργαστείτε τη διεύθυνση.</value>
+  </data>
+  <data name="Transfers.RepairsWithoutLocality.other" xml:space="preserve">
+    <value>Σε {0} προσπάθειες επιδιόρθωσης, ο πάροχος δεν έδωσε πόλη, οικισμό ή αξιοποιήσιμο αποτέλεσμα. Οι διευθύνσεις παραμένουν ελλιπείς και δεν θα υποβληθούν ξανά αυτόματα. Μπορείτε να επαναλάβετε την επιδιόρθωση όσο η συμπλήρωση είναι σε παύση ή να επεξεργαστείτε τις διευθύνσεις.</value>
+  </data>
+  <data name="Transfers.StoppedRetryHelp" xml:space="preserve">
+    <value>Οι αποθηκευμένοι χρόνοι επανάληψης δεν ενεργοποιούν ξανά αυτόματα τη συμπλήρωση όσο αυτή είναι σε παύση.</value>
+  </data>
+  <data name="Transfers.EnrichmentActions" xml:space="preserve">
+    <value>Ενέργειες συμπλήρωσης διευθύνσεων</value>
+  </data>
+  <data name="Transfers.StartEnrichment" xml:space="preserve">
+    <value>Έναρξη συμπλήρωσης</value>
+  </data>
+  <data name="Transfers.PauseEnrichment" xml:space="preserve">
+    <value>Παύση συμπλήρωσης</value>
+  </data>
+  <data name="Transfers.ResumeEnrichment" xml:space="preserve">
+    <value>Συνέχιση συμπλήρωσης</value>
+  </data>
+  <data name="Transfers.CancelEnrichment" xml:space="preserve">
+    <value>Ακύρωση συμπλήρωσης</value>
+  </data>
+  <data name="Transfers.RetryEnrichment" xml:space="preserve">
+    <value>Επανάληψη εκκρεμούς συμπλήρωσης</value>
+  </data>
+  <data name="Transfers.RetryCost" xml:space="preserve">
+    <value>Η επανάληψη μπορεί να καταναλώσει επιπλέον μονάδες του παρόχου.</value>
+  </data>
+  <data name="Transfers.RepairIncomplete" xml:space="preserve">
+    <value>Επιδιόρθωση ελλιπών διευθύνσεων</value>
+  </data>
+  <data name="Transfers.RepairCost" xml:space="preserve">
+    <value>Η επιδιόρθωση μπορεί να καταναλώσει επιπλέον μονάδες του παρόχου.</value>
+  </data>
+  <data name="Transfers.Workflow.Idle" xml:space="preserve">
+    <value>Ανενεργή</value>
+  </data>
+  <data name="Transfers.Workflow.Scheduled" xml:space="preserve">
+    <value>Προγραμματισμένη</value>
+  </data>
+  <data name="Transfers.Workflow.Running" xml:space="preserve">
+    <value>Σε εξέλιξη</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByUser" xml:space="preserve">
+    <value>Σε παύση από τον χρήστη</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByBudget" xml:space="preserve">
+    <value>Σε αναμονή διαθεσιμότητας παρόχου</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByAuthority" xml:space="preserve">
+    <value>Σε αναμονή εξουσιοδότησης παρόχου</value>
+  </data>
+  <data name="Transfers.Workflow.BackingOff" xml:space="preserve">
+    <value>Σε αναμονή επανάληψης</value>
+  </data>
+  <data name="Transfers.Workflow.Completed" xml:space="preserve">
+    <value>Ολοκληρώθηκε</value>
+  </data>
+  <data name="Transfers.Workflow.Cancelled" xml:space="preserve">
+    <value>Ακυρώθηκε</value>
+  </data>
+  <data name="Transfers.Workflow.Failed" xml:space="preserve">
+    <value>Απέτυχε</value>
+  </data>
+  <data name="Transfers.Outcome.None" xml:space="preserve">
+    <value>Δεν υπάρχει ακόμη αποτέλεσμα</value>
+  </data>
+  <data name="Transfers.Outcome.NoCandidates" xml:space="preserve">
+    <value>Δεν υπάρχουν κατάλληλες καταγραφές</value>
+  </data>
+  <data name="Transfers.Outcome.BudgetExhausted" xml:space="preserve">
+    <value>Εξαντλήθηκε το όριο χρήσης του παρόχου</value>
+  </data>
+  <data name="Transfers.Outcome.AuthorityUnavailable" xml:space="preserve">
+    <value>Μη διαθέσιμη εξουσιοδότηση παρόχου</value>
+  </data>
+  <data name="Transfers.Outcome.RetryableFailure" xml:space="preserve">
+    <value>Προσωρινή αποτυχία</value>
+  </data>
+  <data name="Transfers.Outcome.InvalidCoordinates" xml:space="preserve">
+    <value>Μη έγκυρες συντεταγμένες</value>
+  </data>
+  <data name="Transfers.Outcome.NoResult" xml:space="preserve">
+    <value>Κανένα αξιοποιήσιμο αποτέλεσμα</value>
+  </data>
+  <data name="Transfers.Outcome.AttemptLimit" xml:space="preserve">
+    <value>Εξαντλήθηκε το όριο προσπαθειών</value>
+  </data>
+  <data name="Transfers.Outcome.DataFailure" xml:space="preserve">
+    <value>Σφάλμα δεδομένων</value>
+  </data>
+  <data name="Transfers.BudgetExhausted" xml:space="preserve">
+    <value>Εξαντλήθηκε το όριο χρήσης του παρόχου στο Wayfarer.</value>
+  </data>
+  <data name="Transfers.AuthorityCurrent" xml:space="preserve">
+    <value>Η εξουσιοδότηση του παρόχου είναι σε ισχύ.</value>
+  </data>
+  <data name="Transfers.NoProvider" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί πάροχος γεωκωδικοποίησης.</value>
+  </data>
+  <data name="Transfers.ProviderUnauthorized" xml:space="preserve">
+    <value>Η πρόσβαση στον πάροχο δεν έχει εγκριθεί ή έχει ανακληθεί.</value>
+  </data>
+  <data name="Transfers.ProviderUnverified" xml:space="preserve">
+    <value>Ολοκληρώστε την αρχική επαλήθευση του παρόχου ή επαληθεύστε τον ξανά.</value>
+  </data>
+  <data name="Transfers.ProviderConsent" xml:space="preserve">
+    <value>Απαιτείται ενεργή συγκατάθεση για το Mapbox Permanent.</value>
+  </data>
+  <data name="Transfers.CredentialUnavailable" xml:space="preserve">
+    <value>Το προστατευμένο διαπιστευτήριο του παρόχου δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="Transfers.ProviderUnavailable" xml:space="preserve">
+    <value>Ο επιλεγμένος πάροχος δεν είναι διαθέσιμος.</value>
+  </data>
+  <data name="Transfers.ChooseAction" xml:space="preserve">
+    <value>Επιλέξτε μια διαθέσιμη ενέργεια συμπλήρωσης.</value>
+  </data>
+  <data name="Transfers.UserHold" xml:space="preserve">
+    <value>Θέσατε τη συμπλήρωση σε παύση.</value>
+  </data>
+  <data name="Transfers.ProviderHold" xml:space="preserve">
+    <value>Αναμονή μέχρι να υπάρχουν ξανά διαθέσιμα αιτήματα στον πάροχο.</value>
+  </data>
+  <data name="Transfers.RetryHold" xml:space="preserve">
+    <value>Αναμονή για την επόμενη προγραμματισμένη προσπάθεια.</value>
+  </data>
+  <data name="Transfers.DeferredNotDue" xml:space="preserve">
+    <value>Δεν έχει φτάσει ακόμη η ώρα εκτέλεσης των εργασιών σε αναμονή.</value>
+  </data>
+  <data name="Transfers.ExplicitRetry" xml:space="preserve">
+    <value>Ορισμένες καταγραφές απαιτούν μη αυτόματη επανάληψη.</value>
+  </data>
+  <data name="Transfers.InvalidCoordinates" xml:space="preserve">
+    <value>Ορισμένες καταγραφές έχουν μη έγκυρες συντεταγμένες και δεν μπορούν να υποβληθούν ξανά.</value>
+  </data>
+  <data name="Transfers.NoCandidates" xml:space="preserve">
+    <value>Δεν υπάρχουν διευθύνσεις κατάλληλες για συμπλήρωση αυτή τη στιγμή.</value>
+  </data>
+  <data name="Transfers.NoWorkflow" xml:space="preserve">
+    <value>Δεν υπάρχει τρέχουσα εργασία συμπλήρωσης. Επιστρέψτε στη λίστα εισαγωγών και δείτε τις διαθέσιμες ενέργειες.</value>
+  </data>
+  <data name="Transfers.EnrichmentUnavailable" xml:space="preserve">
+    <value>Η συμπλήρωση διευθύνσεων δεν είναι διαθέσιμη αυτή τη στιγμή. Επιστρέψτε στη λίστα εισαγωγών για να ελέγξετε την κατάστασή της.</value>
+  </data>
+  <data name="Transfers.EnrichmentConflict" xml:space="preserve">
+    <value>Η ενέργεια συμπλήρωσης δεν ήταν δυνατή. Ανανεώστε τη λίστα εισαγωγών και ελέγξτε την τρέχουσα κατάσταση πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Transfers.RepairScheduled.one" xml:space="preserve">
+    <value>Προγραμματίστηκε επιδιόρθωση για {0} ελλιπή διεύθυνση.</value>
+  </data>
+  <data name="Transfers.RepairScheduled.other" xml:space="preserve">
+    <value>Προγραμματίστηκε επιδιόρθωση για {0} ελλιπείς διευθύνσεις.</value>
+  </data>
+  <data name="Transfers.NoRepair" xml:space="preserve">
+    <value>Δεν υπάρχουν αυτή τη στιγμή ελλιπείς διευθύνσεις παρόχου κατάλληλες για επιδιόρθωση.</value>
+  </data>
+  <data name="Transfers.RepairPending.one" xml:space="preserve">
+    <value>Αποθηκεύτηκε η επιδιόρθωση για {0} ελλιπή διεύθυνση. Ο προγραμματισμός εκκρεμεί μέχρι την αποκατάσταση της εργασίας.</value>
+  </data>
+  <data name="Transfers.RepairPending.other" xml:space="preserve">
+    <value>Αποθηκεύτηκε η επιδιόρθωση για {0} ελλιπείς διευθύνσεις. Ο προγραμματισμός εκκρεμεί μέχρι την αποκατάσταση της εργασίας.</value>
+  </data>
+  <data name="Transfers.RepairAuthority" xml:space="preserve">
+    <value>Για την επιδιόρθωση ελλιπών διευθύνσεων απαιτείται ενεργή εξουσιοδότηση Geoapify.</value>
+  </data>
+  <data name="Transfers.RepairChanged" xml:space="preserve">
+    <value>Η εργασία άλλαξε πριν προγραμματιστεί η επιδιόρθωση. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Transfers.RetryScheduled.one" xml:space="preserve">
+    <value>Προγραμματίστηκε επανάληψη για {0} καταγραφή σε αναμονή.</value>
+  </data>
+  <data name="Transfers.RetryScheduled.other" xml:space="preserve">
+    <value>Προγραμματίστηκε επανάληψη για {0} καταγραφές σε αναμονή.</value>
+  </data>
+  <data name="Transfers.NoRetry" xml:space="preserve">
+    <value>Δεν υπάρχουν αυτή τη στιγμή καταγραφές σε αναμονή κατάλληλες για επανάληψη.</value>
+  </data>
+  <data name="Transfers.RetryPending.one" xml:space="preserve">
+    <value>Αποθηκεύτηκε η επανάληψη για {0} καταγραφή σε αναμονή. Ο προγραμματισμός εκκρεμεί μέχρι την αποκατάσταση της εργασίας.</value>
+  </data>
+  <data name="Transfers.RetryPending.other" xml:space="preserve">
+    <value>Αποθηκεύτηκε η επανάληψη για {0} καταγραφές σε αναμονή. Ο προγραμματισμός εκκρεμεί μέχρι την αποκατάσταση της εργασίας.</value>
+  </data>
+  <data name="Transfers.RetryAuthority" xml:space="preserve">
+    <value>Για να συνεχίσετε, πρέπει να είναι διαθέσιμος ο τρέχων πάροχος γεωκωδικοποίησης.</value>
+  </data>
+  <data name="Transfers.RetryStateChanged" xml:space="preserve">
+    <value>Η κατάσταση της εργασίας συμπλήρωσης άλλαξε πριν ξεκινήσει η επανάληψη.</value>
+  </data>
+  <data name="Transfers.RetryChanged" xml:space="preserve">
+    <value>Η εργασία άλλαξε πριν επαναληφθεί η εκκρεμής συμπλήρωση. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Transfers.ExportGeoJSON" xml:space="preserve">
+    <value>Λήψη GeoJSON</value>
+  </data>
+  <data name="Transfers.ExportCSV" xml:space="preserve">
+    <value>Λήψη CSV</value>
+  </data>
+  <data name="Transfers.ExportGPX" xml:space="preserve">
+    <value>Λήψη GPX</value>
+  </data>
+  <data name="Transfers.ExportKML" xml:space="preserve">
+    <value>Λήψη KML</value>
+  </data>
+  <data name="Transfers.ExportFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η εξαγωγή του ιστορικού τοποθεσιών. Επιστρέψτε στις καταγραφές σας και δοκιμάστε ξανά τη λήψη.</value>
+  </data>
+</root>

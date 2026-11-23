@@ -11,14 +11,14 @@ public sealed class LocationImportEnrichmentRenderingTests
         var source = File.ReadAllText(ViewPath());
 
         Assert.Contains("aria-labelledby=\"enrichment-heading\"", source);
-        Assert.Contains("<dl class=\"row\" aria-label=\"Durable enrichment status\">", source);
+        Assert.Contains("<dl class=\"row\" aria-label=\"@T[\"Transfers.EnrichmentStatus\"]\">", source);
         Assert.Contains("id=\"enrichment-status\" role=\"status\"", source);
-        Assert.Contains("aria-label=\"Enrichment actions\"", source);
+        Assert.Contains("aria-label=\"@T[\"Transfers.EnrichmentActions\"]\"", source);
         Assert.Contains("@if (enrichment.Start.Visible)", source);
         Assert.Contains("@if (enrichment.RetryDeferred.Visible)", source);
         Assert.Contains("asp-action=\"StartEnrichment\" method=\"post\"", source);
-        Assert.Contains("Start enrichment", source);
-        Assert.Contains("Retry deferred enrichment", source);
+        Assert.Contains("Transfers.StartEnrichment", source);
+        Assert.Contains("Transfers.RetryEnrichment", source);
     }
 
     [Fact]
@@ -26,16 +26,13 @@ public sealed class LocationImportEnrichmentRenderingTests
     {
         var source = File.ReadAllText(ViewPath());
 
-        Assert.Contains("Imported Locations remain safe", source);
-        Assert.Contains("Cancelling enrichment does not cancel or delete imports", source);
-        Assert.Contains("share Wayfarer's rolling pool", source);
-        Assert.Contains("provider account is not visible", source);
-        Assert.Contains("independent monthly meter", source);
+        Assert.Contains("Transfers.EnrichmentHelp", source);
+        Assert.Contains("Transfers.ProviderUsageHelp", source);
         Assert.Contains("@if (enrichment.RepairsWithoutLocality > 0)", source);
-        Assert.Contains("no automatic retry is scheduled for that outcome", source);
-        Assert.Contains("Incomplete addresses describe stored fields", source);
-        Assert.Contains("Awaiting recovery", source);
-        Assert.Contains("yyyy-MM-dd HH:mm 'UTC'", source);
+        Assert.Contains("Transfers.RepairsWithoutLocality", source);
+        Assert.Contains("Transfers.IncompleteHelp", source);
+        Assert.Contains("Transfers.AwaitingRecovery", source);
+        Assert.Contains("LocationTransferText.UtcDate", source);
         Assert.DoesNotContain("ProtectedCredential", source);
         Assert.DoesNotContain("Coordinates", source);
     }
@@ -51,9 +48,9 @@ public sealed class LocationImportEnrichmentRenderingTests
         Assert.Equal("2026-09-01 00:00 UTC", providerReturn.ToString("yyyy-MM-dd HH:mm 'UTC'"));
         Assert.Null(nextAttempt);
         Assert.Contains("@if (enrichment.ProviderNextAvailableAtUtc.HasValue)", source);
-        Assert.Contains("<dt class=\"col-sm-4\">Provider capacity returns</dt>", source);
-        Assert.Contains("<time datetime=\"@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"O\")\">", source);
-        Assert.Contains("@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"yyyy-MM-dd HH:mm 'UTC'\")", source);
+        Assert.Contains("<dt class=\"col-sm-4\">@T[\"Transfers.CapacityReturns\"]</dt>", source);
+        Assert.Contains("<time datetime=\"@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"O\", CultureInfo.InvariantCulture)\">", source);
+        Assert.Contains("@LocationTransferText.UtcDate(T, enrichment.ProviderNextAvailableAtUtc.Value)", source);
     }
 
     /// <summary>The list uses the tested cross-platform safe projection rather than native path parsing.</summary>

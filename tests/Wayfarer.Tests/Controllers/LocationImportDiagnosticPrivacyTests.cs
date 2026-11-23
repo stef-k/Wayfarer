@@ -333,7 +333,8 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         environment.SetupGet(item => item.ContentRootPath).Returns(contentRoot);
         var controller = new LocationImportController(ImportStaging.Create(contentRoot), db, logger,
             environment.Object, Mock.Of<IScheduler>(),
-            Mock.Of<ILocationEnrichmentPresentationProjector>(), importLifecycle: Mock.Of<ILocationImportLifecycle>());
+            Mock.Of<ILocationEnrichmentPresentationProjector>(), TestWebMessages.Instance,
+            importLifecycle: Mock.Of<ILocationImportLifecycle>());
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "test");
         controller.ControllerContext = new ControllerContext
         {

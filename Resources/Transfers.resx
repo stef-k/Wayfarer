@@ -1,0 +1,585 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Transfers.UploadNew" xml:space="preserve">
+    <value>Upload new file</value>
+  </data>
+  <data name="Transfers.HowItWorks" xml:space="preserve">
+    <value>Import location history from Google Timeline (Google Takeout) or a supported Wayfarer export. Large files are processed in the background. You can leave this page and check back later.</value>
+  </data>
+  <data name="Transfers.FileName" xml:space="preserve">
+    <value>File name</value>
+  </data>
+  <data name="Transfers.UploadedAt" xml:space="preserve">
+    <value>Uploaded at</value>
+  </data>
+  <data name="Transfers.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Transfers.StatusHelp" xml:space="preserve">
+    <value>In progress: processing the file. Completed: check the deleted-record and Activity counts. Stopped: paused by the user. Failed: check the error details.</value>
+  </data>
+  <data name="Transfers.ProcessedRecords" xml:space="preserve">
+    <value>Processed records</value>
+  </data>
+  <data name="Transfers.LastRecord" xml:space="preserve">
+    <value>Last processed record</value>
+  </data>
+  <data name="Transfers.Errors" xml:space="preserve">
+    <value>Errors and warnings</value>
+  </data>
+  <data name="Transfers.State.InProgress" xml:space="preserve">
+    <value>In progress</value>
+  </data>
+  <data name="Transfers.State.Stopping" xml:space="preserve">
+    <value>Stopping</value>
+  </data>
+  <data name="Transfers.State.Stopped" xml:space="preserve">
+    <value>Stopped</value>
+  </data>
+  <data name="Transfers.State.Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Transfers.State.Failed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Transfers.Progress" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="Transfers.DuplicatesSkipped.one" xml:space="preserve">
+    <value>{0} duplicate record skipped</value>
+  </data>
+  <data name="Transfers.DuplicatesSkipped.other" xml:space="preserve">
+    <value>{0} duplicate records skipped</value>
+  </data>
+  <data name="Transfers.DeletedSkipped.one" xml:space="preserve">
+    <value>{0} deleted record skipped</value>
+  </data>
+  <data name="Transfers.DeletedSkipped.other" xml:space="preserve">
+    <value>{0} deleted records skipped</value>
+  </data>
+  <data name="Transfers.InvalidActivity.one" xml:space="preserve">
+    <value>Invalid Activity in {0} Location. Correct it by editing the Location.</value>
+  </data>
+  <data name="Transfers.InvalidActivity.other" xml:space="preserve">
+    <value>Invalid Activity in {0} Locations. Correct them by editing the Locations.</value>
+  </data>
+  <data name="Transfers.LastRecordTimestamp" xml:space="preserve">
+    <value>Timestamp: {0}</value>
+  </data>
+  <data name="Transfers.LastRecordWithAddress" xml:space="preserve">
+    <value>Timestamp: {0}, {1}</value>
+  </data>
+  <data name="Transfers.Unavailable" xml:space="preserve">
+    <value>Unavailable</value>
+  </data>
+  <data name="Transfers.ManagedPayload" xml:space="preserve">
+    <value>Managed file: {0}</value>
+  </data>
+  <data name="Transfers.PayloadRetained" xml:space="preserve">
+    <value>retained</value>
+  </data>
+  <data name="Transfers.PayloadRemoved" xml:space="preserve">
+    <value>removed</value>
+  </data>
+  <data name="Transfers.PayloadCleanup" xml:space="preserve">
+    <value>cleanup pending</value>
+  </data>
+  <data name="Transfers.PayloadUploading" xml:space="preserve">
+    <value>upload in progress</value>
+  </data>
+  <data name="Transfers.Action.PayloadRemoved" xml:space="preserve">
+    <value>File removed</value>
+  </data>
+  <data name="Transfers.Action.PayloadCleanup" xml:space="preserve">
+    <value>File cleanup pending</value>
+  </data>
+  <data name="Transfers.Action.Start" xml:space="preserve">
+    <value>Start import</value>
+  </data>
+  <data name="Transfers.Action.Resume" xml:space="preserve">
+    <value>Resume import</value>
+  </data>
+  <data name="Transfers.Action.Retry" xml:space="preserve">
+    <value>Retry import</value>
+  </data>
+  <data name="Transfers.Action.Stop" xml:space="preserve">
+    <value>Stop import</value>
+  </data>
+  <data name="Transfers.Action.Stopping" xml:space="preserve">
+    <value>Stopping…</value>
+  </data>
+  <data name="Transfers.Confirm.Start" xml:space="preserve">
+    <value>Start this import?</value>
+  </data>
+  <data name="Transfers.Confirm.Resume" xml:space="preserve">
+    <value>Resume this import from its saved progress?</value>
+  </data>
+  <data name="Transfers.Confirm.Retry" xml:space="preserve">
+    <value>Retry this import?</value>
+  </data>
+  <data name="Transfers.Confirm.Stop" xml:space="preserve">
+    <value>Stop this import?</value>
+  </data>
+  <data name="Transfers.Confirm.Remove" xml:space="preserve">
+    <value>Remove this import record? This cannot be undone.</value>
+  </data>
+  <data name="Transfers.RemoveImport" xml:space="preserve">
+    <value>Remove import</value>
+  </data>
+  <data name="Transfers.MoreActions" xml:space="preserve">
+    <value>More import actions</value>
+  </data>
+  <data name="Transfers.Empty" xml:space="preserve">
+    <value>No location import records found.</value>
+  </data>
+  <data name="Transfers.StagedUnavailable" xml:space="preserve">
+    <value>The staged import file is unavailable. Upload the file again to continue.</value>
+  </data>
+  <data name="Transfers.RecoveryHeld" xml:space="preserve">
+    <value>Native recovery content is incomplete or unsupported. Correct the file before importing.</value>
+  </data>
+  <data name="Transfers.InvalidKey" xml:space="preserve">
+    <value>An IdempotencyKey is invalid. Correct the UUID values and upload the corrected file as a new import.</value>
+  </data>
+  <data name="Transfers.MultipleZeroKeys" xml:space="preserve">
+    <value>Multiple IdempotencyKey values are zero. Give distinct captures unique nonzero UUIDs and upload the corrected file as a new import.</value>
+  </data>
+  <data name="Transfers.InvalidCheckpoint" xml:space="preserve">
+    <value>Saved import progress no longer matches the file. Upload the file as a new import to continue.</value>
+  </data>
+  <data name="Transfers.ImportProcessingFailed" xml:space="preserve">
+    <value>The file could not be processed. Check the file and try again.</value>
+  </data>
+  <data name="Transfers.ImportStarted" xml:space="preserve">
+    <value>Import started successfully.</value>
+  </data>
+  <data name="Transfers.StartPending" xml:space="preserve">
+    <value>Import accepted and awaiting scheduler recovery.</value>
+  </data>
+  <data name="Transfers.StartInvalidState" xml:space="preserve">
+    <value>Import cannot be started in its current state.</value>
+  </data>
+  <data name="Transfers.ImportNotFound" xml:space="preserve">
+    <value>Import record not found.</value>
+  </data>
+  <data name="Transfers.StopRequested" xml:space="preserve">
+    <value>Import stopping request submitted successfully.</value>
+  </data>
+  <data name="Transfers.NoActiveImport" xml:space="preserve">
+    <value>No active import was found.</value>
+  </data>
+  <data name="Transfers.ImportRemoved" xml:space="preserve">
+    <value>Upload record removed successfully.</value>
+  </data>
+  <data name="Transfers.DeletePending" xml:space="preserve">
+    <value>Deletion requested. Upload cleanup is pending reconciliation.</value>
+  </data>
+  <data name="Transfers.DeleteActive" xml:space="preserve">
+    <value>Upload is active or stopping and cannot be removed yet.</value>
+  </data>
+  <data name="Transfers.DeleteFailed" xml:space="preserve">
+    <value>Upload record could not be removed.</value>
+  </data>
+  <data name="Transfers.UploadHistory" xml:space="preserve">
+    <value>Upload location history</value>
+  </data>
+  <data name="Transfers.CorrectErrors" xml:space="preserve">
+    <value>Please correct the errors below.</value>
+  </data>
+  <data name="Transfers.UploadsDisabled" xml:space="preserve">
+    <value>File uploads are disabled by the administrator.</value>
+  </data>
+  <data name="Transfers.UploadTooLarge" xml:space="preserve">
+    <value>The upload request exceeds the allowed size. Choose a smaller file and try again.</value>
+  </data>
+  <data name="Transfers.UploadUnavailable" xml:space="preserve">
+    <value>The upload cannot be accepted right now. Try again later.</value>
+  </data>
+  <data name="Transfers.UploadLimit" xml:space="preserve">
+    <value>Upload a supported location-history file. The complete request, including form fields and multipart overhead, must fit within {0} MiB.</value>
+  </data>
+  <data name="Transfers.ActivityHelp" xml:space="preserve">
+    <value>Valid Activity names reuse or create entries in the shared catalog, visible to all authenticated users. Activity names are optional. Invalid values leave Locations without an Activity and appear as a warning count in import history.</value>
+  </data>
+  <data name="Transfers.SelectFile" xml:space="preserve">
+    <value>Select file</value>
+  </data>
+  <data name="Transfers.FileType" xml:space="preserve">
+    <value>File type</value>
+  </data>
+  <data name="Transfers.SelectFormat" xml:space="preserve">
+    <value>Select a file type</value>
+  </data>
+  <data name="Transfers.FormatOption" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="Transfers.Format.GoogleTimeline" xml:space="preserve">
+    <value>Google Timeline</value>
+  </data>
+  <data name="Transfers.Format.WayfarerGeoJson" xml:space="preserve">
+    <value>Wayfarer GeoJSON</value>
+  </data>
+  <data name="Transfers.Format.Gpx" xml:space="preserve">
+    <value>GPX</value>
+  </data>
+  <data name="Transfers.Format.Kml" xml:space="preserve">
+    <value>KML</value>
+  </data>
+  <data name="Transfers.Format.Csv" xml:space="preserve">
+    <value>CSV</value>
+  </data>
+  <data name="Transfers.ContinueEnrichment" xml:space="preserve">
+    <value>Continue filling missing addresses after the import completes</value>
+  </data>
+  <data name="Transfers.ContinueHelp" xml:space="preserve">
+    <value>The import can finish independently. If selected, Wayfarer fills missing addresses in scheduled batches. Provider availability may pause this work without removing imported data.</value>
+  </data>
+  <data name="Transfers.UploadFile" xml:space="preserve">
+    <value>Upload file</value>
+  </data>
+  <data name="Transfers.RequiredFile" xml:space="preserve">
+    <value>Please select a file.</value>
+  </data>
+  <data name="Transfers.InvalidFile" xml:space="preserve">
+    <value>Please select a valid, nonempty file.</value>
+  </data>
+  <data name="Transfers.InvalidFormat" xml:space="preserve">
+    <value>Please select a valid file type.</value>
+  </data>
+  <data name="Transfers.InvalidUploadValue" xml:space="preserve">
+    <value>The supplied value is invalid.</value>
+  </data>
+  <data name="Transfers.UnsupportedGeoJson" xml:space="preserve">
+    <value>Generic GeoJSON is not a supported location-history format. Select Wayfarer GeoJSON for Wayfarer exports.</value>
+  </data>
+  <data name="Transfers.InvalidExtension" xml:space="preserve">
+    <value>The file extension “{0}” is invalid. Allowed extensions: {1}.</value>
+  </data>
+  <data name="Transfers.SignInRequired" xml:space="preserve">
+    <value>Sign in to upload location history.</value>
+  </data>
+  <data name="Transfers.Uploaded" xml:space="preserve">
+    <value>File uploaded successfully and is pending import.</value>
+  </data>
+  <data name="Transfers.UploadFailed" xml:space="preserve">
+    <value>The file could not be saved for import. Try uploading it again later.</value>
+  </data>
+  <data name="Transfers.EnrichmentHeading" xml:space="preserve">
+    <value>Missing-address enrichment</value>
+  </data>
+  <data name="Transfers.EnrichmentHelp" xml:space="preserve">
+    <value>Importing may finish before enrichment. Imported Locations remain safe if enrichment is paused, cancelled, or fails, and large histories may take days. Cancelling enrichment does not cancel or delete imports.</value>
+  </data>
+  <data name="Transfers.EnrichmentStatus" xml:space="preserve">
+    <value>Durable enrichment status</value>
+  </data>
+  <data name="Transfers.WorkflowState" xml:space="preserve">
+    <value>Workflow state</value>
+  </data>
+  <data name="Transfers.Provider" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="Transfers.ProviderAvailability" xml:space="preserve">
+    <value>Provider availability</value>
+  </data>
+  <data name="Transfers.ProviderNotSelected" xml:space="preserve">
+    <value>Not selected</value>
+  </data>
+  <data name="Transfers.WayfarerUsage" xml:space="preserve">
+    <value>Wayfarer usage</value>
+  </data>
+  <data name="Transfers.UsageSummary" xml:space="preserve">
+    <value>{0} of {1} {2}.</value>
+  </data>
+  <data name="Transfers.Contacts" xml:space="preserve">
+    <value>contacts</value>
+  </data>
+  <data name="Transfers.Credits" xml:space="preserve">
+    <value>credits</value>
+  </data>
+  <data name="Transfers.GeoapifyWindow" xml:space="preserve">
+    <value>Wayfarer uses a rolling 24-hour window shared by geocoding and routing.</value>
+  </data>
+  <data name="Transfers.MapboxWindow" xml:space="preserve">
+    <value>Wayfarer meters Permanent Geocoding by calendar month in UTC.</value>
+  </data>
+  <data name="Transfers.NoUsageWindow" xml:space="preserve">
+    <value>No active usage window.</value>
+  </data>
+  <data name="Transfers.GuardEnabled" xml:space="preserve">
+    <value>Usage limit or meter enabled.</value>
+  </data>
+  <data name="Transfers.GuardDisabled" xml:space="preserve">
+    <value>Usage limit or meter disabled.</value>
+  </data>
+  <data name="Transfers.CapacityReturns" xml:space="preserve">
+    <value>Provider capacity returns</value>
+  </data>
+  <data name="Transfers.ProcessedCandidates" xml:space="preserve">
+    <value>Processed candidates (cumulative)</value>
+  </data>
+  <data name="Transfers.Enriched" xml:space="preserve">
+    <value>Addresses filled (cumulative)</value>
+  </data>
+  <data name="Transfers.EnrichmentSkipped" xml:space="preserve">
+    <value>Skipped (cumulative)</value>
+  </data>
+  <data name="Transfers.Runnable" xml:space="preserve">
+    <value>Ready now</value>
+  </data>
+  <data name="Transfers.FutureDue" xml:space="preserve">
+    <value>Retryable later</value>
+  </data>
+  <data name="Transfers.InFlight" xml:space="preserve">
+    <value>In flight (current owned operations)</value>
+  </data>
+  <data name="Transfers.AwaitingRecovery" xml:space="preserve">
+    <value>Awaiting recovery</value>
+  </data>
+  <data name="Transfers.ManualRetry" xml:space="preserve">
+    <value>Manual retry available</value>
+  </data>
+  <data name="Transfers.CannotRetry" xml:space="preserve">
+    <value>Cannot be retried</value>
+  </data>
+  <data name="Transfers.IncompleteAddresses" xml:space="preserve">
+    <value>Incomplete provider addresses</value>
+  </data>
+  <data name="Transfers.FailedBatches" xml:space="preserve">
+    <value>Failed batches (cumulative)</value>
+  </data>
+  <data name="Transfers.LastOutcome" xml:space="preserve">
+    <value>Last outcome</value>
+  </data>
+  <data name="Transfers.NextAttempt" xml:space="preserve">
+    <value>Next attempt</value>
+  </data>
+  <data name="Transfers.ProviderUsageHelp" xml:space="preserve">
+    <value>Geoapify geocoding and routing share Wayfarer's rolling pool. Usage elsewhere in your provider account is not visible here. Mapbox Permanent requires separate consent and uses Wayfarer's independent monthly meter. Deleting import history does not delete Locations or enrichment.</value>
+  </data>
+  <data name="Transfers.IncompleteHelp" xml:space="preserve">
+    <value>Incomplete addresses describe stored fields, not additional scheduled requests. Initiate Repair to prepare them. Temporary repair failures appear under Retryable later. Next attempt is shown while the workflow is enabled. You can also edit an address manually.</value>
+  </data>
+  <data name="Transfers.RepairsWithoutLocality.one" xml:space="preserve">
+    <value>For {0} attempted repair, the provider supplied no city, place or usable result. The address remains incomplete and will not be retried automatically. You can run Repair again while enrichment is stopped or edit the address manually.</value>
+  </data>
+  <data name="Transfers.RepairsWithoutLocality.other" xml:space="preserve">
+    <value>For {0} attempted repairs, the provider supplied no city, place or usable result. Those addresses remain incomplete and will not be retried automatically. You can run Repair again while enrichment is stopped or edit the addresses manually.</value>
+  </data>
+  <data name="Transfers.StoppedRetryHelp" xml:space="preserve">
+    <value>Saved retry times do not restart enrichment automatically while it is stopped.</value>
+  </data>
+  <data name="Transfers.EnrichmentActions" xml:space="preserve">
+    <value>Enrichment actions</value>
+  </data>
+  <data name="Transfers.StartEnrichment" xml:space="preserve">
+    <value>Start enrichment</value>
+  </data>
+  <data name="Transfers.PauseEnrichment" xml:space="preserve">
+    <value>Pause enrichment</value>
+  </data>
+  <data name="Transfers.ResumeEnrichment" xml:space="preserve">
+    <value>Resume enrichment</value>
+  </data>
+  <data name="Transfers.CancelEnrichment" xml:space="preserve">
+    <value>Cancel enrichment</value>
+  </data>
+  <data name="Transfers.RetryEnrichment" xml:space="preserve">
+    <value>Retry deferred enrichment</value>
+  </data>
+  <data name="Transfers.RetryCost" xml:space="preserve">
+    <value>Retrying may consume additional provider credits.</value>
+  </data>
+  <data name="Transfers.RepairIncomplete" xml:space="preserve">
+    <value>Repair incomplete addresses</value>
+  </data>
+  <data name="Transfers.RepairCost" xml:space="preserve">
+    <value>Repairing may consume additional provider credits.</value>
+  </data>
+  <data name="Transfers.Workflow.Idle" xml:space="preserve">
+    <value>Idle</value>
+  </data>
+  <data name="Transfers.Workflow.Scheduled" xml:space="preserve">
+    <value>Scheduled</value>
+  </data>
+  <data name="Transfers.Workflow.Running" xml:space="preserve">
+    <value>Running</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByUser" xml:space="preserve">
+    <value>Paused by user</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByBudget" xml:space="preserve">
+    <value>Waiting for provider capacity</value>
+  </data>
+  <data name="Transfers.Workflow.PausedByAuthority" xml:space="preserve">
+    <value>Waiting for provider authorization</value>
+  </data>
+  <data name="Transfers.Workflow.BackingOff" xml:space="preserve">
+    <value>Waiting to retry</value>
+  </data>
+  <data name="Transfers.Workflow.Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="Transfers.Workflow.Cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="Transfers.Workflow.Failed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Transfers.Outcome.None" xml:space="preserve">
+    <value>No outcome yet</value>
+  </data>
+  <data name="Transfers.Outcome.NoCandidates" xml:space="preserve">
+    <value>No eligible records</value>
+  </data>
+  <data name="Transfers.Outcome.BudgetExhausted" xml:space="preserve">
+    <value>Provider usage limit reached</value>
+  </data>
+  <data name="Transfers.Outcome.AuthorityUnavailable" xml:space="preserve">
+    <value>Provider authorization unavailable</value>
+  </data>
+  <data name="Transfers.Outcome.RetryableFailure" xml:space="preserve">
+    <value>Temporary failure</value>
+  </data>
+  <data name="Transfers.Outcome.InvalidCoordinates" xml:space="preserve">
+    <value>Invalid coordinates</value>
+  </data>
+  <data name="Transfers.Outcome.NoResult" xml:space="preserve">
+    <value>No usable result</value>
+  </data>
+  <data name="Transfers.Outcome.AttemptLimit" xml:space="preserve">
+    <value>Attempt limit reached</value>
+  </data>
+  <data name="Transfers.Outcome.DataFailure" xml:space="preserve">
+    <value>Data error</value>
+  </data>
+  <data name="Transfers.BudgetExhausted" xml:space="preserve">
+    <value>The Wayfarer provider budget is exhausted.</value>
+  </data>
+  <data name="Transfers.AuthorityCurrent" xml:space="preserve">
+    <value>Provider authorization is current.</value>
+  </data>
+  <data name="Transfers.NoProvider" xml:space="preserve">
+    <value>No geocoding provider is selected.</value>
+  </data>
+  <data name="Transfers.ProviderUnauthorized" xml:space="preserve">
+    <value>Provider access is unauthorized or has been revoked.</value>
+  </data>
+  <data name="Transfers.ProviderUnverified" xml:space="preserve">
+    <value>Verify the provider again or complete its initial verification.</value>
+  </data>
+  <data name="Transfers.ProviderConsent" xml:space="preserve">
+    <value>Current Mapbox Permanent consent is required.</value>
+  </data>
+  <data name="Transfers.CredentialUnavailable" xml:space="preserve">
+    <value>The protected provider credential is unavailable.</value>
+  </data>
+  <data name="Transfers.ProviderUnavailable" xml:space="preserve">
+    <value>The selected provider is unavailable.</value>
+  </data>
+  <data name="Transfers.ChooseAction" xml:space="preserve">
+    <value>Choose an available enrichment action.</value>
+  </data>
+  <data name="Transfers.UserHold" xml:space="preserve">
+    <value>Paused by you.</value>
+  </data>
+  <data name="Transfers.ProviderHold" xml:space="preserve">
+    <value>Waiting for provider capacity.</value>
+  </data>
+  <data name="Transfers.RetryHold" xml:space="preserve">
+    <value>Waiting for the next scheduled retry.</value>
+  </data>
+  <data name="Transfers.DeferredNotDue" xml:space="preserve">
+    <value>Deferred work is not due yet.</value>
+  </data>
+  <data name="Transfers.ExplicitRetry" xml:space="preserve">
+    <value>Some locations require an explicit retry.</value>
+  </data>
+  <data name="Transfers.InvalidCoordinates" xml:space="preserve">
+    <value>Some locations have invalid coordinates and cannot be retried.</value>
+  </data>
+  <data name="Transfers.NoCandidates" xml:space="preserve">
+    <value>No eligible enrichment work is available.</value>
+  </data>
+  <data name="Transfers.NoWorkflow" xml:space="preserve">
+    <value>There is no current enrichment workflow. Return to the import list and check the available actions.</value>
+  </data>
+  <data name="Transfers.EnrichmentUnavailable" xml:space="preserve">
+    <value>Enrichment is unavailable right now. Return to the import list and check its status.</value>
+  </data>
+  <data name="Transfers.EnrichmentConflict" xml:space="preserve">
+    <value>The enrichment action could not be applied. Refresh the import list and check its current status before trying again.</value>
+  </data>
+  <data name="Transfers.RepairScheduled.one" xml:space="preserve">
+    <value>Repair scheduled for {0} incomplete address.</value>
+  </data>
+  <data name="Transfers.RepairScheduled.other" xml:space="preserve">
+    <value>Repair scheduled for {0} incomplete addresses.</value>
+  </data>
+  <data name="Transfers.NoRepair" xml:space="preserve">
+    <value>No incomplete provider addresses are currently eligible.</value>
+  </data>
+  <data name="Transfers.RepairPending.one" xml:space="preserve">
+    <value>Repair was saved for {0} incomplete address. Scheduling is pending recovery.</value>
+  </data>
+  <data name="Transfers.RepairPending.other" xml:space="preserve">
+    <value>Repair was saved for {0} incomplete addresses. Scheduling is pending recovery.</value>
+  </data>
+  <data name="Transfers.RepairAuthority" xml:space="preserve">
+    <value>Current Geoapify authorization is required to repair incomplete addresses.</value>
+  </data>
+  <data name="Transfers.RepairChanged" xml:space="preserve">
+    <value>The workflow changed before repair could be scheduled. Refresh and try again.</value>
+  </data>
+  <data name="Transfers.RetryScheduled.one" xml:space="preserve">
+    <value>Retry scheduled for {0} deferred location.</value>
+  </data>
+  <data name="Transfers.RetryScheduled.other" xml:space="preserve">
+    <value>Retry scheduled for {0} deferred locations.</value>
+  </data>
+  <data name="Transfers.NoRetry" xml:space="preserve">
+    <value>No deferred locations are currently eligible for retry.</value>
+  </data>
+  <data name="Transfers.RetryPending.one" xml:space="preserve">
+    <value>Retry was saved for {0} deferred location. Scheduling is pending recovery.</value>
+  </data>
+  <data name="Transfers.RetryPending.other" xml:space="preserve">
+    <value>Retry was saved for {0} deferred locations. Scheduling is pending recovery.</value>
+  </data>
+  <data name="Transfers.RetryAuthority" xml:space="preserve">
+    <value>The current geocoding provider must be available to continue.</value>
+  </data>
+  <data name="Transfers.RetryStateChanged" xml:space="preserve">
+    <value>The enrichment workflow changed state before retry could start.</value>
+  </data>
+  <data name="Transfers.RetryChanged" xml:space="preserve">
+    <value>The workflow changed before deferred work could be retried. Refresh and try again.</value>
+  </data>
+  <data name="Transfers.ExportGeoJSON" xml:space="preserve">
+    <value>Download GeoJSON</value>
+  </data>
+  <data name="Transfers.ExportCSV" xml:space="preserve">
+    <value>Download CSV</value>
+  </data>
+  <data name="Transfers.ExportGPX" xml:space="preserve">
+    <value>Download GPX</value>
+  </data>
+  <data name="Transfers.ExportKML" xml:space="preserve">
+    <value>Download KML</value>
+  </data>
+  <data name="Transfers.ExportFailed" xml:space="preserve">
+    <value>The location history could not be exported. Return to your locations and try the download again.</value>
+  </data>
+</root>

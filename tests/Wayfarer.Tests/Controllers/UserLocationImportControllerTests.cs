@@ -231,7 +231,7 @@ public class UserLocationImportControllerTests : TestBase
                     0, 0, "credits", "No active usage window", null),
                 new(0, 0, 0, 0, null)));
         var controller = new LocationImportController(ImportStaging.Files, db, NullLogger<LocationImportController>.Instance,
-            env.Object, scheduler.Object, presentation ?? defaultPresentation.Object, handoff, projection,
+            env.Object, scheduler.Object, presentation ?? defaultPresentation.Object, TestWebMessages.Instance, handoff, projection,
             contextFactory: new CloningFactory(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };
         controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());

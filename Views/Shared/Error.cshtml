@@ -2,11 +2,13 @@
 @model ErrorViewModel
 @{
     ViewData["WebCatalog"] = "Shell";
+    // The initiating action can supply a specific explanation through the existing error page.
+    var transferErrorKey = ViewData["TransferErrorKey"] as string;
     ViewData["Title"] = T["Shell.ErrorTitle"];
 }
 
 <h1 class="text-danger">@T["Shell.ErrorHeading"]</h1>
-<h2 class="text-danger">@T["Shell.RequestError"]</h2>
+<h2 class="text-danger">@T[transferErrorKey ?? "Shell.RequestError"]</h2>
 
 @if (Model.ShowRequestId)
 {
@@ -15,7 +17,10 @@
     </p>
 }
 
-<h3>@T["Shell.DevelopmentMode"]</h3>
-<p>@T["Shell.DevelopmentDetails"]</p>
-<p><strong>@T["Shell.DevelopmentWarning"]</strong> @T["Shell.DevelopmentSensitive"]</p>
-<p>@T["Shell.DevelopmentHelp", "ASPNETCORE_ENVIRONMENT", "Development"]</p>
+@if (transferErrorKey is null)
+{
+    <h3>@T["Shell.DevelopmentMode"]</h3>
+    <p>@T["Shell.DevelopmentDetails"]</p>
+    <p><strong>@T["Shell.DevelopmentWarning"]</strong> @T["Shell.DevelopmentSensitive"]</p>
+    <p>@T["Shell.DevelopmentHelp", "ASPNETCORE_ENVIRONMENT", "Development"]</p>
+}
