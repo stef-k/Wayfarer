@@ -2947,7 +2947,7 @@
     <value>Τμήμα διαδρομής</value>
   </data>
   <data name="Editor.CompositionCanonicalUnassignedPlaces" xml:space="preserve">
-    <value>Μέρη χωρίς περιοχή</value>
+    <value>Τοποθεσίες χωρίς περιοχή</value>
   </data>
   <data name="Editor.CompositionInC" xml:space="preserve">
     <value>Στο C</value>
@@ -3016,7 +3016,7 @@
     <value>Αφαίρεση του αντίστοιχου στοιχείου από το C</value>
   </data>
   <data name="Editor.CompositionUnassignedPlacesIsAReservedCategory" xml:space="preserve">
-    <value>Τα «Μέρη χωρίς περιοχή» είναι δεσμευμένη κατηγορία. Επιλέξτε μεμονωμένα μέρη για αντιγραφή στον προορισμό «{0}». Η κατηγορία δεν αντιγράφεται ως κανονική περιοχή.</value>
+    <value>Οι «Τοποθεσίες χωρίς περιοχή» είναι δεσμευμένη κατηγορία. Επιλέξτε μεμονωμένα μέρη για αντιγραφή στον προορισμό «{0}». Η κατηγορία δεν αντιγράφεται ως κανονική περιοχή.</value>
   </data>
   <data name="Editor.CompositionDeliberatelyReAddThisExcludedIdea" xml:space="preserve">
     <value>Επανένταξη αυτού του εξαιρεμένου στοιχείου</value>
@@ -3055,7 +3055,7 @@
     <value>Περιοχή προορισμού</value>
   </data>
   <data name="Editor.CompositionCanonicalUnassignedPlacesDefault" xml:space="preserve">
-    <value>Μέρη χωρίς περιοχή (προεπιλογή)</value>
+    <value>Τοποθεσίες χωρίς περιοχή (προεπιλογή)</value>
   </data>
   <data name="Editor.CompositionSelectANormalRegion" xml:space="preserve">
     <value>Επιλέξτε κανονική περιοχή</value>
@@ -4362,9 +4362,6 @@
   <data name="Editor.TripsImportDateAndTime" xml:space="preserve">
     <value>Ημερομηνία και ώρα</value>
   </data>
-  <data name="Editor.TripsImportFlexible" xml:space="preserve">
-    <value>Ευέλικτο</value>
-  </data>
   <data name="Editor.TripsImportNotSupplied" xml:space="preserve">
     <value>δεν δόθηκε</value>
   </data>
@@ -4802,5 +4799,8 @@
   </data>
   <data name="Editor.TripsScanExtended" xml:space="preserve">
     <value>{0} σε ευρύτερη ακτίνα</value>
+  </data>
+  <data name="Editor.TripsImportTravel" xml:space="preserve">
+    <value>Μετακίνηση</value>
   </data>
 </root>

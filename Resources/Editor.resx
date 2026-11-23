@@ -4362,9 +4362,6 @@
   <data name="Editor.TripsImportDateAndTime" xml:space="preserve">
     <value>Date and time</value>
   </data>
-  <data name="Editor.TripsImportFlexible" xml:space="preserve">
-    <value>Flexible</value>
-  </data>
   <data name="Editor.TripsImportNotSupplied" xml:space="preserve">
     <value>not supplied</value>
   </data>
@@ -4802,5 +4799,8 @@
   </data>
   <data name="Editor.TripsScanExtended" xml:space="preserve">
     <value>{0} within extended range</value>
+  </data>
+  <data name="Editor.TripsImportTravel" xml:space="preserve">
+    <value>Travel</value>
   </data>
 </root>

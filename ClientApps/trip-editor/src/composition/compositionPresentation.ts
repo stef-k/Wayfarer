@@ -9,7 +9,7 @@ export function tripKind(kind: Kind): string {
 /** Only the reserved Region and generated fallbacks are translated. */
 export function displayLabel(item: Content | undefined, kind?: Kind): string {
   if (!item) return tr('Editor.CompositionUnavailableObject', 'Unavailable object');
-  if (kind === 'region' && item.name === 'Unassigned Places') return tr('Editor.CompositionCanonicalUnassignedPlaces', 'Canonical Unassigned Places');
+  if (kind === 'region' && item.name === 'Unassigned Places') return tr('Shell.UnassignedPlaces', 'Unassigned Places');
   return item.name ?? item.title ?? tr('Editor.Composition0Route', '{0} route', item.mode || tr('Editor.CompositionHistorical', 'Historical'));
 }
 

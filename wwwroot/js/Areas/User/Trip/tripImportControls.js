@@ -5,7 +5,17 @@ import { createTripImporter, uncertainImport, abandonImportConfirmation } from '
 /** Presents literal authored civil values and optional qualifiers without inferred dates or zones. */
 const describeEntry = entry => {
     const precision = { month: tr('Editor.PlanningMonth', 'Month'), date: tr('Editor.PlanningDate', 'Date'), dateTime: tr('Editor.TripsImportDateAndTime', 'Date and time') };
-    const form = { unknown: tr('Editor.CheckStatus.unknown', 'Unknown'), flexible: tr('Editor.TripsImportFlexible', 'Flexible') };
+    const form = {
+        unknown: tr('Editor.ExplicitlyUnknown', 'Explicitly unknown'),
+        flexible: tr('Editor.DeliberatelyFlexible', 'Deliberately flexible'),
+        unspecified: tr('Editor.Unspecified', 'Unspecified')
+    };
+    const meaning = {
+        window: tr('Editor.PlanningWindow', 'Planning window'),
+        presence: tr('Editor.ActivityRequiringPresence', 'Activity requiring presence'),
+        stay: tr('Editor.StayBaseAvailability', 'Stay/base availability'),
+        travel: tr('Editor.TripsImportTravel', 'Travel')
+    };
     const value = v => {
         if (!v) return tr('Editor.TripsImportNotSupplied', 'not supplied');
         const civil = tr('Editor.PlanningCivil', '{0} ({1})', v.local, [precision[v.precision] ?? v.precision, v.zone].filter(Boolean).join(' · '));
@@ -16,7 +26,7 @@ const describeEntry = entry => {
     let text = when.form === 'at' ? value(when.value) : when.form === 'period'
         ? tr('Editor.TripsImportStart0End1', 'Start: {0}; End: {1}', bound(when.start), bound(when.end)) : form[when.form] ?? when.form;
     if (entry.label != null) text = tr('Editor.TripsImport01', '{0}: {1}', entry.label, text);
-    if (entry.kind != null) text = tr('Editor.TripsImport0Meaning1', '{0} · meaning: {1}', text, entry.kind);
+    if (entry.kind != null) text = tr('Editor.TripsImport0Meaning1', '{0} · meaning: {1}', text, meaning[entry.kind] ?? entry.kind);
     if (entry.allocationMinutes != null) text = tr('Editor.TripsImport0Allocation1Minutes', '{0} · allocation: {1} minutes', text, number(entry.allocationMinutes));
     return text;
 };

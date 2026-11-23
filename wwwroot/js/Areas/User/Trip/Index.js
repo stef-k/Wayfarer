@@ -48,12 +48,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
         try {
             const response = await fetch(`/api/Trips/search?${params.toString()}`, { credentials: 'include' });
-            if (!response.ok) {
-                console.error('Trip search API error:', response.status, response.statusText);
-                const tbody = document.getElementById('trip-table-body');
-                if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${htmlText('Editor.TripsFailedToLoadTripsPleaseRefresh', 'Failed to load trips. Please refresh the page.')}</td></tr>`;
-                return;
-            }
+            if (!response.ok) throw new Error(`Trip search API error: ${response.status}`);
 
             const res = await response.json();
             const trips = res.data || [];
@@ -64,6 +59,8 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             updateEmptyState(res.userTripCount ?? res.totalAll);
         } catch (err) {
             console.error('[Trip] Failed to load trips:', err);
+            const tbody = document.getElementById('trip-table-body');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${htmlText('Editor.TripsFailedToLoadTripsPleaseRefresh', 'Failed to load trips. Please refresh the page.')}</td></tr>`;
         }
     };
 

@@ -31,12 +31,12 @@ test('Greek My Trips native review and language switching retain recoverable int
   let download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download KML' }).click();
   const excluded = await readFile((await (await download).path())!, 'utf8');
-  expect(excluded).toContain('<value>3</value>'); expect(excluded).not.toContain('name="Planning"');
+  expect(excluded).toMatch(/name="WayfarerSchemaVersion">\s*<value>5<\/value>/); expect(excluded).not.toContain('name="Planning"');
   await openExport(); await expect(include).not.toBeChecked(); await include.check();
   await expect(page.getByRole('dialog')).toContainText('Server access controls cannot revoke an already downloaded file.');
   download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download KML' }).click();
   const personal = await readFile((await (await download).path())!, 'utf8');
-  expect(personal).toContain('name="Planning"'); expect(personal).toContain('<value>4</value>');
+  expect(personal).toContain('name="Planning"'); expect(personal).toMatch(/name="WayfarerSchemaVersion">\s*<value>5<\/value>/);
   await openExport(); await expect(include).not.toBeChecked(); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.goto(`/Public/Trips/${id}`); await expect(page.locator('#personal-native-export')).toHaveCount(0);
   await page.goto('/User/Trip?origin=review#trip-stats');
@@ -60,7 +60,7 @@ test('Greek My Trips native review and language switching retain recoverable int
   }
   await page.goto('/User/Trip?origin=review#trip-stats');
   const select = () => page.locator('#importFile').setInputFiles({
-    name: 'personal-v4.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(personal.replace('2027-03', '2027-04'))
+    name: 'personal-v5.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(personal.replace('2027-03', '2027-04'))
   });
   const controls = page.locator('#trip-import-controls');
   const update = controls.locator('#btnUpdate');
@@ -74,7 +74,7 @@ test('Greek My Trips native review and language switching retain recoverable int
   await page.keyboard.press('Escape');
   await expect(openLanguage).toBeFocused();
   await expect(selectedPlan).toBeChecked();
-  await expect(controls).toContainText('personal-v4.kml');
+  await expect(controls).toContainText('personal-v5.kml');
   expect(preferenceWrites).toBe(1);
 
   // A known refusal preserves the reviewed file and permits an explicit refresh.
