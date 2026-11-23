@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { createSSRApp, createRenderer, nextTick } from 'vue';
 import { renderToString } from '@vue/server-renderer';
+import { enableWorkspaceLanguage, hasLanguageDraft, isLanguageNavigationHeld } from '../../wwwroot/js/localization/languageNavigation.js';
 
 // Compile the actual hierarchy/choice components at the existing in-memory Vue seam.
 const bundle = await build({ stdin: { contents: `export { default as FieldChoices } from './FieldChoices.vue'; export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
@@ -116,7 +117,7 @@ test('creation component freezes the submitted pair/name and leaves newer form c
   const priorFetch = globalThis.fetch; const priorWindow = globalThis.window;
   let bindings, resolveSave, started; const requestStarted = new Promise(resolve => { started = resolve; });
   const waiting = new Promise(resolve => { resolveSave = resolve; }); const navigations = []; const requests = [];
-  globalThis.window = { location: { assign: url => navigations.push(url) } };
+  globalThis.window = { location: { assign: url => navigations.push(url) }, dispatchEvent() {} };
   globalThis.captureConstruction = value => { bindings = value; };
   globalThis.fetch = async (url, init) => {
     requests.push({ url, init });
@@ -151,7 +152,7 @@ const withWorkspace = async (action, lightweight = false) => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
   const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
-  globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
+  globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {}, dispatchEvent() {} };
   globalThis.HTMLElement = class {};
   globalThis.document = { activeElement: null, contains: () => false };
   globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
@@ -257,21 +258,28 @@ test('Apply preparation rejects wrong and incomplete workspaces before publicati
     assert.equal(sent.length, 0); assert.equal(app.state.workspace, lastWorkspace); assert.equal(app.draft.value, retained);
     assert.deepEqual(requests.slice(before), ['/api/trip-compositions/S']);
     assert.match(app.state.error, /incomplete|context|match/i); assert.match(app.state.error, /refresh|inspect/i);
-    readWith(null); await app.refresh();
+    readWith(null); const inspection = app.reviewCurrent(); await flush(); settleConfirmDialog(true); await inspection;
   }
 }));
 
-test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith, host }) => {
+test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith, host, readWith }) => {
   const app = captured.CompositionApp; await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
-  const retained = app.draft.value; const current = app.state.workspace;
+  const retained = app.draft.value;
   app.state.error = 'Earlier action refused.';
   for (const reply of [{ tripId: 'OTHER', status: 'finished' }, { tripId: 'C' }, null]) {
+    const current = app.state.workspace;
     finishWith(reply); const attempt = app.finish(); settleConfirmDialog(true); await attempt; await nextTick();
     assert.equal(app.finished.value, false); assert.equal(app.state.workspace, current); assert.equal(app.draft.value, retained);
     assert.match(app.lifecycleError.value, /could not be confirmed/i); assert.equal(app.finishing.value, false);
     assert.match(textOf(host), /Finish could not be confirmed/);
+    assert.equal(isLanguageNavigationHeld(), true);
+    const inspection = app.reviewCurrent(); await flush(); settleConfirmDialog(true); await inspection;
   }
-  finishWith({ tripId: 'C', status: 'finished' }); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
+  // A lost final reply can be resolved by the authoritative closed response to explicit inspection.
+  finishWith(null); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
+  readWith(() => Response.json({ code: 'composition-closed' }, { status: 409 }));
+  await app.refresh(); assert.equal(isLanguageNavigationHeld(), true);
+  await app.reviewCurrent();
   assert.equal(app.finished.value, true); assert.equal(app.finishedTripId.value, 'C'); assert.equal(app.state.workspace, null);
   assert.deepEqual({ ...app.state.view.drafts }, {}); assert.equal(app.state.view.block, null);
 }));
@@ -322,12 +330,81 @@ test('lightweight refusal retains destination, placement and choices without rep
   await app.apply(); await flush();
   assert.equal(sent.length, 1); assert.equal(app.draft.value.items[0], choice); assert.equal(choice.afterId, 'CP');
   assert.equal(app.destinationId.value, 'C'); assert.equal(app.state.value.needsInspection, true);
-  assert.match(app.state.value.error, /source changed/);
+  assert.match(app.state.value.error, /saved content changed/);
   await app.apply(); assert.equal(sent.length, 1);
   app.destinationId.value = 'Another Trip'; await app.apply(); assert.equal(sent.length, 1);
   assert.equal(app.preview.value.tripId, 'C');
 }, true));
 
+
+/** Drives the production selector beside the already mounted Copy state using the shared test renderer. */
+async function inspectLanguageControls(action) {
+  const names = ['window', 'document', 'FormData', 'location'];
+  const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]));
+  const events = new Map();
+  const controls = new Map();
+  let focused;
+  const get = id => {
+    if (!controls.has(id)) controls.set(id, { dataset: {}, hidden: true, open: false, reset() {}, setAttribute() {},
+      addEventListener: (name, callback) => events.set(`${id}:${name}`, callback),
+      focus: () => { focused = id; },
+      showModal() { this.open = true; }, close() { this.open = false; events.get(`${id}:close`)(); }
+    });
+    return controls.get(id);
+  };
+  get('language-dialog').dataset.workspace = 'true';
+  get('language-form').dataset.url = '/Language/Set';
+  globalThis.document = { ...document, getElementById: get, querySelectorAll: () => [], addEventListener() {} };
+  globalThis.window = {
+    ...window, addEventListener: (name, callback) => events.set(name, callback),
+    dispatchEvent: event => events.get(event.type)?.()
+  };
+  globalThis.location = window.location = { href: 'https://component.invalid/User/Trip/Copy' };
+  globalThis.FormData = class { get() { return 'el-GR'; } };
+  try {
+    await import('../../wwwroot/js/localization/languageSelector.js');
+    await action({
+      get, event: (id, type) => events.get(`${id}:${type}`)({ preventDefault() {} }),
+      focus: () => focused
+    });
+  } finally { Object.assign(globalThis, previous); }
+}
+
+test('Copy language cancellation keeps the review and only explicit successful inspection releases an unconfirmed save hold',
+  () => withWorkspace(async ({ captured, requests, copyWith }) => {
+    const app = captured.CopyToTrip;
+    await inspectLanguageControls(async ({ get, event, focus }) => {
+      assert.equal(get('language-open').hidden, true, 'the workspace must register its owners before being shown');
+      enableWorkspaceLanguage();
+      app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+      const choice = app.draft.value.items[0];
+      Object.assign(choice, { regionId: 'CR', position: 'after', afterId: 'CP', customName: true, name: 'Μονοπάτι <Trail>' });
+      assert.equal(hasLanguageDraft(), true);
+      event('language-open', 'click');
+      await event('language-form', 'submit');
+      assert.equal(focus(), 'language-keep');
+      event('language-keep', 'click');
+      assert.equal(focus(), 'language-open');
+      assert.equal(app.draft.value.items[0], choice);
+      assert.equal(choice.name, 'Μονοπάτι <Trail>');
+
+      copyWith(() => Promise.reject(new Error('lost response')));
+      await app.apply(); await flush();
+      assert.match(app.state.value.error, /could not be confirmed/);
+      assert.equal(get('language-open').hidden, true);
+      await event('language-form', 'submit');
+      const cancelInspection = app.load(); settleConfirmDialog(false); await cancelInspection;
+      assert.equal(get('language-open').hidden, true);
+      const inspect = app.load(); settleConfirmDialog(true); await inspect;
+      assert.equal(get('language-open').hidden, false);
+      assert.equal(app.draft.value.items[0].afterId, 'CP');
+      assert.equal(app.draft.value.items[0].name, 'Μονοπάτι <Trail>');
+      event('language-open', 'click');
+      await event('language-form', 'submit');
+      assert.equal(focus(), 'language-keep', 'ordinary draft consent still applies after inspection');
+      assert.equal(requests.filter(url => url === '/Language/Set').length, 0);
+    });
+  }, true));
 
 test('changing the destination while copy waits keeps that newer context and never labels its choices saved', () => withWorkspace(async ({ captured, sent, copyWith, saved }) => {
   const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
@@ -393,7 +470,7 @@ test('pair and draft changes during confirmation and a refused pair preview reta
   assert.equal(requests.length, before); assert.equal(app.draft.value, review);
   previewWith(async () => Response.json({ detail: 'Destination unavailable' }, { status: 409 }));
   const refused = app.load(); settleConfirmDialog(true); await refused;
-  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /Destination unavailable/);
+  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /saved content changed/);
 }, true));
 
 for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} uses the same selected fields and one submitted child identity`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
@@ -418,7 +495,7 @@ for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} use
   await flush();
   app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
   assert.equal(app.selected.value, child); assert.equal(app.draft.value.items.length, 1);
-  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).toLowerCase().startsWith(`${kind} ·`));
   const action = (node, title, operation) => {
     const select = descendants(node).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === `${title} action`);
     assert.ok(select, `${title} must be reachable for the nested child`); select.props.onChange({ target: { value: operation } });
@@ -487,7 +564,7 @@ test('folded child shows effective placement and accepts deliberate resolution w
   const owner = captured.ChoiceControls;
   owner.scope({ target: { checked: true } }); await flush();
   const region = app.draft.value.items[0]; region.customName = true; region.name = 'New container'; await flush();
-  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('place ·'));
+  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('Place ·'));
   assert.match(textOf(childNode()), /Result: New normal Region “New container”.*After C Place/s);
   assert.match(textOf(childNode()), /Choose Append or At start.*turn off Region children/s);
   await app.apply(); assert.equal(sent.length, 0); assert.equal(first.position, 'after'); assert.equal(first.afterId, 'CP');
@@ -523,7 +600,7 @@ for (const kind of ['place', 'area']) test(`shared block folds one ${kind} ident
   assert.equal(app.draft.value.items.length, 1);
   const nested = app.draft.value.items[0].children.find(c => c.sourceId === id);
   assert.equal(nested.name, 'Reviewed child'); assert.notEqual(nested, first); assert.notEqual(nested, defaultChild);
-  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).toLowerCase().startsWith(`${kind} ·`));
   assert.ok(descendants(childNode).some(n => n.props['aria-label'] === 'Notes action'));
   await app.apply(); await flush();
   assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);

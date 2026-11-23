@@ -9,6 +9,15 @@ export const registerLanguageDraft = (owner) => {
     return () => state.draftOwners.delete(owner);
 };
 
+/** Allows the selector to appear after the document's workspace has installed its owners. */
+export const enableWorkspaceLanguage = () => {
+    state.workspaceReady = true;
+    window.dispatchEvent(new Event('wayfarer:language-availability'));
+};
+
+/** Checks readiness even if the workspace mounted before the shell selector initialized. */
+export const isWorkspaceLanguageReady = () => state.workspaceReady === true;
+
 /** Queries only current owners and never invokes an editor's close or discard workflow. */
 export const hasLanguageDraft = () => [...state.draftOwners].some(owner => owner());
 

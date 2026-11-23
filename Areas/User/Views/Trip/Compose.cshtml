@@ -1,9 +1,12 @@
+@using Wayfarer.Localization
+@inject WebMessages T
 @inject IWebHostEnvironment Environment
 @using System.Security.Claims
 @{
-    // Compose shares Vue bootstrapping and retains its English content until Area 9.
+    // Both Vue workspaces register their owners before enabling the language action.
     ViewData["WebCatalog"] = "Editor";
-    ViewData["WebContentLanguage"] = "en";
+    ViewData["LanguageWorkspace"] = true;
+    ViewData["Title"] = ViewData["CopyMode"] is true ? T["Editor.CompositionCopyToExistingTrip"] : T["Editor.CompositionCompareCombineTrips"];
     Layout = "~/Views/Shared/_Layout.cshtml";
     var assets = Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/trip-editor/src/main.ts");
 }
@@ -15,7 +18,7 @@
 <div id="trip-composition-app" data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
      data-composition-id="@ViewData["CompositionId"]" data-copy="@ViewData["CopyMode"]"
      data-source="@ViewData["CopySource"]" data-destination="@ViewData["CopyDestination"]">
-    <p role="status">Loading Trip composition…</p>
+    <p role="status">@T["Editor.TripsLoadingTripComposition"]</p>
 </div>
 @section Scripts {
     @if (Environment.IsDevelopment())
@@ -26,6 +29,6 @@
     else if (assets.Script != null) { <script type="module" src="@assets.Script"></script> }
     else
     {
-        <p role="alert">Trip composition assets are unavailable. <a href="/User/Trip">Return to My Trips</a>.</p>
+        <p role="alert">@T["Editor.TripsTripCompositionAssetsAreUnavailable"] <a href="/User/Trip">@T["Editor.TripsReturnToMyTrips"]</a>.</p>
     }
 }

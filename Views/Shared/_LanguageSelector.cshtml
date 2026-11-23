@@ -11,7 +11,7 @@
 {
     @* The modal holds the current document while applying a preference. The form has no ordinary POST fallback. *@
     <button type="button" id="language-open" class="btn btn-outline-secondary" aria-haspopup="dialog" hidden>@T["Shell.Language"]</button>
-    <dialog id="language-dialog" class="language-dialog border rounded p-3 bg-body text-body" aria-labelledby="language-title" data-safe-get="@destination">
+    <dialog id="language-dialog" class="language-dialog border rounded p-3 bg-body text-body" aria-labelledby="language-title" data-safe-get="@destination" data-workspace="@(ViewData["LanguageWorkspace"] is true ? "true" : null)">
         <h2 id="language-title" class="h5">@T["Shell.Language"]</h2>
         <form method="dialog" id="language-form" data-url="@Url.Action("Set", "Language", new { area = "" })">
             @Html.AntiForgeryToken()

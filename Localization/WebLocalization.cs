@@ -27,9 +27,11 @@ public static class WebLocalization
                 var previous = options.DataAnnotationLocalizerProvider;
                 var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
                 var locations = new WebAnnotationLocalizer(messages, "Locations.", "Transfers.");
+                var trips = new WebAnnotationLocalizer(messages, "Editor.Trips");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
                     SettingsValidationMetadata.Owns(type) ? settings
                     : LocationVisitValidationMetadata.Owns(type) ? locations
+                    : type == typeof(Wayfarer.Models.Trip) ? trips
                     : previous?.Invoke(type, factory) ?? factory.Create(type);
             });
     }

@@ -61,11 +61,11 @@ public class TripImportController : BaseController
                 ? await _svc.ImportWayfarerKmlAsync(stream, userId, mode, HttpContext.RequestAborted)
                 : await _svc.ImportReviewedNativeAsync(stream, userId, new(reviewToken, choices ?? []), HttpContext.RequestAborted);
             var redirectUrl = $"/User/Trip/Edit/{result.TripId:D}";
+            // The editor landing document owns outcome feedback and resolves its language on GET.
             if (result.IsGenericWithRoutes)
-            {
-                TempData["AlertType"] = "info";
-                TempData["AlertMessage"] = GenericRouteReminder;
-            }
+                SetAlert(GenericRouteReminder, "info", "Editor.TripsImportedKMLRoutesDoNotContain");
+            else
+                SetAlert("Trip imported successfully.", "success", "Editor.TripsTripImportedSuccessfully");
             return Json(new
             {
                 status = "success",

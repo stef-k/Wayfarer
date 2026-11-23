@@ -314,6 +314,51 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Equal("one", polish.PluralCategory(1));
     }
 
+    /// <summary>My Trips and both Vue entries share the resolved document locale. Create can discard through its owned GET.</summary>
+    [Fact]
+    public async Task TripDocumentsShareLocaleAndCreateRetainsInvalidDraft()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            IdentityRouteHost.WithStartupSettings(services);
+            services.AddSingleton(Moq.Mock.Of<Wayfarer.Services.ICacheWarmupScheduler>());
+            services.AddSingleton(Moq.Mock.Of<Wayfarer.Services.ITripMapThumbnailGenerator>());
+            services.AddSingleton(Moq.Mock.Of<Wayfarer.Services.ITripTagService>());
+        });
+        using var client = app.GetTestClient();
+        UserConnectionTokenHttpTests.Cookie(client, app.Services, user.Id);
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
+        foreach (var (path, title) in new[]
+        {
+            ("/User/Trip", "Τα ταξίδια μου"),
+            ("/User/Trip/Compose", "Σύγκριση και συνδυασμός ταξιδιών"),
+            ("/User/Trip/Copy", "Αντιγραφή σε υπάρχον ταξίδι")
+        })
+        {
+            using var response = await client.GetAsync(path);
+            var page = await ParseAsync(response);
+            Assert.Equal("el-GR", page.DocumentElement!.GetAttribute("lang"));
+            Assert.Contains(title, page.Title);
+            Assert.Equal("true", page.QuerySelector("#language-dialog")?.GetAttribute("data-workspace"));
+            using var bootstrap = JsonDocument.Parse(page.QuerySelector("#wayfarer-locale")!.TextContent);
+            Assert.Equal("el-GR", bootstrap.RootElement.GetProperty("locale").GetString());
+        }
+        await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
+        using var invalid = await client.PostAsync("/User/Trip/Create", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Name"] = "", ["Notes"] = "Δοκιμή <Trail>", ["submitAction"] = "save"
+        }));
+        var create = await ParseAsync(invalid);
+        Assert.Contains("Το όνομα είναι υποχρεωτικό.", create.QuerySelector(".validation-summary-errors")?.TextContent);
+        Assert.Equal("Δοκιμή <Trail>", create.QuerySelector("#Notes")?.TextContent.Trim());
+        Assert.Equal("/User/Trip/Create", create.QuerySelector("#language-dialog")?.GetAttribute("data-safe-get"));
+        Assert.Empty(db.Trips);
+    }
+
     /// <summary>Navigation uses the same locale in each authenticated role without widening menu authority.</summary>
     [Theory]
     [InlineData("User", "Chronological", "Users")]

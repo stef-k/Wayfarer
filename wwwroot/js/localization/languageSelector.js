@@ -1,5 +1,5 @@
 import { locale } from './messages.js';
-import { hasLanguageDraft, languageDestination, navigateInLanguage, isLanguageNavigationHeld } from './languageNavigation.js';
+import { hasLanguageDraft, languageDestination, navigateInLanguage, isLanguageNavigationHeld, isWorkspaceLanguageReady } from './languageNavigation.js';
 
 const dialog = document.getElementById('language-dialog');
 const form = document.getElementById('language-form');
@@ -53,14 +53,15 @@ const setApplying = (busy) => {
 };
 
 /** The feature retains ownership of pending work and its existing recovery instructions. */
+const unavailable = () => isLanguageNavigationHeld() || (dialog.dataset.workspace && !isWorkspaceLanguageReady());
 const syncAvailability = () => {
-    open.hidden = isLanguageNavigationHeld();
+    open.hidden = Boolean(unavailable());
     if (open.hidden && dialog.open && !applying) dialog.close();
 };
 window.addEventListener('wayfarer:language-availability', syncAvailability);
 syncAvailability();
 open.addEventListener('click', () => {
-    if (isLanguageNavigationHeld()) return;
+    if (unavailable()) return;
     form.reset();
     error.hidden = true;
     showConfirmation(false);
@@ -73,7 +74,7 @@ dialog.addEventListener('close', () => open.focus());
 
 form.addEventListener('submit', async event => {
     event.preventDefault();
-    if (applying || isLanguageNavigationHeld()) return;
+    if (applying || unavailable()) return;
     const data = new FormData(form);
     const different = data.get('locale') !== locale;
     const destination = languageDestination(window.location.href, safeGet);

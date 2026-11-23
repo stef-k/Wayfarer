@@ -1260,7 +1260,7 @@ public class VisitBackfillService : IVisitBackfillService
                     var hasUserCheckin = checkinCount >= 1;
 
                     // Generate suggestion reason
-                    var reason = GenerateSuggestionReason(
+                    var (reason, evidence) = GenerateSuggestionReason(
                         hasUserCheckin, hitsTier1, hitsTier2, hitsTier3, hitsTotal,
                         tier1Radius, tier2Radius, tier3Radius);
 
@@ -1277,6 +1277,7 @@ public class VisitBackfillService : IVisitBackfillService
                         HitsTotal = hitsTotal,
                         HasUserCheckin = hasUserCheckin,
                         SuggestionReason = reason,
+                        SuggestionEvidence = evidence,
                         FirstSeenUtc = firstSeen,
                         LastSeenUtc = lastSeen,
                         Latitude = place.Location!.Y,
@@ -1310,9 +1311,9 @@ public class VisitBackfillService : IVisitBackfillService
     }
 
     /// <summary>
-    /// Generates a human-readable reason for why a place is being suggested.
+    /// Supplies the existing reason and the exact evidence used to render it in other locales.
     /// </summary>
-    private static string GenerateSuggestionReason(
+    private static (string Reason, VisitSuggestionEvidence? Evidence) GenerateSuggestionReason(
         bool hasUserCheckin,
         int hitsTier1,
         int hitsTier2,
@@ -1324,35 +1325,37 @@ public class VisitBackfillService : IVisitBackfillService
     {
         if (hasUserCheckin)
         {
-            return "User checked in nearby";
+            return ("User checked in nearby", null);
         }
 
         if (hitsTier1 >= 1 && hitsTier2 >= 2)
         {
-            return $"Cross-tier: {hitsTier1} within {tier1Radius}m + {hitsTier2} within {tier2Radius}m";
+            return ($"Cross-tier: {hitsTier1} within {tier1Radius}m + {hitsTier2} within {tier2Radius}m",
+                new(hitsTier1, tier1Radius, hitsTier2, tier2Radius));
         }
 
         if (hitsTier2 >= 1 && hitsTier3 >= 3)
         {
-            return $"Cross-tier: {hitsTier2} within {tier2Radius}m + {hitsTier3} within {tier3Radius}m";
+            return ($"Cross-tier: {hitsTier2} within {tier2Radius}m + {hitsTier3} within {tier3Radius}m",
+                new(hitsTier2, tier2Radius, hitsTier3, tier3Radius));
         }
 
         if (hitsTier1 >= 1)
         {
-            return $"{hitsTier1} ping{(hitsTier1 > 1 ? "s" : "")} within {tier1Radius}m";
+            return ($"{hitsTier1} ping{(hitsTier1 > 1 ? "s" : "")} within {tier1Radius}m", new(hitsTier1, tier1Radius));
         }
 
         if (hitsTier2 >= 2)
         {
-            return $"{hitsTier2} pings within {tier2Radius}m";
+            return ($"{hitsTier2} pings within {tier2Radius}m", new(hitsTier2, tier2Radius));
         }
 
         if (hitsTier3 >= 3)
         {
-            return $"{hitsTier3} pings within {tier3Radius}m";
+            return ($"{hitsTier3} pings within {tier3Radius}m", new(hitsTier3, tier3Radius));
         }
 
-        return $"{hitsTotal} pings within extended range";
+        return ($"{hitsTotal} pings within extended range", new(hitsTotal));
     }
 
     /// <inheritdoc />

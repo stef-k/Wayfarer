@@ -32,8 +32,8 @@ namespace Wayfarer.Models
         public ApplicationUser User { get; set; } = default!;
 
         /// <summary>Trip name or title.</summary>
-        [Required]
-        [StringLength(200, MinimumLength = 1)]
+        [Required(ErrorMessage = "Editor.TripsNameRequired")]
+        [StringLength(200, MinimumLength = 1, ErrorMessage = "Editor.TripsNameLength")]
         public string Name { get; set; } = default!;
 
         /// <summary>Rich-text HTML notes, may include embedded images via &lt;img&gt; tags.</summary>

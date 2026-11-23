@@ -6,6 +6,7 @@ import { holdLanguageNavigation, isLanguageUnload, languageDestination, navigate
 import { resolveViewerCamera, writeViewerCamera } from '../../wwwroot/js/Trip/viewerCamera.js';
 import { pdfProgressText } from '../../wwwroot/js/Trip/viewerExports.js';
 import { populateViewerPrint } from '../../wwwroot/js/Trip/viewerPrint.js';
+import { visitScanSummary } from '../../wwwroot/js/Areas/User/Trip/visitScanText.js';
 import { bindHiddenAreaDraft } from '../../wwwroot/js/Areas/User/HiddenAreas/drawing.js';
 
 test('registered test catalog uses Polish categories and English grammar for missing messages', async () => {
@@ -20,6 +21,16 @@ test('registered test catalog uses Polish categories and English grammar for mis
   assert.equal(plural('Shell.Missing', 0, '{0} thing', '{0} things'), '0 things');
   assert.equal(plural('Shell.Missing', 1, '{0} thing', '{0} things'), '1 thing');
   assert.equal(plural('Shell.Missing', 3, '{0} thing', '{0} things'), '3 things');
+});
+
+test('Trip visit scan uses Greek cardinal forms for pending actions', async () => {
+  const source = await readFile(new URL('../../Resources/Editor.el-GR.resx', import.meta.url), 'utf8');
+  const messages = Object.fromEntries(Array.from(source.matchAll(/<data name="(Editor\.TripsScan[^"]+)"[^>]*>\s*<value>([^<]+)<\/value>/g),
+    ([, key, value]) => [key, value]));
+  const { plural } = createMessages({ locale: 'el-GR', fallback: 'en-US', messages, english: {} });
+  const firstRow = confirmed => visitScanSummary({ confirmed, suggested: 0, stale: 0, existing: 0 }, plural)[0];
+  assert.deepEqual(firstRow(1), ['summary-create', 1, 'Θα δημιουργηθεί 1 επιβεβαιωμένη επίσκεψη']);
+  assert.deepEqual(firstRow(2), ['summary-create', 2, 'Θα δημιουργηθούν 2 επιβεβαιωμένες επισκέψεις']);
 });
 
 test('safe destination preserves query/fragment and permits only the one shared unload event', () => {

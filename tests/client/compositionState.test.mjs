@@ -38,13 +38,16 @@ test('same submitted input saves, while a different selection is never closed by
   assert.equal(accepted, 1); assert.equal(store.state.status, 'Saved to C.');
 });
 
-test('stale originals and uncertain communication retain all choices and require an explicit read before another action', async () => {
+test('stale originals retain choices until the mounted owner completes inspection', async () => {
   const { store, draft } = await setup(); let saves = 0;
   await store.submit(draft, { source: 'b', items: [] }, async () => { saves++; throw new Error('C changed. Keep choices and review originals.'); }, () => {});
   assert.equal(draft.items[0].name, 'Initial'); assert.equal(store.state.needsInspection, true);
   await store.submit(draft, { source: 'b', items: [] }, async () => { saves++; return workspace(); }, () => {});
   assert.equal(saves, 1); await store.read(async () => workspace());
-  assert.equal(store.state.needsInspection, false); assert.equal(store.state.view.drafts['b/place/place'].items[0].name, 'Initial');
+  assert.equal(store.state.needsInspection, true, 'ordinary reads cannot clear inspection');
+  store.completeInspection();
+  assert.equal(store.state.needsInspection, false);
+  assert.equal(store.state.view.drafts['b/place/place'].items[0].name, 'Initial');
 });
 
 test('read generations, response identity and retired context cannot replace another saved C', async () => {
@@ -54,7 +57,7 @@ test('read generations, response identity and retired context cannot replace ano
   oldRead.resolve(workspace()); await read; assert.equal(store.state.workspace.current.graph.name, 'Latest');
   await store.submit(draft, { source: 'b', items: [] }, async () => ({ ...workspace(), tripId: 'wrong' }), () => assert.fail('foreign acknowledgement'));
   assert.equal(store.state.workspace.tripId, 'C'); assert.match(store.state.error, /does not match/);
-  await store.read(async () => workspace()); const late = deferred();
+  await store.read(async () => workspace()); store.completeInspection(); const late = deferred();
   const save = store.submit(draft, { source: 'b', items: [] }, () => late.promise, () => assert.fail('retired owner'));
   store.dispose(); late.resolve(newer); await save;
   assert.notEqual(store.state.workspace.current.graph.name, 'Latest');

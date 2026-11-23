@@ -2832,4 +2832,1975 @@
   <data name="Editor.PlaceCoordinateUnselected" xml:space="preserve">
     <value>Δεν έχουν επιλεγεί συντεταγμένες</value>
   </data>
+  <data name="Editor.CompositionReviewTheCurrentRouteAndIts" xml:space="preserve">
+    <value>Ελέγξτε την τρέχουσα διαδρομή και τις εξαρτήσεις της πριν εφαρμόσετε αυτή την επιλογή.</value>
+  </data>
+  <data name="Editor.CompositionTheSavedContentChangedKeepYour" xml:space="preserve">
+    <value>Το αποθηκευμένο περιεχόμενο άλλαξε. Διατηρήστε τις επιλογές σας και ελέγξτε την τρέχουσα πηγή ή τον προορισμό πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionTheTripOrComparisonIsUnavailable" xml:space="preserve">
+    <value>Το ταξίδι ή η σύγκριση δεν είναι διαθέσιμα. Ελέγξτε την πρόσβασή σας και ανανεώστε τα ταξίδια σας.</value>
+  </data>
+  <data name="Editor.CompositionTheActionCouldNotBeConfirmed" xml:space="preserve">
+    <value>Η ενέργεια δεν επιβεβαιώθηκε. Ελέγξτε ή ανανεώστε το αποθηκευμένο ταξίδι πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheSelectedFieldsDependenciesAnd" xml:space="preserve">
+    <value>Ελέγξτε τα επιλεγμένα πεδία, τις εξαρτήσεις και τις αρχικές τιμές.</value>
+  </data>
+  <data name="Editor.CompositionRequestFailed0KeepYourChoices" xml:space="preserve">
+    <value>Το αίτημα απέτυχε ({0}). Διατηρήστε τις επιλογές σας και ελέγξτε τον τρέχοντα προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionYourSessionIsUnavailableSignIn" xml:space="preserve">
+    <value>Η συνεδρία δεν είναι διαθέσιμη. Συνδεθείτε ξανά. Οι επιλογές παραμένουν στο πρόχειρο του λογαριασμού σας.</value>
+  </data>
+  <data name="Editor.CompositionTheResponseCouldNotBeRead" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η ανάγνωση της απάντησης. Ελέγξτε ή ανανεώστε το αποθηκευμένο ταξίδι πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionRemovalPreviewIsUnavailableReviewAgain" xml:space="preserve">
+    <value>Η προεπισκόπηση αφαίρεσης δεν είναι διαθέσιμη. Ελέγξτε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionTheReviewedDestination" xml:space="preserve">
+    <value>τον ελεγμένο προορισμό</value>
+  </data>
+  <data name="Editor.CompositionDeleteRegion0AndItsNotes" xml:space="preserve">
+    <value>Διαγραφή της περιοχής «{0}», των σημειώσεων, του εξωφύλλου, του κέντρου και του σχεδιασμού της. Μετακίνηση μερών ({1}) και ζωνών ({2}) προς: {3}. Διαγραφή μερών ({4}), ζωνών ({5}) και τμημάτων με άκρο στην περιοχή ({6}). Ενημέρωση διαδρομών ({7}) και αποσύνδεση ενδιάμεσων σημείων ({8}). Οι πηγές A και B διατηρούνται. Η διαγραφή δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.CompositionPermanentlyRemoveThis0AndIts" xml:space="preserve">
+    <value>Να αφαιρεθούν οριστικά από το C το στοιχείο τύπου «{0}», οι σημειώσεις και ο σχεδιασμός του; Οι πηγές και οι υπάρχουσες αναφορές διατηρούνται. Η αφαίρεση δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.CompositionCoordinateReviewIsUnavailable" xml:space="preserve">
+    <value>Ο έλεγχος συντεταγμένων δεν είναι διαθέσιμος.</value>
+  </data>
+  <data name="Editor.CompositionUseTheSelectedCoordinatesReview0" xml:space="preserve">
+    <value>Να χρησιμοποιηθούν οι επιλεγμένες συντεταγμένες; Ελέγξτε τις διαδρομές που επηρεάζονται ({0}). Οι κανόνες του επεξεργαστή ενημερώνουν τα σημεία και τις μετρήσεις διαδρομών, καθώς και τον εντοπισμένο εμπλουτισμό. Η διεύθυνση διατηρείται. Δεν γίνεται νέα δρομολόγηση από πάροχο.</value>
+  </data>
+  <data name="Editor.CompositionCurrentRouteEvidenceIsUnavailableOpen" xml:space="preserve">
+    <value>Τα τρέχοντα στοιχεία διαδρομής δεν είναι διαθέσιμα. Ανοίξτε τον επεξεργαστή διαδρομής και ελέγξτε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionHistorical" xml:space="preserve">
+    <value>Παλαιά</value>
+  </data>
+  <data name="Editor.Composition0Route" xml:space="preserve">
+    <value>Διαδρομή · {0}</value>
+  </data>
+  <data name="Editor.CompositionUnavailableObject" xml:space="preserve">
+    <value>Το στοιχείο δεν είναι διαθέσιμο</value>
+  </data>
+  <data name="Editor.CompositionPlanningIsUnavailableForThisSource" xml:space="preserve">
+    <value>Ο σχεδιασμός δεν είναι διαθέσιμος για αυτή την πηγή.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedCurrentCounterpartIsUnavailable" xml:space="preserve">
+    <value>Το επιλεγμένο αντίστοιχο στοιχείο δεν είναι διαθέσιμο. Ελέγξτε τον τρέχοντα προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionTheCapturedSourceObjectIsUnavailable" xml:space="preserve">
+    <value>Το καταγεγραμμένο στοιχείο πηγής δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="Editor.CompositionConflictingChoicesFor0KeepRegion" xml:space="preserve">
+    <value>Αντικρουόμενες επιλογές για «{0}». Διατηρήστε μόνο την περιοχή ή αφαιρέστε το στοιχείο από την τοπική ομάδα ή τον έλεγχο πριν εντάξετε τα στοιχεία της περιοχής. Και τα δύο πρόχειρα διατηρούνται.</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentCCounterpart" xml:space="preserve">
+    <value>Επιλέξτε υπάρχον αντίστοιχο στοιχείο στον προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionUseNormalDeleteC" xml:space="preserve">
+    <value>Χρησιμοποιήστε τη διαγραφή του C.</value>
+  </data>
+  <data name="Editor.CompositionTripMetadataIsAdoptedIntoCurrent" xml:space="preserve">
+    <value>Τα μεταδεδομένα ταξιδιού υιοθετούνται στο τρέχον C.</value>
+  </data>
+  <data name="Editor.CompositionEnterTheCustomName" xml:space="preserve">
+    <value>Εισαγάγετε το προσαρμοσμένο όνομα.</value>
+  </data>
+  <data name="Editor.CompositionChooseARegionOrCreateA" xml:space="preserve">
+    <value>Επιλέξτε περιοχή ή δημιουργήστε νέα κανονική περιοχή.</value>
+  </data>
+  <data name="Editor.CompositionSelectANormalRegionForAn" xml:space="preserve">
+    <value>Επιλέξτε κανονική περιοχή για τη ζώνη.</value>
+  </data>
+  <data name="Editor.CompositionSelectOrCreateANormalRegion" xml:space="preserve">
+    <value>Επιλέξτε ή δημιουργήστε κανονική περιοχή για τη ζώνη.</value>
+  </data>
+  <data name="Editor.CompositionSelectACompatibleCurrentCItem" xml:space="preserve">
+    <value>Επιλέξτε συμβατό στοιχείο στον προορισμό για εισαγωγή μετά από αυτό.</value>
+  </data>
+  <data name="Editor.CompositionThisSelectedFieldIsUnavailable" xml:space="preserve">
+    <value>Το επιλεγμένο πεδίο δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheCurrentRouteAnchor" xml:space="preserve">
+    <value>Ελέγξτε το τρέχον σημείο διαδρομής.</value>
+  </data>
+  <data name="Editor.CompositionExplicitlyApproveEveryMissingFromTo" xml:space="preserve">
+    <value>Εγκρίνετε ρητά κάθε μέρος που λείπει από αφετηρία, ενδιάμεση στάση ή προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedPlaceAndRouteDependency" xml:space="preserve">
+    <value>Το επιλεγμένο μέρος και το σημείο της διαδρομής χρειάζονται την ίδια ελεγμένη περιοχή προορισμού.</value>
+  </data>
+  <data name="Editor.CompositionSelectTheApprovedDependencyPlaceIn" xml:space="preserve">
+    <value>Επιλέξτε το εγκεκριμένο εξαρτώμενο μέρος σε αυτή την ομάδα πριν από την εφαρμογή.</value>
+  </data>
+  <data name="Editor.CompositionReviewRemovalAsASeparateAction" xml:space="preserve">
+    <value>Ελέγξτε την αφαίρεση χωριστά από την ομάδα ενεργειών.</value>
+  </data>
+  <data name="Editor.CompositionPlace" xml:space="preserve">
+    <value>Μέρος</value>
+  </data>
+  <data name="Editor.CompositionSegment" xml:space="preserve">
+    <value>Τμήμα διαδρομής</value>
+  </data>
+  <data name="Editor.CompositionCanonicalUnassignedPlaces" xml:space="preserve">
+    <value>Μέρη χωρίς περιοχή</value>
+  </data>
+  <data name="Editor.CompositionInC" xml:space="preserve">
+    <value>Στο C</value>
+  </data>
+  <data name="Editor.CompositionMatched" xml:space="preserve">
+    <value>Αντιστοιχίστηκε</value>
+  </data>
+  <data name="Editor.CompositionKeptSeparate" xml:space="preserve">
+    <value>Διατηρήθηκε χωριστά</value>
+  </data>
+  <data name="Editor.CompositionSkipped" xml:space="preserve">
+    <value>Παραλείφθηκε</value>
+  </data>
+  <data name="Editor.CompositionRemovedFromC" xml:space="preserve">
+    <value>Αφαιρέθηκε από το C</value>
+  </data>
+  <data name="Editor.CompositionReviewNeeded" xml:space="preserve">
+    <value>Απαιτείται έλεγχος</value>
+  </data>
+  <data name="Editor.CompositionComparisonResponseIsIncompleteOrBelongs" xml:space="preserve">
+    <value>Η απάντηση της σύγκρισης είναι ελλιπής ή αφορά άλλο σύνολο. Ανανεώστε τον αποθηκευμένο προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionTheSavedDestinationDoesNotMatch" xml:space="preserve">
+    <value>Ο αποθηκευμένος προορισμός δεν αντιστοιχεί σε αυτή τη σύγκριση. Ελέγξτε ή ανανεώστε τον προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionRefreshUnavailable" xml:space="preserve">
+    <value>Η ανανέωση δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionSavingTheReviewedAction" xml:space="preserve">
+    <value>Αποθήκευση ελεγμένης ενέργειας…</value>
+  </data>
+  <data name="Editor.CompositionTheReplyDoesNotMatchThis" xml:space="preserve">
+    <value>Η απάντηση είναι ελλιπής ή δεν αντιστοιχεί σε αυτή τη σύγκριση. Ανανεώστε τον αποθηκευμένο προορισμό πριν από νέα ενέργεια.</value>
+  </data>
+  <data name="Editor.CompositionSavedTo0" xml:space="preserve">
+    <value>Αποθηκεύτηκε στον προορισμό «{0}».</value>
+  </data>
+  <data name="Editor.CompositionEarlierActionSavedTo0Newer" xml:space="preserve">
+    <value>Η προηγούμενη ενέργεια αποθηκεύτηκε στον προορισμό «{0}». Οι νεότερες επιλογές εκκρεμούν. Ελέγξτε τον τρέχοντα προορισμό «{1}» πριν από την εφαρμογή.</value>
+  </data>
+  <data name="Editor.CompositionTheSaveCouldNotBeConfirmed" xml:space="preserve">
+    <value>Η αποθήκευση δεν επιβεβαιώθηκε. Ελέγξτε ή ανανεώστε τον προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionChoicesRetainedRefreshAndReviewCurrent" xml:space="preserve">
+    <value>Οι επιλογές διατηρήθηκαν. Ανανεώστε και ελέγξτε τον τρέχοντα προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionSavedCounterpartDecision" xml:space="preserve">
+    <value>Αποθηκευμένη απόφαση αντιστοίχισης</value>
+  </data>
+  <data name="Editor.CompositionRemovedCounterpart" xml:space="preserve">
+    <value>Αφαιρεμένο αντίστοιχο στοιχείο</value>
+  </data>
+  <data name="Editor.CompositionActionFor0" xml:space="preserve">
+    <value>Ενέργεια για: {0}</value>
+  </data>
+  <data name="Editor.CompositionCopyKeepSeparate" xml:space="preserve">
+    <value>Αντιγραφή ως ξεχωριστού στοιχείου</value>
+  </data>
+  <data name="Editor.CompositionReuseCurrentCounterpartKeepOrAdopt" xml:space="preserve">
+    <value>Χρήση υπάρχοντος στοιχείου / Διατήρηση ή υιοθέτηση επιλεγμένων πεδίων</value>
+  </data>
+  <data name="Editor.CompositionSkipThisSourceIdea" xml:space="preserve">
+    <value>Παράλειψη αυτού του στοιχείου της πηγής</value>
+  </data>
+  <data name="Editor.CompositionRemoveIncludedCounterpartFromC" xml:space="preserve">
+    <value>Αφαίρεση του αντίστοιχου στοιχείου από το C</value>
+  </data>
+  <data name="Editor.CompositionUnassignedPlacesIsAReservedCategory" xml:space="preserve">
+    <value>Τα «Μέρη χωρίς περιοχή» είναι δεσμευμένη κατηγορία. Επιλέξτε μεμονωμένα μέρη για αντιγραφή στον προορισμό «{0}». Η κατηγορία δεν αντιγράφεται ως κανονική περιοχή.</value>
+  </data>
+  <data name="Editor.CompositionDeliberatelyReAddThisExcludedIdea" xml:space="preserve">
+    <value>Επανένταξη αυτού του εξαιρεμένου στοιχείου</value>
+  </data>
+  <data name="Editor.CompositionCurrent0Counterpart" xml:space="preserve">
+    <value>Υπάρχον αντίστοιχο στοιχείο στον προορισμό «{0}»</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentCounterpart" xml:space="preserve">
+    <value>Επιλέξτε υπάρχον αντίστοιχο στοιχείο</value>
+  </data>
+  <data name="Editor.CompositionReuseKeepsThisIdentityItsRegion" xml:space="preserve">
+    <value>Η επαναχρησιμοποίηση διατηρεί την ταυτότητα, την περιοχή και τη θέση του στοιχείου. Τα αντίστοιχα πεδία διατηρούνται από προεπιλογή.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedCounterpartIsUnavailableIn" xml:space="preserve">
+    <value>Το επιλεγμένο αντίστοιχο δεν υπάρχει στα αρχικά δεδομένα. Ελέγξτε τον τρέχοντα προορισμό «{0}» και επιλέξτε ένα υπάρχον στοιχείο. Οι επιλογές πεδίων διατηρούνται.</value>
+  </data>
+  <data name="Editor.CompositionUseACustomName" xml:space="preserve">
+    <value>Χρήση προσαρμοσμένου ονόματος</value>
+  </data>
+  <data name="Editor.CompositionCustomName" xml:space="preserve">
+    <value>Προσαρμοσμένο όνομα</value>
+  </data>
+  <data name="Editor.CompositionOriginalName0" xml:space="preserve">
+    <value>Αρχικό όνομα: {0}</value>
+  </data>
+  <data name="Editor.CompositionUntitledSegmentDerivedRouteLabel" xml:space="preserve">
+    <value>Τμήμα χωρίς τίτλο · αυτόματη ετικέτα διαδρομής</value>
+  </data>
+  <data name="Editor.CompositionKeepSeparateEvenIfTheSame" xml:space="preserve">
+    <value>Δημιουργία ξεχωριστού στοιχείου ακόμη κι αν υπάρχει ίδιο όνομα ή άλλο αντίγραφο</value>
+  </data>
+  <data name="Editor.CompositionASameNameItemExistsIn" xml:space="preserve">
+    <value>Υπάρχει ομώνυμο στοιχείο στον προορισμό «{0}». Εξετάστε την επαναχρησιμοποίηση ή εγκρίνετε ξεχωριστό αντίγραφο.</value>
+  </data>
+  <data name="Editor.CompositionDestinationRegion" xml:space="preserve">
+    <value>Περιοχή προορισμού</value>
+  </data>
+  <data name="Editor.CompositionCanonicalUnassignedPlacesDefault" xml:space="preserve">
+    <value>Μέρη χωρίς περιοχή (προεπιλογή)</value>
+  </data>
+  <data name="Editor.CompositionSelectANormalRegion" xml:space="preserve">
+    <value>Επιλέξτε κανονική περιοχή</value>
+  </data>
+  <data name="Editor.CompositionOrCreateANormalRegionWith" xml:space="preserve">
+    <value>Ή δημιουργήστε κανονική περιοχή μαζί με το αντίγραφο</value>
+  </data>
+  <data name="Editor.CompositionEffectiveDestinationRegion0NewChildren" xml:space="preserve">
+    <value>Περιοχή προορισμού: {0}. Τα νέα στοιχεία εντάσσονται εκεί. Όσα επαναχρησιμοποιούνται παραμένουν στην τρέχουσα περιοχή και θέση τους.</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentRegionCounterpart" xml:space="preserve">
+    <value>Επιλέξτε υπάρχουσα αντίστοιχη περιοχή</value>
+  </data>
+  <data name="Editor.CompositionTripLevelInsertionPosition" xml:space="preserve">
+    <value>Θέση εισαγωγής στο ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionInsertionPositionIndependentOfRegion" xml:space="preserve">
+    <value>Θέση εισαγωγής (ανεξάρτητα από την περιοχή)</value>
+  </data>
+  <data name="Editor.CompositionInsertionPosition" xml:space="preserve">
+    <value>Θέση εισαγωγής</value>
+  </data>
+  <data name="Editor.CompositionAppend" xml:space="preserve">
+    <value>Στο τέλος</value>
+  </data>
+  <data name="Editor.CompositionAtStart" xml:space="preserve">
+    <value>Στην αρχή</value>
+  </data>
+  <data name="Editor.CompositionAfterSelection" xml:space="preserve">
+    <value>Μετά την επιλογή</value>
+  </data>
+  <data name="Editor.CompositionAfterThisCurrent01" xml:space="preserve">
+    <value>Μετά το επιλεγμένο στοιχείο στον προορισμό «{0}» ({1})</value>
+  </data>
+  <data name="Editor.CompositionSelectACompatibleItem" xml:space="preserve">
+    <value>Επιλέξτε συμβατό στοιχείο</value>
+  </data>
+  <data name="Editor.CompositionPreviousReference0OutsideThisList" xml:space="preserve">
+    <value>Προηγούμενη αναφορά · {0} (εκτός αυτής της λίστας)</value>
+  </data>
+  <data name="Editor.CompositionThePreviousAfterReferenceIsUnavailable" xml:space="preserve">
+    <value>Η προηγούμενη αναφορά εισαγωγής δεν υπάρχει στη λίστα προορισμού. Επιλέξτε «Στο τέλος», «Στην αρχή» ή ένα συμβατό στοιχείο αναφοράς, ή καταργήστε την ένταξη των στοιχείων της περιοχής. Οι επιλογές πεδίων διατηρούνται.</value>
+  </data>
+  <data name="Editor.CompositionThePreviousAfterReferenceIsUnavailable2" xml:space="preserve">
+    <value>Η προηγούμενη αναφορά εισαγωγής δεν υπάρχει στη λίστα προορισμού. Επιλέξτε «Στο τέλος», «Στην αρχή» ή ένα συμβατό στοιχείο αναφοράς. Οι επιλογές πεδίων διατηρούνται.</value>
+  </data>
+  <data name="Editor.CompositionResult01" xml:space="preserve">
+    <value>Αποτέλεσμα: {0} · {1}</value>
+  </data>
+  <data name="Editor.Composition0TripLevelSegments" xml:space="preserve">
+    <value>{0} · Τμήματα διαδρομής</value>
+  </data>
+  <data name="Editor.Composition0Regions" xml:space="preserve">
+    <value>{0} · Περιοχές</value>
+  </data>
+  <data name="Editor.CompositionNewNormalRegion0CreatedFor" xml:space="preserve">
+    <value>Νέα κανονική περιοχή «{0}» (δημιουργείται για αυτό το στοιχείο)</value>
+  </data>
+  <data name="Editor.CompositionAfter0" xml:space="preserve">
+    <value>Μετά από: {0}</value>
+  </data>
+  <data name="Editor.CompositionDirectPlaces" xml:space="preserve">
+    <value>Μέρη της περιοχής</value>
+  </data>
+  <data name="Editor.CompositionKeepInTheReviewedFallback" xml:space="preserve">
+    <value>Διατήρηση στην ελεγμένη εφεδρική περιοχή</value>
+  </data>
+  <data name="Editor.CompositionDeleteWithRegion" xml:space="preserve">
+    <value>Διαγραφή μαζί με την περιοχή</value>
+  </data>
+  <data name="Editor.CompositionDirectAreas" xml:space="preserve">
+    <value>Ζώνες της περιοχής</value>
+  </data>
+  <data name="Editor.CompositionKeepInTheReviewedNormalRegion" xml:space="preserve">
+    <value>Διατήρηση στην ελεγμένη κανονική περιοχή</value>
+  </data>
+  <data name="Editor.CompositionCurrentDeletionConsequencesAreShownBefore" xml:space="preserve">
+    <value>Οι συνέπειες της διαγραφής εμφανίζονται πριν από την εφαρμογή. Οι σημειώσεις, το εξώφυλλο, το κέντρο και ο σχεδιασμός της περιοχής αφαιρούνται.</value>
+  </data>
+  <data name="Editor.CompositionRegionAndDirectPlacesAreasOtherwise" xml:space="preserve">
+    <value>Περιοχή μαζί με τα μέρη και τις ζώνες της (αλλιώς μόνο η περιοχή)</value>
+  </data>
+  <data name="Editor.CompositionNoSubRegionsOrAutomaticSegments" xml:space="preserve">
+    <value>Δεν προστίθενται υποπεριοχές ή αυτόματα τμήματα. Όσα στοιχεία επαναχρησιμοποιούνται μένουν στον προορισμό «{0}» όπου βρίσκονται.</value>
+  </data>
+  <data name="Editor.CompositionNewNormalRegion0" xml:space="preserve">
+    <value>Νέα κανονική περιοχή «{0}»</value>
+  </data>
+  <data name="Editor.CompositionApproveCompleteFromOrderedViaTo" xml:space="preserve">
+    <value>Έγκριση όλων των σημείων αφετηρίας, ενδιάμεσων στάσεων και προορισμού</value>
+  </data>
+  <data name="Editor.CompositionFrom0To1" xml:space="preserve">
+    <value>Αφετηρία: {0} · Προορισμός: {1}</value>
+  </data>
+  <data name="Editor.CompositionNotSet" xml:space="preserve">
+    <value>Δεν έχει οριστεί</value>
+  </data>
+  <data name="Editor.CompositionOrderedViaPoints0" xml:space="preserve">
+    <value>Ενδιάμεσες στάσεις κατά σειρά: {0}</value>
+  </data>
+  <data name="Editor.CompositionThisHistoricalRouteHasNoPlace" xml:space="preserve">
+    <value>Αυτή η παλιά διαδρομή δεν έχει συνδεδεμένα μέρη. Η αποθηκευμένη γεωμετρία εμφανίζεται όταν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionSourceCoordinates0" xml:space="preserve">
+    <value>Συντεταγμένες πηγής: {0}</value>
+  </data>
+  <data name="Editor.CompositionUnlocated" xml:space="preserve">
+    <value>Χωρίς θέση</value>
+  </data>
+  <data name="Editor.CompositionApprovedCurrent0Place" xml:space="preserve">
+    <value>Εγκεκριμένο υπάρχον μέρος στον προορισμό «{0}»</value>
+  </data>
+  <data name="Editor.CompositionCopyASeparateSourceCoordinatePlace" xml:space="preserve">
+    <value>Αντιγραφή ξεχωριστού μέρους με τις συντεταγμένες της πηγής</value>
+  </data>
+  <data name="Editor.CompositionUseThePlaceAlreadySelectedIn" xml:space="preserve">
+    <value>Χρήση του ήδη επιλεγμένου μέρους αυτής της ομάδας στην περιοχή που ελέγχθηκε</value>
+  </data>
+  <data name="Editor.CompositionMissingPlaceDestinationRegion" xml:space="preserve">
+    <value>Περιοχή προορισμού για το μέρος που λείπει</value>
+  </data>
+  <data name="Editor.CompositionApproveASeparatePlaceWithThe" xml:space="preserve">
+    <value>Έγκριση ξεχωριστού μέρους με την καταγεγραμμένη θέση, στο τέλος αυτής της λίστας</value>
+  </data>
+  <data name="Editor.CompositionDeliberatelyReAddThisExcludedDependency" xml:space="preserve">
+    <value>επανένταξη αυτού του εξαιρεμένου σημείου</value>
+  </data>
+  <data name="Editor.CompositionCloseSemanticMatchesCanStillBe" xml:space="preserve">
+    <value>Παρόμοια μέρη μπορεί να είναι ασύμβατα σημεία της διαδρομής. Για μετακίνηση μέρους, διαγραφή γεωμετρίας ή αναδημιουργία διαδρομής απαιτείται έλεγχος στον επεξεργαστή.</value>
+  </data>
+  <data name="Editor.CompositionSharedApprovedDependenciesAndAPlace" xml:space="preserve">
+    <value>Οι κοινές εγκεκριμένες εξαρτήσεις και ένα μέρος που αντιγράφεται αλλού στην ομάδα χρησιμοποιούν ένα νέο μέρος όταν έχουν τον ίδιο ελεγμένο προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionDestination" xml:space="preserve">
+    <value>προορισμός</value>
+  </data>
+  <data name="Editor.CompositionReviewTheConflictingChildChoices" xml:space="preserve">
+    <value>Ελέγξτε τις αντικρουόμενες επιλογές επιμέρους στοιχείων.</value>
+  </data>
+  <data name="Editor.CompositionFrom" xml:space="preserve">
+    <value>Αφετηρία</value>
+  </data>
+  <data name="Editor.CompositionVia0RouteVertex1" xml:space="preserve">
+    <value>Ενδιάμεση στάση {0} · σημείο διαδρομής {1}</value>
+  </data>
+  <data name="Editor.CompositionTo" xml:space="preserve">
+    <value>Προορισμός</value>
+  </data>
+  <data name="Editor.CompositionComparisonFinished" xml:space="preserve">
+    <value>Η σύγκριση ολοκληρώθηκε</value>
+  </data>
+  <data name="Editor.CompositionCKeepsItsSavedContentVisibility" xml:space="preserve">
+    <value>Το C διατηρεί το αποθηκευμένο περιεχόμενο, την ορατότητα και τις αναφορές δημιουργών. Η σύγκριση έχει κλείσει οριστικά.</value>
+  </data>
+  <data name="Editor.CompositionContinueOrdinaryEditingOfC" xml:space="preserve">
+    <value>Συνέχεια επεξεργασίας του C</value>
+  </data>
+  <data name="Editor.CompositionTripComparisonWorkspace" xml:space="preserve">
+    <value>Χώρος σύγκρισης ταξιδιών</value>
+  </data>
+  <data name="Editor.CompositionCompareCombine" xml:space="preserve">
+    <value>Σύγκριση και συνδυασμός</value>
+  </data>
+  <data name="Editor.CompositionPublicSavedChangesUpdateTheSame" xml:space="preserve">
+    <value>Δημόσιο · οι αποθηκευμένες αλλαγές ενημερώνουν το ίδιο ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionPrivateTrip" xml:space="preserve">
+    <value>Ιδιωτικό ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionSavedEditable" xml:space="preserve">
+    <value>Αποθηκευμένο / επεξεργάσιμο</value>
+  </data>
+  <data name="Editor.CompositionCompositionActions" xml:space="preserve">
+    <value>Ενέργειες σύνθεσης</value>
+  </data>
+  <data name="Editor.CompositionEditCPublish" xml:space="preserve">
+    <value>Επεξεργασία / δημοσίευση του C</value>
+  </data>
+  <data name="Editor.CompositionRefreshSavedC" xml:space="preserve">
+    <value>Ανανέωση αποθηκευμένου C</value>
+  </data>
+  <data name="Editor.CompositionFinishComparison" xml:space="preserve">
+    <value>Ολοκλήρωση σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionDeleteC" xml:space="preserve">
+    <value>Διαγραφή του C</value>
+  </data>
+  <data name="Editor.CompositionInspectSavedC" xml:space="preserve">
+    <value>Έλεγχος αποθηκευμένου C</value>
+  </data>
+  <data name="Editor.CompositionTheSubmittedActionMayStillFinish" xml:space="preserve">
+    <value>Η ενέργεια που υποβάλατε μπορεί ακόμη να ολοκληρωθεί. Ελέγξτε το τρέχον C πριν αλλάξετε γλώσσα.</value>
+  </data>
+  <data name="Editor.CompositionLoadingCurrentSavedC" xml:space="preserve">
+    <value>Φόρτωση του αποθηκευμένου C…</value>
+  </data>
+  <data name="Editor.CompositionMapLayers" xml:space="preserve">
+    <value>Επίπεδα χάρτη</value>
+  </data>
+  <data name="Editor.CompositionEditableResult" xml:space="preserve">
+    <value>Επεξεργάσιμο αποτέλεσμα</value>
+  </data>
+  <data name="Editor.CompositionReadOnlySource" xml:space="preserve">
+    <value>Πηγή μόνο για ανάγνωση</value>
+  </data>
+  <data name="Editor.CompositionFocusSelection" xml:space="preserve">
+    <value>Εστίαση στην επιλογή</value>
+  </data>
+  <data name="Editor.CompositionResizeComparisonDrawer" xml:space="preserve">
+    <value>Αλλαγή μεγέθους πίνακα σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionDragOrUseUpDownArrows" xml:space="preserve">
+    <value>Σύρετε ή χρησιμοποιήστε τα βέλη πάνω/κάτω. Shift για μεγαλύτερα βήματα, Home/End για τα άκρα, Escape για ακύρωση της χρήσης του δείκτη.</value>
+  </data>
+  <data name="Editor.CompositionShowComparison" xml:space="preserve">
+    <value>Εμφάνιση σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionCollapseComparison" xml:space="preserve">
+    <value>Σύμπτυξη σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionComparisonDrawerSections" xml:space="preserve">
+    <value>Ενότητες πίνακα σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionInspector" xml:space="preserve">
+    <value>Έλεγχος</value>
+  </data>
+  <data name="Editor.CompositionSource0" xml:space="preserve">
+    <value>Πηγή {0}</value>
+  </data>
+  <data name="Editor.CompositionContextualComparisonInspector" xml:space="preserve">
+    <value>Πίνακας ελέγχου επιλεγμένου στοιχείου</value>
+  </data>
+  <data name="Editor.CompositionReviewedItemBlock" xml:space="preserve">
+    <value>Ομάδα ελεγμένων στοιχείων</value>
+  </data>
+  <data name="Editor.CompositionSource01ReadOnlyCaptured" xml:space="preserve">
+    <value>Πηγή {0} · {1} · Καταγεγραμμένο στοιχείο μόνο για ανάγνωση</value>
+  </data>
+  <data name="Editor.CompositionSomeSourceMediaWasOmittedBy" xml:space="preserve">
+    <value>Ορισμένα πολυμέσα παραλείφθηκαν λόγω δικαιωμάτων ή κανόνων αποθήκευσης. Επιλέξτε ξανά επιτρεπόμενες εικόνες στον επεξεργαστή του C. Η αντιγραφή δεν παραχωρεί δικαιώματα πολυμέσων.</value>
+  </data>
+  <data name="Editor.CompositionManualCounterpartSearch" xml:space="preserve">
+    <value>Χειροκίνητη αναζήτηση αντίστοιχου στοιχείου</value>
+  </data>
+  <data name="Editor.CompositionSearching" xml:space="preserve">
+    <value>Αναζήτηση…</value>
+  </data>
+  <data name="Editor.CompositionFindPossibleCounterparts" xml:space="preserve">
+    <value>Εύρεση πιθανών αντίστοιχων στοιχείων</value>
+  </data>
+  <data name="Editor.CompositionPossibleMatchReviewNeeded0Suggestions" xml:space="preserve">
+    <value>Πιθανή αντιστοίχιση · χρειάζεται έλεγχος · Προτάσεις: {0}</value>
+  </data>
+  <data name="Editor.CompositionEvidenceHelpsReviewItDoesNot" xml:space="preserve">
+    <value>Τα στοιχεία βοηθούν στον έλεγχο. Κοντινά μέρη και επικαλυπτόμενες ζώνες μπορεί να είναι διαφορετικά.</value>
+  </data>
+  <data name="Editor.CompositionResultsFor0" xml:space="preserve">
+    <value>Αποτελέσματα για: {0}.</value>
+  </data>
+  <data name="Editor.CompositionTheUnfilteredSourceSelection" xml:space="preserve">
+    <value>την επιλογή πηγής χωρίς φίλτρο</value>
+  </data>
+  <data name="Editor.CompositionPossibleMatchReviewNeeded" xml:space="preserve">
+    <value>Πιθανή αντιστοίχιση · χρειάζεται έλεγχος</value>
+  </data>
+  <data name="Editor.CompositionSameName" xml:space="preserve">
+    <value>Ίδιο όνομα</value>
+  </data>
+  <data name="Editor.CompositionDifferentName" xml:space="preserve">
+    <value>Διαφορετικό όνομα</value>
+  </data>
+  <data name="Editor.Composition0MetresApart" xml:space="preserve">
+    <value>Απόσταση {0} μ.</value>
+  </data>
+  <data name="Editor.CompositionGeometry0" xml:space="preserve">
+    <value>Γεωμετρία: {0}</value>
+  </data>
+  <data name="Editor.CompositionConfirmedChildCounterparts0" xml:space="preserve">
+    <value>Επιβεβαιωμένα αντίστοιχα επιμέρους στοιχεία: {0}</value>
+  </data>
+  <data name="Editor.CompositionConfirmedMappedAnchors" xml:space="preserve">
+    <value>Επιβεβαιωμένα αντίστοιχα σημεία</value>
+  </data>
+  <data name="Editor.CompositionDifferentOrUnconfirmedAnchors" xml:space="preserve">
+    <value>Διαφορετικά ή ανεπιβεβαίωτα σημεία</value>
+  </data>
+  <data name="Editor.CompositionMode0Profile1" xml:space="preserve">
+    <value>Μέσο: {0} · Προφίλ: {1}</value>
+  </data>
+  <data name="Editor.CompositionSame" xml:space="preserve">
+    <value>ίδιο</value>
+  </data>
+  <data name="Editor.CompositionDifferent" xml:space="preserve">
+    <value>διαφορετικό</value>
+  </data>
+  <data name="Editor.CompositionReviewThisCCounterpart" xml:space="preserve">
+    <value>Έλεγχος αυτού του αντίστοιχου στοιχείου στο C</value>
+  </data>
+  <data name="Editor.CompositionTheseReviewChoicesAreLocalUntil" xml:space="preserve">
+    <value>Οι επιλογές παραμένουν τοπικές μέχρι την εφαρμογή. Οι προηγούμενες επιτυχείς ενέργειες έχουν ήδη αποθηκευτεί στο C.</value>
+  </data>
+  <data name="Editor.CompositionBlockItem0" xml:space="preserve">
+    <value>Στοιχείο ομάδας {0}</value>
+  </data>
+  <data name="Editor.CompositionMoveUpInBlock" xml:space="preserve">
+    <value>Μετακίνηση πάνω στην ομάδα</value>
+  </data>
+  <data name="Editor.CompositionMoveDownInBlock" xml:space="preserve">
+    <value>Μετακίνηση κάτω στην ομάδα</value>
+  </data>
+  <data name="Editor.CompositionRemoveFromLocalBlock" xml:space="preserve">
+    <value>Αφαίρεση από την τοπική ομάδα</value>
+  </data>
+  <data name="Editor.CompositionUseFirstItemSDestinationPosition" xml:space="preserve">
+    <value>Χρήση προορισμού και θέσης του πρώτου στοιχείου για αντίγραφα ίδιου τύπου</value>
+  </data>
+  <data name="Editor.CompositionClearLocalBlock" xml:space="preserve">
+    <value>Εκκαθάριση τοπικής ομάδας</value>
+  </data>
+  <data name="Editor.CompositionNewSiblingsInEachDestinationList" xml:space="preserve">
+    <value>Τα νέα στοιχεία κάθε λίστας προορισμού εισάγονται διαδοχικά με τη σειρά εμφάνισης. Όσα επαναχρησιμοποιούνται παραμένουν στις θέσεις τους.</value>
+  </data>
+  <data name="Editor.CompositionSavingSubmittedAction" xml:space="preserve">
+    <value>Αποθήκευση υποβληθείσας ενέργειας…</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedActionToC" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης ενέργειας στο C</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentCRefreshOriginals" xml:space="preserve">
+    <value>Έλεγχος τρέχοντος C / ανανέωση αρχικών τιμών</value>
+  </data>
+  <data name="Editor.CompositionAddThisReviewedItemToBlock" xml:space="preserve">
+    <value>Προσθήκη του ελεγμένου στοιχείου στην ομάδα</value>
+  </data>
+  <data name="Editor.CompositionSelectASourceRegionPlaceArea" xml:space="preserve">
+    <value>Επιλέξτε περιοχή, μέρος, ζώνη, στοιχεία ταξιδιού ή τμήμα διαδρομής από την πηγή. Ο χάρτης εστιάζει στη διαθέσιμη γεωμετρία.</value>
+  </data>
+  <data name="Editor.CompositionReturnToSelectedItem" xml:space="preserve">
+    <value>Επιστροφή στο επιλεγμένο στοιχείο</value>
+  </data>
+  <data name="Editor.CompositionReviewBlock0Items" xml:space="preserve">
+    <value>Έλεγχος ομάδας · Στοιχεία: {0}</value>
+  </data>
+  <data name="Editor.CompositionOwnerSContributions0InheritedTerms" xml:space="preserve">
+    <value>Συνεισφορές ιδιοκτήτη: {0}. Οι κληρονομημένοι όροι παραμένουν χωριστοί. Η αντιγραφή ή υιοθέτηση μεταφέρει τις σχετικές αναφορές πηγής.</value>
+  </data>
+  <data name="Editor.CompositionNoPublicationGrantSelected" xml:space="preserve">
+    <value>Δεν έχει επιλεγεί άδεια δημοσίευσης</value>
+  </data>
+  <data name="Editor.CompositionReviewSourceTerms0" xml:space="preserve">
+    <value>Όροι χρήσης πηγής: {0}</value>
+  </data>
+  <data name="Editor.CompositionOwnedSource" xml:space="preserve">
+    <value>Δική σας πηγή</value>
+  </data>
+  <data name="Editor.CompositionInspectCorrectPublishableCreditsInTrip" xml:space="preserve">
+    <value>Έλεγχος ή διόρθωση δημόσιων αναφορών στις ρυθμίσεις ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionLoadingOrComparisonUnavailable" xml:space="preserve">
+    <value>Η σύγκριση φορτώνεται ή δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionTryReadingAgain" xml:space="preserve">
+    <value>Επανάληψη φόρτωσης</value>
+  </data>
+  <data name="Editor.CompositionSelectASourceIdea" xml:space="preserve">
+    <value>Επιλέξτε στοιχείο πηγής</value>
+  </data>
+  <data name="Editor.CompositionCandidateSearchUnavailable" xml:space="preserve">
+    <value>Η αναζήτηση υποψήφιων στοιχείων δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentC" xml:space="preserve">
+    <value>Έλεγχος τρέχοντος C;</value>
+  </data>
+  <data name="Editor.CompositionKeepYourChoicesAndUseCurrent" xml:space="preserve">
+    <value>Διατηρήστε τις επιλογές σας και χρησιμοποιήστε το τρέχον C ως βάση σύγκρισης. Ελέγξτε τις ενημερωμένες διαφορές και τη θέση πριν από την εφαρμογή. Οι επιλογές δεν αποθηκεύονται με αυτόν τον έλεγχο.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentOriginals" xml:space="preserve">
+    <value>Έλεγχος τρεχουσών αρχικών τιμών</value>
+  </data>
+  <data name="Editor.CompositionKeepPriorOriginals" xml:space="preserve">
+    <value>Διατήρηση προηγούμενων αρχικών τιμών</value>
+  </data>
+  <data name="Editor.CompositionCurrentOriginalsLoadedReviewTheRetained" xml:space="preserve">
+    <value>Οι τρέχουσες αρχικές τιμές φορτώθηκαν. Ελέγξτε τις διατηρημένες επιλογές πριν από την εφαρμογή.</value>
+  </data>
+  <data name="Editor.CompositionReviewYourSelectedFieldsAndDestination" xml:space="preserve">
+    <value>Ελέγξτε τα επιλεγμένα πεδία και τον προορισμό.</value>
+  </data>
+  <data name="Editor.CompositionComparisonContextChangedInspectSavedC" xml:space="preserve">
+    <value>Η σύγκριση άλλαξε. Ελέγξτε το αποθηκευμένο C.</value>
+  </data>
+  <data name="Editor.CompositionReviewConsequencesInC" xml:space="preserve">
+    <value>Έλεγχος συνεπειών στο C</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedAction" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης ενέργειας</value>
+  </data>
+  <data name="Editor.CompositionKeepChoices" xml:space="preserve">
+    <value>Διατήρηση επιλογών</value>
+  </data>
+  <data name="Editor.CompositionActionNotAppliedChoicesRetainedFor" xml:space="preserve">
+    <value>Η ενέργεια δεν εφαρμόστηκε. Οι επιλογές διατηρήθηκαν για έλεγχο.</value>
+  </data>
+  <data name="Editor.CompositionComparisonContextChanged" xml:space="preserve">
+    <value>Η σύγκριση άλλαξε.</value>
+  </data>
+  <data name="Editor.CompositionOneActionBlockUsesASingle" xml:space="preserve">
+    <value>Κάθε ομάδα ενεργειών χρησιμοποιεί μία πηγή. Εφαρμόστε ή εκκαθαρίστε πρώτα την υπάρχουσα ομάδα.</value>
+  </data>
+  <data name="Editor.CompositionThisItemIsAlreadyInThe" xml:space="preserve">
+    <value>Το στοιχείο υπάρχει ήδη στην ομάδα. Ανοίξτε την ομάδα για επεξεργασία.</value>
+  </data>
+  <data name="Editor.CompositionAddedToReviewedBlockOpenIt" xml:space="preserve">
+    <value>Το στοιχείο προστέθηκε στην ομάδα. Ανοίξτε την για έλεγχο των προορισμών και της θέσης.</value>
+  </data>
+  <data name="Editor.CompositionClearLocalBlock2" xml:space="preserve">
+    <value>Εκκαθάριση τοπικής ομάδας;</value>
+  </data>
+  <data name="Editor.CompositionClearTheseUnappliedBlockChoicesSaved" xml:space="preserve">
+    <value>Να εκκαθαριστούν οι μη εφαρμοσμένες επιλογές της ομάδας; Το αποθηκευμένο C και η σύγκρισή του θα παραμείνουν αμετάβλητα.</value>
+  </data>
+  <data name="Editor.CompositionKeepBlock" xml:space="preserve">
+    <value>Διατήρηση ομάδας</value>
+  </data>
+  <data name="Editor.CompositionABlockSharesAnExistingDestination" xml:space="preserve">
+    <value>Η ομάδα χρησιμοποιεί μία υπάρχουσα περιοχή προορισμού. Για να δημιουργήσετε μια περιοχή και τα επιμέρους στοιχεία της σε μία ενέργεια, επιλέξτε την περιοχή μαζί με τα στοιχεία της.</value>
+  </data>
+  <data name="Editor.CompositionFinishComparison2" xml:space="preserve">
+    <value>Ολοκλήρωση σύγκρισης;</value>
+  </data>
+  <data name="Editor.CompositionKeepCItsCurrentVisibilitySaved" xml:space="preserve">
+    <value>Το C διατηρεί την ορατότητα, το αποθηκευμένο περιεχόμενο και τις αναφορές δημιουργών. Τα στιγμιότυπα πηγής και οι αποφάσεις σύγκρισης διαγράφονται οριστικά. Οι τοπικές επιλογές που εκκρεμούν δεν εφαρμόζονται. Μπορείτε να συνεχίσετε την επεξεργασία και δημοσίευση.</value>
+  </data>
+  <data name="Editor.CompositionContinueComparison" xml:space="preserve">
+    <value>Συνέχιση σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionTheReplyIsIncompleteOrBelongs" xml:space="preserve">
+    <value>Η απάντηση είναι ελλιπής ή αφορά άλλο ταξίδι.</value>
+  </data>
+  <data name="Editor.CompositionComparisonFinishedOnTheServerBut" xml:space="preserve">
+    <value>Η σύγκριση ολοκληρώθηκε στον διακομιστή. Δεν ήταν δυνατή η εκκαθάριση των τοπικών επιλογών στο πρόγραμμα περιήγησης.</value>
+  </data>
+  <data name="Editor.CompositionFinishCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Η ολοκλήρωση δεν επιβεβαιώθηκε. Ελέγξτε ή ανανεώστε το αποθηκευμένο C. {0}</value>
+  </data>
+  <data name="Editor.CompositionDeleteTripC" xml:space="preserve">
+    <value>Διαγραφή του ταξιδιού C;</value>
+  </data>
+  <data name="Editor.CompositionPermanentlyDelete0AllItsContent" xml:space="preserve">
+    <value>Οριστική διαγραφή του «{0}», του περιεχομένου του και αυτής της σύγκρισης. Τα A, B και τα ανεξάρτητα αντίγραφα διατηρούνται. Η διαγραφή δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.CompositionKeepC" xml:space="preserve">
+    <value>Διατήρηση του C</value>
+  </data>
+  <data name="Editor.CompositionLocalViewStorageIsUnavailableSaved" xml:space="preserve">
+    <value>Ο τοπικός χώρος αποθήκευσης δεν είναι διαθέσιμος. Μπορείτε να συνεχίσετε το αποθηκευμένο C από τα ταξίδια σας.</value>
+  </data>
+  <data name="Editor.CompositionLocalChoicesCouldNotBeRetained" xml:space="preserve">
+    <value>Οι τοπικές επιλογές δεν μπόρεσαν να διατηρηθούν. Κρατήστε αυτή τη σελίδα ανοιχτή. Οι ενέργειες που αποθηκεύτηκαν στον διακομιστή δεν επηρεάζονται.</value>
+  </data>
+  <data name="Editor.CompositionSharedABCTripMap" xml:space="preserve">
+    <value>Κοινός χάρτης ταξιδιών A, B και C</value>
+  </data>
+  <data name="Editor.CompositionUseTheSourceTreesAndContextual" xml:space="preserve">
+    <value>Επιλέξτε στοιχεία από τις λίστες πηγής και τον πίνακα ελέγχου. Με τα βέλη μετακινείτε τον χάρτη και με τα πλήκτρα συν και πλην αλλάζετε τη μεγέθυνση.</value>
+  </data>
+  <data name="Editor.CompositionNoLocatedGeographyForThisSelection" xml:space="preserve">
+    <value>Δεν υπάρχουν διαθέσιμα γεωγραφικά δεδομένα για αυτή την επιλογή. Τα παλιά ή κενά στοιχεία δεν αποκτούν τεχνητή θέση.</value>
+  </data>
+  <data name="Editor.CompositionMapFittedToTheSelectionS" xml:space="preserve">
+    <value>Ο χάρτης προσαρμόστηκε σε όλα τα διαθέσιμα γεωγραφικά στοιχεία της επιλογής.</value>
+  </data>
+  <data name="Editor.CompositionStartOrResumeTripComposition" xml:space="preserve">
+    <value>Έναρξη ή συνέχιση σύνθεσης ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionCompareCombineTrips" xml:space="preserve">
+    <value>Σύγκριση και συνδυασμός ταξιδιών</value>
+  </data>
+  <data name="Editor.CompositionSaveAnIndependentPrivateCA" xml:space="preserve">
+    <value>Αποθηκεύστε ένα ανεξάρτητο ιδιωτικό ταξίδι C. Τα A και B παραμένουν μόνο για ανάγνωση. Κάθε επιτυχής ενέργεια αποθηκεύεται αμέσως.</value>
+  </data>
+  <data name="Editor.CompositionTheEarlierSubmittedCreationWasSaved" xml:space="preserve">
+    <value>Το ταξίδι που υποβάλατε δημιουργήθηκε. Οι νεότερες επιλογές παραμένουν εδώ και θα δημιουργήσουν άλλο ταξίδι.</value>
+  </data>
+  <data name="Editor.CompositionOpenTheSavedResult" xml:space="preserve">
+    <value>Άνοιγμα αποθηκευμένου αποτελέσματος</value>
+  </data>
+  <data name="Editor.CompositionCompareAAndBInA" xml:space="preserve">
+    <value>Σύγκριση των A και B σε νέο ταξίδι C</value>
+  </data>
+  <data name="Editor.CompositionCreateAnIndependentNewVersionOf" xml:space="preserve">
+    <value>Δημιουργία ανεξάρτητης νέας έκδοσης του A</value>
+  </data>
+  <data name="Editor.CompositionAYourTrip" xml:space="preserve">
+    <value>A · Δικό σας ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionFindOwnedA" xml:space="preserve">
+    <value>Εύρεση δικού σας A</value>
+  </data>
+  <data name="Editor.CompositionSourceA" xml:space="preserve">
+    <value>Πηγή A</value>
+  </data>
+  <data name="Editor.CompositionSelectOwnedA" xml:space="preserve">
+    <value>Επιλέξτε δικό σας A</value>
+  </data>
+  <data name="Editor.CompositionBOwnedOrPublicReusableTrip" xml:space="preserve">
+    <value>B · Δικό σας ή δημόσιο ταξίδι με άδεια επαναχρησιμοποίησης</value>
+  </data>
+  <data name="Editor.CompositionFindEligibleB" xml:space="preserve">
+    <value>Εύρεση επιλέξιμου B</value>
+  </data>
+  <data name="Editor.CompositionSourceB" xml:space="preserve">
+    <value>Πηγή B</value>
+  </data>
+  <data name="Editor.CompositionSelectEligibleB" xml:space="preserve">
+    <value>Επιλέξτε επιλέξιμο B</value>
+  </data>
+  <data name="Editor.CompositionYours" xml:space="preserve">
+    <value>Δικό σας</value>
+  </data>
+  <data name="Editor.CompositionFindingTrips" xml:space="preserve">
+    <value>Αναζήτηση ταξιδιών…</value>
+  </data>
+  <data name="Editor.CompositionSearchSourcesRefreshUnfinishedWork" xml:space="preserve">
+    <value>Αναζήτηση πηγών / ανανέωση ημιτελών εργασιών</value>
+  </data>
+  <data name="Editor.CompositionUpTo20MatchesPlusYour" xml:space="preserve">
+    <value>Εμφανίζονται έως 20 αποτελέσματα μαζί με τη διατηρημένη επιλογή σας. Περιορίστε την αναζήτηση με το όνομα. Ιδιωτικά ταξίδια άλλων, ταξίδια χωρίς άδεια και δημόσια ταξίδια μόνο για προβολή δεν είναι διαθέσιμα.</value>
+  </data>
+  <data name="Editor.CompositionExistingWorkForThisSourcePair" xml:space="preserve">
+    <value>Υπάρχουσα εργασία για αυτό το ζεύγος πηγών</value>
+  </data>
+  <data name="Editor.CompositionContinueExisting" xml:space="preserve">
+    <value>Συνέχιση υπάρχουσας σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionThisPairAlreadyHasSavedWork" xml:space="preserve">
+    <value>Αυτό το ζεύγος έχει ήδη αποθηκευμένη σύγκριση. Η συνέχιση ανοίγει το ίδιο C.</value>
+  </data>
+  <data name="Editor.CompositionNewTripNameOptional" xml:space="preserve">
+    <value>Όνομα νέου ταξιδιού (προαιρετικό)</value>
+  </data>
+  <data name="Editor.CompositionPrivateChangeNoteOptional" xml:space="preserve">
+    <value>Ιδιωτική σημείωση αλλαγής (προαιρετική)</value>
+  </data>
+  <data name="Editor.CompositionRetainMyAPlanningInThe" xml:space="preserve">
+    <value>Διατήρηση του σχεδιασμού μου από το A στο νέο ιδιωτικό ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionNewVersionsAreOrdinaryTripsWith" xml:space="preserve">
+    <value>Οι νέες εκδόσεις είναι κανονικά ταξίδια, με προαιρετική σύγκριση.</value>
+  </data>
+  <data name="Editor.CompositionCreating" xml:space="preserve">
+    <value>Δημιουργία…</value>
+  </data>
+  <data name="Editor.CompositionCreateNewVersion" xml:space="preserve">
+    <value>Δημιουργία νέας έκδοσης</value>
+  </data>
+  <data name="Editor.CompositionStartNewComposition" xml:space="preserve">
+    <value>Έναρξη νέας σύνθεσης</value>
+  </data>
+  <data name="Editor.CompositionInspectYourTripsBeforeAnyFurther" xml:space="preserve">
+    <value>Ελέγξτε τα ταξίδια σας πριν από νέα δημιουργία. Η ενέργεια που υποβάλατε μπορεί ακόμη να ολοκληρωθεί.</value>
+  </data>
+  <data name="Editor.CompositionIInspectedMyTripsReviewA" xml:space="preserve">
+    <value>Έλεγξα τα ταξίδια μου · εξέταση νέας δημιουργίας</value>
+  </data>
+  <data name="Editor.CompositionAllUnfinishedCompositions" xml:space="preserve">
+    <value>Όλες οι ημιτελείς συνθέσεις</value>
+  </data>
+  <data name="Editor.CompositionUnfinishedCompositions" xml:space="preserve">
+    <value>Ημιτελείς συνθέσεις</value>
+  </data>
+  <data name="Editor.CompositionNoUnfinishedComparisonsFound" xml:space="preserve">
+    <value>Δεν βρέθηκαν ημιτελείς συγκρίσεις.</value>
+  </data>
+  <data name="Editor.CompositionSavedComparison" xml:space="preserve">
+    <value>Αποθηκευμένη σύγκριση</value>
+  </data>
+  <data name="Editor.CompositionContinueComposition" xml:space="preserve">
+    <value>Συνέχιση σύνθεσης</value>
+  </data>
+  <data name="Editor.CompositionSourceSearchUnavailable" xml:space="preserve">
+    <value>Η αναζήτηση πηγών δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionExistingComparisonsUnavailable" xml:space="preserve">
+    <value>Οι υπάρχουσες συγκρίσεις δεν είναι διαθέσιμες.</value>
+  </data>
+  <data name="Editor.CompositionSelectTheRequiredSources" xml:space="preserve">
+    <value>Επιλέξτε τις απαιτούμενες πηγές.</value>
+  </data>
+  <data name="Editor.CompositionStartAnotherIndependentC" xml:space="preserve">
+    <value>Έναρξη άλλου ανεξάρτητου C;</value>
+  </data>
+  <data name="Editor.CompositionUnfinishedWorkAlreadyExistsForThis" xml:space="preserve">
+    <value>Υπάρχει ημιτελής σύγκριση για αυτό το ζεύγος. Η συνέχιση ανοίγει το ίδιο C. Η νέα έναρξη δημιουργεί ξεχωριστό ιδιωτικό ταξίδι και σύγκριση.</value>
+  </data>
+  <data name="Editor.CompositionStartNew" xml:space="preserve">
+    <value>Έναρξη νέας σύγκρισης</value>
+  </data>
+  <data name="Editor.CompositionCreationCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Η δημιουργία δεν επιβεβαιώθηκε. Ελέγξτε τα ταξίδια σας.</value>
+  </data>
+  <data name="Editor.CompositionCopyToExistingTrip" xml:space="preserve">
+    <value>Αντιγραφή σε υπάρχον ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionChooseAnOwnedOrPubliclyReusable" xml:space="preserve">
+    <value>Επιλέξτε δική σας πηγή ή δημόσια πηγή με άδεια επαναχρησιμοποίησης, και ένα υπάρχον δικό σας ταξίδι. Τα ταξίδια πηγής παραμένουν αμετάβλητα.</value>
+  </data>
+  <data name="Editor.CompositionFindSourceTrip" xml:space="preserve">
+    <value>Εύρεση ταξιδιού πηγής</value>
+  </data>
+  <data name="Editor.CompositionSearchSources" xml:space="preserve">
+    <value>Αναζήτηση πηγών</value>
+  </data>
+  <data name="Editor.CompositionSourceTrip" xml:space="preserve">
+    <value>Ταξίδι πηγής</value>
+  </data>
+  <data name="Editor.CompositionSelectSource" xml:space="preserve">
+    <value>Επιλέξτε πηγή</value>
+  </data>
+  <data name="Editor.CompositionSelectedSource" xml:space="preserve">
+    <value>Επιλεγμένη πηγή</value>
+  </data>
+  <data name="Editor.CompositionOwned" xml:space="preserve">
+    <value>Δικό σας</value>
+  </data>
+  <data name="Editor.CompositionExistingOwnedDestination" xml:space="preserve">
+    <value>Υπάρχον δικό σας ταξίδι προορισμού</value>
+  </data>
+  <data name="Editor.CompositionFindDestinationTrip" xml:space="preserve">
+    <value>Εύρεση ταξιδιού προορισμού</value>
+  </data>
+  <data name="Editor.CompositionSearchDestinations" xml:space="preserve">
+    <value>Αναζήτηση προορισμών</value>
+  </data>
+  <data name="Editor.CompositionDestinationTrip" xml:space="preserve">
+    <value>Ταξίδι προορισμού</value>
+  </data>
+  <data name="Editor.CompositionSelectDestination" xml:space="preserve">
+    <value>Επιλέξτε προορισμό</value>
+  </data>
+  <data name="Editor.CompositionSelectedDestination" xml:space="preserve">
+    <value>Επιλεγμένος προορισμός</value>
+  </data>
+  <data name="Editor.CompositionLoadingPreview" xml:space="preserve">
+    <value>Φόρτωση προεπισκόπησης…</value>
+  </data>
+  <data name="Editor.CompositionRefreshAndReviewCurrentValues" xml:space="preserve">
+    <value>Ανανέωση και έλεγχος τρεχουσών τιμών</value>
+  </data>
+  <data name="Editor.CompositionPreviewCopyChoices" xml:space="preserve">
+    <value>Προεπισκόπηση επιλογών αντιγραφής</value>
+  </data>
+  <data name="Editor.CompositionInspectDestinationTrip" xml:space="preserve">
+    <value>Έλεγχος ταξιδιού προορισμού</value>
+  </data>
+  <data name="Editor.CompositionTheSubmittedCopyMayStillFinish" xml:space="preserve">
+    <value>Η αντιγραφή που υποβάλατε μπορεί ακόμη να ολοκληρωθεί. Ελέγξτε τις τρέχουσες τιμές του αρχικού ζεύγους πριν αλλάξετε γλώσσα.</value>
+  </data>
+  <data name="Editor.CompositionSavingTheSubmittedChoices" xml:space="preserve">
+    <value>Αποθήκευση υποβληθεισών επιλογών…</value>
+  </data>
+  <data name="Editor.CompositionTripSelectionChangedPreviewTheSelected" xml:space="preserve">
+    <value>Η επιλογή ταξιδιών άλλαξε. Δείτε την προεπισκόπηση του επιλεγμένου ζεύγους πριν εφαρμόσετε επιλογές.</value>
+  </data>
+  <data name="Editor.CompositionDestination0" xml:space="preserve">
+    <value>Προορισμός · {0}</value>
+  </data>
+  <data name="Editor.CompositionPublicSavedContentUpdatesThisTrip" xml:space="preserve">
+    <value>Δημόσιο · το αποθηκευμένο περιεχόμενο ενημερώνει αυτό το ταξίδι</value>
+  </data>
+  <data name="Editor.CompositionEditInspectDestinationTrip" xml:space="preserve">
+    <value>Επεξεργασία / έλεγχος ταξιδιού προορισμού</value>
+  </data>
+  <data name="Editor.CompositionUnqualifiedSourceCoversAndNotesImages" xml:space="preserve">
+    <value>Εξώφυλλα και εικόνες σημειώσεων χωρίς τα απαιτούμενα δικαιώματα παραλείφθηκαν. Επιλέξτε επιτρεπόμενες εικόνες στον επεξεργαστή του προορισμού. Η αντιγραφή δεν παραχωρεί δικαιώματα πολυμέσων.</value>
+  </data>
+  <data name="Editor.CompositionSourceAndExistingDestinationTripMap" xml:space="preserve">
+    <value>Χάρτης ταξιδιού πηγής και υπάρχοντος προορισμού</value>
+  </data>
+  <data name="Editor.CompositionPreviewMap" xml:space="preserve">
+    <value>Χάρτης προεπισκόπησης</value>
+  </data>
+  <data name="Editor.CompositionSourceOrange" xml:space="preserve">
+    <value>Πηγή (πορτοκαλί)</value>
+  </data>
+  <data name="Editor.CompositionDestinationGreen" xml:space="preserve">
+    <value>Προορισμός (πράσινο)</value>
+  </data>
+  <data name="Editor.CompositionFocusSelectedGeography" xml:space="preserve">
+    <value>Εστίαση στην επιλεγμένη γεωμετρία</value>
+  </data>
+  <data name="Editor.CompositionSource" xml:space="preserve">
+    <value>Πηγή</value>
+  </data>
+  <data name="Editor.CompositionReviewedCopyChoices" xml:space="preserve">
+    <value>Ελεγμένες επιλογές αντιγραφής</value>
+  </data>
+  <data name="Editor.CompositionReviewProposedEffect0Selected" xml:space="preserve">
+    <value>Έλεγχος προτεινόμενων αλλαγών · Επιλεγμένα στοιχεία: {0}</value>
+  </data>
+  <data name="Editor.CompositionEachListReceivesAContiguousBlock" xml:space="preserve">
+    <value>Τα στοιχεία προστίθενται διαδοχικά σε κάθε λίστα με τη σειρά εμφάνισης. Όσα επαναχρησιμοποιούνται διατηρούν την ταυτότητα, την περιοχή και τη θέση τους. Τα μεταδεδομένα ταξιδιού μένουν ίδια. Ο δικός σας σχεδιασμός αντιγράφεται μόνο αν τον επιλέξετε.</value>
+  </data>
+  <data name="Editor.CompositionSelectARegionPlaceAreaOr" xml:space="preserve">
+    <value>Επιλέξτε περιοχή, μέρος, ζώνη ή τμήμα διαδρομής από την πηγή.</value>
+  </data>
+  <data name="Editor.CompositionRemoveLocalChoice" xml:space="preserve">
+    <value>Αφαίρεση τοπικής επιλογής</value>
+  </data>
+  <data name="Editor.CompositionApplicableSourceCreditsNotices" xml:space="preserve">
+    <value>Σχετικές αναφορές δημιουργών και δηλώσεις πηγής</value>
+  </data>
+  <data name="Editor.CompositionDestinationOwnerSContributionPolicyStays" xml:space="preserve">
+    <value>Η πολιτική συνεισφορών του ιδιοκτήτη του προορισμού παραμένει «{0}». Οι κληρονομημένες δηλώσεις παραμένουν χωριστές.</value>
+  </data>
+  <data name="Editor.CompositionUnselected" xml:space="preserve">
+    <value>χωρίς επιλογή</value>
+  </data>
+  <data name="Editor.CompositionSelectedContentAdapted" xml:space="preserve">
+    <value>Το επιλεγμένο περιεχόμενο προσαρμόστηκε.</value>
+  </data>
+  <data name="Editor.CompositionApplicableNoticesAccompanyCopiedContentOr" xml:space="preserve">
+    <value>Οι σχετικές δηλώσεις συνοδεύουν το αντιγραμμένο περιεχόμενο ή τα επιλεγμένα πεδία πηγής. Οι υπάρχουσες δηλώσεις προορισμού διατηρούνται.</value>
+  </data>
+  <data name="Editor.CompositionSavingSubmittedCopy" xml:space="preserve">
+    <value>Αποθήκευση αντιγραφής…</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedCopyToDestination" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης αντιγραφής στον προορισμό</value>
+  </data>
+  <data name="Editor.CompositionDestinationTrip2" xml:space="preserve">
+    <value>ταξίδι προορισμού</value>
+  </data>
+  <data name="Editor.CompositionTripSearchUnavailable" xml:space="preserve">
+    <value>Η αναζήτηση ταξιδιών δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentSourceAndDestination" xml:space="preserve">
+    <value>Έλεγχος τρέχουσας πηγής και προορισμού;</value>
+  </data>
+  <data name="Editor.CompositionChangeTheCopyContext" xml:space="preserve">
+    <value>Αλλαγή πηγής ή προορισμού αντιγραφής;</value>
+  </data>
+  <data name="Editor.CompositionReplaceTheReviewedOriginalsWithCurrent" xml:space="preserve">
+    <value>Αντικαταστήστε τις ελεγμένες αρχικές τιμές με τις τρέχουσες τιμές της πηγής και του προορισμού. Οι επιλογές σας διατηρούνται. Ελέγξτε τις τιμές που άλλαξαν πριν από την εφαρμογή.</value>
+  </data>
+  <data name="Editor.CompositionClearTheseUnappliedChoicesAndPreview" xml:space="preserve">
+    <value>Να εκκαθαριστούν οι μη εφαρμοσμένες επιλογές και να εμφανιστεί προεπισκόπηση της επιλεγμένης πηγής και προορισμού;</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentValues" xml:space="preserve">
+    <value>Έλεγχος τρεχουσών τιμών</value>
+  </data>
+  <data name="Editor.CompositionCopyChoicesChangedDuringConfirmationThey" xml:space="preserve">
+    <value>Οι επιλογές αντιγραφής άλλαξαν κατά την επιβεβαίωση. Παραμένουν στο προηγούμενο ζεύγος. Ζητήστε νέα προεπισκόπηση για να επιβεβαιώσετε την αντικατάσταση.</value>
+  </data>
+  <data name="Editor.CompositionThePreviewDoesNotMatchThe" xml:space="preserve">
+    <value>Η προεπισκόπηση δεν αντιστοιχεί στα επιλεγμένα ταξίδια. Ελέγξτε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionASelectedSourceObjectWasRemoved" xml:space="preserve">
+    <value>Ένα επιλεγμένο στοιχείο πηγής αφαιρέθηκε. Διατηρήστε τον προηγούμενο έλεγχο ή αφαιρέστε την τοπική επιλογή πριν από την ανανέωση.</value>
+  </data>
+  <data name="Editor.CompositionCopyChoicesChangedWhileThePreview" xml:space="preserve">
+    <value>Οι επιλογές αντιγραφής άλλαξαν κατά τη φόρτωση της προεπισκόπησης. Παραμένουν στο προηγούμενο ζεύγος. Ζητήστε νέα προεπισκόπηση για να επιβεβαιώσετε την αντικατάσταση.</value>
+  </data>
+  <data name="Editor.CompositionPreviewReadyChooseObjectsDestinationsDependencies" xml:space="preserve">
+    <value>Η προεπισκόπηση είναι έτοιμη. Επιλέξτε στοιχεία, προορισμούς, εξαρτήσεις και πεδία.</value>
+  </data>
+  <data name="Editor.CompositionPreviewUnavailable" xml:space="preserve">
+    <value>Η προεπισκόπηση δεν είναι διαθέσιμη.</value>
+  </data>
+  <data name="Editor.CompositionReviewDestinationConsequences" xml:space="preserve">
+    <value>Έλεγχος συνεπειών στον προορισμό</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedCopy" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης αντιγραφής</value>
+  </data>
+  <data name="Editor.CompositionCopyNotAppliedChoicesRetained" xml:space="preserve">
+    <value>Η αντιγραφή δεν εφαρμόστηκε. Οι επιλογές διατηρήθηκαν.</value>
+  </data>
+  <data name="Editor.CompositionSaveCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Η αποθήκευση δεν επιβεβαιώθηκε. Ελέγξτε τον προορισμό πριν αντιγράψετε ξανά.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheSelectedChoices" xml:space="preserve">
+    <value>Ελέγξτε τις επιλογές σας.</value>
+  </data>
+  <data name="Editor.CompositionSelectedFieldsUnselectedFieldsKeep" xml:space="preserve">
+    <value>Επιλεγμένα πεδία · τα υπόλοιπα διατηρούνται</value>
+  </data>
+  <data name="Editor.CompositionNamesNotesPlanningAndRouteIntent" xml:space="preserve">
+    <value>Τα ονόματα, οι σημειώσεις, ο σχεδιασμός και οι επιλογές διαδρομής είναι ανεξάρτητα. Η εισαγωγή του στοιχείου δεν υιοθετεί άλλα στοιχεία του ταξιδιού.</value>
+  </data>
+  <data name="Editor.CompositionSavedProfileProvenance" xml:space="preserve">
+    <value>Αποθηκευμένο προφίλ και προέλευση</value>
+  </data>
+  <data name="Editor.CompositionReviewedOriginal01" xml:space="preserve">
+    <value>Ελεγμένη αρχική τιμή στον προορισμό «{0}» · {1}</value>
+  </data>
+  <data name="Editor.CompositionCurrent01" xml:space="preserve">
+    <value>Τρέχουσα τιμή στον προορισμό «{0}» · {1}</value>
+  </data>
+  <data name="Editor.CompositionCounterpartUnavailable" xml:space="preserve">
+    <value>Το αντίστοιχο στοιχείο δεν είναι διαθέσιμο</value>
+  </data>
+  <data name="Editor.CompositionCurrent0ChangedSinceThisReview" xml:space="preserve">
+    <value>Ο προορισμός «{0}» άλλαξε μετά τον έλεγχο. Οι επιλογές σας και οι ελεγμένες αρχικές τιμές διατηρούνται. Χρησιμοποιήστε την ανανέωση για να ελέγξετε την αλλαγή.</value>
+  </data>
+  <data name="Editor.Composition0Action" xml:space="preserve">
+    <value>Ενέργεια για: {0}</value>
+  </data>
+  <data name="Editor.CompositionKeep" xml:space="preserve">
+    <value>Διατήρηση</value>
+  </data>
+  <data name="Editor.CompositionUseSource" xml:space="preserve">
+    <value>Χρήση τιμής πηγής</value>
+  </data>
+  <data name="Editor.CompositionEditValue" xml:space="preserve">
+    <value>Επεξεργασία τιμής</value>
+  </data>
+  <data name="Editor.CompositionClear" xml:space="preserve">
+    <value>Εκκαθάριση</value>
+  </data>
+  <data name="Editor.CompositionEditedNotesFor0" xml:space="preserve">
+    <value>Επεξεργασία σημειώσεων για: {0}</value>
+  </data>
+  <data name="Editor.CompositionAuthoredAddressClearsDetectedProviderEvidence" xml:space="preserve">
+    <value>Καταχωρισμένη διεύθυνση (διαγράφει τα στοιχεία ανίχνευσης του παρόχου)</value>
+  </data>
+  <data name="Editor.CompositionTagNamesSeparatedByCommas" xml:space="preserve">
+    <value>Ονόματα ετικετών χωρισμένα με κόμμα</value>
+  </data>
+  <data name="Editor.CompositionEdited0" xml:space="preserve">
+    <value>Επεξεργασία πεδίου: {0}</value>
+  </data>
+  <data name="Editor.CompositionEdit0InOrdinary1Editor" xml:space="preserve">
+    <value>Επεξεργαστείτε το πεδίο «{0}» στον επεξεργαστή του προορισμού «{1}» και επιστρέψτε εδώ</value>
+  </data>
+  <data name="Editor.CompositionTheCapturedPlaceIsUnlocatedAn" xml:space="preserve">
+    <value>Το μέρος δεν έχει θέση. Ένα ανεξάρτητο αντίγραφο παραμένει χωρίς θέση. Η υιοθέτηση δεν διαγράφει την απαιτούμενη θέση στον προορισμό «{0}».</value>
+  </data>
+  <data name="Editor.CompositionSourceRoutesRequireEveryAnchorBelow" xml:space="preserve">
+    <value>Οι διαδρομές πηγής απαιτούν όλα τα παρακάτω σημεία. Για εκκαθάριση ή διόρθωση ασύμβατης διαδρομής χρησιμοποιήστε τον επεξεργαστή του προορισμού «{0}» και ελέγξτε ξανά τις συνέπειες. Η αντιγραφή διατηρεί τη γεωμετρία.</value>
+  </data>
+  <data name="Editor.CompositionSegmentTitle" xml:space="preserve">
+    <value>Τίτλος τμήματος διαδρομής</value>
+  </data>
+  <data name="Editor.CompositionNotes" xml:space="preserve">
+    <value>Σημειώσεις</value>
+  </data>
+  <data name="Editor.CompositionMarkerColour" xml:space="preserve">
+    <value>Χρώμα δείκτη</value>
+  </data>
+  <data name="Editor.CompositionAreaFill" xml:space="preserve">
+    <value>Γέμισμα ζώνης</value>
+  </data>
+  <data name="Editor.CompositionAddressEnrichment" xml:space="preserve">
+    <value>Διεύθυνση και εμπλουτισμός</value>
+  </data>
+  <data name="Editor.CompositionLocation" xml:space="preserve">
+    <value>Θέση</value>
+  </data>
+  <data name="Editor.CompositionCompletePolygon" xml:space="preserve">
+    <value>Πλήρες πολύγωνο</value>
+  </data>
+  <data name="Editor.CompositionRegionCentre" xml:space="preserve">
+    <value>Κέντρο περιοχής</value>
+  </data>
+  <data name="Editor.CompositionCover" xml:space="preserve">
+    <value>Εξώφυλλο</value>
+  </data>
+  <data name="Editor.CompositionTripTags" xml:space="preserve">
+    <value>Ετικέτες ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionTripViewport" xml:space="preserve">
+    <value>Προβολή χάρτη ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionCompleteRoute" xml:space="preserve">
+    <value>Πλήρης διαδρομή</value>
+  </data>
+  <data name="Editor.CompositionPersonalPlanning" xml:space="preserve">
+    <value>Προσωπικός σχεδιασμός</value>
+  </data>
+  <data name="Editor.Composition0Min" xml:space="preserve">
+    <value>0 λεπ.</value>
+  </data>
+  <data name="Editor.Composition0Sec" xml:space="preserve">
+    <value>{0} δευτ.</value>
+  </data>
+  <data name="Editor.CompositionNoMode" xml:space="preserve">
+    <value>Χωρίς μέσο</value>
+  </data>
+  <data name="Editor.CompositionSavedCustomGeometry" xml:space="preserve">
+    <value>Αποθηκευμένη προσαρμοσμένη γεωμετρία</value>
+  </data>
+  <data name="Editor.CompositionAnchorFallback" xml:space="preserve">
+    <value>Διαδρομή βάσει των σημείων</value>
+  </data>
+  <data name="Editor.Composition0Duration" xml:space="preserve">
+    <value>Διάρκεια: {0}</value>
+  </data>
+  <data name="Editor.CompositionSavedProfile" xml:space="preserve">
+    <value>Αποθηκευμένο προφίλ</value>
+  </data>
+  <data name="Editor.CompositionTransportProfile0" xml:space="preserve">
+    <value>Προφίλ μετακίνησης: {0}</value>
+  </data>
+  <data name="Editor.CompositionRecorded" xml:space="preserve">
+    <value>Καταγεγραμμένο</value>
+  </data>
+  <data name="Editor.CompositionProvider0Settings1Version2" xml:space="preserve">
+    <value>Πάροχος: {0} · Ρυθμίσεις: {1} · Έκδοση: {2}</value>
+  </data>
+  <data name="Editor.CompositionRoutedProfile0RoutingMode1" xml:space="preserve">
+    <value>Προφίλ δρομολόγησης: {0} · Τρόπος δρομολόγησης: {1}</value>
+  </data>
+  <data name="Editor.CompositionGenerated0Storage1" xml:space="preserve">
+    <value>Δημιουργία: {0} · Αποθήκευση: {1}</value>
+  </data>
+  <data name="Editor.CompositionInstructions0Attribution1" xml:space="preserve">
+    <value>Οδηγίες: {0} · Αναφορά δημιουργού: {1}</value>
+  </data>
+  <data name="Editor.CompositionNoPersonalPlanning" xml:space="preserve">
+    <value>Χωρίς προσωπικό σχεδιασμό</value>
+  </data>
+  <data name="Editor.Composition0Latitude1Longitude" xml:space="preserve">
+    <value>{0}° πλάτος, {1}° μήκος</value>
+  </data>
+  <data name="Editor.CompositionFull0OuterShellAnd1" xml:space="preserve">
+    <value>Πλήρης γεωμετρία {0}: εξωτερικό περίγραμμα και εσωτερικά κενά ({1}). Δείτε στον χάρτη.</value>
+  </data>
+  <data name="Editor.CompositionHistoricalGeometryUnavailable" xml:space="preserve">
+    <value>Η παλιά γεωμετρία δεν είναι διαθέσιμη</value>
+  </data>
+  <data name="Editor.CompositionUnset" xml:space="preserve">
+    <value>δεν έχει οριστεί</value>
+  </data>
+  <data name="Editor.Composition01Zoom2" xml:space="preserve">
+    <value>{0}°, {1}° · Μεγέθυνση {2}</value>
+  </data>
+  <data name="Editor.CompositionNone" xml:space="preserve">
+    <value>Κανένα</value>
+  </data>
+  <data name="Editor.CompositionRouteUnavailableReviewFromViaTo" xml:space="preserve">
+    <value>Η διαδρομή δεν είναι διαθέσιμη · ελέγξτε αφετηρία, ενδιάμεσα σημεία και προορισμό</value>
+  </data>
+  <data name="Editor.CompositionSavedGeometry" xml:space="preserve">
+    <value>αποθηκευμένη γεωμετρία</value>
+  </data>
+  <data name="Editor.CompositionDurationSource" xml:space="preserve">
+    <value>πηγή διάρκειας</value>
+  </data>
+  <data name="Editor.CompositionTransportProfile" xml:space="preserve">
+    <value>προφίλ μετακίνησης</value>
+  </data>
+  <data name="Editor.CompositionProviderSettings" xml:space="preserve">
+    <value>ρυθμίσεις παρόχου</value>
+  </data>
+  <data name="Editor.CompositionProviderVersion" xml:space="preserve">
+    <value>έκδοση παρόχου</value>
+  </data>
+  <data name="Editor.CompositionRoutedProfile" xml:space="preserve">
+    <value>προφίλ δρομολόγησης</value>
+  </data>
+  <data name="Editor.CompositionGenerationTime" xml:space="preserve">
+    <value>ώρα δημιουργίας</value>
+  </data>
+  <data name="Editor.CompositionRoutingMode" xml:space="preserve">
+    <value>τρόπος δρομολόγησης</value>
+  </data>
+  <data name="Editor.CompositionDifferentSavedRouteFacts0" xml:space="preserve">
+    <value>Διαφορές στα αποθηκευμένα στοιχεία διαδρομής: {0}</value>
+  </data>
+  <data name="Editor.CompositionSameSavedRouteFacts" xml:space="preserve">
+    <value>Ίδια αποθηκευμένα στοιχεία διαδρομής</value>
+  </data>
+  <data name="Editor.CompositionReviewFromViaToDependencies" xml:space="preserve">
+    <value>Ελέγξτε αφετηρία, ενδιάμεσα σημεία και προορισμό</value>
+  </data>
+  <data name="Editor.CompositionSameValue" xml:space="preserve">
+    <value>Ίδια τιμή</value>
+  </data>
+  <data name="Editor.CompositionDifferentValue" xml:space="preserve">
+    <value>Διαφορετική τιμή</value>
+  </data>
+  <data name="Editor.CompositionSource0Hierarchy" xml:space="preserve">
+    <value>Ιεραρχία πηγής {0}</value>
+  </data>
+  <data name="Editor.CompositionSearchSource0" xml:space="preserve">
+    <value>Αναζήτηση στην πηγή {0}</value>
+  </data>
+  <data name="Editor.CompositionTripDetails" xml:space="preserve">
+    <value>Στοιχεία ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionRegion0" xml:space="preserve">
+    <value>Περιοχή · {0}</value>
+  </data>
+  <data name="Editor.CompositionCurrentCCounterpart0" xml:space="preserve">
+    <value>Τρέχον αντίστοιχο στοιχείο στο C · {0}</value>
+  </data>
+  <data name="Editor.CompositionPlace2" xml:space="preserve">
+    <value>● Μέρος</value>
+  </data>
+  <data name="Editor.CompositionArea" xml:space="preserve">
+    <value>▱ Ζώνη</value>
+  </data>
+  <data name="Editor.CompositionTripLevelSegments" xml:space="preserve">
+    <value>↝ Τμήματα διαδρομής του ταξιδιού</value>
+  </data>
+  <data name="Editor.CompositionNoSegmentsInThisCapturedTrip" xml:space="preserve">
+    <value>Δεν υπάρχουν τμήματα διαδρομής στο καταγεγραμμένο ταξίδι.</value>
+  </data>
+  <data name="Editor.CompositionNotReviewed" xml:space="preserve">
+    <value>Χωρίς έλεγχο</value>
+  </data>
+  <data name="Editor.TripsCreateANewTrip" xml:space="preserve">
+    <value>Δημιουργία νέου ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsImportATripFromAWayfarer" xml:space="preserve">
+    <value>Εισαγωγή ταξιδιού από εκτεταμένο αρχείο KML του Wayfarer (*.kml)</value>
+  </data>
+  <data name="Editor.TripsImportAGoogleMyMapsKML" xml:space="preserve">
+    <value>Εισαγωγή αρχείου KML από τους Χάρτες μου Google</value>
+  </data>
+  <data name="Editor.TripsSearchTrips" xml:space="preserve">
+    <value>Αναζήτηση ταξιδιών…</value>
+  </data>
+  <data name="Editor.TripsClearSearch" xml:space="preserve">
+    <value>Εκκαθάριση αναζήτησης</value>
+  </data>
+  <data name="Editor.TripsTripVisibilityFilter" xml:space="preserve">
+    <value>Φίλτρο ορατότητας ταξιδιών</value>
+  </data>
+  <data name="Editor.TripsThisToolScansYourLocationHistory" xml:space="preserve">
+    <value>Η ανάλυση εντοπίζει ημέρες που βρεθήκατε κοντά σε μέρη του ταξιδιού. Μπορεί να δημιουργήσει αυτόματα εγγραφές επισκέψεων και να εντοπίσει παλιές εγγραφές για εκκαθάριση.</value>
+  </data>
+  <data name="Editor.TripsOnlyAnalyzeLocationHistoryFromThis" xml:space="preserve">
+    <value>Ανάλυση ιστορικού από αυτή την ημερομηνία και μετά. Χρήσιμο αν γνωρίζετε πότε ξεκίνησε το ταξίδι.</value>
+  </data>
+  <data name="Editor.TripsOnlyAnalyzeLocationHistoryUpTo" xml:space="preserve">
+    <value>Ανάλυση ιστορικού μέχρι αυτή την ημερομηνία. Χρήσιμο αν γνωρίζετε πότε τελείωσε το ταξίδι.</value>
+  </data>
+  <data name="Editor.TripsTotalGPSLocationPointsThatMatched" xml:space="preserve">
+    <value>Σύνολο σημείων GPS κοντά σε μέρη του ταξιδιού. Περισσότερα σημεία αυξάνουν τη βεβαιότητα.</value>
+  </data>
+  <data name="Editor.TripsNumberOfPlacesInThisTrip" xml:space="preserve">
+    <value>Πλήθος μερών με συντεταγμένες που συμπεριλήφθηκαν στην ανάλυση.</value>
+  </data>
+  <data name="Editor.TripsSearchPlacesRegions" xml:space="preserve">
+    <value>Αναζήτηση μερών, περιοχών…</value>
+  </data>
+  <data name="Editor.TripsConfirmedVisitsAreDaysWhenYour" xml:space="preserve">
+    <value>Οι επιβεβαιωμένες επισκέψεις είναι ημέρες με πολλαπλά σημεία GPS σε απόσταση περίπου 150 μ. από το μέρος. Το ποσοστό βεβαιότητας βασίζεται στο πλήθος και στην απόσταση των σημείων.</value>
+  </data>
+  <data name="Editor.TripsSuggestionsUseGPSPointsAtSeveral" xml:space="preserve">
+    <value>Οι προτάσεις χρησιμοποιούν σημεία GPS σε διαφορετικές αποστάσεις, χειροκίνητη καταγραφή παρουσίας ή πολλαπλά σημεία σε ευρύτερη περιοχή. Επιλέξτε μια πρόταση για να δημιουργήσετε επίσκεψη.</value>
+  </data>
+  <data name="Editor.TripsStaleVisitsReferToADeleted" xml:space="preserve">
+    <value>Οι παρωχημένες επισκέψεις αφορούν μέρη που διαγράφηκαν ή μετακινήθηκαν σημαντικά μετά την επίσκεψη. Είναι προεπιλεγμένες για διαγραφή.</value>
+  </data>
+  <data name="Editor.TripsExistingVisitsAreValidRecordsFor" xml:space="preserve">
+    <value>Οι υπάρχουσες επισκέψεις είναι έγκυρες εγγραφές του ταξιδιού. Επιλέξτε όσες θέλετε να αφαιρέσετε, για παράδειγμα πριν από ανάλυση με διαφορετικές ρυθμίσεις.</value>
+  </data>
+  <data name="Editor.TripsImportReview" xml:space="preserve">
+    <value>Έλεγχος εισαγωγής</value>
+  </data>
+  <data name="Editor.TripsCreateNewTrip" xml:space="preserve">
+    <value>Δημιουργία νέου ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsImportTrip" xml:space="preserve">
+    <value>Εισαγωγή ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsImportMyMaps" xml:space="preserve">
+    <value>Εισαγωγή από τους Χάρτες μου</value>
+  </data>
+  <data name="Editor.TripsTotal" xml:space="preserve">
+    <value>σύνολο</value>
+  </data>
+  <data name="Editor.TripsPublic" xml:space="preserve">
+    <value>δημόσια</value>
+  </data>
+  <data name="Editor.TripsPrivate" xml:space="preserve">
+    <value>ιδιωτικά</value>
+  </data>
+  <data name="Editor.TripsYouDonTHaveAnyTrips" xml:space="preserve">
+    <value>Δεν έχετε ακόμη ταξίδια.</value>
+  </data>
+  <data name="Editor.TripsActions" xml:space="preserve">
+    <value>Ενέργειες</value>
+  </data>
+  <data name="Editor.TripsPerPage" xml:space="preserve">
+    <value>Ανά σελίδα:</value>
+  </data>
+  <data name="Editor.TripsAnalyzeLocationHistory" xml:space="preserve">
+    <value>Ανάλυση ιστορικού τοποθεσιών</value>
+  </data>
+  <data name="Editor.TripsAnalyzingTrip" xml:space="preserve">
+    <value>Ανάλυση ταξιδιού:</value>
+  </data>
+  <data name="Editor.TripsFromDateOptional" xml:space="preserve">
+    <value>Από ημερομηνία (προαιρετικό)</value>
+  </data>
+  <data name="Editor.TripsToDateOptional" xml:space="preserve">
+    <value>Έως ημερομηνία (προαιρετικό)</value>
+  </data>
+  <data name="Editor.TripsTheAnalysisSearchesYourLocationHistory" xml:space="preserve">
+    <value>Η ανάλυση αναζητά σημεία GPS σε απόσταση περίπου 150 μ. από κάθε μέρος του ταξιδιού. Οι ημέρες με πολλαπλά κοντινά σημεία προτείνονται ως επισκέψεις. Αφήστε τις ημερομηνίες κενές για ανάλυση ολόκληρου του ιστορικού.</value>
+  </data>
+  <data name="Editor.TripsAnalyzing" xml:space="preserve">
+    <value>Ανάλυση…</value>
+  </data>
+  <data name="Editor.TripsAnalyzingLocationHistory" xml:space="preserve">
+    <value>Ανάλυση ιστορικού τοποθεσιών…</value>
+  </data>
+  <data name="Editor.TripsLocations" xml:space="preserve">
+    <value>Τοποθεσίες</value>
+  </data>
+  <data name="Editor.TripsAnalysisTime" xml:space="preserve">
+    <value>Χρόνος ανάλυσης</value>
+  </data>
+  <data name="Editor.TripsConfirmed" xml:space="preserve">
+    <value>Επιβεβαιωμένες</value>
+  </data>
+  <data name="Editor.TripsConsiderAlso" xml:space="preserve">
+    <value>Προτεινόμενες</value>
+  </data>
+  <data name="Editor.TripsStale" xml:space="preserve">
+    <value>Παρωχημένες</value>
+  </data>
+  <data name="Editor.TripsExisting" xml:space="preserve">
+    <value>Υπάρχουσες</value>
+  </data>
+  <data name="Editor.TripsTheseVisitsWillBeAutomaticallyCreated" xml:space="preserve">
+    <value>Οι επισκέψεις δημιουργούνται αυτόματα όταν επιλέξετε «Εφαρμογή». Η υψηλότερη βεβαιότητα αντιστοιχεί σε περισσότερα σημεία GPS κοντά στο μέρος.</value>
+  </data>
+  <data name="Editor.TripsNoNewVisitsFoundYouMay" xml:space="preserve">
+    <value>Δεν βρέθηκαν νέες επισκέψεις. Μπορεί να υπάρχουν ήδη εγγραφές για όλες τις αντίστοιχες ημέρες ή να μην υπάρχουν δεδομένα κοντά στα μέρη του ταξιδιού.</value>
+  </data>
+  <data name="Editor.TripsTheseArePotentialVisitsWithSome" xml:space="preserve">
+    <value>Υπάρχουν ενδείξεις ότι βρεθήκατε κοντά σε αυτά τα μέρη. Επιλέξτε τις επισκέψεις που θέλετε να επιβεβαιώσετε.</value>
+  </data>
+  <data name="Editor.TripsSelectAll" xml:space="preserve">
+    <value>Επιλογή όλων</value>
+  </data>
+  <data name="Editor.TripsDeselectAll" xml:space="preserve">
+    <value>Αποεπιλογή όλων</value>
+  </data>
+  <data name="Editor.TripsNoAdditionalSuggestionsAllPotentialVisits" xml:space="preserve">
+    <value>Δεν υπάρχουν άλλες προτάσεις. Οι πιθανές επισκέψεις είτε εμφανίζονται στις επιβεβαιωμένες είτε δεν είχαν αρκετά στοιχεία.</value>
+  </data>
+  <data name="Editor.TripsCheckedVisitsWillBeDeletedThese" xml:space="preserve">
+    <value>Οι επιλεγμένες επισκέψεις θα διαγραφούν. Αφορούν μέρη που διαγράφηκαν ή μετακινήθηκαν σημαντικά. Αποεπιλέξτε όσες θέλετε να διατηρήσετε.</value>
+  </data>
+  <data name="Editor.TripsNoStaleVisitsFoundAllExisting" xml:space="preserve">
+    <value>Δεν βρέθηκαν παρωχημένες επισκέψεις. Όλες οι υπάρχουσες επισκέψεις αφορούν έγκυρες, τρέχουσες θέσεις.</value>
+  </data>
+  <data name="Editor.TripsTheseAreValidVisitsTheyRemain" xml:space="preserve">
+    <value>Αυτές οι επισκέψεις είναι έγκυρες και διατηρούνται εκτός αν τις επιλέξετε για διαγραφή.</value>
+  </data>
+  <data name="Editor.TripsNoExistingVisitsForThisTrip" xml:space="preserve">
+    <value>Δεν υπάρχουν ακόμη επισκέψεις για αυτό το ταξίδι.</value>
+  </data>
+  <data name="Editor.TripsActionsToPerform" xml:space="preserve">
+    <value>Ενέργειες προς εκτέλεση:</value>
+  </data>
+  <data name="Editor.TripsNoChangesToApply" xml:space="preserve">
+    <value>Δεν υπάρχουν αλλαγές προς εφαρμογή</value>
+  </data>
+  <data name="Editor.TripsCancel" xml:space="preserve">
+    <value>Ακύρωση</value>
+  </data>
+  <data name="Editor.TripsAnalyze" xml:space="preserve">
+    <value>Ανάλυση</value>
+  </data>
+  <data name="Editor.TripsApplyChanges" xml:space="preserve">
+    <value>Εφαρμογή αλλαγών</value>
+  </data>
+  <data name="Editor.TripsUpdateReplacesGeographyNotesTagsAnd" xml:space="preserve">
+    <value>Η ενημέρωση αντικαθιστά μαζί γεωγραφικά στοιχεία, σημειώσεις, ετικέτες και διαδρομές. Ο ιδιωτικός σχεδιασμός που παραλείπεται διατηρείται. Η δημιουργία νέου ταξιδιού διατηρεί το αρχικό.</value>
+  </data>
+  <data name="Editor.TripsReviewUpdate" xml:space="preserve">
+    <value>Έλεγχος ενημέρωσης</value>
+  </data>
+  <data name="Editor.TripsApplyReviewedUpdate" xml:space="preserve">
+    <value>Εφαρμογή ελεγμένης ενημέρωσης</value>
+  </data>
+  <data name="Editor.TripsCreateNewTrip2" xml:space="preserve">
+    <value>Δημιουργία νέου ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsCheckMyTrips" xml:space="preserve">
+    <value>Έλεγχος στα ταξίδια μου</value>
+  </data>
+  <data name="Editor.TripsAbandonUnresolvedAttempt" xml:space="preserve">
+    <value>Εγκατάλειψη εκκρεμούς προσπάθειας…</value>
+  </data>
+  <data name="Editor.TripsPlaceContext" xml:space="preserve">
+    <value>Στοιχεία μέρους</value>
+  </data>
+  <data name="Editor.TripsLocationPings" xml:space="preserve">
+    <value>Σημεία τοποθεσίας</value>
+  </data>
+  <data name="Editor.TripsTimeRange" xml:space="preserve">
+    <value>Χρονικό εύρος</value>
+  </data>
+  <data name="Editor.TripsAvgDistance" xml:space="preserve">
+    <value>Μέση απόσταση</value>
+  </data>
+  <data name="Editor.TripsClosestPing" xml:space="preserve">
+    <value>Πλησιέστερο σημείο</value>
+  </data>
+  <data name="Editor.TripsFurthestPing" xml:space="preserve">
+    <value>Μακρινότερο σημείο</value>
+  </data>
+  <data name="Editor.TripsClickTheRulerIconToMeasure" xml:space="preserve">
+    <value>Επιλέξτε το εικονίδιο του χάρακα για μέτρηση αποστάσεων.</value>
+  </data>
+  <data name="Editor.TripsClose" xml:space="preserve">
+    <value>Κλείσιμο</value>
+  </data>
+  <data name="Editor.TripsCompareCombineNewVersion" xml:space="preserve">
+    <value>Σύγκριση και συνδυασμός / Νέα έκδοση</value>
+  </data>
+  <data name="Editor.TripsPublicAnyoneWithTheLinkCan" xml:space="preserve">
+    <value>Δημόσιο: όποιος έχει τον σύνδεσμο μπορεί να δει το ταξίδι. Ιδιωτικό: το βλέπετε μόνο εσείς. Μπορείτε να αλλάξετε τη ρύθμιση αργότερα.</value>
+  </data>
+  <data name="Editor.TripsCreate" xml:space="preserve">
+    <value>Δημιουργία</value>
+  </data>
+  <data name="Editor.TripsCreateEdit" xml:space="preserve">
+    <value>Δημιουργία και επεξεργασία</value>
+  </data>
+  <data name="Editor.TripsNewTrip" xml:space="preserve">
+    <value>Νέο ταξίδι</value>
+  </data>
+  <data name="Editor.TripsLoadingTripComposition" xml:space="preserve">
+    <value>Φόρτωση σύνθεσης ταξιδιού…</value>
+  </data>
+  <data name="Editor.TripsReturnToMyTrips" xml:space="preserve">
+    <value>Επιστροφή στα ταξίδια μου</value>
+  </data>
+  <data name="Editor.TripsTripCompositionAssetsAreUnavailable" xml:space="preserve">
+    <value>Οι πόροι της σύνθεσης ταξιδιού δεν είναι διαθέσιμοι.</value>
+  </data>
+  <data name="Editor.TripsTripCreatedSuccessfully" xml:space="preserve">
+    <value>Το ταξίδι δημιουργήθηκε.</value>
+  </data>
+  <data name="Editor.TripsTripCreatedButImageCacheWarm" xml:space="preserve">
+    <value>Το ταξίδι δημιουργήθηκε. Δεν ήταν δυνατή η προφόρτωση εικόνων.</value>
+  </data>
+  <data name="Editor.TripsCouldNotCreateTrip" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η δημιουργία του ταξιδιού.</value>
+  </data>
+  <data name="Editor.TripsTripNotFoundOrUnavailable" xml:space="preserve">
+    <value>Το ταξίδι δεν βρέθηκε ή δεν είναι διαθέσιμο.</value>
+  </data>
+  <data name="Editor.TripsTripDeletedSuccessfully" xml:space="preserve">
+    <value>Το ταξίδι διαγράφηκε.</value>
+  </data>
+  <data name="Editor.TripsNameRequired" xml:space="preserve">
+    <value>Το όνομα είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Editor.TripsNameLength" xml:space="preserve">
+    <value>Το όνομα ταξιδιού πρέπει να έχει από {2} έως {1} χαρακτήρες.</value>
+  </data>
+  <data name="Editor.TripsImportedKMLRoutesDoNotContain" xml:space="preserve">
+    <value>Οι εισαγόμενες διαδρομές KML δεν περιλαμβάνουν αξιόπιστα στοιχεία μετακίνησης. Επιλέξτε το μέσο μετακίνησης όπου χρειάζεται για αυτόματη εκτίμηση διάρκειας.</value>
+  </data>
+  <data name="Editor.TripsTripImportedSuccessfully" xml:space="preserve">
+    <value>Το ταξίδι εισήχθη.</value>
+  </data>
+  <data name="Editor.TripsImportTheImportCouldNotBeApplied" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η εφαρμογή της εισαγωγής. Το αρχείο και οι επιλογές σας διατηρούνται.</value>
+  </data>
+  <data name="Editor.TripsImportTheImportOutcomeCouldNotBe" xml:space="preserve">
+    <value>Το αποτέλεσμα της εισαγωγής δεν επιβεβαιώθηκε. Η προηγούμενη εισαγωγή μπορεί να έχει ήδη πετύχει. Ελέγξτε τα ταξίδια σας. Το άνοιγμα ενός ταξιδιού ή η εύρεση ίδιων δεδομένων δεν επιβεβαιώνει το αποτέλεσμα. Οι νέες εισαγωγές είναι αποκλεισμένες σε αυτή την καρτέλα μέχρι να εγκαταλείψετε ρητά την εκκρεμή τοπική προσπάθεια. Ο αποκλεισμός ισχύει μόνο σε αυτή την καρτέλα, δεν μεταφέρεται σε άλλες καρτέλες ή συσκευές και μπορεί να χαθεί αν κλείσετε την καρτέλα.</value>
+  </data>
+  <data name="Editor.TripsImportAbandonTheUnresolvedLocalAttemptThe" xml:space="preserve">
+    <value>Να εγκαταλειφθεί η εκκρεμής τοπική προσπάθεια; Η προηγούμενη εισαγωγή μπορεί να έχει ήδη πετύχει. Το αρχείο, ο έλεγχος και οι επιλογές θα απορριφθούν χωρίς νέα αποστολή. Η εργασία στον διακομιστή δεν ακυρώνεται ούτε αναιρείται. Το αποτέλεσμα παραμένει άγνωστο. Επιλέξτε ξανά αρχείο για ξεχωριστή εισαγωγή. Η επανάληψη μπορεί να δημιουργήσει άλλο αντίγραφο.</value>
+  </data>
+  <data name="Editor.TripsImportTheEarlierImportOutcomeIsStill" xml:space="preserve">
+    <value>Το αποτέλεσμα της προηγούμενης εισαγωγής παραμένει άγνωστο. Η τοπική προσπάθεια εγκαταλείφθηκε χωρίς ακύρωση ή αναίρεση εργασίας στον διακομιστή. Επιλέξτε αρχείο για ξεχωριστή εισαγωγή. Η επανάληψη μπορεί να δημιουργήσει άλλο αντίγραφο.</value>
+  </data>
+  <data name="Editor.TripsImportSelectANonEmptyKMLFile" xml:space="preserve">
+    <value>Επιλέξτε μη κενό αρχείο KML για εισαγωγή.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedFileIsNotA" xml:space="preserve">
+    <value>Το επιλεγμένο αρχείο δεν είναι έγκυρο KML για εισαγωγή. Επιλέξτε διορθωμένο αρχείο για να δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsImportReviewTheCurrentTripBeforeApplying" xml:space="preserve">
+    <value>Ελέγξτε το τρέχον ταξίδι πριν εφαρμόσετε αυτή την ενημέρωση.</value>
+  </data>
+  <data name="Editor.TripsImportTheTripOrFileChangedRefresh" xml:space="preserve">
+    <value>Το ταξίδι ή το αρχείο άλλαξε. Ανανεώστε τον έλεγχο, εξετάστε το τρέχον περιεχόμενο και εφαρμόστε τις επιλογές σας.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedImportChoicesAreInvalid" xml:space="preserve">
+    <value>Οι επιλογές εισαγωγής δεν είναι έγκυρες. Ανανεώστε και ελέγξτε ξανά τις επιλογές.</value>
+  </data>
+  <data name="Editor.TripsImportApproveRemovalOfEachListedItem" xml:space="preserve">
+    <value>Εγκρίνετε την αφαίρεση κάθε στοιχείου της λίστας πριν από την ενημέρωση.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedKMLExceedsTheRoute" xml:space="preserve">
+    <value>Το αρχείο KML υπερβαίνει το όριο επεξεργασίας διαδρομών. Μειώστε τη γεωμετρία του πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsImportThisKMLContainsUnsupportedRouteGeometry" xml:space="preserve">
+    <value>Αυτό το KML περιέχει μη υποστηριζόμενη γεωμετρία διαδρομής. Διορθώστε το αρχείο πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsImportDateAndTime" xml:space="preserve">
+    <value>Ημερομηνία και ώρα</value>
+  </data>
+  <data name="Editor.TripsImportFlexible" xml:space="preserve">
+    <value>Ευέλικτο</value>
+  </data>
+  <data name="Editor.TripsImportNotSupplied" xml:space="preserve">
+    <value>δεν δόθηκε</value>
+  </data>
+  <data name="Editor.TripsImport0SelectedUTCOffset1Seconds" xml:space="preserve">
+    <value>{0} · επιλεγμένη απόκλιση από UTC: {1} δευτ.</value>
+  </data>
+  <data name="Editor.TripsImportStart0End1" xml:space="preserve">
+    <value>Έναρξη: {0} · Λήξη: {1}</value>
+  </data>
+  <data name="Editor.TripsImport01" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Editor.TripsImport0Meaning1" xml:space="preserve">
+    <value>{0} · σημασία: {1}</value>
+  </data>
+  <data name="Editor.TripsImport0Allocation1Minutes" xml:space="preserve">
+    <value>{0} · κατανομή: {1} λεπ.</value>
+  </data>
+  <data name="Editor.TripsImportKeepExisting" xml:space="preserve">
+    <value>Διατήρηση υπάρχοντος</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedPlanning" xml:space="preserve">
+    <value>Χρήση εισαγόμενου σχεδιασμού</value>
+  </data>
+  <data name="Editor.TripsImportClearExistingPlanning" xml:space="preserve">
+    <value>Εκκαθάριση υπάρχοντος σχεδιασμού</value>
+  </data>
+  <data name="Editor.TripsImportIAgreeToRemoveThisObject" xml:space="preserve">
+    <value>Συμφωνώ να αφαιρεθούν το στοιχείο και ο σχεδιασμός του</value>
+  </data>
+  <data name="Editor.TripsImportRemovedOrReidentifiedObjectConsentIs" xml:space="preserve">
+    <value>Το στοιχείο αφαιρέθηκε ή άλλαξε ταυτότητα. Απαιτείται συναίνεση.</value>
+  </data>
+  <data name="Editor.TripsImportDifferentPlanningKeepExistingIsThe" xml:space="preserve">
+    <value>Ο σχεδιασμός διαφέρει. Η προεπιλογή διατηρεί τον υπάρχοντα.</value>
+  </data>
+  <data name="Editor.TripsImportPlanningIsOmittedFromThisFile" xml:space="preserve">
+    <value>Το αρχείο δεν περιέχει σχεδιασμό για το στοιχείο. Ο υπάρχων σχεδιασμός θα διατηρηθεί.</value>
+  </data>
+  <data name="Editor.TripsImportPlanningIsEqualNoConflictChoice" xml:space="preserve">
+    <value>Ο σχεδιασμός είναι ίδιος. Δεν υπάρχει σύγκρουση προς επίλυση.</value>
+  </data>
+  <data name="Editor.TripsImportThisTargetHasNoPlanningThe" xml:space="preserve">
+    <value>Το στοιχείο δεν έχει σχεδιασμό. Θα προστεθεί ο εισαγόμενος σχεδιασμός.</value>
+  </data>
+  <data name="Editor.TripsImportNewObjectTheImportedAggregateWill" xml:space="preserve">
+    <value>Νέο στοιχείο. Θα προστεθεί ο εισαγόμενος σχεδιασμός.</value>
+  </data>
+  <data name="Editor.TripsImportTitle" xml:space="preserve">
+    <value>Τίτλος</value>
+  </data>
+  <data name="Editor.TripsImportCreditsContributionTerms" xml:space="preserve">
+    <value>Αναφορές δημιουργών / όροι συνεισφοράς</value>
+  </data>
+  <data name="Editor.TripsImportImport" xml:space="preserve">
+    <value>Εισαγωγή</value>
+  </data>
+  <data name="Editor.TripsImportReviewingTheSelectedKML" xml:space="preserve">
+    <value>Έλεγχος του επιλεγμένου KML…</value>
+  </data>
+  <data name="Editor.TripsImportImportingTheSelectedKML" xml:space="preserve">
+    <value>Εισαγωγή του επιλεγμένου KML…</value>
+  </data>
+  <data name="Editor.TripsImportReplace0WithTheSelectedFile" xml:space="preserve">
+    <value>Αντικατάσταση του «{0}» με το πλήρες περιεχόμενο ταξιδιού του αρχείου. Ελέγξτε τον ιδιωτικό σχεδιασμό παρακάτω.</value>
+  </data>
+  <data name="Editor.TripsImportATripWithThisIDMay" xml:space="preserve">
+    <value>Ένα ταξίδι με αυτό το αναγνωριστικό μπορεί να υπάρχει ήδη στον λογαριασμό σας. Ελέγξτε την ενημέρωση ή δημιουργήστε ξεχωριστό ιδιωτικό ταξίδι.</value>
+  </data>
+  <data name="Editor.TripsImport012" xml:space="preserve">
+    <value>{0}: {1} · {2}</value>
+  </data>
+  <data name="Editor.TripsImportRemovingThisObjectAlsoRemovesIts" xml:space="preserve">
+    <value>Η αφαίρεση του στοιχείου διαγράφει και το μεταφέρσιμο περιεχόμενό του. Απαιτείται ρητή συναίνεση.</value>
+  </data>
+  <data name="Editor.TripsImportKeepExistingIsTheDefaultUse" xml:space="preserve">
+    <value>Η προεπιλογή διατηρεί το υπάρχον περιεχόμενο. Η χρήση ή η εκκαθάριση ισχύει μόνο για τα ελεγμένα μεταφέρσιμα πεδία. Διατηρήστε όλες τις κληρονομημένες αναφορές που παραμένουν σε ισχύ.</value>
+  </data>
+  <data name="Editor.TripsImportExisting0" xml:space="preserve">
+    <value>Υπάρχον: {0}</value>
+  </data>
+  <data name="Editor.TripsImportAbsent" xml:space="preserve">
+    <value>(απουσιάζει)</value>
+  </data>
+  <data name="Editor.TripsImportImported0" xml:space="preserve">
+    <value>Εισαγόμενο: {0}</value>
+  </data>
+  <data name="Editor.TripsImportExistingPlanning" xml:space="preserve">
+    <value>Υπάρχων σχεδιασμός</value>
+  </data>
+  <data name="Editor.TripsImportImportedPlanning" xml:space="preserve">
+    <value>Εισαγόμενος σχεδιασμός</value>
+  </data>
+  <data name="Editor.TripsImport013" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedPlanningRemovesTheseExisting" xml:space="preserve">
+    <value>Η χρήση του εισαγόμενου σχεδιασμού αφαιρεί τις εξής υπάρχουσες εγγραφές:</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedValue" xml:space="preserve">
+    <value>Χρήση εισαγόμενης τιμής</value>
+  </data>
+  <data name="Editor.TripsImportExplicitlyClearThisValue" xml:space="preserve">
+    <value>Ρητή εκκαθάριση της τιμής</value>
+  </data>
+  <data name="Editor.TripsImportIAgreeToRemoveThisObject2" xml:space="preserve">
+    <value>Συμφωνώ να αφαιρεθούν το στοιχείο και το μεταφέρσιμο περιεχόμενό του</value>
+  </data>
+  <data name="Editor.TripsImportRefreshReview" xml:space="preserve">
+    <value>Ανανέωση ελέγχου</value>
+  </data>
+  <data name="Editor.TripsImport0RouteReducedFrom1To" xml:space="preserve">
+    <value>{0}: οι συντεταγμένες της διαδρομής μειώθηκαν από {1} σε {2}.</value>
+  </data>
+  <data name="Editor.TripsImportLoadingUnfinishedCompositions" xml:space="preserve">
+    <value>Φόρτωση ημιτελών συνθέσεων…</value>
+  </data>
+  <data name="Editor.TripsImportSavedComparisonsUnavailableSignInOr" xml:space="preserve">
+    <value>Οι αποθηκευμένες συγκρίσεις δεν είναι διαθέσιμες. Συνδεθείτε ή ανανεώστε για να δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsImportUnfinished" xml:space="preserve">
+    <value>Ημιτελής</value>
+  </data>
+  <data name="Editor.TripsImportRefreshComparisons" xml:space="preserve">
+    <value>Ανανέωση συγκρίσεων</value>
+  </data>
+  <data name="Editor.TripsFailedToLoadTripsPleaseRefresh" xml:space="preserve">
+    <value>Δεν φορτώθηκαν τα ταξίδια. Ανανεώστε τη σελίδα.</value>
+  </data>
+  <data name="Editor.TripsNoTripsMatchYourSearchOr" xml:space="preserve">
+    <value>Δεν υπάρχουν ταξίδια που να ταιριάζουν στην αναζήτηση ή στο φίλτρο.</value>
+  </data>
+  <data name="Editor.TripsClickToCopyCoverImageURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου εικόνας εξωφύλλου στο πρόχειρο</value>
+  </data>
+  <data name="Editor.TripsCopyCoverImageURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου εικόνας εξωφύλλου</value>
+  </data>
+  <data name="Editor.TripsClickToCopyMapSnapshotURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου στιγμιοτύπου χάρτη στο πρόχειρο</value>
+  </data>
+  <data name="Editor.TripsCopyMapSnapshotURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου στιγμιοτύπου χάρτη</value>
+  </data>
+  <data name="Editor.TripsClickToCopyProgressLinkTo" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου προόδου στο πρόχειρο</value>
+  </data>
+  <data name="Editor.TripsCopyProgressLink" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου προόδου</value>
+  </data>
+  <data name="Editor.TripsClickToSeePublicPageOr" xml:space="preserve">
+    <value>Προβολή δημόσιας σελίδας ή επιλογών αντιγραφής συνδέσμου</value>
+  </data>
+  <data name="Editor.TripsYes" xml:space="preserve">
+    <value>Ναι</value>
+  </data>
+  <data name="Editor.TripsVisitPublicTripPage" xml:space="preserve">
+    <value>Προβολή δημόσιας σελίδας ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsClickToCopyToClipboard" xml:space="preserve">
+    <value>Αντιγραφή στο πρόχειρο</value>
+  </data>
+  <data name="Editor.TripsCopyPublicTripPageURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου δημόσιας σελίδας</value>
+  </data>
+  <data name="Editor.TripsCopyEmbedURL" xml:space="preserve">
+    <value>Αντιγραφή συνδέσμου ενσωμάτωσης</value>
+  </data>
+  <data name="Editor.TripsCopyEmbedHTML" xml:space="preserve">
+    <value>Αντιγραφή HTML ενσωμάτωσης</value>
+  </data>
+  <data name="Editor.TripsNo" xml:space="preserve">
+    <value>Όχι</value>
+  </data>
+  <data name="Editor.TripsViewExportTrip" xml:space="preserve">
+    <value>Προβολή / εξαγωγή ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsView" xml:space="preserve">
+    <value>Προβολή</value>
+  </data>
+  <data name="Editor.TripsScanYourLocationHistoryToFind" xml:space="preserve">
+    <value>Ανάλυση του ιστορικού τοποθεσιών για εύρεση και δημιουργία επισκέψεων στα μέρη του ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsFindVisitsFromYourLocationData" xml:space="preserve">
+    <value>Εύρεση επισκέψεων από τα δεδομένα τοποθεσίας σας</value>
+  </data>
+  <data name="Editor.TripsRemoveAllVisitRecordsAssociatedWith" xml:space="preserve">
+    <value>Αφαίρεση όλων των εγγραφών επισκέψεων αυτού του ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsDeleteAllVisitRecordsForThis" xml:space="preserve">
+    <value>Διαγραφή όλων των εγγραφών επισκέψεων αυτού του ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsDeleteTrip" xml:space="preserve">
+    <value>Διαγραφή ταξιδιού</value>
+  </data>
+  <data name="Editor.TripsMatching" xml:space="preserve">
+    <value>αποτελέσματα</value>
+  </data>
+  <data name="Editor.TripsTripPageNavigation" xml:space="preserve">
+    <value>Πλοήγηση σελίδων ταξιδιών</value>
+  </data>
+  <data name="Editor.TripsFirst" xml:space="preserve">
+    <value>Πρώτη</value>
+  </data>
+  <data name="Editor.TripsPrevious" xml:space="preserve">
+    <value>Προηγούμενη</value>
+  </data>
+  <data name="Editor.TripsNext" xml:space="preserve">
+    <value>Επόμενη</value>
+  </data>
+  <data name="Editor.TripsLast" xml:space="preserve">
+    <value>Τελευταία</value>
+  </data>
+  <data name="Editor.TripsPage" xml:space="preserve">
+    <value>Σελίδα</value>
+  </data>
+  <data name="Editor.TripsGo" xml:space="preserve">
+    <value>Μετάβαση</value>
+  </data>
+  <data name="Editor.TripsAreYouSureYouWantTo" xml:space="preserve">
+    <value>Θέλετε να διαγράψετε αυτό το ταξίδι;</value>
+  </data>
+  <data name="Editor.TripsTripDeleted" xml:space="preserve">
+    <value>Το ταξίδι διαγράφηκε.</value>
+  </data>
+  <data name="Editor.TripsFailedToDeleteTrip" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η διαγραφή του ταξιδιού.</value>
+  </data>
+  <data name="Editor.Trips0Ms" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="Editor.Trips0Of1" xml:space="preserve">
+    <value>{0} από {1}</value>
+  </data>
+  <data name="Editor.TripsConfidenceBasedOnLocationCountAnd" xml:space="preserve">
+    <value>Η βεβαιότητα βασίζεται στο πλήθος και την εγγύτητα των σημείων (μέση απόσταση {0} μ.)</value>
+  </data>
+  <data name="Editor.Trips0Confidence" xml:space="preserve">
+    <value>Βεβαιότητα {0}</value>
+  </data>
+  <data name="Editor.TripsViewOnMap" xml:space="preserve">
+    <value>Προβολή στον χάρτη</value>
+  </data>
+  <data name="Editor.TripsUserCheckedInNearby" xml:space="preserve">
+    <value>Χειροκίνητη καταγραφή παρουσίας κοντά στο μέρος</value>
+  </data>
+  <data name="Editor.TripsGPSPingsNearThisPlace0" xml:space="preserve">
+    <value>Σημεία GPS κοντά στο μέρος: {0}</value>
+  </data>
+  <data name="Editor.TripsAVisitToThisPlaceIs" xml:space="preserve">
+    <value>Μια επίσκεψη σε αυτό το μέρος συνδέεται ήδη με το ταξίδι</value>
+  </data>
+  <data name="Editor.TripsMinimumDistance0M" xml:space="preserve">
+    <value>Ελάχιστη απόσταση: {0} μ.</value>
+  </data>
+  <data name="Editor.TripsPlaceWasDeleted" xml:space="preserve">
+    <value>Το μέρος διαγράφηκε</value>
+  </data>
+  <data name="Editor.TripsPlaceNoLongerExists" xml:space="preserve">
+    <value>Το μέρος δεν υπάρχει πλέον</value>
+  </data>
+  <data name="Editor.TripsPlaceWasMoved" xml:space="preserve">
+    <value>Το μέρος μετακινήθηκε</value>
+  </data>
+  <data name="Editor.TripsClosed" xml:space="preserve">
+    <value>Κλειστή</value>
+  </data>
+  <data name="Editor.TripsFromDateMustBeBeforeOr" xml:space="preserve">
+    <value>Η ημερομηνία έναρξης πρέπει να είναι ίδια ή προγενέστερη της ημερομηνίας λήξης.</value>
+  </data>
+  <data name="Editor.TripsAnalyzing0Against1" xml:space="preserve">
+    <value>Ανάλυση για {0} με βάση {1}…</value>
+  </data>
+  <data name="Editor.TripsEstimatedTime0" xml:space="preserve">
+    <value>Εκτιμώμενος χρόνος: περίπου {0}</value>
+  </data>
+  <data name="Editor.TripsAnalysisFailed" xml:space="preserve">
+    <value>Η ανάλυση απέτυχε.</value>
+  </data>
+  <data name="Editor.TripsAnErrorOccurredDuringAnalysis" xml:space="preserve">
+    <value>Παρουσιάστηκε σφάλμα κατά την ανάλυση.</value>
+  </data>
+  <data name="Editor.TripsNoChangesToApply2" xml:space="preserve">
+    <value>Δεν υπάρχουν αλλαγές προς εφαρμογή.</value>
+  </data>
+  <data name="Editor.TripsCreatedVisits0Confirmed1From" xml:space="preserve">
+    <value>Δημιουργήθηκαν επισκέψεις: {0} (επιβεβαιωμένες: {1}, από προτάσεις: {2}).</value>
+  </data>
+  <data name="Editor.TripsFailedToApplyChanges" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η εφαρμογή των αλλαγών.</value>
+  </data>
+  <data name="Editor.TripsTheVisitUpdateCouldNotBe" xml:space="preserve">
+    <value>Η ενημέρωση επισκέψεων δεν επιβεβαιώθηκε. Ελέγξτε τις επισκέψεις σας πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsClearAllVisits" xml:space="preserve">
+    <value>Διαγραφή όλων των επισκέψεων</value>
+  </data>
+  <data name="Editor.TripsAreYouSureYouWantTo2" xml:space="preserve">
+    <value>Θέλετε να διαγράψετε όλες τις επισκέψεις για το «{0}»; Η διαγραφή δεν αναιρείται.</value>
+  </data>
+  <data name="Editor.TripsClearAll" xml:space="preserve">
+    <value>Διαγραφή όλων</value>
+  </data>
+  <data name="Editor.TripsFailedToClearVisits" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η διαγραφή των επισκέψεων.</value>
+  </data>
+  <data name="Editor.TripsTheDeletionCouldNotBeConfirmed" xml:space="preserve">
+    <value>Η διαγραφή δεν επιβεβαιώθηκε. Ελέγξτε τις επισκέψεις σας πριν δοκιμάσετε ξανά.</value>
+  </data>
+  <data name="Editor.TripsFailedToFetchLocations" xml:space="preserve">
+    <value>Δεν φορτώθηκαν οι τοποθεσίες.</value>
+  </data>
+  <data name="Editor.Trips0MFromPlace" xml:space="preserve">
+    <value>{0} μ. από το μέρος</value>
+  </data>
+  <data name="Editor.TripsAccuracy0M" xml:space="preserve">
+    <value>Ακρίβεια: ±{0} μ.</value>
+  </data>
+  <data name="Editor.TripsSpeed0KmH" xml:space="preserve">
+    <value>Ταχύτητα: {0} χλμ./ώρα</value>
+  </data>
+  <data name="Editor.TripsActivity0" xml:space="preserve">
+    <value>Δραστηριότητα: {0}</value>
+  </data>
+  <data name="Editor.TripsViewInGoogleMaps" xml:space="preserve">
+    <value>Προβολή στους Χάρτες Google</value>
+  </data>
+  <data name="Editor.TripsMaps" xml:space="preserve">
+    <value>Χάρτες</value>
+  </data>
+  <data name="Editor.Trips0M" xml:space="preserve">
+    <value>{0} μ.</value>
+  </data>
+  <data name="Editor.TripsConfirmedVisit" xml:space="preserve">
+    <value>Επιβεβαιωμένη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsSuggestedVisit" xml:space="preserve">
+    <value>Προτεινόμενη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsStaleVisit" xml:space="preserve">
+    <value>Παρωχημένη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsExistingVisit" xml:space="preserve">
+    <value>Υπάρχουσα επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsViewPlaceInTrip" xml:space="preserve">
+    <value>Προβολή μέρους στο ταξίδι</value>
+  </data>
+  <data name="Editor.TripsThisTrip" xml:space="preserve">
+    <value>αυτό το ταξίδι</value>
+  </data>
+  <data name="Editor.TripsImportPlanningEntries.one" xml:space="preserve">
+    <value>{0} εγγραφή</value>
+  </data>
+  <data name="Editor.TripsImportPlanningEntries.other" xml:space="preserve">
+    <value>{0} εγγραφές</value>
+  </data>
+  <data name="Editor.TripsImportSimplifiedRoutes.one" xml:space="preserve">
+    <value>Απλοποιήθηκε {0} επιπλέον διαδρομή.</value>
+  </data>
+  <data name="Editor.TripsImportSimplifiedRoutes.other" xml:space="preserve">
+    <value>Απλοποιήθηκαν {0} επιπλέον διαδρομές.</value>
+  </data>
+  <data name="Editor.TripsScanConfirm.one" xml:space="preserve">
+    <value>Θα δημιουργηθεί {0} επιβεβαιωμένη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsScanConfirm.other" xml:space="preserve">
+    <value>Θα δημιουργηθούν {0} επιβεβαιωμένες επισκέψεις</value>
+  </data>
+  <data name="Editor.TripsScanSuggest.one" xml:space="preserve">
+    <value>Θα δημιουργηθεί {0} προτεινόμενη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsScanSuggest.other" xml:space="preserve">
+    <value>Θα δημιουργηθούν {0} προτεινόμενες επισκέψεις</value>
+  </data>
+  <data name="Editor.TripsScanDeleteStale.one" xml:space="preserve">
+    <value>Θα διαγραφεί {0} παρωχημένη επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsScanDeleteStale.other" xml:space="preserve">
+    <value>Θα διαγραφούν {0} παρωχημένες επισκέψεις</value>
+  </data>
+  <data name="Editor.TripsScanDeleteExisting.one" xml:space="preserve">
+    <value>Θα διαγραφεί {0} υπάρχουσα επίσκεψη</value>
+  </data>
+  <data name="Editor.TripsScanDeleteExisting.other" xml:space="preserve">
+    <value>Θα διαγραφούν {0} υπάρχουσες επισκέψεις</value>
+  </data>
+  <data name="Editor.TripsScanPlaces.one" xml:space="preserve">
+    <value>{0} μέρος</value>
+  </data>
+  <data name="Editor.TripsScanPlaces.other" xml:space="preserve">
+    <value>{0} μέρη</value>
+  </data>
+  <data name="Editor.TripsScanLocations.one" xml:space="preserve">
+    <value>{0} τοποθεσία</value>
+  </data>
+  <data name="Editor.TripsScanLocations.other" xml:space="preserve">
+    <value>{0} τοποθεσίες</value>
+  </data>
+  <data name="Editor.TripsScanSeconds.one" xml:space="preserve">
+    <value>{0} δευτερόλεπτο</value>
+  </data>
+  <data name="Editor.TripsScanSeconds.other" xml:space="preserve">
+    <value>{0} δευτερόλεπτα</value>
+  </data>
+  <data name="Editor.TripsScanHits.one" xml:space="preserve">
+    <value>{0} σημείο</value>
+  </data>
+  <data name="Editor.TripsScanHits.other" xml:space="preserve">
+    <value>{0} σημεία</value>
+  </data>
+  <data name="Editor.TripsScanCreated.one" xml:space="preserve">
+    <value>Δημιουργήθηκε {0} επίσκεψη.</value>
+  </data>
+  <data name="Editor.TripsScanCreated.other" xml:space="preserve">
+    <value>Δημιουργήθηκαν {0} επισκέψεις.</value>
+  </data>
+  <data name="Editor.TripsScanDeleted.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} επίσκεψη.</value>
+  </data>
+  <data name="Editor.TripsScanDeleted.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} επισκέψεις.</value>
+  </data>
+  <data name="Editor.TripsAnalyzeHistory" xml:space="preserve">
+    <value>Ανάλυση ιστορικού</value>
+  </data>
+  <data name="Editor.TripsApplying" xml:space="preserve">
+    <value>Εφαρμογή…</value>
+  </data>
+  <data name="Editor.TripsScanCrossTier" xml:space="preserve">
+    <value>Πολλαπλές ακτίνες: {0} εντός {1} μ. + {2} εντός {3} μ.</value>
+  </data>
+  <data name="Editor.TripsScanRadius" xml:space="preserve">
+    <value>{0} εντός {1} μ.</value>
+  </data>
+  <data name="Editor.TripsScanExtended" xml:space="preserve">
+    <value>{0} σε ευρύτερη ακτίνα</value>
+  </data>
 </root>

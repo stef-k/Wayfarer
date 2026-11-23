@@ -1,3 +1,4 @@
+import { message as tr } from '../../../../wwwroot/js/localization/messages.js';
 import { reactive } from 'vue';
 import { copy } from './compositionModel';
 import type { Action, ReviewDraft, Selection, Snapshot, Workspace } from './compositionTypes';
@@ -21,8 +22,8 @@ export const createCompositionState = (account: string, composition: string, des
   const validateWorkspace = (w: Workspace): void => {
     if (w?.compositionId !== composition || !completeSnapshot(w.current) || !completeSnapshot(w.sourceA)
       || !completeSnapshot(w.sourceB) || w.current.graph.id !== w.tripId || !Array.isArray(w.mappings))
-      throw new Error('Comparison response is incomplete or belongs to another context. Refresh saved C.');
-    if (state.workspace && w.tripId !== state.workspace.tripId) throw new Error('The saved destination does not match this comparison. Inspect or refresh saved C.');
+      throw new Error(tr('Editor.CompositionComparisonResponseIsIncompleteOrBelongs', 'Comparison response is incomplete or belongs to another context. Refresh saved C.'));
+    if (state.workspace && w.tripId !== state.workspace.tripId) throw new Error(tr('Editor.CompositionTheSavedDestinationDoesNotMatch', 'The saved destination does not match this comparison. Inspect or refresh saved C.'));
   };
   return {
     state, validateWorkspace,
@@ -38,32 +39,36 @@ export const createCompositionState = (account: string, composition: string, des
         const w = await load();
         if (!current() || generation !== readGeneration) return false;
         validateWorkspace(w);
-        state.workspace = w; state.needsInspection = false; state.error = ''; return true;
-      } catch (error) { if (current() && generation === readGeneration) state.error = error instanceof Error ? error.message : 'Refresh unavailable.'; return false; }
+        state.workspace = w;
+        if (!state.needsInspection) state.error = '';
+        return true;
+      } catch (error) { if (current() && generation === readGeneration) state.error = error instanceof Error ? error.message : tr('Editor.CompositionRefreshUnavailable', 'Refresh unavailable.'); return false; }
       finally { if (current() && generation === readGeneration) state.loading = false; }
     },
+    /** Only an owner that completed its explicit current-content review may release this requirement. */
+    completeInspection: (): void => { state.needsInspection = false; state.error = ''; },
     /** Captures submitted choices before previews/network; later input remains owned by its current draft. */
     submit: async (draft: ReviewDraft, action: Action, save: (frozen: Action) => Promise<Pick<Workspace, 'compositionId' | 'tripId' | 'current' | 'mappings'>>,
       accepted: () => void, ownsAttempt: () => boolean = () => true): Promise<void> => {
       if (!current() || state.pending || state.needsInspection || !state.workspace) return;
       const inspector = (): string | null => state.view.blockMode ? `block/${draft.side}` : state.view.selection && viewKey(state.view.selection);
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
-      const frozen = copy(action); state.pending = true; state.error = ''; state.status = 'Saving the reviewed action…';
+      const frozen = copy(action); state.pending = true; state.error = ''; state.status = tr('Editor.CompositionSavingTheReviewedAction', 'Saving the reviewed action…');
       ++readGeneration; state.loading = false; // Retire both the generation and the superseded read's loading ownership.
       try {
         const result = await save(frozen);
         if (!current()) return;
         if (result?.compositionId !== composition || result.tripId !== workspace.tripId || !completeSnapshot(result.current)
-          || result.current.graph.id !== workspace.tripId || !Array.isArray(result.mappings)) throw new Error('The reply does not match this comparison or is incomplete. Refresh saved C before another action.');
+          || result.current.graph.id !== workspace.tripId || !Array.isArray(result.mappings)) throw new Error(tr('Editor.CompositionTheReplyDoesNotMatchThis', 'The reply does not match this comparison or is incomplete. Refresh saved C before another action.'));
         state.workspace = { ...workspace, current: result.current, mappings: result.mappings };
         const sameDraft = ownsAttempt() && selected === inspector() && submitted === JSON.stringify(draft);
-        if (sameDraft) { accepted(); state.status = `Saved to ${destination}.`; }
-        else state.status = `Earlier action saved to ${destination}. Newer choices remain unsaved; review current ${destination} before applying.`;
+        if (sameDraft) { accepted(); state.status = tr('Editor.CompositionSavedTo0', 'Saved to {0}.', destination); }
+        else state.status = tr('Editor.CompositionEarlierActionSavedTo0Newer', 'Earlier action saved to {0}. Newer choices remain unsaved; review current {1} before applying.', destination, destination);
       } catch (error) {
         if (!current()) return;
-        state.error = error instanceof Error ? error.message : 'The save could not be confirmed. Inspect or refresh C.';
-        // Ordinary refresh is required after any refusal or uncertain save; it never replays the action.
-        state.needsInspection = true; state.status = 'Choices retained. Refresh and review current C.';
+        state.error = error instanceof Error ? error.message : tr('Editor.CompositionTheSaveCouldNotBeConfirmed', 'The save could not be confirmed. Inspect or refresh C.');
+        // The owning workspace must complete explicit inspection before another action.
+        state.needsInspection = true; state.status = tr('Editor.CompositionChoicesRetainedRefreshAndReviewCurrent', 'Choices retained. Refresh and review current C.');
       } finally { if (current()) state.pending = false; }
     },
     dispose: (): void => { active = false; ++readGeneration; }
