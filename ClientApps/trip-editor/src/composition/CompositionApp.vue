@@ -124,23 +124,27 @@ async function apply(): Promise<void> {
   let action;
   try { action = buildAction(state.workspace, copy(retained)); }
   catch (error) { state.error = error instanceof Error ? error.message : tr('Editor.CompositionReviewYourSelectedFieldsAndDestination', 'Review your selected fields and destination.'); return; }
-  await store.submit(retained, action, async frozen => {
-    const current = await api.read(props.compositionId);
-    if (disposed) throw new Error(tr('Editor.CompositionComparisonContextChangedInspectSavedC', 'Comparison context changed. Inspect saved C.'));
-    store.validateWorkspace(current);
-    state.workspace = current;
-    if (!await api.prepare(current, frozen, message => confirm({ title: tr('Editor.CompositionReviewConsequencesInC', 'Review consequences in C'), message, confirmLabel: tr('Editor.CompositionApplyReviewedAction', 'Apply reviewed action'), cancelLabel: tr('Editor.CompositionKeepChoices', 'Keep choices'), variant: 'warning' })))
-      throw new Error(tr('Editor.CompositionActionNotAppliedChoicesRetainedFor', 'Action not applied. Choices retained for review.'));
-    if (disposed) throw new Error(tr('Editor.CompositionComparisonContextChanged', 'Comparison context changed.'));
-    return await api.apply(props.compositionId, frozen);
-  }, () => {
+  await store.submit(retained, action, frozen => api.apply(props.compositionId, frozen), () => {
     if (state.view.blockMode) { state.view.block = null; state.view.blockMode = false; return; }
     const selection = state.view.selection;
     if (selection && state.workspace) {
       const review = newReview(state.workspace, selection.side);
       review.items = [newChoice(state.workspace, selection.side, selection.kind, selection.id)]; state.view.drafts[viewKey(selection)] = review;
     }
-  });
+  }, { preparation: {
+    cancelledMessage: tr('Editor.CompositionActionNotAppliedChoicesRetainedFor', 'Action not applied. Choices retained for review.'),
+    review: async frozen => {
+      const current = await api.read(props.compositionId);
+      if (disposed) return false;
+      store.validateWorkspace(current);
+      state.workspace = current;
+      return api.prepare(current, frozen, message => confirm({
+        title: tr('Editor.CompositionReviewConsequencesInC', 'Review consequences in C'), message,
+        confirmLabel: tr('Editor.CompositionApplyReviewedAction', 'Apply reviewed action'),
+        cancelLabel: tr('Editor.CompositionKeepChoices', 'Keep choices'), variant: 'warning'
+      }));
+    }
+  } });
 }
 /** Blocks keep each list/destination independent; the inspector shows the resulting placement for every item. */
 function addToBlock(): void {

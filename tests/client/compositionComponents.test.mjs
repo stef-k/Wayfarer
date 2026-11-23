@@ -46,6 +46,11 @@ const bundle = await build({ stdin: { contents: `export { default as FieldChoice
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const { FieldChoices, SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
+
+/** Supplies the same inert locale snapshot as the page before importing the component bundle. */
+const localeElement = (locale, messages = {}) => ({
+  textContent: JSON.stringify({ locale, fallback: 'en-US', messages, english: {} })
+});
 const source = { graph: { id: 'source', name: 'Source', regions: [
   { id: 'region', name: 'Segments', places: [{ id: 'tower', name: 'Taipei 101', location: [121, 25] }], areas: [] }
 ], segments: [{ id: 'route', mode: 'walk', fromPlaceId: 'tower', toPlaceId: null, waypoints: [] }], credits: [] },
@@ -70,7 +75,7 @@ test('Segment copy shows complete anchor choices and Trip-level destination with
 });
 
 // Render the shared field owner used by both full composition and lightweight Copy, with independently remapped anchors.
-const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFacts, existingTrip = false) => {
+const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFacts, existingTrip = false, component = FieldChoices) => {
   const { newChoice, newReview } = await import('../../ClientApps/trip-editor/src/composition/compositionModel.ts');
   const sourceB = structuredClone(source); Object.assign(sourceB.graph.segments[0], sourceFacts);
   const current = structuredClone(source); current.graph.id = 'C';
@@ -79,7 +84,7 @@ const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFa
   const review = newReview(workspace, 'b');
   Object.assign(current.graph.segments[0], currentFacts);
   const choice = newChoice(workspace, 'b', 'segment', 'route'); choice.decision = 'reuse'; choice.destinationId = 'route';
-  return renderToString(createSSRApp(FieldChoices, { workspace, review, choice, options: null, editorUrl: '#', existingTrip }));
+  return renderToString(createSSRApp(component, { workspace, review, choice, options: null, editorUrl: '#', existingTrip }));
 };
 
 for (const existingTrip of [false, true]) test(`complete route exposes source 35 min versus original/current 5 min in ${existingTrip ? 'Copy' : 'composition'}`, async () => {
@@ -89,6 +94,32 @@ for (const existingTrip of [false, true]) test(`complete route exposes source 35
   assert.match(html, /Source B/); assert.match(html, new RegExp(`Reviewed original ${existingTrip ? 'destination' : 'C'}`));
   assert.match(html, new RegExp(`Current ${existingTrip ? 'destination' : 'C'}`));
   assert.match(html, /Different saved route facts: duration/); assert.equal((html.match(/1.5 km/g) ?? []).length, 3);
+});
+
+test('Greek route reviews translate duration sources and fixed differences while retaining saved values', async () => {
+  const catalog = await readFile(new URL('../../Resources/Editor.el-GR.resx', import.meta.url), 'utf8');
+  const messages = Object.fromEntries(Array.from(catalog.matchAll(/<data name="([^"]+)"[^>]*>\s*<value>([^<]+)<\/value>/g),
+    ([, key, value]) => [key, value]));
+  const priorDocument = globalThis.document;
+  let greekFields;
+  try {
+    globalThis.document = { getElementById: id => id === 'wayfarer-locale' ? localeElement('el-GR', messages) : null };
+    ({ FieldChoices: greekFields } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components-el-GR.mjs').toString('base64')}`));
+  } finally { globalThis.document = priorDocument; }
+  const sourceFacts = { mode: 'Authored <Trail>', estimatedDistanceKm: 1.5, estimatedDurationSource: 'Manual',
+    estimatedDurationTicks: 3000000000, routeAttribution: 'Authored & notice',
+    routeInstructionsJson: null, routeProvider: null, routeStorageMode: null };
+  const reviewedFacts = { ...sourceFacts, mode: 'Other trail', estimatedDistanceKm: 2.5,
+    estimatedDurationSource: 'Automatic', estimatedDurationTicks: 1234567, routeInstructionsJson: '[]',
+    routeProvider: 'Saved provider', routeAttribution: 'Other notice', routeStorageMode: 'Saved storage' };
+  for (const existingTrip of [false, true]) {
+    const html = await renderRoute(sourceFacts, reviewedFacts, sourceFacts, existingTrip, greekFields);
+    assert.match(html, /Authored &lt;Trail&gt;.*1,5.*Διάρκεια: Χειροκίνητη/);
+    assert.match(html, /Other trail.*2,5.*0,1234567.*Διάρκεια: Αυτόματη/);
+    assert.match(html, /Αναφορά δημιουργού: Authored &amp; notice/);
+    assert.match(html, /Διαφορές στα αποθηκευμένα στοιχεία διαδρομής: τρόπος μετακίνησης, απόσταση, διάρκεια, πηγή διάρκειας, οδηγίες, πάροχος, αναφορά δημιουργού, αποθήκευση/);
+    assert.match(html, /Ίδια αποθηκευμένα στοιχεία διαδρομής/);
+  }
 });
 
 test('route measurement absence remains distinct from zero and subminute precision is readable', async () => {
@@ -163,6 +194,7 @@ const withWorkspace = async (action, lightweight = false) => {
     if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
+    if (url.endsWith('/coordinates/prepare')) return Response.json({ tripId: 'C', targetId: 'CP', operation: 'coordinates', conditionToken: 'reviewed', affectedSegmentIds: [] });
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
     if (url.includes('/candidates')) return Response.json({ candidates: [] });
     if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [], transportModes: [] } });
@@ -337,7 +369,28 @@ test('lightweight refusal retains destination, placement and choices without rep
 }, true));
 
 
-/** Drives the production selector beside the already mounted Copy state using the shared test renderer. */
+for (const lightweight of [false, true]) test(`${lightweight ? 'Copy' : 'Compose'} Keep choices retains coordinate edits and restores the language draft guard`,
+  () => withWorkspace(async ({ captured, saved, requests, sent }) => {
+    saved.sourceB.graph.regions[0].places[0].location = [24, 37];
+    const app = lightweight ? captured.CopyToTrip : captured.CompositionApp;
+    if (lightweight) await app.load();
+    await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+    const draft = app.draft.value;
+    const choice = draft.items[0];
+    Object.assign(choice, { decision: 'reuse', destinationId: 'CP' });
+    choice.fields.location.operation = 'useSource';
+    const applying = app.apply(); await flush();
+    assert.equal(requests.filter(url => url.endsWith('/coordinates/prepare')).length, 1);
+    assert.equal(isLanguageNavigationHeld(), true);
+    settleConfirmDialog(false); await applying; await flush();
+    assert.equal(sent.length, 0);
+    assert.equal(app.draft.value, draft);
+    assert.equal(choice.fields.location.operation, 'useSource');
+    assert.equal(hasLanguageDraft(), true);
+    assert.equal(isLanguageNavigationHeld(), false);
+  }, lightweight));
+
+/** Drives the production selector beside the mounted Copy state using its own English locale bootstrap. */
 async function inspectLanguageControls(action) {
   const names = ['window', 'document', 'FormData', 'location'];
   const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]));
@@ -354,7 +407,8 @@ async function inspectLanguageControls(action) {
   };
   get('language-dialog').dataset.workspace = 'true';
   get('language-form').dataset.url = '/Language/Set';
-  globalThis.document = { ...document, getElementById: get, querySelectorAll: () => [], addEventListener() {} };
+  globalThis.document = { ...document, getElementById: id => id === 'wayfarer-locale' ? localeElement('en-US') : get(id),
+    querySelectorAll: () => [], addEventListener() {} };
   globalThis.window = {
     ...window, addEventListener: (name, callback) => events.set(name, callback),
     dispatchEvent: event => events.get(event.type)?.()

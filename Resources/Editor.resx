@@ -3444,9 +3444,6 @@
   <data name="Editor.CompositionReviewYourSelectedFieldsAndDestination" xml:space="preserve">
     <value>Review your selected fields and destination.</value>
   </data>
-  <data name="Editor.CompositionComparisonContextChangedInspectSavedC" xml:space="preserve">
-    <value>Comparison context changed. Inspect saved C.</value>
-  </data>
   <data name="Editor.CompositionReviewConsequencesInC" xml:space="preserve">
     <value>Review consequences in C</value>
   </data>
@@ -3458,9 +3455,6 @@
   </data>
   <data name="Editor.CompositionActionNotAppliedChoicesRetainedFor" xml:space="preserve">
     <value>Action not applied. Choices retained for review.</value>
-  </data>
-  <data name="Editor.CompositionComparisonContextChanged" xml:space="preserve">
-    <value>Comparison context changed.</value>
   </data>
   <data name="Editor.CompositionOneActionBlockUsesASingle" xml:space="preserve">
     <value>One action block uses a single source. Apply or clear the existing block first.</value>
@@ -4022,6 +4016,27 @@
   </data>
   <data name="Editor.CompositionRoutingMode" xml:space="preserve">
     <value>routing mode</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceMode" xml:space="preserve">
+    <value>mode</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceDistance" xml:space="preserve">
+    <value>distance</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceDuration" xml:space="preserve">
+    <value>duration</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceInstructions" xml:space="preserve">
+    <value>instructions</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceProvider" xml:space="preserve">
+    <value>provider</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceAttribution" xml:space="preserve">
+    <value>attribution</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceStorage" xml:space="preserve">
+    <value>storage</value>
   </data>
   <data name="Editor.CompositionDifferentSavedRouteFacts0" xml:space="preserve">
     <value>Different saved route facts: {0}</value>

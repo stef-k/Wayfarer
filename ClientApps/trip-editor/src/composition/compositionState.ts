@@ -7,6 +7,11 @@ import type { Action, ReviewDraft, Selection, Snapshot, Workspace } from './comp
 export const draftKey = (server: string, account: string, composition: string): string => `wayfarer:composition:v1:${server}:${account}:${composition}`;
 export interface RetainedView { selection: Selection | null; drafts: Record<string, ReviewDraft>; expanded: string[]; drawer: number; collapsed: boolean; tab: string;
   block: ReviewDraft | null; blockMode: boolean }
+/** Keeps preview consent separate from the save while sharing pending and draft ownership. */
+interface SubmissionOptions {
+  preparation?: { review: (frozen: Action) => Promise<boolean>; cancelledMessage: string };
+  ownsAttempt?: () => boolean;
+}
 export const viewKey = (selection: Selection): string => `${selection.side}/${selection.kind}/${selection.id}`;
 /** Incomplete transport never replaces the usable comparison or earns a Saved label. Domain values remain server-owned. */
 const completeSnapshot = (value: Snapshot | undefined): boolean => Boolean(value?.graph && typeof value.graph.id === 'string'
@@ -47,15 +52,20 @@ export const createCompositionState = (account: string, composition: string, des
     },
     /** Only an owner that completed its explicit current-content review may release this requirement. */
     completeInspection: (): void => { state.needsInspection = false; state.error = ''; },
-    /** Captures submitted choices before previews/network; later input remains owned by its current draft. */
+    /** Freezes choices before preview, and only calls save after the required consent. */
     submit: async (draft: ReviewDraft, action: Action, save: (frozen: Action) => Promise<Pick<Workspace, 'compositionId' | 'tripId' | 'current' | 'mappings'>>,
-      accepted: () => void, ownsAttempt: () => boolean = () => true): Promise<void> => {
+      accepted: () => void, { preparation, ownsAttempt = () => true }: SubmissionOptions = {}): Promise<void> => {
       if (!current() || state.pending || state.needsInspection || !state.workspace) return;
       const inspector = (): string | null => state.view.blockMode ? `block/${draft.side}` : state.view.selection && viewKey(state.view.selection);
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
       const frozen = copy(action); state.pending = true; state.error = ''; state.status = tr('Editor.CompositionSavingTheReviewedAction', 'Saving the reviewed action…');
       ++readGeneration; state.loading = false; // Retire both the generation and the superseded read's loading ownership.
       try {
+        if (preparation && !await preparation.review(frozen)) {
+          if (current()) { state.error = preparation.cancelledMessage; state.status = ''; }
+          return;
+        }
+        if (!current()) return;
         const result = await save(frozen);
         if (!current()) return;
         if (result?.compositionId !== composition || result.tripId !== workspace.tripId || !completeSnapshot(result.current)

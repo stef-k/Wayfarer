@@ -118,8 +118,6 @@ async function apply(): Promise<void> {
   try {
     const action = buildAction(workspace, submittedDraft);
     await owned.submit(submittedDraft, action, async frozen => {
-      if (!await api.prepare(workspace, frozen, message => confirm({ title: tr('Editor.CompositionReviewDestinationConsequences', 'Review destination consequences'), message,
-        confirmLabel: tr('Editor.CompositionApplyReviewedCopy', 'Apply reviewed copy'), cancelLabel: tr('Editor.CompositionKeepChoices', 'Keep choices'), variant: 'warning' }))) throw new Error(tr('Editor.CompositionCopyNotAppliedChoicesRetained', 'Copy not applied. Choices retained.'));
       const selected = frozen.items.flatMap(i => [i, ...i.children ?? []]);
       const identities = new Set(selected.map(i => `${i.kind}/${i.sourceId}`).concat(selected.flatMap(i => (i.anchors ?? []).map(a => `place/${a.sourceId}`))));
       const originals = submittedPreview.originals.filter(o => identities.has(`${o.kind}/${o.id}`));
@@ -130,7 +128,17 @@ async function apply(): Promise<void> {
       return { ...result, compositionId: 'copy' };
     }, () => {
       if (owned.state.workspace) owned.state.view.block = newReview(owned.state.workspace, 'b');
-    }, () => sourceId.value === submittedPreview.sourceTripId && destinationId.value === submittedPreview.tripId);
+    }, {
+      ownsAttempt: () => sourceId.value === submittedPreview.sourceTripId && destinationId.value === submittedPreview.tripId,
+      preparation: {
+        cancelledMessage: tr('Editor.CompositionCopyNotAppliedChoicesRetained', 'Copy not applied. Choices retained.'),
+        review: frozen => api.prepare(workspace, frozen, message => confirm({
+          title: tr('Editor.CompositionReviewDestinationConsequences', 'Review destination consequences'), message,
+          confirmLabel: tr('Editor.CompositionApplyReviewedCopy', 'Apply reviewed copy'),
+          cancelLabel: tr('Editor.CompositionKeepChoices', 'Keep choices'), variant: 'warning'
+        }))
+      }
+    });
   } catch (e) { error.value = e instanceof Error ? e.message : tr('Editor.CompositionReviewTheSelectedChoices', 'Review the selected choices.'); }
 }
 onMounted(async () => { await Promise.all([search(false), search(true)]); if (props.source && props.destination) await load(); });

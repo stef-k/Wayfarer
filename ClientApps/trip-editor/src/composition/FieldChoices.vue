@@ -52,11 +52,17 @@ function savedDuration(ticks: unknown): string {
   const seconds = ticks % 600000000 / 10000000;
   return [hours ? tr('Editor.VisitDurationHours', '{0} hr', number(hours)) : '', minutes ? tr('Editor.VisitDurationMinutes', '{0} min', number(minutes)) : '', seconds ? tr('Editor.Composition0Sec', '{0} sec', number(seconds, { maximumFractionDigits: 7 })) : ''].filter(Boolean).join(' ');
 }
+/** Resolves built-in duration sources for display and preserves unfamiliar saved values. */
+function durationSource(value: unknown): string {
+  if (value === 'Manual') return tr('Editor.Manual', 'Manual');
+  if (value === 'Automatic') return tr('Editor.Automatic', 'Automatic');
+  return value ? String(value) : tr('Editor.CheckStatus.unknown', 'Unknown');
+}
 /** Complete saved facts stay readable; internal profile/configuration IDs are represented by presence and comparison labels. */
 function describeRoute(value: unknown): string {
   const r = value as Record<string, unknown>;
   const mode = props.options?.transportModes.find(m => m.value === r.mode)?.label ?? r.mode ?? tr('Editor.CompositionNoMode', 'No mode');
-  return `${mode} · ${r.routeJson ? tr('Editor.CompositionSavedCustomGeometry', 'Saved custom geometry') : tr('Editor.CompositionAnchorFallback', 'Anchor fallback')} · ${r.estimatedDistanceKm == null ? tr('Editor.DistanceUnavailable', 'Distance unavailable') : tr('Editor.EstimateDistance', '{0} km', number(Number(r.estimatedDistanceKm), { maximumFractionDigits: 9 }))} · ${savedDuration(r.estimatedDurationTicks)} · ${tr('Editor.Composition0Duration', '{0} duration', r.estimatedDurationSource || tr('Editor.CheckStatus.unknown', 'Unknown'))}`;
+  return `${mode} · ${r.routeJson ? tr('Editor.CompositionSavedCustomGeometry', 'Saved custom geometry') : tr('Editor.CompositionAnchorFallback', 'Anchor fallback')} · ${r.estimatedDistanceKm == null ? tr('Editor.DistanceUnavailable', 'Distance unavailable') : tr('Editor.EstimateDistance', '{0} km', number(Number(r.estimatedDistanceKm), { maximumFractionDigits: 9 }))} · ${savedDuration(r.estimatedDurationTicks)} · ${tr('Editor.Composition0Duration', '{0} duration', durationSource(r.estimatedDurationSource))}`;
 }
 /** Secondary retained evidence is available without crowding the measurement comparison. */
 function routeDetails(value: unknown): string {
@@ -92,11 +98,23 @@ const markerColor = computed(() => {
 function routeComparison(value: unknown): string {
   if (!value) return tr('Editor.CompositionRouteUnavailableReviewFromViaTo', 'Route unavailable · Review From / Via / To dependencies');
   const route = value as Record<string, unknown>; const sourceRoute = captured('route') as Record<string, unknown>;
-  const facts: Record<string, string> = { mode: 'mode', routeJson: tr('Editor.CompositionSavedGeometry', 'saved geometry'), estimatedDistanceKm: 'distance',
-    estimatedDurationTicks: 'duration', estimatedDurationSource: tr('Editor.CompositionDurationSource', 'duration source'), transportProfileId: tr('Editor.CompositionTransportProfile', 'transport profile'),
-    routeInstructionsJson: 'instructions', routeProvider: 'provider', routeProviderConfigurationId: tr('Editor.CompositionProviderSettings', 'provider settings'),
-    routeProviderConfigurationVersion: tr('Editor.CompositionProviderVersion', 'provider version'), routeTransportProfileId: tr('Editor.CompositionRoutedProfile', 'routed profile'), routeGeneratedAt: tr('Editor.CompositionGenerationTime', 'generation time'),
-    routeAttribution: 'attribution', routeStorageMode: 'storage', routeMappingMode: tr('Editor.CompositionRoutingMode', 'routing mode') };
+  const facts: Record<string, string> = {
+    mode: tr('Editor.CompositionRouteDifferenceMode', 'mode'),
+    routeJson: tr('Editor.CompositionSavedGeometry', 'saved geometry'),
+    estimatedDistanceKm: tr('Editor.CompositionRouteDifferenceDistance', 'distance'),
+    estimatedDurationTicks: tr('Editor.CompositionRouteDifferenceDuration', 'duration'),
+    estimatedDurationSource: tr('Editor.CompositionDurationSource', 'duration source'),
+    transportProfileId: tr('Editor.CompositionTransportProfile', 'transport profile'),
+    routeInstructionsJson: tr('Editor.CompositionRouteDifferenceInstructions', 'instructions'),
+    routeProvider: tr('Editor.CompositionRouteDifferenceProvider', 'provider'),
+    routeProviderConfigurationId: tr('Editor.CompositionProviderSettings', 'provider settings'),
+    routeProviderConfigurationVersion: tr('Editor.CompositionProviderVersion', 'provider version'),
+    routeTransportProfileId: tr('Editor.CompositionRoutedProfile', 'routed profile'),
+    routeGeneratedAt: tr('Editor.CompositionGenerationTime', 'generation time'),
+    routeAttribution: tr('Editor.CompositionRouteDifferenceAttribution', 'attribution'),
+    routeStorageMode: tr('Editor.CompositionRouteDifferenceStorage', 'storage'),
+    routeMappingMode: tr('Editor.CompositionRoutingMode', 'routing mode')
+  };
   const differences = Object.entries(facts).filter(([key]) => JSON.stringify(route[key]) !== JSON.stringify(sourceRoute[key])).map(([, title]) => title);
   return [(differences.length ? tr('Editor.CompositionDifferentSavedRouteFacts0', 'Different saved route facts: {0}', differences.join(', ')) : tr('Editor.CompositionSameSavedRouteFacts', 'Same saved route facts')), tr('Editor.CompositionReviewFromViaToDependencies', 'Review From / Via / To dependencies')].join(' · ');
 }
