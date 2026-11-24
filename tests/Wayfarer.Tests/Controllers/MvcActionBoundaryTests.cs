@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wayfarer.Controllers;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -101,14 +102,15 @@ public sealed class MvcActionBoundaryTests(ITestOutputHelper output) : TestBase
     private static bool ContainsUserEntity(Type type) => typeof(ApplicationUser).IsAssignableFrom(type)
         || type.GetGenericArguments().Any(ContainsUserEntity);
 
-    /// <summary>Uses production application parts with real routing, authorization and antiforgery.</summary>
+    /// <summary>Uses production application parts and localization services with real routing, authorization and antiforgery.</summary>
     private static Task<IHost> StartHostAsync(ApplicationDbContext db) => new HostBuilder()
-        .ConfigureWebHost(web => web.UseTestServer().ConfigureServices(services =>
+        .ConfigureWebHost(web => web.UseTestServer().ConfigureServices((hostingContext, services) =>
         {
             services.AddSingleton(db);
             services.AddControllersWithViews()
                 .ConfigureApplicationPartManager(parts => parts.ApplicationParts.Clear())
                 .AddApplicationPart(typeof(HomeController).Assembly);
+            services.AddWebLocalization(hostingContext.Configuration);
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie(options =>
             {
                 // Return unambiguous statuses instead of following Identity UI redirects in this host.
