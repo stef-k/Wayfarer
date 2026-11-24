@@ -50,7 +50,7 @@ public sealed class OperationalLogStorageTests : TestBase
             Assert.Same(storage, app.Services.GetRequiredService<StoragePaths>());
             Log.Information("External log authority qualification");
             var name = $"wayfarer-{DateTime.Now:yyyyMMdd}.log";
-            var controller = new LogsController(NullLogger<LogsController>.Instance, CreateDbContext(), storage);
+            var controller = new LogsController(NullLogger<LogsController>.Instance, CreateDbContext(), storage, WebText);
             var list = Assert.IsType<ViewResult>(controller.Index());
             Assert.Contains(Assert.IsType<List<LogFileInfo>>(list.Model), file => file.FileName == name && file.IsCurrent);
             var download = Assert.IsType<FileStreamResult>(controller.DownloadLog(name));
@@ -101,7 +101,7 @@ public sealed class OperationalLogStorageTests : TestBase
         await job.Execute(context);
         Assert.True(File.Exists(unknown));
         Assert.True(File.Exists(nested));
-        var controller = new LogsController(NullLogger<LogsController>.Instance, CreateDbContext(), storage);
+        var controller = new LogsController(NullLogger<LogsController>.Instance, CreateDbContext(), storage, WebText);
         Assert.Empty(Assert.IsType<List<LogFileInfo>>(Assert.IsType<ViewResult>(controller.Index()).Model));
     }
 }

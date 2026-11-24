@@ -1,0 +1,1032 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AdminSettings.AccuracyGood" xml:space="preserve">
+    <value>Καλή ακρίβεια (30–50 m) – προτείνεται</value>
+  </data>
+  <data name="AdminSettings.AccuracyHelp" xml:space="preserve">
+    <value>Απορρίπτονται σήματα με χειρότερη ακρίβεια GPS από αυτό το όριο. Μικρότερες τιμές απορρίπτουν περισσότερα σήματα και βελτιώνουν την ποιότητα των δεδομένων. Μεγαλύτερες τιμές δέχονται σήματα χαμηλότερης ακρίβειας.</value>
+  </data>
+  <data name="AdminSettings.AccuracyHigh" xml:space="preserve">
+    <value>Υψηλή ακρίβεια (10–25 m) – αυστηρό φίλτρο</value>
+  </data>
+  <data name="AdminSettings.AccuracyMaximum" xml:space="preserve">
+    <value>Μέγιστο όριο (1.000 m) – αποδοχή σχεδόν όλων των σημάτων</value>
+  </data>
+  <data name="AdminSettings.AccuracyModerate" xml:space="preserve">
+    <value>Μέτρια ακρίβεια (55–100 m)</value>
+  </data>
+  <data name="AdminSettings.AccuracyRelaxed" xml:space="preserve">
+    <value>Χαλαρό φίλτρο (105–200 m) – αποδοχή περισσότερων δεδομένων</value>
+  </data>
+  <data name="AdminSettings.AccuracyThreshold" xml:space="preserve">
+    <value>Όριο ακρίβειας GPS (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.AccuracyVeryRelaxed" xml:space="preserve">
+    <value>Πολύ χαλαρό φίλτρο (250–500 m) – αποδοχή χαμηλής ακρίβειας</value>
+  </data>
+  <data name="AdminSettings.AnonymousPerIp" xml:space="preserve">
+    <value>Ανώνυμοι (ανά IP)</value>
+  </data>
+  <data name="AdminSettings.AuthenticatedPerUser" xml:space="preserve">
+    <value>Συνδεδεμένοι (ανά χρήστη)</value>
+  </data>
+  <data name="AdminSettings.BatteryBest" xml:space="preserve">
+    <value>{0} λεπτά: μέγιστη αυτονομία – περίπου {1} λεπτά σε αναστολή και 1 λεπτό ενεργό ανά κύκλο</value>
+  </data>
+  <data name="AdminSettings.BatteryGood" xml:space="preserve">
+    <value>{0} λεπτά: χαμηλή κατανάλωση – περίπου {1} λεπτά σε αναστολή και 1 λεπτό ενεργό ανά κύκλο</value>
+  </data>
+  <data name="AdminSettings.BatteryHeading" xml:space="preserve">
+    <value>Επίδραση στην μπαταρία</value>
+  </data>
+  <data name="AdminSettings.BatteryHigh" xml:space="preserve">
+    <value>{0} λεπτά: υψηλή κατανάλωση – περίπου {1} λεπτά σε αναστολή και 1 λεπτό ενεργό ανά κύκλο</value>
+  </data>
+  <data name="AdminSettings.BatteryHighMaximum" xml:space="preserve">
+    <value>{0} λεπτά: υψηλή κατανάλωση – το GPS παραμένει συνεχώς ενεργό</value>
+  </data>
+  <data name="AdminSettings.BatteryIntro" xml:space="preserve">
+    <value>Τα μικρότερα χρονικά διαστήματα ενεργοποιούν συχνότερα το GPS και καταναλώνουν περισσότερη μπαταρία. Οι κινητές συσκευές ενεργοποιούν το GPS περίπου 60 δευτερόλεπτα πριν από κάθε σήμα.</value>
+  </data>
+  <data name="AdminSettings.BatteryModerate" xml:space="preserve">
+    <value>{0} λεπτά: μέτρια κατανάλωση – περίπου {1} λεπτά σε αναστολή και 1 λεπτό ενεργό ανά κύκλο (προτείνεται)</value>
+  </data>
+  <data name="AdminSettings.DayUnit" xml:space="preserve">
+    <value>ημέρες</value>
+  </data>
+  <data name="AdminSettings.Days.one" xml:space="preserve">
+    <value>{0} ημέρα</value>
+  </data>
+  <data name="AdminSettings.Days.other" xml:space="preserve">
+    <value>{0} ημέρες</value>
+  </data>
+  <data name="AdminSettings.DefaultChoice" xml:space="preserve">
+    <value>{0} (προεπιλογή)</value>
+  </data>
+  <data name="AdminSettings.DefaultDays" xml:space="preserve">
+    <value>Προεπιλογή: {0}.</value>
+  </data>
+  <data name="AdminSettings.DefaultMb" xml:space="preserve">
+    <value>Προεπιλογή: {0} MB.</value>
+  </data>
+  <data name="AdminSettings.DistanceCoarse" xml:space="preserve">
+    <value>Μεγάλη (200 m–1 km)</value>
+  </data>
+  <data name="AdminSettings.DistanceFine" xml:space="preserve">
+    <value>Μικρή (5–50 m)</value>
+  </data>
+  <data name="AdminSettings.DistanceHelp" xml:space="preserve">
+    <value>Ελάχιστη απόσταση από την προηγούμενη τοποθεσία για νέα καταγραφή. Μικρότερες τιμές δίνουν λεπτομερέστερες διαδρομές και απαιτούν περισσότερο χώρο. Μεγαλύτερες τιμές μειώνουν τα δεδομένα και τη λεπτομέρεια.</value>
+  </data>
+  <data name="AdminSettings.DistanceMaximum" xml:space="preserve">
+    <value>Μέγιστη (100 km)</value>
+  </data>
+  <data name="AdminSettings.DistanceMedium" xml:space="preserve">
+    <value>Μέτρια (55–150 m)</value>
+  </data>
+  <data name="AdminSettings.DistanceRegional" xml:space="preserve">
+    <value>Περιφερειακή (10–50 km)</value>
+  </data>
+  <data name="AdminSettings.DistanceThreshold" xml:space="preserve">
+    <value>Ελάχιστη απόσταση (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.DistanceVeryCoarse" xml:space="preserve">
+    <value>Πολύ μεγάλη (1,5–5 km)</value>
+  </data>
+  <data name="AdminSettings.Formula" xml:space="preserve">
+    <value>Τύπος</value>
+  </data>
+  <data name="AdminSettings.HistoricBudget" xml:space="preserve">
+    <value>Παλαιό όριο αιτημάτων για μη αποθηκευμένα πλακίδια</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetApply" xml:space="preserve">
+    <value>Χρήση της συνιστώμενης τιμής 80</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetHelp" xml:space="preserve">
+    <value>Η προηγούμενη προεπιλογή του Wayfarer ήταν 30. Η συνιστώμενη τιμή είναι πλέον 80. Η διατήρηση του 30 μπορεί να καθυστερεί την περιήγηση όταν λείπουν πολλά πλακίδια από την προσωρινή μνήμη.</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetKeep" xml:space="preserve">
+    <value>Διατήρηση του 30 και επιβεβαίωση</value>
+  </data>
+  <data name="AdminSettings.HotCacheBudget" xml:space="preserve">
+    <value>Χώρος RAM για μεταδεδομένα πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.HotCacheDisable" xml:space="preserve">
+    <value>Ορίστε {0} για απενεργοποίηση.</value>
+  </data>
+  <data name="AdminSettings.HotCacheDisabled" xml:space="preserve">
+    <value>Η προσωρινή μνήμη μεταδεδομένων είναι απενεργοποιημένη.</value>
+  </data>
+  <data name="AdminSettings.HotCacheEntries" xml:space="preserve">
+    <value>{0} MB ≈ {1} εγγραφές μεταδεδομένων</value>
+  </data>
+  <data name="AdminSettings.HotCacheEstimate" xml:space="preserve">
+    <value>Ο αριθμός εγγραφών είναι εκτίμηση. Η πραγματική μνήμη της διεργασίας μπορεί να διαφέρει.</value>
+  </data>
+  <data name="AdminSettings.HotCacheIntro" xml:space="preserve">
+    <value>Κατά προσέγγιση χώρος RAM για τα μεταδεδομένα πλακιδίων που κρατά η διεργασία για επίπεδα μεγέθυνσης ≥ 9.</value>
+  </data>
+  <data name="AdminSettings.HotCacheOnlyMetadata" xml:space="preserve">
+    <value>Αποθηκεύει μόνο τα μεταδεδομένα των πλακιδίων. Τα δεδομένα εικόνας παραμένουν εκτός αυτής της μνήμης.</value>
+  </data>
+  <data name="AdminSettings.HotCacheValues" xml:space="preserve">
+    <value>Επιτρεπόμενες τιμές: {0} ή {1} MB.</value>
+  </data>
+  <data name="AdminSettings.Hours.one" xml:space="preserve">
+    <value>{0} ώρα</value>
+  </data>
+  <data name="AdminSettings.Hours.other" xml:space="preserve">
+    <value>{0} ώρες</value>
+  </data>
+  <data name="AdminSettings.HoursWithPeriod" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="AdminSettings.ImageCacheCount" xml:space="preserve">
+    <value>Προσωρινά αποθηκευμένες εικόνες</value>
+  </data>
+  <data name="AdminSettings.ImageCacheDisable" xml:space="preserve">
+    <value>Ορίστε {0} για να απενεργοποιήσετε πλήρως την προσωρινή αποθήκευση εικόνων.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheEviction" xml:space="preserve">
+    <value>Αν ξεπεραστεί το όριο, αφαιρούνται αυτόματα πρώτα οι εικόνες που χρησιμοποιήθηκαν λιγότερο πρόσφατα.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiry" xml:space="preserve">
+    <value>Διάρκεια προσωρινής αποθήκευσης εικόνων (ημέρες)</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiryHelp" xml:space="preserve">
+    <value>Όταν οι εικόνες ξεπεράσουν αυτό το όριο ηλικίας, λαμβάνονται ξανά από την αρχική πηγή.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiryRecommended" xml:space="preserve">
+    <value>Οι εικόνες στις περιγραφές ταξιδιών αλλάζουν σπάνια, οπότε συνιστάται μεγαλύτερη διάρκεια.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheHeading" xml:space="preserve">
+    <value>Προσωρινή μνήμη εικόνων</value>
+  </data>
+  <data name="AdminSettings.ImageCacheMaximum" xml:space="preserve">
+    <value>Μέγιστο μέγεθος προσωρινής μνήμης εικόνων σε MB</value>
+  </data>
+  <data name="AdminSettings.ImageCacheMaximumHelp" xml:space="preserve">
+    <value>Ορίζει τον μέγιστο χώρο δίσκου για τις προσωρινά αποθηκευμένες εικόνες.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheSize" xml:space="preserve">
+    <value>Μέγεθος προσωρινής μνήμης</value>
+  </data>
+  <data name="AdminSettings.ImageCacheTypical" xml:space="preserve">
+    <value>Κάθε προσωρινά αποθηκευμένη εικόνα καταλαμβάνει συνήθως 20–200 KB.</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadMaximum" xml:space="preserve">
+    <value>Μέγιστο μέγεθος λήψης εικόνας</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadMaximumHelp" xml:space="preserve">
+    <value>Μέγιστο επιτρεπόμενο μέγεθος ανά εικόνα για λήψεις από εξωτερικές πηγές.</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadOptimized" xml:space="preserve">
+    <value>Οι εικόνες βελτιστοποιούνται μετά τη λήψη. Τα προσωρινά αντίγραφα είναι συνήθως πολύ μικρότερα.</value>
+  </data>
+  <data name="AdminSettings.ImageRateDefault" xml:space="preserve">
+    <value>Προεπιλογή: {0}. Μέγιστος αριθμός αιτημάτων εικόνων ανά λεπτό και διεύθυνση IP.</value>
+  </data>
+  <data name="AdminSettings.ImageRateEnable" xml:space="preserve">
+    <value>Ενεργοποίηση περιορισμού ρυθμού εικόνων</value>
+  </data>
+  <data name="AdminSettings.ImageRateHeading" xml:space="preserve">
+    <value>Περιορισμός ρυθμού αιτημάτων εικόνων</value>
+  </data>
+  <data name="AdminSettings.ImageRateHelp" xml:space="preserve">
+    <value>Με ενεργοποιημένη τη ρύθμιση, τα ανώνυμα αιτήματα εικόνων περιορίζονται ανά διεύθυνση IP.</value>
+  </data>
+  <data name="AdminSettings.ImageRateIntro" xml:space="preserve">
+    <value>Ο περιορισμός των ανώνυμων αιτημάτων εικόνων προστατεύει τις εξωτερικές πηγές από κατάχρηση. Οι συνδεδεμένοι χρήστες έχουν απεριόριστη πρόσβαση.</value>
+  </data>
+  <data name="AdminSettings.ImageRateTooltip" xml:space="preserve">
+    <value>Περιορίζει τα ανώνυμα αιτήματα εικόνων ανά διεύθυνση IP ώστε να αποφεύγεται η υπερφόρτωση των εξωτερικών πηγών.</value>
+  </data>
+  <data name="AdminSettings.LocationHeading" xml:space="preserve">
+    <value>Καταγραφή τοποθεσίας</value>
+  </data>
+  <data name="AdminSettings.LocationIntro" xml:space="preserve">
+    <value>Οι ρυθμίσεις καθορίζουν πόσο συχνά στέλνουν σήματα τοποθεσίας οι κινητές συσκευές και πόσα δεδομένα καταγράφονται. Η εφαρμογή αγνοεί σήματα που φτάνουν πολύ συχνά ή δεν απέχουν αρκετά από την προηγούμενη καταγραφή.</value>
+  </data>
+  <data name="AdminSettings.Minutes" xml:space="preserve">
+    <value>{0} λεπτά</value>
+  </data>
+  <data name="AdminSettings.MinutesFourDaily" xml:space="preserve">
+    <value>{0} λεπτά ({1} / 4 φορές την ημέρα)</value>
+  </data>
+  <data name="AdminSettings.MinutesHigh" xml:space="preserve">
+    <value>{0} λεπτά ⚠️ (υψηλή κατανάλωση πόρων)</value>
+  </data>
+  <data name="AdminSettings.MinutesHours" xml:space="preserve">
+    <value>{0} λεπτά ({1})</value>
+  </data>
+  <data name="AdminSettings.MinutesOnceDaily" xml:space="preserve">
+    <value>{0} λεπτά ({1} / μία φορά την ημέρα)</value>
+  </data>
+  <data name="AdminSettings.MinutesRecommended" xml:space="preserve">
+    <value>{0} λεπτά (προτείνεται)</value>
+  </data>
+  <data name="AdminSettings.MinutesTwiceDaily" xml:space="preserve">
+    <value>{0} λεπτά ({1} / δύο φορές την ημέρα)</value>
+  </data>
+  <data name="AdminSettings.MinutesTwiceHourly" xml:space="preserve">
+    <value>{0} λεπτά (δύο φορές την ώρα)</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowance" xml:space="preserve">
+    <value>Όριο ανά πελάτη</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceActive" xml:space="preserve">
+    <value>{0} επιτρεπόμενες σειρές αιτημάτων ανά πελάτη το λεπτό (ενεργό)</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceField" xml:space="preserve">
+    <value>Σειρές/πελάτη/λεπτό</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceHelp" xml:space="preserve">
+    <value>Το 0 απενεργοποιεί το όριο.</value>
+  </data>
+  <data name="AdminSettings.PolicyAttemptsField" xml:space="preserve">
+    <value>Προσπάθειες</value>
+  </data>
+  <data name="AdminSettings.PolicyBlocked" xml:space="preserve">
+    <value>Ο πάροχος έχει αποκλειστεί</value>
+  </data>
+  <data name="AdminSettings.PolicyBurst" xml:space="preserve">
+    <value>Αιχμή αιτημάτων</value>
+  </data>
+  <data name="AdminSettings.PolicyBurstActive" xml:space="preserve">
+    <value>{0} μονάδες αιτημάτων στον πάροχο (ενεργό)</value>
+  </data>
+  <data name="AdminSettings.PolicyBurstField" xml:space="preserve">
+    <value>Αιχμή αιτημάτων στον πάροχο</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility" xml:space="preserve">
+    <value>Συμβατότητα</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.Blocked" xml:space="preserve">
+    <value>Αποκλεισμένος</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.InvalidOrUnsupported" xml:space="preserve">
+    <value>Μη έγκυρος ή μη υποστηριζόμενος</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.Supported" xml:space="preserve">
+    <value>Υποστηρίζεται</value>
+  </data>
+  <data name="AdminSettings.PolicyConcurrency" xml:space="preserve">
+    <value>Ταυτόχρονα αιτήματα</value>
+  </data>
+  <data name="AdminSettings.PolicyConcurrencyActive" xml:space="preserve">
+    <value>{0} ταυτόχρονα αιτήματα (ενεργό όριο προστασίας τοπικών πόρων, ανεξάρτητο από την άδεια του παρόχου)</value>
+  </data>
+  <data name="AdminSettings.PolicyEffective" xml:space="preserve">
+    <value>Ισχύουσα πολιτική κίνησης</value>
+  </data>
+  <data name="AdminSettings.PolicyEndpointBlocked" xml:space="preserve">
+    <value>Η διεύθυνση αποκλείστηκε για λόγους συμβατότητας.</value>
+  </data>
+  <data name="AdminSettings.PolicyEndpointMalformed" xml:space="preserve">
+    <value>Η διεύθυνση του παρόχου είναι κενή ή μη έγκυρη.</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackBase" xml:space="preserve">
+    <value>Αρχική καθυστέρηση επανάληψης</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackBaseField" xml:space="preserve">
+    <value>Αρχική καθυστέρηση (ms)</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackCap" xml:space="preserve">
+    <value>Όριο καθυστέρησης επανάληψης</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackCapField" xml:space="preserve">
+    <value>Όριο καθυστέρησης (δευτ.)</value>
+  </data>
+  <data name="AdminSettings.PolicyInactive" xml:space="preserve">
+    <value>Ανενεργό</value>
+  </data>
+  <data name="AdminSettings.PolicyIncompatible" xml:space="preserve">
+    <value>Ο επιλεγμένος πάροχος δεν μπορεί να χρησιμοποιηθεί.</value>
+  </data>
+  <data name="AdminSettings.PolicyIndividualWait" xml:space="preserve">
+    <value>Μέγιστη αναμονή ανά απόκριση παρόχου</value>
+  </data>
+  <data name="AdminSettings.PolicyIndividualWaitField" xml:space="preserve">
+    <value>Όριο αναμονής παρόχου (δευτ.)</value>
+  </data>
+  <data name="AdminSettings.PolicyMaxAttempts" xml:space="preserve">
+    <value>Μέγιστες προσπάθειες</value>
+  </data>
+  <data name="AdminSettings.PolicyMillis" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="AdminSettings.PolicyMode" xml:space="preserve">
+    <value>Λειτουργία κίνησης</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Conservative" xml:space="preserve">
+    <value>Συντηρητική</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Custom" xml:space="preserve">
+    <value>Συμφωνία παρόχου</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Interactive" xml:space="preserve">
+    <value>Διαδραστική</value>
+  </data>
+  <data name="AdminSettings.PolicyModeHelp" xml:space="preserve">
+    <value>Στη διαδραστική λειτουργία το Wayfarer δεν επιβάλλει εκ των προτέρων καθυστέρηση στη συχνότητα επικοινωνίας ή στις σειρές αιτημάτων. Η συντηρητική λειτουργία εφαρμόζει τα όρια ασφαλείας του Wayfarer. Η συμφωνία παρόχου χρησιμοποιεί τις αποθηκευμένες τιμές παρακάτω. Οι απαιτήσεις παρόχου, το Retry-After, η προσωρινή αποθήκευση, η αναφορά προέλευσης και η απαγόρευση προφόρτωσης εφαρμόζονται πάντα.</value>
+  </data>
+  <data name="AdminSettings.PolicyPreserved" xml:space="preserve">
+    <value>Αποθηκευμένες τιμές συμφωνίας παρόχου</value>
+  </data>
+  <data name="AdminSettings.PolicyPreservedHelp" xml:space="preserve">
+    <value>Οι διαχειριστές ορίζουν αυτά τα όρια προστασίας του Wayfarer ανεξάρτητα από τα όρια του παρόχου. Η αλλαγή λειτουργίας διατηρεί την ίδια προσωρινή μνήμη και δεν απαιτεί εκκαθάριση.</value>
+  </data>
+  <data name="AdminSettings.PolicyPresetMismatch" xml:space="preserve">
+    <value>Η διεύθυνση του ενσωματωμένου παρόχου δεν αντιστοιχεί στην προεπιλογή του.</value>
+  </data>
+  <data name="AdminSettings.PolicyProviderUnknown" xml:space="preserve">
+    <value>Ο επιλεγμένος πάροχος έχει καταργηθεί ή είναι άγνωστος.</value>
+  </data>
+  <data name="AdminSettings.PolicyRate" xml:space="preserve">
+    <value>Ρυθμός</value>
+  </data>
+  <data name="AdminSettings.PolicyRateActive" xml:space="preserve">
+    <value>{0} πραγματικά αιτήματα στον πάροχο ανά δευτερόλεπτο (ενεργό)</value>
+  </data>
+  <data name="AdminSettings.PolicyRateField" xml:space="preserve">
+    <value>Αιτ. παρόχου/δευτ.</value>
+  </data>
+  <data name="AdminSettings.PolicyRecovery" xml:space="preserve">
+    <value>Επιλέξτε OSM Standard, OpenTopoMap ή συμβατό προσαρμοσμένο πάροχο. Οι υπάρχουσες ρυθμίσεις και τα προσωρινά αρχεία διατηρούνται για ανάκτηση. Δεν αποστέλλονται αιτήματα στον πάροχο.</value>
+  </data>
+  <data name="AdminSettings.PolicyRemovedCarto" xml:space="preserve">
+    <value>Ο καταργημένος πάροχος CARTO δεν είναι διαθέσιμος μέσω της προσωρινής αποθήκευσης και της διαμεσολάβησης του Wayfarer.</value>
+  </data>
+  <data name="AdminSettings.PolicyRemovedThunderforest" xml:space="preserve">
+    <value>Ο καταργημένος πάροχος Thunderforest δεν είναι συμβατός με την προσωρινή αποθήκευση και τη διαμεσολάβηση του Wayfarer.</value>
+  </data>
+  <data name="AdminSettings.PolicySeconds" xml:space="preserve">
+    <value>{0} δευτ.</value>
+  </data>
+  <data name="AdminSettings.PolicySource" xml:space="preserve">
+    <value>Επίσημη πηγή</value>
+  </data>
+  <data name="AdminSettings.PolicySourceAgreement" xml:space="preserve">
+    <value>Συμφωνία παρόχου που διαχειρίζεται ο διαχειριστής</value>
+  </data>
+  <data name="AdminSettings.PolicySourceValidation" xml:space="preserve">
+    <value>Έλεγχος συμβατότητας του Wayfarer</value>
+  </data>
+  <data name="AdminSettings.PolicyTotalRetry" xml:space="preserve">
+    <value>Συνολικό όριο επαναλήψεων</value>
+  </data>
+  <data name="AdminSettings.PolicyTotalRetryField" xml:space="preserve">
+    <value>Συνολικό όριο επαναλήψεων (δευτ.)</value>
+  </data>
+  <data name="AdminSettings.PurgeAll" xml:space="preserve">
+    <value>Εκκαθάριση όλων των προσωρινών πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.PurgeAllTooltip" xml:space="preserve">
+    <value>Εκκαθάριση ολόκληρης της προσωρινής μνήμης χάρτη</value>
+  </data>
+  <data name="AdminSettings.PurgeBusy" xml:space="preserve">
+    <value>Εκτελείται ήδη εκκαθάριση της προσωρινής μνήμης.</value>
+  </data>
+  <data name="AdminSettings.PurgeCompleted" xml:space="preserve">
+    <value>Η εκκαθάριση της προσωρινής μνήμης ολοκληρώθηκε.</value>
+  </data>
+  <data name="AdminSettings.PurgeConfirmTitle" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής</value>
+  </data>
+  <data name="AdminSettings.PurgeFailed" xml:space="preserve">
+    <value>Η εκκαθάριση της προσωρινής μνήμης απέτυχε. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullCompleted" xml:space="preserve">
+    <value>Η εκκαθάριση όλων των προσωρινών πλακιδίων ολοκληρώθηκε.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullConfirm" xml:space="preserve">
+    <value>Να διαγραφούν όλα τα προσωρινά αποθηκευμένα πλακίδια χάρτη; Η ενέργεια είναι μη αναστρέψιμη.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullStartFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η έναρξη της εκκαθάρισης όλων των προσωρινών πλακιδίων.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullStarted" xml:space="preserve">
+    <value>Ξεκίνησε η εκκαθάριση όλων των προσωρινών πλακιδίων.</value>
+  </data>
+  <data name="AdminSettings.PurgeLru" xml:space="preserve">
+    <value>Εκκαθάριση μνήμης LRU (μεγέθυνση ≥ 9)</value>
+  </data>
+  <data name="AdminSettings.PurgeLruCompleted" xml:space="preserve">
+    <value>Η εκκαθάριση της προσωρινής μνήμης LRU ολοκληρώθηκε.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruConfirm" xml:space="preserve">
+    <value>Να διαγραφούν τα προσωρινά πλακίδια LRU (μεγέθυνση ≥ 9); Η ενέργεια είναι μη αναστρέψιμη.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruStartFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η έναρξη εκκαθάρισης της προσωρινής μνήμης LRU.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruStarted" xml:space="preserve">
+    <value>Ξεκίνησε η εκκαθάριση της προσωρινής μνήμης LRU.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruTooltip" xml:space="preserve">
+    <value>Εκκαθάριση προσωρινής μνήμης LRU</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesConfirm" xml:space="preserve">
+    <value>Να διαγραφούν όλα τα προσωρινά αποθηκευμένα αρχεία MBTiles της εφαρμογής για κινητά;</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesConfirmTitle" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής MBTiles</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesFailed" xml:space="preserve">
+    <value>Η διαγραφή των προσωρινών αρχείων MBTiles απέτυχε.</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesSuccess" xml:space="preserve">
+    <value>Εκκαθαρίστηκαν όλα τα προσωρινά αποθηκευμένα αρχεία MBTiles της εφαρμογής για κινητά.</value>
+  </data>
+  <data name="AdminSettings.PurgeProgress" xml:space="preserve">
+    <value>Διαγραφή… {0} / {1} αρχεία ({2})</value>
+  </data>
+  <data name="AdminSettings.PurgeStarting" xml:space="preserve">
+    <value>Έναρξη εκκαθάρισης…</value>
+  </data>
+  <data name="AdminSettings.RegistrationEnable" xml:space="preserve">
+    <value>Ενεργοποίηση εγγραφών νέων χρηστών</value>
+  </data>
+  <data name="AdminSettings.RegistrationHeading" xml:space="preserve">
+    <value>Εγγραφές νέων χρηστών</value>
+  </data>
+  <data name="AdminSettings.RegistrationHelp" xml:space="preserve">
+    <value>Επιλέξτε το πλαίσιο για να επιτρέψετε νέες εγγραφές.</value>
+  </data>
+  <data name="AdminSettings.RegistrationLabel" xml:space="preserve">
+    <value>Να επιτρέπονται εγγραφές νέων χρηστών;</value>
+  </data>
+  <data name="AdminSettings.RequestsPerMinute" xml:space="preserve">
+    <value>αιτ./λεπτό</value>
+  </data>
+  <data name="AdminSettings.SaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η ενημέρωση των ρυθμίσεων. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="AdminSettings.SaveSuccess" xml:space="preserve">
+    <value>Οι ρυθμίσεις αποθηκεύτηκαν και εφαρμόστηκαν.</value>
+  </data>
+  <data name="AdminSettings.StorageEstimate" xml:space="preserve">
+    <value>{0} λεπτά: {1} καταγραφές τον χρόνο</value>
+  </data>
+  <data name="AdminSettings.StorageEstimateHeading" xml:space="preserve">
+    <value>Χώρος στη βάση δεδομένων (μέγιστο ανά χρήστη τον χρόνο)</value>
+  </data>
+  <data name="AdminSettings.StorageEstimateRecommended" xml:space="preserve">
+    <value>{0} λεπτά: {1} καταγραφές τον χρόνο (προτείνεται)</value>
+  </data>
+  <data name="AdminSettings.StorageHeading" xml:space="preserve">
+    <value>Συνολική χρήση δίσκου</value>
+  </data>
+  <data name="AdminSettings.StorageIncludes" xml:space="preserve">
+    <value>Περιλαμβάνει τον χώρο για προσωρινά πλακίδια (μεγέθυνση ≥ 9), εικόνες και μεταφορτωμένα αρχεία (π.χ. JSON από το Χρονολόγιο Google).</value>
+  </data>
+  <data name="AdminSettings.StoragePermanent" xml:space="preserve">
+    <value>Τα επίπεδα μεγέθυνσης 0–8 αποθηκεύονται μόνιμα και εξαιρούνται από τα ευέλικτα όρια.</value>
+  </data>
+  <data name="AdminSettings.StorageSummary" xml:space="preserve">
+    <value>Η σύνοψη δείχνει πόσο χώρο καταλαμβάνει το Wayfarer στον διακομιστή.</value>
+  </data>
+  <data name="AdminSettings.StorageTiles" xml:space="preserve">
+    <value>Προσωρινή μνήμη πλακιδίων (μεγέθυνση ≥ 9)</value>
+  </data>
+  <data name="AdminSettings.StorageTotalGb" xml:space="preserve">
+    <value>Συνολική χρήση χώρου σε GB</value>
+  </data>
+  <data name="AdminSettings.StorageTotalMb" xml:space="preserve">
+    <value>Συνολική χρήση χώρου σε MB</value>
+  </data>
+  <data name="AdminSettings.StorageUploads" xml:space="preserve">
+    <value>Μεταφορτώσεις χρηστών (προσωρινά αρχεία)</value>
+  </data>
+  <data name="AdminSettings.TileApiKeyLabel" xml:space="preserve">
+    <value>Κλειδί API</value>
+  </data>
+  <data name="AdminSettings.TileAttributionHelp" xml:space="preserve">
+    <value>Αυτό το κείμενο εμφανίζεται στο κάτω μέρος του χάρτη για όλους τους χρήστες.</value>
+  </data>
+  <data name="AdminSettings.TileAttributionLabel" xml:space="preserve">
+    <value>Αναφορά προέλευσης (HTML)</value>
+  </data>
+  <data name="AdminSettings.TileAuthRateDefault" xml:space="preserve">
+    <value>Προεπιλογή: {0}. Υψηλότερο όριο για αξιόπιστους χρήστες.</value>
+  </data>
+  <data name="AdminSettings.TileBlankProvider" xml:space="preserve">
+    <value>(κενό)</value>
+  </data>
+  <data name="AdminSettings.TileCacheCurrent" xml:space="preserve">
+    <value>Τρέχων κατάλογος πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileCacheDefault" xml:space="preserve">
+    <value>Ορίστε {0} για να χρησιμοποιήσετε την προεπιλογή των {1} MB.</value>
+  </data>
+  <data name="AdminSettings.TileCacheDisable" xml:space="preserve">
+    <value>Ορίστε {0} για να απενεργοποιήσετε πλήρως αυτήν την προσωρινή μνήμη.</value>
+  </data>
+  <data name="AdminSettings.TileCacheEviction" xml:space="preserve">
+    <value>Μεγαλύτερη τιμή μειώνει τα αιτήματα προς τους διακομιστές OSM. Αν ξεπεραστεί το όριο, αφαιρούνται πρώτα τα πλακίδια που χρησιμοποιήθηκαν λιγότερο πρόσφατα.</value>
+  </data>
+  <data name="AdminSettings.TileCacheFiles" xml:space="preserve">
+    <value>Σύνολο προσωρινών αρχείων</value>
+  </data>
+  <data name="AdminSettings.TileCacheHeading" xml:space="preserve">
+    <value>Διαχείριση προσωρινής μνήμης πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileCacheLegacy" xml:space="preserve">
+    <value>Παλαιός κατάλογος πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruFiles" xml:space="preserve">
+    <value>Σύνολο αρχείων προσωρινής μνήμης LRU (επίπεδα μεγέθυνσης ≥ 9)</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruGb" xml:space="preserve">
+    <value>Συνολικό μέγεθος LRU σε GB (μεγέθυνση ≥ 9)</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruMb" xml:space="preserve">
+    <value>Συνολικό μέγεθος LRU σε MB (μεγέθυνση ≥ 9)</value>
+  </data>
+  <data name="AdminSettings.TileCacheMaximum" xml:space="preserve">
+    <value>Μέγιστο μέγεθος προσωρινής μνήμης πλακιδίων σε MB</value>
+  </data>
+  <data name="AdminSettings.TileCacheMaximumIntro" xml:space="preserve">
+    <value>Η ρύθμιση ορίζει το μέγιστο μέγεθος (σε MB) της προσωρινής μνήμης για πλακίδια με επίπεδο μεγέθυνσης ≥ 9.</value>
+  </data>
+  <data name="AdminSettings.TileCacheMinimum" xml:space="preserve">
+    <value>Ελάχιστο μέγεθος 256 MB.</value>
+  </data>
+  <data name="AdminSettings.TileCacheNote" xml:space="preserve">
+    <value>Σημείωση για την προσωρινή μνήμη</value>
+  </data>
+  <data name="AdminSettings.TileCacheOsmHelp" xml:space="preserve">
+    <value>Η πολιτική του OSM απαιτεί τα πλακίδια να διατηρούνται τουλάχιστον 7 ημέρες. Τιμές κάτω από 256 MB απορρίπτονται.</value>
+  </data>
+  <data name="AdminSettings.TileCachePermanent" xml:space="preserve">
+    <value>Τα επίπεδα μεγέθυνσης 0–8 αποθηκεύονται μόνιμα και εξαιρούνται από το όριο. Καταλαμβάνουν περίπου 1,31–1,75 GB.</value>
+  </data>
+  <data name="AdminSettings.TileCachePreserved" xml:space="preserve">
+    <value>Τα προσωρινά αποθηκευμένα αρχεία κάθε παρόχου διατηρούνται όταν αλλάζει ο πάροχος, τα διαπιστευτήρια ή η λειτουργία κίνησης.</value>
+  </data>
+  <data name="AdminSettings.TileCacheTotalGb" xml:space="preserve">
+    <value>Συνολικό μέγεθος προσωρινής μνήμης σε GB</value>
+  </data>
+  <data name="AdminSettings.TileCacheTotalMb" xml:space="preserve">
+    <value>Συνολικό μέγεθος προσωρινής μνήμης σε MB</value>
+  </data>
+  <data name="AdminSettings.TileCacheTypical" xml:space="preserve">
+    <value>Κάθε πλακίδιο καταλαμβάνει περίπου 10–20 KB. Η προεπιλογή (1.024 MB) χωρά περίπου 100.000–200.000 πλακίδια.</value>
+  </data>
+  <data name="AdminSettings.TileCustomProvider" xml:space="preserve">
+    <value>Προσαρμοσμένος πάροχος</value>
+  </data>
+  <data name="AdminSettings.TileEnterKey" xml:space="preserve">
+    <value>Εισαγάγετε το κλειδί API του παρόχου, εφόσον απαιτείται.</value>
+  </data>
+  <data name="AdminSettings.TilePresetsHelp" xml:space="preserve">
+    <value>Οι προεπιλογές εφαρμόζουν αυτόματα το πρότυπο και την αναφορά προέλευσης. Οι προσαρμοσμένοι πάροχοι πρέπει να χρησιμοποιούν HTTPS και πλακίδια .png.</value>
+  </data>
+  <data name="AdminSettings.TileProvider" xml:space="preserve">
+    <value>Πάροχος πλακιδίων χάρτη</value>
+  </data>
+  <data name="AdminSettings.TileProviderIntro" xml:space="preserve">
+    <value>Επιλέξτε μια προεπιλογή ή εισαγάγετε πρότυπο προσαρμοσμένου παρόχου. Τα πλακίδια συνεχίζουν να εξυπηρετούνται μέσω της τοπικής προσωρινής μνήμης στη διαδρομή {0}.</value>
+  </data>
+  <data name="AdminSettings.TileProviderLabel" xml:space="preserve">
+    <value>Πάροχος</value>
+  </data>
+  <data name="AdminSettings.TileRateAnonymous" xml:space="preserve">
+    <value>Ανώνυμοι</value>
+  </data>
+  <data name="AdminSettings.TileRateByIp" xml:space="preserve">
+    <value>Όριο ανά διεύθυνση IP</value>
+  </data>
+  <data name="AdminSettings.TileRateByUser" xml:space="preserve">
+    <value>Όριο ανά αναγνωριστικό χρήστη</value>
+  </data>
+  <data name="AdminSettings.TileRateCounting" xml:space="preserve">
+    <value>Και τα δύο όρια υπολογίζονται με κυλιόμενο χρονικό παράθυρο.</value>
+  </data>
+  <data name="AdminSettings.TileRateDefault" xml:space="preserve">
+    <value>Προεπιλογή: {0}. Μια συνηθισμένη προβολή χάρτη φορτώνει 50–100 πλακίδια.</value>
+  </data>
+  <data name="AdminSettings.TileRateEnable" xml:space="preserve">
+    <value>Ενεργοποίηση περιορισμού ρυθμού πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileRateHeading" xml:space="preserve">
+    <value>Περιορισμός ρυθμού αιτημάτων πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileRateHelp" xml:space="preserve">
+    <value>Με ενεργοποιημένη τη ρύθμιση, τα αιτήματα πλακιδίων περιορίζονται για όλους τους χρήστες.</value>
+  </data>
+  <data name="AdminSettings.TileRateIntro" xml:space="preserve">
+    <value>Ο περιορισμός του ρυθμού προστατεύει τον διακομιστή μεσολάβησης πλακιδίων. Για ανώνυμους χρήστες εφαρμόζεται ανά διεύθυνση IP. Για συνδεδεμένους χρήστες εφαρμόζεται υψηλότερο όριο ανά αναγνωριστικό χρήστη.</value>
+  </data>
+  <data name="AdminSettings.TileRateSignedIn" xml:space="preserve">
+    <value>Συνδεδεμένοι</value>
+  </data>
+  <data name="AdminSettings.TileRateTooltip" xml:space="preserve">
+    <value>Προστατεύει τον διακομιστή μεσολάβησης από κατάχρηση. Εφαρμόζει χωριστά όρια σε ανώνυμους και συνδεδεμένους χρήστες.</value>
+  </data>
+  <data name="AdminSettings.TileSavedKey" xml:space="preserve">
+    <value>Υπάρχει αποθηκευμένο κλειδί. Αφήστε το πεδίο κενό για να το διατηρήσετε.</value>
+  </data>
+  <data name="AdminSettings.TileTemplateHelp" xml:space="preserve">
+    <value>Πρέπει να περιέχει τα {0}, {1}, {2} και προαιρετικά το {3}.</value>
+  </data>
+  <data name="AdminSettings.TileTemplateLabel" xml:space="preserve">
+    <value>Πρότυπο URL πλακιδίων</value>
+  </data>
+  <data name="AdminSettings.TileUnsupportedProvider" xml:space="preserve">
+    <value>Μη υποστηριζόμενος αποθηκευμένος πάροχος: {0}</value>
+  </data>
+  <data name="AdminSettings.TileWhoAffected" xml:space="preserve">
+    <value>Ποιοι επηρεάζονται</value>
+  </data>
+  <data name="AdminSettings.TimeDaily" xml:space="preserve">
+    <value>Ανά 12–24 ώρες – περιστασιακή καταγραφή</value>
+  </data>
+  <data name="AdminSettings.TimeFrequent" xml:space="preserve">
+    <value>Συχνά (2–5 λεπτά) – υψηλή κατανάλωση</value>
+  </data>
+  <data name="AdminSettings.TimeHourly" xml:space="preserve">
+    <value>Ανά ώρα (30–60 λεπτά) – χαμηλή κατανάλωση</value>
+  </data>
+  <data name="AdminSettings.TimeModerate" xml:space="preserve">
+    <value>Μέτρια συχνότητα (10–15 λεπτά) – ισορροπημένη κατανάλωση</value>
+  </data>
+  <data name="AdminSettings.TimeMultiHour" xml:space="preserve">
+    <value>Ανά 2–6 ώρες – περιορισμένη καταγραφή</value>
+  </data>
+  <data name="AdminSettings.TimeThreshold" xml:space="preserve">
+    <value>Ελάχιστο χρονικό διάστημα (λεπτά)</value>
+  </data>
+  <data name="AdminSettings.TimeWarning" xml:space="preserve">
+    <value>Το διάστημα των 2 λεπτών δίνει τη μεγαλύτερη λεπτομέρεια, αυξάνει σημαντικά τον χώρο στη βάση και εξαντλεί γρηγορότερα την μπαταρία, καθώς το GPS παραμένει ενεργό.</value>
+  </data>
+  <data name="AdminSettings.UploadCount" xml:space="preserve">
+    <value>Αριθμός μεταφορτωμένων αρχείων</value>
+  </data>
+  <data name="AdminSettings.UploadHeading" xml:space="preserve">
+    <value>Μεταφορτώσεις χρηστών</value>
+  </data>
+  <data name="AdminSettings.UploadLegacy" xml:space="preserve">
+    <value>Παλαιός προσωρινός κατάλογος μεταφορτώσεων (χωρίς μετεγκατάσταση)</value>
+  </data>
+  <data name="AdminSettings.UploadLimit" xml:space="preserve">
+    <value>Όριο αιτήματος μεταφόρτωσης χρήστη (τρέχον: {0} MiB)</value>
+  </data>
+  <data name="AdminSettings.UploadMaximum" xml:space="preserve">
+    <value>Το σταθερό μέγιστο όριο της εφαρμογής είναι {0} MiB. Το αρχείο KML υπόκειται επίσης στο όριο της ενότητας αρχείου που ορίζει ο αναλυτής. Οι άλλες φόρμες και τα JSON API δεν επηρεάζονται.</value>
+  </data>
+  <data name="AdminSettings.UploadPath" xml:space="preserve">
+    <value>Κατάλογος μεταφορτώσεων</value>
+  </data>
+  <data name="AdminSettings.UploadScope" xml:space="preserve">
+    <value>Περιορίζει ολόκληρο το αίτημα μεταφόρτωσης ιστορικού τοποθεσίας ή KML ταξιδιού, μαζί με τα πρόσθετα δεδομένα multipart.</value>
+  </data>
+  <data name="AdminSettings.UploadTotalSize" xml:space="preserve">
+    <value>Συνολικό μέγεθος μεταφορτώσεων</value>
+  </data>
+  <data name="AdminSettings.UploadValues" xml:space="preserve">
+    <value>Χρησιμοποιήστε {0} για απενεργοποίηση αυτών των μεταφορτώσεων, {1} για την προεπιλογή ή έναν ακέραιο από {2} MiB.</value>
+  </data>
+  <data name="AdminSettings.Validation.AccuracyThreshold" xml:space="preserve">
+    <value>Το όριο ακρίβειας πρέπει να είναι από 10 έως 1.000 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.ApiKey" xml:space="preserve">
+    <value>Ο επιλεγμένος πάροχος πλακιδίων απαιτεί κλειδί API.</value>
+  </data>
+  <data name="AdminSettings.Validation.Attribution" xml:space="preserve">
+    <value>Η αναφορά προέλευσης είναι υποχρεωτική.</value>
+  </data>
+  <data name="AdminSettings.Validation.Binding" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη τιμή.</value>
+  </data>
+  <data name="AdminSettings.Validation.BurstConcurrency" xml:space="preserve">
+    <value>Το όριο αιχμής πρέπει να είναι τουλάχιστον ίσο με το μέγιστο πλήθος ταυτόχρονων αιτημάτων.</value>
+  </data>
+  <data name="AdminSettings.Validation.DistanceThreshold" xml:space="preserve">
+    <value>Η ελάχιστη απόσταση πρέπει να είναι από 1 έως 100.000 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.FallbackDelayOrder" xml:space="preserve">
+    <value>Το όριο καθυστέρησης επανάληψης πρέπει να είναι τουλάχιστον ίσο με την αρχική καθυστέρηση.</value>
+  </data>
+  <data name="AdminSettings.Validation.HotCache" xml:space="preserve">
+    <value>Ο χώρος για μεταδεδομένα πλακιδίων πρέπει να είναι -1 (απενεργοποίηση) ή από 16 έως 512 MB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageCache" xml:space="preserve">
+    <value>Εισαγάγετε -1 για απενεργοποίηση ή θετικό μέγεθος έως 100 GB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageDownload" xml:space="preserve">
+    <value>Το μέγιστο μέγεθος λήψης εικόνας πρέπει να είναι από 5 έως 200 MB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageExpiry" xml:space="preserve">
+    <value>Η διάρκεια πρέπει να είναι από 1 έως 365 ημέρες.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageRate" xml:space="preserve">
+    <value>Ο ρυθμός πρέπει να είναι από 10 έως 5.000 αιτήματα ανά λεπτό.</value>
+  </data>
+  <data name="AdminSettings.Validation.ModeRequiresCustom" xml:space="preserve">
+    <value>Η λειτουργία συμφωνίας παρόχου απαιτεί συμβατό προσαρμοσμένο πάροχο.</value>
+  </data>
+  <data name="AdminSettings.Validation.PolicyInvalid" xml:space="preserve">
+    <value>Ελέγξτε τα όρια της συμφωνίας παρόχου και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="AdminSettings.Validation.Range" xml:space="preserve">
+    <value>Εισαγάγετε τιμή μεταξύ {1} και {2}.</value>
+  </data>
+  <data name="AdminSettings.Validation.RetryCeilingOrder" xml:space="preserve">
+    <value>Το συνολικό όριο επαναλήψεων πρέπει να είναι τουλάχιστον ίσο με τη μέγιστη αναμονή ανά απόκριση.</value>
+  </data>
+  <data name="AdminSettings.Validation.Review" xml:space="preserve">
+    <value>Διορθώστε τα σφάλματα στα πεδία και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateAbsolute" xml:space="preserve">
+    <value>Το πρότυπο πρέπει να είναι έγκυρο απόλυτο URL.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateCoordinates" xml:space="preserve">
+    <value>Το πρότυπο URL πλακιδίων πρέπει να περιέχει τα σύμβολα κράτησης θέσης {0}, {1} και {2}.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateCredential" xml:space="preserve">
+    <value>Οι παράμετροι διαπιστευτηρίων στο URL πρέπει να χρησιμοποιούν το σύμβολο κράτησης θέσης {0}.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateHttps" xml:space="preserve">
+    <value>Το πρότυπο URL πλακιδίων πρέπει να χρησιμοποιεί HTTPS.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateInvalid" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρο πρότυπο URL πλακιδίων.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplatePng" xml:space="preserve">
+    <value>Το πρότυπο URL πλακιδίων πρέπει να δείχνει σε πόρο .png.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateRequired" xml:space="preserve">
+    <value>Το πρότυπο URL πλακιδίων είναι υποχρεωτικό.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateUserInfo" xml:space="preserve">
+    <value>Το πρότυπο URL πλακιδίων δεν πρέπει να περιέχει στοιχεία χρήστη.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileAuthenticatedRate" xml:space="preserve">
+    <value>Ο ρυθμός για συνδεδεμένους χρήστες πρέπει να είναι από 100 έως 50.000 αιτήματα ανά λεπτό.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileCacheMinimum" xml:space="preserve">
+    <value>Το ελάχιστο μέγεθος είναι 256 MB (το OSM απαιτεί διατήρηση πλακιδίων για τουλάχιστον 7 ημέρες). Χρησιμοποιήστε -1 για απενεργοποίηση.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileCacheRange" xml:space="preserve">
+    <value>Εισαγάγετε -1 για απενεργοποίηση ή τιμή από 256 έως 102.400 MB. Η πολιτική του OSM απαιτεί να διατηρούνται πλακίδια για τουλάχιστον 7 ημέρες (τουλάχιστον 256 MB).</value>
+  </data>
+  <data name="AdminSettings.Validation.TileOutbound" xml:space="preserve">
+    <value>Το όριο εξερχόμενων αιτημάτων ανά IP πρέπει να είναι από 0 (απενεργοποίηση) έως 1.000 ανά λεπτό.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileRate" xml:space="preserve">
+    <value>Ο ρυθμός πρέπει να είναι από 50 έως 10.000 αιτήματα ανά λεπτό.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileRateOrder" xml:space="preserve">
+    <value>Το όριο για συνδεδεμένους χρήστες πρέπει να είναι μεγαλύτερο ή ίσο με το όριο για ανώνυμους χρήστες.</value>
+  </data>
+  <data name="AdminSettings.Validation.TimeThreshold" xml:space="preserve">
+    <value>Το ελάχιστο χρονικό διάστημα πρέπει να είναι από 1 έως 1.440 λεπτά (24 ώρες).</value>
+  </data>
+  <data name="AdminSettings.Validation.Unavailable" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση των ρυθμίσεων εφαρμογής.</value>
+  </data>
+  <data name="AdminSettings.Validation.UnknownProvider" xml:space="preserve">
+    <value>Άγνωστος πάροχος πλακιδίων.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitCooldown" xml:space="preserve">
+    <value>Εισαγάγετε -1 για καμία ειδοποίηση, 0 για ειδοποίηση κάθε φορά ή διάστημα από 1 έως 720 ώρες.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitHits" xml:space="preserve">
+    <value>Τα απαιτούμενα σήματα πρέπει να είναι από 2 έως 5.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMaxRadius" xml:space="preserve">
+    <value>Η μέγιστη ακτίνα πρέπει να είναι από 50 έως 500 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMinRadius" xml:space="preserve">
+    <value>Η ελάχιστη ακτίνα πρέπει να είναι από 10 έως 200 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMultiplier" xml:space="preserve">
+    <value>Ο συντελεστής ακρίβειας πρέπει να είναι από 0,5 έως 5,0.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitNotes" xml:space="preserve">
+    <value>Το όριο σημειώσεων πρέπει να είναι από 1.000 έως 200.000 χαρακτήρες.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitRadiusOrder" xml:space="preserve">
+    <value>Η μέγιστη ακτίνα πρέπει να είναι μεγαλύτερη ή ίση με την ελάχιστη ακτίνα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitReject" xml:space="preserve">
+    <value>Το όριο απόρριψης λόγω ακρίβειας πρέπει να είναι από 0 έως 1.000 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSearchOrder" xml:space="preserve">
+    <value>Η ακτίνα αναζήτησης πρέπει να είναι μεγαλύτερη ή ίση με τη μέγιστη ακτίνα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSearchRadius" xml:space="preserve">
+    <value>Η ακτίνα αναζήτησης πρέπει να είναι από 50 έως 2.000 μέτρα.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSuggestion" xml:space="preserve">
+    <value>Ο συντελεστής ακτίνας προτάσεων πρέπει να είναι από 2 έως 100.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldown" xml:space="preserve">
+    <value>Διάστημα μεταξύ ειδοποιήσεων (ώρες)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownDay" xml:space="preserve">
+    <value>Ημερήσιο (12–48 ώρες)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownHelp" xml:space="preserve">
+    <value>Περιορίζει τις ειδοποιήσεις για συχνές επισκέψεις στην ίδια τοποθεσία. Οι επισκέψεις καταγράφονται πάντα. Η ρύθμιση αφορά μόνο τις ειδοποιήσεις SSE.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownMinimum" xml:space="preserve">
+    <value>Ελάχιστος χρόνος πριν σταλεί νέα ειδοποίηση για την ίδια τοποθεσία.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownMonth" xml:space="preserve">
+    <value>Μηνιαίο (336–720 ώρες)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownShort" xml:space="preserve">
+    <value>Σύντομο (1–6 ώρες)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownSse" xml:space="preserve">
+    <value>Οι επισκέψεις καταγράφονται πάντα. Το διάστημα αφορά μόνο τις ειδοποιήσεις SSE.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownWeek" xml:space="preserve">
+    <value>Εβδομαδιαίο (72–168 ώρες)</value>
+  </data>
+  <data name="AdminSettings.VisitCurrentTiming" xml:space="preserve">
+    <value>Τώρα: {0} λεπτά × {1} σήματα = {2} λεπτά για επιβεβαίωση επίσκεψης</value>
+  </data>
+  <data name="AdminSettings.VisitDerived" xml:space="preserve">
+    <value>Υπολογισμός από το χρονικό διάστημα ({0} λεπτά)</value>
+  </data>
+  <data name="AdminSettings.VisitDerivedValue" xml:space="preserve">
+    <value>{0} × {1} = {2} λεπτά</value>
+  </data>
+  <data name="AdminSettings.VisitEnd" xml:space="preserve">
+    <value>Λήξη επίσκεψης μετά από</value>
+  </data>
+  <data name="AdminSettings.VisitEndHelp" xml:space="preserve">
+    <value>Λήξη της ενεργής επίσκεψης όταν δεν ληφθεί σήμα για αυτό το διάστημα</value>
+  </data>
+  <data name="AdminSettings.VisitEquation" xml:space="preserve">
+    <value>Χρονικό διάστημα × απαιτούμενα σήματα = ελάχιστος χρόνος επιβεβαίωσης</value>
+  </data>
+  <data name="AdminSettings.VisitExample" xml:space="preserve">
+    <value>Χρονικό διάστημα {0} λεπτών × 2 σήματα = τουλάχιστον {1} λεπτά για επιβεβαίωση επίσκεψης</value>
+  </data>
+  <data name="AdminSettings.VisitHitWindow" xml:space="preserve">
+    <value>Παράθυρο σημάτων</value>
+  </data>
+  <data name="AdminSettings.VisitHitWindowHelp" xml:space="preserve">
+    <value>Μέγιστο διάστημα ώστε δύο σήματα να θεωρούνται διαδοχικά</value>
+  </data>
+  <data name="AdminSettings.VisitHits" xml:space="preserve">
+    <value>Απαιτούμενα σήματα</value>
+  </data>
+  <data name="AdminSettings.VisitHitsHelp" xml:space="preserve">
+    <value>Αριθμός διαδοχικών σημάτων εντός της ακτίνας της τοποθεσίας για επιβεβαίωση επίσκεψης. Περισσότερα σήματα δίνουν μεγαλύτερη βεβαιότητα και χρειάζονται περισσότερο χρόνο.</value>
+  </data>
+  <data name="AdminSettings.VisitHitsRange" xml:space="preserve">
+    <value>Αριθμός σημάτων για επιβεβαίωση επίσκεψης (2–5).</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadius" xml:space="preserve">
+    <value>Μέγιστη ακτίνα (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadiusHelp" xml:space="preserve">
+    <value>Μεγαλύτερη ακτίνα ανέχεται περισσότερη απόκλιση αλλά αυξάνει τις εσφαλμένες ανιχνεύσεις.</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadiusRange" xml:space="preserve">
+    <value>Μέγιστη επιτρεπόμενη ακτίνα για χαμηλή ακρίβεια GPS (50–500).</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadius" xml:space="preserve">
+    <value>Ελάχιστη ακτίνα (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadiusHelp" xml:space="preserve">
+    <value>Μικρότερη ακτίνα αυξάνει την ακρίβεια, αλλά ενδέχεται να χαθούν επισκέψεις όταν το σήμα GPS αποκλίνει.</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadiusRange" xml:space="preserve">
+    <value>Ελάχιστη ακτίνα ανίχνευσης για καλή ακρίβεια GPS (10–200).</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplier" xml:space="preserve">
+    <value>Συντελεστής ακρίβειας</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierEffect" xml:space="preserve">
+    <value>Μικρότερη τιμή κάνει την αντιστοίχιση αυστηρότερη και μεγαλύτερη τιμή πιο ελαστική.</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierHelp" xml:space="preserve">
+    <value>Πολλαπλασιάζει την ακρίβεια GPS για να υπολογίσει την ακτίνα ανίχνευσης. Για ακρίβεια 25 m και συντελεστή 1,0 η ακτίνα είναι 25 m. Μεγαλύτεροι συντελεστές ανέχονται περισσότερη απόκλιση και μπορεί να αυξήσουν τις εσφαλμένες ανιχνεύσεις.</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierRange" xml:space="preserve">
+    <value>Συντελεστής για την ακρίβεια GPS (0,5–5,0).</value>
+  </data>
+  <data name="AdminSettings.VisitNotesHelp" xml:space="preserve">
+    <value>Μέγιστος αριθμός χαρακτήρων HTML για το στιγμιότυπο σημειώσεων (1.000–200.000).</value>
+  </data>
+  <data name="AdminSettings.VisitNotesMax" xml:space="preserve">
+    <value>Μέγιστος αριθμός χαρακτήρων σημειώσεων</value>
+  </data>
+  <data name="AdminSettings.VisitNotifyAlways" xml:space="preserve">
+    <value>Ειδοποίηση κάθε φορά</value>
+  </data>
+  <data name="AdminSettings.VisitNotifyNever" xml:space="preserve">
+    <value>Χωρίς ειδοποιήσεις</value>
+  </data>
+  <data name="AdminSettings.VisitRejectHelp" xml:space="preserve">
+    <value>Φιλτράρει αναξιόπιστες μετρήσεις σε εσωτερικούς χώρους ή ανάμεσα σε ψηλά κτίρια.</value>
+  </data>
+  <data name="AdminSettings.VisitRejectRadius" xml:space="preserve">
+    <value>Όριο απόρριψης λόγω ακρίβειας (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.VisitRejectRange" xml:space="preserve">
+    <value>Παράλειψη σημάτων με χειρότερη ακρίβεια από το όριο (0 για απενεργοποίηση).</value>
+  </data>
+  <data name="AdminSettings.VisitSearchHelp" xml:space="preserve">
+    <value>Ακτίνα αναζήτησης κοντινών τοποθεσιών στη βάση (50–2.000).</value>
+  </data>
+  <data name="AdminSettings.VisitSearchRadius" xml:space="preserve">
+    <value>Ακτίνα αναζήτησης (μέτρα)</value>
+  </data>
+  <data name="AdminSettings.VisitStale" xml:space="preserve">
+    <value>Λήξη υποψηφίου</value>
+  </data>
+  <data name="AdminSettings.VisitStaleHelp" xml:space="preserve">
+    <value>Εκκαθάριση μη ολοκληρωμένων υποψηφίων επισκέψεων μετά από αυτό το διάστημα</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionChoice" xml:space="preserve">
+    <value>{0}× ({1} m)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionConservative" xml:space="preserve">
+    <value>Περιορισμένη (2–10×)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionCurrent" xml:space="preserve">
+    <value>Τώρα: {0} m × {1} = {2} m</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionExtensive" xml:space="preserve">
+    <value>Εκτεταμένη (60–100×)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionMax" xml:space="preserve">
+    <value>Μέγιστο: {0}</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionModerate" xml:space="preserve">
+    <value>Μέτρια (20–50×) – προτείνεται</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionMultiplier" xml:space="preserve">
+    <value>Συντελεστής μέγιστης ακτίνας προτάσεων</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionRadiusHelp" xml:space="preserve">
+    <value>Μέγιστη ακτίνα αναζήτησης αναδρομικών προτάσεων.</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionTier" xml:space="preserve">
+    <value>Βαθμίδα {0}: {1}</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionTiers" xml:space="preserve">
+    <value>Υπολογισμένες βαθμίδες προτάσεων</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestions" xml:space="preserve">
+    <value>Προτάσεις αναδρομικής ανίχνευσης («Εξετάστε επίσης»)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionsHelp" xml:space="preserve">
+    <value>Προτείνει πιθανές επισκέψεις που δεν πληρούν τα αυστηρά κριτήρια ανίχνευσης. Οι χρήστες επιβεβαιώνουν τις προτάσεις πριν δημιουργηθούν οι επισκέψεις.</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionsIntro" xml:space="preserve">
+    <value>Ρυθμίσεις για τις πρόσθετες προτάσεις της αναδρομικής ανίχνευσης. Χρησιμοποιούν πιο ελαστικά κριτήρια αντιστοίχισης και οι χρήστες τις επιβεβαιώνουν πριν δημιουργηθούν επισκέψεις.</value>
+  </data>
+  <data name="AdminSettings.VisitTierHelp" xml:space="preserve">
+    <value>Η διασταύρωση σημάτων από διαφορετικές βαθμίδες φιλτράρει τις αποκλίσεις GPS και εντοπίζει επισκέψεις οριακά εκτός ακτίνας.</value>
+  </data>
+  <data name="AdminSettings.VisitTierRequirement.one" xml:space="preserve">
+    <value>{1} m (απαιτείται {0} σήμα)</value>
+  </data>
+  <data name="AdminSettings.VisitTierRequirement.other" xml:space="preserve">
+    <value>{1} m (απαιτούνται {0} σήματα)</value>
+  </data>
+  <data name="AdminSettings.VisitTimingHeading" xml:space="preserve">
+    <value>Χρόνος επιβεβαίωσης επίσκεψης</value>
+  </data>
+  <data name="AdminSettings.VisitTimingHelp" xml:space="preserve">
+    <value>Μικρότερα διαστήματα ανιχνεύουν γρηγορότερα τις επισκέψεις και καταναλώνουν περισσότερη μπαταρία. Περισσότερα απαιτούμενα σήματα βελτιώνουν την ακρίβεια και απαιτούν μεγαλύτερη παραμονή.</value>
+  </data>
+  <data name="AdminSettings.VisitTimingIntro" xml:space="preserve">
+    <value>Η επίσκεψη επιβεβαιώνεται όταν ληφθούν τα απαιτούμενα σήματα, με την προβλεπόμενη χρονική απόσταση και συνολική διάρκεια τουλάχιστον ίση με το χρονικό όριο.</value>
+  </data>
+  <data name="AdminSettings.VisitsHeading" xml:space="preserve">
+    <value>Αυτόματη ανίχνευση επισκέψεων σε τοποθεσίες ταξιδιού</value>
+  </data>
+  <data name="AdminSettings.VisitsIntro" xml:space="preserve">
+    <value>Οι επισκέψεις σε προγραμματισμένες τοποθεσίες ταξιδιού ανιχνεύονται από τα σήματα τοποθεσίας. Το χρονικό παράθυρο σημάτων, ο καθαρισμός εκκρεμών υποψηφίων και η λήξη επίσκεψης υπολογίζονται από το παραπάνω ελάχιστο χρονικό διάστημα.</value>
+  </data>
+  <data name="AdminSettings.Warning" xml:space="preserve">
+    <value>Προειδοποίηση</value>
+  </data>
+  <data name="AdminSettings.Weeks.one" xml:space="preserve">
+    <value>{0} εβδομάδα</value>
+  </data>
+  <data name="AdminSettings.Weeks.other" xml:space="preserve">
+    <value>{0} εβδομάδες</value>
+  </data>
+</root>

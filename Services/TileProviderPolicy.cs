@@ -154,7 +154,8 @@ internal static class TileProviderPolicyResolver
         TileProviderCompatibilityDecision compatibility) =>
         Create(settings, settings.TileTrafficMode, compatibility, false, 0, 0, 1, 0);
 
-    private static Dictionary<string, string> GetCustomValidationErrors(ApplicationSettings settings)
+    /// <summary>Returns fixed validation diagnostics by field without mutating the settings.</summary>
+    internal static Dictionary<string, string> GetCustomValidationErrors(ApplicationSettings settings)
     {
         var errors = new Dictionary<string, string>();
         AddRangeError(errors, nameof(settings.TileProviderSustainedRequestsPerSecond), settings.TileProviderSustainedRequestsPerSecond, 1, 20);

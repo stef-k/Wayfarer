@@ -31,11 +31,11 @@ public class ApplicationSettings
     public int Id { get; set; } = 1;
 
     [Required]
-    [Range(1, 1440, ErrorMessage = "Time threshold must be between 1 and 1440 minutes (24 hours).")]
+    [Range(1, 1440, ErrorMessage = "AdminSettings.Validation.TimeThreshold")]
     public int LocationTimeThresholdMinutes { get; set; } = 5;
 
     [Required]
-    [Range(1, 100000, ErrorMessage = "Distance threshold must be between 1 and 100,000 meters.")]
+    [Range(1, 100000, ErrorMessage = "AdminSettings.Validation.DistanceThreshold")]
     public int LocationDistanceThresholdMeters { get; set; } = 15;
 
     /// <summary>
@@ -45,7 +45,7 @@ public class ApplicationSettings
     /// Default is 50 meters.
     /// </summary>
     [Required]
-    [Range(10, 1000, ErrorMessage = "Accuracy threshold must be between 10 and 1000 meters.")]
+    [Range(10, 1000, ErrorMessage = "AdminSettings.Validation.AccuracyThreshold")]
     public int LocationAccuracyThresholdMeters { get; set; } = 50;
 
     /// <summary>
@@ -55,7 +55,7 @@ public class ApplicationSettings
     /// Default is 1024 MB = 1 GB.
     /// </summary>
     [Required]
-    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or 256–102400 MB. OSM policy requires at least 7 days of tiles cached (minimum 256 MB).")]
+    [Range(-1, 102400, ErrorMessage = "AdminSettings.Validation.TileCacheRange")]
     public int MaxCacheTileSizeInMB { get; set; } = 1024;
 
     /// <summary>
@@ -93,35 +93,35 @@ public class ApplicationSettings
     public bool TileProviderAdvancedLimitsEnabled { get; set; }
 
     /// <summary>Custom-provider sustained upstream contacts per second.</summary>
-    [Range(1, 20)]
+    [Range(1, 20, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderSustainedRequestsPerSecond { get; set; } = DefaultTileProviderSustainedRequestsPerSecond;
 
     /// <summary>Custom-provider token-bucket burst capacity.</summary>
-    [Range(1, 50)]
+    [Range(1, 50, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderBurstCapacity { get; set; } = DefaultTileProviderBurstCapacity;
 
     /// <summary>Custom-provider maximum simultaneous upstream contacts.</summary>
-    [Range(1, 16)]
+    [Range(1, 16, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderMaxConcurrency { get; set; } = DefaultTileProviderMaxConcurrency;
 
     /// <summary>Custom-provider total contact ceiling, including the first attempt.</summary>
-    [Range(1, 3)]
+    [Range(1, 3, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderMaxAttempts { get; set; } = 3;
 
     /// <summary>Custom-provider fallback retry base delay in milliseconds.</summary>
-    [Range(250, 5000)]
+    [Range(250, 5000, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderFallbackBaseDelayMs { get; set; } = 500;
 
     /// <summary>Custom-provider fallback retry cap in seconds.</summary>
-    [Range(1, 30)]
+    [Range(1, 30, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderFallbackDelayCapSeconds { get; set; } = 4;
 
     /// <summary>Custom-provider maximum individual interactive wait in seconds.</summary>
-    [Range(1, 120)]
+    [Range(1, 120, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderMaxIndividualWaitSeconds { get; set; } = 30;
 
     /// <summary>Custom-provider total interactive retry ceiling in seconds.</summary>
-    [Range(5, 180)]
+    [Range(5, 180, ErrorMessage = "AdminSettings.Validation.Range")]
     public int TileProviderTotalRetryCeilingSeconds { get; set; } = 45;
 
     /// <summary>Whether the administrator has explicitly resolved the historical 30/minute notice.</summary>
@@ -140,7 +140,7 @@ public class ApplicationSettings
     /// Default is 500 which is generous for normal map viewing but blocks scrapers.
     /// </summary>
     [Required]
-    [Range(50, 10000, ErrorMessage = "Rate limit must be between 50 and 10,000 requests per minute.")]
+    [Range(50, 10000, ErrorMessage = "AdminSettings.Validation.TileRate")]
     public int TileRateLimitPerMinute { get; set; } = DefaultTileRateLimitPerMinute;
 
     /// <summary>
@@ -150,7 +150,7 @@ public class ApplicationSettings
     /// Default is 2000.
     /// </summary>
     [Required]
-    [Range(100, 50000, ErrorMessage = "Authenticated rate limit must be between 100 and 50,000 requests per minute.")]
+    [Range(100, 50000, ErrorMessage = "AdminSettings.Validation.TileAuthenticatedRate")]
     public int TileRateLimitAuthenticatedPerMinute { get; set; } = DefaultTileRateLimitAuthenticatedPerMinute;
 
     /// <summary>
@@ -161,7 +161,7 @@ public class ApplicationSettings
     /// Set to 0 to disable per-IP outbound budget tracking.
     /// </summary>
     [Required]
-    [Range(0, 1000, ErrorMessage = "Per-IP outbound budget must be between 0 (disabled) and 1,000 per minute.")]
+    [Range(0, 1000, ErrorMessage = "AdminSettings.Validation.TileOutbound")]
     public int TileOutboundBudgetPerIpPerMinute { get; set; } = DefaultTileOutboundBudgetPerIpPerMinute;
 
     /// <summary>
@@ -170,7 +170,7 @@ public class ApplicationSettings
     /// Set to -1 to disable the feature entirely.
     /// </summary>
     [Required]
-    [Range(-1, 512, ErrorMessage = "Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.")]
+    [Range(-1, 512, ErrorMessage = "AdminSettings.Validation.HotCache")]
     public int TileMetadataHotCacheSizeMB { get; set; } = DefaultTileMetadataHotCacheSizeMB;
 
     /// <summary>
@@ -185,7 +185,7 @@ public class ApplicationSettings
     /// Default is 200 which is generous for normal browsing but blocks abuse.
     /// </summary>
     [Required]
-    [Range(10, 5000, ErrorMessage = "Rate limit must be between 10 and 5,000 requests per minute.")]
+    [Range(10, 5000, ErrorMessage = "AdminSettings.Validation.ImageRate")]
     public int ProxyImageRateLimitPerMinute { get; set; } = DefaultProxyImageRateLimitPerMinute;
 
     /// <summary>
@@ -194,7 +194,7 @@ public class ApplicationSettings
     /// Default is 512 MB. Cached images are typically 20-200 KB each.
     /// </summary>
     [Required]
-    [Range(-1, 102400, ErrorMessage = "Must be -1 (disable) or a positive size up to 100 GB.")]
+    [Range(-1, 102400, ErrorMessage = "AdminSettings.Validation.ImageCache")]
     public int MaxCacheImageSizeInMB { get; set; } = DefaultMaxCacheImageSizeInMB;
 
     /// <summary>
@@ -203,7 +203,7 @@ public class ApplicationSettings
     /// Default is 90 days.
     /// </summary>
     [Required]
-    [Range(1, 365, ErrorMessage = "Expiry must be between 1 and 365 days.")]
+    [Range(1, 365, ErrorMessage = "AdminSettings.Validation.ImageExpiry")]
     public int ImageCacheExpiryDays { get; set; } = DefaultImageCacheExpiryDays;
 
     /// <summary>
@@ -212,7 +212,7 @@ public class ApplicationSettings
     /// Default is 50 MB.
     /// </summary>
     [Required]
-    [Range(5, 200, ErrorMessage = "Max proxy image download size must be between 5 and 200 MB.")]
+    [Range(5, 200, ErrorMessage = "AdminSettings.Validation.ImageDownload")]
     public int MaxProxyImageDownloadMB { get; set; } = DefaultMaxProxyImageDownloadMB;
 
     /// <summary>
@@ -223,7 +223,7 @@ public class ApplicationSettings
     
     /// <summary>User multipart request ceiling in MiB: -1 disables, 0 defaults, 1..100 limits.</summary>
     [Required]
-    [Range(-1, Wayfarer.Util.UploadRequestPolicy.MaximumRequestMiB)]
+    [Range(-1, Wayfarer.Util.UploadRequestPolicy.MaximumRequestMiB, ErrorMessage = "AdminSettings.Validation.Range")]
     public int UploadSizeLimitMB { get; set; } = DefaultUploadSizeLimitMB;
 
     // === Trip Place Auto-Visited Settings ===
@@ -232,49 +232,49 @@ public class ApplicationSettings
     /// Number of location pings required within the hit window to confirm a visit.
     /// </summary>
     [Required]
-    [Range(2, 5, ErrorMessage = "Required hits must be between 2 and 5.")]
+    [Range(2, 5, ErrorMessage = "AdminSettings.Validation.VisitHits")]
     public int VisitedRequiredHits { get; set; } = 2;
 
     /// <summary>
     /// Minimum detection radius in meters, used when GPS accuracy is good.
     /// </summary>
     [Required]
-    [Range(10, 200, ErrorMessage = "Min radius must be between 10 and 200 meters.")]
+    [Range(10, 200, ErrorMessage = "AdminSettings.Validation.VisitMinRadius")]
     public int VisitedMinRadiusMeters { get; set; } = 35;
 
     /// <summary>
     /// Maximum detection radius in meters, ceiling for poor GPS accuracy.
     /// </summary>
     [Required]
-    [Range(50, 500, ErrorMessage = "Max radius must be between 50 and 500 meters.")]
+    [Range(50, 500, ErrorMessage = "AdminSettings.Validation.VisitMaxRadius")]
     public int VisitedMaxRadiusMeters { get; set; } = 100;
 
     /// <summary>
     /// Multiplier applied to reported GPS accuracy to calculate effective radius.
     /// </summary>
     [Required]
-    [Range(0.5, 5.0, ErrorMessage = "Accuracy multiplier must be between 0.5 and 5.0.")]
+    [Range(0.5, 5.0, ErrorMessage = "AdminSettings.Validation.VisitMultiplier")]
     public double VisitedAccuracyMultiplier { get; set; } = 2.0;
 
     /// <summary>
     /// Skip visit detection if GPS accuracy exceeds this value. Set to 0 to disable.
     /// </summary>
     [Required]
-    [Range(0, 1000, ErrorMessage = "Accuracy reject must be between 0 and 1000 meters.")]
+    [Range(0, 1000, ErrorMessage = "AdminSettings.Validation.VisitReject")]
     public int VisitedAccuracyRejectMeters { get; set; } = 200;
 
     /// <summary>
     /// Maximum radius for PostGIS database query to find nearby places.
     /// </summary>
     [Required]
-    [Range(50, 2000, ErrorMessage = "Search radius must be between 50 and 2000 meters.")]
+    [Range(50, 2000, ErrorMessage = "AdminSettings.Validation.VisitSearchRadius")]
     public int VisitedMaxSearchRadiusMeters { get; set; } = 150;
 
     /// <summary>
     /// Maximum HTML characters for notes snapshot when creating a visit event.
     /// </summary>
     [Required]
-    [Range(1000, 200000, ErrorMessage = "Notes max chars must be between 1000 and 200000.")]
+    [Range(1000, 200000, ErrorMessage = "AdminSettings.Validation.VisitNotes")]
     public int VisitedPlaceNotesSnapshotMaxHtmlChars { get; set; } = 20000;
 
     /// <summary>
@@ -284,7 +284,7 @@ public class ApplicationSettings
     /// Default is 24 hours - prevents notification spam when visiting the same place multiple times per day.
     /// </summary>
     [Required]
-    [Range(-1, 720, ErrorMessage = "Notification cooldown must be -1 (never notify), 0 (always notify), or 1-720 hours.")]
+    [Range(-1, 720, ErrorMessage = "AdminSettings.Validation.VisitCooldown")]
     public int VisitNotificationCooldownHours { get; set; } = 24;
 
     // === Visit Suggestion Settings (for "Consider Also" feature) ===
@@ -296,7 +296,7 @@ public class ApplicationSettings
     /// These suggestions require user confirmation and are not auto-matched.
     /// </summary>
     [Required]
-    [Range(2, 100, ErrorMessage = "Suggestion radius multiplier must be between 2 and 100.")]
+    [Range(2, 100, ErrorMessage = "AdminSettings.Validation.VisitSuggestion")]
     public int VisitedSuggestionMaxRadiusMultiplier { get; set; } = 50;
 
     // === Derived Properties (computed from LocationTimeThresholdMinutes) ===

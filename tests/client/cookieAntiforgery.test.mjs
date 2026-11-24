@@ -157,25 +157,33 @@ test('Invitation Accept and Decline reuse the rendered token on bodyless POSTs',
     }
 });
 
-test('Jobs SSE rebuilding copies the authentic token into every replacement form', async () => {
-    const script = await source('Areas/Admin/Jobs/Index.js');
-    for (const [status, count] of [['Running', 1], ['Paused', 1], ['Completed', 2]]) {
-        const forms = [];
-        const cell = {
-            set innerHTML(html) {
-                for (const match of html.matchAll(/<form\b[^>]*>/g)) forms.push({ html: match[0], inputs: [], append(input) { this.inputs.push(input); } });
-            },
-            querySelectorAll: selector => { assert.equal(selector, 'form'); return forms; }
+test('Jobs SSE selects the server POST forms and carries their authentic tokens with the job IDs', async () => {
+    const script = (await source('Areas/Admin/Jobs/Index.js')).replace(/^import .*;\n/gm, '');
+    for (const [status, state, actions] of [
+        ['Running', 'running', ['CancelJob']],
+        ['Paused', 'paused', ['ResumeJob']],
+        ['Completed', 'idle', ['StartJob', 'PauseJob']]
+    ]) {
+        const forms = actions.map(action => ({ action, jobName: {}, jobGroup: {}, token: { value: pageToken } }));
+        const fragment = { querySelectorAll: selector => forms.map(form => selector.includes('jobName') ? form.jobName : form.jobGroup) };
+        const row = {
+            dataset: { jobName: 'job "quoted"', jobGroup: 'group & test', interruptable: 'true' },
+            querySelector: () => ({ replaceChildren: children => assert.equal(children, fragment) })
         };
-        vm.runInNewContext(`${script}\nupdateActionButtons(row, status, 'job', 'group');`, {
-            row: { querySelector: () => cell }, status,
-            document: { ...documentToken, addEventListener: () => {}, createElement: () => ({ textContent: '', get innerHTML() { return this.textContent; } }) }
+        vm.runInNewContext(`${script}\nupdateActionButtons(row, status);`, {
+            row, status,
+            document: {
+                addEventListener: () => {},
+                getElementById: id => {
+                    assert.equal(id, `job-${state}-actions`);
+                    return { content: { cloneNode: deep => { assert.equal(deep, true); return fragment; } } };
+                }
+            }
         });
-        assert.equal(forms.length, count);
         for (const form of forms) {
-            assert.match(form.html, /method="post"/);
-            assert.equal(form.inputs[0].name, '__RequestVerificationToken');
-            assert.equal(form.inputs[0].value, pageToken);
+            assert.equal(form.jobName.value, row.dataset.jobName);
+            assert.equal(form.jobGroup.value, row.dataset.jobGroup);
+            assert.equal(form.token.value, pageToken);
         }
     }
 });

@@ -1,64 +1,107 @@
 @model ApplicationSettings
+@inject Wayfarer.Localization.WebMessages T
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using Wayfarer.Localization
 @using Wayfarer.Services
-@using Wayfarer.Util
 @{
     // Resolve the same immutable policy shown to and enforced for newly admitted work.
     var policy = TileProviderPolicyResolver.Resolve(Model);
     var compatible = policy.Compatibility.Status == TileProviderCompatibility.Supported;
+    var modeOptions = Html.GetEnumSelectList<TileTrafficMode>()
+        .Select(option => new SelectListItem(T[$"AdminSettings.PolicyMode.{option.Text}"], option.Value));
+    var inactive = T["AdminSettings.PolicyInactive"];
 }
 
 <div class="col-12 mb-3">
     @if (!compatible)
     {
         <div class="alert alert-danger" role="alert">
-            <strong>Provider blocked:</strong> @policy.Compatibility.Message
-            Select OSM Standard, OpenTopoMap, or a compatible Custom provider. Existing settings and cache are preserved for recovery; no upstream contact is made.
+            <strong>@T["AdminSettings.PolicyBlocked"]</strong>
+            @AdminSettingsWebText.CompatibilityReason(T, policy.Compatibility.Message)
+            @T["AdminSettings.PolicyRecovery"]
         </div>
     }
     <div class="alert alert-secondary">
-        <strong>Compatibility:</strong> @policy.Compatibility.Status<br />
-        <strong>Authoritative source:</strong> @policy.Compatibility.Source
+        <strong>@T["AdminSettings.PolicyCompatibility"]</strong> @T[$"AdminSettings.PolicyCompatibility.{policy.Compatibility.Status}"]<br />
+        <strong>@T["AdminSettings.PolicySource"]</strong> @AdminSettingsWebText.CompatibilitySource(T, policy.Compatibility.Source)
     </div>
 </div>
 
 <div class="col-md-6 mb-3">
-    <label asp-for="TileTrafficMode" class="form-label">Traffic mode</label>
-    <select asp-for="TileTrafficMode" asp-items="Html.GetEnumSelectList<TileTrafficMode>()" class="form-select"></select>
-    <small class="form-text text-muted">
-        Interactive has no proactive Wayfarer contact-rate or client-series delay. Conservative applies Wayfarer safeguards.
-        Provider Agreement uses the preserved Custom values below. Provider requirements, Retry-After, caching, attribution, and no-prefetch rules always remain active.
-    </small>
+    <label asp-for="TileTrafficMode" class="form-label">@T["AdminSettings.PolicyMode"]</label>
+    <select asp-for="TileTrafficMode" asp-items="modeOptions" class="form-select"></select>
+    <small class="form-text text-muted">@T["AdminSettings.PolicyModeHelp"]</small>
     <span asp-validation-for="TileTrafficMode" class="text-danger"></span>
 </div>
 
 <div class="col-md-6 mb-3">
     <div class="alert alert-info mb-0">
-        <strong>Complete effective traffic policy:</strong><br />
-        Mode: @policy.TrafficMode<br />
-        Rate: @(policy.IsRateActive ? $"{policy.SustainedRequestsPerSecond} actual contacts/sec (active)" : "inactive")<br />
-        Burst: @(policy.IsBurstActive ? $"{policy.BurstCapacity} contact tokens (active)" : "inactive")<br />
-        Concurrency: @(policy.IsConcurrencyActive ? $"{policy.MaxConcurrency} simultaneous contacts (active; local resource protection, not provider permission)" : "inactive")<br />
-        Client allowance: @(policy.IsClientSeriesAllowanceActive ? $"{policy.ClientSeriesPerMinute} admitted series/client/min (active)" : "inactive")<br />
-        Maximum attempts: @(compatible ? $"{policy.MaxAttempts}" : "inactive")<br />
-        Fallback base delay: @(compatible ? $"{policy.FallbackBaseDelay.TotalMilliseconds:0} ms" : "inactive")<br />
-        Fallback delay cap: @(compatible ? $"{policy.FallbackDelayCap.TotalSeconds:0} sec" : "inactive")<br />
-        Maximum provider/individual wait: @(compatible ? $"{policy.MaxIndividualWait.TotalSeconds:0} sec" : "inactive")<br />
-        Total retry ceiling: @(compatible ? $"{policy.TotalRetryCeiling.TotalSeconds:0} sec" : "inactive")
+        <strong>@T["AdminSettings.PolicyEffective"]</strong>
+        <dl class="mb-0">
+            <dt>@T["AdminSettings.PolicyMode"]</dt><dd>@T[$"AdminSettings.PolicyMode.{policy.TrafficMode}"]</dd>
+            <dt>@T["AdminSettings.PolicyRate"]</dt><dd>@(policy.IsRateActive ? T["AdminSettings.PolicyRateActive", policy.SustainedRequestsPerSecond] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyBurst"]</dt><dd>@(policy.IsBurstActive ? T["AdminSettings.PolicyBurstActive", policy.BurstCapacity] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyConcurrency"]</dt><dd>@(policy.IsConcurrencyActive ? T["AdminSettings.PolicyConcurrencyActive", policy.MaxConcurrency] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyAllowance"]</dt><dd>@(policy.IsClientSeriesAllowanceActive ? T["AdminSettings.PolicyAllowanceActive", T.DisplayNumber(policy.ClientSeriesPerMinute)] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyMaxAttempts"]</dt><dd>@(compatible ? T.DisplayNumber(policy.MaxAttempts) : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyFallbackBase"]</dt><dd>@(compatible ? T["AdminSettings.PolicyMillis", T.DisplayNumber((long)policy.FallbackBaseDelay.TotalMilliseconds)] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyFallbackCap"]</dt><dd>@(compatible ? T["AdminSettings.PolicySeconds", policy.FallbackDelayCap.TotalSeconds] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyIndividualWait"]</dt><dd>@(compatible ? T["AdminSettings.PolicySeconds", policy.MaxIndividualWait.TotalSeconds] : inactive)</dd>
+            <dt>@T["AdminSettings.PolicyTotalRetry"]</dt><dd>@(compatible ? T["AdminSettings.PolicySeconds", policy.TotalRetryCeiling.TotalSeconds] : inactive)</dd>
+        </dl>
     </div>
 </div>
 
 @* Values remain posted and recoverable even while their mode is inactive. *@
-<div class="col-12 mb-2"><strong>Preserved Provider Agreement values</strong></div>
+<div class="col-12 mb-2"><strong>@T["AdminSettings.PolicyPreserved"]</strong></div>
 <input asp-for="TileProviderAdvancedLimitsEnabled" type="hidden" />
+<span asp-validation-for="TileProviderAdvancedLimitsEnabled" class="text-danger"></span>
 <div class="row" id="tileProviderAdvancedFields">
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderSustainedRequestsPerSecond">Contacts/sec</label><input asp-for="TileProviderSustainedRequestsPerSecond" class="form-control" min="1" max="20" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderBurstCapacity">Contact burst</label><input asp-for="TileProviderBurstCapacity" class="form-control" min="1" max="50" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxConcurrency">Concurrency</label><input asp-for="TileProviderMaxConcurrency" class="form-control" min="1" max="16" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileOutboundBudgetPerIpPerMinute">Series/client/min</label><input asp-for="TileOutboundBudgetPerIpPerMinute" class="form-control" min="0" max="1000" /><small class="text-muted">0 disables this allowance.</small></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxAttempts">Attempts</label><input asp-for="TileProviderMaxAttempts" class="form-control" min="1" max="3" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderFallbackBaseDelayMs">Fallback base (ms)</label><input asp-for="TileProviderFallbackBaseDelayMs" class="form-control" min="250" max="5000" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderFallbackDelayCapSeconds">Fallback cap (sec)</label><input asp-for="TileProviderFallbackDelayCapSeconds" class="form-control" min="1" max="30" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderMaxIndividualWaitSeconds">Provider wait cap (sec)</label><input asp-for="TileProviderMaxIndividualWaitSeconds" class="form-control" min="1" max="120" /></div>
-    <div class="col-md-3 mb-2"><label asp-for="TileProviderTotalRetryCeilingSeconds">Retry ceiling (sec)</label><input asp-for="TileProviderTotalRetryCeilingSeconds" class="form-control" min="5" max="180" /></div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderSustainedRequestsPerSecond">@T["AdminSettings.PolicyRateField"]</label>
+        <input asp-for="TileProviderSustainedRequestsPerSecond" class="form-control" min="1" max="20" />
+        <span asp-validation-for="TileProviderSustainedRequestsPerSecond" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderBurstCapacity">@T["AdminSettings.PolicyBurstField"]</label>
+        <input asp-for="TileProviderBurstCapacity" class="form-control" min="1" max="50" />
+        <span asp-validation-for="TileProviderBurstCapacity" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderMaxConcurrency">@T["AdminSettings.PolicyConcurrency"]</label>
+        <input asp-for="TileProviderMaxConcurrency" class="form-control" min="1" max="16" />
+        <span asp-validation-for="TileProviderMaxConcurrency" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileOutboundBudgetPerIpPerMinute">@T["AdminSettings.PolicyAllowanceField"]</label>
+        <input asp-for="TileOutboundBudgetPerIpPerMinute" class="form-control" min="0" max="1000" />
+        <small class="text-muted">@T["AdminSettings.PolicyAllowanceHelp"]</small>
+        <span asp-validation-for="TileOutboundBudgetPerIpPerMinute" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderMaxAttempts">@T["AdminSettings.PolicyAttemptsField"]</label>
+        <input asp-for="TileProviderMaxAttempts" class="form-control" min="1" max="3" />
+        <span asp-validation-for="TileProviderMaxAttempts" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderFallbackBaseDelayMs">@T["AdminSettings.PolicyFallbackBaseField"]</label>
+        <input asp-for="TileProviderFallbackBaseDelayMs" class="form-control" min="250" max="5000" />
+        <span asp-validation-for="TileProviderFallbackBaseDelayMs" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderFallbackDelayCapSeconds">@T["AdminSettings.PolicyFallbackCapField"]</label>
+        <input asp-for="TileProviderFallbackDelayCapSeconds" class="form-control" min="1" max="30" />
+        <span asp-validation-for="TileProviderFallbackDelayCapSeconds" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderMaxIndividualWaitSeconds">@T["AdminSettings.PolicyIndividualWaitField"]</label>
+        <input asp-for="TileProviderMaxIndividualWaitSeconds" class="form-control" min="1" max="120" />
+        <span asp-validation-for="TileProviderMaxIndividualWaitSeconds" class="text-danger"></span>
+    </div>
+    <div class="col-md-3 mb-2">
+        <label asp-for="TileProviderTotalRetryCeilingSeconds">@T["AdminSettings.PolicyTotalRetryField"]</label>
+        <input asp-for="TileProviderTotalRetryCeilingSeconds" class="form-control" min="5" max="180" />
+        <span asp-validation-for="TileProviderTotalRetryCeilingSeconds" class="text-danger"></span>
+    </div>
 </div>
-<div class="col-12"><small class="text-muted">These are administrator-managed Wayfarer safeguards, not provider-published allowances. Mode changes do not change cache identity and never require a purge.</small></div>
+<div class="col-12"><small class="text-muted">@T["AdminSettings.PolicyPreservedHelp"]</small></div>

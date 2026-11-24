@@ -491,7 +491,7 @@ public class AdminLogsControllerTests : TestBase, IDisposable
         var controller = new LogsController(
             NullLogger<LogsController>.Instance,
             _db,
-            TestDirectory.Storage(_tempLogDir, _tempLogDir));
+            TestDirectory.Storage(_tempLogDir, _tempLogDir), WebText);
 
         var httpContext = new DefaultHttpContext
         {

@@ -38,12 +38,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            if (!auditLogs.Any())
-            {
-                ViewBag.Message = "No audit logs found.";
-            }
-
-            SetPageTitle("Audit Logs");
             return View(auditLogs);
         }
 

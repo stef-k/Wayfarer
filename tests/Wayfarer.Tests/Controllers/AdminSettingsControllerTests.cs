@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -59,7 +60,7 @@ public partial class AdminSettingsControllerTests : TestBase
             new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance), new TileCacheStorage(tileCacheDir, tileCacheDir));
 
         var scopeFactory = BuildScopeFactory(tileCache);
-        var controller = new SettingsController(ImportStaging.Files,NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
+        var controller = new SettingsController(ImportStaging.Files,NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService(), WebText);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
 
         var result = await controller.Index();
@@ -371,7 +372,7 @@ public partial class AdminSettingsControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.NotNull(controller.TempData["Message"]);
+        Assert.Equal("AdminSettings.PurgeMbtilesSuccess", controller.TempData["WebAlertKey"]);
     }
 
     private (SettingsController controller, Mock<IApplicationSettingsService> settingsMock, TileCacheService tileCache)
@@ -417,7 +418,7 @@ public partial class AdminSettingsControllerTests : TestBase
             Mock.Of<IProxiedImageCacheService>(),
             env.Object,
             scopes ?? scopeFactory,
-            sse ?? new SseService());
+            sse ?? new SseService(), WebText);
 
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
@@ -434,7 +435,20 @@ public partial class AdminSettingsControllerTests : TestBase
         scopes.Setup(s => s.CreateScope()).Throws(new IOException("private-purge-path-663"));
         var sse = new PurgeFailureSse();
         var (controller, _, _) = BuildController(scopes: scopes.Object, sse: sse);
-        Assert.IsType<AcceptedResult>(controller.DeleteAllMapTileCache());
+        var previous = CultureInfo.CurrentUICulture;
+        AcceptedResult accepted;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("el-GR");
+            accepted = Assert.IsType<AcceptedResult>(controller.DeleteAllMapTileCache());
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
+        }
+        var response = System.Text.Json.JsonSerializer.SerializeToElement(accepted.Value);
+        Assert.True(response.GetProperty("success").GetBoolean());
+        Assert.Equal("Ξεκίνησε η εκκαθάριση όλων των προσωρινών πλακιδίων.", response.GetProperty("message").GetString());
         var payload = await sse.Failure.Task.WaitAsync(TimeSpan.FromSeconds(5));
         using var json = System.Text.Json.JsonDocument.Parse(payload);
         Assert.Equal("failed", json.RootElement.GetProperty("eventType").GetString());

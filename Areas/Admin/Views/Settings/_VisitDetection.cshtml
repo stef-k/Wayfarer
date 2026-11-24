@@ -1,0 +1,202 @@
+@model ApplicationSettings
+@inject Wayfarer.Localization.WebMessages T
+@* These settings post with the other application settings. Derived values are display-only. *@
+
+<div class="row">
+    <h3 class="text-center fs-4">@T["AdminSettings.VisitsHeading"]</h3>
+    <p class="text-muted">
+        @T["AdminSettings.VisitsIntro"]
+    </p>
+
+    <div class="alert alert-info">
+        <strong><i class="bi bi-clock-history me-1"></i>@T["AdminSettings.VisitTimingHeading"]</strong>
+        @T["AdminSettings.VisitTimingIntro"]<br/>
+        <strong>@T["AdminSettings.Formula"]</strong> <code>@T["AdminSettings.VisitEquation"]</code><br/>
+        <ul class="mb-0 mt-2">
+            <li>@T["AdminSettings.VisitExample", 2, 4]</li>
+            <li>@T["AdminSettings.VisitExample", 3, 6]</li>
+            <li>@T["AdminSettings.VisitExample", 5, 10]</li>
+            <li>@T["AdminSettings.VisitExample", 10, 20]</li>
+            <li>@T["AdminSettings.VisitExample", 15, 30]</li>
+        </ul>
+        <small class="text-muted d-block mt-2">
+            <i class="bi bi-info-circle me-1"></i>@T["AdminSettings.VisitTimingHelp"]
+        </small>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedRequiredHits" class="form-label">
+            @T["AdminSettings.VisitHits"]
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="@T["AdminSettings.VisitHitsHelp"]"></i>
+        </label>
+        <input asp-for="VisitedRequiredHits" class="form-control" type="number" min="2" max="5" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitHitsRange"]<br/>
+            <em>@T["AdminSettings.VisitCurrentTiming", Model.LocationTimeThresholdMinutes, Model.VisitedRequiredHits, Model.LocationTimeThresholdMinutes * Model.VisitedRequiredHits]</em>
+        </small>
+        <span asp-validation-for="VisitedRequiredHits" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedMinRadiusMeters" class="form-label">@T["AdminSettings.VisitMinRadius"]</label>
+        <input asp-for="VisitedMinRadiusMeters" class="form-control" type="number" min="10" max="200" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitMinRadiusRange"]<br/>
+            <em>@T["AdminSettings.VisitMinRadiusHelp"]</em>
+        </small>
+        <span asp-validation-for="VisitedMinRadiusMeters" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedMaxRadiusMeters" class="form-label">@T["AdminSettings.VisitMaxRadius"]</label>
+        <input asp-for="VisitedMaxRadiusMeters" class="form-control" type="number" min="50" max="500" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitMaxRadiusRange"]<br/>
+            <em>@T["AdminSettings.VisitMaxRadiusHelp"]</em>
+        </small>
+        <span asp-validation-for="VisitedMaxRadiusMeters" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedAccuracyMultiplier" class="form-label">
+            @T["AdminSettings.VisitMultiplier"]
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="@T["AdminSettings.VisitMultiplierHelp"]"></i>
+        </label>
+        <input asp-for="VisitedAccuracyMultiplier" class="form-control" type="number" step="0.1" min="0.5" max="5.0" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitMultiplierRange"]<br/>
+            <em>@T["AdminSettings.VisitMultiplierEffect"]</em>
+        </small>
+        <span asp-validation-for="VisitedAccuracyMultiplier" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedAccuracyRejectMeters" class="form-label">@T["AdminSettings.VisitRejectRadius"]</label>
+        <input asp-for="VisitedAccuracyRejectMeters" class="form-control" type="number" min="0" max="1000" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitRejectRange"]<br/>
+            <em>@T["AdminSettings.VisitRejectHelp"]</em>
+        </small>
+        <span asp-validation-for="VisitedAccuracyRejectMeters" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-4 mb-3">
+        <label asp-for="VisitedMaxSearchRadiusMeters" class="form-label">@T["AdminSettings.VisitSearchRadius"]</label>
+        <input asp-for="VisitedMaxSearchRadiusMeters" class="form-control" type="number" min="50" max="2000" />
+        <small class="form-text text-muted">@T["AdminSettings.VisitSearchHelp"]</small>
+        <span asp-validation-for="VisitedMaxSearchRadiusMeters" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="form-label">@T["AdminSettings.VisitNotesMax"]</label>
+        <input asp-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="form-control" type="number" min="1000" max="200000" />
+        <small class="form-text text-muted">@T["AdminSettings.VisitNotesHelp"]</small>
+        <span asp-validation-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="VisitNotificationCooldownHours" class="form-label">
+            <i class="bi bi-bell-slash me-1"></i>@T["AdminSettings.VisitCooldown"]
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="@T["AdminSettings.VisitCooldownHelp"]"></i>
+        </label>
+        <select asp-for="VisitNotificationCooldownHours" class="form-control">
+            <option value="-1">@T["AdminSettings.VisitNotifyNever"]</option>
+            <option value="0">@T["AdminSettings.VisitNotifyAlways"]</option>
+            <optgroup label="@T["AdminSettings.VisitCooldownShort"]">
+                <option value="1">@T.Count("AdminSettings.Hours", 1)</option>
+                <option value="2">@T.Count("AdminSettings.Hours", 2)</option>
+                <option value="3">@T.Count("AdminSettings.Hours", 3)</option>
+                <option value="6">@T.Count("AdminSettings.Hours", 6)</option>
+            </optgroup>
+            <optgroup label="@T["AdminSettings.VisitCooldownDay"]">
+                <option value="12">@T.Count("AdminSettings.Hours", 12)</option>
+                <option value="24">@T["AdminSettings.DefaultChoice", T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 24), T.Count("AdminSettings.Days", 1)]]</option>
+                <option value="48">@T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 48), T.Count("AdminSettings.Days", 2)]</option>
+            </optgroup>
+            <optgroup label="@T["AdminSettings.VisitCooldownWeek"]">
+                <option value="72">@T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 72), T.Count("AdminSettings.Days", 3)]</option>
+                <option value="168">@T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 168), T.Count("AdminSettings.Weeks", 1)]</option>
+            </optgroup>
+            <optgroup label="@T["AdminSettings.VisitCooldownMonth"]">
+                <option value="336">@T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 336), T.Count("AdminSettings.Weeks", 2)]</option>
+                <option value="720">@T["AdminSettings.HoursWithPeriod", T.Count("AdminSettings.Hours", 720), T.Count("AdminSettings.Days", 30)]</option>
+            </optgroup>
+        </select>
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitCooldownMinimum"]<br/>
+            <em>@T["AdminSettings.VisitCooldownSse"]</em>
+        </small>
+        <span asp-validation-for="VisitNotificationCooldownHours" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="alert alert-info mb-0">
+            <strong>@T["AdminSettings.VisitDerived", Model.LocationTimeThresholdMinutes]</strong>
+            <ul class="mb-0 mt-2">
+                <li>@T["AdminSettings.VisitHitWindow"]: <code>@T["AdminSettings.VisitDerivedValue", Model.LocationTimeThresholdMinutes, 1.6, Model.VisitedHitWindowMinutes]</code>
+                    <br/><small class="text-muted">@T["AdminSettings.VisitHitWindowHelp"]</small></li>
+                <li>@T["AdminSettings.VisitStale"]: <code>@T["AdminSettings.VisitDerivedValue", Model.LocationTimeThresholdMinutes, 12, Model.VisitedCandidateStaleMinutes]</code>
+                    <br/><small class="text-muted">@T["AdminSettings.VisitStaleHelp"]</small></li>
+                <li>@T["AdminSettings.VisitEnd"]: <code>@T["AdminSettings.VisitDerivedValue", Model.LocationTimeThresholdMinutes, 9, Model.VisitedEndVisitAfterMinutes]</code>
+                    <br/><small class="text-muted">@T["AdminSettings.VisitEndHelp"]</small></li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Backfill Suggestion Settings (Consider Also feature) -->
+    <div class="col-12 mt-3 mb-2">
+        <h5 class="border-bottom pb-2">
+            <i class="bi bi-lightbulb me-1"></i>@T["AdminSettings.VisitSuggestions"]
+            <i class="bi bi-question-circle text-muted ms-1"
+               data-tippy-content="@T["AdminSettings.VisitSuggestionsHelp"]"></i>
+        </h5>
+        <p class="text-muted small mb-2">
+            @T["AdminSettings.VisitSuggestionsIntro"]
+        </p>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-label">
+            @T["AdminSettings.VisitSuggestionMultiplier"]
+        </label>
+        <select asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-control">
+            <optgroup label="@T["AdminSettings.VisitSuggestionConservative"]">
+                <option value="2">@T["AdminSettings.VisitSuggestionChoice", 2, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 2)]</option>
+                <option value="5">@T["AdminSettings.VisitSuggestionChoice", 5, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 5)]</option>
+                <option value="10">@T["AdminSettings.VisitSuggestionChoice", 10, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 10)]</option>
+            </optgroup>
+            <optgroup label="@T["AdminSettings.VisitSuggestionModerate"]">
+                <option value="20">@T["AdminSettings.VisitSuggestionChoice", 20, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 20)]</option>
+                <option value="30">@T["AdminSettings.VisitSuggestionChoice", 30, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 30)]</option>
+                <option value="40">@T["AdminSettings.VisitSuggestionChoice", 40, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 40)]</option>
+                <option value="50">@T["AdminSettings.DefaultChoice", T["AdminSettings.VisitSuggestionChoice", 50, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 50)]]</option>
+            </optgroup>
+            <optgroup label="@T["AdminSettings.VisitSuggestionExtensive"]">
+                <option value="60">@T["AdminSettings.VisitSuggestionChoice", 60, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 60)]</option>
+                <option value="75">@T["AdminSettings.VisitSuggestionChoice", 75, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 75)]</option>
+                <option value="100">@T["AdminSettings.VisitSuggestionChoice", 100, T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters * 100)]</option>
+            </optgroup>
+        </select>
+        <small class="form-text text-muted">
+            @T["AdminSettings.VisitSuggestionRadiusHelp"]<br/>
+            <em>@T["AdminSettings.VisitSuggestionCurrent", T.DisplayNumber(Model.VisitedMaxSearchRadiusMeters), Model.VisitedSuggestionMaxRadiusMultiplier, T.DisplayNumber(Model.SuggestionMaxRadius)]</em>
+        </small>
+        <span asp-validation-for="VisitedSuggestionMaxRadiusMultiplier" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="alert alert-secondary mb-0">
+            <strong>@T["AdminSettings.VisitSuggestionTiers"]</strong>
+            <ul class="mb-0 mt-2">
+                <li>@T["AdminSettings.VisitSuggestionTier", 1, T.Count("AdminSettings.VisitTierRequirement", Model.SuggestionTier1Hits, T.DisplayNumber(Model.SuggestionTier1Radius))]</li>
+                <li>@T["AdminSettings.VisitSuggestionTier", 2, T.Count("AdminSettings.VisitTierRequirement", Model.SuggestionTier2Hits, T.DisplayNumber(Model.SuggestionTier2Radius))]</li>
+                <li>@T["AdminSettings.VisitSuggestionTier", 3, T.Count("AdminSettings.VisitTierRequirement", Model.SuggestionTier3Hits, T.DisplayNumber(Model.SuggestionTier3Radius))]</li>
+                <li>@T["AdminSettings.VisitSuggestionMax", T.Count("AdminSettings.VisitTierRequirement", Model.SuggestionMaxHits, T.DisplayNumber(Model.SuggestionMaxRadius))]</li>
+            </ul>
+            <small class="text-muted">@T["AdminSettings.VisitTierHelp"]</small>
+        </div>
+    </div>
+</div>

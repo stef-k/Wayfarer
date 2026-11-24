@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AdminLogs.AuditAction" xml:space="preserve">
+    <value>Action</value>
+  </data>
+  <data name="AdminLogs.AuditDetailHelp" xml:space="preserve">
+    <value>Additional context: IP addresses, affected entities, error messages, and other relevant information.</value>
+  </data>
+  <data name="AdminLogs.AuditDetails" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="AdminLogs.AuditEmpty" xml:space="preserve">
+    <value>No audit logs found.</value>
+  </data>
+  <data name="AdminLogs.AuditIntro" xml:space="preserve">
+    <value>Security audit trail capturing login attempts, password changes, role modifications, and data exports. Use Search to filter by user, action type, or date range.</value>
+  </data>
+  <data name="AdminLogs.AuditTime" xml:space="preserve">
+    <value>Timestamp</value>
+  </data>
+  <data name="AdminLogs.AuditUser" xml:space="preserve">
+    <value>User ID</value>
+  </data>
+  <data name="AdminLogs.AutoRefresh" xml:space="preserve">
+    <value>Auto-Refresh</value>
+  </data>
+  <data name="AdminLogs.AutoRefreshEnabled" xml:space="preserve">
+    <value>Auto-refresh enabled</value>
+  </data>
+  <data name="AdminLogs.ChooseFile" xml:space="preserve">
+    <value>-- Select a log file --</value>
+  </data>
+  <data name="AdminLogs.ChooseFileHelp" xml:space="preserve">
+    <value>Select a log file from the dropdown above to view its contents.</value>
+  </data>
+  <data name="AdminLogs.ChooseFileShort" xml:space="preserve">
+    <value>Select a log file to view</value>
+  </data>
+  <data name="AdminLogs.Clear" xml:space="preserve">
+    <value>Clear display</value>
+  </data>
+  <data name="AdminLogs.ClearSearch" xml:space="preserve">
+    <value>Clear search</value>
+  </data>
+  <data name="AdminLogs.Current" xml:space="preserve">
+    <value>(Current)</value>
+  </data>
+  <data name="AdminLogs.Download" xml:space="preserve">
+    <value>Download log file</value>
+  </data>
+  <data name="AdminLogs.EmptyFile" xml:space="preserve">
+    <value>(Empty log file)</value>
+  </data>
+  <data name="AdminLogs.File" xml:space="preserve">
+    <value>Log File:</value>
+  </data>
+  <data name="AdminLogs.FileInfo" xml:space="preserve">
+    <value>{0} – {1} – Last modified: {2}</value>
+  </data>
+  <data name="AdminLogs.FileMissing" xml:space="preserve">
+    <value>Log file not found</value>
+  </data>
+  <data name="AdminLogs.Intro" xml:space="preserve">
+    <value>Application logs capture errors, warnings, and informational messages from the server. Select a log file to view, use Search to filter content, and enable Auto-Refresh for real-time updates.</value>
+  </data>
+  <data name="AdminLogs.InvalidFileName" xml:space="preserve">
+    <value>Invalid file name</value>
+  </data>
+  <data name="AdminLogs.Lines.one" xml:space="preserve">
+    <value>{0} line</value>
+  </data>
+  <data name="AdminLogs.Lines.other" xml:space="preserve">
+    <value>{0} lines</value>
+  </data>
+  <data name="AdminLogs.LoadFailed" xml:space="preserve">
+    <value>Could not load the log file. Please try again.</value>
+  </data>
+  <data name="AdminLogs.LoadNext" xml:space="preserve">
+    <value>Load next {0} lines</value>
+  </data>
+  <data name="AdminLogs.LoadPrevious" xml:space="preserve">
+    <value>Load previous {0} lines</value>
+  </data>
+  <data name="AdminLogs.Matches.one" xml:space="preserve">
+    <value>{0} match</value>
+  </data>
+  <data name="AdminLogs.Matches.other" xml:space="preserve">
+    <value>{0} matches</value>
+  </data>
+  <data name="AdminLogs.Next" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="AdminLogs.NoFiles" xml:space="preserve">
+    <value>No log files found. Log files are created when the application starts logging.</value>
+  </data>
+  <data name="AdminLogs.Position" xml:space="preserve">
+    <value>Position: {0}–{1}</value>
+  </data>
+  <data name="AdminLogs.Previous" xml:space="preserve">
+    <value>Previous</value>
+  </data>
+  <data name="AdminLogs.ReadFailed" xml:space="preserve">
+    <value>Error reading log file</value>
+  </data>
+  <data name="AdminLogs.Refresh" xml:space="preserve">
+    <value>Refresh content</value>
+  </data>
+  <data name="AdminLogs.Search" xml:space="preserve">
+    <value>Search logs...</value>
+  </data>
+  <data name="AdminLogs.SearchFailed" xml:space="preserve">
+    <value>Error searching log file</value>
+  </data>
+  <data name="AdminLogs.SearchRequired" xml:space="preserve">
+    <value>Search query is required</value>
+  </data>
+  <data name="AdminLogs.ShowingLines.one" xml:space="preserve">
+    <value>Showing {0} line</value>
+  </data>
+  <data name="AdminLogs.ShowingLines.other" xml:space="preserve">
+    <value>Showing {0} lines</value>
+  </data>
+  <data name="AdminLogs.ToggleAutoRefresh" xml:space="preserve">
+    <value>Toggle auto-refresh</value>
+  </data>
+  <data name="AdminLogs.Updated" xml:space="preserve">
+    <value>Last updated: {0}</value>
+  </data>
+</root>

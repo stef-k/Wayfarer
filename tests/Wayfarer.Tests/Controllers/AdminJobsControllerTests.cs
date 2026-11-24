@@ -159,7 +159,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.PauseJob(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("paused", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.Paused", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.ResumeJob(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("resumed", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.Resumed", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.Interrupt(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("cancellation requested", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.CancelRequested", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -212,7 +212,7 @@ public class AdminJobsControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Contains("could not be cancelled", controller.TempData["Error"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.CancelRefused", controller.TempData["WebAlertKey"]);
     }
 
     private static JobsController BuildController(ApplicationDbContext db, IScheduler scheduler, IServiceProvider? services = null)

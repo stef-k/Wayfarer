@@ -1,0 +1,201 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AdminJobs.Cancel" xml:space="preserve">
+    <value>Ακύρωση</value>
+  </data>
+  <data name="AdminJobs.CancelConfirm" xml:space="preserve">
+    <value>Να ακυρωθεί η τρέχουσα εκτέλεση;</value>
+  </data>
+  <data name="AdminJobs.CancelHelp" xml:space="preserve">
+    <value>Ζητά ακύρωση μιας εργασίας που εκτελείται. Η εργασία θα σταματήσει στο επόμενο σημείο ελέγχου. Μια σύντομη εργασία μπορεί να ολοκληρωθεί προτού εφαρμοστεί η ακύρωση.</value>
+  </data>
+  <data name="AdminJobs.CancelRefused" xml:space="preserve">
+    <value>Η εργασία «{0}» δεν ακυρώθηκε. Ενδέχεται να έχει σταματήσει ή να μην υποστηρίζει ακύρωση.</value>
+  </data>
+  <data name="AdminJobs.CancelRequested" xml:space="preserve">
+    <value>Ζητήθηκε η ακύρωση της εργασίας «{0}».</value>
+  </data>
+  <data name="AdminJobs.CancelTitle" xml:space="preserve">
+    <value>Αίτημα ακύρωσης της τρέχουσας εκτέλεσης</value>
+  </data>
+  <data name="AdminJobs.CandidatesDeleted.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} υποψήφια επίσκεψη.</value>
+  </data>
+  <data name="AdminJobs.CandidatesDeleted.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} υποψήφιες επισκέψεις.</value>
+  </data>
+  <data name="AdminJobs.CannotCancelTitle" xml:space="preserve">
+    <value>Η εργασία δεν υποστηρίζει ακύρωση</value>
+  </data>
+  <data name="AdminJobs.EventCancelled" xml:space="preserve">
+    <value>Η εργασία «{0}» ακυρώθηκε.</value>
+  </data>
+  <data name="AdminJobs.EventCompleted" xml:space="preserve">
+    <value>Η εργασία «{0}» ολοκληρώθηκε.</value>
+  </data>
+  <data name="AdminJobs.EventFailed" xml:space="preserve">
+    <value>Η εργασία «{0}» απέτυχε.</value>
+  </data>
+  <data name="AdminJobs.EventFailedDetail" xml:space="preserve">
+    <value>Η εργασία «{0}» απέτυχε: {1}</value>
+  </data>
+  <data name="AdminJobs.EventStarted" xml:space="preserve">
+    <value>Η εργασία «{0}» ξεκίνησε.</value>
+  </data>
+  <data name="AdminJobs.EventUpdated" xml:space="preserve">
+    <value>Άλλαξε η κατάσταση της εργασίας «{0}».</value>
+  </data>
+  <data name="AdminJobs.ExpiredEntries.one" xml:space="preserve">
+    <value>Αφαιρέθηκε {0} ληγμένη καταχώριση.</value>
+  </data>
+  <data name="AdminJobs.ExpiredEntries.other" xml:space="preserve">
+    <value>Αφαιρέθηκαν {0} ληγμένες καταχωρίσεις.</value>
+  </data>
+  <data name="AdminJobs.Group" xml:space="preserve">
+    <value>Ομάδα εργασιών</value>
+  </data>
+  <data name="AdminJobs.Help" xml:space="preserve">
+    <value>Βοήθεια για τον έλεγχο εργασιών</value>
+  </data>
+  <data name="AdminJobs.Indicators" xml:space="preserve">
+    <value>Ενδείξεις κατάστασης</value>
+  </data>
+  <data name="AdminJobs.LastResult" xml:space="preserve">
+    <value>Τελευταίο αποτέλεσμα</value>
+  </data>
+  <data name="AdminJobs.LastRun" xml:space="preserve">
+    <value>Τελευταία εκτέλεση</value>
+  </data>
+  <data name="AdminJobs.LocationReceipts.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} επιλέξιμη απόδειξη μεταβολής τοποθεσίας.</value>
+  </data>
+  <data name="AdminJobs.LocationReceipts.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} επιλέξιμες αποδείξεις μεταβολών τοποθεσίας.</value>
+  </data>
+  <data name="AdminJobs.LostConnection" xml:space="preserve">
+    <value>Χάθηκε η σύνδεση με τις ενημερώσεις εργασιών. Ανανεώστε τη σελίδα για επανασύνδεση.</value>
+  </data>
+  <data name="AdminJobs.Name" xml:space="preserve">
+    <value>Όνομα εργασίας</value>
+  </data>
+  <data name="AdminJobs.NameHelp" xml:space="preserve">
+    <value>Οι εργασίες παρασκηνίου εκτελούν αυτοματοποιημένες ενέργειες, όπως εκκαθάριση προσωρινών αρχείων, ανίχνευση επισκέψεων, επεξεργασία δεδομένων τοποθεσίας και προγραμματισμένη συντήρηση.</value>
+  </data>
+  <data name="AdminJobs.NeverRun" xml:space="preserve">
+    <value>Δεν έχει εκτελεστεί ακόμη</value>
+  </data>
+  <data name="AdminJobs.NextRun" xml:space="preserve">
+    <value>Επόμενη εκτέλεση</value>
+  </data>
+  <data name="AdminJobs.OldAuditLogs.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} καταχώριση ελέγχου παλαιότερη των 2 ετών.</value>
+  </data>
+  <data name="AdminJobs.OldAuditLogs.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} καταχωρίσεις ελέγχου παλαιότερες των 2 ετών.</value>
+  </data>
+  <data name="AdminJobs.OldLogFiles.one" xml:space="preserve">
+    <value>Διαγράφηκε {0} παλιό αρχείο καταγραφής.</value>
+  </data>
+  <data name="AdminJobs.OldLogFiles.other" xml:space="preserve">
+    <value>Διαγράφηκαν {0} παλιά αρχεία καταγραφής.</value>
+  </data>
+  <data name="AdminJobs.Pause" xml:space="preserve">
+    <value>Παύση</value>
+  </data>
+  <data name="AdminJobs.PauseHelp" xml:space="preserve">
+    <value>Αναστέλλει τις επόμενες προγραμματισμένες εκτελέσεις. Αν εκτελείται ήδη, η εργασία ολοκληρώνεται κανονικά. Η παύση διατηρείται ακόμη και μετά από επανεκκίνηση της εφαρμογής, μέχρι να επιλέξετε συνέχιση.</value>
+  </data>
+  <data name="AdminJobs.PauseTitle" xml:space="preserve">
+    <value>Αναστολή μελλοντικών εκτελέσεων (η τρέχουσα εκτέλεση συνεχίζεται)</value>
+  </data>
+  <data name="AdminJobs.Paused" xml:space="preserve">
+    <value>Η εργασία «{0}» τέθηκε σε παύση. Θα εκτελεστεί ξανά όταν επιλέξετε συνέχιση.</value>
+  </data>
+  <data name="AdminJobs.PausedHelp" xml:space="preserve">
+    <value>Η εργασία παραμένει σε παύση μέχρι να επιλέξετε συνέχιση</value>
+  </data>
+  <data name="AdminJobs.Resume" xml:space="preserve">
+    <value>Συνέχιση</value>
+  </data>
+  <data name="AdminJobs.ResumeHelp" xml:space="preserve">
+    <value>Επαναφέρει την εργασία στο κανονικό πρόγραμμα εκτέλεσης.</value>
+  </data>
+  <data name="AdminJobs.ResumeTitle" xml:space="preserve">
+    <value>Συνέχιση προγραμματισμένων εκτελέσεων</value>
+  </data>
+  <data name="AdminJobs.Resumed" xml:space="preserve">
+    <value>Η εργασία «{0}» επανήλθε στο πρόγραμμά της.</value>
+  </data>
+  <data name="AdminJobs.RunningHelp" xml:space="preserve">
+    <value>Η εργασία εκτελείται</value>
+  </data>
+  <data name="AdminJobs.ScheduledHelp" xml:space="preserve">
+    <value>Η εργασία αναμένει την επόμενη προγραμματισμένη εκτέλεση</value>
+  </data>
+  <data name="AdminJobs.Search" xml:space="preserve">
+    <value>Αναζήτηση εργασιών…</value>
+  </data>
+  <data name="AdminJobs.Start" xml:space="preserve">
+    <value>Εκκίνηση</value>
+  </data>
+  <data name="AdminJobs.StartHelp" xml:space="preserve">
+    <value>Εκκινεί την εργασία αμέσως, ανεξάρτητα από το πρόγραμμά της.</value>
+  </data>
+  <data name="AdminJobs.StartTitle" xml:space="preserve">
+    <value>Άμεση εκτέλεση της εργασίας</value>
+  </data>
+  <data name="AdminJobs.Started" xml:space="preserve">
+    <value>Η εργασία ξεκίνησε.</value>
+  </data>
+  <data name="AdminJobs.Status.Cancelled" xml:space="preserve">
+    <value>Ακυρώθηκε</value>
+  </data>
+  <data name="AdminJobs.Status.Completed" xml:space="preserve">
+    <value>Ολοκληρώθηκε</value>
+  </data>
+  <data name="AdminJobs.Status.Failed" xml:space="preserve">
+    <value>Απέτυχε</value>
+  </data>
+  <data name="AdminJobs.Status.InProgress" xml:space="preserve">
+    <value>Σε εξέλιξη</value>
+  </data>
+  <data name="AdminJobs.Status.NotStarted" xml:space="preserve">
+    <value>Δεν έχει ξεκινήσει</value>
+  </data>
+  <data name="AdminJobs.Status.Paused" xml:space="preserve">
+    <value>Σε παύση</value>
+  </data>
+  <data name="AdminJobs.Status.Running" xml:space="preserve">
+    <value>Εκτελείται</value>
+  </data>
+  <data name="AdminJobs.Status.Scheduled" xml:space="preserve">
+    <value>Προγραμματισμένη</value>
+  </data>
+  <data name="AdminJobs.Status.Unknown" xml:space="preserve">
+    <value>Άγνωστη κατάσταση</value>
+  </data>
+  <data name="AdminJobs.StatusHeading" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="AdminJobs.Title" xml:space="preserve">
+    <value>Παρακολούθηση εργασιών</value>
+  </data>
+  <data name="AdminJobs.VisitsClosed.one" xml:space="preserve">
+    <value>Έληξε {0} επίσκεψη.</value>
+  </data>
+  <data name="AdminJobs.VisitsClosed.other" xml:space="preserve">
+    <value>Έληξαν {0} επισκέψεις.</value>
+  </data>
+</root>

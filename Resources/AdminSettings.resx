@@ -1,0 +1,1032 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AdminSettings.AccuracyGood" xml:space="preserve">
+    <value>Good Precision (30-50m) - Recommended</value>
+  </data>
+  <data name="AdminSettings.AccuracyHelp" xml:space="preserve">
+    <value>Reject location pings with GPS accuracy worse than this value. Lower values = stricter filtering (more rejections, better data quality). Higher values = accept poor GPS readings (fewer rejections, lower data quality).</value>
+  </data>
+  <data name="AdminSettings.AccuracyHigh" xml:space="preserve">
+    <value>High Precision (10-25m) - Strict filtering</value>
+  </data>
+  <data name="AdminSettings.AccuracyMaximum" xml:space="preserve">
+    <value>Maximum (1000m) - Accept almost everything</value>
+  </data>
+  <data name="AdminSettings.AccuracyModerate" xml:space="preserve">
+    <value>Moderate Precision (55-100m)</value>
+  </data>
+  <data name="AdminSettings.AccuracyRelaxed" xml:space="preserve">
+    <value>Relaxed (105-200m) - Accept more data</value>
+  </data>
+  <data name="AdminSettings.AccuracyThreshold" xml:space="preserve">
+    <value>GPS Accuracy Threshold (in meters):</value>
+  </data>
+  <data name="AdminSettings.AccuracyVeryRelaxed" xml:space="preserve">
+    <value>Very Relaxed (250-500m) - Poor GPS accepted</value>
+  </data>
+  <data name="AdminSettings.AnonymousPerIp" xml:space="preserve">
+    <value>Anonymous (per IP)</value>
+  </data>
+  <data name="AdminSettings.AuthenticatedPerUser" xml:space="preserve">
+    <value>Authenticated (per user)</value>
+  </data>
+  <data name="AdminSettings.BatteryBest" xml:space="preserve">
+    <value>{0} min: Best battery life – about {1} min asleep and 1 min active per cycle</value>
+  </data>
+  <data name="AdminSettings.BatteryGood" xml:space="preserve">
+    <value>{0} min: Good – about {1} min asleep and 1 min active per cycle</value>
+  </data>
+  <data name="AdminSettings.BatteryHeading" xml:space="preserve">
+    <value>Mobile Battery Impact:</value>
+  </data>
+  <data name="AdminSettings.BatteryHigh" xml:space="preserve">
+    <value>{0} min: High – about {1} min asleep and 1 min active per cycle</value>
+  </data>
+  <data name="AdminSettings.BatteryHighMaximum" xml:space="preserve">
+    <value>{0} min: High battery drain – continuous GPS, no sleep possible</value>
+  </data>
+  <data name="AdminSettings.BatteryIntro" xml:space="preserve">
+    <value>Lower time thresholds require more frequent GPS wake-ups, increasing battery drain. Mobile devices wake ~60s before each ping for GPS acquisition.</value>
+  </data>
+  <data name="AdminSettings.BatteryModerate" xml:space="preserve">
+    <value>{0} min: Moderate – about {1} min asleep and 1 min active per cycle (recommended)</value>
+  </data>
+  <data name="AdminSettings.DayUnit" xml:space="preserve">
+    <value>days</value>
+  </data>
+  <data name="AdminSettings.Days.one" xml:space="preserve">
+    <value>{0} day</value>
+  </data>
+  <data name="AdminSettings.Days.other" xml:space="preserve">
+    <value>{0} days</value>
+  </data>
+  <data name="AdminSettings.DefaultChoice" xml:space="preserve">
+    <value>{0} (Default)</value>
+  </data>
+  <data name="AdminSettings.DefaultDays" xml:space="preserve">
+    <value>Default: {0}.</value>
+  </data>
+  <data name="AdminSettings.DefaultMb" xml:space="preserve">
+    <value>Default: {0} MB.</value>
+  </data>
+  <data name="AdminSettings.DistanceCoarse" xml:space="preserve">
+    <value>Coarse (200m-1km)</value>
+  </data>
+  <data name="AdminSettings.DistanceFine" xml:space="preserve">
+    <value>Fine (5-50m)</value>
+  </data>
+  <data name="AdminSettings.DistanceHelp" xml:space="preserve">
+    <value>Minimum distance from previous location before recording a new point. Lower values = more detailed tracks but more storage. Higher values = less detail but reduced data.</value>
+  </data>
+  <data name="AdminSettings.DistanceMaximum" xml:space="preserve">
+    <value>Maximum (100km)</value>
+  </data>
+  <data name="AdminSettings.DistanceMedium" xml:space="preserve">
+    <value>Medium (55-150m)</value>
+  </data>
+  <data name="AdminSettings.DistanceRegional" xml:space="preserve">
+    <value>Regional (10-50km)</value>
+  </data>
+  <data name="AdminSettings.DistanceThreshold" xml:space="preserve">
+    <value>Distance Threshold (in meters):</value>
+  </data>
+  <data name="AdminSettings.DistanceVeryCoarse" xml:space="preserve">
+    <value>Very Coarse (1.5-5km)</value>
+  </data>
+  <data name="AdminSettings.Formula" xml:space="preserve">
+    <value>Formula:</value>
+  </data>
+  <data name="AdminSettings.HistoricBudget" xml:space="preserve">
+    <value>Historical cache-miss budget:</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetApply" xml:space="preserve">
+    <value>Use recommended 80</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetHelp" xml:space="preserve">
+    <value>30 was Wayfarer's historical default. The current recommended value is 80; retaining 30 can slow large cold-cache navigation.</value>
+  </data>
+  <data name="AdminSettings.HistoricBudgetKeep" xml:space="preserve">
+    <value>Keep 30 and acknowledge</value>
+  </data>
+  <data name="AdminSettings.HotCacheBudget" xml:space="preserve">
+    <value>Tile Metadata Hot Cache Budget:</value>
+  </data>
+  <data name="AdminSettings.HotCacheDisable" xml:space="preserve">
+    <value>Set to {0} to disable the feature.</value>
+  </data>
+  <data name="AdminSettings.HotCacheDisabled" xml:space="preserve">
+    <value>Hot metadata cache disabled.</value>
+  </data>
+  <data name="AdminSettings.HotCacheEntries" xml:space="preserve">
+    <value>{0} MB ≈ {1} metadata entries</value>
+  </data>
+  <data name="AdminSettings.HotCacheEstimate" xml:space="preserve">
+    <value>The derived entry count is approximate and does not represent exact process memory usage.</value>
+  </data>
+  <data name="AdminSettings.HotCacheIntro" xml:space="preserve">
+    <value>Approximate RAM budget for the in-process tile metadata hot cache used only for zoom levels ≥ 9.</value>
+  </data>
+  <data name="AdminSettings.HotCacheOnlyMetadata" xml:space="preserve">
+    <value>Stores tile metadata only. It does not store tile image bytes.</value>
+  </data>
+  <data name="AdminSettings.HotCacheValues" xml:space="preserve">
+    <value>Allowed values are {0} or {1} MB.</value>
+  </data>
+  <data name="AdminSettings.Hours.one" xml:space="preserve">
+    <value>{0} hour</value>
+  </data>
+  <data name="AdminSettings.Hours.other" xml:space="preserve">
+    <value>{0} hours</value>
+  </data>
+  <data name="AdminSettings.HoursWithPeriod" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="AdminSettings.ImageCacheCount" xml:space="preserve">
+    <value>Cached Images:</value>
+  </data>
+  <data name="AdminSettings.ImageCacheDisable" xml:space="preserve">
+    <value>Set to {0} to disable image proxy caching entirely.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheEviction" xml:space="preserve">
+    <value>When exceeded, least-recently-used images are purged automatically.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiry" xml:space="preserve">
+    <value>Image Cache Expiry in Days:</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiryHelp" xml:space="preserve">
+    <value>Cached images older than this are re-fetched from the original source.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheExpiryRecommended" xml:space="preserve">
+    <value>Images in trip descriptions rarely change, so a long expiry is recommended.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheHeading" xml:space="preserve">
+    <value>Image Proxy Cache</value>
+  </data>
+  <data name="AdminSettings.ImageCacheMaximum" xml:space="preserve">
+    <value>Maximum Size for Image Cache in Megabytes:</value>
+  </data>
+  <data name="AdminSettings.ImageCacheMaximumHelp" xml:space="preserve">
+    <value>Controls the maximum disk space for cached proxy images.</value>
+  </data>
+  <data name="AdminSettings.ImageCacheSize" xml:space="preserve">
+    <value>Cache Size:</value>
+  </data>
+  <data name="AdminSettings.ImageCacheTypical" xml:space="preserve">
+    <value>Cached images are typically 20–200 KB each.</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadMaximum" xml:space="preserve">
+    <value>Max Proxy Image Download Size</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadMaximumHelp" xml:space="preserve">
+    <value>Maximum single image file size the proxy will download from external sources.</value>
+  </data>
+  <data name="AdminSettings.ImageDownloadOptimized" xml:space="preserve">
+    <value>Images are optimized after download, so cached versions are typically much smaller.</value>
+  </data>
+  <data name="AdminSettings.ImageRateDefault" xml:space="preserve">
+    <value>Default: {0}. Maximum image requests per minute per IP.</value>
+  </data>
+  <data name="AdminSettings.ImageRateEnable" xml:space="preserve">
+    <value>Enable image proxy rate limiting</value>
+  </data>
+  <data name="AdminSettings.ImageRateHeading" xml:space="preserve">
+    <value>Image Proxy Rate Limiting</value>
+  </data>
+  <data name="AdminSettings.ImageRateHelp" xml:space="preserve">
+    <value>When enabled, anonymous image proxy requests are limited per IP.</value>
+  </data>
+  <data name="AdminSettings.ImageRateIntro" xml:space="preserve">
+    <value>Protect upstream image origins from abuse by rate limiting anonymous proxy image requests. Authenticated users are never rate limited.</value>
+  </data>
+  <data name="AdminSettings.ImageRateTooltip" xml:space="preserve">
+    <value>Rate limits anonymous proxy image requests by IP address to prevent abuse and origin flooding.</value>
+  </data>
+  <data name="AdminSettings.LocationHeading" xml:space="preserve">
+    <value>Location Logging</value>
+  </data>
+  <data name="AdminSettings.LocationIntro" xml:space="preserve">
+    <value>These settings control how often mobile devices send location pings and how much data is recorded. The app ignores incoming requests that may be too frequent or do not meet the minimum distance change from the previous recorded location.</value>
+  </data>
+  <data name="AdminSettings.Minutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="AdminSettings.MinutesFourDaily" xml:space="preserve">
+    <value>{0} min ({1} / 4× daily)</value>
+  </data>
+  <data name="AdminSettings.MinutesHigh" xml:space="preserve">
+    <value>{0} min ⚠️ (High resource usage)</value>
+  </data>
+  <data name="AdminSettings.MinutesHours" xml:space="preserve">
+    <value>{0} min ({1})</value>
+  </data>
+  <data name="AdminSettings.MinutesOnceDaily" xml:space="preserve">
+    <value>{0} min ({1} / once daily)</value>
+  </data>
+  <data name="AdminSettings.MinutesRecommended" xml:space="preserve">
+    <value>{0} min (Recommended)</value>
+  </data>
+  <data name="AdminSettings.MinutesTwiceDaily" xml:space="preserve">
+    <value>{0} min ({1} / twice daily)</value>
+  </data>
+  <data name="AdminSettings.MinutesTwiceHourly" xml:space="preserve">
+    <value>{0} min (twice per hour)</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowance" xml:space="preserve">
+    <value>Client allowance</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceActive" xml:space="preserve">
+    <value>{0} admitted series/client/min (active)</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceField" xml:space="preserve">
+    <value>Series/client/min</value>
+  </data>
+  <data name="AdminSettings.PolicyAllowanceHelp" xml:space="preserve">
+    <value>0 disables this allowance.</value>
+  </data>
+  <data name="AdminSettings.PolicyAttemptsField" xml:space="preserve">
+    <value>Attempts</value>
+  </data>
+  <data name="AdminSettings.PolicyBlocked" xml:space="preserve">
+    <value>Provider blocked</value>
+  </data>
+  <data name="AdminSettings.PolicyBurst" xml:space="preserve">
+    <value>Burst</value>
+  </data>
+  <data name="AdminSettings.PolicyBurstActive" xml:space="preserve">
+    <value>{0} contact tokens (active)</value>
+  </data>
+  <data name="AdminSettings.PolicyBurstField" xml:space="preserve">
+    <value>Contact burst</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility" xml:space="preserve">
+    <value>Compatibility</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.Blocked" xml:space="preserve">
+    <value>Blocked</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.InvalidOrUnsupported" xml:space="preserve">
+    <value>Invalid or unsupported</value>
+  </data>
+  <data name="AdminSettings.PolicyCompatibility.Supported" xml:space="preserve">
+    <value>Supported</value>
+  </data>
+  <data name="AdminSettings.PolicyConcurrency" xml:space="preserve">
+    <value>Concurrency</value>
+  </data>
+  <data name="AdminSettings.PolicyConcurrencyActive" xml:space="preserve">
+    <value>{0} simultaneous contacts (active; local resource protection, not provider permission)</value>
+  </data>
+  <data name="AdminSettings.PolicyEffective" xml:space="preserve">
+    <value>Effective traffic policy</value>
+  </data>
+  <data name="AdminSettings.PolicyEndpointBlocked" xml:space="preserve">
+    <value>The endpoint is blocked for compatibility.</value>
+  </data>
+  <data name="AdminSettings.PolicyEndpointMalformed" xml:space="preserve">
+    <value>The provider endpoint is blank or malformed.</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackBase" xml:space="preserve">
+    <value>Fallback base delay</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackBaseField" xml:space="preserve">
+    <value>Fallback base (ms)</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackCap" xml:space="preserve">
+    <value>Fallback delay cap</value>
+  </data>
+  <data name="AdminSettings.PolicyFallbackCapField" xml:space="preserve">
+    <value>Fallback cap (sec)</value>
+  </data>
+  <data name="AdminSettings.PolicyInactive" xml:space="preserve">
+    <value>Inactive</value>
+  </data>
+  <data name="AdminSettings.PolicyIncompatible" xml:space="preserve">
+    <value>The selected provider cannot be used.</value>
+  </data>
+  <data name="AdminSettings.PolicyIndividualWait" xml:space="preserve">
+    <value>Maximum wait per provider response</value>
+  </data>
+  <data name="AdminSettings.PolicyIndividualWaitField" xml:space="preserve">
+    <value>Provider wait cap (sec)</value>
+  </data>
+  <data name="AdminSettings.PolicyMaxAttempts" xml:space="preserve">
+    <value>Maximum attempts</value>
+  </data>
+  <data name="AdminSettings.PolicyMillis" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="AdminSettings.PolicyMode" xml:space="preserve">
+    <value>Traffic mode</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Conservative" xml:space="preserve">
+    <value>Conservative</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Custom" xml:space="preserve">
+    <value>Provider Agreement</value>
+  </data>
+  <data name="AdminSettings.PolicyMode.Interactive" xml:space="preserve">
+    <value>Interactive</value>
+  </data>
+  <data name="AdminSettings.PolicyModeHelp" xml:space="preserve">
+    <value>Interactive has no proactive Wayfarer contact-rate or client-series delay. Conservative applies Wayfarer safeguards. Provider Agreement uses the preserved Custom values below. Provider requirements, Retry-After, caching, attribution, and no-prefetch rules always remain active.</value>
+  </data>
+  <data name="AdminSettings.PolicyPreserved" xml:space="preserve">
+    <value>Preserved Provider Agreement values</value>
+  </data>
+  <data name="AdminSettings.PolicyPreservedHelp" xml:space="preserve">
+    <value>Administrators manage these Wayfarer safeguards independently of provider allowances. Mode changes keep the same cache identity and require no purge.</value>
+  </data>
+  <data name="AdminSettings.PolicyPresetMismatch" xml:space="preserve">
+    <value>The selected built-in provider endpoint does not match its maintained preset.</value>
+  </data>
+  <data name="AdminSettings.PolicyProviderUnknown" xml:space="preserve">
+    <value>The provider selection is removed or unknown.</value>
+  </data>
+  <data name="AdminSettings.PolicyRate" xml:space="preserve">
+    <value>Rate</value>
+  </data>
+  <data name="AdminSettings.PolicyRateActive" xml:space="preserve">
+    <value>{0} actual contacts/sec (active)</value>
+  </data>
+  <data name="AdminSettings.PolicyRateField" xml:space="preserve">
+    <value>Contacts/sec</value>
+  </data>
+  <data name="AdminSettings.PolicyRecovery" xml:space="preserve">
+    <value>Select OSM Standard, OpenTopoMap, or a compatible Custom provider. Existing settings and cache are preserved for recovery; no upstream contact is made.</value>
+  </data>
+  <data name="AdminSettings.PolicyRemovedCarto" xml:space="preserve">
+    <value>This removed CARTO provider is not available through Wayfarer's cache/proxy architecture.</value>
+  </data>
+  <data name="AdminSettings.PolicyRemovedThunderforest" xml:space="preserve">
+    <value>This removed Thunderforest provider is incompatible with Wayfarer's cache/proxy architecture.</value>
+  </data>
+  <data name="AdminSettings.PolicySeconds" xml:space="preserve">
+    <value>{0} sec</value>
+  </data>
+  <data name="AdminSettings.PolicySource" xml:space="preserve">
+    <value>Authoritative source</value>
+  </data>
+  <data name="AdminSettings.PolicySourceAgreement" xml:space="preserve">
+    <value>Administrator-managed provider agreement</value>
+  </data>
+  <data name="AdminSettings.PolicySourceValidation" xml:space="preserve">
+    <value>Wayfarer compatibility validation</value>
+  </data>
+  <data name="AdminSettings.PolicyTotalRetry" xml:space="preserve">
+    <value>Total retry ceiling</value>
+  </data>
+  <data name="AdminSettings.PolicyTotalRetryField" xml:space="preserve">
+    <value>Retry ceiling (sec)</value>
+  </data>
+  <data name="AdminSettings.PurgeAll" xml:space="preserve">
+    <value>Clear All Map Tile Cache!</value>
+  </data>
+  <data name="AdminSettings.PurgeAllTooltip" xml:space="preserve">
+    <value>Clear All Map Cache</value>
+  </data>
+  <data name="AdminSettings.PurgeBusy" xml:space="preserve">
+    <value>A cache purge is already in progress.</value>
+  </data>
+  <data name="AdminSettings.PurgeCompleted" xml:space="preserve">
+    <value>Cache purge completed.</value>
+  </data>
+  <data name="AdminSettings.PurgeConfirmTitle" xml:space="preserve">
+    <value>Confirm deletion</value>
+  </data>
+  <data name="AdminSettings.PurgeFailed" xml:space="preserve">
+    <value>Cache purge failed. Please try again.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullCompleted" xml:space="preserve">
+    <value>Full cache purge completed successfully.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullConfirm" xml:space="preserve">
+    <value>Delete all cached map tiles? This cannot be undone.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullStartFailed" xml:space="preserve">
+    <value>Could not start the full cache purge.</value>
+  </data>
+  <data name="AdminSettings.PurgeFullStarted" xml:space="preserve">
+    <value>Full cache purge started.</value>
+  </data>
+  <data name="AdminSettings.PurgeLru" xml:space="preserve">
+    <value>Clear LRU Cache (zoom levels &gt;= 9)</value>
+  </data>
+  <data name="AdminSettings.PurgeLruCompleted" xml:space="preserve">
+    <value>LRU cache purge completed successfully.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruConfirm" xml:space="preserve">
+    <value>Delete cached LRU tiles (zoom levels ≥ 9)? This cannot be undone.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruStartFailed" xml:space="preserve">
+    <value>Could not start the LRU cache purge.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruStarted" xml:space="preserve">
+    <value>LRU cache purge started.</value>
+  </data>
+  <data name="AdminSettings.PurgeLruTooltip" xml:space="preserve">
+    <value>Clear LRU Map Cache</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesConfirm" xml:space="preserve">
+    <value>Delete all MBTiles files used for mobile app caching?</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesConfirmTitle" xml:space="preserve">
+    <value>Confirm MBTiles deletion</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesFailed" xml:space="preserve">
+    <value>Failed to delete MBTiles cache.</value>
+  </data>
+  <data name="AdminSettings.PurgeMbtilesSuccess" xml:space="preserve">
+    <value>All MBTiles for mobile map cache cleared.</value>
+  </data>
+  <data name="AdminSettings.PurgeProgress" xml:space="preserve">
+    <value>Deleting… {0} / {1} files ({2})</value>
+  </data>
+  <data name="AdminSettings.PurgeStarting" xml:space="preserve">
+    <value>Starting purge...</value>
+  </data>
+  <data name="AdminSettings.RegistrationEnable" xml:space="preserve">
+    <value>Enable new user registrations</value>
+  </data>
+  <data name="AdminSettings.RegistrationHeading" xml:space="preserve">
+    <value>New User Registrations</value>
+  </data>
+  <data name="AdminSettings.RegistrationHelp" xml:space="preserve">
+    <value>Check to allow new user registrations.</value>
+  </data>
+  <data name="AdminSettings.RegistrationLabel" xml:space="preserve">
+    <value>Allow New User Registrations?</value>
+  </data>
+  <data name="AdminSettings.RequestsPerMinute" xml:space="preserve">
+    <value>req/min</value>
+  </data>
+  <data name="AdminSettings.SaveFailed" xml:space="preserve">
+    <value>Could not update the settings. Please try again later.</value>
+  </data>
+  <data name="AdminSettings.SaveSuccess" xml:space="preserve">
+    <value>Settings updated and refreshed successfully.</value>
+  </data>
+  <data name="AdminSettings.StorageEstimate" xml:space="preserve">
+    <value>{0} min: {1} records/year</value>
+  </data>
+  <data name="AdminSettings.StorageEstimateHeading" xml:space="preserve">
+    <value>Database storage (worst-case yearly per user):</value>
+  </data>
+  <data name="AdminSettings.StorageEstimateRecommended" xml:space="preserve">
+    <value>{0} min: {1} records/year (recommended)</value>
+  </data>
+  <data name="AdminSettings.StorageHeading" xml:space="preserve">
+    <value>Total Disk Usage</value>
+  </data>
+  <data name="AdminSettings.StorageIncludes" xml:space="preserve">
+    <value>This includes storage used by: map tile cache (zoom ≥ 9) and uploaded files (e.g. Google Timeline JSON).</value>
+  </data>
+  <data name="AdminSettings.StoragePermanent" xml:space="preserve">
+    <value>Zoom levels 0–8 are permanent and not included in soft limits.</value>
+  </data>
+  <data name="AdminSettings.StorageSummary" xml:space="preserve">
+    <value>Use this summary to estimate how much disk Wayfarer currently occupies on your server.</value>
+  </data>
+  <data name="AdminSettings.StorageTiles" xml:space="preserve">
+    <value>Map Tiles Cache (zoom ≥ 9):</value>
+  </data>
+  <data name="AdminSettings.StorageTotalGb" xml:space="preserve">
+    <value>Total Storage Used in Gigabytes:</value>
+  </data>
+  <data name="AdminSettings.StorageTotalMb" xml:space="preserve">
+    <value>Total Storage Used in Megabytes:</value>
+  </data>
+  <data name="AdminSettings.StorageUploads" xml:space="preserve">
+    <value>User Uploads (Temp):</value>
+  </data>
+  <data name="AdminSettings.TileApiKeyLabel" xml:space="preserve">
+    <value>API Key</value>
+  </data>
+  <data name="AdminSettings.TileAttributionHelp" xml:space="preserve">
+    <value>This text appears in the map footer for all users.</value>
+  </data>
+  <data name="AdminSettings.TileAttributionLabel" xml:space="preserve">
+    <value>Attribution HTML</value>
+  </data>
+  <data name="AdminSettings.TileAuthRateDefault" xml:space="preserve">
+    <value>Default: {0}. Higher limit for trusted users.</value>
+  </data>
+  <data name="AdminSettings.TileBlankProvider" xml:space="preserve">
+    <value>(blank)</value>
+  </data>
+  <data name="AdminSettings.TileCacheCurrent" xml:space="preserve">
+    <value>Current Tile Cache:</value>
+  </data>
+  <data name="AdminSettings.TileCacheDefault" xml:space="preserve">
+    <value>Set to {0} to use the default of {1} MB.</value>
+  </data>
+  <data name="AdminSettings.TileCacheDisable" xml:space="preserve">
+    <value>Set to {0} to disable this cache entirely.</value>
+  </data>
+  <data name="AdminSettings.TileCacheEviction" xml:space="preserve">
+    <value>Increasing this value reduces OSM server usage. If exceeded, least-recently-used tiles are purged.</value>
+  </data>
+  <data name="AdminSettings.TileCacheFiles" xml:space="preserve">
+    <value>Total Cache Files:</value>
+  </data>
+  <data name="AdminSettings.TileCacheHeading" xml:space="preserve">
+    <value>Map Tile Cache Management</value>
+  </data>
+  <data name="AdminSettings.TileCacheLegacy" xml:space="preserve">
+    <value>Legacy Tile Cache:</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruFiles" xml:space="preserve">
+    <value>Total LRU (Least Recently Used) Cache Files for zoom levels &gt;= 9:</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruGb" xml:space="preserve">
+    <value>Total LRU Size (zoom levels &gt;= 9) in Gigabytes:</value>
+  </data>
+  <data name="AdminSettings.TileCacheLruMb" xml:space="preserve">
+    <value>Total LRU Size (zoom levels &gt;= 9) in Megabytes:</value>
+  </data>
+  <data name="AdminSettings.TileCacheMaximum" xml:space="preserve">
+    <value>Maximum Size for Tile Cache in Megabytes:</value>
+  </data>
+  <data name="AdminSettings.TileCacheMaximumIntro" xml:space="preserve">
+    <value>This setting controls the maximum cache size (in MB) for map tiles at zoom levels ≥ 9.</value>
+  </data>
+  <data name="AdminSettings.TileCacheMinimum" xml:space="preserve">
+    <value>Minimum: 256 MB.</value>
+  </data>
+  <data name="AdminSettings.TileCacheNote" xml:space="preserve">
+    <value>Cache note:</value>
+  </data>
+  <data name="AdminSettings.TileCacheOsmHelp" xml:space="preserve">
+    <value>OSM tile usage policy requires tiles to be cached for at least 7 days. Values below 256 MB are rejected.</value>
+  </data>
+  <data name="AdminSettings.TileCachePermanent" xml:space="preserve">
+    <value>Zoom levels 0–8 are cached permanently and do not count against this size. They consume ~1.31 to 1.75 GB.</value>
+  </data>
+  <data name="AdminSettings.TileCachePreserved" xml:space="preserve">
+    <value>Provider-scoped cached files are preserved when providers, credentials, or traffic modes change.</value>
+  </data>
+  <data name="AdminSettings.TileCacheTotalGb" xml:space="preserve">
+    <value>Total Cache Size in Gigabytes:</value>
+  </data>
+  <data name="AdminSettings.TileCacheTotalMb" xml:space="preserve">
+    <value>Total Cache Size in Megabytes:</value>
+  </data>
+  <data name="AdminSettings.TileCacheTypical" xml:space="preserve">
+    <value>Tiles are ~10–20 KB each. The default (1024 MB) holds roughly 100,000–200,000 tiles.</value>
+  </data>
+  <data name="AdminSettings.TileCustomProvider" xml:space="preserve">
+    <value>Custom provider</value>
+  </data>
+  <data name="AdminSettings.TileEnterKey" xml:space="preserve">
+    <value>Enter the provider API key if required.</value>
+  </data>
+  <data name="AdminSettings.TilePresetsHelp" xml:space="preserve">
+    <value>Presets apply their template and attribution automatically; custom providers must use HTTPS and .png tiles.</value>
+  </data>
+  <data name="AdminSettings.TileProvider" xml:space="preserve">
+    <value>Map Tile Provider</value>
+  </data>
+  <data name="AdminSettings.TileProviderIntro" xml:space="preserve">
+    <value>Choose a preset or provide a custom tile provider template. Tiles are still served through the local cache proxy at {0}.</value>
+  </data>
+  <data name="AdminSettings.TileProviderLabel" xml:space="preserve">
+    <value>Provider</value>
+  </data>
+  <data name="AdminSettings.TileRateAnonymous" xml:space="preserve">
+    <value>Anonymous:</value>
+  </data>
+  <data name="AdminSettings.TileRateByIp" xml:space="preserve">
+    <value>Limited per IP address</value>
+  </data>
+  <data name="AdminSettings.TileRateByUser" xml:space="preserve">
+    <value>Limited per user ID</value>
+  </data>
+  <data name="AdminSettings.TileRateCounting" xml:space="preserve">
+    <value>Both limits use sliding-window counting.</value>
+  </data>
+  <data name="AdminSettings.TileRateDefault" xml:space="preserve">
+    <value>Default: {0}. A typical map view loads 50–100 tiles.</value>
+  </data>
+  <data name="AdminSettings.TileRateEnable" xml:space="preserve">
+    <value>Enable tile rate limiting</value>
+  </data>
+  <data name="AdminSettings.TileRateHeading" xml:space="preserve">
+    <value>Tile Request Rate Limiting</value>
+  </data>
+  <data name="AdminSettings.TileRateHelp" xml:space="preserve">
+    <value>When enabled, tile requests are limited for all users.</value>
+  </data>
+  <data name="AdminSettings.TileRateIntro" xml:space="preserve">
+    <value>Protect the tile proxy from abuse by rate limiting tile requests. Anonymous users are limited by IP address; authenticated users by user ID at a higher threshold.</value>
+  </data>
+  <data name="AdminSettings.TileRateSignedIn" xml:space="preserve">
+    <value>Logged-in:</value>
+  </data>
+  <data name="AdminSettings.TileRateTooltip" xml:space="preserve">
+    <value>Protects your tile proxy from abuse. Applies separate limits to anonymous and authenticated users.</value>
+  </data>
+  <data name="AdminSettings.TileSavedKey" xml:space="preserve">
+    <value>A key is saved. Leave blank to keep it unchanged.</value>
+  </data>
+  <data name="AdminSettings.TileTemplateHelp" xml:space="preserve">
+    <value>Must include {0}, {1}, {2}, and optional {3}.</value>
+  </data>
+  <data name="AdminSettings.TileTemplateLabel" xml:space="preserve">
+    <value>Tile URL Template</value>
+  </data>
+  <data name="AdminSettings.TileUnsupportedProvider" xml:space="preserve">
+    <value>Unsupported saved provider: {0}</value>
+  </data>
+  <data name="AdminSettings.TileWhoAffected" xml:space="preserve">
+    <value>Who is affected:</value>
+  </data>
+  <data name="AdminSettings.TimeDaily" xml:space="preserve">
+    <value>Daily (12-24 hours) - Check-in only</value>
+  </data>
+  <data name="AdminSettings.TimeFrequent" xml:space="preserve">
+    <value>Frequent (2-5 min) - High battery usage</value>
+  </data>
+  <data name="AdminSettings.TimeHourly" xml:space="preserve">
+    <value>Hourly (30-60 min) - Low power</value>
+  </data>
+  <data name="AdminSettings.TimeModerate" xml:space="preserve">
+    <value>Moderate (10-15 min) - Balanced</value>
+  </data>
+  <data name="AdminSettings.TimeMultiHour" xml:space="preserve">
+    <value>Multi-hour (2-6 hours) - Minimal tracking</value>
+  </data>
+  <data name="AdminSettings.TimeThreshold" xml:space="preserve">
+    <value>Time Threshold (in minutes):</value>
+  </data>
+  <data name="AdminSettings.TimeWarning" xml:space="preserve">
+    <value>2-minute threshold provides highest location detail but significantly increases database storage and drains mobile device battery (continuous GPS, no sleep possible).</value>
+  </data>
+  <data name="AdminSettings.UploadCount" xml:space="preserve">
+    <value>Upload File Count:</value>
+  </data>
+  <data name="AdminSettings.UploadHeading" xml:space="preserve">
+    <value>User Uploads</value>
+  </data>
+  <data name="AdminSettings.UploadLegacy" xml:space="preserve">
+    <value>Legacy upload staging (not migrated):</value>
+  </data>
+  <data name="AdminSettings.UploadLimit" xml:space="preserve">
+    <value>User upload request limit (current: {0} MiB)</value>
+  </data>
+  <data name="AdminSettings.UploadMaximum" xml:space="preserve">
+    <value>The fixed application maximum is {0} MiB. Trip KML also has a parser-derived file-section limit. Other forms and JSON APIs are unaffected by this setting.</value>
+  </data>
+  <data name="AdminSettings.UploadPath" xml:space="preserve">
+    <value>Uploads Directory Path:</value>
+  </data>
+  <data name="AdminSettings.UploadScope" xml:space="preserve">
+    <value>Limits complete Location-history and Trip KML upload requests, including multipart overhead.</value>
+  </data>
+  <data name="AdminSettings.UploadTotalSize" xml:space="preserve">
+    <value>Total Upload Size:</value>
+  </data>
+  <data name="AdminSettings.UploadValues" xml:space="preserve">
+    <value>Use {0} to disable these uploads, {1} for the default, or an integer from {2} MiB.</value>
+  </data>
+  <data name="AdminSettings.Validation.AccuracyThreshold" xml:space="preserve">
+    <value>Accuracy threshold must be between 10 and 1000 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.ApiKey" xml:space="preserve">
+    <value>API key is required for the selected tile provider.</value>
+  </data>
+  <data name="AdminSettings.Validation.Attribution" xml:space="preserve">
+    <value>Attribution is required.</value>
+  </data>
+  <data name="AdminSettings.Validation.Binding" xml:space="preserve">
+    <value>Enter a valid value.</value>
+  </data>
+  <data name="AdminSettings.Validation.BurstConcurrency" xml:space="preserve">
+    <value>Burst capacity must be at least maximum concurrency.</value>
+  </data>
+  <data name="AdminSettings.Validation.DistanceThreshold" xml:space="preserve">
+    <value>Distance threshold must be between 1 and 100,000 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.FallbackDelayOrder" xml:space="preserve">
+    <value>Fallback delay cap must not be below the base delay.</value>
+  </data>
+  <data name="AdminSettings.Validation.HotCache" xml:space="preserve">
+    <value>Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageCache" xml:space="preserve">
+    <value>Must be -1 (disable) or a positive size up to 100 GB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageDownload" xml:space="preserve">
+    <value>Max proxy image download size must be between 5 and 200 MB.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageExpiry" xml:space="preserve">
+    <value>Expiry must be between 1 and 365 days.</value>
+  </data>
+  <data name="AdminSettings.Validation.ImageRate" xml:space="preserve">
+    <value>Rate limit must be between 10 and 5,000 requests per minute.</value>
+  </data>
+  <data name="AdminSettings.Validation.ModeRequiresCustom" xml:space="preserve">
+    <value>Provider Agreement mode requires a compatible Custom provider.</value>
+  </data>
+  <data name="AdminSettings.Validation.PolicyInvalid" xml:space="preserve">
+    <value>Check the Provider Agreement limits and try again.</value>
+  </data>
+  <data name="AdminSettings.Validation.Range" xml:space="preserve">
+    <value>Enter a value between {1} and {2}.</value>
+  </data>
+  <data name="AdminSettings.Validation.RetryCeilingOrder" xml:space="preserve">
+    <value>Total retry ceiling must not be below maximum individual wait.</value>
+  </data>
+  <data name="AdminSettings.Validation.Review" xml:space="preserve">
+    <value>There are some validation errors. Please correct them and try again.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateAbsolute" xml:space="preserve">
+    <value>Tile URL template must be a valid absolute URL.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateCoordinates" xml:space="preserve">
+    <value>Tile URL template must include {0}, {1}, and {2} placeholders.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateCredential" xml:space="preserve">
+    <value>Credential query parameters must use the {0} placeholder.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateHttps" xml:space="preserve">
+    <value>Tile URL template must use HTTPS.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateInvalid" xml:space="preserve">
+    <value>Enter a valid tile URL template.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplatePng" xml:space="preserve">
+    <value>Tile URL template must point to a .png resource.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateRequired" xml:space="preserve">
+    <value>Tile URL template is required.</value>
+  </data>
+  <data name="AdminSettings.Validation.TemplateUserInfo" xml:space="preserve">
+    <value>Tile URL template must not include user information.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileAuthenticatedRate" xml:space="preserve">
+    <value>Authenticated rate limit must be between 100 and 50,000 requests per minute.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileCacheMinimum" xml:space="preserve">
+    <value>Minimum cache size is 256 MB (OSM requires at least 7 days of cached tiles). Use -1 to disable.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileCacheRange" xml:space="preserve">
+    <value>Must be -1 (disable) or 256–102400 MB. OSM policy requires at least 7 days of tiles cached (minimum 256 MB).</value>
+  </data>
+  <data name="AdminSettings.Validation.TileOutbound" xml:space="preserve">
+    <value>Per-IP outbound budget must be between 0 (disabled) and 1,000 per minute.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileRate" xml:space="preserve">
+    <value>Rate limit must be between 50 and 10,000 requests per minute.</value>
+  </data>
+  <data name="AdminSettings.Validation.TileRateOrder" xml:space="preserve">
+    <value>Authenticated rate limit must be equal to or greater than the anonymous rate limit.</value>
+  </data>
+  <data name="AdminSettings.Validation.TimeThreshold" xml:space="preserve">
+    <value>Time threshold must be between 1 and 1440 minutes (24 hours).</value>
+  </data>
+  <data name="AdminSettings.Validation.Unavailable" xml:space="preserve">
+    <value>Application settings could not be loaded.</value>
+  </data>
+  <data name="AdminSettings.Validation.UnknownProvider" xml:space="preserve">
+    <value>Unknown tile provider selection.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitCooldown" xml:space="preserve">
+    <value>Notification cooldown must be -1 (never notify), 0 (always notify), or 1-720 hours.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitHits" xml:space="preserve">
+    <value>Required hits must be between 2 and 5.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMaxRadius" xml:space="preserve">
+    <value>Max radius must be between 50 and 500 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMinRadius" xml:space="preserve">
+    <value>Min radius must be between 10 and 200 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitMultiplier" xml:space="preserve">
+    <value>Accuracy multiplier must be between 0.5 and 5.0.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitNotes" xml:space="preserve">
+    <value>Notes max chars must be between 1000 and 200000.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitRadiusOrder" xml:space="preserve">
+    <value>Max radius must be greater than or equal to min radius.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitReject" xml:space="preserve">
+    <value>Accuracy reject must be between 0 and 1000 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSearchOrder" xml:space="preserve">
+    <value>Search radius must be greater than or equal to max radius.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSearchRadius" xml:space="preserve">
+    <value>Search radius must be between 50 and 2000 meters.</value>
+  </data>
+  <data name="AdminSettings.Validation.VisitSuggestion" xml:space="preserve">
+    <value>Suggestion radius multiplier must be between 2 and 100.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldown" xml:space="preserve">
+    <value>Notification Cooldown (hours)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownDay" xml:space="preserve">
+    <value>Day-based (12-48 hours)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownHelp" xml:space="preserve">
+    <value>Prevents notification spam when users revisit the same place frequently. Visits are always recorded; this only affects SSE push notifications.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownMinimum" xml:space="preserve">
+    <value>Minimum time before sending another notification for the same place.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownMonth" xml:space="preserve">
+    <value>Monthly (336-720 hours)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownShort" xml:space="preserve">
+    <value>Short (1-6 hours)</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownSse" xml:space="preserve">
+    <value>Visits are always recorded; this only affects SSE notifications.</value>
+  </data>
+  <data name="AdminSettings.VisitCooldownWeek" xml:space="preserve">
+    <value>Weekly (72-168 hours)</value>
+  </data>
+  <data name="AdminSettings.VisitCurrentTiming" xml:space="preserve">
+    <value>Current: {0} min × {1} hits = {2} min to confirm a visit</value>
+  </data>
+  <data name="AdminSettings.VisitDerived" xml:space="preserve">
+    <value>Derived from time threshold ({0} min)</value>
+  </data>
+  <data name="AdminSettings.VisitDerivedValue" xml:space="preserve">
+    <value>{0} × {1} = {2} min</value>
+  </data>
+  <data name="AdminSettings.VisitEnd" xml:space="preserve">
+    <value>End visit after</value>
+  </data>
+  <data name="AdminSettings.VisitEndHelp" xml:space="preserve">
+    <value>Close active visit after no pings for this duration</value>
+  </data>
+  <data name="AdminSettings.VisitEquation" xml:space="preserve">
+    <value>Time Threshold × Required Hits = Minimum Confirmation Time</value>
+  </data>
+  <data name="AdminSettings.VisitExample" xml:space="preserve">
+    <value>{0} min threshold × 2 hits = {1} min minimum to confirm a visit</value>
+  </data>
+  <data name="AdminSettings.VisitHitWindow" xml:space="preserve">
+    <value>Hit window</value>
+  </data>
+  <data name="AdminSettings.VisitHitWindowHelp" xml:space="preserve">
+    <value>Max time between pings to count as consecutive hits</value>
+  </data>
+  <data name="AdminSettings.VisitHits" xml:space="preserve">
+    <value>Required Hits</value>
+  </data>
+  <data name="AdminSettings.VisitHitsHelp" xml:space="preserve">
+    <value>Number of consecutive location pings within a place's radius needed to confirm a visit. More hits = higher confidence but longer detection time.</value>
+  </data>
+  <data name="AdminSettings.VisitHitsRange" xml:space="preserve">
+    <value>Number of pings needed to confirm a visit (2-5).</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadius" xml:space="preserve">
+    <value>Max Radius (meters)</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadiusHelp" xml:space="preserve">
+    <value>Larger = more forgiving, but increases false positives.</value>
+  </data>
+  <data name="AdminSettings.VisitMaxRadiusRange" xml:space="preserve">
+    <value>Maximum radius ceiling for poor GPS (50-500).</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadius" xml:space="preserve">
+    <value>Min Radius (meters)</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadiusHelp" xml:space="preserve">
+    <value>Smaller = more precise, but may miss visits with GPS drift.</value>
+  </data>
+  <data name="AdminSettings.VisitMinRadiusRange" xml:space="preserve">
+    <value>Minimum detection radius for good GPS (10-200).</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplier" xml:space="preserve">
+    <value>Accuracy Multiplier</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierEffect" xml:space="preserve">
+    <value>Lower = stricter matching, higher = more lenient.</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierHelp" xml:space="preserve">
+    <value>Multiplies GPS accuracy for detection radius. Example: GPS 25m accuracy with 1.0x multiplier = 25m detection radius. Higher values are more lenient but may cause false positives.</value>
+  </data>
+  <data name="AdminSettings.VisitMultiplierRange" xml:space="preserve">
+    <value>Multiplier applied to GPS accuracy (0.5-5.0).</value>
+  </data>
+  <data name="AdminSettings.VisitNotesHelp" xml:space="preserve">
+    <value>Maximum HTML characters for notes snapshot (1000-200000)</value>
+  </data>
+  <data name="AdminSettings.VisitNotesMax" xml:space="preserve">
+    <value>Notes Max Characters</value>
+  </data>
+  <data name="AdminSettings.VisitNotifyAlways" xml:space="preserve">
+    <value>Always notify (no cooldown)</value>
+  </data>
+  <data name="AdminSettings.VisitNotifyNever" xml:space="preserve">
+    <value>Never notify (disabled)</value>
+  </data>
+  <data name="AdminSettings.VisitRejectHelp" xml:space="preserve">
+    <value>Filters out unreliable indoor/urban canyon readings.</value>
+  </data>
+  <data name="AdminSettings.VisitRejectRadius" xml:space="preserve">
+    <value>Accuracy Reject (meters)</value>
+  </data>
+  <data name="AdminSettings.VisitRejectRange" xml:space="preserve">
+    <value>Skip pings with accuracy worse than this (0 = disabled).</value>
+  </data>
+  <data name="AdminSettings.VisitSearchHelp" xml:space="preserve">
+    <value>Database query radius for nearby places (50-2000)</value>
+  </data>
+  <data name="AdminSettings.VisitSearchRadius" xml:space="preserve">
+    <value>Search Radius (meters)</value>
+  </data>
+  <data name="AdminSettings.VisitStale" xml:space="preserve">
+    <value>Candidate expiry</value>
+  </data>
+  <data name="AdminSettings.VisitStaleHelp" xml:space="preserve">
+    <value>Cleanup incomplete visit candidates after this</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionChoice" xml:space="preserve">
+    <value>{0}× ({1} m)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionConservative" xml:space="preserve">
+    <value>Conservative (2-10x)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionCurrent" xml:space="preserve">
+    <value>Current: {0} m × {1} = {2} m</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionExtensive" xml:space="preserve">
+    <value>Extensive (60-100x)</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionMax" xml:space="preserve">
+    <value>Maximum: {0}</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionModerate" xml:space="preserve">
+    <value>Moderate (20-50x) - Recommended</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionMultiplier" xml:space="preserve">
+    <value>Suggestion Max Radius Multiplier</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionRadiusHelp" xml:space="preserve">
+    <value>Max search radius for suggestions during backfill.</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionTier" xml:space="preserve">
+    <value>Tier {0}: {1}</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionTiers" xml:space="preserve">
+    <value>Derived Suggestion Tiers:</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestions" xml:space="preserve">
+    <value>Backfill Suggestions ("Consider Also")</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionsHelp" xml:space="preserve">
+    <value>Suggests potential visits that don't meet strict detection criteria. Users must confirm these suggestions manually before visits are created.</value>
+  </data>
+  <data name="AdminSettings.VisitSuggestionsIntro" xml:space="preserve">
+    <value>Settings for the "Consider Also" feature in backfill analysis. These suggestions use relaxed matching criteria and require user confirmation before creating visits.</value>
+  </data>
+  <data name="AdminSettings.VisitTierHelp" xml:space="preserve">
+    <value>Cross-tier evidence filters GPS noise while catching near-miss visits.</value>
+  </data>
+  <data name="AdminSettings.VisitTierRequirement.one" xml:space="preserve">
+    <value>{1} m (requires {0} hit)</value>
+  </data>
+  <data name="AdminSettings.VisitTierRequirement.other" xml:space="preserve">
+    <value>{1} m (requires {0} hits)</value>
+  </data>
+  <data name="AdminSettings.VisitTimingHeading" xml:space="preserve">
+    <value>Visit Confirmation Timing:</value>
+  </data>
+  <data name="AdminSettings.VisitTimingHelp" xml:space="preserve">
+    <value>Lower thresholds detect visits faster but drain more battery. Higher hit counts increase accuracy but require longer dwell times.</value>
+  </data>
+  <data name="AdminSettings.VisitTimingIntro" xml:space="preserve">
+    <value>A visit is confirmed when the required number of pings arrive within the time threshold, spanning at least the threshold duration.</value>
+  </data>
+  <data name="AdminSettings.VisitsHeading" xml:space="preserve">
+    <value>Trip Place Auto-Visited</value>
+  </data>
+  <data name="AdminSettings.VisitsIntro" xml:space="preserve">
+    <value>Automatically detect when users visit planned trip places based on location pings. Time-based settings (hit window, stale cleanup, visit end timeout) are derived from the Location Time Threshold above.</value>
+  </data>
+  <data name="AdminSettings.Warning" xml:space="preserve">
+    <value>Warning:</value>
+  </data>
+  <data name="AdminSettings.Weeks.one" xml:space="preserve">
+    <value>{0} week</value>
+  </data>
+  <data name="AdminSettings.Weeks.other" xml:space="preserve">
+    <value>{0} weeks</value>
+  </data>
+</root>

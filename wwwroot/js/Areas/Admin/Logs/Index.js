@@ -1,3 +1,5 @@
+import { date, message, number, plural } from '../../../localization/messages.js';
+
 /**
  * Admin Log Viewer - Client-side functionality for viewing application logs.
  * Provides file selection, content display, navigation, real-time polling, search, and download.
@@ -76,7 +78,7 @@
         const selectedOption = logFileSelect.options[logFileSelect.selectedIndex];
         const size = selectedOption.dataset.size || '';
         const modified = selectedOption.dataset.modified || '';
-        fileInfo.textContent = `${fileName} - ${size} - Last modified: ${modified}`;
+        fileInfo.textContent = message('AdminLogs.FileInfo', '{0} – {1} – Last modified: {2}', fileName, size, modified);
 
         await loadLogContent('tail');
     };
@@ -112,7 +114,7 @@
             );
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
             }
 
             const data = await response.json();
@@ -147,7 +149,7 @@
                         scrollToTop();
                     }
                 } else {
-                    logViewer.textContent = '(Empty log file)';
+                    logViewer.textContent = message('AdminLogs.EmptyFile', '(Empty log file)');
                 }
             }
 
@@ -157,7 +159,7 @@
         } catch (error) {
             console.error('Error loading log content:', error);
             if (wayfarer?.showAlert) {
-                wayfarer.showAlert('danger', `Error loading log: ${error.message}`);
+                wayfarer.showAlert('danger', logReadMessage(error.status));
             }
             if (autoRefreshEnabled) {
                 toggleAutoRefresh();
@@ -212,7 +214,7 @@
                 pollIntervalId = setInterval(pollLogContent, POLL_INTERVAL_MS);
             });
             if (wayfarer?.showToast) {
-                wayfarer.showToast('info', 'Auto-refresh enabled', 2000);
+                wayfarer.showToast('info', message('AdminLogs.AutoRefreshEnabled', 'Auto-refresh enabled'), 2000);
             }
         } else {
             autoRefreshBtn.classList.remove('active');
@@ -240,9 +242,9 @@
 
         // Show position info if we have content
         if (currentFileSize > 0) {
-            const startPercent = Math.round((currentStartPosition / currentFileSize) * 100);
-            const endPercent = Math.round((currentEndPosition / currentFileSize) * 100);
-            positionInfo.textContent = `Position: ${startPercent}%-${endPercent}%`;
+            const percent = position => number(position / currentFileSize, { style: 'percent' });
+            positionInfo.textContent = message('AdminLogs.Position', 'Position: {0}–{1}',
+                percent(currentStartPosition), percent(currentEndPosition));
             positionInfo.classList.remove('d-none');
         } else {
             positionInfo.classList.add('d-none');
@@ -268,21 +270,23 @@
      */
     const searchLogs = (query) => {
         const content = logViewer.textContent;
-        const escapedQuery = escapeRegex(query);
-        const regex = new RegExp(`(${escapedQuery})`, 'gi');
-        const matches = content.match(regex);
-        const matchCount = matches ? matches.length : 0;
+        const regex = new RegExp(escapeRegex(query), 'gi');
+        const fragment = document.createDocumentFragment();
+        let offset = 0;
+        let matchCount = 0;
 
-        // Highlight matches using innerHTML (careful with XSS - we escape content)
-        const escapedContent = escapeHtml(content);
-        const highlighted = escapedContent.replace(
-            new RegExp(`(${escapeRegex(escapeHtml(query))})`, 'gi'),
-            '<mark>$1</mark>'
-        );
-        logViewer.innerHTML = highlighted;
+        // Mark matches in the original text, including characters represented by HTML entities.
+        for (const match of content.matchAll(regex)) {
+            const mark = document.createElement('mark');
+            mark.textContent = match[0];
+            fragment.append(content.slice(offset, match.index), mark);
+            offset = match.index + match[0].length;
+            matchCount++;
+        }
+        fragment.append(content.slice(offset));
+        logViewer.replaceChildren(fragment);
 
-        // Update search results badge
-        searchResults.textContent = `${matchCount} match${matchCount !== 1 ? 'es' : ''}`;
+        searchResults.textContent = plural('AdminLogs.Matches', matchCount, '{0} match', '{0} matches');
         searchResults.classList.remove('d-none');
 
         // Scroll to first match
@@ -318,12 +322,12 @@
      * Clears the log viewer display.
      */
     const clearDisplay = () => {
-        logViewer.textContent = 'Select a log file from the dropdown above to view its contents.';
+        logViewer.textContent = message('AdminLogs.ChooseFileHelp', 'Select a log file from the dropdown above to view its contents.');
         logFileSelect.value = '';
         currentFileName = '';
         resetPositionState();
         enableControls(false);
-        fileInfo.textContent = 'Select a log file to view';
+        fileInfo.textContent = message('AdminLogs.ChooseFileShort', 'Select a log file to view');
         clearSearch();
         updateStatusBar();
         updateNavigationButtons();
@@ -359,9 +363,11 @@
      * Updates the status bar with current stats.
      */
     const updateStatusBar = () => {
-        const prefix = hasOlderContent || hasNewerContent ? 'Showing ' : '';
-        lineCount.textContent = `${prefix}${totalLineCount} line${totalLineCount !== 1 ? 's' : ''}`;
-        lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        lineCount.textContent = hasOlderContent || hasNewerContent
+            ? plural('AdminLogs.ShowingLines', totalLineCount, 'Showing {0} line', 'Showing {0} lines')
+            : plural('AdminLogs.Lines', totalLineCount, '{0} line', '{0} lines');
+        lastUpdated.textContent = message('AdminLogs.Updated', 'Last updated: {0}',
+            date(new Date(), { timeStyle: 'medium' }));
     };
 
     /**
@@ -395,15 +401,12 @@
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     };
 
-    /**
-     * Escapes HTML special characters to prevent XSS.
-     * @param {string} str - String to escape.
-     * @returns {string} HTML-escaped string.
-     */
-    const escapeHtml = (str) => {
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
+    /** Uses the document locale even if the log request observes a newer language preference. */
+    const logReadMessage = status => {
+        if (status === 400) return message('AdminLogs.InvalidFileName', 'Invalid file name');
+        if (status === 404) return message('AdminLogs.FileMissing', 'Log file not found');
+        if (status === 500) return message('AdminLogs.ReadFailed', 'Error reading log file');
+        return message('AdminLogs.LoadFailed', 'Could not load the log file. Please try again.');
     };
 
     // Initialize on DOM ready

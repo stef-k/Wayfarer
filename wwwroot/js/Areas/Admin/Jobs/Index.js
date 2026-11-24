@@ -1,3 +1,5 @@
+import { date, message } from "../../../localization/messages.js";
+
 /**
  * Admin Jobs Index - SSE for real-time job status updates.
  * Uses MvcFrontendKit convention: automatically loaded for Admin/Jobs/Index view.
@@ -5,6 +7,13 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     initJobStatusSse();
+    // Delegation keeps the same confirmation on forms inserted after an event.
+    document.addEventListener('submit', event => {
+        if (event.target.matches('form[data-job-cancel]') &&
+            !window.confirm(message('AdminJobs.CancelConfirm', 'Cancel this running job?'))) {
+            event.preventDefault();
+        }
+    });
 });
 
 /**
@@ -47,7 +56,7 @@ const initJobStatusSse = () => {
                 setTimeout(connect, reconnectDelay);
             } else {
                 console.error('[JobStatusSse] Max reconnect attempts reached');
-                wayfarer.showAlert('warning', 'Lost connection to job status updates. Refresh to reconnect.');
+                wayfarer.showAlert('warning', message('AdminJobs.LostConnection', 'Lost connection to job status updates. Refresh to reconnect.'));
             }
         };
     };
@@ -73,7 +82,7 @@ const handleJobStatusEvent = (data) => {
     updateStatusBadge(row, status);
 
     // Update the action buttons
-    updateActionButtons(row, status, jobName, jobGroup);
+    updateActionButtons(row, status);
 
     // Update last run time for completion events
     if (eventType !== 'job_started') {
@@ -88,16 +97,9 @@ const handleJobStatusEvent = (data) => {
  * Find the table row for a specific job.
  */
 const findJobRow = (jobName, jobGroup) => {
-    const rows = document.querySelectorAll('tbody tr');
-    for (const row of rows) {
-        const nameCell = row.querySelector('td:first-child');
-        const groupCell = row.querySelector('td:nth-child(2)');
-        if (nameCell?.textContent.trim() === jobName &&
-            groupCell?.textContent.trim() === jobGroup) {
-            return row;
-        }
-    }
-    return null;
+    return Array.from(document.querySelectorAll('tr[data-job-name]')).find(row =>
+        row.dataset.jobName === jobName && row.dataset.jobGroup === jobGroup
+    );
 };
 
 /**
@@ -116,69 +118,32 @@ const updateStatusBadge = (row, status) => {
         badgeClass = 'bg-danger';
     }
 
-    statusCell.innerHTML = `<span class="badge ${badgeClass}">${escapeHtml(status)}</span>`;
+    const badge = document.createElement('span');
+    badge.className = `badge ${badgeClass}`;
+    const statusKey = status === 'Not Started' ? 'NotStarted' : status === 'In Progress' ? 'InProgress' : status;
+    badge.textContent = message(`AdminJobs.Status.${statusKey}`, message('AdminJobs.Status.Unknown', 'Unknown status'));
+    statusCell.replaceChildren(badge);
 };
 
 /**
  * Update the action buttons based on current status.
  */
-const updateActionButtons = (row, status, jobName, jobGroup) => {
+const updateActionButtons = (row, status) => {
     const actionsCell = row.querySelector('td:last-child');
     if (!actionsCell) return;
 
-    // Copy the authentic page token before replacing forms (also supports initially empty rows).
-    const token = document.querySelector('input[name="__RequestVerificationToken"]');
-    const isRunning = status === 'Running';
-    const isPaused = status === 'Paused';
-    const escapedName = escapeHtml(jobName);
-    const escapedGroup = escapeHtml(jobGroup);
-
-    let buttonsHtml = '<div class="btn-group" role="group">';
-
-    if (isRunning) {
-        buttonsHtml += `
-            <form method="post" action="/Admin/Jobs/CancelJob" class="d-inline">
-                <input type="hidden" name="jobName" value="${escapedName}" />
-                <input type="hidden" name="jobGroup" value="${escapedGroup}" />
-                <button type="submit" class="btn btn-danger btn-sm"
-                        onclick="return confirm('Cancel this running job?')"
-                        title="Request cancellation of this running job">
-                    Cancel
-                </button>
-            </form>`;
-    } else if (isPaused) {
-        buttonsHtml += `
-            <form method="post" action="/Admin/Jobs/ResumeJob" class="d-inline">
-                <input type="hidden" name="jobName" value="${escapedName}" />
-                <input type="hidden" name="jobGroup" value="${escapedGroup}" />
-                <button type="submit" class="btn btn-success btn-sm"
-                        title="Resume scheduled execution">
-                    Resume
-                </button>
-            </form>`;
-    } else {
-        buttonsHtml += `
-            <form method="post" action="/Admin/Jobs/StartJob" class="d-inline">
-                <input type="hidden" name="jobName" value="${escapedName}" />
-                <input type="hidden" name="jobGroup" value="${escapedGroup}" />
-                <button type="submit" class="btn btn-primary btn-sm"
-                        title="Run this job immediately">
-                    Start
-                </button>
-            </form>
-            <form method="post" action="/Admin/Jobs/PauseJob" class="d-inline ms-1">
-                <input type="hidden" name="jobName" value="${escapedName}" />
-                <input type="hidden" name="jobGroup" value="${escapedGroup}" />
-                <button type="submit" class="btn btn-warning btn-sm"
-                        title="Stop future scheduled runs (does not stop a running job)">
-                    Pause
-                </button>
-            </form>`;
+    let state = 'idle';
+    if (status === 'Running') {
+        state = row.dataset.interruptable === 'true' ? 'running' : 'running-disabled';
+    } else if (status === 'Paused') {
+        state = 'paused';
     }
 
-    buttonsHtml += '</div>';
-    actionsCell.innerHTML = buttonsHtml;
-    if (token) actionsCell.querySelectorAll('form').forEach(form => form.append(token.cloneNode(true)));
+    const template = document.getElementById(`job-${state}-actions`);
+    const actions = template.content.cloneNode(true);
+    actions.querySelectorAll('input[name="jobName"]').forEach(input => { input.value = row.dataset.jobName; });
+    actions.querySelectorAll('input[name="jobGroup"]').forEach(input => { input.value = row.dataset.jobGroup; });
+    actionsCell.replaceChildren(actions);
 };
 
 /**
@@ -188,8 +153,9 @@ const updateLastRunTime = (row, timestampUtc) => {
     const lastRunCell = row.querySelector('td:nth-child(3)');
     if (!lastRunCell) return;
 
-    const date = new Date(timestampUtc);
-    const formatted = date.toLocaleString(undefined, {
+    const timestamp = new Date(timestampUtc);
+    if (Number.isNaN(timestamp.getTime())) return;
+    lastRunCell.textContent = date(timestamp, {
         weekday: 'short',
         year: 'numeric',
         month: 'short',
@@ -197,43 +163,28 @@ const updateLastRunTime = (row, timestampUtc) => {
         hour: '2-digit',
         minute: '2-digit'
     });
-    lastRunCell.innerHTML = `<span>${formatted}</span>`;
 };
 
 /**
  * Show notification for job events using wayfarer utilities.
  */
 const showJobNotification = (eventType, jobName, errorMessage) => {
-    let alertType = 'info';
-    let message = '';
-
     switch (eventType) {
         case 'job_started':
-            alertType = 'info';
-            message = `Job "${jobName}" started`;
+            wayfarer.showAlert('info', message('AdminJobs.EventStarted', 'Job "{0}" started.', jobName));
             break;
         case 'job_completed':
-            alertType = 'success';
-            message = `Job "${jobName}" completed`;
+            wayfarer.showAlert('success', message('AdminJobs.EventCompleted', 'Job "{0}" completed.', jobName));
             break;
         case 'job_failed':
-            alertType = 'danger';
-            message = `Job "${jobName}" failed${errorMessage ? ': ' + errorMessage : ''}`;
+            wayfarer.showAlert('danger', errorMessage
+                ? message('AdminJobs.EventFailedDetail', 'Job "{0}" failed: {1}', jobName, errorMessage)
+                : message('AdminJobs.EventFailed', 'Job "{0}" failed.', jobName));
             break;
         case 'job_cancelled':
-            alertType = 'warning';
-            message = `Job "${jobName}" cancelled`;
+            wayfarer.showAlert('warning', message('AdminJobs.EventCancelled', 'Job "{0}" cancelled.', jobName));
             break;
+        default:
+            wayfarer.showAlert('info', message('AdminJobs.EventUpdated', 'The status of job "{0}" changed.', jobName));
     }
-
-    wayfarer.showAlert(alertType, message);
-};
-
-/**
- * Escape HTML to prevent XSS.
- */
-const escapeHtml = (text) => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 };

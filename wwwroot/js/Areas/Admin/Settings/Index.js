@@ -1,3 +1,6 @@
+import { message, number } from '../../../localization/messages.js';
+
+/** Keeps the cache controls and feedback in the document locale. */
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clearAllCache')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -43,18 +46,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const updateTileMetadataHotCacheHint = () => {
             const sizeMb = Number(tileMetadataHotCacheInput.value);
-            if (Number.isNaN(sizeMb)) {
-                tileMetadataHotCacheHint.textContent = 'Enter a value of -1 or 16-512 MB.';
+            if (tileMetadataHotCacheInput.value === '' || (sizeMb !== -1 && (sizeMb < 16 || sizeMb > 512))) {
+                tileMetadataHotCacheHint.textContent = message('AdminSettings.Validation.HotCache',
+                    'Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.');
                 return;
             }
 
             if (sizeMb === -1) {
-                tileMetadataHotCacheHint.textContent = 'Hot metadata cache disabled.';
+                tileMetadataHotCacheHint.textContent = message('AdminSettings.HotCacheDisabled', 'Hot metadata cache disabled.');
                 return;
             }
 
             const approximateEntries = Math.floor((sizeMb * 1024 * 1024) / estimatedBytesPerEntry);
-            tileMetadataHotCacheHint.textContent = `${sizeMb} MB ≈ ${approximateEntries} metadata entries`;
+            tileMetadataHotCacheHint.textContent = message('AdminSettings.HotCacheEntries', '{0} MB ≈ {1} metadata entries',
+                number(sizeMb), number(approximateEntries));
         };
 
         updateTileMetadataHotCacheHint();
@@ -193,13 +198,13 @@ const connectPurgeSse = () => {
             case 'completed':
                 if (data.cacheStatus) updateCacheStatusDom(data.cacheStatus);
                 hidePurgeProgress();
-                wayfarer.showAlert('success', data.message || 'Cache purge completed.');
+                wayfarer.showAlert('success', purgeCompletedMessage(data.purgeType));
                 closePurgeSse();
                 break;
 
             case 'failed':
                 hidePurgeProgress();
-                wayfarer.showAlert('danger', `Cache purge failed: ${data.errorMessage || 'Unknown error'}`);
+                wayfarer.showAlert('danger', message('AdminSettings.PurgeFailed', 'Cache purge failed. Please try again.'));
                 closePurgeSse();
                 break;
         }
@@ -262,15 +267,17 @@ const hidePurgeProgress = () => {
 const updatePurgeProgress = (percent, deleted, total) => {
     const bar = document.getElementById('cachePurgeBar');
     const text = document.getElementById('cachePurgeText');
+    const percentText = number(percent / 100, { style: 'percent', maximumFractionDigits: 1 });
     if (bar) {
         bar.style.width = `${percent}%`;
-        bar.textContent = `${percent}%`;
+        bar.textContent = percentText;
         bar.setAttribute('aria-valuenow', percent);
     }
     if (text) {
         text.textContent = total > 0
-            ? `Deleting... ${deleted} / ${total} files (${percent}%)`
-            : 'Starting purge...';
+            ? message('AdminSettings.PurgeProgress', 'Deleting… {0} / {1} files ({2})',
+                number(deleted), number(total), percentText)
+            : message('AdminSettings.PurgeStarting', 'Starting purge...');
     }
 };
 
@@ -298,48 +305,44 @@ const setPurgeButtonsDisabled = (disabled) => {
 const updateCacheStatusDom = (status) => {
     if (!status) return;
     const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    set('TotalCacheFiles', status.totalCacheFiles);
-    set('LruTotalFiles', status.lruTotalFiles);
-    set('TotalCacheSize', status.totalCacheSize + ' MB');
-    set('TotalCacheSizeGB', status.totalCacheSizeGB + ' GB');
-    set('TotalLru', status.totalLru + ' MB');
-    set('TotalLruGB', status.totalLruGB + ' GB');
+    set('TotalCacheFiles', number(status.totalCacheFiles));
+    set('LruTotalFiles', number(status.lruTotalFiles));
+    set('TotalCacheSize', number(status.totalCacheSize) + ' MB');
+    set('TotalCacheSizeGB', number(status.totalCacheSizeGB) + ' GB');
+    set('TotalLru', number(status.totalLru) + ' MB');
+    set('TotalLruGB', number(status.totalLruGB) + ' GB');
 };
 
-/**
- * Initiates a cache purge via POST. On 202 Accepted, connects SSE for progress.
- * On 409 Conflict, shows a warning that a purge is already running.
- * @param {string} url - The purge endpoint URL.
- * @param {string} errorLabel - Human-readable label for error messages.
- */
-const startCachePurge = (url, errorLabel) => {
-    fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'RequestVerificationToken': getAntiForgeryToken()
-        }
-    })
-        .then(response => {
-            if (response.status === 202) {
-                showPurgeProgress();
-                connectPurgeSse();
-            } else if (response.status === 409) {
-                response.json().then(data => {
-                    wayfarer.showAlert('warning', data.message || 'A cache purge is already in progress.');
-                });
-            } else {
-                response.json().then(data => {
-                    wayfarer.showAlert('danger', data?.message || `Failed to start ${errorLabel}.`);
-                }).catch(() => {
-                    wayfarer.showAlert('danger', `Failed to start ${errorLabel}.`);
-                });
+/** Projects the completion type without using the background worker's locale. */
+const purgeCompletedMessage = (purgeType) => {
+    if (purgeType === 'all') return message('AdminSettings.PurgeFullCompleted', 'Full cache purge completed successfully.');
+    if (purgeType === 'lru') return message('AdminSettings.PurgeLruCompleted', 'LRU cache purge completed successfully.');
+    return message('AdminSettings.PurgeCompleted', 'Cache purge completed.');
+};
+
+/** Starts the existing operation and presents its response in the requesting document. */
+const startCachePurge = async (url, failureMessage, startedMessage) => {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': getAntiForgeryToken()
             }
-        })
-        .catch(error => {
-            console.error('error:', error);
-            wayfarer.showAlert('danger', `Failed to start ${errorLabel}. ${error}`);
         });
+        if (response.status === 202) {
+            wayfarer.showAlert('info', startedMessage);
+            showPurgeProgress();
+            connectPurgeSse();
+        } else if (response.status === 409) {
+            wayfarer.showAlert('warning', message('AdminSettings.PurgeBusy', 'A cache purge is already in progress.'));
+        } else {
+            wayfarer.showAlert('danger', failureMessage);
+        }
+    } catch (error) {
+        console.error('Error starting cache purge:', error);
+        wayfarer.showAlert('danger', failureMessage);
+    }
 };
 
 /**
@@ -347,10 +350,12 @@ const startCachePurge = (url, errorLabel) => {
  */
 const deleteAllMapTileCache = () => {
     wayfarer.showConfirmationModal({
-        title: "Confirm Deletion",
-        message: "Are you sure you want to delete all map tile cache? This action cannot be undone.",
-        confirmText: "Delete",
-        onConfirm: () => startCachePurge('/Admin/Settings/DeleteAllMapTileCache', 'full cache purge')
+        title: message('AdminSettings.PurgeConfirmTitle', 'Confirm deletion'),
+        message: message('AdminSettings.PurgeFullConfirm', 'Delete all cached map tiles? This cannot be undone.'),
+        confirmText: message('Shell.Delete', 'Delete'),
+        onConfirm: () => startCachePurge('/Admin/Settings/DeleteAllMapTileCache',
+            message('AdminSettings.PurgeFullStartFailed', 'Could not start the full cache purge.'),
+            message('AdminSettings.PurgeFullStarted', 'Full cache purge started.'))
     });
 };
 
@@ -359,10 +364,12 @@ const deleteAllMapTileCache = () => {
  */
 const deleteLruCache = () => {
     wayfarer.showConfirmationModal({
-        title: "Confirm Deletion",
-        message: "Are you sure you want to delete the Least Recently Used map tile cache (zoom levels >= 9)? This action cannot be undone.",
-        confirmText: "Delete",
-        onConfirm: () => startCachePurge('/Admin/Settings/DeleteLruCache', 'LRU cache purge')
+        title: message('AdminSettings.PurgeConfirmTitle', 'Confirm deletion'),
+        message: message('AdminSettings.PurgeLruConfirm', 'Delete cached LRU tiles (zoom levels ≥ 9)? This cannot be undone.'),
+        confirmText: message('Shell.Delete', 'Delete'),
+        onConfirm: () => startCachePurge('/Admin/Settings/DeleteLruCache',
+            message('AdminSettings.PurgeLruStartFailed', 'Could not start the LRU cache purge.'),
+            message('AdminSettings.PurgeLruStarted', 'LRU cache purge started.'))
     });
 };
 
@@ -371,9 +378,9 @@ const deleteLruCache = () => {
  */
 const deleteMbtilesCache = () => {
     wayfarer.showConfirmationModal({
-        title: "Confirm MBTiles Deletion",
-        message: "Are you sure you want to delete all MBTiles files used for mobile app caching?",
-        confirmText: "Delete",
+        title: message('AdminSettings.PurgeMbtilesConfirmTitle', 'Confirm MBTiles deletion'),
+        message: message('AdminSettings.PurgeMbtilesConfirm', 'Delete all MBTiles files used for mobile app caching?'),
+        confirmText: message('Shell.Delete', 'Delete'),
         onConfirm: () => {
             fetch("/Admin/Settings/ClearMbtilesCache", {
                 method: "POST",
@@ -386,12 +393,12 @@ const deleteMbtilesCache = () => {
                     if (response.ok) {
                         location.reload(); // simplest way to reflect updated MB/GB/file count
                     } else {
-                        wayfarer.showAlert("danger", "Failed to delete MBTiles cache.");
+                        wayfarer.showAlert('danger', message('AdminSettings.PurgeMbtilesFailed', 'Failed to delete MBTiles cache.'));
                     }
                 })
                 .catch(error => {
                     console.error("error:", error);
-                    wayfarer.showAlert("danger", `Failed to delete MBTiles cache. ${error}`);
+                    wayfarer.showAlert('danger', message('AdminSettings.PurgeMbtilesFailed', 'Failed to delete MBTiles cache.'));
                 });
         }
     });

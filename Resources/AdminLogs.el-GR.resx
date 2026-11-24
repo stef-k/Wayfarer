@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="AdminLogs.AuditAction" xml:space="preserve">
+    <value>Ενέργεια</value>
+  </data>
+  <data name="AdminLogs.AuditDetailHelp" xml:space="preserve">
+    <value>Πρόσθετα στοιχεία, όπως διευθύνσεις IP, επηρεαζόμενες εγγραφές και μηνύματα σφάλματος.</value>
+  </data>
+  <data name="AdminLogs.AuditDetails" xml:space="preserve">
+    <value>Λεπτομέρειες</value>
+  </data>
+  <data name="AdminLogs.AuditEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν καταχωρίσεις ελέγχου.</value>
+  </data>
+  <data name="AdminLogs.AuditIntro" xml:space="preserve">
+    <value>Το ιστορικό ελέγχου καταγράφει προσπάθειες σύνδεσης, αλλαγές κωδικών πρόσβασης και ρόλων, καθώς και εξαγωγές δεδομένων. Χρησιμοποιήστε την αναζήτηση για να φιλτράρετε κατά χρήστη ή ενέργεια.</value>
+  </data>
+  <data name="AdminLogs.AuditTime" xml:space="preserve">
+    <value>Ημερομηνία και ώρα</value>
+  </data>
+  <data name="AdminLogs.AuditUser" xml:space="preserve">
+    <value>Αναγνωριστικό χρήστη</value>
+  </data>
+  <data name="AdminLogs.AutoRefresh" xml:space="preserve">
+    <value>Αυτόματη ανανέωση</value>
+  </data>
+  <data name="AdminLogs.AutoRefreshEnabled" xml:space="preserve">
+    <value>Η αυτόματη ανανέωση ενεργοποιήθηκε</value>
+  </data>
+  <data name="AdminLogs.ChooseFile" xml:space="preserve">
+    <value>— Επιλέξτε αρχείο καταγραφής —</value>
+  </data>
+  <data name="AdminLogs.ChooseFileHelp" xml:space="preserve">
+    <value>Επιλέξτε ένα αρχείο από την παραπάνω λίστα για να δείτε το περιεχόμενό του.</value>
+  </data>
+  <data name="AdminLogs.ChooseFileShort" xml:space="preserve">
+    <value>Επιλέξτε αρχείο καταγραφής για προβολή</value>
+  </data>
+  <data name="AdminLogs.Clear" xml:space="preserve">
+    <value>Εκκαθάριση προβολής</value>
+  </data>
+  <data name="AdminLogs.ClearSearch" xml:space="preserve">
+    <value>Εκκαθάριση αναζήτησης</value>
+  </data>
+  <data name="AdminLogs.Current" xml:space="preserve">
+    <value>(τρέχον)</value>
+  </data>
+  <data name="AdminLogs.Download" xml:space="preserve">
+    <value>Λήψη αρχείου καταγραφής</value>
+  </data>
+  <data name="AdminLogs.EmptyFile" xml:space="preserve">
+    <value>(Κενό αρχείο καταγραφής)</value>
+  </data>
+  <data name="AdminLogs.File" xml:space="preserve">
+    <value>Αρχείο καταγραφής</value>
+  </data>
+  <data name="AdminLogs.FileInfo" xml:space="preserve">
+    <value>{0} – {1} – Τελευταία τροποποίηση: {2}</value>
+  </data>
+  <data name="AdminLogs.FileMissing" xml:space="preserve">
+    <value>Το αρχείο καταγραφής δεν βρέθηκε</value>
+  </data>
+  <data name="AdminLogs.Intro" xml:space="preserve">
+    <value>Τα αρχεία καταγραφής περιέχουν σφάλματα, προειδοποιήσεις και ενημερωτικά μηνύματα του διακομιστή. Επιλέξτε αρχείο για προβολή, χρησιμοποιήστε την αναζήτηση για να εντοπίσετε εγγραφές και ενεργοποιήστε την αυτόματη ανανέωση για ζωντανές ενημερώσεις.</value>
+  </data>
+  <data name="AdminLogs.InvalidFileName" xml:space="preserve">
+    <value>Μη έγκυρο όνομα αρχείου</value>
+  </data>
+  <data name="AdminLogs.Lines.one" xml:space="preserve">
+    <value>{0} γραμμή</value>
+  </data>
+  <data name="AdminLogs.Lines.other" xml:space="preserve">
+    <value>{0} γραμμές</value>
+  </data>
+  <data name="AdminLogs.LoadFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η φόρτωση του αρχείου καταγραφής. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="AdminLogs.LoadNext" xml:space="preserve">
+    <value>Φόρτωση των επόμενων {0} γραμμών</value>
+  </data>
+  <data name="AdminLogs.LoadPrevious" xml:space="preserve">
+    <value>Φόρτωση των προηγούμενων {0} γραμμών</value>
+  </data>
+  <data name="AdminLogs.Matches.one" xml:space="preserve">
+    <value>{0} αποτέλεσμα</value>
+  </data>
+  <data name="AdminLogs.Matches.other" xml:space="preserve">
+    <value>{0} αποτελέσματα</value>
+  </data>
+  <data name="AdminLogs.Next" xml:space="preserve">
+    <value>Επόμενες</value>
+  </data>
+  <data name="AdminLogs.NoFiles" xml:space="preserve">
+    <value>Δεν βρέθηκαν αρχεία καταγραφής. Δημιουργούνται όταν η εφαρμογή αρχίζει να γράφει καταγραφές.</value>
+  </data>
+  <data name="AdminLogs.Position" xml:space="preserve">
+    <value>Θέση: {0}–{1}</value>
+  </data>
+  <data name="AdminLogs.Previous" xml:space="preserve">
+    <value>Προηγούμενες</value>
+  </data>
+  <data name="AdminLogs.ReadFailed" xml:space="preserve">
+    <value>Σφάλμα ανάγνωσης του αρχείου καταγραφής</value>
+  </data>
+  <data name="AdminLogs.Refresh" xml:space="preserve">
+    <value>Ανανέωση περιεχομένου</value>
+  </data>
+  <data name="AdminLogs.Search" xml:space="preserve">
+    <value>Αναζήτηση στις καταγραφές…</value>
+  </data>
+  <data name="AdminLogs.SearchFailed" xml:space="preserve">
+    <value>Σφάλμα αναζήτησης στο αρχείο καταγραφής</value>
+  </data>
+  <data name="AdminLogs.SearchRequired" xml:space="preserve">
+    <value>Εισαγάγετε όρο αναζήτησης</value>
+  </data>
+  <data name="AdminLogs.ShowingLines.one" xml:space="preserve">
+    <value>Εμφανίζεται {0} γραμμή</value>
+  </data>
+  <data name="AdminLogs.ShowingLines.other" xml:space="preserve">
+    <value>Εμφανίζονται {0} γραμμές</value>
+  </data>
+  <data name="AdminLogs.ToggleAutoRefresh" xml:space="preserve">
+    <value>Εναλλαγή αυτόματης ανανέωσης</value>
+  </data>
+  <data name="AdminLogs.Updated" xml:space="preserve">
+    <value>Τελευταία ενημέρωση: {0}</value>
+  </data>
+</root>
