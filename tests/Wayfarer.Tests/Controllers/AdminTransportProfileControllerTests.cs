@@ -408,7 +408,7 @@ public sealed class AdminTransportProfileControllerTests : TestBase
         ApplicationDbContext db,
         ILogger<TransportProfileController>? logger = null)
     {
-        var controller = new TransportProfileController(db, logger ?? NullLogger<TransportProfileController>.Instance);
+        var controller = new TransportProfileController(db, logger ?? NullLogger<TransportProfileController>.Instance, TestWebMessages.Instance);
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());

@@ -33,7 +33,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             ApplicationUser? user = await _dbContext.Users.FindAsync(id);
             if (user == null)
             {
-                SetAlert("User not found.", "danger");
+                SetAlert("User not found.", "danger", "Accounts.UserMissing");
                 return RedirectToAction("Index", "Home");
             }
 
@@ -66,7 +66,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         {
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name))
             {
-                SetAlert("User ID and token name are required.", "danger");
+                SetAlert("User ID and token name are required.", "danger", "Accounts.TokenNameRequired");
                 return RedirectToAction("Index", new { id });
             }
 
@@ -85,17 +85,22 @@ namespace Wayfarer.Areas.Manager.Controllers
 
                 if (exists)
                 {
-                    SetAlert("This API Token name exists, please regenerate it or create an API Token with different name!", "warning");
+                    SetAlert("This API Token name exists, please regenerate it or create an API Token with different name!", "warning", "Accounts.TokenDuplicate");
                     return RedirectToAction("Index", new { id });
                 }
 
                 (ApiToken apiToken, _) = await _apiTokenService.CreateApiTokenAsync(id, name);
                 if (transaction != null) await transaction.CommitAsync(cancellationToken);
-                SetAlert($"New token '{name}' created for {apiToken.User.UserName}. No plaintext is retained or displayed here.", "success");
+                SetAlert($"New token '{name}' created for {apiToken.User.UserName}. No plaintext is retained or displayed here.", "success",
+                    "Accounts.TokenCreated", name, apiToken.User.UserName ?? id);
             }
             catch (ArgumentException ex)
             {
-                SetAlert(ex.Message, "danger");
+                // Translate the known service refusal and keep other argument errors out of the document.
+                if (ex.Message == "User not found.")
+                    SetAlert("User not found.", "danger", "Accounts.UserMissing");
+                else
+                    SetAlert("The API token could not be created. Please try again.", "danger", "Accounts.TokenCreateFailed");
             }
 
             return RedirectToAction("Index", new { id });
@@ -112,7 +117,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         {
             if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(name))
             {
-                SetAlert("User ID and token name are required.", "danger");
+                SetAlert("User ID and token name are required.", "danger", "Accounts.TokenNameRequired");
                 return RedirectToAction("Index", new { id });
             }
 
@@ -128,11 +133,15 @@ namespace Wayfarer.Areas.Manager.Controllers
                 (ApiToken apiToken, _) = await _apiTokenService.RegenerateTokenAsync(id, name);
                 ApplicationUser? user = await _dbContext.ApplicationUsers.FindAsync(id);
                 if (transaction != null) await transaction.CommitAsync(cancellationToken);
-                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. No plaintext is retained or displayed here.", "success");
+                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. No plaintext is retained or displayed here.", "success",
+                    "Accounts.TokenRegenerated", name, user?.UserName ?? id);
             }
             catch (ArgumentException ex)
             {
-                SetAlert(ex.Message, "danger");
+                if (ex.Message == $"Token with Name '{name}' does not exist for the user.")
+                    SetAlert(ex.Message, "danger", "Accounts.TokenRegenerateMissing", name);
+                else
+                    SetAlert("The API token could not be regenerated. Please try again.", "danger", "Accounts.TokenRegenerateFailed");
             }
 
             return RedirectToAction("Index", new { id });
@@ -149,7 +158,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         {
             if (string.IsNullOrEmpty(id) || tokenId == 0)
             {
-                SetAlert("Invalid request. Token and User ID are required.", "danger");
+                SetAlert("Invalid request. Token and User ID are required.", "danger", "Accounts.TokenDeleteInvalid");
                 return RedirectToAction("Index", new { id });
             }
 
@@ -163,13 +172,13 @@ namespace Wayfarer.Areas.Manager.Controllers
             ApiToken? token = await _dbContext.ApiTokens.FindAsync([tokenId], cancellationToken);
             if (token == null || token.UserId != id)
             {
-                SetAlert("Token not found or does not belong to the specified user.", "danger");
+                SetAlert("Token not found or does not belong to the specified user.", "danger", "Accounts.TokenMissing");
                 return RedirectToAction("Index", new { id });
             }
 
             if (token.Name.Equals("Wayfarer Incoming Location Data API Token"))
             {
-                SetAlert("This is the default API Token needed for incoming location data and therefore cannot be deleted!", "warning");
+                SetAlert("This is the default API Token needed for incoming location data and therefore cannot be deleted!", "warning", "Accounts.TokenConnectionProtected");
                 return RedirectToAction("Index", new { id });
             }
 
@@ -177,7 +186,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             await _dbContext.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
-            SetAlert($"Token '{token.Name}' has been deleted.", "success");
+            SetAlert($"Token '{token.Name}' has been deleted.", "success", "Accounts.TokenDeleted", token.Name);
             return RedirectToAction("Index", new { id });
         }
 

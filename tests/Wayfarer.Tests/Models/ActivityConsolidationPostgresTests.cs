@@ -281,7 +281,7 @@ public sealed class ActivityConsolidationPostgresTests(PostgresMigrationTestFixt
     private ActivityTypeController Admin(ApplicationDbContext db)
     {
         var context = BuildHttpContextWithUser("admin", "Admin");
-        return new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db)
+        return new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db, TestWebMessages.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = context },
             TempData = new TempDataDictionary(context, Mock.Of<ITempDataProvider>())

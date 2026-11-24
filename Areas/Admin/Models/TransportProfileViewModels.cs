@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Wayfarer.Localization;
 
 namespace Wayfarer.Areas.Admin.Models;
 
@@ -6,16 +7,16 @@ namespace Wayfarer.Areas.Admin.Models;
 public class TransportProfileCreateViewModel : IValidatableObject
 {
     /// <summary>Gets or sets the durable normalized key.</summary>
-    [Required, StringLength(80)]
-    [RegularExpression("^[a-z0-9]+(?:-[a-z0-9]+)*$", ErrorMessage = "Use lowercase letters, numbers, and single hyphens only.")]
+    [Required(ErrorMessage = "Catalogs.Validation.KeyRequired"), StringLength(80, ErrorMessage = "Catalogs.Validation.Length")]
+    [RegularExpression("^[a-z0-9]+(?:-[a-z0-9]+)*$", ErrorMessage = "Catalogs.Validation.KeySyntax")]
     public string Key { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the user-facing label.</summary>
-    [Required, StringLength(120)]
+    [Required(ErrorMessage = "Catalogs.Validation.LabelRequired"), StringLength(120, ErrorMessage = "Catalogs.Validation.Length")]
     public string Label { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the presentation category.</summary>
-    [Required, StringLength(80)]
+    [Required(ErrorMessage = "Catalogs.Validation.CategoryRequired"), StringLength(80, ErrorMessage = "Catalogs.Validation.Length")]
     public string Category { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the nullable planning speed.</summary>
@@ -28,7 +29,7 @@ public class TransportProfileCreateViewModel : IValidatableObject
     public bool IsActive { get; set; } = true;
 
     /// <summary>Gets or sets the optional administrator description.</summary>
-    [StringLength(500)]
+    [StringLength(500, ErrorMessage = "Catalogs.Validation.Length")]
     public string? Description { get; set; }
 
     /// <summary>Validates finite positive planning speeds.</summary>
@@ -36,7 +37,9 @@ public class TransportProfileCreateViewModel : IValidatableObject
     {
         if (PlanningSpeedKmh is double speed && (!double.IsFinite(speed) || speed <= 0))
         {
-            yield return new ValidationResult("Planning speed must be a finite positive number.", [nameof(PlanningSpeedKmh)]);
+            var text = validationContext.GetService(typeof(WebMessages)) as WebMessages;
+            yield return new ValidationResult(text?["Catalogs.Validation.Speed"] ?? "Planning speed must be a finite positive number.",
+                [nameof(PlanningSpeedKmh)]);
         }
     }
 }

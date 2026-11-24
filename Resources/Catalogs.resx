@@ -1,0 +1,345 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Catalogs.ActivityIndex" xml:space="preserve">
+    <value>Available Activities</value>
+  </data>
+  <data name="Catalogs.ActivityIntro" xml:space="preserve">
+    <value>Activity types categorize location records, for example walking, driving, or running. All users can use them to categorize their records.</value>
+  </data>
+  <data name="Catalogs.ActivityCreate" xml:space="preserve">
+    <value>Create New Activity Type</value>
+  </data>
+  <data name="Catalogs.ActivityCreateSubmit" xml:space="preserve">
+    <value>Create Activity Type</value>
+  </data>
+  <data name="Catalogs.ActivityEdit" xml:space="preserve">
+    <value>Edit Activity Type</value>
+  </data>
+  <data name="Catalogs.ActivitySearch" xml:space="preserve">
+    <value>Search activity types…</value>
+  </data>
+  <data name="Catalogs.ActivityName" xml:space="preserve">
+    <value>Activity Name</value>
+  </data>
+  <data name="Catalogs.Description" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="Catalogs.ActivityEmpty" xml:space="preserve">
+    <value>No activity types found.</value>
+  </data>
+  <data name="Catalogs.ActivityPages" xml:space="preserve">
+    <value>Activity type pages</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteTitle" xml:space="preserve">
+    <value>Confirm Activity Type Deletion</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteQuestion" xml:space="preserve">
+    <value>Are you sure you want to delete this activity type?</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteTarget" xml:space="preserve">
+    <value>Activity Type: {0}</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidate" xml:space="preserve">
+    <value>Consolidate</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidateTitle" xml:space="preserve">
+    <value>Consolidate Activities</value>
+  </data>
+  <data name="Catalogs.ActivitySource.one" xml:space="preserve">
+    <value>Source: {1} — {0} Location record across all owners.</value>
+  </data>
+  <data name="Catalogs.ActivitySource.other" xml:space="preserve">
+    <value>Source: {1} — {0} Location records across all owners.</value>
+  </data>
+  <data name="Catalogs.ActivityDestination.one" xml:space="preserve">
+    <value>Destination: {1} — {0} existing Location record across all owners.</value>
+  </data>
+  <data name="Catalogs.ActivityDestination.other" xml:space="preserve">
+    <value>Destination: {1} — {0} existing Location records across all owners.</value>
+  </data>
+  <data name="Catalogs.ActivityExistingDestination" xml:space="preserve">
+    <value>Existing destination Activity</value>
+  </data>
+  <data name="Catalogs.ActivityChooseDestination" xml:space="preserve">
+    <value>Choose a destination</value>
+  </data>
+  <data name="Catalogs.ActivityPreview" xml:space="preserve">
+    <value>Preview consolidation</value>
+  </data>
+  <data name="Catalogs.ActivityMove" xml:space="preserve">
+    <value>Move all location records from {0} to {1}.</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidateHelp" xml:space="preserve">
+    <value>Only their Activity classification changes. Distinct nonblank descriptions are preserved. The source Activity is removed and its numeric ID permanently redirects to the destination. Counts may change before confirmation; all source Locations at consolidation are included. This cannot be undone here. Future imports of the source name may create a new Activity; names are not aliases.</value>
+  </data>
+  <data name="Catalogs.ActivityConfirmConsolidation" xml:space="preserve">
+    <value>Confirm consolidation</value>
+  </data>
+  <data name="Catalogs.ActivityAnotherDestination" xml:space="preserve">
+    <value>Choose another destination</value>
+  </data>
+  <data name="Catalogs.BackToList" xml:space="preserve">
+    <value>Back to List</value>
+  </data>
+  <data name="Catalogs.Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Catalogs.Save" xml:space="preserve">
+    <value>Save changes</value>
+  </data>
+  <data name="Catalogs.ValidationSummary" xml:space="preserve">
+    <value>Please correct the errors below.</value>
+  </data>
+  <data name="Catalogs.TransportIndex" xml:space="preserve">
+    <value>Transport Profiles</value>
+  </data>
+  <data name="Catalogs.TransportIntro" xml:space="preserve">
+    <value>Transport-profile keys are durable API/import identifiers. Deactivate a profile to remove it from new editor choices without changing existing segments.</value>
+  </data>
+  <data name="Catalogs.TransportCreate" xml:space="preserve">
+    <value>Create Transport Profile</value>
+  </data>
+  <data name="Catalogs.TransportEdit" xml:space="preserve">
+    <value>Edit Transport Profile</value>
+  </data>
+  <data name="Catalogs.TransportDelete" xml:space="preserve">
+    <value>Delete Transport Profile</value>
+  </data>
+  <data name="Catalogs.TransportSearch" xml:space="preserve">
+    <value>Search profiles</value>
+  </data>
+  <data name="Catalogs.TransportSearchHint" xml:space="preserve">
+    <value>Key, label, or category</value>
+  </data>
+  <data name="Catalogs.Order" xml:space="preserve">
+    <value>Order</value>
+  </data>
+  <data name="Catalogs.Key" xml:space="preserve">
+    <value>Key</value>
+  </data>
+  <data name="Catalogs.Label" xml:space="preserve">
+    <value>Label</value>
+  </data>
+  <data name="Catalogs.Category" xml:space="preserve">
+    <value>Category</value>
+  </data>
+  <data name="Catalogs.SpeedColumn" xml:space="preserve">
+    <value>Speed (km/h)</value>
+  </data>
+  <data name="Catalogs.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Catalogs.Segments" xml:space="preserve">
+    <value>Segments</value>
+  </data>
+  <data name="Catalogs.TransportEmpty" xml:space="preserve">
+    <value>No transport profiles found.</value>
+  </data>
+  <data name="Catalogs.TransportManualOnly" xml:space="preserve">
+    <value>Manual only</value>
+  </data>
+  <data name="Catalogs.TransportActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Catalogs.TransportInactive" xml:space="preserve">
+    <value>Inactive</value>
+  </data>
+  <data name="Catalogs.TransportActions" xml:space="preserve">
+    <value>Actions for {0}</value>
+  </data>
+  <data name="Catalogs.TransportPages" xml:space="preserve">
+    <value>Transport profile pages</value>
+  </data>
+  <data name="Catalogs.TransportKeyHelp" xml:space="preserve">
+    <value>Immutable lowercase API/import identifier, for example scooter.</value>
+  </data>
+  <data name="Catalogs.TransportKeyImmutable" xml:space="preserve">
+    <value>Keys are immutable durable identifiers.</value>
+  </data>
+  <data name="Catalogs.Create" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="Catalogs.PlanningSpeed" xml:space="preserve">
+    <value>Planning speed (km/h)</value>
+  </data>
+  <data name="Catalogs.TransportManualHelp" xml:space="preserve">
+    <value>Leave blank for a manual-only profile.</value>
+  </data>
+  <data name="Catalogs.TransportSpeedHelp" xml:space="preserve">
+    <value>Leave blank to make Wayfarer Automatic estimates unavailable. Saved provider estimates and Manual durations are preserved.</value>
+  </data>
+  <data name="Catalogs.TransportAvailable" xml:space="preserve">
+    <value>Available for new segment choices</value>
+  </data>
+  <data name="Catalogs.TransportReferences" xml:space="preserve">
+    <value>References: {0} total, {1} Automatic, {2} Manual.</value>
+  </data>
+  <data name="Catalogs.TransportConfirmSpeed" xml:space="preserve">
+    <value>I confirm any planning-speed change or clearing will recalculate Wayfarer Automatic estimates</value>
+  </data>
+  <data name="Catalogs.TransportDeactivate.one" xml:space="preserve">
+    <value>This profile is used by {0} segment. Deactivation removes it from new choices and keeps existing segments unchanged.</value>
+  </data>
+  <data name="Catalogs.TransportDeactivate.other" xml:space="preserve">
+    <value>This profile is used by {0} segments. Deactivation removes it from new choices and keeps existing segments unchanged.</value>
+  </data>
+  <data name="Catalogs.TransportConfirmDeactivation" xml:space="preserve">
+    <value>I confirm deactivation after reviewing dependencies</value>
+  </data>
+  <data name="Catalogs.TransportReferencedSegments" xml:space="preserve">
+    <value>Referenced segments</value>
+  </data>
+  <data name="Catalogs.TransportDeleteBlocked" xml:space="preserve">
+    <value>This profile cannot be deleted. Deactivate it from Edit instead.</value>
+  </data>
+  <data name="Catalogs.TransportDeletePermanent" xml:space="preserve">
+    <value>Deletion is permanent and will remove this deployment-specific profile.</value>
+  </data>
+  <data name="Catalogs.ConfirmDelete" xml:space="preserve">
+    <value>Confirm delete</value>
+  </data>
+  <data name="Catalogs.Validation.Binding" xml:space="preserve">
+    <value>Enter a valid value.</value>
+  </data>
+  <data name="Catalogs.Validation.Form" xml:space="preserve">
+    <value>There are some validation errors. Please correct them and try again.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameRequired" xml:space="preserve">
+    <value>The Activity name is required.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameInvalid" xml:space="preserve">
+    <value>Enter a nonblank Activity name containing valid XML text.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityDuplicate" xml:space="preserve">
+    <value>An Activity with this name already exists.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameTooLarge" xml:space="preserve">
+    <value>This Activity name is too large for the catalog index. Please choose a different name.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityDescription" xml:space="preserve">
+    <value>Description contains invalid storage text.</value>
+  </data>
+  <data name="Catalogs.ActivityCreated" xml:space="preserve">
+    <value>Activity Type created successfully.</value>
+  </data>
+  <data name="Catalogs.ActivityUpdated" xml:space="preserve">
+    <value>Activity Type updated successfully.</value>
+  </data>
+  <data name="Catalogs.ActivityDeleted" xml:space="preserve">
+    <value>Activity Type deleted successfully.</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteRefused" xml:space="preserve">
+    <value>Activity cannot be deleted: Locations or retained client IDs reference it.</value>
+  </data>
+  <data name="Catalogs.ActivitySelectDifferent" xml:space="preserve">
+    <value>Choose two different existing Activities. Please refresh and try again.</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidated" xml:space="preserve">
+    <value>Activities consolidated successfully. The source ID is permanently retired.</value>
+  </data>
+  <data name="Catalogs.ActivityStale" xml:space="preserve">
+    <value>The Activity choices are invalid or have changed. Please refresh and confirm again.</value>
+  </data>
+  <data name="Catalogs.ActivityConflict" xml:space="preserve">
+    <value>Another operation conflicted with consolidation. No consolidation changes were saved. Please refresh and try again.</value>
+  </data>
+  <data name="Catalogs.ActivityFailed" xml:space="preserve">
+    <value>An unexpected error occurred. Please try again later.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyRequired" xml:space="preserve">
+    <value>Key is required.</value>
+  </data>
+  <data name="Catalogs.Validation.KeySyntax" xml:space="preserve">
+    <value>Use lowercase letters, numbers, and single hyphens only.</value>
+  </data>
+  <data name="Catalogs.Validation.LabelRequired" xml:space="preserve">
+    <value>Label is required.</value>
+  </data>
+  <data name="Catalogs.Validation.CategoryRequired" xml:space="preserve">
+    <value>Category is required.</value>
+  </data>
+  <data name="Catalogs.Validation.Length" xml:space="preserve">
+    <value>Enter no more than {1} characters.</value>
+  </data>
+  <data name="Catalogs.Validation.Speed" xml:space="preserve">
+    <value>Planning speed must be a finite positive number.</value>
+  </data>
+  <data name="Catalogs.Validation.SpeedOrEmpty" xml:space="preserve">
+    <value>Planning speed must be a finite positive number or left blank.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyDuplicate" xml:space="preserve">
+    <value>That transport-profile key already exists.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyConflict" xml:space="preserve">
+    <value>That transport-profile key could not be created because it conflicts with current catalog state.</value>
+  </data>
+  <data name="Catalogs.Validation.ConfirmSpeed" xml:space="preserve">
+    <value>Confirm the referenced planning-speed reconciliation after reviewing dependency counts.</value>
+  </data>
+  <data name="Catalogs.Validation.ConfirmDeactivation" xml:space="preserve">
+    <value>Confirm deactivation after reviewing the dependency count.</value>
+  </data>
+  <data name="Catalogs.TransportCreated" xml:space="preserve">
+    <value>Transport profile created.</value>
+  </data>
+  <data name="Catalogs.TransportCreateFailed" xml:space="preserve">
+    <value>The transport profile could not be created. No changes were saved.</value>
+  </data>
+  <data name="Catalogs.TransportUpdated" xml:space="preserve">
+    <value>Transport profile updated.</value>
+  </data>
+  <data name="Catalogs.TransportReconciled" xml:space="preserve">
+    <value>Transport profile updated. Automatic segment estimates recalculated: {0}. Unavailable: {1}.</value>
+  </data>
+  <data name="Catalogs.TransportStale" xml:space="preserve">
+    <value>This profile changed after the form was loaded. Review the current values and try again.</value>
+  </data>
+  <data name="Catalogs.TransportConflict" xml:space="preserve">
+    <value>The profile or its dependencies changed concurrently. No changes were saved.</value>
+  </data>
+  <data name="Catalogs.TransportNotFound" xml:space="preserve">
+    <value>Transport profile was not found.</value>
+  </data>
+  <data name="Catalogs.TransportUpdateCancelled" xml:space="preserve">
+    <value>The update was cancelled before it completed. No changes were saved.</value>
+  </data>
+  <data name="Catalogs.TransportIntegrity" xml:space="preserve">
+    <value>The profile or one of its dependencies could not be saved. No changes were saved.</value>
+  </data>
+  <data name="Catalogs.TransportSaveFailed" xml:space="preserve">
+    <value>The transport profile could not be saved. Please try again.</value>
+  </data>
+  <data name="Catalogs.TransportDeleted" xml:space="preserve">
+    <value>Transport profile deleted.</value>
+  </data>
+  <data name="Catalogs.TransportSeededRefusal" xml:space="preserve">
+    <value>Seeded profiles cannot be deleted; deactivate them instead.</value>
+  </data>
+  <data name="Catalogs.TransportReferencedRefusal" xml:space="preserve">
+    <value>Referenced profiles cannot be deleted; deactivate them instead.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteStale" xml:space="preserve">
+    <value>This profile changed after the confirmation was loaded.</value>
+  </data>
+  <data name="Catalogs.TransportDependencyRace" xml:space="preserve">
+    <value>The profile gained a dependency and cannot be deleted. Deactivate it instead.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteConflict" xml:space="preserve">
+    <value>The profile or its dependencies changed concurrently. It was not deleted.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteFailed" xml:space="preserve">
+    <value>The transport profile could not be deleted. Please try again.</value>
+  </data>
+</root>

@@ -1,4 +1,10 @@
 ﻿@model Wayfarer.Models.ActivityType
+@inject Wayfarer.Localization.WebMessages T
+@{
+    ViewData["Title"] = T["Catalogs.ActivityCreate"];
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+    ViewData["LanguageSafeGet"] = Url.Action("Create");
+}
 
 <h1 class="text-center">@ViewData["Title"]</h1>
 
@@ -9,14 +15,14 @@
             @if (!ViewData.ModelState.IsValid)
             {
                  <div class="alert alert-danger">
-                     @Html.ValidationSummary("Please correct the errors below.", true)
+                     @Html.ValidationSummary(true, T["Catalogs.ValidationSummary"])
                  </div>
              }
 
             <!-- Card Layout for Form -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header text-bg-primary">
-                    <h2 class="mb-0">Create New Activity Type</h2>
+                    <h2 class="mb-0">@T["Catalogs.ActivityCreate"]</h2>
                 </div>
                 <div class="card-body">
                     <form method="post" asp-action="Create" asp-area="Admin">
@@ -24,21 +30,21 @@
 
                         <!-- Activity Type Name Field -->
                         <div class="mb-3">
-                            <label for="Name" class="form-label">Activity Type Name</label>
+                            <label for="Name" class="form-label">@T["Catalogs.ActivityName"]</label>
                             <input type="text" asp-for="Name" class="form-control" id="Name" name="Name" required />
                             <span asp-validation-for="Name" class="text-danger"></span>
                         </div>
 
                         <!-- Description Field -->
                         <div class="mb-3">
-                            <label for="Description" class="form-label">Description</label>
+                            <label for="Description" class="form-label">@T["Catalogs.Description"]</label>
                             <textarea asp-for="Description" class="form-control" id="Description" name="Description" rows="3"></textarea>
                             <span asp-validation-for="Description" class="text-danger"></span>
                         </div>
 
                         <!-- Submit Button -->
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Create Activity Type</button>
+                            <button type="submit" class="btn btn-primary">@T["Catalogs.ActivityCreateSubmit"]</button>
                         </div>
                     </form>
                 </div>

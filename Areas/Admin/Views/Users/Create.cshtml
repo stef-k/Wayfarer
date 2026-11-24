@@ -1,4 +1,11 @@
 ﻿@model Wayfarer.Models.ViewModels.CreateUserViewModel
+@using Wayfarer.Localization
+@inject Wayfarer.Localization.WebMessages T
+@{
+    ViewData["Title"] = T["Accounts.Create"];
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+    ViewData["LanguageSafeGet"] = Url.Action("Create");
+}
 
 <h1 class="text-center">@ViewData["Title"]</h1>
 
@@ -9,14 +16,14 @@
             @if (!ViewData.ModelState.IsValid)
             {
                 <div class="alert alert-danger">
-                    @Html.ValidationSummary("Please correct the errors below.", true)
+                    @Html.ValidationSummary(true, T["Accounts.ValidationSummary"])
                 </div>
             }
 
             <!-- Card Layout for Form -->
             <div class="card shadow-sm mb-4">
                 <div class="card-header text-bg-primary">
-                    <h2 class="mb-0">Create New User</h2>
+                    <h2 class="mb-0">@T["Accounts.Create"]</h2>
                 </div>
                 <div class="card-body">
                     <form method="post" asp-action="Create" asp-area="Admin">
@@ -24,49 +31,49 @@
 
                         <!-- Username Field -->
                         <div class="mb-3">
-                            <label for="UserName" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="UserName" name="UserName" value="@Model.UserName" required />
+                            <label for="UserName" class="form-label">@T["Accounts.Username"]</label>
+                            <input type="text" class="form-control" asp-for="UserName" required />
                             <span asp-validation-for="UserName" class="text-danger"></span>
                         </div>
 
                         <!-- Password Field -->
                         <div class="mb-3">
-                            <label for="Password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="Password" name="Password" required />
+                            <label for="Password" class="form-label">@T["Accounts.Password"]</label>
+                            <input type="password" class="form-control" asp-for="Password" required />
                             <span asp-validation-for="Password" class="text-danger"></span>
                         </div>
 
                         <!-- Display Name Field -->
                         <div class="mb-3">
-                            <label for="DisplayName" class="form-label">Display Name</label>
-                            <input type="text" class="form-control" id="DisplayName" name="DisplayName" value="@Model.DisplayName" required />
+                            <label for="DisplayName" class="form-label">@T["Accounts.DisplayName"]</label>
+                            <input type="text" class="form-control" asp-for="DisplayName" required />
                             <span asp-validation-for="DisplayName" class="text-danger"></span>
                         </div>
 
                         <!-- Role Selection -->
                         <div class="mb-3">
-                            <label for="Role" class="form-label">Role</label>
-                            <select id="Role" asp-for="Role" class="form-control" asp-items="Model.Roles">
-                                <option value="">Select Role</option>
+                            <label for="Role" class="form-label">@T["Accounts.Role"]</label>
+                            <select id="Role" asp-for="Role" class="form-control" asp-items="AccountWebText.RoleOptions(T, Model.Roles)">
+                                <option value="">@T["Accounts.SelectRole"]</option>
                             </select>
                             <span asp-validation-for="Role" class="text-danger"></span>
                         </div>
 
                         <!-- Is Active Checkbox -->
                         <div class="form-check form-switch mb-3">
-                            <label class="form-check-label" for="IsActive">Is Active</label>
+                            <label class="form-check-label" for="IsActive">@T["Accounts.ActiveToggle"]</label>
                             <input type="checkbox" class="form-check-input" id="IsActive" asp-for="IsActive" role="switch" />
                         </div>
 
                         <!-- Is Protected Checkbox -->
                         <div class="form-check form-switch mb-3">
-                            <label class="form-check-label" for="IsProtected">Is Protected</label>
+                            <label class="form-check-label" for="IsProtected">@T["Accounts.ProtectedAccount"]</label>
                             <input type="checkbox" class="form-check-input" id="IsProtected" asp-for="IsProtected" role="switch" />
                         </div>
 
                         <!-- Submit Button -->
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary">Create User</button>
+                            <button type="submit" class="btn btn-primary">@T["Accounts.CreateSubmit"]</button>
                         </div>
                     </form>
                 </div>

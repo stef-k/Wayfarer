@@ -79,7 +79,7 @@ public class ManagerUsersCreateControllerTests : TestBase
             roleManager,
             NullLogger<BaseController>.Instance,
             db,
-            new ApiTokenService(db, userManager));
+            new ApiTokenService(db, userManager), TestWebMessages.Instance);
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]

@@ -1,0 +1,270 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Accounts.Manage" xml:space="preserve">
+    <value>Manage Users</value>
+  </data>
+  <data name="Accounts.Create" xml:space="preserve">
+    <value>Create New User</value>
+  </data>
+  <data name="Accounts.CreateSubmit" xml:space="preserve">
+    <value>Create User</value>
+  </data>
+  <data name="Accounts.Search" xml:space="preserve">
+    <value>Search users…</value>
+  </data>
+  <data name="Accounts.Username" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="Accounts.DisplayName" xml:space="preserve">
+    <value>Display Name</value>
+  </data>
+  <data name="Accounts.Role" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="Accounts.Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Accounts.Protected" xml:space="preserve">
+    <value>Protected</value>
+  </data>
+  <data name="Accounts.ProtectedAccount" xml:space="preserve">
+    <value>Protected Account</value>
+  </data>
+  <data name="Accounts.Active" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Accounts.Inactive" xml:space="preserve">
+    <value>Inactive</value>
+  </data>
+  <data name="Accounts.ActiveToggle" xml:space="preserve">
+    <value>Account active</value>
+  </data>
+  <data name="Accounts.Empty" xml:space="preserve">
+    <value>No users found.</value>
+  </data>
+  <data name="Accounts.Edit" xml:space="preserve">
+    <value>Edit User</value>
+  </data>
+  <data name="Accounts.Password" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Accounts.PasswordChange" xml:space="preserve">
+    <value>Change Password</value>
+  </data>
+  <data name="Accounts.PasswordTarget" xml:space="preserve">
+    <value>You are updating the password for the following account.</value>
+  </data>
+  <data name="Accounts.NewPassword" xml:space="preserve">
+    <value>New Password</value>
+  </data>
+  <data name="Accounts.ConfirmPassword" xml:space="preserve">
+    <value>Confirm New Password</value>
+  </data>
+  <data name="Accounts.Tokens" xml:space="preserve">
+    <value>Manage Tokens</value>
+  </data>
+  <data name="Accounts.ProtectedDeleteTitle" xml:space="preserve">
+    <value>This user is protected and cannot be deleted.</value>
+  </data>
+  <data name="Accounts.RoleHelp" xml:space="preserve">
+    <value>Admin: full system access. Manager: can manage groups and invitations. User: standard access to personal features.</value>
+  </data>
+  <data name="Accounts.InactiveHelp" xml:space="preserve">
+    <value>Inactive users cannot log in. This allows temporarily disabling access without deleting user data.</value>
+  </data>
+  <data name="Accounts.ProtectedHelp" xml:space="preserve">
+    <value>Protected users cannot be deleted from this list. The first admin account is protected by default.</value>
+  </data>
+  <data name="Accounts.ValidationSummary" xml:space="preserve">
+    <value>Please correct the errors below.</value>
+  </data>
+  <data name="Accounts.SelectRole" xml:space="preserve">
+    <value>Select a role</value>
+  </data>
+  <data name="Accounts.ProtectedEdit" xml:space="preserve">
+    <value>This account is protected. Modify its status to make changes.</value>
+  </data>
+  <data name="Accounts.ProtectedRole" xml:space="preserve">
+    <value>{0} — remove account protection to change the role.</value>
+  </data>
+  <data name="Accounts.ReplaceRoles" xml:space="preserve">
+    <value>Select one role to replace this account’s existing memberships.</value>
+  </data>
+  <data name="Accounts.RoleAdmin" xml:space="preserve">
+    <value>Admin</value>
+  </data>
+  <data name="Accounts.RoleManager" xml:space="preserve">
+    <value>Manager</value>
+  </data>
+  <data name="Accounts.RoleUser" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="Accounts.NoRole" xml:space="preserve">
+    <value>No role</value>
+  </data>
+  <data name="Accounts.Save" xml:space="preserve">
+    <value>Save Changes</value>
+  </data>
+  <data name="Accounts.DeleteTitle" xml:space="preserve">
+    <value>Confirm User Deletion</value>
+  </data>
+  <data name="Accounts.DeleteQuestion" xml:space="preserve">
+    <value>Are you sure you want to delete this user?</value>
+  </data>
+  <data name="Accounts.DeleteTarget" xml:space="preserve">
+    <value>User: {0} — Display name: {1}</value>
+  </data>
+  <data name="Accounts.Pagination" xml:space="preserve">
+    <value>User list pages</value>
+  </data>
+  <data name="Accounts.TokenManagement" xml:space="preserve">
+    <value>API Token Management</value>
+  </data>
+  <data name="Accounts.TokenFor" xml:space="preserve">
+    <value>API Token Management for {0}</value>
+  </data>
+  <data name="Accounts.TokenAdminHelp" xml:space="preserve">
+    <value>As an administrator, you can manage API tokens for any user. Help users who lost access to their tokens, or revoke tokens that may have been compromised.</value>
+  </data>
+  <data name="Accounts.TokenList" xml:space="preserve">
+    <value>API Tokens</value>
+  </data>
+  <data name="Accounts.TokenName" xml:space="preserve">
+    <value>Token Name</value>
+  </data>
+  <data name="Accounts.TokenCreatedAt" xml:space="preserve">
+    <value>Created At</value>
+  </data>
+  <data name="Accounts.Token" xml:space="preserve">
+    <value>Token</value>
+  </data>
+  <data name="Accounts.TokenRegenerate" xml:space="preserve">
+    <value>Regenerate</value>
+  </data>
+  <data name="Accounts.TokenRegenerateConfirm" xml:space="preserve">
+    <value>Regenerate this token? The old token will stop working immediately.</value>
+  </data>
+  <data name="Accounts.TokenDeleteConfirm" xml:space="preserve">
+    <value>Delete this token? This action cannot be undone.</value>
+  </data>
+  <data name="Accounts.TokensEmpty" xml:space="preserve">
+    <value>No API tokens found for this user.</value>
+  </data>
+  <data name="Accounts.TokenCreate" xml:space="preserve">
+    <value>Create New API Token</value>
+  </data>
+  <data name="Accounts.TokenEnterName" xml:space="preserve">
+    <value>Enter a token name</value>
+  </data>
+  <data name="Accounts.TokenCreateSubmit" xml:space="preserve">
+    <value>Create Token</value>
+  </data>
+  <data name="Accounts.Validation.UsernameRequired" xml:space="preserve">
+    <value>The username is required.</value>
+  </data>
+  <data name="Accounts.Validation.DisplayNameRequired" xml:space="preserve">
+    <value>The display name is required.</value>
+  </data>
+  <data name="Accounts.Validation.PasswordRequired" xml:space="preserve">
+    <value>The password is required.</value>
+  </data>
+  <data name="Accounts.Validation.ConfirmPasswordRequired" xml:space="preserve">
+    <value>Confirm the new password.</value>
+  </data>
+  <data name="Accounts.Validation.SelectRole" xml:space="preserve">
+    <value>Please select a role.</value>
+  </data>
+  <data name="Accounts.Validation.RoleInvalid" xml:space="preserve">
+    <value>Selected role is not valid.</value>
+  </data>
+  <data name="Accounts.Validation.ManagerCreateRole" xml:space="preserve">
+    <value>Managers can only create accounts with the User role.</value>
+  </data>
+  <data name="Accounts.Validation.ManagerAssignRole" xml:space="preserve">
+    <value>Managers can only assign the User role.</value>
+  </data>
+  <data name="Accounts.Validation.UsernameTaken" xml:space="preserve">
+    <value>The username is already taken.</value>
+  </data>
+  <data name="Accounts.Validation.UsernameImmutable" xml:space="preserve">
+    <value>Username changes are not allowed.</value>
+  </data>
+  <data name="Accounts.Validation.DefaultAdminRole" xml:space="preserve">
+    <value>The default Administrator role cannot be changed.</value>
+  </data>
+  <data name="Accounts.Validation.PasswordMismatch" xml:space="preserve">
+    <value>The new password and confirmation password do not match.</value>
+  </data>
+  <data name="Accounts.Validation.OwnPassword" xml:space="preserve">
+    <value>You cannot change your own password from this page. Use your personal account settings to change it.</value>
+  </data>
+  <data name="Accounts.Created" xml:space="preserve">
+    <value>User created successfully.</value>
+  </data>
+  <data name="Accounts.Deleted" xml:space="preserve">
+    <value>User has been deleted.</value>
+  </data>
+  <data name="Accounts.ProtectedRefusal" xml:space="preserve">
+    <value>This user cannot be deleted as it is protected.</value>
+  </data>
+  <data name="Accounts.ProtectedDeleteWarning" xml:space="preserve">
+    <value>Warning: Deleting a protected user.</value>
+  </data>
+  <data name="Accounts.Updated" xml:space="preserve">
+    <value>Account details for {0} have been updated.</value>
+  </data>
+  <data name="Accounts.PasswordUpdated" xml:space="preserve">
+    <value>The password for {0} has been changed.</value>
+  </data>
+  <data name="Accounts.PasswordUpdatedAndSignedOut" xml:space="preserve">
+    <value>The password for {0} has been changed. The user has been signed out.</value>
+  </data>
+  <data name="Accounts.UserMissing" xml:space="preserve">
+    <value>User not found.</value>
+  </data>
+  <data name="Accounts.TokenNameRequired" xml:space="preserve">
+    <value>User ID and token name are required.</value>
+  </data>
+  <data name="Accounts.TokenDuplicate" xml:space="preserve">
+    <value>An API token already has that name. Regenerate it or choose a different name.</value>
+  </data>
+  <data name="Accounts.TokenCreated" xml:space="preserve">
+    <value>New token «{0}» created for {1}. The token value is neither retained nor displayed here.</value>
+  </data>
+  <data name="Accounts.TokenRegenerated" xml:space="preserve">
+    <value>Token «{0}» has been regenerated for {1}. The token value is neither retained nor displayed here.</value>
+  </data>
+  <data name="Accounts.TokenRegenerateMissing" xml:space="preserve">
+    <value>Token «{0}» does not exist for this user.</value>
+  </data>
+  <data name="Accounts.TokenDeleteInvalid" xml:space="preserve">
+    <value>Invalid request. Token and user ID are required.</value>
+  </data>
+  <data name="Accounts.TokenMissing" xml:space="preserve">
+    <value>Token not found or does not belong to the specified user.</value>
+  </data>
+  <data name="Accounts.TokenConnectionProtected" xml:space="preserve">
+    <value>The default token is needed to receive location data and cannot be deleted.</value>
+  </data>
+  <data name="Accounts.TokenDeleted" xml:space="preserve">
+    <value>Token «{0}» has been deleted.</value>
+  </data>
+  <data name="Accounts.TokenCreateFailed" xml:space="preserve">
+    <value>The API token could not be created. Please try again.</value>
+  </data>
+  <data name="Accounts.TokenRegenerateFailed" xml:space="preserve">
+    <value>The API token could not be regenerated. Please try again.</value>
+  </data>
+</root>

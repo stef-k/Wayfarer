@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 
 using Wayfarer.Models;
+using Wayfarer.Localization;
 
 /// <summary>
 /// A base controller class providing common functionality for controllers, including error handling, 
@@ -39,16 +40,14 @@ public abstract class BaseController : Controller
     protected void SetAlert(string message, string alertType = "success") => SetAlert(message, alertType, null);
 
     /// <summary>Logs the standard alert and supplies a presentation key for the destination view.</summary>
-    protected void SetAlert(string message, string alertType, string? webKey)
+    protected void SetAlert(string message, string alertType, string? webKey, params string[] webArguments)
     {
         // Log success message to Serilog (console/file)
         _logger.LogInformation($"Alert: {message}");
 
         if (TempData != null)
         {
-            TempData["AlertMessage"] = message;
-            TempData["AlertType"] = alertType;
-            TempData["WebAlertKey"] = webKey;
+            WebAlert.Store(TempData, message, alertType, webKey, webArguments.Length > 0 ? webArguments : null);
         }
     }
 
@@ -166,11 +165,14 @@ public abstract class BaseController : Controller
     /// <param name="alertType">The type of alert to display (default is "success").</param>
     /// <param name="routeValues">An object containing the route parameters (optional).</param>
     /// <param name="area">The area to redirect to (optional).</param>
+    /// <param name="webKey">The optional presentation key resolved by the destination.</param>
+    /// <param name="webArguments">Display arguments that contain no credentials.</param>
     /// <returns>A redirect to the specified action.</returns>
-    protected IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success", object? routeValues = null, string? area = null)
+    protected IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success",
+        object? routeValues = null, string? area = null, string? webKey = null, params string[] webArguments)
     {
         // Set the alert message in TempData
-        SetAlert(message, alertType);
+        SetAlert(message, alertType, webKey, webArguments);
 
         // Prepare the route values with area if provided
         RouteValueDictionary routeValuesWithArea = new RouteValueDictionary(routeValues ?? new object());

@@ -521,7 +521,7 @@ public class AdminUsersControllerTests : TestBase
             roleManager,
             signInManager,
             NullLogger<UsersController>.Instance,
-            apiTokenService);
+            apiTokenService, TestWebMessages.Instance);
 
         var httpContext = new DefaultHttpContext
         {
