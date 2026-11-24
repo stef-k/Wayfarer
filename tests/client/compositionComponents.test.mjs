@@ -96,16 +96,20 @@ for (const existingTrip of [false, true]) test(`complete route exposes source 35
   assert.match(html, /Different saved route facts: duration/); assert.equal((html.match(/1.5 km/g) ?? []).length, 3);
 });
 
-test('Greek route reviews translate duration sources and fixed differences while retaining saved values', async () => {
+/** Loads the real component bundle with the Greek Editor catalog in its locale bootstrap. */
+async function loadGreekComponents() {
   const catalog = await readFile(new URL('../../Resources/Editor.el-GR.resx', import.meta.url), 'utf8');
   const messages = Object.fromEntries(Array.from(catalog.matchAll(/<data name="([^"]+)"[^>]*>\s*<value>([^<]+)<\/value>/g),
     ([, key, value]) => [key, value]));
   const priorDocument = globalThis.document;
-  let greekFields;
   try {
     globalThis.document = { getElementById: id => id === 'wayfarer-locale' ? localeElement('el-GR', messages) : null };
-    ({ FieldChoices: greekFields } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components-el-GR.mjs').toString('base64')}`));
+    return await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components-el-GR.mjs').toString('base64')}`);
   } finally { globalThis.document = priorDocument; }
+}
+
+test('Greek route reviews translate duration sources and fixed differences while retaining saved values', async () => {
+  const { FieldChoices: greekFields } = await loadGreekComponents();
   const sourceFacts = { mode: 'Authored <Trail>', estimatedDistanceKm: 1.5, estimatedDurationSource: 'Manual',
     estimatedDurationTicks: 3000000000, routeAttribution: 'Authored & notice',
     routeInstructionsJson: null, routeProvider: null, routeStorageMode: null };
@@ -155,8 +159,11 @@ test('creation component freezes the submitted pair/name and leaves newer form c
     if (init.method === 'GET') return Response.json([]);
     started(); return waiting;
   };
+  // Mount so CompositionStart's language draft registration is released by unmount.
+  const { renderer, host } = createWorkspaceRenderer();
+  const app = renderer.createApp(CompositionStart, { token: 'csrf' });
   try {
-    await renderToString(createSSRApp(CompositionStart, { token: 'csrf' }));
+    app.mount(host);
     bindings.sourceA.value = 'A'; bindings.sourceB.value = 'B'; bindings.name.value = 'Submitted C';
     const save = bindings.create(); await requestStarted;
     bindings.name.value = 'Later name'; bindings.sourceB.value = 'Later B';
@@ -165,7 +172,10 @@ test('creation component freezes the submitted pair/name and leaves newer form c
     assert.equal(bindings.savedResultUrl.value, '/User/Trip/Compose/comparison'); assert.equal(bindings.pending.value, false);
     const submitted = requests.find(r => r.init.method === 'POST');
     assert.equal(JSON.parse(submitted.init.body).name, 'Submitted C'); assert.equal(JSON.parse(submitted.init.body).sourceB, 'B');
-  } finally { globalThis.fetch = priorFetch; globalThis.window = priorWindow; delete globalThis.captureConstruction; }
+  } finally {
+    app.unmount();
+    globalThis.fetch = priorFetch; globalThis.window = priorWindow; delete globalThis.captureConstruction;
+  }
 });
 
 const snapshot = id => ({ graph: { id, name: id, regions: [{ id: `${id}R`, name: 'Region', displayOrder: 0,
@@ -178,10 +188,27 @@ const flush = async () => { for (let tick = 0; tick < 6; tick++) { await new Pro
 const descendants = node => [node, ...(node.children ?? []).flatMap(descendants)];
 const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].join('');
 
+/** Mounts Vue components with lifecycle hooks in the existing in-memory host. */
+function createWorkspaceRenderer() {
+  const node = (tag, text = '') => ({ tagName: tag.toUpperCase(), text, children: [], style: {}, props: {},
+    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, close() {}, focus() {},
+    get options() { return this.children; }, get value() { return this._value ?? this.props.value ?? ''; }, set value(v) { this._value = v; } });
+  const remove = n => { if (n.parent) n.parent.children.splice(n.parent.children.indexOf(n), 1); n.parent = null; };
+  const body = node('body');
+  const renderer = createRenderer({ createElement: tag => node(tag), createText: text => node('#text', text), createComment: text => node('#comment', text),
+    setText: (n, text) => { n.text = text; }, setElementText: (n, text) => { n.text = text; n.children = []; },
+    parentNode: n => n.parent, nextSibling: n => n.parent?.children[n.parent.children.indexOf(n) + 1] ?? null,
+    patchProp: (n, key, _old, value) => { n.props[key] = value; }, remove,
+    insert(n, p, anchor) { remove(n); n.parent = p; const index = anchor ? p.children.indexOf(anchor) : -1; p.children.splice(index < 0 ? p.children.length : index, 0, n); },
+    querySelector: () => body });
+  return { renderer, host: node('root') };
+}
+
 // Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
-const withWorkspace = async (action, lightweight = false) => {
+const withWorkspace = async (action, lightweight = false, component = lightweight ? CopyToTrip : CompositionApp) => {
   const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
   const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
+  let prepareReply = null;
   globalThis.captureComposition = (name, value) => { captured[name] = value; };
   globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {}, dispatchEvent() {} };
   globalThis.HTMLElement = class {};
@@ -194,30 +221,21 @@ const withWorkspace = async (action, lightweight = false) => {
     if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
     if (url.endsWith('/finish')) return Response.json(finishReply);
     if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
-    if (url.endsWith('/coordinates/prepare')) return Response.json({ tripId: 'C', targetId: 'CP', operation: 'coordinates', conditionToken: 'reviewed', affectedSegmentIds: [] });
+    if (url.endsWith('/coordinates/prepare')) return prepareReply ? await prepareReply() : Response.json({ tripId: 'C', targetId: 'CP', operation: 'coordinates', conditionToken: 'reviewed', affectedSegmentIds: [] });
     if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
     if (url.includes('/candidates')) return Response.json({ candidates: [] });
     if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [], transportModes: [] } });
     assert.fail(`Unexpected request ${url}`);
   };
-  const node = (tag, text = '') => ({ tagName: tag.toUpperCase(), text, children: [], style: {}, props: {},
-    addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, close() {}, focus() {},
-    get options() { return this.children; }, get value() { return this._value ?? this.props.value ?? ''; }, set value(v) { this._value = v; } });
-  const remove = n => { if (n.parent) n.parent.children.splice(n.parent.children.indexOf(n), 1); n.parent = null; };
-  const body = node('body');
-  const renderer = createRenderer({ createElement: tag => node(tag), createText: text => node('#text', text), createComment: text => node('#comment', text),
-    setText: (n, text) => { n.text = text; }, setElementText: (n, text) => { n.text = text; n.children = []; },
-    parentNode: n => n.parent, nextSibling: n => n.parent?.children[n.parent.children.indexOf(n) + 1] ?? null,
-    patchProp: (n, key, _old, value) => { n.props[key] = value; }, remove,
-    insert(n, p, anchor) { remove(n); n.parent = p; const index = anchor ? p.children.indexOf(anchor) : -1; p.children.splice(index < 0 ? p.children.length : index, 0, n); },
-    querySelector: () => body });
-  const host = node('root'); const app = renderer.createApp(lightweight ? CopyToTrip : CompositionApp, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
+  const { renderer, host } = createWorkspaceRenderer();
+  const app = renderer.createApp(component, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
   app.config.errorHandler = error => { errors.push(error.message); };
   app.mount(host);
   try {
     await flush();
     await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
-      previewWith: fn => { previewReply = fn; }, copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
+      prepareWith: fn => { prepareReply = fn; }, previewWith: fn => { previewReply = fn; },
+      copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
     assert.deepEqual(errors, [], 'component exceptions must fail the regression');
@@ -389,6 +407,39 @@ for (const lightweight of [false, true]) test(`${lightweight ? 'Copy' : 'Compose
     assert.equal(hasLanguageDraft(), true);
     assert.equal(isLanguageNavigationHeld(), false);
   }, lightweight));
+
+// Lose the nonmutating request in each Greek mount before it can ask for save consent.
+for (const [mount, lightweight] of [['CompositionApp', false], ['CopyToTrip', true]]) {
+  test(`${lightweight ? 'Copy' : 'Compose'} lost coordinate preview reply restores language draft consent and displays Greek feedback`, async () => {
+    const components = await loadGreekComponents();
+    await withWorkspace(async ({ captured, saved, prepareWith, requests, sent, host }) => {
+      saved.sourceB.graph.regions[0].places[0].location = [24, 37];
+      const app = captured[mount];
+      if (lightweight) await app.load();
+      await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+      const draft = app.draft.value;
+      const choice = draft.items[0];
+      Object.assign(choice, { decision: 'reuse', destinationId: 'CP' });
+      choice.fields.location.operation = 'useSource';
+      prepareWith(() => Promise.reject(new Error('lost preview response')));
+
+      await app.apply(); await flush();
+
+      assert.equal(requests.filter(url => url.endsWith('/coordinates/prepare')).length, 1);
+      assert.equal(sent.length, 0);
+      assert.equal(app.draft.value, draft);
+      assert.equal(choice.fields.location.operation, 'useSource');
+      assert.equal(hasLanguageDraft(), true);
+      assert.equal(isLanguageNavigationHeld(), false, 'a lost preview leaves only the ordinary draft guard');
+      const state = lightweight ? app.state.value : app.state;
+      assert.equal(state.needsInspection, false);
+      assert.equal(state.error, 'Η προεπισκόπηση δεν είναι διαθέσιμη.');
+      assert.ok(descendants(host).some(node => node.props.role === 'alert' && textOf(node).includes(state.error)));
+    }, lightweight, components[mount]);
+    assert.equal(hasLanguageDraft(), false, 'unmount clears the draft owner');
+    assert.equal(isLanguageNavigationHeld(), false, 'unmount clears the workspace hold');
+  });
+}
 
 /** Drives the production selector beside the mounted Copy state using its own English locale bootstrap. */
 async function inspectLanguageControls(action) {

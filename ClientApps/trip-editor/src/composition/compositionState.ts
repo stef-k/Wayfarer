@@ -1,5 +1,6 @@
 import { message as tr } from '../../../../wwwroot/js/localization/messages.js';
 import { reactive } from 'vue';
+import { CompositionError } from './compositionApi';
 import { copy } from './compositionModel';
 import type { Action, ReviewDraft, Selection, Snapshot, Workspace } from './compositionTypes';
 
@@ -60,12 +61,14 @@ export const createCompositionState = (account: string, composition: string, des
       const submitted = JSON.stringify(draft); const workspace = state.workspace; const selected = inspector();
       const frozen = copy(action); state.pending = true; state.error = ''; state.status = tr('Editor.CompositionSavingTheReviewedAction', 'Saving the reviewed action…');
       ++readGeneration; state.loading = false; // Retire both the generation and the superseded read's loading ownership.
+      let saveSubmitted = false;
       try {
         if (preparation && !await preparation.review(frozen)) {
           if (current()) { state.error = preparation.cancelledMessage; state.status = ''; }
           return;
         }
         if (!current()) return;
+        saveSubmitted = true;
         const result = await save(frozen);
         if (!current()) return;
         if (result?.compositionId !== composition || result.tripId !== workspace.tripId || !completeSnapshot(result.current)
@@ -76,6 +79,14 @@ export const createCompositionState = (account: string, composition: string, des
         else state.status = tr('Editor.CompositionEarlierActionSavedTo0Newer', 'Earlier action saved to {0}. Newer choices remain unsaved; review current {1} before applying.', destination, destination);
       } catch (error) {
         if (!current()) return;
+        if (!saveSubmitted) {
+          // Preview transport and server errors use the preview message. Keep specific validation and access feedback.
+          const requestUnavailable = error instanceof CompositionError && (error.status === 0 || error.status >= 500);
+          state.error = error instanceof Error && !requestUnavailable
+            ? error.message : tr('Editor.CompositionPreviewUnavailable', 'Preview unavailable.');
+          state.status = '';
+          return;
+        }
         state.error = error instanceof Error ? error.message : tr('Editor.CompositionTheSaveCouldNotBeConfirmed', 'The save could not be confirmed. Inspect or refresh C.');
         // The owning workspace must complete explicit inspection before another action.
         state.needsInspection = true; state.status = tr('Editor.CompositionChoicesRetainedRefreshAndReviewCurrent', 'Choices retained. Refresh and review current C.');
