@@ -64,7 +64,9 @@ internal sealed record TileProviderPolicy(
 /// <summary>Resolves persisted settings into one deterministic, fail-closed work-series policy.</summary>
 internal static class TileProviderPolicyResolver
 {
-    private const string WayfarerSafeguardsSource = "Wayfarer safeguards";
+    /// <summary>Identifies the fixed source for policies disabled by invalid Custom limits.</summary>
+    internal const string WayfarerSafeguardsSource = "Wayfarer safeguards";
+
     /// <summary>Resolves compatibility before selecting an active traffic mode.</summary>
     internal static TileProviderPolicy Resolve(ApplicationSettings settings, ILogger? logger = null)
     {

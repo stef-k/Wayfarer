@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
+using Wayfarer.Services;
 
 namespace Wayfarer.Localization;
 
@@ -51,6 +52,7 @@ internal sealed class AdminSettingsWebText(WebMessages text) : IBindingMetadataP
     {
         "Administrator-managed provider agreement" => text["AdminSettings.PolicySourceAgreement"],
         "Wayfarer compatibility validation" => text["AdminSettings.PolicySourceValidation"],
+        TileProviderPolicyResolver.WayfarerSafeguardsSource => text["AdminSettings.PolicySourceSafeguards"],
         _ => source
     };
 

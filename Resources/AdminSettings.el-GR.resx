@@ -288,6 +288,9 @@
   <data name="AdminSettings.PolicyConcurrencyActive" xml:space="preserve">
     <value>{0} ταυτόχρονα αιτήματα (ενεργό όριο προστασίας τοπικών πόρων, ανεξάρτητο από την άδεια του παρόχου)</value>
   </data>
+  <data name="AdminSettings.PolicyCorrectCustomLimits" xml:space="preserve">
+    <value>Διορθώστε τα όρια κίνησης πριν από την ενεργοποίηση.</value>
+  </data>
   <data name="AdminSettings.PolicyEffective" xml:space="preserve">
     <value>Ισχύουσα πολιτική κίνησης</value>
   </data>
@@ -364,7 +367,10 @@
     <value>Αιτ. παρόχου/δευτ.</value>
   </data>
   <data name="AdminSettings.PolicyRecovery" xml:space="preserve">
-    <value>Επιλέξτε OSM Standard, OpenTopoMap ή συμβατό προσαρμοσμένο πάροχο. Οι υπάρχουσες ρυθμίσεις και τα προσωρινά αρχεία διατηρούνται για ανάκτηση. Δεν αποστέλλονται αιτήματα στον πάροχο.</value>
+    <value>Επιλέξτε OSM Standard, OpenTopoMap ή συμβατό προσαρμοσμένο πάροχο.</value>
+  </data>
+  <data name="AdminSettings.PolicyRecoveryPreserved" xml:space="preserve">
+    <value>Οι υπάρχουσες ρυθμίσεις και τα προσωρινά αρχεία διατηρούνται για ανάκτηση. Δεν αποστέλλονται αιτήματα στον πάροχο.</value>
   </data>
   <data name="AdminSettings.PolicyRemovedCarto" xml:space="preserve">
     <value>Ο καταργημένος πάροχος CARTO δεν είναι διαθέσιμος μέσω της προσωρινής αποθήκευσης και της διαμεσολάβησης του Wayfarer.</value>
@@ -380,6 +386,9 @@
   </data>
   <data name="AdminSettings.PolicySourceAgreement" xml:space="preserve">
     <value>Συμφωνία παρόχου που διαχειρίζεται ο διαχειριστής</value>
+  </data>
+  <data name="AdminSettings.PolicySourceSafeguards" xml:space="preserve">
+    <value>Δικλίδες ασφαλείας του Wayfarer</value>
   </data>
   <data name="AdminSettings.PolicySourceValidation" xml:space="preserve">
     <value>Έλεγχος συμβατότητας του Wayfarer</value>

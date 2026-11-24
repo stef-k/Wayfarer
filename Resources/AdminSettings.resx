@@ -288,6 +288,9 @@
   <data name="AdminSettings.PolicyConcurrencyActive" xml:space="preserve">
     <value>{0} simultaneous contacts (active; local resource protection, not provider permission)</value>
   </data>
+  <data name="AdminSettings.PolicyCorrectCustomLimits" xml:space="preserve">
+    <value>Correct the traffic limits before activation.</value>
+  </data>
   <data name="AdminSettings.PolicyEffective" xml:space="preserve">
     <value>Effective traffic policy</value>
   </data>
@@ -364,7 +367,10 @@
     <value>Contacts/sec</value>
   </data>
   <data name="AdminSettings.PolicyRecovery" xml:space="preserve">
-    <value>Select OSM Standard, OpenTopoMap, or a compatible Custom provider. Existing settings and cache are preserved for recovery; no upstream contact is made.</value>
+    <value>Select OSM Standard, OpenTopoMap, or a compatible Custom provider.</value>
+  </data>
+  <data name="AdminSettings.PolicyRecoveryPreserved" xml:space="preserve">
+    <value>Existing settings and cache are preserved for recovery; no upstream contact is made.</value>
   </data>
   <data name="AdminSettings.PolicyRemovedCarto" xml:space="preserve">
     <value>This removed CARTO provider is not available through Wayfarer's cache/proxy architecture.</value>
@@ -380,6 +386,9 @@
   </data>
   <data name="AdminSettings.PolicySourceAgreement" xml:space="preserve">
     <value>Administrator-managed provider agreement</value>
+  </data>
+  <data name="AdminSettings.PolicySourceSafeguards" xml:space="preserve">
+    <value>Wayfarer safeguards</value>
   </data>
   <data name="AdminSettings.PolicySourceValidation" xml:space="preserve">
     <value>Wayfarer compatibility validation</value>

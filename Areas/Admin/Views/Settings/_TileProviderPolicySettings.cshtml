@@ -17,8 +17,17 @@
     {
         <div class="alert alert-danger" role="alert">
             <strong>@T["AdminSettings.PolicyBlocked"]</strong>
-            @AdminSettingsWebText.CompatibilityReason(T, policy.Compatibility.Message)
-            @T["AdminSettings.PolicyRecovery"]
+            @* The safeguards source identifies a compatible provider whose Custom limits block activation. *@
+            @if (policy.Compatibility.Source == TileProviderPolicyResolver.WayfarerSafeguardsSource)
+            {
+                @T["AdminSettings.PolicyCorrectCustomLimits"]
+            }
+            else
+            {
+                @AdminSettingsWebText.CompatibilityReason(T, policy.Compatibility.Message)
+                @T["AdminSettings.PolicyRecovery"]
+            }
+            @T["AdminSettings.PolicyRecoveryPreserved"]
         </div>
     }
     <div class="alert alert-secondary">
