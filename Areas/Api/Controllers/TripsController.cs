@@ -146,7 +146,7 @@ public partial class TripsController : BaseApiController
             }
 
             // Compute stats before visibility filter (for the summary bar).
-            // Single query: totalAll and publicCount in one round-trip.
+            // The constant key yields at most one group even when no Trips match.
             var stats = await query
                 .GroupBy(_ => 1)
                 .Select(g => new
@@ -154,7 +154,7 @@ public partial class TripsController : BaseApiController
                     Total = g.Count(),
                     Public = g.Count(t => t.IsPublic)
                 })
-                .FirstOrDefaultAsync();
+                .SingleOrDefaultAsync();
             var totalAll = stats?.Total ?? 0;
             var publicCount = stats?.Public ?? 0;
             var privateCount = totalAll - publicCount;

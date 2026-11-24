@@ -27,7 +27,7 @@ registration demonstrate `few` and `many`; they belong to the test assembly.
 - Use feature-qualified, stable keys under `Resources/`. `Shell` owns shared
   chrome, including the language selector, shared map controls, notes controls
   and notifications. `Viewer` owns live itinerary, visit and export text.
-  `Editor` owns the Trip editing interface. `PublicPages` owns Home, the Privacy
+  `Editor` owns Trip editing, My Trips, Trip import, Compose and Copy. `PublicPages` owns Home, the Privacy
   interface and Registration Closed. `Discovery` owns public Trip listing and
   preview. `PublicTimeline` owns the full and embedded Timeline interface,
   location details and document errors. `Groups` owns account-area Group and
@@ -69,7 +69,11 @@ holds the workspace through that request. Owners must retain drafts after
 dismissal, cancellation and preference-write failure. Native unload guards
 can consult `isLanguageUnload` to recognize the single navigation authorized by
 a successful preference change. Never use a save or cleanup action as the test
-for unsaved work.
+for unsaved work. Workspace routes can defer the selector until the mounted
+owners register. A workflow with an unresolved save that requires inspection
+in the current workspace holds the selector until its existing review succeeds.
+An importer that already persists an unresolved attempt across navigation
+retains that marker and honors it on the next mount.
 
 ## Coverage register
 
@@ -83,7 +87,7 @@ for unsaved work.
 | 6 | Private live Timeline and Chronological calendar. Date and filter controls, map areas, connection rules, analysis, statistics, details and edit return use the document locale. Both Timeline documents use the shared language selector with their draft owners. |
 | 7 | Location and Visit CRUD. Ordinary form guarding is shared. Visit Edit registers its mounted Notes as a draft owner. Protected Location workspaces use their existing draft and recovery rules. |
 | 8 | Location import, managed-file replay, address enrichment and Location exports. The Transfers catalog covers the Web controls and feedback. |
-| 9 | My Trips, import, Compose and Copy. The Vue entry receives the document locale. Switching remains withheld pending integration with the import and composition owners. |
+| 9 | My Trips and Create, visit scans, native KML and Google My Maps import, Compare and Combine/New Version, and Copy to an existing Trip. Both Vue mounts and the list use the document locale. Language switching consults the mounted import and composition owners. |
 | 10–11 | Manager/Admin accounts, tokens and catalogs, followed by Admin operations. Shared navigation participates. |
 
 Area 1 checks cover these Editor boundaries.
@@ -236,8 +240,16 @@ the PR. Inherited Timeline defects remain tracked in
 | `/User/Location/BulkEditNotes` | The form localizes filters, append, replace, clear, advisory preview and the committed count. Its ownership and matching at Apply time follow the existing bulk operation. |
 | `/User/Visit` and `/User/Visit/Edit/{id}` | Visits owns history, generated counts and status, filters, linked locations, UTC arrival and end fields, marker choices, and single and bulk deletion feedback. Stored icon and color keys and authored names, addresses and Notes retain their existing values. MVC redirect alerts resolve their message in the destination locale. |
 | Language switching | The Location lists consult the inline Activity draft owner and the split map consults its ruler. The lists hold switching during protected deletion preparation and execution. Conditional recovery uses the retained attempt and explicit inspection. An unconfirmed bulk deletion holds switching until the user deliberately refreshes history. Create, Edit and Bulk Notes withhold switching because they can retain mounted input or recovery state. Visit Edit uses the ordinary form and mounted Notes guards and an owned GET after validation. |
-| Focused evidence | `protectedLocation.spec.ts` exercises Greek Visit History, Greek Create binding and field feedback, protected Edit recovery and a real stale save. The assertions use the existing routes and check numeric, time, draft and return inputs. The existing English Create retry journey still checks preservation of unacknowledged edits. Area 7 independent review is pending. |
+| Focused evidence | `protectedLocation.spec.ts` exercises Greek Visit History, Greek Create binding and field feedback, protected Edit recovery and a real stale save. The assertions use the existing routes and check numeric, time, draft and return inputs. The existing English Create retry journey still checks preservation of unacknowledged edits. |
 
+
+Area 7 was accepted and merged in [PR #1004](https://github.com/stef-k/Wayfarer/pull/1004)
+at `4c1d95a2aaec5bad38a29149da6656e8fd6be544`. Independent review and
+[classify, test and ci-gate](https://github.com/stef-k/Wayfarer/actions/runs/45046512531)
+passed on `2084aa62817ae70628233313d5455bb246bb02f4`. The PR records the
+Greek Edit capture, numeric and timestamp round-trip, protected edit recovery,
+ruler Escape behavior and mounted Bulk Notes result. Code Guard reported
+18 assessed REVIEW findings and zero blocking findings.
 
 ### Area 8 Location transfers and enrichment
 
@@ -246,3 +258,25 @@ the PR. Inherited Timeline defects remain tracked in
 | `/User/LocationImport` and `/api/sse/import` | The import list localizes persisted lifecycle, custody, checkpoints, counts, warnings and control outcomes. The existing enrichment projector determines available actions and holds. SSE carries a content-free refresh hint, so initial and refreshed documents use the same presentation. `locationTransferLanguage.spec.ts` checks a Greek stopped import before and after the reload. |
 | `/User/LocationImport/Upload` | Supported choices preserve their submitted format values. The Greek browser journey checks an invalid extension and the retained format choice. `UploadRequestBoundaryTests` exercises Kestrel and the real upload middleware for disabled and oversized requests, including a streamed oversized request. Authorization still precedes policy. |
 | Location export menu and `/LocationExport/{action}` | All four download controls and the error document use the Transfers catalog. `LocationTransferWebLanguageHttpTests` compares English and Greek GeoJSON bytes and checks the media type, filename convention, authored content and recovery metadata. It also checks the Greek error document for a GPX serialization failure. The existing PostgreSQL round trips exercise all four formats. |
+
+
+Area 8 was accepted and merged in [PR #1005](https://github.com/stef-k/Wayfarer/pull/1005)
+at `5d0269052615b9aa0697a88847f259e9b9668722`. Independent review and
+[classify, test and ci-gate](https://github.com/stef-k/Wayfarer/actions/runs/45060911800)
+passed on `a437dbca8549cbbb20d32f082db50bc9cbc8afa1`. Managed Chromium at
+that head retained the refreshed Greek import capture and passed confirmation
+Cancel. The PR records the preserved upload statuses, export output and inherited
+broad Completed assertion. Code Guard reported five assessed REVIEW findings
+and zero blocking findings. The inherited test-only
+[EF1003 assessment](https://github.com/stef-k/Wayfarer/issues/977#issuecomment-6859586729)
+applies to both Areas 7 and 8.
+
+
+### Area 9 My Trips, composition and Trip import
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| `/User/Trip` and `/User/Trip/Create` | The Editor catalog owns the list, pagination, row actions, Create form and redirect feedback. Scan result and apply feedback use localized counts, typed evidence and recorded-day display. The visit scan still sends the original date and identity values. An invalid Create uses the owned Create GET after discard consent. |
+| Native KML and Google My Maps | The My Trips importer presents portable titles, contribution terms, private Planning, choices and outcomes. It retains the selected file and review on canceled switching. A successful language reload carries the tab’s original unresolved-attempt marker. The reopened importer keeps both upload inputs held until explicit local abandonment. |
+| `/User/Trip/Compose` and `/User/Trip/Copy` | Shared Trip map and Notes controls use the same document locale. The route comparison localizes duration sources, difference labels and measurements while preserving authored labels and attribution. Source content, terms, placement, permissions and mutation inputs retain their authority. Keep choices and a failed consequence preview both leave the draft under ordinary language-switch consent. An unconfirmed submitted save holds the selector until successful inspection of the original destination or pair. |
+| Focused acceptance | `WebLanguageHttpTests` covers the routed locale and Create validation. Mounted Compose and Copy tests check draft retention and zero saves on canceled coordinate review or a lost preview reply, including Greek feedback for the latter. The Copy selector test covers zero preference requests and explicit inspection after a lost save reply. The shared Vue route test covers Greek labels and saved values in both workspace variants. `webLanguage.test.mjs` exercises Greek scan plurals. The routed PostgreSQL Copy contract checks cookie and bearer authority, authored Notes and persisted content. The managed native Planning journey covers the three Greek surfaces, an explicit review, stale and unconfirmed import feedback, the real update, Escape and focus, and retention of the unresolved marker after switching. Targeted independent re-review is pending. |

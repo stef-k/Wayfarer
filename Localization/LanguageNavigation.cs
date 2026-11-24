@@ -66,7 +66,7 @@ public static class LanguageNavigation
         return controller?.ToUpperInvariant() switch
         {
             "APITOKEN" => true,
-            "TRIP" => action?.ToUpperInvariant() is "INDEX" or "COMPOSE" or "COPY" or "IMPORT" or "REVIEWIMPORT",
+            "TRIP" => action?.ToUpperInvariant() is "IMPORT" or "REVIEWIMPORT",
             "TIMELINECALENDAR" => true,
             "LOCATION" => action?.ToUpperInvariant() is not ("INDEX" or "ALLLOCATIONS"),
             _ => false

@@ -1,7 +1,9 @@
+import { message as tr } from '../../../../wwwroot/js/localization/messages.js';
 import type { Action, ActionItem, Choice, Content, Kind, OrderOriginal, ReviewDraft, Side, Snapshot, Workspace } from './compositionTypes';
 
 /** Clones plain wire data, including Vue proxies, before an asynchronous boundary. */
 export const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+/** Stable default choice name, independent of the localized display label. */
 export const label = (item: Content | undefined): string => item ? item.name ?? item.title ?? `${item.mode || 'Historical'} route` : 'Unavailable object';
 export const sourceSnapshot = (w: Workspace, side: Side): Snapshot => side === 'a' ? w.sourceA : w.sourceB;
 /** Historical missing/non-finite coordinates never become a synthetic marker or route vertex. */
@@ -32,13 +34,13 @@ export const orderOriginals = (s: Snapshot, kind: Kind, parent?: string): OrderO
 
 /** Only authorized snapshots have this projection; callers never synthesize foreign absence. */
 export const planningValue = (s: Snapshot, kind: Kind, id: string): unknown => {
-  if (!s.planning) throw new Error('Planning is unavailable for this source.');
+  if (!s.planning) throw new Error(tr('Editor.CompositionPlanningIsUnavailableForThisSource', 'Planning is unavailable for this source.'));
   return kind === 'trip' ? s.planning.trip ?? null : s.planning[`${kind}s`][id] ?? null;
 };
 /** Exact named originals match the domain owner, including complete route facts and explicit nulls. */
 export const fieldValue = (s: Snapshot, kind: Kind, id: string, key: string): unknown => {
   const item = find(s, kind, id);
-  if (!item) throw new Error('The selected current counterpart is unavailable. Review current C.');
+  if (!item) throw new Error(tr('Editor.CompositionTheSelectedCurrentCounterpartIsUnavailable', 'The selected current counterpart is unavailable. Review current C.'));
   if (key === 'planning') return planningValue(s, kind, id);
   if (key === 'cover') return item.coverImageUrl ?? null;
   if (key === 'geometry') return item.geometryGeoJson ?? null;
@@ -79,7 +81,7 @@ export const reviewAgainstCurrent = (w: Workspace, draft: ReviewDraft): void => 
 };
 export const newChoice = (w: Workspace, side: Side, kind: Kind, id: string): Choice => {
   const s = sourceSnapshot(w, side); const item = find(s, kind, id);
-  if (!item) throw new Error('The captured source object is unavailable.');
+  if (!item) throw new Error(tr('Editor.CompositionTheCapturedSourceObjectIsUnavailable', 'The captured source object is unavailable.'));
   const mapping = w.mappings.find(m => m.source === side && m.kind === kind && m.sourceId === id);
   const active = mapping && !['skip', 'destinationRemoved'].includes(mapping.decision) && find(w.current, kind, mapping.destinationId);
   const choice: Choice = { kind, sourceId: id, decision: active || kind === 'trip' ? 'reuse' : 'copy',
@@ -105,7 +107,7 @@ export const regionChildren = (w: Workspace, review: ReviewDraft, region: Choice
     const candidates = [...new Set(available.filter(c => c.kind === kind && c.sourceId === item.id))];
     const authored = candidates.filter(c => JSON.stringify(c) !== JSON.stringify(fresh));
     if (new Set(authored.map(c => JSON.stringify(c))).size > 1)
-      throw new Error(`Conflicting choices for ${label(item)}. Keep Region only or remove this identity from the local block/review before including Region children. Both drafts are retained.`);
+      throw new Error(tr('Editor.CompositionConflictingChoicesFor0KeepRegion', 'Conflicting choices for {0}. Keep Region only or remove this identity from the local block/review before including Region children. Both drafts are retained.', label(item)));
     return authored[0] ?? candidates[0] ?? fresh;
   }));
 };
@@ -131,12 +133,12 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
     if (c.readd) item.readd = true;
     if (c.decision === 'skip') return item;
     if (c.decision !== 'copy') {
-      if (!c.destinationId || !find(current, c.kind, c.destinationId)) throw new Error('Select a current C counterpart.');
+      if (!c.destinationId || !find(current, c.kind, c.destinationId)) throw new Error(tr('Editor.CompositionSelectACurrentCCounterpart', 'Select a current C counterpart.'));
       item.destinationId = c.destinationId;
       if (c.kind === 'place' || c.kind === 'area') item.expectedParentId = parentId(current, c.kind, c.destinationId);
     }
     if (c.decision === 'remove') {
-      if (c.kind === 'trip') throw new Error('Use normal Delete C.');
+      if (c.kind === 'trip') throw new Error(tr('Editor.CompositionUseNormalDeleteC', 'Use normal Delete C.'));
       if (c.kind === 'region') { item.places = c.places; item.areas = c.areas; }
       if (c.kind === 'area' || c.kind === 'segment') item.original = {
         content: c.kind === 'area' ? find(current, c.kind, c.destinationId) : fieldValue(current, c.kind, c.destinationId, 'route'),
@@ -146,20 +148,20 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
       return item;
     }
     if (c.decision === 'copy') {
-      if (c.kind === 'trip') throw new Error('Trip metadata is adopted into current C.');
-      if (c.customName) { if (!c.name.trim()) throw new Error('Enter the custom name.'); item.name = c.name.trim(); }
+      if (c.kind === 'trip') throw new Error(tr('Editor.CompositionTripMetadataIsAdoptedIntoCurrent', 'Trip metadata is adopted into current C.'));
+      if (c.customName) { if (!c.name.trim()) throw new Error(tr('Editor.CompositionEnterTheCustomName', 'Enter the custom name.')); item.name = c.name.trim(); }
       item.separate = c.separate;
       let parent = forcedParent ?? c.regionId;
       if (c.kind === 'place' || c.kind === 'area') {
         if (c.newRegionName && !forcedParent) {
-          if (c.regionId) throw new Error('Choose a Region or create a normal Region.');
+          if (c.regionId) throw new Error(tr('Editor.CompositionChooseARegionOrCreateA', 'Choose a Region or create a normal Region.'));
           item.newRegionName = c.newRegionName.trim(); item.expectedRegions = ordered(current, 'region').map(r => ({ id: r.id, displayOrder: r.displayOrder ?? null }));
           item.regionPlacement = { expected: orderOriginals(current, 'region'), position: 'append' }; parent = '__new__';
         } else if (parent && parent !== '__new__') {
           const region = find(current, 'region', parent);
-          if (!region || c.kind === 'area' && region.name === 'Unassigned Places') throw new Error('Select a normal Region for an Area.');
+          if (!region || c.kind === 'area' && region.name === 'Unassigned Places') throw new Error(tr('Editor.CompositionSelectANormalRegionForAn', 'Select a normal Region for an Area.'));
           if (!forcedParent) item.regionId = parent;
-        } else if (!parent && c.kind === 'area') throw new Error('Select or create a normal Region for the Area.');
+        } else if (!parent && c.kind === 'area') throw new Error(tr('Editor.CompositionSelectOrCreateANormalRegion', 'Select or create a normal Region for the Area.'));
         if (!parent && c.kind === 'place') {
           item.expectedRegions = ordered(current, 'region').map(r => ({ id: r.id, displayOrder: r.displayOrder ?? null }));
           parent = current.graph.regions.find(r => r.name === 'Unassigned Places')?.id ?? '__new__';
@@ -169,13 +171,13 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
       // Index staged Place copies, including Region children, using their reviewed effective parent.
       // A newly created normal Region has no existing ID an anchor can approve as its destination.
       if (c.kind === 'place') copiedPlaces.set(c.sourceId, c.newRegionName && !forcedParent ? '__new__' : forcedParent ?? c.regionId);
-      if (c.position === 'after' && !expected.some(x => x.id === c.afterId)) throw new Error('Select a compatible current C item for After.');
+      if (c.position === 'after' && !expected.some(x => x.id === c.afterId)) throw new Error(tr('Editor.CompositionSelectACompatibleCurrentCItem', 'Select a compatible current C item for After.'));
       item.placement = { expected, position: c.position, ...(c.position === 'after' ? { afterId: c.afterId } : {}) };
     }
     const fields: NonNullable<ActionItem['fields']> = {};
     for (const [key, field] of Object.entries(c.fields)) {
       if (field.operation === 'keep') continue;
-      if (!fieldKeys(c.kind, Boolean(snapshot.planning)).includes(key)) throw new Error('This selected field is unavailable.');
+      if (!fieldKeys(c.kind, Boolean(snapshot.planning)).includes(key)) throw new Error(tr('Editor.CompositionThisSelectedFieldIsUnavailable', 'This selected field is unavailable.'));
       fields[key] = { operation: field.operation, expected: c.decision === 'reuse' ? fieldValue(current, c.kind, c.destinationId, key) : null,
         ...(field.operation === 'edit' ? { value: key === 'tags' ? String(field.value).split(',').map(t => t.trim()).filter(Boolean) : copy(field.value) } : {}) };
     }
@@ -185,15 +187,15 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
       item.anchors = c.anchors.map(a => {
         if (a.destinationId) {
           const place = find(current, 'place', a.destinationId);
-          if (!place) throw new Error('Review the current route anchor.');
+          if (!place) throw new Error(tr('Editor.CompositionReviewTheCurrentRouteAnchor', 'Review the current route anchor.'));
           return { sourceId: a.sourceId, destinationId: a.destinationId, regionId: parentId(current, 'place', a.destinationId) ?? null, location: place.location ?? null };
         }
-        if (!a.approveCopy) throw new Error('Explicitly approve every missing From / To / Via Place.');
+        if (!a.approveCopy) throw new Error(tr('Editor.CompositionExplicitlyApproveEveryMissingFromTo', 'Explicitly approve every missing From / To / Via Place.'));
         if (copiedPlaces.has(a.sourceId)) {
-          if (!a.useSelectedCopy && effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error('The selected Place and route dependency need the same reviewed destination Region.');
+          if (!a.useSelectedCopy && effectiveRegion(copiedPlaces.get(a.sourceId)!) !== effectiveRegion(a.regionId)) throw new Error(tr('Editor.CompositionTheSelectedPlaceAndRouteDependency', 'The selected Place and route dependency need the same reviewed destination Region.'));
           return { sourceId: a.sourceId, destinationId: null, regionId: null, location: null };
         }
-        if (a.useSelectedCopy) throw new Error('Select the approved dependency Place in this block before applying.');
+        if (a.useSelectedCopy) throw new Error(tr('Editor.CompositionSelectTheApprovedDependencyPlaceIn', 'Select the approved dependency Place in this block before applying.'));
         const dep = newChoice({ ...w, current, mappings: draft.mappings }, draft.side, 'place', a.sourceId);
         dep.decision = 'copy'; dep.separate = true;
         dep.readd = draft.mappings.some(m => m.source === draft.side && m.kind === 'place' && m.sourceId === a.sourceId && ['skip', 'destinationRemoved'].includes(m.decision));
@@ -206,7 +208,7 @@ export const buildAction = (w: Workspace, draft: ReviewDraft): Action => {
   };
   // Dependencies stage before Trip-level routes; relative order inside each destination list is unchanged.
   const items = [...draft.items.filter(c => c.kind !== 'segment'), ...draft.items.filter(c => c.kind === 'segment')].map(c => build(c));
-  if (items.length > 1 && items.some(i => i.decision === 'remove')) throw new Error('Review removal as a separate action from a block.');
+  if (items.length > 1 && items.some(i => i.decision === 'remove')) throw new Error(tr('Editor.CompositionReviewRemovalAsASeparateAction', 'Review removal as a separate action from a block.'));
   return copy({ source: draft.side, items: [...dependencyCopies, ...items] });
 };
 

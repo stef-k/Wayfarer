@@ -5,6 +5,7 @@ import { build } from 'esbuild';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
 import { createSSRApp, createRenderer, nextTick } from 'vue';
 import { renderToString } from '@vue/server-renderer';
+import { enableWorkspaceLanguage, hasLanguageDraft, isLanguageNavigationHeld } from '../../wwwroot/js/localization/languageNavigation.js';
 
 // Compile the actual hierarchy/choice components at the existing in-memory Vue seam.
 const bundle = await build({ stdin: { contents: `export { default as FieldChoices } from './FieldChoices.vue'; export { default as CopyToTrip } from './CopyToTrip.vue'; export { default as CompositionApp } from './CompositionApp.vue'; export { settleConfirmDialog } from '../composables/useConfirmDialog'; export { default as SourceTree } from './SourceTree.vue'; export { default as ChoiceControls } from './ChoiceControls.vue'; export { default as CompositionStart } from './CompositionStart.vue';`,
@@ -45,6 +46,11 @@ const bundle = await build({ stdin: { contents: `export { default as FieldChoice
   } }] });
 const code = bundle.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const { FieldChoices, SourceTree, ChoiceControls, CompositionStart, CompositionApp, CopyToTrip, settleConfirmDialog } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components.mjs').toString('base64')}`);
+
+/** Supplies the same inert locale snapshot as the page before importing the component bundle. */
+const localeElement = (locale, messages = {}) => ({
+  textContent: JSON.stringify({ locale, fallback: 'en-US', messages, english: {} })
+});
 const source = { graph: { id: 'source', name: 'Source', regions: [
   { id: 'region', name: 'Segments', places: [{ id: 'tower', name: 'Taipei 101', location: [121, 25] }], areas: [] }
 ], segments: [{ id: 'route', mode: 'walk', fromPlaceId: 'tower', toPlaceId: null, waypoints: [] }], credits: [] },
@@ -69,7 +75,7 @@ test('Segment copy shows complete anchor choices and Trip-level destination with
 });
 
 // Render the shared field owner used by both full composition and lightweight Copy, with independently remapped anchors.
-const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFacts, existingTrip = false) => {
+const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFacts, existingTrip = false, component = FieldChoices) => {
   const { newChoice, newReview } = await import('../../ClientApps/trip-editor/src/composition/compositionModel.ts');
   const sourceB = structuredClone(source); Object.assign(sourceB.graph.segments[0], sourceFacts);
   const current = structuredClone(source); current.graph.id = 'C';
@@ -78,7 +84,7 @@ const renderRoute = async (sourceFacts, reviewedFacts, currentFacts = reviewedFa
   const review = newReview(workspace, 'b');
   Object.assign(current.graph.segments[0], currentFacts);
   const choice = newChoice(workspace, 'b', 'segment', 'route'); choice.decision = 'reuse'; choice.destinationId = 'route';
-  return renderToString(createSSRApp(FieldChoices, { workspace, review, choice, options: null, editorUrl: '#', existingTrip }));
+  return renderToString(createSSRApp(component, { workspace, review, choice, options: null, editorUrl: '#', existingTrip }));
 };
 
 for (const existingTrip of [false, true]) test(`complete route exposes source 35 min versus original/current 5 min in ${existingTrip ? 'Copy' : 'composition'}`, async () => {
@@ -88,6 +94,36 @@ for (const existingTrip of [false, true]) test(`complete route exposes source 35
   assert.match(html, /Source B/); assert.match(html, new RegExp(`Reviewed original ${existingTrip ? 'destination' : 'C'}`));
   assert.match(html, new RegExp(`Current ${existingTrip ? 'destination' : 'C'}`));
   assert.match(html, /Different saved route facts: duration/); assert.equal((html.match(/1.5 km/g) ?? []).length, 3);
+});
+
+/** Loads the real component bundle with the Greek Editor catalog in its locale bootstrap. */
+async function loadGreekComponents() {
+  const catalog = await readFile(new URL('../../Resources/Editor.el-GR.resx', import.meta.url), 'utf8');
+  const messages = Object.fromEntries(Array.from(catalog.matchAll(/<data name="([^"]+)"[^>]*>\s*<value>([^<]+)<\/value>/g),
+    ([, key, value]) => [key, value]));
+  const priorDocument = globalThis.document;
+  try {
+    globalThis.document = { getElementById: id => id === 'wayfarer-locale' ? localeElement('el-GR', messages) : null };
+    return await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=composition-components-el-GR.mjs').toString('base64')}`);
+  } finally { globalThis.document = priorDocument; }
+}
+
+test('Greek route reviews translate duration sources and fixed differences while retaining saved values', async () => {
+  const { FieldChoices: greekFields } = await loadGreekComponents();
+  const sourceFacts = { mode: 'Authored <Trail>', estimatedDistanceKm: 1.5, estimatedDurationSource: 'Manual',
+    estimatedDurationTicks: 3000000000, routeAttribution: 'Authored & notice',
+    routeInstructionsJson: null, routeProvider: null, routeStorageMode: null };
+  const reviewedFacts = { ...sourceFacts, mode: 'Other trail', estimatedDistanceKm: 2.5,
+    estimatedDurationSource: 'Automatic', estimatedDurationTicks: 1234567, routeInstructionsJson: '[]',
+    routeProvider: 'Saved provider', routeAttribution: 'Other notice', routeStorageMode: 'Saved storage' };
+  for (const existingTrip of [false, true]) {
+    const html = await renderRoute(sourceFacts, reviewedFacts, sourceFacts, existingTrip, greekFields);
+    assert.match(html, /Authored &lt;Trail&gt;.*1,5.*Διάρκεια: Χειροκίνητη/);
+    assert.match(html, /Other trail.*2,5.*0,1234567.*Διάρκεια: Αυτόματη/);
+    assert.match(html, /Αναφορά δημιουργού: Authored &amp; notice/);
+    assert.match(html, /Διαφορές στα αποθηκευμένα στοιχεία διαδρομής: τρόπος μετακίνησης, απόσταση, διάρκεια, πηγή διάρκειας, οδηγίες, πάροχος, αναφορά δημιουργού, αποθήκευση/);
+    assert.match(html, /Ίδια αποθηκευμένα στοιχεία διαδρομής/);
+  }
 });
 
 test('route measurement absence remains distinct from zero and subminute precision is readable', async () => {
@@ -116,15 +152,18 @@ test('creation component freezes the submitted pair/name and leaves newer form c
   const priorFetch = globalThis.fetch; const priorWindow = globalThis.window;
   let bindings, resolveSave, started; const requestStarted = new Promise(resolve => { started = resolve; });
   const waiting = new Promise(resolve => { resolveSave = resolve; }); const navigations = []; const requests = [];
-  globalThis.window = { location: { assign: url => navigations.push(url) } };
+  globalThis.window = { location: { assign: url => navigations.push(url) }, dispatchEvent() {} };
   globalThis.captureConstruction = value => { bindings = value; };
   globalThis.fetch = async (url, init) => {
     requests.push({ url, init });
     if (init.method === 'GET') return Response.json([]);
     started(); return waiting;
   };
+  // Mount so CompositionStart's language draft registration is released by unmount.
+  const { renderer, host } = createWorkspaceRenderer();
+  const app = renderer.createApp(CompositionStart, { token: 'csrf' });
   try {
-    await renderToString(createSSRApp(CompositionStart, { token: 'csrf' }));
+    app.mount(host);
     bindings.sourceA.value = 'A'; bindings.sourceB.value = 'B'; bindings.name.value = 'Submitted C';
     const save = bindings.create(); await requestStarted;
     bindings.name.value = 'Later name'; bindings.sourceB.value = 'Later B';
@@ -133,7 +172,10 @@ test('creation component freezes the submitted pair/name and leaves newer form c
     assert.equal(bindings.savedResultUrl.value, '/User/Trip/Compose/comparison'); assert.equal(bindings.pending.value, false);
     const submitted = requests.find(r => r.init.method === 'POST');
     assert.equal(JSON.parse(submitted.init.body).name, 'Submitted C'); assert.equal(JSON.parse(submitted.init.body).sourceB, 'B');
-  } finally { globalThis.fetch = priorFetch; globalThis.window = priorWindow; delete globalThis.captureConstruction; }
+  } finally {
+    app.unmount();
+    globalThis.fetch = priorFetch; globalThis.window = priorWindow; delete globalThis.captureConstruction;
+  }
 });
 
 const snapshot = id => ({ graph: { id, name: id, regions: [{ id: `${id}R`, name: 'Region', displayOrder: 0,
@@ -146,27 +188,8 @@ const flush = async () => { for (let tick = 0; tick < 6; tick++) { await new Pro
 const descendants = node => [node, ...(node.children ?? []).flatMap(descendants)];
 const textOf = node => [node.text ?? '', ...(node.children ?? []).map(textOf)].join('');
 
-// Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
-const withWorkspace = async (action, lightweight = false) => {
-  const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
-  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
-  globalThis.captureComposition = (name, value) => { captured[name] = value; };
-  globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {} };
-  globalThis.HTMLElement = class {};
-  globalThis.document = { activeElement: null, contains: () => false };
-  globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
-  globalThis.fetch = async (url, init) => {
-    requests.push(url);
-    if (url.includes('/sources?')) return Response.json([]);
-    if (url.includes('/copy-preview?')) return previewReply ? await previewReply() : Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
-    if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
-    if (url.endsWith('/finish')) return Response.json(finishReply);
-    if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
-    if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
-    if (url.includes('/candidates')) return Response.json({ candidates: [] });
-    if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [], transportModes: [] } });
-    assert.fail(`Unexpected request ${url}`);
-  };
+/** Mounts Vue components with lifecycle hooks in the existing in-memory host. */
+function createWorkspaceRenderer() {
   const node = (tag, text = '') => ({ tagName: tag.toUpperCase(), text, children: [], style: {}, props: {},
     addEventListener() {}, removeEventListener() {}, setAttribute() {}, removeAttribute() {}, close() {}, focus() {},
     get options() { return this.children; }, get value() { return this._value ?? this.props.value ?? ''; }, set value(v) { this._value = v; } });
@@ -178,13 +201,41 @@ const withWorkspace = async (action, lightweight = false) => {
     patchProp: (n, key, _old, value) => { n.props[key] = value; }, remove,
     insert(n, p, anchor) { remove(n); n.parent = p; const index = anchor ? p.children.indexOf(anchor) : -1; p.children.splice(index < 0 ? p.children.length : index, 0, n); },
     querySelector: () => body });
-  const host = node('root'); const app = renderer.createApp(lightweight ? CopyToTrip : CompositionApp, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
+  return { renderer, host: node('root') };
+}
+
+// Mount the production workspace/fields/shared Notes at the existing host seam, without a browser environment.
+const withWorkspace = async (action, lightweight = false, component = lightweight ? CopyToTrip : CompositionApp) => {
+  const prior = Object.fromEntries(['window', 'document', 'localStorage', 'fetch', 'compositionNotes', 'captureComposition', 'HTMLElement'].map(k => [k, globalThis[k]]));
+  const captured = {}; const errors = []; const sent = []; const requests = []; let saved = workspace(); let readReply = null; let finishReply = { tripId: 'C', status: 'finished' }; let copyReply = null; let previewReply = null;
+  let prepareReply = null;
+  globalThis.captureComposition = (name, value) => { captured[name] = value; };
+  globalThis.window = { location: { origin: 'https://component.invalid' }, addEventListener() {}, removeEventListener() {}, dispatchEvent() {} };
+  globalThis.HTMLElement = class {};
+  globalThis.document = { activeElement: null, contains: () => false };
+  globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+  globalThis.fetch = async (url, init) => {
+    requests.push(url);
+    if (url.includes('/sources?')) return Response.json([]);
+    if (url.includes('/copy-preview?')) return previewReply ? await previewReply() : Response.json({ sourceTripId: 'B', tripId: 'C', source: saved.sourceB, current: saved.current, context: 'reviewed', originals: [] });
+    if (url.endsWith('/copy')) { sent.push(JSON.parse(init.body)); return copyReply ? await copyReply() : Response.json({ ...saved, status: 'copied' }); }
+    if (url.endsWith('/finish')) return Response.json(finishReply);
+    if (url.endsWith('/actions')) { sent.push(JSON.parse(init.body)); return Response.json(saved); }
+    if (url.endsWith('/coordinates/prepare')) return prepareReply ? await prepareReply() : Response.json({ tripId: 'C', targetId: 'CP', operation: 'coordinates', conditionToken: 'reviewed', affectedSegmentIds: [] });
+    if (url === '/api/trip-compositions/S') return readReply ? await readReply() : Response.json(saved);
+    if (url.includes('/candidates')) return Response.json({ candidates: [] });
+    if (url.endsWith('/editor')) return Response.json({ tripId: 'C', options: { iconNames: [], markerColorClasses: [], transportModes: [] } });
+    assert.fail(`Unexpected request ${url}`);
+  };
+  const { renderer, host } = createWorkspaceRenderer();
+  const app = renderer.createApp(component, { account: 'owner', token: 'csrf', ...(lightweight ? { source: 'B', destination: 'C' } : { compositionId: 'S' }) });
   app.config.errorHandler = error => { errors.push(error.message); };
   app.mount(host);
   try {
     await flush();
     await action({ captured, sent, requests, host, get saved() { return saved; }, set saved(w) { saved = w; },
-      previewWith: fn => { previewReply = fn; }, copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
+      prepareWith: fn => { prepareReply = fn; }, previewWith: fn => { previewReply = fn; },
+      copyWith: fn => { copyReply = fn; }, readWith: fn => { readReply = fn; }, finishWith: value => { finishReply = value; } });
   } finally {
     app.unmount(); await nextTick(); Object.assign(globalThis, prior);
     assert.deepEqual(errors, [], 'component exceptions must fail the regression');
@@ -257,21 +308,28 @@ test('Apply preparation rejects wrong and incomplete workspaces before publicati
     assert.equal(sent.length, 0); assert.equal(app.state.workspace, lastWorkspace); assert.equal(app.draft.value, retained);
     assert.deepEqual(requests.slice(before), ['/api/trip-compositions/S']);
     assert.match(app.state.error, /incomplete|context|match/i); assert.match(app.state.error, /refresh|inspect/i);
-    readWith(null); await app.refresh();
+    readWith(null); const inspection = app.reviewCurrent(); await flush(); settleConfirmDialog(true); await inspection;
   }
 }));
 
-test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith, host }) => {
+test('Finish reports an unconfirmed wrong/incomplete reply and releases inputs only after valid cleanup', () => withWorkspace(async ({ captured, finishWith, host, readWith }) => {
   const app = captured.CompositionApp; await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
-  const retained = app.draft.value; const current = app.state.workspace;
+  const retained = app.draft.value;
   app.state.error = 'Earlier action refused.';
   for (const reply of [{ tripId: 'OTHER', status: 'finished' }, { tripId: 'C' }, null]) {
+    const current = app.state.workspace;
     finishWith(reply); const attempt = app.finish(); settleConfirmDialog(true); await attempt; await nextTick();
     assert.equal(app.finished.value, false); assert.equal(app.state.workspace, current); assert.equal(app.draft.value, retained);
     assert.match(app.lifecycleError.value, /could not be confirmed/i); assert.equal(app.finishing.value, false);
     assert.match(textOf(host), /Finish could not be confirmed/);
+    assert.equal(isLanguageNavigationHeld(), true);
+    const inspection = app.reviewCurrent(); await flush(); settleConfirmDialog(true); await inspection;
   }
-  finishWith({ tripId: 'C', status: 'finished' }); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
+  // A lost final reply can be resolved by the authoritative closed response to explicit inspection.
+  finishWith(null); const attempt = app.finish(); settleConfirmDialog(true); await attempt;
+  readWith(() => Response.json({ code: 'composition-closed' }, { status: 409 }));
+  await app.refresh(); assert.equal(isLanguageNavigationHeld(), true);
+  await app.reviewCurrent();
   assert.equal(app.finished.value, true); assert.equal(app.finishedTripId.value, 'C'); assert.equal(app.state.workspace, null);
   assert.deepEqual({ ...app.state.view.drafts }, {}); assert.equal(app.state.view.block, null);
 }));
@@ -322,12 +380,136 @@ test('lightweight refusal retains destination, placement and choices without rep
   await app.apply(); await flush();
   assert.equal(sent.length, 1); assert.equal(app.draft.value.items[0], choice); assert.equal(choice.afterId, 'CP');
   assert.equal(app.destinationId.value, 'C'); assert.equal(app.state.value.needsInspection, true);
-  assert.match(app.state.value.error, /source changed/);
+  assert.match(app.state.value.error, /saved content changed/);
   await app.apply(); assert.equal(sent.length, 1);
   app.destinationId.value = 'Another Trip'; await app.apply(); assert.equal(sent.length, 1);
   assert.equal(app.preview.value.tripId, 'C');
 }, true));
 
+
+for (const lightweight of [false, true]) test(`${lightweight ? 'Copy' : 'Compose'} Keep choices retains coordinate edits and restores the language draft guard`,
+  () => withWorkspace(async ({ captured, saved, requests, sent }) => {
+    saved.sourceB.graph.regions[0].places[0].location = [24, 37];
+    const app = lightweight ? captured.CopyToTrip : captured.CompositionApp;
+    if (lightweight) await app.load();
+    await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+    const draft = app.draft.value;
+    const choice = draft.items[0];
+    Object.assign(choice, { decision: 'reuse', destinationId: 'CP' });
+    choice.fields.location.operation = 'useSource';
+    const applying = app.apply(); await flush();
+    assert.equal(requests.filter(url => url.endsWith('/coordinates/prepare')).length, 1);
+    assert.equal(isLanguageNavigationHeld(), true);
+    settleConfirmDialog(false); await applying; await flush();
+    assert.equal(sent.length, 0);
+    assert.equal(app.draft.value, draft);
+    assert.equal(choice.fields.location.operation, 'useSource');
+    assert.equal(hasLanguageDraft(), true);
+    assert.equal(isLanguageNavigationHeld(), false);
+  }, lightweight));
+
+// Lose the nonmutating request in each Greek mount before it can ask for save consent.
+for (const [mount, lightweight] of [['CompositionApp', false], ['CopyToTrip', true]]) {
+  test(`${lightweight ? 'Copy' : 'Compose'} lost coordinate preview reply restores language draft consent and displays Greek feedback`, async () => {
+    const components = await loadGreekComponents();
+    await withWorkspace(async ({ captured, saved, prepareWith, requests, sent, host }) => {
+      saved.sourceB.graph.regions[0].places[0].location = [24, 37];
+      const app = captured[mount];
+      if (lightweight) await app.load();
+      await app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+      const draft = app.draft.value;
+      const choice = draft.items[0];
+      Object.assign(choice, { decision: 'reuse', destinationId: 'CP' });
+      choice.fields.location.operation = 'useSource';
+      prepareWith(() => Promise.reject(new Error('lost preview response')));
+
+      await app.apply(); await flush();
+
+      assert.equal(requests.filter(url => url.endsWith('/coordinates/prepare')).length, 1);
+      assert.equal(sent.length, 0);
+      assert.equal(app.draft.value, draft);
+      assert.equal(choice.fields.location.operation, 'useSource');
+      assert.equal(hasLanguageDraft(), true);
+      assert.equal(isLanguageNavigationHeld(), false, 'a lost preview leaves only the ordinary draft guard');
+      const state = lightweight ? app.state.value : app.state;
+      assert.equal(state.needsInspection, false);
+      assert.equal(state.error, 'Η προεπισκόπηση δεν είναι διαθέσιμη.');
+      assert.ok(descendants(host).some(node => node.props.role === 'alert' && textOf(node).includes(state.error)));
+    }, lightweight, components[mount]);
+    assert.equal(hasLanguageDraft(), false, 'unmount clears the draft owner');
+    assert.equal(isLanguageNavigationHeld(), false, 'unmount clears the workspace hold');
+  });
+}
+
+/** Drives the production selector beside the mounted Copy state using its own English locale bootstrap. */
+async function inspectLanguageControls(action) {
+  const names = ['window', 'document', 'FormData', 'location'];
+  const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]));
+  const events = new Map();
+  const controls = new Map();
+  let focused;
+  const get = id => {
+    if (!controls.has(id)) controls.set(id, { dataset: {}, hidden: true, open: false, reset() {}, setAttribute() {},
+      addEventListener: (name, callback) => events.set(`${id}:${name}`, callback),
+      focus: () => { focused = id; },
+      showModal() { this.open = true; }, close() { this.open = false; events.get(`${id}:close`)(); }
+    });
+    return controls.get(id);
+  };
+  get('language-dialog').dataset.workspace = 'true';
+  get('language-form').dataset.url = '/Language/Set';
+  globalThis.document = { ...document, getElementById: id => id === 'wayfarer-locale' ? localeElement('en-US') : get(id),
+    querySelectorAll: () => [], addEventListener() {} };
+  globalThis.window = {
+    ...window, addEventListener: (name, callback) => events.set(name, callback),
+    dispatchEvent: event => events.get(event.type)?.()
+  };
+  globalThis.location = window.location = { href: 'https://component.invalid/User/Trip/Copy' };
+  globalThis.FormData = class { get() { return 'el-GR'; } };
+  try {
+    await import('../../wwwroot/js/localization/languageSelector.js');
+    await action({
+      get, event: (id, type) => events.get(`${id}:${type}`)({ preventDefault() {} }),
+      focus: () => focused
+    });
+  } finally { Object.assign(globalThis, previous); }
+}
+
+test('Copy language cancellation keeps the review and only explicit successful inspection releases an unconfirmed save hold',
+  () => withWorkspace(async ({ captured, requests, copyWith }) => {
+    const app = captured.CopyToTrip;
+    await inspectLanguageControls(async ({ get, event, focus }) => {
+      assert.equal(get('language-open').hidden, true, 'the workspace must register its owners before being shown');
+      enableWorkspaceLanguage();
+      app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
+      const choice = app.draft.value.items[0];
+      Object.assign(choice, { regionId: 'CR', position: 'after', afterId: 'CP', customName: true, name: 'Μονοπάτι <Trail>' });
+      assert.equal(hasLanguageDraft(), true);
+      event('language-open', 'click');
+      await event('language-form', 'submit');
+      assert.equal(focus(), 'language-keep');
+      event('language-keep', 'click');
+      assert.equal(focus(), 'language-open');
+      assert.equal(app.draft.value.items[0], choice);
+      assert.equal(choice.name, 'Μονοπάτι <Trail>');
+
+      copyWith(() => Promise.reject(new Error('lost response')));
+      await app.apply(); await flush();
+      assert.match(app.state.value.error, /could not be confirmed/);
+      assert.equal(get('language-open').hidden, true);
+      await event('language-form', 'submit');
+      const cancelInspection = app.load(); settleConfirmDialog(false); await cancelInspection;
+      assert.equal(get('language-open').hidden, true);
+      const inspect = app.load(); settleConfirmDialog(true); await inspect;
+      assert.equal(get('language-open').hidden, false);
+      assert.equal(app.draft.value.items[0].afterId, 'CP');
+      assert.equal(app.draft.value.items[0].name, 'Μονοπάτι <Trail>');
+      event('language-open', 'click');
+      await event('language-form', 'submit');
+      assert.equal(focus(), 'language-keep', 'ordinary draft consent still applies after inspection');
+      assert.equal(requests.filter(url => url === '/Language/Set').length, 0);
+    });
+  }, true));
 
 test('changing the destination while copy waits keeps that newer context and never labels its choices saved', () => withWorkspace(async ({ captured, sent, copyWith, saved }) => {
   const app = captured.CopyToTrip; app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
@@ -393,7 +575,7 @@ test('pair and draft changes during confirmation and a refused pair preview reta
   assert.equal(requests.length, before); assert.equal(app.draft.value, review);
   previewWith(async () => Response.json({ detail: 'Destination unavailable' }, { status: 409 }));
   const refused = app.load(); settleConfirmDialog(true); await refused;
-  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /Destination unavailable/);
+  assert.equal(app.draft.value, review); assert.equal(app.preview.value.tripId, 'C'); assert.match(app.error.value, /saved content changed/);
 }, true));
 
 for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} uses the same selected fields and one submitted child identity`, () => withWorkspace(async ({ captured, host, saved, sent }) => {
@@ -418,7 +600,7 @@ for (const mode of ['copy', 'reuse', 'foreign']) test(`nested Region ${mode} use
   await flush();
   app.select({ side: 'b', kind: 'place', id: 'BP' }); await flush();
   assert.equal(app.selected.value, child); assert.equal(app.draft.value.items.length, 1);
-  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const childNode = kind => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).toLowerCase().startsWith(`${kind} ·`));
   const action = (node, title, operation) => {
     const select = descendants(node).find(n => n.tagName === 'SELECT' && n.props['aria-label'] === `${title} action`);
     assert.ok(select, `${title} must be reachable for the nested child`); select.props.onChange({ target: { value: operation } });
@@ -487,7 +669,7 @@ test('folded child shows effective placement and accepts deliberate resolution w
   const owner = captured.ChoiceControls;
   owner.scope({ target: { checked: true } }); await flush();
   const region = app.draft.value.items[0]; region.customName = true; region.name = 'New container'; await flush();
-  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('place ·'));
+  const childNode = () => descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith('Place ·'));
   assert.match(textOf(childNode()), /Result: New normal Region “New container”.*After C Place/s);
   assert.match(textOf(childNode()), /Choose Append or At start.*turn off Region children/s);
   await app.apply(); assert.equal(sent.length, 0); assert.equal(first.position, 'after'); assert.equal(first.afterId, 'CP');
@@ -523,7 +705,7 @@ for (const kind of ['place', 'area']) test(`shared block folds one ${kind} ident
   assert.equal(app.draft.value.items.length, 1);
   const nested = app.draft.value.items[0].children.find(c => c.sourceId === id);
   assert.equal(nested.name, 'Reviewed child'); assert.notEqual(nested, first); assert.notEqual(nested, defaultChild);
-  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).startsWith(`${kind} ·`));
+  const childNode = descendants(host).find(n => n.tagName === 'FIELDSET' && n.props.class?.includes('composition-choice') && textOf(n).toLowerCase().startsWith(`${kind} ·`));
   assert.ok(descendants(childNode).some(n => n.props['aria-label'] === 'Notes action'));
   await app.apply(); await flush();
   assert.equal(sent.length, 1); assert.equal(sent[0].items.length, 1);

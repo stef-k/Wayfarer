@@ -1,9 +1,21 @@
+import { message as tr } from '../../../localization/messages.js';
 /** Safe local messages; file/exception text never becomes HTML or retry authority. */
-export const genericImportFailure = 'The import could not be applied. Your file and choices are retained.';
-export const uncertainImport = 'The import outcome could not be confirmed. The earlier import may already have succeeded. Check My Trips for inspection; a visit or matching data cannot confirm its outcome. Further imports are held in this tab until you explicitly abandon the unresolved local attempt. This hold lasts only for this tab session: it is not shared with other tabs or devices, and closing the tab can lose it.';
-export const abandonImportConfirmation = 'Abandon the unresolved local attempt? The earlier import may already have succeeded. This discards the retained file, review and choices without resending them. It does not cancel or roll back server work. The earlier outcome remains unknown. You must select a file again to begin a separate import; repeating the import may create another copy.';
-const abandonedImport = 'The earlier import outcome is still unknown. Its local attempt was abandoned without cancelling or rolling back server work. Select a file to begin a separate import; repeating the import may create another copy.';
-const safeCodes = new Set(['invalid_file', 'validation_failed', 'invalid_kml', 'import_review_required', 'import_review_stale', 'import_choices_invalid', 'import_loss_consent_required', 'generic_kml_processing_limit', 'generic_route_geometry_unsupported']);
+export const genericImportFailure = tr('Editor.TripsImportTheImportCouldNotBeApplied', 'The import could not be applied. Your file and choices are retained.');
+export const uncertainImport = tr('Editor.TripsImportTheImportOutcomeCouldNotBe', 'The import outcome could not be confirmed. The earlier import may already have succeeded. Check My Trips for inspection; a visit or matching data cannot confirm its outcome. Further imports are held in this tab until you explicitly abandon the unresolved local attempt. This hold lasts only for this tab session: it is not shared with other tabs or devices, and closing the tab can lose it.');
+export const abandonImportConfirmation = tr('Editor.TripsImportAbandonTheUnresolvedLocalAttemptThe', 'Abandon the unresolved local attempt? The earlier import may already have succeeded. This discards the retained file, review and choices without resending them. It does not cancel or roll back server work. The earlier outcome remains unknown. You must select a file again to begin a separate import; repeating the import may create another copy.');
+const abandonedImport = tr('Editor.TripsImportTheEarlierImportOutcomeIsStill', 'The earlier import outcome is still unknown. Its local attempt was abandoned without cancelling or rolling back server work. Select a file to begin a separate import; repeating the import may create another copy.');
+// Only these codes acknowledge a definite refusal at the transport boundary.
+const failures = new Map([
+    ['invalid_file', tr('Editor.TripsImportSelectANonEmptyKMLFile', 'Select a non-empty KML file to import.')],
+    ['validation_failed', genericImportFailure],
+    ['invalid_kml', tr('Editor.TripsImportTheSelectedFileIsNotA', 'The selected file is not a valid KML import. Select a corrected file to try again.')],
+    ['import_review_required', tr('Editor.TripsImportReviewTheCurrentTripBeforeApplying', 'Review the current Trip before applying this update.')],
+    ['import_review_stale', tr('Editor.TripsImportTheTripOrFileChangedRefresh', 'The Trip or file changed. Refresh the review, inspect the current content, then apply your choices.')],
+    ['import_choices_invalid', tr('Editor.TripsImportTheSelectedImportChoicesAreInvalid', 'The selected import choices are invalid. Refresh and review the choices again.')],
+    ['import_loss_consent_required', tr('Editor.TripsImportApproveRemovalOfEachListedItem', 'Approve removal of each listed item before applying the update.')],
+    ['generic_kml_processing_limit', tr('Editor.TripsImportTheSelectedKMLExceedsTheRoute', 'The selected KML exceeds the route processing limit. Reduce its geometry before trying again.')],
+    ['generic_route_geometry_unsupported', tr('Editor.TripsImportThisKMLContainsUnsupportedRouteGeometry', 'This KML contains unsupported route geometry. Correct the file before trying again.')]
+]);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Contradictory or extended outcome fields are not a safe negative acknowledgement. */
 const onlyKeys = (payload, keys) => Object.keys(payload).every(key => keys.includes(key));
@@ -32,7 +44,7 @@ export const requestTripImport = async (file, mode, handlers, approval = null, r
         if (!reviewOnly && response.status === 200 && payload?.status === 'duplicate'
             && onlyKeys(payload, ['status', 'tripId']) && uuid.test(payload.tripId)) return payload;
         if (payload?.status === 'error' && onlyKeys(payload, ['status', 'code', 'message'])
-            && safeCodes.has(payload.code) && response.status >= 400 && response.status < 500)
+            && failures.has(payload.code) && response.status >= 400 && response.status < 500)
             return { status: 'error', code: payload.code };
         return { status: reviewOnly ? 'error' : 'uncertain' };
     } catch { return { status: reviewOnly ? 'error' : 'uncertain' }; }
@@ -51,7 +63,7 @@ export const submitTripImport = async (file, mode, handlers) => {
 /** Owns the selected File, review and choices; a lost mutating reply holds every import action across reload. */
 export const createTripImporter = (handlers, { storage = null, owner = '' } = {}) => {
     const holdKey = `wayfarer:native-import-pending:${owner}`;
-    const state = { file: null, review: null, choices: new Map(), busy: false, uncertain: false, cancelled: false, reviewStale: false, message: '' };
+    const state = { file: null, review: null, choices: new Map(), busy: false, reviewing: false, uncertain: false, cancelled: false, reviewStale: false, message: '' };
     let heldAttempt = null;
     try { heldAttempt = storage?.getItem(holdKey) || null; state.uncertain = heldAttempt !== null; }
     catch { state.uncertain = true; }
@@ -69,6 +81,7 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
     const run = async (mode, reviewOnly = false, approval = null) => {
         if (!state.file || state.busy || state.uncertain || state.cancelled) return;
         state.busy = true;
+        state.reviewing = reviewOnly;
         state.cancelled = false;
         const requestHold = reviewOnly ? null : `pending:${crypto.randomUUID()}`;
         if (!reviewOnly && !setHold(requestHold)) {
@@ -96,13 +109,14 @@ export const createTripImporter = (handlers, { storage = null, owner = '' } = {}
         } else if (result.status === 'duplicate') handlers.onDuplicate();
         else if (result.status === 'error') {
             if (!reviewOnly && mode === 'Upsert') state.reviewStale = true;
-            state.message = result.code === 'import_review_stale' ? 'The Trip or file changed. Refresh the review, inspect the current content, then apply your choices.' : genericImportFailure;
+            state.message = failures.get(result.code) ?? genericImportFailure;
             handlers.showError(state.message);
         }
         publish();
     };
     const api = {
         state,
+        /** Dispatches exactly one request for the selected file under its existing attempt guard. */
         upload: async (file, mode = 'Auto') => {
             if (state.busy || state.uncertain) return;
             state.file = file; state.review = null; state.choices.clear(); state.cancelled = false; state.reviewStale = false;

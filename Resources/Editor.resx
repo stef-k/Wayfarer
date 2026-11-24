@@ -2832,4 +2832,1990 @@
   <data name="Editor.PlaceCoordinateUnselected" xml:space="preserve">
     <value>No coordinate selected</value>
   </data>
+  <data name="Editor.CompositionReviewTheCurrentRouteAndIts" xml:space="preserve">
+    <value>Review the current route and its dependencies before applying this selection.</value>
+  </data>
+  <data name="Editor.CompositionTheSavedContentChangedKeepYour" xml:space="preserve">
+    <value>The saved content changed. Keep your choices and review the current source or destination before another attempt.</value>
+  </data>
+  <data name="Editor.CompositionTheTripOrComparisonIsUnavailable" xml:space="preserve">
+    <value>The Trip or comparison is unavailable. Check your access and refresh your Trips.</value>
+  </data>
+  <data name="Editor.CompositionTheActionCouldNotBeConfirmed" xml:space="preserve">
+    <value>The action could not be confirmed. Inspect or refresh the saved Trip before trying again.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheSelectedFieldsDependenciesAnd" xml:space="preserve">
+    <value>Review the selected fields, dependencies and originals.</value>
+  </data>
+  <data name="Editor.CompositionRequestFailed0KeepYourChoices" xml:space="preserve">
+    <value>Request failed ({0}). Keep your choices and review current C.</value>
+  </data>
+  <data name="Editor.CompositionYourSessionIsUnavailableSignIn" xml:space="preserve">
+    <value>Your session is unavailable. Sign in again; your choices remain in this account’s draft.</value>
+  </data>
+  <data name="Editor.CompositionTheResponseCouldNotBeRead" xml:space="preserve">
+    <value>The response could not be read. Inspect or refresh your saved Trip before trying again.</value>
+  </data>
+  <data name="Editor.CompositionRemovalPreviewIsUnavailableReviewAgain" xml:space="preserve">
+    <value>Removal preview is unavailable. Review again.</value>
+  </data>
+  <data name="Editor.CompositionTheReviewedDestination" xml:space="preserve">
+    <value>the reviewed destination</value>
+  </data>
+  <data name="Editor.CompositionDeleteRegion0AndItsNotes" xml:space="preserve">
+    <value>Delete Region “{0}” and its Notes, cover, centre and planning. {1} Places and {2} Areas move to {3}. Delete {4} Places, {5} Areas and {6} endpoint Segments. Update {7} routes and detach {8} Via associations. Sources A/B remain unchanged. This cannot be undone.</value>
+  </data>
+  <data name="Editor.CompositionPermanentlyRemoveThis0AndIts" xml:space="preserve">
+    <value>Permanently remove this {0} and its saved Notes and planning from C? Sources and retained credits stay. This cannot be undone.</value>
+  </data>
+  <data name="Editor.CompositionCoordinateReviewIsUnavailable" xml:space="preserve">
+    <value>Coordinate review is unavailable.</value>
+  </data>
+  <data name="Editor.CompositionUseTheSelectedCoordinatesReview0" xml:space="preserve">
+    <value>Use the selected coordinates? Review {0} affected route(s). Route anchors/measurements and detected enrichment are reconciled by ordinary Place rules; Address stays. No provider route will regenerate.</value>
+  </data>
+  <data name="Editor.CompositionCurrentRouteEvidenceIsUnavailableOpen" xml:space="preserve">
+    <value>Current route evidence is unavailable. Open ordinary route editing and review again.</value>
+  </data>
+  <data name="Editor.CompositionHistorical" xml:space="preserve">
+    <value>Historical</value>
+  </data>
+  <data name="Editor.Composition0Route" xml:space="preserve">
+    <value>{0} route</value>
+  </data>
+  <data name="Editor.CompositionUnavailableObject" xml:space="preserve">
+    <value>Unavailable object</value>
+  </data>
+  <data name="Editor.CompositionPlanningIsUnavailableForThisSource" xml:space="preserve">
+    <value>Planning is unavailable for this source.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedCurrentCounterpartIsUnavailable" xml:space="preserve">
+    <value>The selected current counterpart is unavailable. Review current C.</value>
+  </data>
+  <data name="Editor.CompositionTheCapturedSourceObjectIsUnavailable" xml:space="preserve">
+    <value>The captured source object is unavailable.</value>
+  </data>
+  <data name="Editor.CompositionConflictingChoicesFor0KeepRegion" xml:space="preserve">
+    <value>Conflicting choices for {0}. Keep Region only or remove this identity from the local block/review before including Region children. Both drafts are retained.</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentCCounterpart" xml:space="preserve">
+    <value>Select a current C counterpart.</value>
+  </data>
+  <data name="Editor.CompositionUseNormalDeleteC" xml:space="preserve">
+    <value>Use normal Delete C.</value>
+  </data>
+  <data name="Editor.CompositionTripMetadataIsAdoptedIntoCurrent" xml:space="preserve">
+    <value>Trip metadata is adopted into current C.</value>
+  </data>
+  <data name="Editor.CompositionEnterTheCustomName" xml:space="preserve">
+    <value>Enter the custom name.</value>
+  </data>
+  <data name="Editor.CompositionChooseARegionOrCreateA" xml:space="preserve">
+    <value>Choose a Region or create a normal Region.</value>
+  </data>
+  <data name="Editor.CompositionSelectANormalRegionForAn" xml:space="preserve">
+    <value>Select a normal Region for an Area.</value>
+  </data>
+  <data name="Editor.CompositionSelectOrCreateANormalRegion" xml:space="preserve">
+    <value>Select or create a normal Region for the Area.</value>
+  </data>
+  <data name="Editor.CompositionSelectACompatibleCurrentCItem" xml:space="preserve">
+    <value>Select a compatible current C item for After.</value>
+  </data>
+  <data name="Editor.CompositionThisSelectedFieldIsUnavailable" xml:space="preserve">
+    <value>This selected field is unavailable.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheCurrentRouteAnchor" xml:space="preserve">
+    <value>Review the current route anchor.</value>
+  </data>
+  <data name="Editor.CompositionExplicitlyApproveEveryMissingFromTo" xml:space="preserve">
+    <value>Explicitly approve every missing From / To / Via Place.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedPlaceAndRouteDependency" xml:space="preserve">
+    <value>The selected Place and route dependency need the same reviewed destination Region.</value>
+  </data>
+  <data name="Editor.CompositionSelectTheApprovedDependencyPlaceIn" xml:space="preserve">
+    <value>Select the approved dependency Place in this block before applying.</value>
+  </data>
+  <data name="Editor.CompositionReviewRemovalAsASeparateAction" xml:space="preserve">
+    <value>Review removal as a separate action from a block.</value>
+  </data>
+  <data name="Editor.CompositionPlace" xml:space="preserve">
+    <value>Place</value>
+  </data>
+  <data name="Editor.CompositionSegment" xml:space="preserve">
+    <value>Segment</value>
+  </data>
+  <data name="Editor.CompositionCanonicalUnassignedPlaces" xml:space="preserve">
+    <value>Canonical Unassigned Places</value>
+  </data>
+  <data name="Editor.CompositionInC" xml:space="preserve">
+    <value>In C</value>
+  </data>
+  <data name="Editor.CompositionMatched" xml:space="preserve">
+    <value>Matched</value>
+  </data>
+  <data name="Editor.CompositionKeptSeparate" xml:space="preserve">
+    <value>Kept separate</value>
+  </data>
+  <data name="Editor.CompositionSkipped" xml:space="preserve">
+    <value>Skipped</value>
+  </data>
+  <data name="Editor.CompositionRemovedFromC" xml:space="preserve">
+    <value>Removed from C</value>
+  </data>
+  <data name="Editor.CompositionReviewNeeded" xml:space="preserve">
+    <value>Review needed</value>
+  </data>
+  <data name="Editor.CompositionComparisonResponseIsIncompleteOrBelongs" xml:space="preserve">
+    <value>Comparison response is incomplete or belongs to another context. Refresh saved C.</value>
+  </data>
+  <data name="Editor.CompositionTheSavedDestinationDoesNotMatch" xml:space="preserve">
+    <value>The saved destination does not match this comparison. Inspect or refresh saved C.</value>
+  </data>
+  <data name="Editor.CompositionRefreshUnavailable" xml:space="preserve">
+    <value>Refresh unavailable.</value>
+  </data>
+  <data name="Editor.CompositionSavingTheReviewedAction" xml:space="preserve">
+    <value>Saving the reviewed action…</value>
+  </data>
+  <data name="Editor.CompositionTheReplyDoesNotMatchThis" xml:space="preserve">
+    <value>The reply does not match this comparison or is incomplete. Refresh saved C before another action.</value>
+  </data>
+  <data name="Editor.CompositionSavedTo0" xml:space="preserve">
+    <value>Saved to {0}.</value>
+  </data>
+  <data name="Editor.CompositionEarlierActionSavedTo0Newer" xml:space="preserve">
+    <value>Earlier action saved to {0}. Newer choices remain unsaved; review current {1} before applying.</value>
+  </data>
+  <data name="Editor.CompositionTheSaveCouldNotBeConfirmed" xml:space="preserve">
+    <value>The save could not be confirmed. Inspect or refresh C.</value>
+  </data>
+  <data name="Editor.CompositionChoicesRetainedRefreshAndReviewCurrent" xml:space="preserve">
+    <value>Choices retained. Refresh and review current C.</value>
+  </data>
+  <data name="Editor.CompositionSavedCounterpartDecision" xml:space="preserve">
+    <value>Saved counterpart decision</value>
+  </data>
+  <data name="Editor.CompositionRemovedCounterpart" xml:space="preserve">
+    <value>Removed counterpart</value>
+  </data>
+  <data name="Editor.CompositionActionFor0" xml:space="preserve">
+    <value>Action for {0}</value>
+  </data>
+  <data name="Editor.CompositionCopyKeepSeparate" xml:space="preserve">
+    <value>Copy / keep separate</value>
+  </data>
+  <data name="Editor.CompositionReuseCurrentCounterpartKeepOrAdopt" xml:space="preserve">
+    <value>Reuse current counterpart / Keep or adopt selected fields</value>
+  </data>
+  <data name="Editor.CompositionSkipThisSourceIdea" xml:space="preserve">
+    <value>Skip this source idea</value>
+  </data>
+  <data name="Editor.CompositionRemoveIncludedCounterpartFromC" xml:space="preserve">
+    <value>Remove included counterpart from C</value>
+  </data>
+  <data name="Editor.CompositionUnassignedPlacesIsAReservedCategory" xml:space="preserve">
+    <value>Unassigned Places is a reserved category. Select individual Places to copy them into {0}; it is never duplicated as a normal Region.</value>
+  </data>
+  <data name="Editor.CompositionDeliberatelyReAddThisExcludedIdea" xml:space="preserve">
+    <value>Deliberately re-add this excluded idea</value>
+  </data>
+  <data name="Editor.CompositionCurrent0Counterpart" xml:space="preserve">
+    <value>Current {0} counterpart</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentCounterpart" xml:space="preserve">
+    <value>Select a current counterpart</value>
+  </data>
+  <data name="Editor.CompositionReuseKeepsThisIdentityItsRegion" xml:space="preserve">
+    <value>Reuse keeps this identity, its Region and its position. Matched fields default Keep.</value>
+  </data>
+  <data name="Editor.CompositionTheSelectedCounterpartIsUnavailableIn" xml:space="preserve">
+    <value>The selected counterpart is unavailable in these originals. Review current {0}, then choose a current counterpart. Your field choices remain retained.</value>
+  </data>
+  <data name="Editor.CompositionUseACustomName" xml:space="preserve">
+    <value>Use a custom name</value>
+  </data>
+  <data name="Editor.CompositionCustomName" xml:space="preserve">
+    <value>Custom name</value>
+  </data>
+  <data name="Editor.CompositionOriginalName0" xml:space="preserve">
+    <value>Original name: {0}</value>
+  </data>
+  <data name="Editor.CompositionUntitledSegmentDerivedRouteLabel" xml:space="preserve">
+    <value>Untitled Segment · derived route label</value>
+  </data>
+  <data name="Editor.CompositionKeepSeparateEvenIfTheSame" xml:space="preserve">
+    <value>Keep separate even if the same name or another copy exists</value>
+  </data>
+  <data name="Editor.CompositionASameNameItemExistsIn" xml:space="preserve">
+    <value>A same-name item exists in {0}. Review reuse or explicitly approve a separate copy.</value>
+  </data>
+  <data name="Editor.CompositionDestinationRegion" xml:space="preserve">
+    <value>Destination Region</value>
+  </data>
+  <data name="Editor.CompositionCanonicalUnassignedPlacesDefault" xml:space="preserve">
+    <value>Canonical Unassigned Places (default)</value>
+  </data>
+  <data name="Editor.CompositionSelectANormalRegion" xml:space="preserve">
+    <value>Select a normal Region</value>
+  </data>
+  <data name="Editor.CompositionOrCreateANormalRegionWith" xml:space="preserve">
+    <value>Or create a normal Region with this copy</value>
+  </data>
+  <data name="Editor.CompositionEffectiveDestinationRegion0NewChildren" xml:space="preserve">
+    <value>Effective destination Region: {0}. New children follow this Region; reused children keep their current container and position.</value>
+  </data>
+  <data name="Editor.CompositionSelectACurrentRegionCounterpart" xml:space="preserve">
+    <value>Select a current Region counterpart</value>
+  </data>
+  <data name="Editor.CompositionTripLevelInsertionPosition" xml:space="preserve">
+    <value>Trip-level insertion position</value>
+  </data>
+  <data name="Editor.CompositionInsertionPositionIndependentOfRegion" xml:space="preserve">
+    <value>Insertion position (independent of Region)</value>
+  </data>
+  <data name="Editor.CompositionInsertionPosition" xml:space="preserve">
+    <value>Insertion position</value>
+  </data>
+  <data name="Editor.CompositionAppend" xml:space="preserve">
+    <value>Append</value>
+  </data>
+  <data name="Editor.CompositionAtStart" xml:space="preserve">
+    <value>At start</value>
+  </data>
+  <data name="Editor.CompositionAfterSelection" xml:space="preserve">
+    <value>After selection</value>
+  </data>
+  <data name="Editor.CompositionAfterThisCurrent01" xml:space="preserve">
+    <value>After this current {0} {1}</value>
+  </data>
+  <data name="Editor.CompositionSelectACompatibleItem" xml:space="preserve">
+    <value>Select a compatible item</value>
+  </data>
+  <data name="Editor.CompositionPreviousReference0OutsideThisList" xml:space="preserve">
+    <value>Previous reference · {0} (outside this list)</value>
+  </data>
+  <data name="Editor.CompositionThePreviousAfterReferenceIsUnavailable" xml:space="preserve">
+    <value>The previous After reference is unavailable in this destination list. Choose Append or At start, select a compatible reference, or turn off Region children to cancel folding. Your field choices are retained.</value>
+  </data>
+  <data name="Editor.CompositionThePreviousAfterReferenceIsUnavailable2" xml:space="preserve">
+    <value>The previous After reference is unavailable in this destination list. Choose Append or At start, select a compatible reference. Your field choices are retained.</value>
+  </data>
+  <data name="Editor.CompositionResult01" xml:space="preserve">
+    <value>Result: {0} · {1}</value>
+  </data>
+  <data name="Editor.Composition0TripLevelSegments" xml:space="preserve">
+    <value>{0} · Trip-level Segments</value>
+  </data>
+  <data name="Editor.Composition0Regions" xml:space="preserve">
+    <value>{0} · Regions</value>
+  </data>
+  <data name="Editor.CompositionNewNormalRegion0CreatedFor" xml:space="preserve">
+    <value>New normal Region “{0}” (created for this item)</value>
+  </data>
+  <data name="Editor.CompositionAfter0" xml:space="preserve">
+    <value>After {0}</value>
+  </data>
+  <data name="Editor.CompositionDirectPlaces" xml:space="preserve">
+    <value>Direct Places</value>
+  </data>
+  <data name="Editor.CompositionKeepInTheReviewedFallback" xml:space="preserve">
+    <value>Keep in the reviewed fallback</value>
+  </data>
+  <data name="Editor.CompositionDeleteWithRegion" xml:space="preserve">
+    <value>Delete with Region</value>
+  </data>
+  <data name="Editor.CompositionDirectAreas" xml:space="preserve">
+    <value>Direct Areas</value>
+  </data>
+  <data name="Editor.CompositionKeepInTheReviewedNormalRegion" xml:space="preserve">
+    <value>Keep in the reviewed normal Region</value>
+  </data>
+  <data name="Editor.CompositionCurrentDeletionConsequencesAreShownBefore" xml:space="preserve">
+    <value>Current deletion consequences are shown before applying. Region Notes, cover, centre and planning are removed.</value>
+  </data>
+  <data name="Editor.CompositionRegionAndDirectPlacesAreasOtherwise" xml:space="preserve">
+    <value>Region and direct Places/Areas (otherwise Region only)</value>
+  </data>
+  <data name="Editor.CompositionNoSubRegionsOrAutomaticSegments" xml:space="preserve">
+    <value>No sub-Regions or automatic Segments. Reused children keep their {0} container.</value>
+  </data>
+  <data name="Editor.CompositionNewNormalRegion0" xml:space="preserve">
+    <value>New normal Region “{0}”</value>
+  </data>
+  <data name="Editor.CompositionApproveCompleteFromOrderedViaTo" xml:space="preserve">
+    <value>Approve complete From / ordered Via / To dependencies</value>
+  </data>
+  <data name="Editor.CompositionFrom0To1" xml:space="preserve">
+    <value>From: {0} · To: {1}</value>
+  </data>
+  <data name="Editor.CompositionNotSet" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="Editor.CompositionOrderedViaPoints0" xml:space="preserve">
+    <value>Ordered Via points: {0}</value>
+  </data>
+  <data name="Editor.CompositionThisHistoricalRouteHasNoPlace" xml:space="preserve">
+    <value>This historical route has no Place anchors. Its saved geometry is shown when available.</value>
+  </data>
+  <data name="Editor.CompositionSourceCoordinates0" xml:space="preserve">
+    <value>Source coordinates: {0}</value>
+  </data>
+  <data name="Editor.CompositionUnlocated" xml:space="preserve">
+    <value>Unlocated</value>
+  </data>
+  <data name="Editor.CompositionApprovedCurrent0Place" xml:space="preserve">
+    <value>Approved current {0} Place</value>
+  </data>
+  <data name="Editor.CompositionCopyASeparateSourceCoordinatePlace" xml:space="preserve">
+    <value>Copy a separate source-coordinate Place</value>
+  </data>
+  <data name="Editor.CompositionUseThePlaceAlreadySelectedIn" xml:space="preserve">
+    <value>Use the Place already selected in this block, in its reviewed container</value>
+  </data>
+  <data name="Editor.CompositionMissingPlaceDestinationRegion" xml:space="preserve">
+    <value>Missing Place destination Region</value>
+  </data>
+  <data name="Editor.CompositionApproveASeparatePlaceWithThe" xml:space="preserve">
+    <value>Approve a separate Place with the captured location, appended here</value>
+  </data>
+  <data name="Editor.CompositionDeliberatelyReAddThisExcludedDependency" xml:space="preserve">
+    <value>deliberately re-add this excluded dependency</value>
+  </data>
+  <data name="Editor.CompositionCloseSemanticMatchesCanStillBe" xml:space="preserve">
+    <value>Close semantic matches can still be incompatible route anchors. No Places move, no captured geometry clears, and no route regenerates without ordinary review.</value>
+  </data>
+  <data name="Editor.CompositionSharedApprovedDependenciesAndAPlace" xml:space="preserve">
+    <value>Shared approved dependencies and a Place copied elsewhere in this block use one new Place when their reviewed destinations agree.</value>
+  </data>
+  <data name="Editor.CompositionDestination" xml:space="preserve">
+    <value>destination</value>
+  </data>
+  <data name="Editor.CompositionReviewTheConflictingChildChoices" xml:space="preserve">
+    <value>Review the conflicting child choices.</value>
+  </data>
+  <data name="Editor.CompositionFrom" xml:space="preserve">
+    <value>From</value>
+  </data>
+  <data name="Editor.CompositionVia0RouteVertex1" xml:space="preserve">
+    <value>Via {0} · route vertex {1}</value>
+  </data>
+  <data name="Editor.CompositionTo" xml:space="preserve">
+    <value>To</value>
+  </data>
+  <data name="Editor.CompositionComparisonFinished" xml:space="preserve">
+    <value>Comparison finished</value>
+  </data>
+  <data name="Editor.CompositionCKeepsItsSavedContentVisibility" xml:space="preserve">
+    <value>C keeps its saved content, visibility and credits. This historical comparison cannot reopen.</value>
+  </data>
+  <data name="Editor.CompositionContinueOrdinaryEditingOfC" xml:space="preserve">
+    <value>Continue ordinary editing of C</value>
+  </data>
+  <data name="Editor.CompositionTripComparisonWorkspace" xml:space="preserve">
+    <value>Trip comparison workspace</value>
+  </data>
+  <data name="Editor.CompositionCompareCombine" xml:space="preserve">
+    <value>Compare &amp; combine</value>
+  </data>
+  <data name="Editor.CompositionPublicSavedChangesUpdateTheSame" xml:space="preserve">
+    <value>Public · saved changes update the same Trip</value>
+  </data>
+  <data name="Editor.CompositionPrivateTrip" xml:space="preserve">
+    <value>Private Trip</value>
+  </data>
+  <data name="Editor.CompositionSavedEditable" xml:space="preserve">
+    <value>Saved / editable</value>
+  </data>
+  <data name="Editor.CompositionCompositionActions" xml:space="preserve">
+    <value>Composition actions</value>
+  </data>
+  <data name="Editor.CompositionEditCPublish" xml:space="preserve">
+    <value>Edit C / publish</value>
+  </data>
+  <data name="Editor.CompositionRefreshSavedC" xml:space="preserve">
+    <value>Refresh saved C</value>
+  </data>
+  <data name="Editor.CompositionFinishComparison" xml:space="preserve">
+    <value>Finish comparison</value>
+  </data>
+  <data name="Editor.CompositionDeleteC" xml:space="preserve">
+    <value>Delete C</value>
+  </data>
+  <data name="Editor.CompositionInspectSavedC" xml:space="preserve">
+    <value>Inspect saved C</value>
+  </data>
+  <data name="Editor.CompositionTheSubmittedActionMayStillFinish" xml:space="preserve">
+    <value>The submitted action may still finish. Review current C before switching language.</value>
+  </data>
+  <data name="Editor.CompositionLoadingCurrentSavedC" xml:space="preserve">
+    <value>Loading current saved C…</value>
+  </data>
+  <data name="Editor.CompositionMapLayers" xml:space="preserve">
+    <value>Map layers</value>
+  </data>
+  <data name="Editor.CompositionEditableResult" xml:space="preserve">
+    <value>Editable result</value>
+  </data>
+  <data name="Editor.CompositionReadOnlySource" xml:space="preserve">
+    <value>Read-only source</value>
+  </data>
+  <data name="Editor.CompositionFocusSelection" xml:space="preserve">
+    <value>Focus selection</value>
+  </data>
+  <data name="Editor.CompositionResizeComparisonDrawer" xml:space="preserve">
+    <value>Resize comparison drawer</value>
+  </data>
+  <data name="Editor.CompositionDragOrUseUpDownArrows" xml:space="preserve">
+    <value>Drag or use Up/Down arrows; Shift for larger steps; Home/End; Escape cancels drag</value>
+  </data>
+  <data name="Editor.CompositionShowComparison" xml:space="preserve">
+    <value>Show comparison</value>
+  </data>
+  <data name="Editor.CompositionCollapseComparison" xml:space="preserve">
+    <value>Collapse comparison</value>
+  </data>
+  <data name="Editor.CompositionComparisonDrawerSections" xml:space="preserve">
+    <value>Comparison drawer sections</value>
+  </data>
+  <data name="Editor.CompositionInspector" xml:space="preserve">
+    <value>Inspector</value>
+  </data>
+  <data name="Editor.CompositionSource0" xml:space="preserve">
+    <value>Source {0}</value>
+  </data>
+  <data name="Editor.CompositionContextualComparisonInspector" xml:space="preserve">
+    <value>Contextual comparison inspector</value>
+  </data>
+  <data name="Editor.CompositionReviewedItemBlock" xml:space="preserve">
+    <value>Reviewed item block</value>
+  </data>
+  <data name="Editor.CompositionSource01ReadOnlyCaptured" xml:space="preserve">
+    <value>Source {0} · {1} · Read-only captured idea</value>
+  </data>
+  <data name="Editor.CompositionSomeSourceMediaWasOmittedBy" xml:space="preserve">
+    <value>Some source media was omitted by its permissions/storage policy. Reselect eligible images explicitly in C’s ordinary editor; copying does not grant media permission.</value>
+  </data>
+  <data name="Editor.CompositionManualCounterpartSearch" xml:space="preserve">
+    <value>Manual counterpart search</value>
+  </data>
+  <data name="Editor.CompositionSearching" xml:space="preserve">
+    <value>Searching…</value>
+  </data>
+  <data name="Editor.CompositionFindPossibleCounterparts" xml:space="preserve">
+    <value>Find possible counterparts</value>
+  </data>
+  <data name="Editor.CompositionPossibleMatchReviewNeeded0Suggestions" xml:space="preserve">
+    <value>Possible match—review needed · {0} suggestions</value>
+  </data>
+  <data name="Editor.CompositionEvidenceHelpsReviewItDoesNot" xml:space="preserve">
+    <value>Evidence helps review; it does not prove identity. Nearby Places and overlapping Areas may be distinct.</value>
+  </data>
+  <data name="Editor.CompositionResultsFor0" xml:space="preserve">
+    <value>Results for {0}.</value>
+  </data>
+  <data name="Editor.CompositionTheUnfilteredSourceSelection" xml:space="preserve">
+    <value>the unfiltered source selection</value>
+  </data>
+  <data name="Editor.CompositionPossibleMatchReviewNeeded" xml:space="preserve">
+    <value>Possible match—review needed</value>
+  </data>
+  <data name="Editor.CompositionSameName" xml:space="preserve">
+    <value>Same name</value>
+  </data>
+  <data name="Editor.CompositionDifferentName" xml:space="preserve">
+    <value>Different name</value>
+  </data>
+  <data name="Editor.Composition0MetresApart" xml:space="preserve">
+    <value>{0} metres apart</value>
+  </data>
+  <data name="Editor.CompositionGeometry0" xml:space="preserve">
+    <value>Geometry: {0}</value>
+  </data>
+  <data name="Editor.CompositionConfirmedChildCounterparts0" xml:space="preserve">
+    <value>Confirmed child counterparts: {0}</value>
+  </data>
+  <data name="Editor.CompositionConfirmedMappedAnchors" xml:space="preserve">
+    <value>Confirmed mapped anchors</value>
+  </data>
+  <data name="Editor.CompositionDifferentOrUnconfirmedAnchors" xml:space="preserve">
+    <value>Different or unconfirmed anchors</value>
+  </data>
+  <data name="Editor.CompositionMode0Profile1" xml:space="preserve">
+    <value>Mode: {0} · Profile: {1}</value>
+  </data>
+  <data name="Editor.CompositionSame" xml:space="preserve">
+    <value>same</value>
+  </data>
+  <data name="Editor.CompositionDifferent" xml:space="preserve">
+    <value>different</value>
+  </data>
+  <data name="Editor.CompositionReviewThisCCounterpart" xml:space="preserve">
+    <value>Review this C counterpart</value>
+  </data>
+  <data name="Editor.CompositionTheseReviewChoicesAreLocalUntil" xml:space="preserve">
+    <value>These review choices are local until Apply. All earlier successful actions are already saved in C.</value>
+  </data>
+  <data name="Editor.CompositionBlockItem0" xml:space="preserve">
+    <value>Block item {0}</value>
+  </data>
+  <data name="Editor.CompositionMoveUpInBlock" xml:space="preserve">
+    <value>Move up in block</value>
+  </data>
+  <data name="Editor.CompositionMoveDownInBlock" xml:space="preserve">
+    <value>Move down in block</value>
+  </data>
+  <data name="Editor.CompositionRemoveFromLocalBlock" xml:space="preserve">
+    <value>Remove from local block</value>
+  </data>
+  <data name="Editor.CompositionUseFirstItemSDestinationPosition" xml:space="preserve">
+    <value>Use first item’s destination / position for same-type copies</value>
+  </data>
+  <data name="Editor.CompositionClearLocalBlock" xml:space="preserve">
+    <value>Clear local block</value>
+  </data>
+  <data name="Editor.CompositionNewSiblingsInEachDestinationList" xml:space="preserve">
+    <value>New siblings in each destination list enter one contiguous block in the displayed order. Reused identities stay at their current positions.</value>
+  </data>
+  <data name="Editor.CompositionSavingSubmittedAction" xml:space="preserve">
+    <value>Saving submitted action…</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedActionToC" xml:space="preserve">
+    <value>Apply reviewed action to C</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentCRefreshOriginals" xml:space="preserve">
+    <value>Review current C / refresh originals</value>
+  </data>
+  <data name="Editor.CompositionAddThisReviewedItemToBlock" xml:space="preserve">
+    <value>Add this reviewed item to block</value>
+  </data>
+  <data name="Editor.CompositionSelectASourceRegionPlaceArea" xml:space="preserve">
+    <value>Select a source Region, Place, Area, Trip details or Trip-level Segment. The map focuses its actual geography.</value>
+  </data>
+  <data name="Editor.CompositionReturnToSelectedItem" xml:space="preserve">
+    <value>Return to selected item</value>
+  </data>
+  <data name="Editor.CompositionReviewBlock0Items" xml:space="preserve">
+    <value>Review block · {0} items</value>
+  </data>
+  <data name="Editor.CompositionOwnerSContributions0InheritedTerms" xml:space="preserve">
+    <value>Owner’s contributions: {0}. Inherited terms stay separate. Copy/adoption carries applicable source notices.</value>
+  </data>
+  <data name="Editor.CompositionNoPublicationGrantSelected" xml:space="preserve">
+    <value>No publication grant selected</value>
+  </data>
+  <data name="Editor.CompositionReviewSourceTerms0" xml:space="preserve">
+    <value>Review source terms: {0}</value>
+  </data>
+  <data name="Editor.CompositionOwnedSource" xml:space="preserve">
+    <value>Owned source</value>
+  </data>
+  <data name="Editor.CompositionInspectCorrectPublishableCreditsInTrip" xml:space="preserve">
+    <value>Inspect/correct publishable credits in Trip settings</value>
+  </data>
+  <data name="Editor.CompositionLoadingOrComparisonUnavailable" xml:space="preserve">
+    <value>Loading or comparison unavailable.</value>
+  </data>
+  <data name="Editor.CompositionTryReadingAgain" xml:space="preserve">
+    <value>Try reading again</value>
+  </data>
+  <data name="Editor.CompositionSelectASourceIdea" xml:space="preserve">
+    <value>Select a source idea</value>
+  </data>
+  <data name="Editor.CompositionCandidateSearchUnavailable" xml:space="preserve">
+    <value>Candidate search unavailable.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentC" xml:space="preserve">
+    <value>Review current C?</value>
+  </data>
+  <data name="Editor.CompositionKeepYourChoicesAndUseCurrent" xml:space="preserve">
+    <value>Keep your choices and use current C as the new comparison. Inspect the updated differences and placement before applying; this does not save the choices.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentOriginals" xml:space="preserve">
+    <value>Review current originals</value>
+  </data>
+  <data name="Editor.CompositionKeepPriorOriginals" xml:space="preserve">
+    <value>Keep prior originals</value>
+  </data>
+  <data name="Editor.CompositionCurrentOriginalsLoadedReviewTheRetained" xml:space="preserve">
+    <value>Current originals loaded. Review the retained choices before applying.</value>
+  </data>
+  <data name="Editor.CompositionReviewYourSelectedFieldsAndDestination" xml:space="preserve">
+    <value>Review your selected fields and destination.</value>
+  </data>
+  <data name="Editor.CompositionReviewConsequencesInC" xml:space="preserve">
+    <value>Review consequences in C</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedAction" xml:space="preserve">
+    <value>Apply reviewed action</value>
+  </data>
+  <data name="Editor.CompositionKeepChoices" xml:space="preserve">
+    <value>Keep choices</value>
+  </data>
+  <data name="Editor.CompositionActionNotAppliedChoicesRetainedFor" xml:space="preserve">
+    <value>Action not applied. Choices retained for review.</value>
+  </data>
+  <data name="Editor.CompositionOneActionBlockUsesASingle" xml:space="preserve">
+    <value>One action block uses a single source. Apply or clear the existing block first.</value>
+  </data>
+  <data name="Editor.CompositionThisItemIsAlreadyInThe" xml:space="preserve">
+    <value>This item is already in the block. Open the block to edit it.</value>
+  </data>
+  <data name="Editor.CompositionAddedToReviewedBlockOpenIt" xml:space="preserve">
+    <value>Added to reviewed block. Open it to check destinations and position.</value>
+  </data>
+  <data name="Editor.CompositionClearLocalBlock2" xml:space="preserve">
+    <value>Clear local block?</value>
+  </data>
+  <data name="Editor.CompositionClearTheseUnappliedBlockChoicesSaved" xml:space="preserve">
+    <value>Clear these unapplied block choices? Saved C and its comparison remain unchanged.</value>
+  </data>
+  <data name="Editor.CompositionKeepBlock" xml:space="preserve">
+    <value>Keep block</value>
+  </data>
+  <data name="Editor.CompositionABlockSharesAnExistingDestination" xml:space="preserve">
+    <value>A block shares an existing destination Region. To create one Region with several direct children atomically, use the Region-with-children scope.</value>
+  </data>
+  <data name="Editor.CompositionFinishComparison2" xml:space="preserve">
+    <value>Finish comparison?</value>
+  </data>
+  <data name="Editor.CompositionKeepCItsCurrentVisibilitySaved" xml:space="preserve">
+    <value>Keep C, its current visibility, saved content and credits. Remove this comparison’s source snapshots and workspace decisions permanently. The historical comparison cannot reopen. Unapplied local choices will not be applied. You can continue ordinary editing and publication.</value>
+  </data>
+  <data name="Editor.CompositionContinueComparison" xml:space="preserve">
+    <value>Continue comparison</value>
+  </data>
+  <data name="Editor.CompositionTheReplyIsIncompleteOrBelongs" xml:space="preserve">
+    <value>The reply is incomplete or belongs to another Trip.</value>
+  </data>
+  <data name="Editor.CompositionComparisonFinishedOnTheServerBut" xml:space="preserve">
+    <value>Comparison finished on the server, but this browser could not clear its retained local choices.</value>
+  </data>
+  <data name="Editor.CompositionFinishCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Finish could not be confirmed. Inspect or refresh saved C. {0}</value>
+  </data>
+  <data name="Editor.CompositionDeleteTripC" xml:space="preserve">
+    <value>Delete Trip C?</value>
+  </data>
+  <data name="Editor.CompositionPermanentlyDelete0AllItsContent" xml:space="preserve">
+    <value>Permanently delete “{0}”, all its content and this comparison. A, B and independent copies remain unchanged. This cannot be undone.</value>
+  </data>
+  <data name="Editor.CompositionKeepC" xml:space="preserve">
+    <value>Keep C</value>
+  </data>
+  <data name="Editor.CompositionLocalViewStorageIsUnavailableSaved" xml:space="preserve">
+    <value>Local view storage is unavailable; saved C still resumes from My Trips.</value>
+  </data>
+  <data name="Editor.CompositionLocalChoicesCouldNotBeRetained" xml:space="preserve">
+    <value>Local choices could not be retained. Keep this page open; server-saved actions are unaffected.</value>
+  </data>
+  <data name="Editor.CompositionSharedABCTripMap" xml:space="preserve">
+    <value>Shared A B C Trip map</value>
+  </data>
+  <data name="Editor.CompositionUseTheSourceTreesAndContextual" xml:space="preserve">
+    <value>Use the source trees and contextual inspector to select ideas. Arrow keys pan the map; plus and minus zoom.</value>
+  </data>
+  <data name="Editor.CompositionNoLocatedGeographyForThisSelection" xml:space="preserve">
+    <value>No located geography for this selection. Historical or empty objects have no invented location.</value>
+  </data>
+  <data name="Editor.CompositionMapFittedToTheSelectionS" xml:space="preserve">
+    <value>Map fitted to the selection’s complete available geography.</value>
+  </data>
+  <data name="Editor.CompositionStartOrResumeTripComposition" xml:space="preserve">
+    <value>Start or resume Trip composition</value>
+  </data>
+  <data name="Editor.CompositionCompareCombineTrips" xml:space="preserve">
+    <value>Compare &amp; combine Trips</value>
+  </data>
+  <data name="Editor.CompositionSaveAnIndependentPrivateCA" xml:space="preserve">
+    <value>Save an independent private C. A and B remain read-only. Every successful action saves immediately.</value>
+  </data>
+  <data name="Editor.CompositionTheEarlierSubmittedCreationWasSaved" xml:space="preserve">
+    <value>The earlier submitted creation was saved. Newer choices remain here and would create another Trip.</value>
+  </data>
+  <data name="Editor.CompositionOpenTheSavedResult" xml:space="preserve">
+    <value>Open the saved result</value>
+  </data>
+  <data name="Editor.CompositionCompareAAndBInA" xml:space="preserve">
+    <value>Compare A and B in a new C</value>
+  </data>
+  <data name="Editor.CompositionCreateAnIndependentNewVersionOf" xml:space="preserve">
+    <value>Create an independent new version of A</value>
+  </data>
+  <data name="Editor.CompositionAYourTrip" xml:space="preserve">
+    <value>A · Your Trip</value>
+  </data>
+  <data name="Editor.CompositionFindOwnedA" xml:space="preserve">
+    <value>Find owned A</value>
+  </data>
+  <data name="Editor.CompositionSourceA" xml:space="preserve">
+    <value>Source A</value>
+  </data>
+  <data name="Editor.CompositionSelectOwnedA" xml:space="preserve">
+    <value>Select owned A</value>
+  </data>
+  <data name="Editor.CompositionBOwnedOrPublicReusableTrip" xml:space="preserve">
+    <value>B · Owned or public reusable Trip</value>
+  </data>
+  <data name="Editor.CompositionFindEligibleB" xml:space="preserve">
+    <value>Find eligible B</value>
+  </data>
+  <data name="Editor.CompositionSourceB" xml:space="preserve">
+    <value>Source B</value>
+  </data>
+  <data name="Editor.CompositionSelectEligibleB" xml:space="preserve">
+    <value>Select eligible B</value>
+  </data>
+  <data name="Editor.CompositionYours" xml:space="preserve">
+    <value>Yours</value>
+  </data>
+  <data name="Editor.CompositionFindingTrips" xml:space="preserve">
+    <value>Finding Trips…</value>
+  </data>
+  <data name="Editor.CompositionSearchSourcesRefreshUnfinishedWork" xml:space="preserve">
+    <value>Search sources / refresh unfinished work</value>
+  </data>
+  <data name="Editor.CompositionUpTo20MatchesPlusYour" xml:space="preserve">
+    <value>Up to 20 matches plus your retained selection. Refine the name to find another Trip. Foreign private, unlicensed and public view-only Trips are unavailable.</value>
+  </data>
+  <data name="Editor.CompositionExistingWorkForThisSourcePair" xml:space="preserve">
+    <value>Existing work for this source pair</value>
+  </data>
+  <data name="Editor.CompositionContinueExisting" xml:space="preserve">
+    <value>Continue Existing</value>
+  </data>
+  <data name="Editor.CompositionThisPairAlreadyHasSavedWork" xml:space="preserve">
+    <value>This pair already has saved work. Continue resumes that same C.</value>
+  </data>
+  <data name="Editor.CompositionNewTripNameOptional" xml:space="preserve">
+    <value>New Trip name (optional)</value>
+  </data>
+  <data name="Editor.CompositionPrivateChangeNoteOptional" xml:space="preserve">
+    <value>Private change note (optional)</value>
+  </data>
+  <data name="Editor.CompositionRetainMyAPlanningInThe" xml:space="preserve">
+    <value>Retain my A planning in the new private Trip</value>
+  </data>
+  <data name="Editor.CompositionNewVersionsAreOrdinaryTripsWith" xml:space="preserve">
+    <value>New versions are ordinary Trips with no compulsory comparison workspace.</value>
+  </data>
+  <data name="Editor.CompositionCreating" xml:space="preserve">
+    <value>Creating…</value>
+  </data>
+  <data name="Editor.CompositionCreateNewVersion" xml:space="preserve">
+    <value>Create new version</value>
+  </data>
+  <data name="Editor.CompositionStartNewComposition" xml:space="preserve">
+    <value>Start New composition</value>
+  </data>
+  <data name="Editor.CompositionInspectYourTripsBeforeAnyFurther" xml:space="preserve">
+    <value>Inspect your trips before any further creation. The submitted action may still finish.</value>
+  </data>
+  <data name="Editor.CompositionIInspectedMyTripsReviewA" xml:space="preserve">
+    <value>I inspected My Trips · review a new creation</value>
+  </data>
+  <data name="Editor.CompositionAllUnfinishedCompositions" xml:space="preserve">
+    <value>All unfinished compositions</value>
+  </data>
+  <data name="Editor.CompositionUnfinishedCompositions" xml:space="preserve">
+    <value>Unfinished compositions</value>
+  </data>
+  <data name="Editor.CompositionNoUnfinishedComparisonsFound" xml:space="preserve">
+    <value>No unfinished comparisons found.</value>
+  </data>
+  <data name="Editor.CompositionSavedComparison" xml:space="preserve">
+    <value>Saved comparison</value>
+  </data>
+  <data name="Editor.CompositionContinueComposition" xml:space="preserve">
+    <value>Continue Composition</value>
+  </data>
+  <data name="Editor.CompositionSourceSearchUnavailable" xml:space="preserve">
+    <value>Source search unavailable.</value>
+  </data>
+  <data name="Editor.CompositionExistingComparisonsUnavailable" xml:space="preserve">
+    <value>Existing comparisons unavailable.</value>
+  </data>
+  <data name="Editor.CompositionSelectTheRequiredSources" xml:space="preserve">
+    <value>Select the required sources.</value>
+  </data>
+  <data name="Editor.CompositionStartAnotherIndependentC" xml:space="preserve">
+    <value>Start another independent C?</value>
+  </data>
+  <data name="Editor.CompositionUnfinishedWorkAlreadyExistsForThis" xml:space="preserve">
+    <value>Unfinished work already exists for this source pair. Continue Existing resumes the same C. Start New deliberately creates a separate private Trip and comparison.</value>
+  </data>
+  <data name="Editor.CompositionStartNew" xml:space="preserve">
+    <value>Start New</value>
+  </data>
+  <data name="Editor.CompositionCreationCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Creation could not be confirmed. Inspect My Trips.</value>
+  </data>
+  <data name="Editor.CompositionCopyToExistingTrip" xml:space="preserve">
+    <value>Copy to existing Trip</value>
+  </data>
+  <data name="Editor.CompositionChooseAnOwnedOrPubliclyReusable" xml:space="preserve">
+    <value>Choose an owned or publicly reusable source and an existing Trip you own. Source Trips stay unchanged.</value>
+  </data>
+  <data name="Editor.CompositionFindSourceTrip" xml:space="preserve">
+    <value>Find source Trip</value>
+  </data>
+  <data name="Editor.CompositionSearchSources" xml:space="preserve">
+    <value>Search sources</value>
+  </data>
+  <data name="Editor.CompositionSourceTrip" xml:space="preserve">
+    <value>Source Trip</value>
+  </data>
+  <data name="Editor.CompositionSelectSource" xml:space="preserve">
+    <value>Select source</value>
+  </data>
+  <data name="Editor.CompositionSelectedSource" xml:space="preserve">
+    <value>Selected source</value>
+  </data>
+  <data name="Editor.CompositionOwned" xml:space="preserve">
+    <value>Owned</value>
+  </data>
+  <data name="Editor.CompositionExistingOwnedDestination" xml:space="preserve">
+    <value>Existing owned destination</value>
+  </data>
+  <data name="Editor.CompositionFindDestinationTrip" xml:space="preserve">
+    <value>Find destination Trip</value>
+  </data>
+  <data name="Editor.CompositionSearchDestinations" xml:space="preserve">
+    <value>Search destinations</value>
+  </data>
+  <data name="Editor.CompositionDestinationTrip" xml:space="preserve">
+    <value>Destination Trip</value>
+  </data>
+  <data name="Editor.CompositionSelectDestination" xml:space="preserve">
+    <value>Select destination</value>
+  </data>
+  <data name="Editor.CompositionSelectedDestination" xml:space="preserve">
+    <value>Selected destination</value>
+  </data>
+  <data name="Editor.CompositionLoadingPreview" xml:space="preserve">
+    <value>Loading preview…</value>
+  </data>
+  <data name="Editor.CompositionRefreshAndReviewCurrentValues" xml:space="preserve">
+    <value>Refresh and review current values</value>
+  </data>
+  <data name="Editor.CompositionPreviewCopyChoices" xml:space="preserve">
+    <value>Preview copy choices</value>
+  </data>
+  <data name="Editor.CompositionInspectDestinationTrip" xml:space="preserve">
+    <value>Inspect destination Trip</value>
+  </data>
+  <data name="Editor.CompositionTheSubmittedCopyMayStillFinish" xml:space="preserve">
+    <value>The submitted copy may still finish. Review the current values for the original pair before switching language.</value>
+  </data>
+  <data name="Editor.CompositionSavingTheSubmittedChoices" xml:space="preserve">
+    <value>Saving the submitted choices…</value>
+  </data>
+  <data name="Editor.CompositionTripSelectionChangedPreviewTheSelected" xml:space="preserve">
+    <value>Trip selection changed. Preview the selected pair before applying choices.</value>
+  </data>
+  <data name="Editor.CompositionDestination0" xml:space="preserve">
+    <value>Destination · {0}</value>
+  </data>
+  <data name="Editor.CompositionPublicSavedContentUpdatesThisTrip" xml:space="preserve">
+    <value>Public · saved content updates this Trip</value>
+  </data>
+  <data name="Editor.CompositionEditInspectDestinationTrip" xml:space="preserve">
+    <value>Edit / inspect destination Trip</value>
+  </data>
+  <data name="Editor.CompositionUnqualifiedSourceCoversAndNotesImages" xml:space="preserve">
+    <value>Unqualified source covers and Notes images were omitted. Copying does not grant media permission; reselect eligible images in the destination editor.</value>
+  </data>
+  <data name="Editor.CompositionSourceAndExistingDestinationTripMap" xml:space="preserve">
+    <value>Source and existing destination Trip map</value>
+  </data>
+  <data name="Editor.CompositionPreviewMap" xml:space="preserve">
+    <value>Preview map</value>
+  </data>
+  <data name="Editor.CompositionSourceOrange" xml:space="preserve">
+    <value>Source (orange)</value>
+  </data>
+  <data name="Editor.CompositionDestinationGreen" xml:space="preserve">
+    <value>Destination (green)</value>
+  </data>
+  <data name="Editor.CompositionFocusSelectedGeography" xml:space="preserve">
+    <value>Focus selected geography</value>
+  </data>
+  <data name="Editor.CompositionSource" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Editor.CompositionReviewedCopyChoices" xml:space="preserve">
+    <value>Reviewed copy choices</value>
+  </data>
+  <data name="Editor.CompositionReviewProposedEffect0Selected" xml:space="preserve">
+    <value>Review proposed effect · {0} selected</value>
+  </data>
+  <data name="Editor.CompositionEachListReceivesAContiguousBlock" xml:space="preserve">
+    <value>Each list receives a contiguous block in the displayed order. Reused objects keep their identity, container and position. Trip metadata is unchanged; own planning is copied only when explicitly selected.</value>
+  </data>
+  <data name="Editor.CompositionSelectARegionPlaceAreaOr" xml:space="preserve">
+    <value>Select a Region, Place, Area or Trip-level Segment from the source.</value>
+  </data>
+  <data name="Editor.CompositionRemoveLocalChoice" xml:space="preserve">
+    <value>Remove local choice</value>
+  </data>
+  <data name="Editor.CompositionApplicableSourceCreditsNotices" xml:space="preserve">
+    <value>Applicable source credits &amp; notices</value>
+  </data>
+  <data name="Editor.CompositionDestinationOwnerSContributionPolicyStays" xml:space="preserve">
+    <value>Destination owner’s contribution policy stays {0}. Inherited notices remain separate.</value>
+  </data>
+  <data name="Editor.CompositionUnselected" xml:space="preserve">
+    <value>unselected</value>
+  </data>
+  <data name="Editor.CompositionSelectedContentAdapted" xml:space="preserve">
+    <value>Selected content adapted.</value>
+  </data>
+  <data name="Editor.CompositionApplicableNoticesAccompanyCopiedContentOr" xml:space="preserve">
+    <value>Applicable notices accompany copied content or selected source fields. Existing destination notices stay.</value>
+  </data>
+  <data name="Editor.CompositionSavingSubmittedCopy" xml:space="preserve">
+    <value>Saving submitted copy…</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedCopyToDestination" xml:space="preserve">
+    <value>Apply reviewed copy to destination</value>
+  </data>
+  <data name="Editor.CompositionDestinationTrip2" xml:space="preserve">
+    <value>destination Trip</value>
+  </data>
+  <data name="Editor.CompositionTripSearchUnavailable" xml:space="preserve">
+    <value>Trip search unavailable.</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentSourceAndDestination" xml:space="preserve">
+    <value>Review current source and destination?</value>
+  </data>
+  <data name="Editor.CompositionChangeTheCopyContext" xml:space="preserve">
+    <value>Change the copy context?</value>
+  </data>
+  <data name="Editor.CompositionReplaceTheReviewedOriginalsWithCurrent" xml:space="preserve">
+    <value>Replace the reviewed originals with current source and destination values. Keep your choices for inspection; review changed values before applying.</value>
+  </data>
+  <data name="Editor.CompositionClearTheseUnappliedChoicesAndPreview" xml:space="preserve">
+    <value>Clear these unapplied choices and preview the selected source and destination?</value>
+  </data>
+  <data name="Editor.CompositionReviewCurrentValues" xml:space="preserve">
+    <value>Review current values</value>
+  </data>
+  <data name="Editor.CompositionCopyChoicesChangedDuringConfirmationThey" xml:space="preserve">
+    <value>Copy choices changed during confirmation. They remain in the previous context. Preview again to confirm replacement.</value>
+  </data>
+  <data name="Editor.CompositionThePreviewDoesNotMatchThe" xml:space="preserve">
+    <value>The preview does not match the selected Trips. Review again.</value>
+  </data>
+  <data name="Editor.CompositionASelectedSourceObjectWasRemoved" xml:space="preserve">
+    <value>A selected source object was removed. Keep the old review or remove that local choice before refreshing.</value>
+  </data>
+  <data name="Editor.CompositionCopyChoicesChangedWhileThePreview" xml:space="preserve">
+    <value>Copy choices changed while the preview loaded. They remain in the previous context. Preview again to confirm replacement.</value>
+  </data>
+  <data name="Editor.CompositionPreviewReadyChooseObjectsDestinationsDependencies" xml:space="preserve">
+    <value>Preview ready. Choose objects, destinations, dependencies and selected fields.</value>
+  </data>
+  <data name="Editor.CompositionPreviewUnavailable" xml:space="preserve">
+    <value>Preview unavailable.</value>
+  </data>
+  <data name="Editor.CompositionReviewDestinationConsequences" xml:space="preserve">
+    <value>Review destination consequences</value>
+  </data>
+  <data name="Editor.CompositionApplyReviewedCopy" xml:space="preserve">
+    <value>Apply reviewed copy</value>
+  </data>
+  <data name="Editor.CompositionCopyNotAppliedChoicesRetained" xml:space="preserve">
+    <value>Copy not applied. Choices retained.</value>
+  </data>
+  <data name="Editor.CompositionSaveCouldNotBeConfirmedInspect" xml:space="preserve">
+    <value>Save could not be confirmed. Inspect the destination before another copy.</value>
+  </data>
+  <data name="Editor.CompositionReviewTheSelectedChoices" xml:space="preserve">
+    <value>Review the selected choices.</value>
+  </data>
+  <data name="Editor.CompositionSelectedFieldsUnselectedFieldsKeep" xml:space="preserve">
+    <value>Selected fields · unselected fields Keep</value>
+  </data>
+  <data name="Editor.CompositionNamesNotesPlanningAndRouteIntent" xml:space="preserve">
+    <value>Names, Notes, planning and route intent are independent. Importing this object does not adopt unrelated Trip details.</value>
+  </data>
+  <data name="Editor.CompositionSavedProfileProvenance" xml:space="preserve">
+    <value>Saved profile &amp; provenance</value>
+  </data>
+  <data name="Editor.CompositionReviewedOriginal01" xml:space="preserve">
+    <value>Reviewed original {0} · {1}</value>
+  </data>
+  <data name="Editor.CompositionCurrent01" xml:space="preserve">
+    <value>Current {0} · {1}</value>
+  </data>
+  <data name="Editor.CompositionCounterpartUnavailable" xml:space="preserve">
+    <value>Counterpart unavailable</value>
+  </data>
+  <data name="Editor.CompositionCurrent0ChangedSinceThisReview" xml:space="preserve">
+    <value>Current {0} changed since this review. Your choices and reviewed originals are retained. Use the refresh / review control to review the change explicitly.</value>
+  </data>
+  <data name="Editor.Composition0Action" xml:space="preserve">
+    <value>{0} action</value>
+  </data>
+  <data name="Editor.CompositionKeep" xml:space="preserve">
+    <value>Keep</value>
+  </data>
+  <data name="Editor.CompositionUseSource" xml:space="preserve">
+    <value>Use source</value>
+  </data>
+  <data name="Editor.CompositionEditValue" xml:space="preserve">
+    <value>Edit value</value>
+  </data>
+  <data name="Editor.CompositionClear" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="Editor.CompositionEditedNotesFor0" xml:space="preserve">
+    <value>Edited Notes for {0}</value>
+  </data>
+  <data name="Editor.CompositionAuthoredAddressClearsDetectedProviderEvidence" xml:space="preserve">
+    <value>Authored address (clears detected provider evidence)</value>
+  </data>
+  <data name="Editor.CompositionTagNamesSeparatedByCommas" xml:space="preserve">
+    <value>Tag names, separated by commas</value>
+  </data>
+  <data name="Editor.CompositionEdited0" xml:space="preserve">
+    <value>Edited {0}</value>
+  </data>
+  <data name="Editor.CompositionEdit0InOrdinary1Editor" xml:space="preserve">
+    <value>Edit {0} in ordinary {1} editor, then return</value>
+  </data>
+  <data name="Editor.CompositionTheCapturedPlaceIsUnlocatedAn" xml:space="preserve">
+    <value>The captured Place is unlocated. An independent copy retains that absence; adopting it cannot silently erase the {0}’s required location.</value>
+  </data>
+  <data name="Editor.CompositionSourceRoutesRequireEveryAnchorBelow" xml:space="preserve">
+    <value>Source routes require every anchor below. To clear or repair an incompatible route, use ordinary {0} route controls and their consequence review, then review again. Captured geometry is never snapped, cleared or regenerated by copying.</value>
+  </data>
+  <data name="Editor.CompositionSegmentTitle" xml:space="preserve">
+    <value>Segment title</value>
+  </data>
+  <data name="Editor.CompositionNotes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="Editor.CompositionMarkerColour" xml:space="preserve">
+    <value>Marker colour</value>
+  </data>
+  <data name="Editor.CompositionAreaFill" xml:space="preserve">
+    <value>Area fill</value>
+  </data>
+  <data name="Editor.CompositionAddressEnrichment" xml:space="preserve">
+    <value>Address &amp; enrichment</value>
+  </data>
+  <data name="Editor.CompositionLocation" xml:space="preserve">
+    <value>Location</value>
+  </data>
+  <data name="Editor.CompositionCompletePolygon" xml:space="preserve">
+    <value>Complete polygon</value>
+  </data>
+  <data name="Editor.CompositionRegionCentre" xml:space="preserve">
+    <value>Region centre</value>
+  </data>
+  <data name="Editor.CompositionCover" xml:space="preserve">
+    <value>Cover</value>
+  </data>
+  <data name="Editor.CompositionTripTags" xml:space="preserve">
+    <value>Trip tags</value>
+  </data>
+  <data name="Editor.CompositionTripViewport" xml:space="preserve">
+    <value>Trip viewport</value>
+  </data>
+  <data name="Editor.CompositionCompleteRoute" xml:space="preserve">
+    <value>Complete route</value>
+  </data>
+  <data name="Editor.CompositionPersonalPlanning" xml:space="preserve">
+    <value>Personal planning</value>
+  </data>
+  <data name="Editor.Composition0Min" xml:space="preserve">
+    <value>0 min</value>
+  </data>
+  <data name="Editor.Composition0Sec" xml:space="preserve">
+    <value>{0} sec</value>
+  </data>
+  <data name="Editor.CompositionNoMode" xml:space="preserve">
+    <value>No mode</value>
+  </data>
+  <data name="Editor.CompositionSavedCustomGeometry" xml:space="preserve">
+    <value>Saved custom geometry</value>
+  </data>
+  <data name="Editor.CompositionAnchorFallback" xml:space="preserve">
+    <value>Anchor fallback</value>
+  </data>
+  <data name="Editor.Composition0Duration" xml:space="preserve">
+    <value>{0} duration</value>
+  </data>
+  <data name="Editor.CompositionSavedProfile" xml:space="preserve">
+    <value>Saved profile</value>
+  </data>
+  <data name="Editor.CompositionTransportProfile0" xml:space="preserve">
+    <value>Transport profile: {0}</value>
+  </data>
+  <data name="Editor.CompositionRecorded" xml:space="preserve">
+    <value>Recorded</value>
+  </data>
+  <data name="Editor.CompositionProvider0Settings1Version2" xml:space="preserve">
+    <value>Provider: {0}; settings: {1}; version: {2}</value>
+  </data>
+  <data name="Editor.CompositionRoutedProfile0RoutingMode1" xml:space="preserve">
+    <value>Routed profile: {0}; routing mode: {1}</value>
+  </data>
+  <data name="Editor.CompositionGenerated0Storage1" xml:space="preserve">
+    <value>Generated: {0}; storage: {1}</value>
+  </data>
+  <data name="Editor.CompositionInstructions0Attribution1" xml:space="preserve">
+    <value>Instructions: {0}; Attribution: {1}</value>
+  </data>
+  <data name="Editor.CompositionNoPersonalPlanning" xml:space="preserve">
+    <value>No personal planning</value>
+  </data>
+  <data name="Editor.Composition0Latitude1Longitude" xml:space="preserve">
+    <value>{0}° latitude, {1}° longitude</value>
+  </data>
+  <data name="Editor.CompositionFull0OuterShellAnd1" xml:space="preserve">
+    <value>Full {0}: outer shell and {1} hole(s). View on map.</value>
+  </data>
+  <data name="Editor.CompositionHistoricalGeometryUnavailable" xml:space="preserve">
+    <value>Historical geometry unavailable</value>
+  </data>
+  <data name="Editor.CompositionUnset" xml:space="preserve">
+    <value>unset</value>
+  </data>
+  <data name="Editor.Composition01Zoom2" xml:space="preserve">
+    <value>{0}°, {1}° · Zoom {2}</value>
+  </data>
+  <data name="Editor.CompositionNone" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Editor.CompositionRouteUnavailableReviewFromViaTo" xml:space="preserve">
+    <value>Route unavailable · Review From / Via / To dependencies</value>
+  </data>
+  <data name="Editor.CompositionSavedGeometry" xml:space="preserve">
+    <value>saved geometry</value>
+  </data>
+  <data name="Editor.CompositionDurationSource" xml:space="preserve">
+    <value>duration source</value>
+  </data>
+  <data name="Editor.CompositionTransportProfile" xml:space="preserve">
+    <value>transport profile</value>
+  </data>
+  <data name="Editor.CompositionProviderSettings" xml:space="preserve">
+    <value>provider settings</value>
+  </data>
+  <data name="Editor.CompositionProviderVersion" xml:space="preserve">
+    <value>provider version</value>
+  </data>
+  <data name="Editor.CompositionRoutedProfile" xml:space="preserve">
+    <value>routed profile</value>
+  </data>
+  <data name="Editor.CompositionGenerationTime" xml:space="preserve">
+    <value>generation time</value>
+  </data>
+  <data name="Editor.CompositionRoutingMode" xml:space="preserve">
+    <value>routing mode</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceMode" xml:space="preserve">
+    <value>mode</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceDistance" xml:space="preserve">
+    <value>distance</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceDuration" xml:space="preserve">
+    <value>duration</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceInstructions" xml:space="preserve">
+    <value>instructions</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceProvider" xml:space="preserve">
+    <value>provider</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceAttribution" xml:space="preserve">
+    <value>attribution</value>
+  </data>
+  <data name="Editor.CompositionRouteDifferenceStorage" xml:space="preserve">
+    <value>storage</value>
+  </data>
+  <data name="Editor.CompositionDifferentSavedRouteFacts0" xml:space="preserve">
+    <value>Different saved route facts: {0}</value>
+  </data>
+  <data name="Editor.CompositionSameSavedRouteFacts" xml:space="preserve">
+    <value>Same saved route facts</value>
+  </data>
+  <data name="Editor.CompositionReviewFromViaToDependencies" xml:space="preserve">
+    <value>Review From / Via / To dependencies</value>
+  </data>
+  <data name="Editor.CompositionSameValue" xml:space="preserve">
+    <value>Same value</value>
+  </data>
+  <data name="Editor.CompositionDifferentValue" xml:space="preserve">
+    <value>Different value</value>
+  </data>
+  <data name="Editor.CompositionSource0Hierarchy" xml:space="preserve">
+    <value>Source {0} hierarchy</value>
+  </data>
+  <data name="Editor.CompositionSearchSource0" xml:space="preserve">
+    <value>Search source {0}</value>
+  </data>
+  <data name="Editor.CompositionTripDetails" xml:space="preserve">
+    <value>Trip details</value>
+  </data>
+  <data name="Editor.CompositionRegion0" xml:space="preserve">
+    <value>Region · {0}</value>
+  </data>
+  <data name="Editor.CompositionCurrentCCounterpart0" xml:space="preserve">
+    <value>Current C counterpart · {0}</value>
+  </data>
+  <data name="Editor.CompositionPlace2" xml:space="preserve">
+    <value>● Place</value>
+  </data>
+  <data name="Editor.CompositionArea" xml:space="preserve">
+    <value>▱ Area</value>
+  </data>
+  <data name="Editor.CompositionTripLevelSegments" xml:space="preserve">
+    <value>↝ Trip-level Segments</value>
+  </data>
+  <data name="Editor.CompositionNoSegmentsInThisCapturedTrip" xml:space="preserve">
+    <value>No Segments in this captured Trip.</value>
+  </data>
+  <data name="Editor.CompositionNotReviewed" xml:space="preserve">
+    <value>Not reviewed</value>
+  </data>
+  <data name="Editor.TripsCreateANewTrip" xml:space="preserve">
+    <value>Create a new Trip</value>
+  </data>
+  <data name="Editor.TripsImportATripFromAWayfarer" xml:space="preserve">
+    <value>Import a Trip from a Wayfarer extended KML file (*.kml)</value>
+  </data>
+  <data name="Editor.TripsImportAGoogleMyMapsKML" xml:space="preserve">
+    <value>Import a Google My Maps KML</value>
+  </data>
+  <data name="Editor.TripsSearchTrips" xml:space="preserve">
+    <value>Search trips...</value>
+  </data>
+  <data name="Editor.TripsClearSearch" xml:space="preserve">
+    <value>Clear search</value>
+  </data>
+  <data name="Editor.TripsTripVisibilityFilter" xml:space="preserve">
+    <value>Trip visibility filter</value>
+  </data>
+  <data name="Editor.TripsThisToolScansYourLocationHistory" xml:space="preserve">
+    <value>This tool scans your location history to find days when you were physically near places in this trip. It can automatically create visit records for places you've been to, and identify outdated visits that may need cleanup.</value>
+  </data>
+  <data name="Editor.TripsOnlyAnalyzeLocationHistoryFromThis" xml:space="preserve">
+    <value>Only analyze location history from this date forward. Useful if you know when your trip started.</value>
+  </data>
+  <data name="Editor.TripsOnlyAnalyzeLocationHistoryUpTo" xml:space="preserve">
+    <value>Only analyze location history up to this date. Useful if you know when your trip ended.</value>
+  </data>
+  <data name="Editor.TripsTotalGPSLocationPointsThatMatched" xml:space="preserve">
+    <value>Total GPS location points that matched places in this trip. More matches = higher confidence.</value>
+  </data>
+  <data name="Editor.TripsNumberOfPlacesInThisTrip" xml:space="preserve">
+    <value>Number of places in this trip that have coordinates and were included in the analysis.</value>
+  </data>
+  <data name="Editor.TripsSearchPlacesRegions" xml:space="preserve">
+    <value>Search places, regions...</value>
+  </data>
+  <data name="Editor.TripsConfirmedVisitsAreDaysWhenYour" xml:space="preserve">
+    <value>Confirmed visits are days when your location history shows you were near a place (within ~150m), with multiple GPS points confirming your presence. Confidence % indicates certainty based on the number and proximity of matched GPS points.</value>
+  </data>
+  <data name="Editor.TripsSuggestionsUseGPSPointsAtSeveral" xml:space="preserve">
+    <value>Suggestions use GPS points at several distances, a nearby manual check-in or multiple pings in a wider area. Select a suggestion to create a visit.</value>
+  </data>
+  <data name="Editor.TripsStaleVisitsReferToADeleted" xml:space="preserve">
+    <value>Stale visits refer to a deleted place or one that has moved significantly since the visit. They are selected for deletion by default.</value>
+  </data>
+  <data name="Editor.TripsExistingVisitsAreValidRecordsFor" xml:space="preserve">
+    <value>Existing visits are valid records for this Trip. Select any you want to remove, for example before scanning with different settings.</value>
+  </data>
+  <data name="Editor.TripsImportReview" xml:space="preserve">
+    <value>Import review</value>
+  </data>
+  <data name="Editor.TripsCreateNewTrip" xml:space="preserve">
+    <value>Create New Trip</value>
+  </data>
+  <data name="Editor.TripsImportTrip" xml:space="preserve">
+    <value>Import Trip</value>
+  </data>
+  <data name="Editor.TripsImportMyMaps" xml:space="preserve">
+    <value>Import My Maps</value>
+  </data>
+  <data name="Editor.TripsTotal" xml:space="preserve">
+    <value>total</value>
+  </data>
+  <data name="Editor.TripsPublic" xml:space="preserve">
+    <value>public</value>
+  </data>
+  <data name="Editor.TripsPrivate" xml:space="preserve">
+    <value>private</value>
+  </data>
+  <data name="Editor.TripsYouDonTHaveAnyTrips" xml:space="preserve">
+    <value>You don't have any trips yet.</value>
+  </data>
+  <data name="Editor.TripsActions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="Editor.TripsPerPage" xml:space="preserve">
+    <value>Per page:</value>
+  </data>
+  <data name="Editor.TripsAnalyzeLocationHistory" xml:space="preserve">
+    <value>Analyze Location History</value>
+  </data>
+  <data name="Editor.TripsAnalyzingTrip" xml:space="preserve">
+    <value>Analyzing trip:</value>
+  </data>
+  <data name="Editor.TripsFromDateOptional" xml:space="preserve">
+    <value>From Date (optional)</value>
+  </data>
+  <data name="Editor.TripsToDateOptional" xml:space="preserve">
+    <value>To Date (optional)</value>
+  </data>
+  <data name="Editor.TripsTheAnalysisSearchesYourLocationHistory" xml:space="preserve">
+    <value>The analysis searches your location history for GPS points within ~150m of each place in this trip. Days with multiple location points near a place are suggested as visits. Leave dates empty to scan your entire history.</value>
+  </data>
+  <data name="Editor.TripsAnalyzing" xml:space="preserve">
+    <value>Analyzing...</value>
+  </data>
+  <data name="Editor.TripsAnalyzingLocationHistory" xml:space="preserve">
+    <value>Analyzing location history...</value>
+  </data>
+  <data name="Editor.TripsLocations" xml:space="preserve">
+    <value>Locations</value>
+  </data>
+  <data name="Editor.TripsAnalysisTime" xml:space="preserve">
+    <value>Analysis Time</value>
+  </data>
+  <data name="Editor.TripsConfirmed" xml:space="preserve">
+    <value>Confirmed</value>
+  </data>
+  <data name="Editor.TripsConsiderAlso" xml:space="preserve">
+    <value>Consider Also</value>
+  </data>
+  <data name="Editor.TripsStale" xml:space="preserve">
+    <value>Stale</value>
+  </data>
+  <data name="Editor.TripsExisting" xml:space="preserve">
+    <value>Existing</value>
+  </data>
+  <data name="Editor.TripsTheseVisitsWillBeAutomaticallyCreated" xml:space="preserve">
+    <value>These visits will be automatically created when you click Apply. Higher confidence means more GPS points were found near the place.</value>
+  </data>
+  <data name="Editor.TripsNoNewVisitsFoundYouMay" xml:space="preserve">
+    <value>No new visits found — you may already have visit records for all matching days, or no location data matches the places in this trip.</value>
+  </data>
+  <data name="Editor.TripsTheseArePotentialVisitsWithSome" xml:space="preserve">
+    <value>These are potential visits with some evidence of a nearby visit. Check the ones you want to confirm.</value>
+  </data>
+  <data name="Editor.TripsSelectAll" xml:space="preserve">
+    <value>Select all</value>
+  </data>
+  <data name="Editor.TripsDeselectAll" xml:space="preserve">
+    <value>Deselect all</value>
+  </data>
+  <data name="Editor.TripsNoAdditionalSuggestionsAllPotentialVisits" xml:space="preserve">
+    <value>No additional suggestions — all potential visits either met strict criteria (shown in Confirmed tab) or had insufficient evidence.</value>
+  </data>
+  <data name="Editor.TripsCheckedVisitsWillBeDeletedThese" xml:space="preserve">
+    <value>Checked visits will be deleted. These visits refer to places that were deleted or moved significantly. Uncheck any you want to keep.</value>
+  </data>
+  <data name="Editor.TripsNoStaleVisitsFoundAllExisting" xml:space="preserve">
+    <value>No stale visits found — all existing visits reference valid, current place locations.</value>
+  </data>
+  <data name="Editor.TripsTheseAreValidVisitsTheyRemain" xml:space="preserve">
+    <value>These are valid visits. They remain as they are unless you select them for deletion.</value>
+  </data>
+  <data name="Editor.TripsNoExistingVisitsForThisTrip" xml:space="preserve">
+    <value>No existing visits for this trip yet.</value>
+  </data>
+  <data name="Editor.TripsActionsToPerform" xml:space="preserve">
+    <value>Actions to perform:</value>
+  </data>
+  <data name="Editor.TripsNoChangesToApply" xml:space="preserve">
+    <value>No changes to apply</value>
+  </data>
+  <data name="Editor.TripsCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Editor.TripsAnalyze" xml:space="preserve">
+    <value>Analyze</value>
+  </data>
+  <data name="Editor.TripsApplyChanges" xml:space="preserve">
+    <value>Apply Changes</value>
+  </data>
+  <data name="Editor.TripsUpdateReplacesGeographyNotesTagsAnd" xml:space="preserve">
+    <value>Update replaces geography, Notes, tags and routes together. Omitted private planning is preserved. Create new leaves the original Trip unchanged.</value>
+  </data>
+  <data name="Editor.TripsReviewUpdate" xml:space="preserve">
+    <value>Review update</value>
+  </data>
+  <data name="Editor.TripsApplyReviewedUpdate" xml:space="preserve">
+    <value>Apply reviewed update</value>
+  </data>
+  <data name="Editor.TripsCreateNewTrip2" xml:space="preserve">
+    <value>Create new Trip</value>
+  </data>
+  <data name="Editor.TripsCheckMyTrips" xml:space="preserve">
+    <value>Check My Trips</value>
+  </data>
+  <data name="Editor.TripsAbandonUnresolvedAttempt" xml:space="preserve">
+    <value>Abandon unresolved attempt…</value>
+  </data>
+  <data name="Editor.TripsPlaceContext" xml:space="preserve">
+    <value>Place Context</value>
+  </data>
+  <data name="Editor.TripsLocationPings" xml:space="preserve">
+    <value>Location Pings</value>
+  </data>
+  <data name="Editor.TripsTimeRange" xml:space="preserve">
+    <value>Time Range</value>
+  </data>
+  <data name="Editor.TripsAvgDistance" xml:space="preserve">
+    <value>Avg Distance</value>
+  </data>
+  <data name="Editor.TripsClosestPing" xml:space="preserve">
+    <value>Closest Ping</value>
+  </data>
+  <data name="Editor.TripsFurthestPing" xml:space="preserve">
+    <value>Furthest Ping</value>
+  </data>
+  <data name="Editor.TripsClickTheRulerIconToMeasure" xml:space="preserve">
+    <value>Click the ruler icon to measure distances.</value>
+  </data>
+  <data name="Editor.TripsClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Editor.TripsCompareCombineNewVersion" xml:space="preserve">
+    <value>Compare &amp; combine / New version</value>
+  </data>
+  <data name="Editor.TripsPublicAnyoneWithTheLinkCan" xml:space="preserve">
+    <value>Public: anyone with the link can view this trip. Private: only you can see it. You can change this setting later.</value>
+  </data>
+  <data name="Editor.TripsCreate" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="Editor.TripsCreateEdit" xml:space="preserve">
+    <value>Create &amp; Edit</value>
+  </data>
+  <data name="Editor.TripsNewTrip" xml:space="preserve">
+    <value>New Trip</value>
+  </data>
+  <data name="Editor.TripsLoadingTripComposition" xml:space="preserve">
+    <value>Loading Trip composition…</value>
+  </data>
+  <data name="Editor.TripsReturnToMyTrips" xml:space="preserve">
+    <value>Return to My Trips</value>
+  </data>
+  <data name="Editor.TripsTripCompositionAssetsAreUnavailable" xml:space="preserve">
+    <value>Trip composition assets are unavailable.</value>
+  </data>
+  <data name="Editor.TripsTripCreatedSuccessfully" xml:space="preserve">
+    <value>Trip created successfully!</value>
+  </data>
+  <data name="Editor.TripsTripCreatedButImageCacheWarm" xml:space="preserve">
+    <value>Trip created, but image cache warm-up could not be scheduled.</value>
+  </data>
+  <data name="Editor.TripsCouldNotCreateTrip" xml:space="preserve">
+    <value>Could not create Trip</value>
+  </data>
+  <data name="Editor.TripsTripNotFoundOrUnavailable" xml:space="preserve">
+    <value>Trip not found or unavailable.</value>
+  </data>
+  <data name="Editor.TripsTripDeletedSuccessfully" xml:space="preserve">
+    <value>Trip deleted successfully!</value>
+  </data>
+  <data name="Editor.TripsNameRequired" xml:space="preserve">
+    <value>The Name field is required.</value>
+  </data>
+  <data name="Editor.TripsNameLength" xml:space="preserve">
+    <value>The Trip name must be between {2} and {1} characters.</value>
+  </data>
+  <data name="Editor.TripsImportedKMLRoutesDoNotContain" xml:space="preserve">
+    <value>Imported KML routes do not contain reliable transport information. Select a transport mode for each route where needed to enable automatic duration estimates.</value>
+  </data>
+  <data name="Editor.TripsTripImportedSuccessfully" xml:space="preserve">
+    <value>Trip imported successfully.</value>
+  </data>
+  <data name="Editor.TripsImportTheImportCouldNotBeApplied" xml:space="preserve">
+    <value>The import could not be applied. Your file and choices are retained.</value>
+  </data>
+  <data name="Editor.TripsImportTheImportOutcomeCouldNotBe" xml:space="preserve">
+    <value>The import outcome could not be confirmed. The earlier import may already have succeeded. Check My Trips for inspection; a visit or matching data cannot confirm its outcome. Further imports are held in this tab until you explicitly abandon the unresolved local attempt. This hold lasts only for this tab session: it is not shared with other tabs or devices, and closing the tab can lose it.</value>
+  </data>
+  <data name="Editor.TripsImportAbandonTheUnresolvedLocalAttemptThe" xml:space="preserve">
+    <value>Abandon the unresolved local attempt? The earlier import may already have succeeded. This discards the retained file, review and choices without resending them. It does not cancel or roll back server work. The earlier outcome remains unknown. You must select a file again to begin a separate import; repeating the import may create another copy.</value>
+  </data>
+  <data name="Editor.TripsImportTheEarlierImportOutcomeIsStill" xml:space="preserve">
+    <value>The earlier import outcome is still unknown. Its local attempt was abandoned without cancelling or rolling back server work. Select a file to begin a separate import; repeating the import may create another copy.</value>
+  </data>
+  <data name="Editor.TripsImportSelectANonEmptyKMLFile" xml:space="preserve">
+    <value>Select a non-empty KML file to import.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedFileIsNotA" xml:space="preserve">
+    <value>The selected file is not a valid KML import. Select a corrected file to try again.</value>
+  </data>
+  <data name="Editor.TripsImportReviewTheCurrentTripBeforeApplying" xml:space="preserve">
+    <value>Review the current Trip before applying this update.</value>
+  </data>
+  <data name="Editor.TripsImportTheTripOrFileChangedRefresh" xml:space="preserve">
+    <value>The Trip or file changed. Refresh the review, inspect the current content, then apply your choices.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedImportChoicesAreInvalid" xml:space="preserve">
+    <value>The selected import choices are invalid. Refresh and review the choices again.</value>
+  </data>
+  <data name="Editor.TripsImportApproveRemovalOfEachListedItem" xml:space="preserve">
+    <value>Approve removal of each listed item before applying the update.</value>
+  </data>
+  <data name="Editor.TripsImportTheSelectedKMLExceedsTheRoute" xml:space="preserve">
+    <value>The selected KML exceeds the route processing limit. Reduce its geometry before trying again.</value>
+  </data>
+  <data name="Editor.TripsImportThisKMLContainsUnsupportedRouteGeometry" xml:space="preserve">
+    <value>This KML contains unsupported route geometry. Correct the file before trying again.</value>
+  </data>
+  <data name="Editor.TripsImportDateAndTime" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="Editor.TripsImportNotSupplied" xml:space="preserve">
+    <value>not supplied</value>
+  </data>
+  <data name="Editor.TripsImport0SelectedUTCOffset1Seconds" xml:space="preserve">
+    <value>{0} · selected UTC offset {1} seconds</value>
+  </data>
+  <data name="Editor.TripsImportStart0End1" xml:space="preserve">
+    <value>Start: {0}; End: {1}</value>
+  </data>
+  <data name="Editor.TripsImport01" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Editor.TripsImport0Meaning1" xml:space="preserve">
+    <value>{0} · meaning: {1}</value>
+  </data>
+  <data name="Editor.TripsImport0Allocation1Minutes" xml:space="preserve">
+    <value>{0} · allocation: {1} minutes</value>
+  </data>
+  <data name="Editor.TripsImportKeepExisting" xml:space="preserve">
+    <value>Keep existing</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedPlanning" xml:space="preserve">
+    <value>Use imported planning</value>
+  </data>
+  <data name="Editor.TripsImportClearExistingPlanning" xml:space="preserve">
+    <value>Clear existing planning</value>
+  </data>
+  <data name="Editor.TripsImportIAgreeToRemoveThisObject" xml:space="preserve">
+    <value>I agree to remove this object and its planning</value>
+  </data>
+  <data name="Editor.TripsImportRemovedOrReidentifiedObjectConsentIs" xml:space="preserve">
+    <value>Removed or reidentified object: consent is required.</value>
+  </data>
+  <data name="Editor.TripsImportDifferentPlanningKeepExistingIsThe" xml:space="preserve">
+    <value>Different planning. Keep existing is the default.</value>
+  </data>
+  <data name="Editor.TripsImportPlanningIsOmittedFromThisFile" xml:space="preserve">
+    <value>Planning is omitted from this file and will be preserved.</value>
+  </data>
+  <data name="Editor.TripsImportPlanningIsEqualNoConflictChoice" xml:space="preserve">
+    <value>Planning is equal. No conflict choice is needed.</value>
+  </data>
+  <data name="Editor.TripsImportThisTargetHasNoPlanningThe" xml:space="preserve">
+    <value>This target has no planning. The imported aggregate will be added.</value>
+  </data>
+  <data name="Editor.TripsImportNewObjectTheImportedAggregateWill" xml:space="preserve">
+    <value>New object: the imported aggregate will be added.</value>
+  </data>
+  <data name="Editor.TripsImportTitle" xml:space="preserve">
+    <value>Title</value>
+  </data>
+  <data name="Editor.TripsImportCreditsContributionTerms" xml:space="preserve">
+    <value>Credits / contribution terms</value>
+  </data>
+  <data name="Editor.TripsImportImport" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="Editor.TripsImportReviewingTheSelectedKML" xml:space="preserve">
+    <value>Reviewing the selected KML…</value>
+  </data>
+  <data name="Editor.TripsImportImportingTheSelectedKML" xml:space="preserve">
+    <value>Importing the selected KML…</value>
+  </data>
+  <data name="Editor.TripsImportReplace0WithTheSelectedFile" xml:space="preserve">
+    <value>Replace “{0}” with the selected file's complete Trip content. Review private planning below.</value>
+  </data>
+  <data name="Editor.TripsImportATripWithThisIDMay" xml:space="preserve">
+    <value>A Trip with this ID may already be in your account. Review an update or create a separate private Trip.</value>
+  </data>
+  <data name="Editor.TripsImport012" xml:space="preserve">
+    <value>{0}: {1} — {2}</value>
+  </data>
+  <data name="Editor.TripsImportRemovingThisObjectAlsoRemovesIts" xml:space="preserve">
+    <value>Removing this object also removes its portable content. Explicit consent is required.</value>
+  </data>
+  <data name="Editor.TripsImportKeepExistingIsTheDefaultUse" xml:space="preserve">
+    <value>Keep existing is the default. Use or Clear applies only to these reviewed portable fields. Retain all still-applicable inherited notices.</value>
+  </data>
+  <data name="Editor.TripsImportExisting0" xml:space="preserve">
+    <value>Existing: {0}</value>
+  </data>
+  <data name="Editor.TripsImportAbsent" xml:space="preserve">
+    <value>(absent)</value>
+  </data>
+  <data name="Editor.TripsImportImported0" xml:space="preserve">
+    <value>Imported: {0}</value>
+  </data>
+  <data name="Editor.TripsImportExistingPlanning" xml:space="preserve">
+    <value>Existing planning</value>
+  </data>
+  <data name="Editor.TripsImportImportedPlanning" xml:space="preserve">
+    <value>Imported planning</value>
+  </data>
+  <data name="Editor.TripsImport013" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedPlanningRemovesTheseExisting" xml:space="preserve">
+    <value>Use imported planning removes these existing entries:</value>
+  </data>
+  <data name="Editor.TripsImportUseImportedValue" xml:space="preserve">
+    <value>Use imported value</value>
+  </data>
+  <data name="Editor.TripsImportExplicitlyClearThisValue" xml:space="preserve">
+    <value>Explicitly clear this value</value>
+  </data>
+  <data name="Editor.TripsImportIAgreeToRemoveThisObject2" xml:space="preserve">
+    <value>I agree to remove this object and its portable content</value>
+  </data>
+  <data name="Editor.TripsImportRefreshReview" xml:space="preserve">
+    <value>Refresh review</value>
+  </data>
+  <data name="Editor.TripsImport0RouteReducedFrom1To" xml:space="preserve">
+    <value>{0}: route reduced from {1} to {2} coordinates.</value>
+  </data>
+  <data name="Editor.TripsImportLoadingUnfinishedCompositions" xml:space="preserve">
+    <value>Loading unfinished compositions…</value>
+  </data>
+  <data name="Editor.TripsImportSavedComparisonsUnavailableSignInOr" xml:space="preserve">
+    <value>Saved comparisons unavailable. Sign in or refresh to try again.</value>
+  </data>
+  <data name="Editor.TripsImportUnfinished" xml:space="preserve">
+    <value>Unfinished</value>
+  </data>
+  <data name="Editor.TripsImportRefreshComparisons" xml:space="preserve">
+    <value>Refresh comparisons</value>
+  </data>
+  <data name="Editor.TripsFailedToLoadTripsPleaseRefresh" xml:space="preserve">
+    <value>Failed to load trips. Please refresh the page.</value>
+  </data>
+  <data name="Editor.TripsNoTripsMatchYourSearchOr" xml:space="preserve">
+    <value>No trips match your search or filter.</value>
+  </data>
+  <data name="Editor.TripsClickToCopyCoverImageURL" xml:space="preserve">
+    <value>Click to copy cover image URL to clipboard</value>
+  </data>
+  <data name="Editor.TripsCopyCoverImageURL" xml:space="preserve">
+    <value>Copy Cover Image URL</value>
+  </data>
+  <data name="Editor.TripsClickToCopyMapSnapshotURL" xml:space="preserve">
+    <value>Click to copy map snapshot URL to clipboard</value>
+  </data>
+  <data name="Editor.TripsCopyMapSnapshotURL" xml:space="preserve">
+    <value>Copy Map Snapshot URL</value>
+  </data>
+  <data name="Editor.TripsClickToCopyProgressLinkTo" xml:space="preserve">
+    <value>Click to copy progress link to clipboard</value>
+  </data>
+  <data name="Editor.TripsCopyProgressLink" xml:space="preserve">
+    <value>Copy progress link</value>
+  </data>
+  <data name="Editor.TripsClickToSeePublicPageOr" xml:space="preserve">
+    <value>Click to see public page or for copy URL options</value>
+  </data>
+  <data name="Editor.TripsYes" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="Editor.TripsVisitPublicTripPage" xml:space="preserve">
+    <value>Visit public trip page</value>
+  </data>
+  <data name="Editor.TripsClickToCopyToClipboard" xml:space="preserve">
+    <value>Click to copy to clipboard</value>
+  </data>
+  <data name="Editor.TripsCopyPublicTripPageURL" xml:space="preserve">
+    <value>Copy public trip page URL</value>
+  </data>
+  <data name="Editor.TripsCopyEmbedURL" xml:space="preserve">
+    <value>Copy embed URL</value>
+  </data>
+  <data name="Editor.TripsCopyEmbedHTML" xml:space="preserve">
+    <value>Copy embed HTML</value>
+  </data>
+  <data name="Editor.TripsNo" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="Editor.TripsViewExportTrip" xml:space="preserve">
+    <value>View/Export Trip</value>
+  </data>
+  <data name="Editor.TripsView" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="Editor.TripsScanYourLocationHistoryToFind" xml:space="preserve">
+    <value>Scan your location history to find and create visit records for places in this trip</value>
+  </data>
+  <data name="Editor.TripsFindVisitsFromYourLocationData" xml:space="preserve">
+    <value>Find visits from your location data</value>
+  </data>
+  <data name="Editor.TripsRemoveAllVisitRecordsAssociatedWith" xml:space="preserve">
+    <value>Remove all visit records associated with this trip</value>
+  </data>
+  <data name="Editor.TripsDeleteAllVisitRecordsForThis" xml:space="preserve">
+    <value>Delete all visit records for this trip</value>
+  </data>
+  <data name="Editor.TripsDeleteTrip" xml:space="preserve">
+    <value>Delete Trip</value>
+  </data>
+  <data name="Editor.TripsMatching" xml:space="preserve">
+    <value>matching</value>
+  </data>
+  <data name="Editor.TripsTripPageNavigation" xml:space="preserve">
+    <value>Trip page navigation</value>
+  </data>
+  <data name="Editor.TripsFirst" xml:space="preserve">
+    <value>First</value>
+  </data>
+  <data name="Editor.TripsPrevious" xml:space="preserve">
+    <value>Previous</value>
+  </data>
+  <data name="Editor.TripsNext" xml:space="preserve">
+    <value>Next</value>
+  </data>
+  <data name="Editor.TripsLast" xml:space="preserve">
+    <value>Last</value>
+  </data>
+  <data name="Editor.TripsPage" xml:space="preserve">
+    <value>Page</value>
+  </data>
+  <data name="Editor.TripsGo" xml:space="preserve">
+    <value>Go</value>
+  </data>
+  <data name="Editor.TripsAreYouSureYouWantTo" xml:space="preserve">
+    <value>Are you sure you want to delete this trip?</value>
+  </data>
+  <data name="Editor.TripsTripDeleted" xml:space="preserve">
+    <value>Trip deleted.</value>
+  </data>
+  <data name="Editor.TripsFailedToDeleteTrip" xml:space="preserve">
+    <value>Failed to delete trip.</value>
+  </data>
+  <data name="Editor.Trips0Ms" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="Editor.Trips0Of1" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="Editor.TripsConfidenceBasedOnLocationCountAnd" xml:space="preserve">
+    <value>Confidence based on location count and proximity (avg {0} m from place)</value>
+  </data>
+  <data name="Editor.Trips0Confidence" xml:space="preserve">
+    <value>{0} confidence</value>
+  </data>
+  <data name="Editor.TripsViewOnMap" xml:space="preserve">
+    <value>View on map</value>
+  </data>
+  <data name="Editor.TripsUserCheckedInNearby" xml:space="preserve">
+    <value>User checked in nearby</value>
+  </data>
+  <data name="Editor.TripsGPSPingsNearThisPlace0" xml:space="preserve">
+    <value>GPS pings near this place: {0}</value>
+  </data>
+  <data name="Editor.TripsAVisitToThisPlaceIs" xml:space="preserve">
+    <value>A visit to this place is already linked to this trip</value>
+  </data>
+  <data name="Editor.TripsMinimumDistance0M" xml:space="preserve">
+    <value>Minimum distance: {0} m</value>
+  </data>
+  <data name="Editor.TripsPlaceWasDeleted" xml:space="preserve">
+    <value>Place was deleted</value>
+  </data>
+  <data name="Editor.TripsPlaceNoLongerExists" xml:space="preserve">
+    <value>Place no longer exists</value>
+  </data>
+  <data name="Editor.TripsPlaceWasMoved" xml:space="preserve">
+    <value>Place was moved</value>
+  </data>
+  <data name="Editor.TripsClosed" xml:space="preserve">
+    <value>Closed</value>
+  </data>
+  <data name="Editor.TripsFromDateMustBeBeforeOr" xml:space="preserve">
+    <value>From date must be before or equal to To date.</value>
+  </data>
+  <data name="Editor.TripsAnalyzing0Against1" xml:space="preserve">
+    <value>Analyzing {0} against {1}…</value>
+  </data>
+  <data name="Editor.TripsEstimatedTime0" xml:space="preserve">
+    <value>Estimated time: ~{0}</value>
+  </data>
+  <data name="Editor.TripsAnalysisFailed" xml:space="preserve">
+    <value>Analysis failed.</value>
+  </data>
+  <data name="Editor.TripsAnErrorOccurredDuringAnalysis" xml:space="preserve">
+    <value>An error occurred during analysis.</value>
+  </data>
+  <data name="Editor.TripsNoChangesToApply2" xml:space="preserve">
+    <value>No changes to apply.</value>
+  </data>
+  <data name="Editor.TripsCreatedVisits0Confirmed1From" xml:space="preserve">
+    <value>Created visits: {0} (confirmed: {1}, from suggestions: {2}).</value>
+  </data>
+  <data name="Editor.TripsFailedToApplyChanges" xml:space="preserve">
+    <value>Failed to apply changes.</value>
+  </data>
+  <data name="Editor.TripsTheVisitUpdateCouldNotBe" xml:space="preserve">
+    <value>The visit update could not be confirmed. Check your visits before trying again.</value>
+  </data>
+  <data name="Editor.TripsClearAllVisits" xml:space="preserve">
+    <value>Clear All Visits</value>
+  </data>
+  <data name="Editor.TripsAreYouSureYouWantTo2" xml:space="preserve">
+    <value>Are you sure you want to delete all visits for “{0}”? This action cannot be undone.</value>
+  </data>
+  <data name="Editor.TripsClearAll" xml:space="preserve">
+    <value>Clear All</value>
+  </data>
+  <data name="Editor.TripsFailedToClearVisits" xml:space="preserve">
+    <value>Failed to clear visits.</value>
+  </data>
+  <data name="Editor.TripsTheDeletionCouldNotBeConfirmed" xml:space="preserve">
+    <value>The deletion could not be confirmed. Check your visits before trying again.</value>
+  </data>
+  <data name="Editor.TripsFailedToFetchLocations" xml:space="preserve">
+    <value>Failed to fetch locations</value>
+  </data>
+  <data name="Editor.Trips0MFromPlace" xml:space="preserve">
+    <value>{0} m from place</value>
+  </data>
+  <data name="Editor.TripsAccuracy0M" xml:space="preserve">
+    <value>Accuracy: ±{0} m</value>
+  </data>
+  <data name="Editor.TripsSpeed0KmH" xml:space="preserve">
+    <value>Speed: {0} km/h</value>
+  </data>
+  <data name="Editor.TripsActivity0" xml:space="preserve">
+    <value>Activity: {0}</value>
+  </data>
+  <data name="Editor.TripsViewInGoogleMaps" xml:space="preserve">
+    <value>View in Google Maps</value>
+  </data>
+  <data name="Editor.TripsMaps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="Editor.Trips0M" xml:space="preserve">
+    <value>{0} m</value>
+  </data>
+  <data name="Editor.TripsConfirmedVisit" xml:space="preserve">
+    <value>Confirmed Visit</value>
+  </data>
+  <data name="Editor.TripsSuggestedVisit" xml:space="preserve">
+    <value>Suggested Visit</value>
+  </data>
+  <data name="Editor.TripsStaleVisit" xml:space="preserve">
+    <value>Stale Visit</value>
+  </data>
+  <data name="Editor.TripsExistingVisit" xml:space="preserve">
+    <value>Existing Visit</value>
+  </data>
+  <data name="Editor.TripsViewPlaceInTrip" xml:space="preserve">
+    <value>View place in trip</value>
+  </data>
+  <data name="Editor.TripsThisTrip" xml:space="preserve">
+    <value>this trip</value>
+  </data>
+  <data name="Editor.TripsImportPlanningEntries.one" xml:space="preserve">
+    <value>{0} entry</value>
+  </data>
+  <data name="Editor.TripsImportPlanningEntries.other" xml:space="preserve">
+    <value>{0} entries</value>
+  </data>
+  <data name="Editor.TripsImportSimplifiedRoutes.one" xml:space="preserve">
+    <value>{0} additional route was simplified.</value>
+  </data>
+  <data name="Editor.TripsImportSimplifiedRoutes.other" xml:space="preserve">
+    <value>{0} additional routes were simplified.</value>
+  </data>
+  <data name="Editor.TripsScanConfirm.one" xml:space="preserve">
+    <value>{0} confirmed visit will be created</value>
+  </data>
+  <data name="Editor.TripsScanConfirm.other" xml:space="preserve">
+    <value>{0} confirmed visits will be created</value>
+  </data>
+  <data name="Editor.TripsScanSuggest.one" xml:space="preserve">
+    <value>{0} suggested visit will be created</value>
+  </data>
+  <data name="Editor.TripsScanSuggest.other" xml:space="preserve">
+    <value>{0} suggested visits will be created</value>
+  </data>
+  <data name="Editor.TripsScanDeleteStale.one" xml:space="preserve">
+    <value>{0} stale visit will be deleted</value>
+  </data>
+  <data name="Editor.TripsScanDeleteStale.other" xml:space="preserve">
+    <value>{0} stale visits will be deleted</value>
+  </data>
+  <data name="Editor.TripsScanDeleteExisting.one" xml:space="preserve">
+    <value>{0} existing visit will be deleted</value>
+  </data>
+  <data name="Editor.TripsScanDeleteExisting.other" xml:space="preserve">
+    <value>{0} existing visits will be deleted</value>
+  </data>
+  <data name="Editor.TripsScanPlaces.one" xml:space="preserve">
+    <value>{0} place</value>
+  </data>
+  <data name="Editor.TripsScanPlaces.other" xml:space="preserve">
+    <value>{0} places</value>
+  </data>
+  <data name="Editor.TripsScanLocations.one" xml:space="preserve">
+    <value>{0} location</value>
+  </data>
+  <data name="Editor.TripsScanLocations.other" xml:space="preserve">
+    <value>{0} locations</value>
+  </data>
+  <data name="Editor.TripsScanSeconds.one" xml:space="preserve">
+    <value>{0} second</value>
+  </data>
+  <data name="Editor.TripsScanSeconds.other" xml:space="preserve">
+    <value>{0} seconds</value>
+  </data>
+  <data name="Editor.TripsScanHits.one" xml:space="preserve">
+    <value>{0} hit</value>
+  </data>
+  <data name="Editor.TripsScanHits.other" xml:space="preserve">
+    <value>{0} hits</value>
+  </data>
+  <data name="Editor.TripsScanCreated.one" xml:space="preserve">
+    <value>Created {0} visit.</value>
+  </data>
+  <data name="Editor.TripsScanCreated.other" xml:space="preserve">
+    <value>Created {0} visits.</value>
+  </data>
+  <data name="Editor.TripsScanDeleted.one" xml:space="preserve">
+    <value>Deleted {0} visit.</value>
+  </data>
+  <data name="Editor.TripsScanDeleted.other" xml:space="preserve">
+    <value>Deleted {0} visits.</value>
+  </data>
+  <data name="Editor.TripsAnalyzeHistory" xml:space="preserve">
+    <value>Analyze History</value>
+  </data>
+  <data name="Editor.TripsApplying" xml:space="preserve">
+    <value>Applying...</value>
+  </data>
+  <data name="Editor.TripsScanCrossTier" xml:space="preserve">
+    <value>Cross-tier: {0} within {1} m + {2} within {3} m</value>
+  </data>
+  <data name="Editor.TripsScanRadius" xml:space="preserve">
+    <value>{0} within {1} m</value>
+  </data>
+  <data name="Editor.TripsScanExtended" xml:space="preserve">
+    <value>{0} within extended range</value>
+  </data>
+  <data name="Editor.TripsImportTravel" xml:space="preserve">
+    <value>Travel</value>
+  </data>
 </root>

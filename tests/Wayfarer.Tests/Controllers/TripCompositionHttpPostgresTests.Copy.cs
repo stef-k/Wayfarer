@@ -43,6 +43,7 @@ public sealed partial class TripCompositionHttpPostgresTests
         });
         using var browser = app.GetTestClient(); using var mobile = app.GetTestClient();
         UserConnectionTokenHttpTests.Cookie(browser, app.Services, owner.Id);
+        browser.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
         mobile.DefaultRequestHeaders.Authorization = new("Bearer", owner.Id);
         var url = $"/api/trip-compositions/copy-preview?sourceTripId={source.Id}&destinationTripId={destination.Id}";
         using var previewResponse = await browser.GetAsync(url);
@@ -70,11 +71,23 @@ public sealed partial class TripCompositionHttpPostgresTests
         await UserConnectionTokenHttpTests.AddAntiforgeryAsync(browser);
         using var newPreviewResponse = await browser.GetAsync(url);
         var newPreview = await newPreviewResponse.Content.ReadFromJsonAsync<JsonElement>();
+        const string authoredNotes = "<p>Μονοπάτι &amp; Trail</p>";
         var reuse = new { sourceTripId = source.Id, destinationTripId = destination.Id, context = newPreview.GetProperty("context"), originals = newPreview.GetProperty("originals"),
             items = new[] { new { kind = "place", sourceId = place.Id, decision = "reuse", destinationId = target.Id, expectedParentId = parent.Id } } };
-        using var reused = await browser.PostAsJsonAsync("/api/trip-compositions/copy", reuse);
+        using var reused = await browser.PostAsJsonAsync("/api/trip-compositions/copy", new
+        {
+            reuse.sourceTripId, reuse.destinationTripId, reuse.context, reuse.originals,
+            items = new[] { new {
+                kind = "place", sourceId = place.Id, decision = "reuse", destinationId = target.Id, expectedParentId = parent.Id,
+                fields = new { notes = new { operation = "edit", expected = (string?)null, value = authoredNotes } }
+            } }
+        });
         Assert.True(reused.StatusCode == HttpStatusCode.OK, await reused.Content.ReadAsStringAsync());
-        thumbnails.Verify(t => t.InvalidateThumbnails(destination.Id, It.IsAny<DateTime>()), Times.Once);
+        var persisted = await db.Places.AsNoTracking().SingleAsync(p => p.Id == target.Id);
+        Assert.Equal(authoredNotes, persisted.Notes);
+        Assert.Equal(parent.Id, persisted.RegionId);
+        Assert.Null((await db.Places.AsNoTracking().SingleAsync(p => p.Id == place.Id)).Notes);
+        thumbnails.Verify(t => t.InvalidateThumbnails(destination.Id, It.IsAny<DateTime>()), Times.Exactly(2));
         Assert.False(await db.Set<TripComposition>().AnyAsync(w => w.TripId == destination.Id));
         Assert.Single(await db.Places.Where(p => p.Region.TripId == source.Id).ToListAsync());
         await db.ApiTokens.Where(t => t.UserId == owner.Id).ExecuteDeleteAsync();

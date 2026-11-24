@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { message as tr } from '../../../../wwwroot/js/localization/messages.js';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import L from 'leaflet';
 import { createTripMap } from '../map/tripMapSetup';
-import { anchorIds, contents, find, isCoordinate, label, spatialContent } from './compositionModel';
+import { anchorIds, contents, find, isCoordinate, spatialContent } from './compositionModel';
+import { displayLabel, tripKind } from './compositionPresentation';
 import type { Content, Kind, Selection, Snapshot, Workspace } from './compositionTypes';
 
 const props = defineProps<{ workspace: Workspace; selection: Selection | null; counterpart: string; visible: Record<string, boolean>; mapLabel?: string }>();
@@ -23,7 +25,7 @@ function focus(): void {
     .concat(props.counterpart ? spatialContent(props.workspace.current, selection.kind, props.counterpart) : [])
     : snapshots().filter(([side]) => props.visible[side]).flatMap(([, s]) => spatialContent(s, 'trip', s.graph.id));
   const size = map.getSize();
-  if (!points.length) { emit('status', 'No located geography for this selection. Historical or empty objects have no invented location.'); return; }
+  if (!points.length) { emit('status', tr('Editor.CompositionNoLocatedGeographyForThisSelection', 'No located geography for this selection. Historical or empty objects have no invented location.')); return; }
   if (size.x < 48 || size.y < 48) return;
   // Clamp both axes to leave a positive fitting area, even under a narrow viewport or a tall drawer.
   const pad = Math.min(32, Math.floor(Math.min(size.x, size.y) / 8));
@@ -35,7 +37,14 @@ function focus(): void {
   // Reserve the actual layer controls, native zoom buttons and bottom status without exhausting either axis.
   map.fitBounds(L.latLngBounds(points.map(p => L.latLng(p[1], p[0]))), {
     paddingTopLeft: [Math.min(48, size.x * .15), pad], paddingBottomRight: [right, Math.min(size.y * .45, Math.max(56, footerHeight + statusHeight + 16))], maxZoom: 16, animate: false });
-  emit('status', 'Map fitted to the selection’s complete available geography.');
+  emit('status', tr('Editor.CompositionMapFittedToTheSelectionS', 'Map fitted to the selection’s complete available geography.'));
+}
+
+/** Leaflet's HTML tooltip API also accepts a node. Authored names enter it as text. */
+function tooltip(side: string, kind: Kind, item: Content): HTMLElement {
+  const content = document.createElement('span');
+  content.textContent = `${side.toUpperCase()} · ${tripKind(kind)} · ${displayLabel(item, kind)}`;
+  return content;
 }
 
 /** A/B layers never mutate their source. Fallback lines require complete located anchors. */
@@ -50,7 +59,7 @@ function render(): void {
         || props.selection?.kind === kind && props.workspace.mappings.some(m => m.source === side && m.kind === kind && m.sourceId === id
           && m.destinationId === props.counterpart && !['skip', 'destinationRemoved'].includes(m.decision));
     const attach = (path: L.Path, kind: Kind, item: Content): void => {
-      path.addTo(layer).bindTooltip(`${side.toUpperCase()} · ${kind} · ${label(item)}`);
+      path.addTo(layer).bindTooltip(tooltip(side, kind, item));
       if (side !== 'c') path.on('click', () => emit('select', { side: side as 'a' | 'b', kind, id: item.id }));
     };
     for (const kind of ['region', 'place'] as Kind[]) for (const item of contents(snapshot, kind)) {
@@ -66,7 +75,7 @@ function render(): void {
         if (geometry?.type !== 'Polygon' || !spatialContent(snapshot, 'area', item.id).length) continue;
         const polygon = L.geoJSON(geometry, { style: { color: colors[side as keyof typeof colors], fillOpacity: .1,
           weight: selected('area', item.id) ? 5 : 2 } });
-        polygon.addTo(layer).bindTooltip(`${side.toUpperCase()} · Area · ${label(item)}`);
+        polygon.addTo(layer).bindTooltip(tooltip(side, 'area', item));
         if (side !== 'c') polygon.on('click', () => emit('select', { side: side as 'a' | 'b', kind: 'area', id: item.id }));
       } catch { /* Invalid historical geometry is not repaired or replaced by a fabricated polygon. */ }
     }
@@ -108,6 +117,6 @@ defineExpose({ focus });
 </script>
 
 <template>
-  <div ref="host" class="composition-map" role="region" :aria-label="mapLabel || 'Shared A B C Trip map'" aria-describedby="composition-map-help" tabindex="0"></div>
-  <p id="composition-map-help" class="visually-hidden">Use the source trees and contextual inspector to select ideas. Arrow keys pan the map; plus and minus zoom.</p>
+  <div ref="host" class="composition-map" role="region" :aria-label="mapLabel || tr('Editor.CompositionSharedABCTripMap', 'Shared A B C Trip map')" aria-describedby="composition-map-help" tabindex="0"></div>
+  <p id="composition-map-help" class="visually-hidden">{{ tr('Editor.CompositionUseTheSourceTreesAndContextual', 'Use the source trees and contextual inspector to select ideas. Arrow keys pan the map; plus and minus zoom.') }}</p>
 </template>

@@ -1,5 +1,6 @@
 import { message as localize } from '../../../wwwroot/js/localization/messages.js';
 import { createApp } from 'vue';
+import { enableWorkspaceLanguage } from '../../../wwwroot/js/localization/languageNavigation.js';
 import type { BootstrapConfig } from './types';
 import './theme.css';
 import './map.css';
@@ -27,11 +28,13 @@ if (compositionElement) {
   if (compositionElement.dataset.copy) {
     void import('./composition/CopyToTrip.vue').then(({ default: CopyToTrip }) => createApp(CopyToTrip,
       { account, token, source: compositionElement.dataset.source ?? '', destination: compositionElement.dataset.destination ?? '' }).mount(compositionElement))
-      .catch(() => loadFailed(compositionElement));
+      .then(enableWorkspaceLanguage)
+      .catch(() => { loadFailed(compositionElement); enableWorkspaceLanguage(); });
   } else {
     void import('./composition/CompositionApp.vue').then(({ default: CompositionApp }) => createApp(CompositionApp,
       { account, compositionId: compositionElement.dataset.compositionId ?? '', token }).mount(compositionElement))
-      .catch(() => loadFailed(compositionElement));
+      .then(enableWorkspaceLanguage)
+      .catch(() => { loadFailed(compositionElement); enableWorkspaceLanguage(); });
   }
 } else if (!mountElement) {
   throw new Error('Trip Editor mount element was not found.');

@@ -11,7 +11,7 @@ const login = async (page: Page) => {
   await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
 };
 
-test('native personal download and reviewed update use real controls and retain recoverable intent', async ({ page }, testInfo) => {
+test('Greek My Trips native review and language switching retain recoverable intent', async ({ page }, testInfo) => {
   const id = process.env.WAYFARER_E2E_TRIP_ID!;
   await login(page);
   await page.goto('/User/Trip');
@@ -31,31 +31,88 @@ test('native personal download and reviewed update use real controls and retain 
   let download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download KML' }).click();
   const excluded = await readFile((await (await download).path())!, 'utf8');
-  expect(excluded).toContain('<value>3</value>'); expect(excluded).not.toContain('name="Planning"');
+  expect(excluded).toMatch(/name="WayfarerSchemaVersion">\s*<value>5<\/value>/); expect(excluded).not.toContain('name="Planning"');
   await openExport(); await expect(include).not.toBeChecked(); await include.check();
   await expect(page.getByRole('dialog')).toContainText('Server access controls cannot revoke an already downloaded file.');
-  await page.getByRole('dialog').screenshot({ path: process.env.WAYFARER_NATIVE_SCREENSHOTS + '/personal-export.png' });
   download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download KML' }).click();
   const personal = await readFile((await (await download).path())!, 'utf8');
-  expect(personal).toContain('name="Planning"'); expect(personal).toContain('<value>4</value>');
+  expect(personal).toContain('name="Planning"'); expect(personal).toMatch(/name="WayfarerSchemaVersion">\s*<value>5<\/value>/);
   await openExport(); await expect(include).not.toBeChecked(); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.goto(`/Public/Trips/${id}`); await expect(page.locator('#personal-native-export')).toHaveCount(0);
-  await page.goto('/User/Trip');
-  await page.locator('#importFile').setInputFiles({ name: 'personal-v4.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(personal.replace('2027-03', '2027-04')) });
+  await page.goto('/User/Trip?origin=review#trip-stats');
+  const openLanguage = page.locator('#language-open');
+  const chooseLanguage = async (tag: string) => {
+    await openLanguage.click();
+    await page.locator(`#language-options [value="${tag}"]`).check();
+    await page.locator('#language-apply').click();
+  };
+  let preferenceWrites = 0;
+  page.on('request', request => { if (new URL(request.url()).pathname === '/Language/Set') preferenceWrites++; });
+  await chooseLanguage('el-GR');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+  await expect(page.getByRole('heading', { name: 'Τα ταξίδια μου' })).toBeVisible();
+  await expect(page).toHaveURL(/origin=review#trip-stats$/);
+
+  for (const [route, heading] of [['Compose', 'Σύγκριση και συνδυασμός ταξιδιών'], ['Copy', 'Αντιγραφή σε υπάρχον ταξίδι']]) {
+    await page.goto(`/User/Trip/${route}`);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'el-GR');
+    await expect(page.locator('#trip-composition-app').getByRole('heading', { name: heading, exact: true })).toBeVisible();
+  }
+  await page.goto('/User/Trip?origin=review#trip-stats');
+  const select = () => page.locator('#importFile').setInputFiles({
+    name: 'personal-v5.kml', mimeType: 'application/vnd.google-earth.kml+xml', buffer: Buffer.from(personal.replace('2027-03', '2027-04'))
+  });
   const controls = page.locator('#trip-import-controls');
-  await controls.getByRole('button', { name: 'Review update', exact: true }).click();
-  await expect(controls.getByLabel('Keep existing', { exact: true })).toBeChecked();
-  await controls.getByLabel('Use imported planning', { exact: true }).check();
-  await controls.locator('summary').first().click(); await controls.locator('summary').last().click();
-  await controls.screenshot({ path: process.env.WAYFARER_NATIVE_SCREENSHOTS + '/import-review.png' });
-  // A known rejection keeps the same mounted file and chosen replacement for a deliberate fresh review.
-  await page.route('**/User/Trip/Import', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ status: 'error', code: 'validation_failed' }) }), { times: 1 });
-  await controls.getByRole('button', { name: 'Apply reviewed update' }).click();
-  await expect(controls).toContainText('personal-v4.kml'); await expect(controls.getByLabel('Use imported planning', { exact: true })).toBeChecked();
-  await controls.getByRole('button', { name: 'Refresh review' }).click();
-  await expect(controls.getByLabel('Use imported planning', { exact: true })).toBeChecked();
-  await Promise.all([page.waitForURL(`**/User/Trip/Edit/${id}`), controls.getByRole('button', { name: 'Apply reviewed update' }).click()]);
+  const update = controls.locator('#btnUpdate');
+  const selectedPlan = controls.getByLabel('Χρήση εισαγόμενου σχεδιασμού', { exact: true });
+  await select();
+  await update.click();
+  await expect(controls.getByLabel('Διατήρηση υπάρχοντος', { exact: true })).toBeChecked();
+  await selectedPlan.check();
+  await chooseLanguage('en-US');
+  await expect(page.locator('#language-keep')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(openLanguage).toBeFocused();
+  await expect(selectedPlan).toBeChecked();
+  await expect(controls).toContainText('personal-v5.kml');
+  expect(preferenceWrites).toBe(1);
+
+  // A known refusal preserves the reviewed file and permits an explicit refresh.
+  await page.route('**/User/Trip/Import', route => route.fulfill({
+    status: 409, contentType: 'application/json', json: { status: 'error', code: 'import_review_stale' }
+  }), { times: 1 });
+  await controls.locator('#btnApplyImport').click();
+  await expect(controls).toContainText('Το ταξίδι ή το αρχείο άλλαξε.');
+  await expect(selectedPlan).toBeChecked();
+  await update.click();
+  await expect(controls.locator('#btnApplyImport')).toBeEnabled();
+  await expect(selectedPlan).toBeChecked();
+  await controls.locator('summary').first().click();
+  await controls.locator('summary').last().click();
+  await expect(controls).toContainText('Spring visit');
+  await controls.screenshot({ path: process.env.WAYFARER_AREA9_SCREENSHOT || testInfo.outputPath('greek-trip-import.png') });
+  await Promise.all([page.waitForURL(`**/User/Trip/Edit/${id}`), controls.locator('#btnApplyImport').click()]);
   await expect(page.locator('[data-planning] > summary')).toContainText('2027-04');
+
+  // Simulate a lost mutation reply through the same mounted importer and authorize exactly one preference write.
+  await page.goto('/User/Trip?origin=review#trip-stats');
+  await select();
+  await update.click();
+  await page.route('**/User/Trip/Import', route => route.abort(), { times: 1 });
+  await controls.locator('#btnApplyImport').click();
+  await expect(controls).toContainText('Το αποτέλεσμα της εισαγωγής δεν επιβεβαιώθηκε.');
+  const marker = () => controls.evaluate(el => sessionStorage.getItem(`wayfarer:native-import-pending:${(el as HTMLElement).dataset.owner}`));
+  const unresolved = await marker();
+  expect(unresolved).toMatch(/^pending:/);
+  await chooseLanguage('en-US');
+  await page.locator('#language-confirm').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
+  await expect(page).toHaveURL(/origin=review#trip-stats$/);
+  await expect(controls).toContainText('The import outcome could not be confirmed.');
+  await expect(page.locator('#importFile')).toBeDisabled();
+  await expect(page.locator('#importFileMyMaps')).toBeDisabled();
+  expect(await marker()).toBe(unresolved);
+  expect(preferenceWrites).toBe(2);
 });
 
 test('native import uncertainty recovery is reachable and requires confirmed abandonment and a new file', async ({ page }) => {

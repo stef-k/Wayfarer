@@ -1,3 +1,5 @@
+import { suggestionText, visitScanSummary } from './visitScanText.js';
+import { message as tr, date, number, plural } from '../../../localization/messages.js';
 /* trips.js Trip index view functionality */
 import { addZoomLevelControl } from '../../../map-utils.js';
 import {
@@ -20,17 +22,12 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
     /** @type {number} Stored total pages for jump-to-page validation */
     let totalPages = 0;
 
-    /**
-     * Escapes a string for safe insertion into HTML to prevent XSS.
-     * @param {string} str - The string to escape.
-     * @returns {string} HTML-safe string.
-     */
-    const escapeHtml = (str) => {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    };
+    /** Encodes both text and quoted attributes rendered through the legacy HTML builders. */
+    const escapeHtml = value => escapeEmbedAttribute(value ?? '');
+    const htmlText = (...args) => escapeHtml(tr(...args));
+
+    /** Civil visit dates retain their recorded day in every display locale. */
+    const visitDay = value => date(new Date(`${value}T00:00:00Z`), { dateStyle: 'medium', timeZone: 'UTC' });
 
     /* ------------------------------------------------ API-driven trip loading */
 
@@ -51,12 +48,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
         try {
             const response = await fetch(`/api/Trips/search?${params.toString()}`, { credentials: 'include' });
-            if (!response.ok) {
-                console.error('Trip search API error:', response.status, response.statusText);
-                const tbody = document.getElementById('trip-table-body');
-                if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger py-3">Failed to load trips. Please refresh the page.</td></tr>';
-                return;
-            }
+            if (!response.ok) throw new Error(`Trip search API error: ${response.status}`);
 
             const res = await response.json();
             const trips = res.data || [];
@@ -67,6 +59,8 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             updateEmptyState(res.userTripCount ?? res.totalAll);
         } catch (err) {
             console.error('[Trip] Failed to load trips:', err);
+            const tbody = document.getElementById('trip-table-body');
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${htmlText('Editor.TripsFailedToLoadTripsPleaseRefresh', 'Failed to load trips. Please refresh the page.')}</td></tr>`;
         }
     };
 
@@ -80,7 +74,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         if (!tbody) return;
 
         if (!trips.length) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No trips match your search or filter.</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">${htmlText('Editor.TripsNoTripsMatchYourSearchOr', 'No trips match your search or filter.')}</td></tr>`;
             return;
         }
 
@@ -92,72 +86,72 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 if (t.coverImageUrl) {
                     extraItems += `<li><a class="dropdown-item copy-url" href="#"
                         data-url="/Public/Trips/${t.id}/CoverImage?v=${new Date(t.updatedAt).getTime()}"
-                        title="Click to copy cover image URL to clipboard">
-                        <i class="bi bi-image me-1"></i>Copy Cover Image URL</a></li>`;
+                        title="${htmlText('Editor.TripsClickToCopyCoverImageURL', 'Click to copy cover image URL to clipboard')}">
+                        <i class="bi bi-image me-1"></i>${htmlText('Editor.TripsCopyCoverImageURL', 'Copy Cover Image URL')}</a></li>`;
                 }
                 if (t.centerLat != null && t.centerLon != null && t.zoom != null) {
                     extraItems += `<li><a class="dropdown-item copy-url" href="#"
                         data-url="/Public/Trips/${t.id}/MapSnapshot"
-                        title="Click to copy map snapshot URL to clipboard">
-                        <i class="bi bi-card-image me-1"></i>Copy Map Snapshot URL</a></li>`;
+                        title="${htmlText('Editor.TripsClickToCopyMapSnapshotURL', 'Click to copy map snapshot URL to clipboard')}">
+                        <i class="bi bi-card-image me-1"></i>${htmlText('Editor.TripsCopyMapSnapshotURL', 'Copy Map Snapshot URL')}</a></li>`;
                 }
                 if (t.shareProgressEnabled) {
                     extraItems += `<li><a class="dropdown-item copy-url" href="#"
                         data-url="/Public/Trips/${t.id}?progress=1"
-                        title="Click to copy progress link to clipboard">
-                        <i class="bi bi-broadcast me-1"></i>Copy progress link</a></li>`;
+                        title="${htmlText('Editor.TripsClickToCopyProgressLinkTo', 'Click to copy progress link to clipboard')}">
+                        <i class="bi bi-broadcast me-1"></i>${htmlText('Editor.TripsCopyProgressLink', 'Copy progress link')}</a></li>`;
                 }
 
                 publicCell = `<div class="dropdown text-center">
                     <button class="btn btn-success btn-sm dropdown-toggle" type="button"
                         data-bs-display="static" data-bs-toggle="dropdown"
-                        title="Click to see public page or for copy URL options" aria-expanded="false">Yes</button>
+                        title="${htmlText('Editor.TripsClickToSeePublicPageOr', 'Click to see public page or for copy URL options')}" aria-expanded="false">${htmlText('Editor.TripsYes', 'Yes')}</button>
                     <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/Public/Trips/${t.id}" target="_blank">Visit public trip page</a></li>
+                        <li><a class="dropdown-item" href="/Public/Trips/${t.id}" target="_blank">${htmlText('Editor.TripsVisitPublicTripPage', 'Visit public trip page')}</a></li>
                         <li><a class="dropdown-item copy-url" href="#" data-url="/Public/Trips/${t.id}"
-                            title="Click to copy to clipboard">Copy public trip page URL</a></li>
+                            title="${htmlText('Editor.TripsClickToCopyToClipboard', 'Click to copy to clipboard')}">${htmlText('Editor.TripsCopyPublicTripPageURL', 'Copy public trip page URL')}</a></li>
                         <li><button class="dropdown-item" type="button" data-embed-kind="trip" data-embed-id="${escapeEmbedAttribute(t.id)}"
-                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="url">Copy embed URL</button></li>
+                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="url">${htmlText('Editor.TripsCopyEmbedURL', 'Copy embed URL')}</button></li>
                         <li><button class="dropdown-item" type="button" data-embed-kind="trip" data-embed-id="${escapeEmbedAttribute(t.id)}"
-                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="html">Copy embed HTML</button></li>
+                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="html">${htmlText('Editor.TripsCopyEmbedHTML', 'Copy embed HTML')}</button></li>
                         <li><hr class="dropdown-divider"></li>
                         ${extraItems}
                     </ul>
                 </div>`;
             } else {
-                publicCell = '<span class="badge rounded-pill text-bg-danger">No</span>';
+                publicCell = `<span class="badge rounded-pill text-bg-danger">${htmlText('Editor.TripsNo', 'No')}</span>`;
             }
 
             // Escape trip name for safe use in HTML content and attributes
             const safeName = escapeHtml(t.name);
             const safeNotes = escapeHtml(t.notes);
-            const nameForAttr = safeName.replace(/"/g, '&quot;');
+            const nameForAttr = safeName;
 
             return `<tr data-is-public="${t.isPublic}">
                 <td>${safeName}</td>
                 <td>${safeNotes}</td>
                 <td>${publicCell}</td>
                 <td>
-                    <a href="/User/Trip/View/${t.id}" title="View/Export Trip" class="btn btn-sm btn-primary">View</a>
-                    <a href="/User/Trip/Edit/${t.id}" title="Edit Trip" class="btn btn-sm btn-secondary">Edit</a>
+                    <a href="/User/Trip/View/${t.id}" title="${htmlText('Editor.TripsViewExportTrip', 'View/Export Trip')}" class="btn btn-sm btn-primary">${htmlText('Editor.TripsView', 'View')}</a>
+                    <a href="/User/Trip/Edit/${t.id}" title="${htmlText('Editor.EditTrip', 'Edit Trip')}" class="btn btn-sm btn-secondary">${htmlText('Editor.Edit', 'Edit')}</a>
                     <div class="dropdown d-inline-block">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                            data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">More</button>
+                            data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">${htmlText('Editor.More', 'More')}</button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item btn-backfill-analyze" href="#"
                                 data-trip-id="${t.id}" data-trip-name="${nameForAttr}"
-                                title="Scan your location history to find and create visit records for places in this trip">
-                                <i class="bi bi-clock-history me-2"></i>Analyze History
-                                <small class="d-block text-muted ps-4">Find visits from your location data</small></a></li>
+                                title="${htmlText('Editor.TripsScanYourLocationHistoryToFind', 'Scan your location history to find and create visit records for places in this trip')}">
+                                <i class="bi bi-clock-history me-2"></i>${htmlText('Editor.TripsAnalyzeHistory', 'Analyze History')}
+                                <small class="d-block text-muted ps-4">${htmlText('Editor.TripsFindVisitsFromYourLocationData', 'Find visits from your location data')}</small></a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item btn-backfill-clear text-warning" href="#"
                                 data-trip-id="${t.id}" data-trip-name="${nameForAttr}"
-                                title="Remove all visit records associated with this trip">
-                                <i class="bi bi-trash me-2"></i>Clear All Visits
-                                <small class="d-block text-muted ps-4">Delete all visit records for this trip</small></a></li>
+                                title="${htmlText('Editor.TripsRemoveAllVisitRecordsAssociatedWith', 'Remove all visit records associated with this trip')}">
+                                <i class="bi bi-trash me-2"></i>${htmlText('Editor.TripsClearAllVisits', 'Clear All Visits')}
+                                <small class="d-block text-muted ps-4">${htmlText('Editor.TripsDeleteAllVisitRecordsForThis', 'Delete all visit records for this trip')}</small></a></li>
                             <li><a class="dropdown-item text-danger btn-trip-delete" href="#"
                                 data-trip-id="${t.id}">
-                                <i class="bi bi-x-circle me-2"></i>Delete Trip</a></li>
+                                <i class="bi bi-x-circle me-2"></i>${htmlText('Editor.TripsDeleteTrip', 'Delete Trip')}</a></li>
                         </ul>
                     </div>
                 </td>
@@ -179,13 +173,13 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const statPublic = document.getElementById('stat-public');
         const statPrivate = document.getElementById('stat-private');
 
-        if (statTotal) statTotal.textContent = totalAll;
-        if (statPublic) statPublic.textContent = publicCount;
-        if (statPrivate) statPrivate.textContent = privateCount;
+        if (statTotal) statTotal.textContent = number(totalAll);
+        if (statPublic) statPublic.textContent = number(publicCount);
+        if (statPrivate) statPrivate.textContent = number(privateCount);
 
         // Swap label between "total" and "matching" based on active search/filter
         const isFiltered = !!searchTerm || (visibility && visibility !== 'all');
-        if (statTotalLabel) statTotalLabel.textContent = isFiltered ? 'matching' : 'total';
+        if (statTotalLabel) statTotalLabel.textContent = isFiltered ? tr('Editor.TripsMatching', 'matching') : tr('Editor.TripsTotal', 'total');
     };
 
     /**
@@ -235,14 +229,14 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const end = Math.min(totalPages, page + delta);
 
         let html = `
-            <nav aria-label="Trip page navigation" class="mt-2">
+            <nav aria-label="${htmlText('Editor.TripsTripPageNavigation', 'Trip page navigation')}" class="mt-2">
                 <div class="d-flex justify-content-center align-items-center">
                     <ul class="pagination mb-0">
                         <li class="page-item ${page === 1 ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="1">First</a>
+                            <a class="page-link" href="#" data-page="1">${htmlText('Editor.TripsFirst', 'First')}</a>
                         </li>
                         <li class="page-item ${page === 1 ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="${Math.max(1, page - 1)}">Previous</a>
+                            <a class="page-link" href="#" data-page="${Math.max(1, page - 1)}">${htmlText('Editor.TripsPrevious', 'Previous')}</a>
                         </li>`;
 
         if (start > 1) {
@@ -252,7 +246,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         for (let i = start; i <= end; i++) {
             html += `
                 <li class="page-item ${i === page ? 'active' : ''}">
-                    <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    <a class="page-link" href="#" data-page="${i}">${number(i)}</a>
                 </li>`;
         }
 
@@ -262,15 +256,15 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
         html += `
                         <li class="page-item ${page === totalPages ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="${Math.min(totalPages, page + 1)}">Next</a>
+                            <a class="page-link" href="#" data-page="${Math.min(totalPages, page + 1)}">${htmlText('Editor.TripsNext', 'Next')}</a>
                         </li>
                         <li class="page-item ${page === totalPages ? 'disabled' : ''}">
-                            <a class="page-link" href="#" data-page="${totalPages}">Last</a>
+                            <a class="page-link" href="#" data-page="${totalPages}">${htmlText('Editor.TripsLast', 'Last')}</a>
                         </li>
                     </ul>
                     <div class="input-group input-group-sm ms-2" style="width:120px;">
-                        <input type="number" id="jumpPageInput" class="form-control" min="1" max="${totalPages}" placeholder="Page" />
-                        <button class="btn btn-outline-secondary" type="button" id="jumpPageBtn">Go</button>
+                        <input type="number" id="jumpPageInput" class="form-control" min="1" max="${totalPages}" placeholder="${htmlText('Editor.TripsPage', 'Page')}" />
+                        <button class="btn btn-outline-secondary" type="button" id="jumpPageBtn">${htmlText('Editor.TripsGo', 'Go')}</button>
                     </div>
                 </div>
             </nav>`;
@@ -291,9 +285,9 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const tripId = btn.dataset.tripId;
 
         wayfarer.showConfirmationModal({
-            title: "Delete Trip",
-            message: "Are you sure you want to delete this trip?",
-            confirmText: "Delete",
+            title: tr('Editor.TripsDeleteTrip', 'Delete Trip'),
+            message: tr('Editor.TripsAreYouSureYouWantTo', 'Are you sure you want to delete this trip?'),
+            confirmText: tr('Editor.Delete', 'Delete'),
             onConfirm: async () => {
                 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
                 const fd = new FormData();
@@ -301,19 +295,19 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 fd.set('id', tripId);
 
                 const resp = await fetch('/User/Trip/Delete', {
-                    method: 'POST',
-                    body: fd
-                });
+                    method: 'POST', redirect: 'error',
+                    headers: { Accept: 'application/json' }, body: fd
+                }).catch(() => null);
 
-                if (resp.ok) {
-                    wayfarer.showAlert("success", "Trip deleted.");
+                if (resp?.status === 204) {
+                    wayfarer.showAlert("success", tr('Editor.TripsTripDeleted', 'Trip deleted.'));
                     // If only one row left on current page, go back one page
                     const tbody = document.getElementById('trip-table-body');
                     const rowCount = tbody?.querySelectorAll('tr[data-is-public]')?.length ?? 0;
                     const targetPage = (rowCount <= 1 && currentPage > 1) ? currentPage - 1 : currentPage;
                     loadTrips(targetPage);
                 } else {
-                    wayfarer.showAlert("danger", "Failed to delete trip.");
+                    wayfarer.showAlert("danger", resp?.status === 404 ? tr('Editor.TripsTripNotFoundOrUnavailable', 'Trip not found or unavailable.') : tr('Editor.TripsFailedToDeleteTrip', 'Failed to delete trip.'));
                 }
             }
         });
@@ -391,7 +385,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
      * @param {string} message - The main loading message.
      * @param {string|null} subMessage - Optional sub-message with additional info.
      */
-    const showBackfillLoading = (message = 'Analyzing location history...', subMessage = null) => {
+    const showBackfillLoading = (message = tr('Editor.TripsAnalyzingLocationHistory', 'Analyzing location history...'), subMessage = null) => {
         configSection?.classList.add('d-none');
         loadingSection?.classList.remove('d-none');
         resultsSection?.classList.add('d-none');
@@ -401,7 +395,13 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         // Update loading message
         const loadingText = loadingSection?.querySelector('p');
         if (loadingText) {
-            loadingText.innerHTML = message + (subMessage ? `<br><small class="text-muted">${subMessage}</small>` : '');
+            loadingText.textContent = message;
+            if (subMessage) {
+                const small = document.createElement('small');
+                small.className = 'text-muted';
+                small.textContent = subMessage;
+                loadingText.append(document.createElement('br'), small);
+            }
         }
     };
 
@@ -418,9 +418,9 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         analyzeBtn?.classList.add('d-none');
 
         // Summary stats
-        document.getElementById('result-locations').textContent = data.locationsScanned.toLocaleString();
-        document.getElementById('result-places').textContent = data.placesAnalyzed.toLocaleString();
-        document.getElementById('result-time').textContent = `${data.analysisDurationMs}ms`;
+        document.getElementById('result-locations').textContent = number(data.locationsScanned);
+        document.getElementById('result-places').textContent = number(data.placesAnalyzed);
+        document.getElementById('result-time').textContent = tr('Editor.Trips0Ms', '{0} ms', number(data.analysisDurationMs));
 
         // Cache raw data for search filtering
         rawBackfillData = {
@@ -503,16 +503,6 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
      */
     const updateActionSummary = () => {
         const actionSummary = document.getElementById('action-summary');
-        const summaryCreate = document.getElementById('summary-create');
-        const summaryConfirmSuggestions = document.getElementById('summary-confirm-suggestions');
-        const summaryDeleteStale = document.getElementById('summary-delete-stale');
-        const summaryDeleteManual = document.getElementById('summary-delete-manual');
-        const summaryNothing = document.getElementById('summary-nothing');
-        const summaryCreateCount = document.getElementById('summary-create-count');
-        const summaryConfirmCount = document.getElementById('summary-confirm-count');
-        const summaryDeleteStaleCount = document.getElementById('summary-delete-stale-count');
-        const summaryDeleteManualCount = document.getElementById('summary-delete-manual-count');
-
         if (!actionSummary || !previewData) return;
 
         // Count checked items from persistentCheckState to include items hidden by search filter.
@@ -535,44 +525,14 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             ? countChecked(rawBackfillData.existingVisits, v => `existing-${v.visitId}`, false)
             : document.querySelectorAll('.existing-visit-check:checked').length;
 
-        // Update counts
-        if (summaryCreateCount) summaryCreateCount.textContent = newVisitsCount;
-        if (summaryConfirmCount) summaryConfirmCount.textContent = confirmedSuggestionsCount;
-        if (summaryDeleteStaleCount) summaryDeleteStaleCount.textContent = staleDeleteCount;
-        if (summaryDeleteManualCount) summaryDeleteManualCount.textContent = manualDeleteCount;
-
-        // Show/hide appropriate lines
-        if (newVisitsCount > 0) {
-            summaryCreate?.classList.remove('d-none');
-        } else {
-            summaryCreate?.classList.add('d-none');
+        const rows = visitScanSummary({ confirmed: newVisitsCount, suggested: confirmedSuggestionsCount,
+            stale: staleDeleteCount, existing: manualDeleteCount });
+        for (const [id, count, text] of rows) {
+            const row = document.getElementById(id);
+            row.textContent = text;
+            row.classList.toggle('d-none', count === 0);
         }
-
-        if (confirmedSuggestionsCount > 0) {
-            summaryConfirmSuggestions?.classList.remove('d-none');
-        } else {
-            summaryConfirmSuggestions?.classList.add('d-none');
-        }
-
-        if (staleDeleteCount > 0) {
-            summaryDeleteStale?.classList.remove('d-none');
-        } else {
-            summaryDeleteStale?.classList.add('d-none');
-        }
-
-        if (manualDeleteCount > 0) {
-            summaryDeleteManual?.classList.remove('d-none');
-        } else {
-            summaryDeleteManual?.classList.add('d-none');
-        }
-
-        if (newVisitsCount === 0 && confirmedSuggestionsCount === 0 && staleDeleteCount === 0 && manualDeleteCount === 0) {
-            summaryNothing?.classList.remove('d-none');
-        } else {
-            summaryNothing?.classList.add('d-none');
-        }
-
-        // Show/hide the summary section
+        document.getElementById('summary-nothing').classList.toggle('d-none', rows.some(([, count]) => count > 0));
         actionSummary.classList.remove('d-none');
     };
 
@@ -600,7 +560,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         let html = '';
         let currentRegion = null;
         for (const item of items) {
-            const region = item.regionName || 'Unknown';
+            const region = item.regionName || tr('Editor.CheckStatus.unknown', 'Unknown');
             if (region !== currentRegion) {
                 currentRegion = region;
                 html += `<div class="list-group-item backfill-region-header fw-semibold small py-1 pe-none user-select-none">${escapeHtml(region)}</div>`;
@@ -657,7 +617,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         ]);
 
         // Helper: format badge count, showing "filtered of total" when searching
-        const badgeText = (filtered, total) => isFiltered ? `${filtered} of ${total}` : `${total}`;
+        const badgeText = (filtered, total) => isFiltered ? tr('Editor.Trips0Of1', '{0} of {1}', number(filtered), number(total)) : number(total);
 
         // --- Confirmed (New Visits) ---
         const newVisitsList = document.getElementById('new-visits-list');
@@ -688,15 +648,15 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                      data-type="candidate">
                     <div>
                         <div class="fw-medium text-success"><i class="bi bi-plus-circle me-1"></i>${escapeHtml(v.placeName)}</div>
-                        <small class="text-muted">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                        <small class="text-muted">${escapeHtml(v.regionName)} &middot; ${escapeHtml(visitDay(v.visitDate))}</small>
                     </div>
                     <div class="text-end d-flex align-items-center gap-2">
                         <div>
                             <span class="badge ${getConfidenceBadgeClass(v.confidence)}"
-                                  title="Confidence based on location count and proximity (avg ${Math.round(v.avgDistanceMeters)}m from place)">${v.confidence}% Confidence</span>
-                            <small class="text-muted d-block">${v.locationCount} hits</small>
+                                  title="${htmlText('Editor.TripsConfidenceBasedOnLocationCountAnd', 'Confidence based on location count and proximity (avg {0} m from place)', number(Math.round(v.avgDistanceMeters)))}">${htmlText('Editor.Trips0Confidence', '{0} confidence', number(v.confidence / 100, { style: 'percent' }))}</span>
+                            <small class="text-muted d-block">${escapeHtml(plural('Editor.TripsScanHits', v.locationCount, '{0} hit', '{0} hits'))}</small>
                         </div>
-                        <i class="bi bi-geo-alt text-muted" title="View on map"></i>
+                        <i class="bi bi-geo-alt text-muted" title="${htmlText('Editor.TripsViewOnMap', 'View on map')}"></i>
                     </div>
                 </div>
             `);
@@ -721,6 +681,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             suggestedSelectAllWrapper?.classList.remove('d-none');
             suggestedVisitsList.innerHTML = renderGroupedList(filteredSuggested, v => {
                 const isLinked = linkedPlaceIds.has(v.placeId);
+                const evidence = suggestionText(v);
                 return `
                 <div class="list-group-item d-flex justify-content-between align-items-center py-2">
                     <div class="form-check flex-grow-1">
@@ -731,17 +692,17 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                                data-last-seen="${v.lastSeenUtc}"
                                id="suggested-${v.placeId}-${v.visitDate}">
                         <label class="form-check-label" for="suggested-${v.placeId}-${v.visitDate}">
-                            <span class="fw-medium ${isLinked ? 'text-success' : 'text-info'}"><i class="bi bi-lightbulb me-1"${isLinked ? ' title="A visit to this place is already linked to this trip"' : ''}></i>${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                            <span class="fw-medium ${isLinked ? 'text-success' : 'text-info'}"><i class="bi bi-lightbulb me-1"${isLinked ? ` title="${htmlText('Editor.TripsAVisitToThisPlaceIs', 'A visit to this place is already linked to this trip')}"` : ''}></i>${escapeHtml(v.placeName)}</span>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${escapeHtml(visitDay(v.visitDate))}</small>
                         </label>
                     </div>
                     <div class="text-end d-flex align-items-center gap-2">
                         <div>
-                            <span class="badge bg-info" title="${escapeHtml(v.suggestionReason)}">
+                            <span class="badge bg-info" title="${escapeHtml(evidence)}">
                                 ${v.hasUserCheckin ? '<i class="bi bi-check-circle me-1"></i>' : ''}
-                                ${escapeHtml(v.suggestionReason)}
+                                ${escapeHtml(evidence)}
                             </span>
-                            <small class="text-muted d-block">${Math.round(v.minDistanceMeters)}m min dist</small>
+                            <small class="text-muted d-block">${htmlText('Editor.TripsMinimumDistance0M', 'Minimum distance: {0} m', number(Math.round(v.minDistanceMeters)))}</small>
                         </div>
                         <button type="button" class="btn btn-sm btn-outline-secondary place-context-btn"
                                 data-place-id="${v.placeId}"
@@ -754,7 +715,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                                 data-first-seen="${v.firstSeenUtc}"
                                 data-last-seen="${v.lastSeenUtc}"
                                 data-type="suggestion"
-                                title="View on map">
+                                title="${htmlText('Editor.TripsViewOnMap', 'View on map')}">
                             <i class="bi bi-geo-alt"></i>
                         </button>
                     </div>
@@ -792,10 +753,10 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                                value="${v.visitId}" id="stale-${v.visitId}" checked>
                         <label class="form-check-label" for="stale-${v.visitId}">
                             <span class="fw-medium text-danger"><i class="bi bi-trash me-1"></i>${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${escapeHtml(visitDay(v.visitDate))}</small>
                         </label>
                     </div>
-                    <span class="badge bg-warning text-dark">${escapeHtml(v.reason)}</span>
+                    <span class="badge bg-warning text-dark">${escapeHtml(v.placeId == null ? tr('Editor.TripsPlaceWasDeleted', 'Place was deleted') : v.distanceMeters == null ? tr('Editor.TripsPlaceNoLongerExists', 'Place no longer exists') : tr('Editor.TripsPlaceWasMoved', 'Place was moved'))}</span>
                 </div>
             `);
             staleVisitsList.querySelectorAll('.stale-visit-check').forEach(cb => {
@@ -830,13 +791,13 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                                value="${v.visitId}" id="existing-${v.visitId}">
                         <label class="form-check-label" for="existing-${v.visitId}">
                             <span class="fw-medium">${escapeHtml(v.placeName)}</span>
-                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${v.visitDate}</small>
+                            <small class="text-muted d-block">${escapeHtml(v.regionName)} &middot; ${escapeHtml(visitDay(v.visitDate))}</small>
                         </label>
                     </div>
                     <div class="text-end">
                         ${v.isOpen
-                            ? '<span class="badge bg-success">Open</span>'
-                            : '<span class="badge bg-secondary">Closed</span>'}
+                            ? `<span class="badge bg-success">${htmlText('Editor.VisitOpen', 'Open')}</span>`
+                            : `<span class="badge bg-secondary">${htmlText('Editor.TripsClosed', 'Closed')}</span>`}
                     </div>
                 </div>
             `);
@@ -871,7 +832,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             const fromDate = new Date(fromDateInput.value);
             const toDate = new Date(toDateInput.value);
             if (fromDate > toDate) {
-                wayfarer.showAlert('warning', 'From date must be before or equal to To date.');
+                wayfarer.showAlert('warning', tr('Editor.TripsFromDateMustBeBeforeOr', 'From date must be before or equal to To date.'));
                 return;
             }
         }
@@ -891,8 +852,10 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 const info = infoResult.data;
                 // Show progress with real numbers
                 showBackfillLoading(
-                    `Analyzing ${info.placesWithCoordinates} places against ${info.estimatedLocations.toLocaleString()} locations...`,
-                    `Estimated time: ~${info.estimatedSeconds} second${info.estimatedSeconds !== 1 ? 's' : ''}`
+                    tr('Editor.TripsAnalyzing0Against1', 'Analyzing {0} against {1}…',
+                        plural('Editor.TripsScanPlaces', info.placesWithCoordinates, '{0} place', '{0} places'),
+                        plural('Editor.TripsScanLocations', info.estimatedLocations, '{0} location', '{0} locations')),
+                    tr('Editor.TripsEstimatedTime0', 'Estimated time: ~{0}', plural('Editor.TripsScanSeconds', info.estimatedSeconds, '{0} second', '{0} seconds'))
                 );
             } else {
                 showBackfillLoading();
@@ -911,12 +874,12 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             if (result.success) {
                 renderBackfillResults(result.data);
             } else {
-                wayfarer.showAlert('danger', result.message || 'Analysis failed.');
+                wayfarer.showAlert('danger', resp.status === 404 ? tr('Editor.TripsTripNotFoundOrUnavailable', 'Trip not found or unavailable.') : tr('Editor.TripsAnalysisFailed', 'Analysis failed.'));
                 backfillModal?.hide();
             }
         } catch (err) {
             console.error('Backfill preview error:', err);
-            wayfarer.showAlert('danger', 'An error occurred during analysis.');
+            wayfarer.showAlert('danger', tr('Editor.TripsAnErrorOccurredDuringAnalysis', 'An error occurred during analysis.'));
             backfillModal?.hide();
         }
     };
@@ -967,13 +930,13 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const deleteVisitIds = [...staleVisitIds, ...manualDeleteIds];
 
         if (createVisits.length === 0 && confirmedSuggestions.length === 0 && deleteVisitIds.length === 0) {
-            wayfarer.showAlert('info', 'No changes to apply.');
+            wayfarer.showAlert('info', tr('Editor.TripsNoChangesToApply2', 'No changes to apply.'));
             backfillModal?.hide();
             return;
         }
 
         applyBtn.disabled = true;
-        applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+        applyBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${htmlText('Editor.TripsApplying', 'Applying...')}`;
 
         try {
             const resp = await fetch(`/api/backfill/apply/${currentTripId}`, {
@@ -987,25 +950,21 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             if (result.success) {
                 const data = result.data;
                 const totalCreated = data.visitsCreated + data.suggestionsConfirmed;
-                let message = `Created ${totalCreated} visits`;
-                if (data.visitsCreated > 0 && data.suggestionsConfirmed > 0) {
-                    message = `Created ${totalCreated} visits (${data.visitsCreated} confirmed, ${data.suggestionsConfirmed} from suggestions)`;
-                }
-                if (data.visitsDeleted > 0) {
-                    message += `, deleted ${data.visitsDeleted} visits`;
-                }
-                message += '.';
-                wayfarer.showAlert('success', message);
+                const created = data.visitsCreated > 0 && data.suggestionsConfirmed > 0
+                    ? tr('Editor.TripsCreatedVisits0Confirmed1From', 'Created visits: {0} (confirmed: {1}, from suggestions: {2}).', number(totalCreated), number(data.visitsCreated), number(data.suggestionsConfirmed))
+                    : plural('Editor.TripsScanCreated', totalCreated, 'Created {0} visit.', 'Created {0} visits.');
+                const deleted = data.visitsDeleted > 0 ? plural('Editor.TripsScanDeleted', data.visitsDeleted, 'Deleted {0} visit.', 'Deleted {0} visits.') : '';
+                wayfarer.showAlert('success', [created, deleted].filter(Boolean).join(' '));
                 backfillModal?.hide();
             } else {
-                wayfarer.showAlert('danger', result.message || 'Failed to apply changes.');
+                wayfarer.showAlert('danger', resp.status === 404 ? tr('Editor.TripsTripNotFoundOrUnavailable', 'Trip not found or unavailable.') : tr('Editor.TripsFailedToApplyChanges', 'Failed to apply changes.'));
             }
         } catch (err) {
             console.error('Backfill apply error:', err);
-            wayfarer.showAlert('danger', 'An error occurred while applying changes.');
+            wayfarer.showAlert('danger', tr('Editor.TripsTheVisitUpdateCouldNotBe', 'The visit update could not be confirmed. Check your visits before trying again.'));
         } finally {
             applyBtn.disabled = false;
-            applyBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Apply Changes';
+            applyBtn.innerHTML = `<i class="bi bi-check-lg me-1"></i>${htmlText('Editor.TripsApplyChanges', 'Apply Changes')}`;
         }
     };
 
@@ -1016,9 +975,9 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
      */
     const handleClearVisits = (tripId, tripName) => {
         wayfarer.showConfirmationModal({
-            title: "Clear All Visits",
-            message: `Are you sure you want to delete all visits for "${tripName}"? This action cannot be undone.`,
-            confirmText: "Clear All",
+            title: tr('Editor.TripsClearAllVisits', 'Clear All Visits'),
+            message: tr('Editor.TripsAreYouSureYouWantTo2', 'Are you sure you want to delete all visits for “{0}”? This action cannot be undone.', tripName),
+            confirmText: tr('Editor.TripsClearAll', 'Clear All'),
             onConfirm: async () => {
                 try {
                     const resp = await fetch(`/api/backfill/clear/${tripId}`, {
@@ -1028,13 +987,13 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                     const result = await resp.json();
 
                     if (result.success) {
-                        wayfarer.showAlert('success', result.data.message);
+                        wayfarer.showAlert('success', plural('Editor.TripsScanDeleted', result.data.visitsDeleted, 'Deleted {0} visit.', 'Deleted {0} visits.'));
                     } else {
-                        wayfarer.showAlert('danger', result.message || 'Failed to clear visits.');
+                        wayfarer.showAlert('danger', resp.status === 404 ? tr('Editor.TripsTripNotFoundOrUnavailable', 'Trip not found or unavailable.') : tr('Editor.TripsFailedToClearVisits', 'Failed to clear visits.'));
                     }
                 } catch (err) {
                     console.error('Clear visits error:', err);
-                    wayfarer.showAlert('danger', 'An error occurred while clearing visits.');
+                    wayfarer.showAlert('danger', tr('Editor.TripsTheDeletionCouldNotBeConfirmed', 'The deletion could not be confirmed. Check your visits before trying again.'));
                 }
             }
         });
@@ -1079,7 +1038,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 if (el._tippy) return;
                 tippy(el, {
                     appendTo: () => document.body,
-                    allowHTML: true,
+                    allowHTML: false,
                     interactive: true,
                     placement: 'top',
                     maxWidth: 350,
@@ -1245,7 +1204,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const result = await resp.json();
 
         if (!result.success) {
-            throw new Error(result.message || 'Failed to fetch locations');
+            throw new Error(tr('Editor.TripsFailedToFetchLocations', 'Failed to fetch locations'));
         }
 
         return result.data;
@@ -1295,23 +1254,23 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
             // Build tooltip content for the ping
             const timestamp = new Date(loc.localTimestamp);
-            const timeStr = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const dateStr = timestamp.toLocaleDateString();
+            const timeStr = date(timestamp, { hour: '2-digit', minute: '2-digit' });
+            const dateStr = date(timestamp);
 
             let tooltipHtml = `
                 <div class="ping-tooltip">
                     <strong>${timeStr}</strong> <small class="text-muted">${dateStr}</small>
-                    <br><span class="badge bg-secondary">${Math.round(loc.distanceMeters)}m from place</span>
+                    <br><span class="badge bg-secondary">${htmlText('Editor.Trips0MFromPlace', '{0} m from place', number(Math.round(loc.distanceMeters)))}</span>
             `;
 
             if (loc.accuracy) {
-                tooltipHtml += `<br><small>Accuracy: ±${Math.round(loc.accuracy)}m</small>`;
+                tooltipHtml += `<br><small>${htmlText('Editor.TripsAccuracy0M', 'Accuracy: ±{0} m', number(Math.round(loc.accuracy)))}</small>`;
             }
             if (loc.speed) {
-                tooltipHtml += `<br><small>Speed: ${(loc.speed * 3.6).toFixed(1)} km/h</small>`;
+                tooltipHtml += `<br><small>${htmlText('Editor.TripsSpeed0KmH', 'Speed: {0} km/h', number(loc.speed * 3.6, { minimumFractionDigits: 1, maximumFractionDigits: 1 }))}</small>`;
             }
             if (loc.activity) {
-                tooltipHtml += `<br><small>Activity: ${escapeHtml(loc.activity)}</small>`;
+                tooltipHtml += `<br><small>${htmlText('Editor.TripsActivity0', 'Activity: {0}', loc.activity)}</small>`;
             }
             if (loc.address) {
                 tooltipHtml += `<br><small>${escapeHtml(loc.address)}</small>`;
@@ -1347,7 +1306,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             ? `${placeData.placeName} (${placeData.latitude.toFixed(6)},${placeData.longitude.toFixed(6)})`
             : `${placeData.latitude.toFixed(6)},${placeData.longitude.toFixed(6)}`;
         const q = encodeURIComponent(query);
-        return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="btn btn-outline-primary btn-sm" title="View in Google Maps"><i class="bi bi-globe-europe-africa"></i> Maps</a>`;
+        return `<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" class="btn btn-outline-primary btn-sm" title="${htmlText('Editor.TripsViewInGoogleMaps', 'View in Google Maps')}"><i class="bi bi-globe-europe-africa"></i> ${htmlText('Editor.TripsMaps', 'Maps')}</a>`;
     };
 
     /**
@@ -1363,7 +1322,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const furthestEl = document.getElementById('context-furthest-ping');
         const linksEl = document.getElementById('context-external-links');
 
-        if (countEl) countEl.textContent = locations.length;
+        if (countEl) countEl.textContent = number(locations.length);
 
         if (locations.length > 0) {
             // Calculate time range with date and time
@@ -1372,18 +1331,18 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             const maxTime = new Date(Math.max(...times));
 
             const formatDateTime = (d) => {
-                const date = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return `${date} ${time}`;
+                const day = date(d, { month: 'short', day: 'numeric' });
+                const time = date(d, { hour: '2-digit', minute: '2-digit' });
+                return `${day} ${time}`;
             };
 
             if (timeEl) {
                 if (minTime.toDateString() === maxTime.toDateString()) {
                     // Same day - show date once with time range
-                    const date = minTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
-                    const startTime = minTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    const endTime = maxTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    timeEl.textContent = `${date} ${startTime} - ${endTime}`;
+                    const day = date(minTime, { month: 'short', day: 'numeric' });
+                    const startTime = date(minTime, { hour: '2-digit', minute: '2-digit' });
+                    const endTime = date(maxTime, { hour: '2-digit', minute: '2-digit' });
+                    timeEl.textContent = `${day} ${startTime} - ${endTime}`;
                 } else {
                     // Different days - show full date+time for both
                     timeEl.textContent = `${formatDateTime(minTime)} - ${formatDateTime(maxTime)}`;
@@ -1392,15 +1351,15 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
             // Calculate average distance
             const avgDist = locations.reduce((sum, l) => sum + l.distanceMeters, 0) / locations.length;
-            if (distEl) distEl.textContent = `${Math.round(avgDist)}m`;
+            if (distEl) distEl.textContent = tr('Editor.Trips0M', '{0} m', number(Math.round(avgDist)));
 
             // Calculate closest and furthest pings
             const distances = locations.map(l => l.distanceMeters);
             const closestDist = Math.min(...distances);
             const furthestDist = Math.max(...distances);
 
-            if (closestEl) closestEl.textContent = `${Math.round(closestDist)}m`;
-            if (furthestEl) furthestEl.textContent = `${Math.round(furthestDist)}m`;
+            if (closestEl) closestEl.textContent = tr('Editor.Trips0M', '{0} m', number(Math.round(closestDist)));
+            if (furthestEl) furthestEl.textContent = tr('Editor.Trips0M', '{0} m', number(Math.round(furthestDist)));
         } else {
             if (timeEl) timeEl.textContent = '-';
             if (distEl) distEl.textContent = '-';
@@ -1431,11 +1390,11 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         const titleEl = document.getElementById('placeContextTitle');
         if (titleEl) {
             const typeLabel = {
-                'candidate': 'Confirmed Visit',
-                'suggestion': 'Suggested Visit',
-                'stale': 'Stale Visit',
-                'existing': 'Existing Visit'
-            }[type] || 'Place Context';
+                'candidate': tr('Editor.TripsConfirmedVisit', 'Confirmed Visit'),
+                'suggestion': tr('Editor.TripsSuggestedVisit', 'Suggested Visit'),
+                'stale': tr('Editor.TripsStaleVisit', 'Stale Visit'),
+                'existing': tr('Editor.TripsExistingVisit', 'Existing Visit')
+            }[type] || tr('Editor.TripsPlaceContext', 'Place Context');
 
             // Build link to user's private trip view page with place coordinates for focus
             const tripViewUrl = currentTripId && placeData.latitude && placeData.longitude
@@ -1443,10 +1402,10 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 : null;
 
             const placeNameHtml = tripViewUrl
-                ? `<a href="${tripViewUrl}" target="_blank" class="text-decoration-none" title="View place in trip">${escapeHtml(placeData.placeName)} <i class="bi bi-box-arrow-up-right small"></i></a>`
+                ? `<a href="${tripViewUrl}" target="_blank" class="text-decoration-none" title="${htmlText('Editor.TripsViewPlaceInTrip', 'View place in trip')}">${escapeHtml(placeData.placeName)} <i class="bi bi-box-arrow-up-right small"></i></a>`
                 : escapeHtml(placeData.placeName);
 
-            titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${placeNameHtml} <small class="text-muted fw-normal">- ${typeLabel}</small>`;
+            titleEl.innerHTML = `<i class="bi bi-geo-alt me-1"></i>${placeNameHtml} <small class="text-muted fw-normal">- ${escapeHtml(typeLabel)}</small>`;
         }
 
         // Store data for when modal is fully shown
@@ -1684,7 +1643,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
                 const clearBtn = e.target.closest('.btn-backfill-clear');
                 if (clearBtn) {
                     e.preventDefault();
-                    handleClearVisits(clearBtn.dataset.tripId, clearBtn.dataset.tripName || 'this trip');
+                    handleClearVisits(clearBtn.dataset.tripId, clearBtn.dataset.tripName || tr('Editor.TripsThisTrip', 'this trip'));
                 }
             });
         }

@@ -86,7 +86,7 @@ public class TripImportControllerTests : TestBase
         Assert.Equal($"/User/Trip/Edit/{tripId:D}", Property<string>(json.Value, "redirectUrl"));
         Assert.Equal("info", controller.TempData["AlertType"]);
         Assert.Equal(GenericRouteReminder, controller.TempData["AlertMessage"]);
-        Assert.Equal(2, controller.TempData.Count);
+        Assert.Equal("Editor.TripsImportedKMLRoutesDoNotContain", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]

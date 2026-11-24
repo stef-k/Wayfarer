@@ -1,8 +1,25 @@
+import { message as tr, number } from '../../../../wwwroot/js/localization/messages.js';
+import { tripKind } from './compositionPresentation';
 import type { Action, Content, SavedComparison, Snapshot, SourceOption, Workspace } from './compositionTypes';
 import { fieldValue, parentId } from './compositionModel';
 import { placeDeletionMessage, validatePlaceDeletionPreview, type PlaceDeletionPreview } from '../components/placeDeletion';
 import type { RegionDeletionPreview } from '../components/regionDeletionState';
 import type { EditorTripState } from '../types';
+
+/** Presentation follows stable response status and code without changing domain decisions or API bodies. */
+function refusal(status: number, code?: string): string {
+  if (code === 'composition-route-incompatible' || code === 'composition-route-review-required' || code === 'composition-route-stale')
+    return tr('Editor.CompositionReviewTheCurrentRouteAndIts', 'Review the current route and its dependencies before applying this selection.');
+  if (status === 409 && code !== 'composition-closed')
+    return tr('Editor.CompositionTheSavedContentChangedKeepYour', 'The saved content changed. Keep your choices and review the current source or destination before another attempt.');
+  if (status === 404 || code === 'composition-closed')
+    return tr('Editor.CompositionTheTripOrComparisonIsUnavailable', 'The Trip or comparison is unavailable. Check your access and refresh your Trips.');
+  if (status >= 500)
+    return tr('Editor.CompositionTheActionCouldNotBeConfirmed', 'The action could not be confirmed. Inspect or refresh the saved Trip before trying again.');
+  if (status === 400)
+    return tr('Editor.CompositionReviewTheSelectedFieldsDependenciesAnd', 'Review the selected fields, dependencies and originals.');
+  return tr('Editor.CompositionRequestFailed0KeepYourChoices', 'Request failed ({0}). Keep your choices and review current C.', status);
+}
 
 /** Ordinary HTTP errors retain choices; transport failures explicitly leave the saved outcome unconfirmed. */
 export class CompositionError extends Error {
@@ -15,11 +32,11 @@ export const compositionApi = (token: string, send: typeof fetch = fetch) => {
       response = await send(url, { method, credentials: 'same-origin', cache: 'no-store', redirect: 'error',
         headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json', RequestVerificationToken: token }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    } catch { throw new CompositionError('The action could not be confirmed. Inspect or refresh the saved Trip before trying again.'); }
-    if (response.status === 401 || response.status === 403) throw new CompositionError('Your session is unavailable. Sign in again; your choices remain in this account’s draft.', response.status);
+    } catch { throw new CompositionError(tr('Editor.CompositionTheActionCouldNotBeConfirmed', 'The action could not be confirmed. Inspect or refresh the saved Trip before trying again.')); }
+    if (response.status === 401 || response.status === 403) throw new CompositionError(tr('Editor.CompositionYourSessionIsUnavailableSignIn', 'Your session is unavailable. Sign in again; your choices remain in this account’s draft.'), response.status);
     const value = await response.json().catch(() => null);
-    if (!response.ok) throw new CompositionError(value?.detail ?? value?.title ?? `Request failed (${response.status}). Keep your choices and review current C.`, response.status, value?.code);
-    if (value === null) throw new CompositionError('The response could not be read. Inspect or refresh your saved Trip before trying again.');
+    if (!response.ok) throw new CompositionError(refusal(response.status, value?.code), response.status, value?.code);
+    if (value === null) throw new CompositionError(tr('Editor.CompositionTheResponseCouldNotBeRead', 'The response could not be read. Inspect or refresh your saved Trip before trying again.'));
     return value as T;
   };
   const root = '/api/trip-compositions';
@@ -45,12 +62,12 @@ export const compositionApi = (token: string, send: typeof fetch = fetch) => {
         } else if (item.decision === 'remove' && target && item.kind === 'region') {
           const p = await request<RegionDeletionPreview>(`${editor(workspace.tripId)}/regions/${target}/deletion-preview`, { places: item.places, areas: item.areas });
           if (p.tripId !== workspace.tripId || p.sourceRegionId !== target || p.places !== item.places || p.areas !== item.areas
-            || !p.confirmation?.token || Date.parse(p.confirmation.expiresAt) <= Date.now()) throw new Error('Removal preview is unavailable. Review again.');
+            || !p.confirmation?.token || Date.parse(p.confirmation.expiresAt) <= Date.now()) throw new Error(tr('Editor.CompositionRemovalPreviewIsUnavailableReviewAgain', 'Removal preview is unavailable. Review again.'));
           const counts = p.consequences;
-          if (!await approve(`Delete Region “${p.sourceRegionName}” and its Notes, cover, centre and planning. ${counts.movedPlaces.count} Places and ${counts.movedAreas.count} Areas move to ${p.destination.name ?? 'the reviewed destination'}. Delete ${counts.deletedPlaces.count} Places, ${counts.deletedAreas.count} Areas and ${counts.deletedSegments.count} endpoint Segments. Update ${counts.updatedSegments.count} routes and detach ${counts.detachedWaypoints.count} Via associations. Sources A/B remain unchanged. This cannot be undone.`)) return false;
+          if (!await approve(tr('Editor.CompositionDeleteRegion0AndItsNotes', 'Delete Region “{0}” and its Notes, cover, centre and planning. {1} Places and {2} Areas move to {3}. Delete {4} Places, {5} Areas and {6} endpoint Segments. Update {7} routes and detach {8} Via associations. Sources A/B remain unchanged. This cannot be undone.', p.sourceRegionName, counts.movedPlaces.count, counts.movedAreas.count, p.destination.name ?? tr('Editor.CompositionTheReviewedDestination', 'the reviewed destination'), counts.deletedPlaces.count, counts.deletedAreas.count, counts.deletedSegments.count, counts.updatedSegments.count, counts.detachedWaypoints.count))) return false;
           item.conditionToken = p.confirmation.token;
         } else if (item.decision === 'remove') {
-          if (!await approve(`Permanently remove this ${item.kind} and its saved Notes and planning from C? Sources and retained credits stay. This cannot be undone.`)) return false;
+          if (!await approve(tr('Editor.CompositionPermanentlyRemoveThis0AndIts', 'Permanently remove this {0} and its saved Notes and planning from C? Sources and retained credits stay. This cannot be undone.', tripKind(item.kind)))) return false;
         }
         const location = item.fields?.location;
         if (target && location && item.kind === 'place') {
@@ -62,14 +79,14 @@ export const compositionApi = (token: string, send: typeof fetch = fetch) => {
             `${editor(workspace.tripId)}/places/${target}/coordinates/prepare`,
             { expected: { regionId: item.expectedParentId, location: coordinate(before) }, location: coordinate(desired as number[] | null) });
           if (preview.tripId !== workspace.tripId || preview.targetId !== target || preview.operation !== 'coordinates' || !preview.conditionToken
-            || !Array.isArray(preview.affectedSegmentIds)) throw new Error('Coordinate review is unavailable.');
-          if (!await approve(`Use the selected coordinates? Review ${preview.affectedSegmentIds.length} affected route(s). Route anchors/measurements and detected enrichment are reconciled by ordinary Place rules; Address stays. No provider route will regenerate.`)) return false;
+            || !Array.isArray(preview.affectedSegmentIds)) throw new Error(tr('Editor.CompositionCoordinateReviewIsUnavailable', 'Coordinate review is unavailable.'));
+          if (!await approve(tr('Editor.CompositionUseTheSelectedCoordinatesReview0', 'Use the selected coordinates? Review {0} affected route(s). Route anchors/measurements and detected enrichment are reconciled by ordinary Place rules; Address stays. No provider route will regenerate.', number(preview.affectedSegmentIds.length)))) return false;
           item.conditionToken = preview.conditionToken;
         }
         if (target && item.fields?.route) {
           const state = await request<EditorTripState>(editor(workspace.tripId));
           const segment = state.segmentsById[target];
-          if (!segment?.originalRouteToken) throw new Error('Current route evidence is unavailable. Open ordinary route editing and review again.');
+          if (!segment?.originalRouteToken) throw new Error(tr('Editor.CompositionCurrentRouteEvidenceIsUnavailableOpen', 'Current route evidence is unavailable. Open ordinary route editing and review again.'));
           item.conditionToken = segment.originalRouteToken;
         }
         for (const child of item.children ?? []) if (!await prepareItem(child)) return false;

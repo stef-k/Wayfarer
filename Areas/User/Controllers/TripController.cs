@@ -171,7 +171,7 @@ namespace Wayfarer.Areas.User.Controllers
                 {
                     // HandleError saves its audit on this context. Discard the failed graph before any audit save.
                     _dbContext.ChangeTracker.Clear();
-                    try { HandleError(creationFailure); }
+                    try { HandleError(creationFailure, "Editor.TripsCouldNotCreateTrip"); }
                     catch (Exception auditFailure)
                     {
                         throw new AggregateException("Trip creation failed and error auditing also failed.",
@@ -180,7 +180,7 @@ namespace Wayfarer.Areas.User.Controllers
                     return View(model);
                 }
 
-                SetAlert("Trip created successfully!");
+                SetAlert("Trip created successfully!", "success", "Editor.TripsTripCreatedSuccessfully");
                 try
                 {
                     // Schedule immediate cache warm-up if the new trip has images
@@ -193,7 +193,7 @@ namespace Wayfarer.Areas.User.Controllers
                 catch (Exception warmupFailure)
                 {
                     _logger.LogError(warmupFailure, "Trip {TripId} was created but cache warm-up scheduling failed.", model.Id);
-                    SetAlert("Trip created, but image cache warm-up could not be scheduled.", "warning");
+                    SetAlert("Trip created, but image cache warm-up could not be scheduled.", "warning", "Editor.TripsTripCreatedButImageCacheWarm");
                 }
 
                 return submitAction == "save-edit"
@@ -202,7 +202,7 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             // ModelState invalid
-            SetAlert("Could not create Trip", "danger");
+            SetAlert("Could not create Trip", "danger", "Editor.TripsCouldNotCreateTrip");
             return View(model);
         }
 
@@ -249,6 +249,8 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(Guid id)
         {
+            // The list needs the mutation result. Ordinary forms still receive destination-localized alerts.
+            var listRequest = Request.Headers.Accept == "application/json";
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -256,7 +258,8 @@ namespace Wayfarer.Areas.User.Controllers
                 // Join the durable comparison barrier before normal root/cascade deletion.
                 if (userId == null || !await TripCompositionLifecycle.DeleteAsync(_dbContext, id, userId, HttpContext.RequestAborted))
                 {
-                    SetAlert("Trip not found or unavailable.", "warning");
+                    if (listRequest) return NotFound();
+                    SetAlert("Trip not found or unavailable.", "warning", "Editor.TripsTripNotFoundOrUnavailable");
                     return RedirectToAction(nameof(Index));
                 }
                 await _tripTagService.RemoveOrphanTagsAsync();
@@ -264,12 +267,14 @@ namespace Wayfarer.Areas.User.Controllers
                 // Clean up associated thumbnails
                 _thumbnailGenerator.DeleteThumbnails(id);
 
-                SetAlert("Trip deleted successfully!");
+                if (listRequest) return NoContent();
+                SetAlert("Trip deleted successfully!", "success", "Editor.TripsTripDeletedSuccessfully");
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)
             {
                 HandleError(ex);
+                if (listRequest) return StatusCode(StatusCodes.Status500InternalServerError);
                 return RedirectToAction(nameof(Index));
             }
         }
