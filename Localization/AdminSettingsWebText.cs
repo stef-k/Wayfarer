@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
-using Wayfarer.Models;
 
 namespace Wayfarer.Localization;
 

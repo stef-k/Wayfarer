@@ -69,11 +69,12 @@ public partial class SettingsController
 
         settings.TileProviderAdvancedLimitsEnabled = true;
 
-        var errors = TileProviderPolicyResolver.GetCustomValidationErrors(settings).Values
-            .Select(error => AdminSettingsWebText.PolicyError(_text, error)).Distinct();
-        foreach (var error in errors)
+        var errors = TileProviderPolicyResolver.GetCustomValidationErrors(settings);
+        if (errors.Count > 0)
         {
-            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled), error);
+            // The existing field owns one combined policy error.
+            var explanation = string.Join(" ", errors.Values.Select(error => AdminSettingsWebText.PolicyError(_text, error)).Distinct());
+            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled), explanation);
         }
     }
 
