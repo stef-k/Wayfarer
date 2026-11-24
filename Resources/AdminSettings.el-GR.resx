@@ -451,7 +451,10 @@
     <value>Εκκαθαρίστηκαν όλα τα προσωρινά αποθηκευμένα αρχεία MBTiles της εφαρμογής για κινητά.</value>
   </data>
   <data name="AdminSettings.PurgeProgress" xml:space="preserve">
-    <value>Διαγραφή… {0} / {1} αρχεία ({2})</value>
+    <value>Διαγραφή αρχείων… {0} / {1} ({2})</value>
+  </data>
+  <data name="AdminSettings.PurgeProgressLabel" xml:space="preserve">
+    <value>Πρόοδος εκκαθάρισης</value>
   </data>
   <data name="AdminSettings.PurgeStarting" xml:space="preserve">
     <value>Έναρξη εκκαθάρισης…</value>

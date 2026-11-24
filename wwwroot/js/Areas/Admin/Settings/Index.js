@@ -275,7 +275,7 @@ const updatePurgeProgress = (percent, deleted, total) => {
     }
     if (text) {
         text.textContent = total > 0
-            ? message('AdminSettings.PurgeProgress', 'Deleting… {0} / {1} files ({2})',
+            ? message('AdminSettings.PurgeProgress', 'Deleting files… {0} / {1} ({2})',
                 number(deleted), number(total), percentText)
             : message('AdminSettings.PurgeStarting', 'Starting purge...');
     }

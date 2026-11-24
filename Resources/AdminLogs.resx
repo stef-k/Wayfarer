@@ -25,7 +25,7 @@
     <value>No audit logs found.</value>
   </data>
   <data name="AdminLogs.AuditIntro" xml:space="preserve">
-    <value>Security audit trail capturing login attempts, password changes, role modifications, and data exports. Use Search to filter by user, action type, or date range.</value>
+    <value>Security audit trail capturing login attempts, password changes, role modifications, and data exports. Use Search to filter by user, action, or details.</value>
   </data>
   <data name="AdminLogs.AuditTime" xml:space="preserve">
     <value>Timestamp</value>
