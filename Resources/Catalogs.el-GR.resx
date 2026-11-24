@@ -1,0 +1,345 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Catalogs.ActivityIndex" xml:space="preserve">
+    <value>Διαθέσιμες δραστηριότητες</value>
+  </data>
+  <data name="Catalogs.ActivityIntro" xml:space="preserve">
+    <value>Οι τύποι δραστηριότητας ταξινομούν τις καταγραφές τοποθεσίας, για παράδειγμα σε περπάτημα, οδήγηση ή τρέξιμο. Όλοι οι χρήστες μπορούν να τους χρησιμοποιούν για τις καταγραφές τους.</value>
+  </data>
+  <data name="Catalogs.ActivityCreate" xml:space="preserve">
+    <value>Δημιουργία νέου τύπου δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.ActivityCreateSubmit" xml:space="preserve">
+    <value>Δημιουργία τύπου δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.ActivityEdit" xml:space="preserve">
+    <value>Επεξεργασία τύπου δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.ActivitySearch" xml:space="preserve">
+    <value>Αναζήτηση τύπων δραστηριότητας…</value>
+  </data>
+  <data name="Catalogs.ActivityName" xml:space="preserve">
+    <value>Όνομα δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.Description" xml:space="preserve">
+    <value>Περιγραφή</value>
+  </data>
+  <data name="Catalogs.ActivityEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν τύποι δραστηριότητας.</value>
+  </data>
+  <data name="Catalogs.ActivityPages" xml:space="preserve">
+    <value>Σελίδες τύπων δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteTitle" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής τύπου δραστηριότητας</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteQuestion" xml:space="preserve">
+    <value>Θέλετε να διαγράψετε αυτόν τον τύπο δραστηριότητας;</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteTarget" xml:space="preserve">
+    <value>Τύπος δραστηριότητας: {0}</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidate" xml:space="preserve">
+    <value>Ενοποίηση</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidateTitle" xml:space="preserve">
+    <value>Ενοποίηση δραστηριοτήτων</value>
+  </data>
+  <data name="Catalogs.ActivitySource.one" xml:space="preserve">
+    <value>Προέλευση: {1} — {0} καταγραφή τοποθεσίας στο σύνολο των χρηστών.</value>
+  </data>
+  <data name="Catalogs.ActivitySource.other" xml:space="preserve">
+    <value>Προέλευση: {1} — {0} καταγραφές τοποθεσίας στο σύνολο των χρηστών.</value>
+  </data>
+  <data name="Catalogs.ActivityDestination.one" xml:space="preserve">
+    <value>Προορισμός: {1} — {0} υπάρχουσα καταγραφή τοποθεσίας στο σύνολο των χρηστών.</value>
+  </data>
+  <data name="Catalogs.ActivityDestination.other" xml:space="preserve">
+    <value>Προορισμός: {1} — {0} υπάρχουσες καταγραφές τοποθεσίας στο σύνολο των χρηστών.</value>
+  </data>
+  <data name="Catalogs.ActivityExistingDestination" xml:space="preserve">
+    <value>Υπάρχουσα δραστηριότητα προορισμού</value>
+  </data>
+  <data name="Catalogs.ActivityChooseDestination" xml:space="preserve">
+    <value>Επιλέξτε προορισμό</value>
+  </data>
+  <data name="Catalogs.ActivityPreview" xml:space="preserve">
+    <value>Προεπισκόπηση ενοποίησης</value>
+  </data>
+  <data name="Catalogs.ActivityMove" xml:space="preserve">
+    <value>Μεταφορά όλων των καταγραφών τοποθεσίας από «{0}» σε «{1}».</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidateHelp" xml:space="preserve">
+    <value>Αλλάζει μόνο η ταξινόμηση της δραστηριότητας. Οι διαφορετικές, μη κενές περιγραφές διατηρούνται. Η δραστηριότητα προέλευσης αφαιρείται και το αριθμητικό αναγνωριστικό της αντιστοιχίζεται μόνιμα στον προορισμό. Οι αριθμοί μπορεί να αλλάξουν πριν από την επιβεβαίωση. Η ενοποίηση περιλαμβάνει όλες τις καταγραφές της προέλευσης κατά την εκτέλεσή της. Η ενέργεια δεν μπορεί να αναιρεθεί εδώ. Αν εισαγάγετε αργότερα το όνομα της δραστηριότητας προέλευσης, ενδέχεται να δημιουργηθεί νέα δραστηριότητα. Τα ονόματα δεν λειτουργούν ως ψευδώνυμα.</value>
+  </data>
+  <data name="Catalogs.ActivityConfirmConsolidation" xml:space="preserve">
+    <value>Επιβεβαίωση ενοποίησης</value>
+  </data>
+  <data name="Catalogs.ActivityAnotherDestination" xml:space="preserve">
+    <value>Επιλέξτε άλλον προορισμό</value>
+  </data>
+  <data name="Catalogs.BackToList" xml:space="preserve">
+    <value>Επιστροφή στη λίστα</value>
+  </data>
+  <data name="Catalogs.Back" xml:space="preserve">
+    <value>Πίσω</value>
+  </data>
+  <data name="Catalogs.Save" xml:space="preserve">
+    <value>Αποθήκευση αλλαγών</value>
+  </data>
+  <data name="Catalogs.ValidationSummary" xml:space="preserve">
+    <value>Διορθώστε τα παρακάτω σφάλματα.</value>
+  </data>
+  <data name="Catalogs.TransportIndex" xml:space="preserve">
+    <value>Προφίλ μετακίνησης</value>
+  </data>
+  <data name="Catalogs.TransportIntro" xml:space="preserve">
+    <value>Τα κλειδιά των προφίλ μετακίνησης είναι μόνιμα αναγνωριστικά για το API και τις εισαγωγές. Η απενεργοποίηση ενός προφίλ το αφαιρεί από τις νέες επιλογές του επεξεργαστή χωρίς να αλλάζει τα υπάρχοντα τμήματα διαδρομής.</value>
+  </data>
+  <data name="Catalogs.TransportCreate" xml:space="preserve">
+    <value>Δημιουργία προφίλ μετακίνησης</value>
+  </data>
+  <data name="Catalogs.TransportEdit" xml:space="preserve">
+    <value>Επεξεργασία προφίλ μετακίνησης</value>
+  </data>
+  <data name="Catalogs.TransportDelete" xml:space="preserve">
+    <value>Διαγραφή προφίλ μετακίνησης</value>
+  </data>
+  <data name="Catalogs.TransportSearch" xml:space="preserve">
+    <value>Αναζήτηση προφίλ</value>
+  </data>
+  <data name="Catalogs.TransportSearchHint" xml:space="preserve">
+    <value>Κλειδί, ετικέτα ή κατηγορία</value>
+  </data>
+  <data name="Catalogs.Order" xml:space="preserve">
+    <value>Σειρά</value>
+  </data>
+  <data name="Catalogs.Key" xml:space="preserve">
+    <value>Κλειδί</value>
+  </data>
+  <data name="Catalogs.Label" xml:space="preserve">
+    <value>Ετικέτα</value>
+  </data>
+  <data name="Catalogs.Category" xml:space="preserve">
+    <value>Κατηγορία</value>
+  </data>
+  <data name="Catalogs.SpeedColumn" xml:space="preserve">
+    <value>Ταχύτητα (χλμ/ώρα)</value>
+  </data>
+  <data name="Catalogs.Status" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="Catalogs.Segments" xml:space="preserve">
+    <value>Τμήματα διαδρομής</value>
+  </data>
+  <data name="Catalogs.TransportEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν προφίλ μετακίνησης.</value>
+  </data>
+  <data name="Catalogs.TransportManualOnly" xml:space="preserve">
+    <value>Μόνο χειροκίνητα</value>
+  </data>
+  <data name="Catalogs.TransportActive" xml:space="preserve">
+    <value>Ενεργό</value>
+  </data>
+  <data name="Catalogs.TransportInactive" xml:space="preserve">
+    <value>Ανενεργό</value>
+  </data>
+  <data name="Catalogs.TransportActions" xml:space="preserve">
+    <value>Ενέργειες για «{0}»</value>
+  </data>
+  <data name="Catalogs.TransportPages" xml:space="preserve">
+    <value>Σελίδες προφίλ μετακίνησης</value>
+  </data>
+  <data name="Catalogs.TransportKeyHelp" xml:space="preserve">
+    <value>Μόνιμο αναγνωριστικό με πεζούς λατινικούς χαρακτήρες για το API και τις εισαγωγές, π.χ. scooter.</value>
+  </data>
+  <data name="Catalogs.TransportKeyImmutable" xml:space="preserve">
+    <value>Τα κλειδιά είναι μόνιμα αναγνωριστικά και δεν αλλάζουν.</value>
+  </data>
+  <data name="Catalogs.Create" xml:space="preserve">
+    <value>Δημιουργία</value>
+  </data>
+  <data name="Catalogs.PlanningSpeed" xml:space="preserve">
+    <value>Ταχύτητα σχεδιασμού (χλμ/ώρα)</value>
+  </data>
+  <data name="Catalogs.TransportManualHelp" xml:space="preserve">
+    <value>Αφήστε το πεδίο κενό για προφίλ με μόνο χειροκίνητες διάρκειες.</value>
+  </data>
+  <data name="Catalogs.TransportSpeedHelp" xml:space="preserve">
+    <value>Αν αφήσετε το πεδίο κενό, οι αυτόματες εκτιμήσεις του Wayfarer δεν θα είναι διαθέσιμες. Οι αποθηκευμένες εκτιμήσεις παρόχων και οι χειροκίνητες διάρκειες διατηρούνται.</value>
+  </data>
+  <data name="Catalogs.TransportAvailable" xml:space="preserve">
+    <value>Διαθέσιμο για επιλογή σε νέα τμήματα διαδρομής</value>
+  </data>
+  <data name="Catalogs.TransportReferences" xml:space="preserve">
+    <value>Αναφορές: {0} συνολικά, {1} με αυτόματη και {2} με χειροκίνητη διάρκεια.</value>
+  </data>
+  <data name="Catalogs.TransportConfirmSpeed" xml:space="preserve">
+    <value>Επιβεβαιώνω ότι η αλλαγή ή η αφαίρεση της ταχύτητας σχεδιασμού θα ενημερώσει τις αυτόματες εκτιμήσεις του Wayfarer</value>
+  </data>
+  <data name="Catalogs.TransportDeactivate.one" xml:space="preserve">
+    <value>Το προφίλ χρησιμοποιείται από {0} τμήμα διαδρομής. Η απενεργοποίησή του το αφαιρεί από τις νέες επιλογές και διατηρεί τα υπάρχοντα τμήματα.</value>
+  </data>
+  <data name="Catalogs.TransportDeactivate.other" xml:space="preserve">
+    <value>Το προφίλ χρησιμοποιείται από {0} τμήματα διαδρομής. Η απενεργοποίησή του το αφαιρεί από τις νέες επιλογές και διατηρεί τα υπάρχοντα τμήματα.</value>
+  </data>
+  <data name="Catalogs.TransportConfirmDeactivation" xml:space="preserve">
+    <value>Επιβεβαιώνω την απενεργοποίηση αφού εξέτασα τις αναφορές</value>
+  </data>
+  <data name="Catalogs.TransportReferencedSegments" xml:space="preserve">
+    <value>Τμήματα που χρησιμοποιούν το προφίλ</value>
+  </data>
+  <data name="Catalogs.TransportDeleteBlocked" xml:space="preserve">
+    <value>Το προφίλ δεν μπορεί να διαγραφεί. Μπορείτε να το απενεργοποιήσετε από την επεξεργασία.</value>
+  </data>
+  <data name="Catalogs.TransportDeletePermanent" xml:space="preserve">
+    <value>Η διαγραφή είναι οριστική και αφαιρεί το προφίλ από αυτή την εγκατάσταση.</value>
+  </data>
+  <data name="Catalogs.ConfirmDelete" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής</value>
+  </data>
+  <data name="Catalogs.Validation.Binding" xml:space="preserve">
+    <value>Εισαγάγετε έγκυρη τιμή.</value>
+  </data>
+  <data name="Catalogs.Validation.Form" xml:space="preserve">
+    <value>Διορθώστε τα σφάλματα στη φόρμα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameRequired" xml:space="preserve">
+    <value>Το όνομα της δραστηριότητας είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameInvalid" xml:space="preserve">
+    <value>Εισαγάγετε όνομα δραστηριότητας που δεν είναι κενό και περιέχει έγκυρο κείμενο XML.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityDuplicate" xml:space="preserve">
+    <value>Υπάρχει ήδη δραστηριότητα με αυτό το όνομα.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityNameTooLarge" xml:space="preserve">
+    <value>Το όνομα της δραστηριότητας είναι πολύ μεγάλο για το ευρετήριο του καταλόγου. Επιλέξτε άλλο όνομα.</value>
+  </data>
+  <data name="Catalogs.Validation.ActivityDescription" xml:space="preserve">
+    <value>Η περιγραφή περιέχει κείμενο που δεν μπορεί να αποθηκευτεί.</value>
+  </data>
+  <data name="Catalogs.ActivityCreated" xml:space="preserve">
+    <value>Ο τύπος δραστηριότητας δημιουργήθηκε.</value>
+  </data>
+  <data name="Catalogs.ActivityUpdated" xml:space="preserve">
+    <value>Ο τύπος δραστηριότητας ενημερώθηκε.</value>
+  </data>
+  <data name="Catalogs.ActivityDeleted" xml:space="preserve">
+    <value>Ο τύπος δραστηριότητας διαγράφηκε.</value>
+  </data>
+  <data name="Catalogs.ActivityDeleteRefused" xml:space="preserve">
+    <value>Η δραστηριότητα δεν μπορεί να διαγραφεί επειδή χρησιμοποιείται από καταγραφές τοποθεσίας ή διατηρούμενα αναγνωριστικά εφαρμογών.</value>
+  </data>
+  <data name="Catalogs.ActivitySelectDifferent" xml:space="preserve">
+    <value>Επιλέξτε δύο διαφορετικές υπάρχουσες δραστηριότητες. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Catalogs.ActivityConsolidated" xml:space="preserve">
+    <value>Οι δραστηριότητες ενοποιήθηκαν. Το αναγνωριστικό της προέλευσης αποσύρθηκε οριστικά.</value>
+  </data>
+  <data name="Catalogs.ActivityStale" xml:space="preserve">
+    <value>Οι επιλεγμένες δραστηριότητες δεν είναι έγκυρες ή έχουν αλλάξει. Ανανεώστε τη σελίδα και επιβεβαιώστε ξανά.</value>
+  </data>
+  <data name="Catalogs.ActivityConflict" xml:space="preserve">
+    <value>Μια άλλη ενέργεια συγκρούστηκε με την ενοποίηση. Δεν αποθηκεύτηκαν αλλαγές της ενοποίησης. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Catalogs.ActivityFailed" xml:space="preserve">
+    <value>Παρουσιάστηκε απρόσμενο σφάλμα. Δοκιμάστε ξανά αργότερα.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyRequired" xml:space="preserve">
+    <value>Το κλειδί είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Catalogs.Validation.KeySyntax" xml:space="preserve">
+    <value>Χρησιμοποιήστε μόνο πεζά λατινικά γράμματα, αριθμούς και μονά ενωτικά.</value>
+  </data>
+  <data name="Catalogs.Validation.LabelRequired" xml:space="preserve">
+    <value>Η ετικέτα είναι υποχρεωτική.</value>
+  </data>
+  <data name="Catalogs.Validation.CategoryRequired" xml:space="preserve">
+    <value>Η κατηγορία είναι υποχρεωτική.</value>
+  </data>
+  <data name="Catalogs.Validation.Length" xml:space="preserve">
+    <value>Εισαγάγετε έως {1} χαρακτήρες.</value>
+  </data>
+  <data name="Catalogs.Validation.Speed" xml:space="preserve">
+    <value>Η ταχύτητα σχεδιασμού πρέπει να είναι πεπερασμένος θετικός αριθμός.</value>
+  </data>
+  <data name="Catalogs.Validation.SpeedOrEmpty" xml:space="preserve">
+    <value>Η ταχύτητα σχεδιασμού πρέπει να είναι πεπερασμένος θετικός αριθμός ή να μείνει κενή.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyDuplicate" xml:space="preserve">
+    <value>Το κλειδί προφίλ μετακίνησης χρησιμοποιείται ήδη.</value>
+  </data>
+  <data name="Catalogs.Validation.KeyConflict" xml:space="preserve">
+    <value>Το κλειδί δεν δημιουργήθηκε επειδή συγκρούεται με τα τρέχοντα στοιχεία του καταλόγου.</value>
+  </data>
+  <data name="Catalogs.Validation.ConfirmSpeed" xml:space="preserve">
+    <value>Εξετάστε το πλήθος των αναφορών και επιβεβαιώστε τον επανυπολογισμό μετά την αλλαγή ταχύτητας.</value>
+  </data>
+  <data name="Catalogs.Validation.ConfirmDeactivation" xml:space="preserve">
+    <value>Εξετάστε το πλήθος των αναφορών και επιβεβαιώστε την απενεργοποίηση.</value>
+  </data>
+  <data name="Catalogs.TransportCreated" xml:space="preserve">
+    <value>Το προφίλ μετακίνησης δημιουργήθηκε.</value>
+  </data>
+  <data name="Catalogs.TransportCreateFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η δημιουργία του προφίλ μετακίνησης. Δεν αποθηκεύτηκαν αλλαγές.</value>
+  </data>
+  <data name="Catalogs.TransportUpdated" xml:space="preserve">
+    <value>Το προφίλ μετακίνησης ενημερώθηκε.</value>
+  </data>
+  <data name="Catalogs.TransportReconciled" xml:space="preserve">
+    <value>Το προφίλ μετακίνησης ενημερώθηκε. Αυτόματες εκτιμήσεις τμημάτων που επανυπολογίστηκαν: {0}. Μη διαθέσιμες: {1}.</value>
+  </data>
+  <data name="Catalogs.TransportStale" xml:space="preserve">
+    <value>Το προφίλ άλλαξε μετά το άνοιγμα της φόρμας. Ελέγξτε τις τρέχουσες τιμές και δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Catalogs.TransportConflict" xml:space="preserve">
+    <value>Το προφίλ ή οι αναφορές του άλλαξαν ταυτόχρονα. Δεν αποθηκεύτηκαν αλλαγές.</value>
+  </data>
+  <data name="Catalogs.TransportNotFound" xml:space="preserve">
+    <value>Το προφίλ μετακίνησης δεν βρέθηκε.</value>
+  </data>
+  <data name="Catalogs.TransportUpdateCancelled" xml:space="preserve">
+    <value>Η ενημέρωση ακυρώθηκε πριν ολοκληρωθεί. Δεν αποθηκεύτηκαν αλλαγές.</value>
+  </data>
+  <data name="Catalogs.TransportIntegrity" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση του προφίλ ή ενός τμήματος που το χρησιμοποιεί. Δεν αποθηκεύτηκαν αλλαγές.</value>
+  </data>
+  <data name="Catalogs.TransportSaveFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η αποθήκευση του προφίλ μετακίνησης. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Catalogs.TransportDeleted" xml:space="preserve">
+    <value>Το προφίλ μετακίνησης διαγράφηκε.</value>
+  </data>
+  <data name="Catalogs.TransportSeededRefusal" xml:space="preserve">
+    <value>Δεν μπορείτε να διαγράψετε ενσωματωμένα προφίλ. Μπορείτε να τα απενεργοποιήσετε.</value>
+  </data>
+  <data name="Catalogs.TransportReferencedRefusal" xml:space="preserve">
+    <value>Δεν μπορείτε να διαγράψετε προφίλ που χρησιμοποιούνται. Μπορείτε να τα απενεργοποιήσετε.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteStale" xml:space="preserve">
+    <value>Το προφίλ άλλαξε μετά το άνοιγμα της επιβεβαίωσης.</value>
+  </data>
+  <data name="Catalogs.TransportDependencyRace" xml:space="preserve">
+    <value>Το προφίλ απέκτησε νέα αναφορά και δεν μπορεί να διαγραφεί. Μπορείτε να το απενεργοποιήσετε.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteConflict" xml:space="preserve">
+    <value>Το προφίλ ή οι αναφορές του άλλαξαν ταυτόχρονα. Το προφίλ δεν διαγράφηκε.</value>
+  </data>
+  <data name="Catalogs.TransportDeleteFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η διαγραφή του προφίλ μετακίνησης. Δοκιμάστε ξανά.</value>
+  </data>
+</root>

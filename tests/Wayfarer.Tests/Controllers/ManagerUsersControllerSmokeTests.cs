@@ -69,7 +69,7 @@ public class ManagerUsersControllerSmokeTests : TestBase
             MockRoleManager().Object,
             NullLogger<UsersController>.Instance,
             db,
-            apiTokenService);
+            apiTokenService, TestWebMessages.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("mgr", "Manager") };
         return controller;
     }

@@ -1,0 +1,101 @@
+@model Wayfarer.Models.ViewModels.ApiTokenViewModel
+@using Wayfarer.Localization
+@inject WebMessages T
+
+@{
+    // Generate links and forms in the area that admitted this management page.
+    var area = ViewContext.RouteData.Values["area"] as string;
+}
+
+<h1 class="text-center">@T["Accounts.TokenFor", Model.UserName]</h1>
+
+@if (area == "Admin")
+{
+    <div class="alert alert-light small mb-3 mx-auto" style="max-width: 700px;">
+        <i class="bi bi-lightbulb me-1" aria-hidden="true"></i>
+        @T["Accounts.TokenAdminHelp"]
+    </div>
+}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <!-- Token List Section -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0">@T["Accounts.TokenList"]</h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.Tokens != null && Model.Tokens.Any())
+                    {
+                        @foreach (var token in Model.Tokens)
+                        {
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <div>
+                                    <p class="mb-1"><strong>@T["Accounts.TokenName"]:</strong> @token.Name</p>
+                                    <p class="mb-1"><strong>@T["Accounts.TokenCreatedAt"]:</strong> @token.CreatedAt.ToString("G", T.DisplayCulture)</p>
+                                    <p class="mb-0">
+                                        <strong>@T["Accounts.Token"]:</strong>
+                                        <code class="border p-2 rounded bg-light">@token.DisplayToken</code>
+                                    </p>
+                                </div>
+                                <div class="btn-group">
+                                    <form method="post" asp-action="Regenerate" asp-controller="ApiToken" asp-area="@area" class="d-inline">
+                                        <input type="hidden" name="id" value="@Model.UserId" />
+                                        <input type="hidden" name="name" value="@token.Name" />
+                                        <button type="submit" class="btn btn-success btn-sm"
+                                                data-confirm-message="@T["Accounts.TokenRegenerateConfirm"]"
+                                                onclick="return confirm(this.dataset.confirmMessage)">
+                                            @T["Accounts.TokenRegenerate"]
+                                        </button>
+                                    </form>
+                                    @if (!token.Name.Equals(Wayfarer.Util.ApiTokenService.ConnectionTokenName))
+                                    {
+                                        <form method="post" asp-action="Delete" asp-controller="ApiToken" asp-area="@area" class="d-inline ms-1">
+                                            <input type="hidden" name="id" value="@Model.UserId" />
+                                            <input type="hidden" name="tokenId" value="@token.Id" />
+                                            <button type="submit" class="btn btn-danger btn-sm"
+                                                    data-confirm-message="@T["Accounts.TokenDeleteConfirm"]"
+                                                    onclick="return confirm(this.dataset.confirmMessage)">
+                                                @T["Shell.Delete"]
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
+                            </div>
+                            <hr />
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted">@T["Accounts.TokensEmpty"]</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Create Token Section -->
+            <div class="card shadow-sm">
+                <div class="card-header text-bg-primary">
+                    <h2 class="mb-0">@T["Accounts.TokenCreate"]</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-action="Create" asp-controller="ApiToken" asp-area="@area">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" value="@Model.UserId" />
+
+                        <div class="mb-3">
+                            <label for="name" class="form-label">@T["Accounts.TokenName"]:</label>
+                            <input type="text" class="form-control" id="name" name="name" placeholder="@T["Accounts.TokenEnterName"]" data-val="true"
+                                   data-val-required="@T["Accounts.TokenEnterName"]" required />
+                            <span class="text-danger" data-valmsg-for="name" data-valmsg-replace="true"></span>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">@T["Accounts.TokenCreateSubmit"]</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

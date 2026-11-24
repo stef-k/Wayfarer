@@ -1,42 +1,46 @@
 @model Wayfarer.Areas.Admin.Models.TransportProfileIndexViewModel
-@{ ViewData["Title"] = "Transport Profiles"; }
+@inject Wayfarer.Localization.WebMessages T
+@{
+    ViewData["Title"] = T["Catalogs.TransportIndex"];
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+}
 
-<h1 class="text-center my-1 fs-3">Transport Profiles</h1>
+<h1 class="text-center my-1 fs-3">@T["Catalogs.TransportIndex"]</h1>
 <div class="alert alert-light small mb-3">
-    Transport-profile keys are durable API/import identifiers. Deactivate a profile to remove it from new editor choices without changing existing segments.
+    @T["Catalogs.TransportIntro"]
 </div>
 <div class="d-flex flex-wrap gap-2 justify-content-between mb-3">
-    <a asp-action="Create" class="btn btn-success">Create transport profile</a>
+    <a asp-action="Create" class="btn btn-success">@T["Catalogs.TransportCreate"]</a>
     <form method="get" class="d-flex" role="search">
-        <label class="visually-hidden" for="transport-profile-search">Search profiles</label>
-        <input id="transport-profile-search" name="search" value="@Model.Search" class="form-control me-2" placeholder="Key, label, or category" />
-        <button class="btn btn-primary" type="submit">Search</button>
+        <label class="visually-hidden" for="transport-profile-search">@T["Catalogs.TransportSearch"]</label>
+        <input id="transport-profile-search" name="search" value="@Model.Search" class="form-control me-2" placeholder="@T["Catalogs.TransportSearchHint"]" />
+        <button class="btn btn-primary" type="submit">@T["Shell.Search"]</button>
     </form>
 </div>
 <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
-        <thead><tr><th>Order</th><th>Key</th><th>Label</th><th>Category</th><th>Speed km/h</th><th>Status</th><th>Segments</th><th>Actions</th></tr></thead>
+        <thead><tr><th>@T["Catalogs.Order"]</th><th>@T["Catalogs.Key"]</th><th>@T["Catalogs.Label"]</th><th>@T["Catalogs.Category"]</th><th>@T["Catalogs.SpeedColumn"]</th><th>@T["Catalogs.Status"]</th><th>@T["Catalogs.Segments"]</th><th>@T["Shell.Actions"]</th></tr></thead>
         <tbody>
         @if (Model.Items.Count == 0)
         {
-            <tr><td colspan="8" class="text-center text-muted">No transport profiles found.</td></tr>
+            <tr><td colspan="8" class="text-center text-muted">@T["Catalogs.TransportEmpty"]</td></tr>
         }
         @foreach (var item in Model.Items)
         {
             <tr>
                 <td>@item.SortOrder</td><td><code>@item.Key</code></td><td>@item.Label</td><td>@item.Category</td>
-                <td>@(item.PlanningSpeedKmh?.ToString("0.###") ?? "Manual only")</td>
-                <td>@(item.IsActive ? "Active" : "Inactive")</td><td>@item.ReferencedSegments</td>
-                <td><div class="btn-group" role="group" aria-label="Actions for @item.Label">
-                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">Edit</a>
-                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">Delete</a>
+                <td>@(item.PlanningSpeedKmh?.ToString("0.###", T.DisplayCulture) ?? T["Catalogs.TransportManualOnly"])</td>
+                <td>@(T[item.IsActive ? "Catalogs.TransportActive" : "Catalogs.TransportInactive"])</td><td>@T.DisplayNumber(item.ReferencedSegments)</td>
+                <td><div class="btn-group" role="group" aria-label="@T["Catalogs.TransportActions", item.Label]">
+                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-primary btn-sm">@T["Shell.Edit"]</a>
+                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">@T["Shell.Delete"]</a>
                 </div></td>
             </tr>
         }
         </tbody>
     </table>
 </div>
-<nav aria-label="Transport profile pages"><ul class="pagination justify-content-center">
+<nav aria-label="@T["Catalogs.TransportPages"]"><ul class="pagination justify-content-center">
 @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
 {
     <li class="page-item @(pageNumber == Model.Page ? "active" : null)"><a class="page-link" asp-route-page="@pageNumber" asp-route-search="@Model.Search">@pageNumber</a></li>

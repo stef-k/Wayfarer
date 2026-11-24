@@ -233,7 +233,7 @@ public class AdminActivityTypeControllerTests : TestBase
 
     private ActivityTypeController BuildController(ApplicationDbContext db)
     {
-        var controller = new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db);
+        var controller = new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db, TestWebMessages.Instance);
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());

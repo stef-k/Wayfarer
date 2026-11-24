@@ -8,6 +8,7 @@ using Npgsql;
 using System.Text.RegularExpressions;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
+using Wayfarer.Localization;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Admin.Controllers;
@@ -22,12 +23,14 @@ public sealed class TransportProfileController : Controller
     private const string SegmentTransportProfileConstraint = "FK_Segments_TransportProfiles_TransportProfileId";
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<TransportProfileController> _logger;
+    private readonly WebMessages _text;
 
     /// <summary>Initializes the controller.</summary>
-    public TransportProfileController(ApplicationDbContext dbContext, ILogger<TransportProfileController> logger)
+    public TransportProfileController(ApplicationDbContext dbContext, ILogger<TransportProfileController> logger, WebMessages text)
     {
         _dbContext = dbContext;
         _logger = logger;
+        _text = text;
     }
 
     /// <summary>Lists profiles with deterministic search, ordering, pagination, and dependencies.</summary>
@@ -68,19 +71,19 @@ public sealed class TransportProfileController : Controller
         ModelState.Remove(nameof(model.Key));
         if (!Regex.IsMatch(model.Key, "^[a-z0-9]+(?:-[a-z0-9]+)*$"))
         {
-            ModelState.AddModelError(nameof(model.Key), "Use lowercase letters, numbers, and single hyphens only.");
+            ModelState.AddModelError(nameof(model.Key), _text["Catalogs.Validation.KeySyntax"]);
         }
         if (string.IsNullOrWhiteSpace(model.Label))
         {
-            ModelState.AddModelError(nameof(model.Label), "Label is required.");
+            ModelState.AddModelError(nameof(model.Label), _text["Catalogs.Validation.LabelRequired"]);
         }
         if (string.IsNullOrWhiteSpace(model.Category))
         {
-            ModelState.AddModelError(nameof(model.Category), "Category is required.");
+            ModelState.AddModelError(nameof(model.Category), _text["Catalogs.Validation.CategoryRequired"]);
         }
         if (await _dbContext.Set<TransportProfile>().AnyAsync(profile => profile.Key == model.Key, cancellationToken))
         {
-            ModelState.AddModelError(nameof(model.Key), "That transport-profile key already exists.");
+            ModelState.AddModelError(nameof(model.Key), _text["Catalogs.Validation.KeyDuplicate"]);
         }
 
         if (!ModelState.IsValid)
@@ -103,18 +106,17 @@ public sealed class TransportProfileController : Controller
         catch (DbUpdateException exception) when (IsDuplicateKey(exception))
         {
             DetachFailedCreate(profile, audit);
-            ModelState.AddModelError(nameof(model.Key), "That transport-profile key could not be created because it conflicts with current catalog state.");
+            ModelState.AddModelError(nameof(model.Key), _text["Catalogs.Validation.KeyConflict"]);
             return View(model);
         }
         catch (DbUpdateException)
         {
             DetachFailedCreate(profile, audit);
             _logger.LogError("Transport profile creation failed without persisting changes. ProfileId={ProfileId}", profile.Id);
-            ModelState.AddModelError(string.Empty, "The transport profile could not be created. No changes were saved.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportCreateFailed"]);
             return View(model);
         }
-        TempData["AlertMessage"] = "Transport profile created.";
-        TempData["AlertType"] = "success";
+        WebAlert.Store(TempData, "Transport profile created.", "success", "Catalogs.TransportCreated");
         return RedirectToAction(nameof(Index));
     }
 
@@ -145,9 +147,9 @@ public sealed class TransportProfileController : Controller
         model.ManualSegments = counts.Manual;
         var speedChangedBeforeLock = snapshot.PlanningSpeedKmh != model.PlanningSpeedKmh;
         if (speedChangedBeforeLock && counts.Total > 0 && !model.ConfirmReferencedSpeedChange)
-            ModelState.AddModelError(nameof(model.ConfirmReferencedSpeedChange), "Confirm the referenced planning-speed reconciliation after reviewing dependency counts.");
+            ModelState.AddModelError(nameof(model.ConfirmReferencedSpeedChange), _text["Catalogs.Validation.ConfirmSpeed"]);
         if (snapshot.IsActive && !model.IsActive && !model.ConfirmDeactivation)
-            ModelState.AddModelError(nameof(model.ConfirmDeactivation), "Confirm deactivation after reviewing the dependency count.");
+            ModelState.AddModelError(nameof(model.ConfirmDeactivation), _text["Catalogs.Validation.ConfirmDeactivation"]);
         if (!ModelState.IsValid) return View(model);
 
         if (speedChangedBeforeLock)
@@ -164,40 +166,40 @@ public sealed class TransportProfileController : Controller
             catch (DbUpdateConcurrencyException)
             {
                 _logger.LogWarning("Referenced transport-profile reconciliation encountered optimistic concurrency.");
-                ModelState.AddModelError(string.Empty, "This profile changed after the form was loaded. Review the current values and try again.");
+                ModelState.AddModelError(string.Empty, _text["Catalogs.TransportStale"]);
                 return View(model);
             }
             catch (Exception exception) when (IsSerializationFailure(exception))
             {
                 _logger.LogWarning("Referenced transport-profile reconciliation encountered serialization concurrency.");
-                ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
+                ModelState.AddModelError(string.Empty, _text["Catalogs.TransportConflict"]);
                 return View(model);
             }
             catch (OperationCanceledException)
             {
                 _logger.LogWarning("Referenced transport-profile reconciliation was cancelled.");
-                ModelState.AddModelError(string.Empty, "The update was cancelled before it completed. No changes were saved.");
+                ModelState.AddModelError(string.Empty, _text["Catalogs.TransportUpdateCancelled"]);
                 return View(model);
             }
             catch (DbUpdateException)
             {
                 _logger.LogError("Referenced transport-profile reconciliation failed provider integrity checks.");
-                ModelState.AddModelError(string.Empty, "The profile or one of its dependencies could not be saved. No changes were saved.");
+                ModelState.AddModelError(string.Empty, _text["Catalogs.TransportIntegrity"]);
                 return View(model);
             }
             catch (Exception)
             {
                 _logger.LogError("Referenced transport-profile reconciliation failed unexpectedly without persisting changes.");
-                ModelState.AddModelError(string.Empty, "The transport profile could not be saved. Please try again.");
+                ModelState.AddModelError(string.Empty, _text["Catalogs.TransportSaveFailed"]);
                 return View(model);
             }
             if (!result.Succeeded)
             {
-                ModelState.AddModelError(string.Empty, result.Errors[0]);
+                ModelState.AddModelError(string.Empty, TransportProfileWebText.ReconciliationError(_text, result.Errors[0]));
                 return View(model);
             }
-            TempData["AlertMessage"] = $"Transport profile updated; {result.RecalculatedReferences} Automatic segment(s) recalculated and {result.UnavailableReferences} unavailable.";
-            TempData["AlertType"] = "success";
+            WebAlert.Store(TempData, "Transport profile updated.", "success", "Catalogs.TransportReconciled",
+                numbers: [result.RecalculatedReferences, result.UnavailableReferences]);
             return RedirectToAction(nameof(Index));
         }
 
@@ -235,7 +237,7 @@ public sealed class TransportProfileController : Controller
             await transaction.RollbackAsync(cancellationToken);
             _dbContext.Entry(profile).State = EntityState.Detached;
             _dbContext.Entry(audit).State = EntityState.Detached;
-            ModelState.AddModelError(string.Empty, "This profile changed after the form was loaded. Review the current values and try again.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportStale"]);
             var current = await BuildEditModelAsync(id, cancellationToken);
             return current == null ? NotFound() : View(current);
         }
@@ -243,7 +245,7 @@ public sealed class TransportProfileController : Controller
         {
             await transaction.RollbackAsync(cancellationToken);
             DetachFailedMutation(profile, audit);
-            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. No changes were saved.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportConflict"]);
             var current = await BuildEditModelAsync(id, cancellationToken);
             return current == null ? NotFound() : View(current);
         }
@@ -252,12 +254,11 @@ public sealed class TransportProfileController : Controller
             await transaction.RollbackAsync(cancellationToken);
             DetachFailedMutation(profile, audit);
             _logger.LogError("Transport profile update failed without persisting changes.");
-            ModelState.AddModelError(string.Empty, "The transport profile could not be saved. Please try again.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportSaveFailed"]);
             return View(model);
         }
 
-        TempData["AlertMessage"] = "Transport profile updated.";
-        TempData["AlertType"] = "success";
+        WebAlert.Store(TempData, "Transport profile updated.", "success", "Catalogs.TransportUpdated");
         return RedirectToAction(nameof(Index));
     }
 
@@ -282,7 +283,7 @@ public sealed class TransportProfileController : Controller
         var referenced = await new TransportProfileCatalog(_dbContext).CountReferencesAsync(id, profile.Key, cancellationToken);
         if (profile.IsSeeded || referenced > 0)
         {
-            ModelState.AddModelError(string.Empty, profile.IsSeeded ? "Seeded profiles cannot be deleted; deactivate them instead." : "Referenced profiles cannot be deleted; deactivate them instead.");
+            ModelState.AddModelError(string.Empty, _text[profile.IsSeeded ? "Catalogs.TransportSeededRefusal" : "Catalogs.TransportReferencedRefusal"]);
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
         _dbContext.Entry(profile).Property(item => item.RowVersion).OriginalValue = rowVersion;
@@ -298,21 +299,21 @@ public sealed class TransportProfileController : Controller
             await transaction.RollbackAsync(cancellationToken);
             _dbContext.Entry(profile).State = EntityState.Detached;
             _dbContext.Entry(audit).State = EntityState.Detached;
-            ModelState.AddModelError(string.Empty, "This profile changed after the confirmation was loaded.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportDeleteStale"]);
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
         catch (DbUpdateException exception) when (IsSegmentDependencyViolation(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
             DetachFailedMutation(profile, audit);
-            ModelState.AddModelError(string.Empty, "The profile gained a dependency and cannot be deleted. Deactivate it instead.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportDependencyRace"]);
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
         catch (Exception exception) when (IsSerializationFailure(exception))
         {
             await transaction.RollbackAsync(cancellationToken);
             DetachFailedMutation(profile, audit);
-            ModelState.AddModelError(string.Empty, "The profile or its dependencies changed concurrently. It was not deleted.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportDeleteConflict"]);
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
         catch (DbUpdateException)
@@ -320,12 +321,11 @@ public sealed class TransportProfileController : Controller
             await transaction.RollbackAsync(cancellationToken);
             DetachFailedMutation(profile, audit);
             _logger.LogError("Transport profile deletion failed without persisting changes.");
-            ModelState.AddModelError(string.Empty, "The transport profile could not be deleted. Please try again.");
+            ModelState.AddModelError(string.Empty, _text["Catalogs.TransportDeleteFailed"]);
             return View("Delete", await BuildRowAsync(id, cancellationToken));
         }
 
-        TempData["AlertMessage"] = "Transport profile deleted.";
-        TempData["AlertType"] = "success";
+        WebAlert.Store(TempData, "Transport profile deleted.", "success", "Catalogs.TransportDeleted");
         return RedirectToAction(nameof(Index));
     }
 

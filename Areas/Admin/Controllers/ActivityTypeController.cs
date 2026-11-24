@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Localization;
 using Wayfarer.Services;
 using Npgsql;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -14,10 +15,14 @@ namespace Wayfarer.Areas.Admin.Controllers
     [Area("Admin")]
     public class ActivityTypeController : BaseController
     {
+        private readonly WebMessages _text;
+
         /// <summary>Uses the current catalog context and existing Admin authorization.</summary>
-        public ActivityTypeController(ILogger<ActivityTypeController> logger, ApplicationDbContext dbContext)
+        public ActivityTypeController(ILogger<ActivityTypeController> logger, ApplicationDbContext dbContext, WebMessages text)
             : base(logger, dbContext)
-        { }
+        {
+            _text = text;
+        }
 
         /// <summary>Lists the shared catalog with existing search and pagination.</summary>
         public async Task<IActionResult> Index(int page = 1, string search = "")
@@ -47,7 +52,6 @@ namespace Wayfarer.Areas.Admin.Controllers
             ViewBag.CurrentPage = page;
 
             // Return the view with the paginated list of ActivityTypes
-            SetPageTitle("Available Activities");
             return View(activityTypes);
         }
 
@@ -55,7 +59,6 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <summary>Shows the existing create form.</summary>
         public IActionResult Create()
         {
-            SetPageTitle("New Activity Type");
             return View();
         }
 
@@ -64,7 +67,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Name,Description")] ActivityType activityType)
         {
-            if (!ValidateModelState() || !await ValidateActivityAsync(activityType))
+            if (!ValidateModelState("Catalogs.Validation.Form") || !await ValidateActivityAsync(activityType))
             {
                 return View(activityType);
             }
@@ -74,19 +77,19 @@ namespace Wayfarer.Areas.Admin.Controllers
                 _dbContext.ActivityTypes.Add(activityType);
                 await _dbContext.SaveChangesAsync();
 
-                SetAlert("Activity Type created successfully.", "success");
+                SetAlert("Activity Type created successfully.", "success", "Catalogs.ActivityCreated");
                 return RedirectToAction(nameof(Index));
             }
             catch (DbUpdateException ex) when (IsNameConflict(ex))
             {
                 _dbContext.Entry(activityType).State = EntityState.Detached;
-                ModelState.AddModelError(nameof(ActivityType.Name), "An Activity with this name already exists.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityDuplicate"]);
                 return View(activityType);
             }
             catch (DbUpdateException ex) when (IsNameCapacity(ex))
             {
                 _dbContext.Entry(activityType).State = EntityState.Detached;
-                ModelState.AddModelError(nameof(ActivityType.Name), "This Activity name is too large for the catalog index. Please choose a different name.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityNameTooLarge"]);
                 return View(activityType);
             }
             catch (Exception ex)
@@ -119,7 +122,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            if (!ValidateModelState()) return View(activityType);
+            if (!ValidateModelState("Catalogs.Validation.Form")) return View(activityType);
             var current = await _dbContext.ActivityTypes.FindAsync(id);
             if (current == null) return NotFound();
             if (!await ValidateActivityAsync(activityType)) return View(activityType);
@@ -130,19 +133,19 @@ namespace Wayfarer.Areas.Admin.Controllers
                 current.Description = activityType.Description;
                 await _dbContext.SaveChangesAsync();
 
-                SetAlert("Activity Type updated successfully.", "success");
+                SetAlert("Activity Type updated successfully.", "success", "Catalogs.ActivityUpdated");
                 return RedirectToAction(nameof(Index));
             }
             catch (DbUpdateException ex) when (IsNameConflict(ex))
             {
                 _dbContext.Entry(current).State = EntityState.Detached;
-                ModelState.AddModelError(nameof(ActivityType.Name), "An Activity with this name already exists.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityDuplicate"]);
                 return View(activityType);
             }
             catch (DbUpdateException ex) when (IsNameCapacity(ex))
             {
                 _dbContext.Entry(current).State = EntityState.Detached;
-                ModelState.AddModelError(nameof(ActivityType.Name), "This Activity name is too large for the catalog index. Please choose a different name.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityNameTooLarge"]);
                 return View(activityType);
             }
             catch (DbUpdateConcurrencyException ex)
@@ -184,7 +187,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (await _dbContext.Locations.AnyAsync(l => l.ActivityTypeId == id)
                 || await _dbContext.Set<ActivityTypeIdRedirect>().AnyAsync(r => r.ActivityTypeId == id))
             {
-                SetAlert("Activity cannot be deleted: Locations or retained client IDs reference it.", "warning");
+                SetAlert("Activity cannot be deleted: Locations or retained client IDs reference it.", "warning", "Catalogs.ActivityDeleteRefused");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -192,14 +195,14 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 _dbContext.ActivityTypes.Remove(activityType);
                 await _dbContext.SaveChangesAsync();
-                SetAlert("Activity Type deleted successfully.", "success");
+                SetAlert("Activity Type deleted successfully.", "success", "Catalogs.ActivityDeleted");
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException
                 { SqlState: PostgresErrorCodes.ForeignKeyViolation,
                   ConstraintName: "FK_Locations_ActivityTypes_ActivityTypeId" or "FK_ActivityTypeIdRedirects_ActivityTypes_ActivityTypeId" })
             {
                 _dbContext.Entry(activityType).State = EntityState.Unchanged;
-                SetAlert("Activity cannot be deleted: Locations or retained client IDs reference it.", "warning");
+                SetAlert("Activity cannot be deleted: Locations or retained client IDs reference it.", "warning", "Catalogs.ActivityDeleteRefused");
             }
             catch (DbUpdateConcurrencyException ex)
             {
@@ -224,13 +227,12 @@ namespace Wayfarer.Areas.Admin.Controllers
             var destination = entries.SingleOrDefault(a => a.Id == destinationId);
             if (source is null || (destinationId.HasValue && (sourceId == destinationId || destination is null)))
             {
-                SetAlert("Choose two different existing Activities. Please refresh and try again.", "warning");
+                SetAlert("Choose two different existing Activities. Please refresh and try again.", "warning", "Catalogs.ActivitySelectDifferent");
                 return RedirectToAction(nameof(Index));
             }
             var choices = await _dbContext.ActivityTypes.AsNoTracking().Where(a => a.Id != sourceId)
                 .OrderBy(a => a.Name).Select(a => new SelectListItem(a.Name, a.Id.ToString(), a.Id == destinationId))
                 .ToListAsync(HttpContext.RequestAborted);
-            SetPageTitle("Consolidate Activities");
             return View(new ActivityConsolidationViewModel { Source = source, Destination = destination, Destinations = choices });
         }
 
@@ -245,13 +247,14 @@ namespace Wayfarer.Areas.Admin.Controllers
                 var completed = ModelState.IsValid && await new ActivityCatalog(_dbContext).ConsolidateAsync(
                     sourceId, destinationId, sourceVersion, destinationVersion, HttpContext.RequestAborted);
                 SetAlert(completed ? "Activities consolidated successfully. The source ID is permanently retired."
-                    : "The Activity choices are invalid or have changed. Please refresh and confirm again.", completed ? "success" : "warning");
+                    : "The Activity choices are invalid or have changed. Please refresh and confirm again.", completed ? "success" : "warning",
+                    completed ? "Catalogs.ActivityConsolidated" : "Catalogs.ActivityStale");
             }
             catch (PostgresException ex) when (ex.SqlState is PostgresErrorCodes.SerializationFailure
                 or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.ForeignKeyViolation
                 or PostgresErrorCodes.LockNotAvailable or PostgresErrorCodes.QueryCanceled)
             {
-                SetAlert("Another operation conflicted with consolidation. No consolidation changes were saved. Please refresh and try again.", "warning");
+                SetAlert("Another operation conflicted with consolidation. No consolidation changes were saved. Please refresh and try again.", "warning", "Catalogs.ActivityConflict");
             }
             catch (Exception ex)
             {
@@ -265,15 +268,15 @@ namespace Wayfarer.Areas.Admin.Controllers
         {
             var name = await new ActivityCatalog(_dbContext).NormalizeAsync(activity.Name, HttpContext.RequestAborted);
             if (string.IsNullOrEmpty(name.DisplayName))
-                ModelState.AddModelError(nameof(ActivityType.Name), "Enter a nonblank Activity name containing valid XML text.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityNameInvalid"]);
             else if (await _dbContext.ActivityTypes.AnyAsync(a => a.Id != activity.Id
                 && EF.Property<string>(a, "NormalizedName") == name.NormalizedName))
-                ModelState.AddModelError(nameof(ActivityType.Name), "An Activity with this name already exists.");
+                ModelState.AddModelError(nameof(ActivityType.Name), _text["Catalogs.Validation.ActivityDuplicate"]);
             else
                 activity.Name = name.DisplayName;
 
             if (!ActivityCatalog.CanTransport(activity.Description))
-                ModelState.AddModelError(nameof(ActivityType.Description), "Description contains invalid storage text.");
+                ModelState.AddModelError(nameof(ActivityType.Description), _text["Catalogs.Validation.ActivityDescription"]);
             return ModelState.IsValid;
         }
 
@@ -299,7 +302,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         {
             _logger.LogError("An error occurred during an action: {ExceptionType}; request {RequestId}",
                 exception.GetType().Name, HttpContext.TraceIdentifier);
-            SetAlert("An unexpected error occurred. Please try again later.", "danger");
+            SetAlert("An unexpected error occurred. Please try again later.", "danger", "Catalogs.ActivityFailed");
         }
 
         /// <summary>Checks existence after discarding the stale write; an unavailable lookup uses the failed-operation response.</summary>

@@ -79,7 +79,7 @@ public class AdminUsersControllerSmokeTests : TestBase
             roleManager,
             signInManager,
             NullLogger<UsersController>.Instance,
-            apiTokenService);
+            apiTokenService, TestWebMessages.Instance);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
         controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
         return controller;

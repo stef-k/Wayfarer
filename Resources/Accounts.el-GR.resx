@@ -1,0 +1,270 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Accounts.Manage" xml:space="preserve">
+    <value>Διαχείριση χρηστών</value>
+  </data>
+  <data name="Accounts.Create" xml:space="preserve">
+    <value>Δημιουργία νέου χρήστη</value>
+  </data>
+  <data name="Accounts.CreateSubmit" xml:space="preserve">
+    <value>Δημιουργία χρήστη</value>
+  </data>
+  <data name="Accounts.Search" xml:space="preserve">
+    <value>Αναζήτηση χρηστών…</value>
+  </data>
+  <data name="Accounts.Username" xml:space="preserve">
+    <value>Όνομα χρήστη</value>
+  </data>
+  <data name="Accounts.DisplayName" xml:space="preserve">
+    <value>Εμφανιζόμενο όνομα</value>
+  </data>
+  <data name="Accounts.Role" xml:space="preserve">
+    <value>Ρόλος</value>
+  </data>
+  <data name="Accounts.Status" xml:space="preserve">
+    <value>Κατάσταση</value>
+  </data>
+  <data name="Accounts.Protected" xml:space="preserve">
+    <value>Προστατευμένος</value>
+  </data>
+  <data name="Accounts.ProtectedAccount" xml:space="preserve">
+    <value>Προστατευμένος λογαριασμός</value>
+  </data>
+  <data name="Accounts.Active" xml:space="preserve">
+    <value>Ενεργός</value>
+  </data>
+  <data name="Accounts.Inactive" xml:space="preserve">
+    <value>Ανενεργός</value>
+  </data>
+  <data name="Accounts.ActiveToggle" xml:space="preserve">
+    <value>Ενεργός λογαριασμός</value>
+  </data>
+  <data name="Accounts.Empty" xml:space="preserve">
+    <value>Δεν βρέθηκαν χρήστες.</value>
+  </data>
+  <data name="Accounts.Edit" xml:space="preserve">
+    <value>Επεξεργασία χρήστη</value>
+  </data>
+  <data name="Accounts.Password" xml:space="preserve">
+    <value>Κωδικός πρόσβασης</value>
+  </data>
+  <data name="Accounts.PasswordChange" xml:space="preserve">
+    <value>Αλλαγή κωδικού πρόσβασης</value>
+  </data>
+  <data name="Accounts.PasswordTarget" xml:space="preserve">
+    <value>Αλλάζετε τον κωδικό πρόσβασης του παρακάτω λογαριασμού.</value>
+  </data>
+  <data name="Accounts.NewPassword" xml:space="preserve">
+    <value>Νέος κωδικός πρόσβασης</value>
+  </data>
+  <data name="Accounts.ConfirmPassword" xml:space="preserve">
+    <value>Επιβεβαίωση νέου κωδικού πρόσβασης</value>
+  </data>
+  <data name="Accounts.Tokens" xml:space="preserve">
+    <value>Διαχείριση διακριτικών</value>
+  </data>
+  <data name="Accounts.ProtectedDeleteTitle" xml:space="preserve">
+    <value>Ο λογαριασμός είναι προστατευμένος και δεν μπορεί να διαγραφεί.</value>
+  </data>
+  <data name="Accounts.RoleHelp" xml:space="preserve">
+    <value>Διαχειριστής συστήματος: πλήρης πρόσβαση στο σύστημα. Υπεύθυνος διαχείρισης: διαχείριση ομάδων και προσκλήσεων. Χρήστης: τυπική πρόσβαση στις προσωπικές λειτουργίες.</value>
+  </data>
+  <data name="Accounts.InactiveHelp" xml:space="preserve">
+    <value>Οι ανενεργοί χρήστες δεν μπορούν να συνδεθούν. Η πρόσβαση μπορεί να διακοπεί προσωρινά χωρίς διαγραφή των δεδομένων τους.</value>
+  </data>
+  <data name="Accounts.ProtectedHelp" xml:space="preserve">
+    <value>Οι προστατευμένοι λογαριασμοί δεν μπορούν να διαγραφούν από αυτή τη λίστα. Ο πρώτος λογαριασμός διαχειριστή συστήματος προστατεύεται από προεπιλογή.</value>
+  </data>
+  <data name="Accounts.ValidationSummary" xml:space="preserve">
+    <value>Διορθώστε τα παρακάτω σφάλματα.</value>
+  </data>
+  <data name="Accounts.SelectRole" xml:space="preserve">
+    <value>Επιλέξτε ρόλο</value>
+  </data>
+  <data name="Accounts.ProtectedEdit" xml:space="preserve">
+    <value>Ο λογαριασμός είναι προστατευμένος. Αλλάξτε την κατάσταση προστασίας για να κάνετε αλλαγές.</value>
+  </data>
+  <data name="Accounts.ProtectedRole" xml:space="preserve">
+    <value>{0} — καταργήστε την προστασία του λογαριασμού για να αλλάξετε τον ρόλο.</value>
+  </data>
+  <data name="Accounts.ReplaceRoles" xml:space="preserve">
+    <value>Επιλέξτε έναν ρόλο για να αντικαταστήσετε τους υπάρχοντες ρόλους του λογαριασμού.</value>
+  </data>
+  <data name="Accounts.RoleAdmin" xml:space="preserve">
+    <value>Διαχειριστής συστήματος</value>
+  </data>
+  <data name="Accounts.RoleManager" xml:space="preserve">
+    <value>Υπεύθυνος διαχείρισης</value>
+  </data>
+  <data name="Accounts.RoleUser" xml:space="preserve">
+    <value>Χρήστης</value>
+  </data>
+  <data name="Accounts.NoRole" xml:space="preserve">
+    <value>Χωρίς ρόλο</value>
+  </data>
+  <data name="Accounts.Save" xml:space="preserve">
+    <value>Αποθήκευση αλλαγών</value>
+  </data>
+  <data name="Accounts.DeleteTitle" xml:space="preserve">
+    <value>Επιβεβαίωση διαγραφής χρήστη</value>
+  </data>
+  <data name="Accounts.DeleteQuestion" xml:space="preserve">
+    <value>Θέλετε να διαγράψετε αυτόν τον χρήστη;</value>
+  </data>
+  <data name="Accounts.DeleteTarget" xml:space="preserve">
+    <value>Χρήστης: {0} — Εμφανιζόμενο όνομα: {1}</value>
+  </data>
+  <data name="Accounts.Pagination" xml:space="preserve">
+    <value>Σελίδες λίστας χρηστών</value>
+  </data>
+  <data name="Accounts.TokenManagement" xml:space="preserve">
+    <value>Διαχείριση διακριτικών API</value>
+  </data>
+  <data name="Accounts.TokenFor" xml:space="preserve">
+    <value>Διαχείριση διακριτικών API για τον χρήστη {0}</value>
+  </data>
+  <data name="Accounts.TokenAdminHelp" xml:space="preserve">
+    <value>Ως διαχειριστής συστήματος μπορείτε να διαχειριστείτε τα διακριτικά API κάθε χρήστη. Βοηθήστε χρήστες που έχασαν την πρόσβαση στα διακριτικά τους ή ανακαλέστε διακριτικά που ενδέχεται να έχουν εκτεθεί.</value>
+  </data>
+  <data name="Accounts.TokenList" xml:space="preserve">
+    <value>Διακριτικά API</value>
+  </data>
+  <data name="Accounts.TokenName" xml:space="preserve">
+    <value>Όνομα διακριτικού</value>
+  </data>
+  <data name="Accounts.TokenCreatedAt" xml:space="preserve">
+    <value>Δημιουργήθηκε</value>
+  </data>
+  <data name="Accounts.Token" xml:space="preserve">
+    <value>Διακριτικό</value>
+  </data>
+  <data name="Accounts.TokenRegenerate" xml:space="preserve">
+    <value>Επανέκδοση</value>
+  </data>
+  <data name="Accounts.TokenRegenerateConfirm" xml:space="preserve">
+    <value>Να γίνει επανέκδοση του διακριτικού; Το παλιό διακριτικό θα πάψει αμέσως να λειτουργεί.</value>
+  </data>
+  <data name="Accounts.TokenDeleteConfirm" xml:space="preserve">
+    <value>Να διαγραφεί αυτό το διακριτικό; Η ενέργεια δεν μπορεί να αναιρεθεί.</value>
+  </data>
+  <data name="Accounts.TokensEmpty" xml:space="preserve">
+    <value>Δεν βρέθηκαν διακριτικά API για αυτόν τον χρήστη.</value>
+  </data>
+  <data name="Accounts.TokenCreate" xml:space="preserve">
+    <value>Δημιουργία νέου διακριτικού API</value>
+  </data>
+  <data name="Accounts.TokenEnterName" xml:space="preserve">
+    <value>Εισαγάγετε όνομα διακριτικού</value>
+  </data>
+  <data name="Accounts.TokenCreateSubmit" xml:space="preserve">
+    <value>Δημιουργία διακριτικού</value>
+  </data>
+  <data name="Accounts.Validation.UsernameRequired" xml:space="preserve">
+    <value>Το όνομα χρήστη είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Accounts.Validation.DisplayNameRequired" xml:space="preserve">
+    <value>Το εμφανιζόμενο όνομα είναι υποχρεωτικό.</value>
+  </data>
+  <data name="Accounts.Validation.PasswordRequired" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης είναι υποχρεωτικός.</value>
+  </data>
+  <data name="Accounts.Validation.ConfirmPasswordRequired" xml:space="preserve">
+    <value>Επιβεβαιώστε τον νέο κωδικό πρόσβασης.</value>
+  </data>
+  <data name="Accounts.Validation.SelectRole" xml:space="preserve">
+    <value>Επιλέξτε ρόλο.</value>
+  </data>
+  <data name="Accounts.Validation.RoleInvalid" xml:space="preserve">
+    <value>Ο επιλεγμένος ρόλος δεν είναι έγκυρος.</value>
+  </data>
+  <data name="Accounts.Validation.ManagerCreateRole" xml:space="preserve">
+    <value>Οι υπεύθυνοι διαχείρισης μπορούν να δημιουργούν λογαριασμούς μόνο με τον ρόλο Χρήστης.</value>
+  </data>
+  <data name="Accounts.Validation.ManagerAssignRole" xml:space="preserve">
+    <value>Οι υπεύθυνοι διαχείρισης μπορούν να εκχωρούν μόνο τον ρόλο Χρήστης.</value>
+  </data>
+  <data name="Accounts.Validation.UsernameTaken" xml:space="preserve">
+    <value>Το όνομα χρήστη χρησιμοποιείται ήδη.</value>
+  </data>
+  <data name="Accounts.Validation.UsernameImmutable" xml:space="preserve">
+    <value>Το όνομα χρήστη δεν μπορεί να αλλάξει.</value>
+  </data>
+  <data name="Accounts.Validation.DefaultAdminRole" xml:space="preserve">
+    <value>Ο ρόλος του προεπιλεγμένου διαχειριστή συστήματος δεν μπορεί να αλλάξει.</value>
+  </data>
+  <data name="Accounts.Validation.PasswordMismatch" xml:space="preserve">
+    <value>Ο νέος κωδικός πρόσβασης και η επιβεβαίωσή του δεν ταιριάζουν.</value>
+  </data>
+  <data name="Accounts.Validation.OwnPassword" xml:space="preserve">
+    <value>Δεν μπορείτε να αλλάξετε τον δικό σας κωδικό πρόσβασης από αυτή τη σελίδα. Χρησιμοποιήστε τις ρυθμίσεις του προσωπικού σας λογαριασμού.</value>
+  </data>
+  <data name="Accounts.Created" xml:space="preserve">
+    <value>Ο χρήστης δημιουργήθηκε.</value>
+  </data>
+  <data name="Accounts.Deleted" xml:space="preserve">
+    <value>Ο χρήστης διαγράφηκε.</value>
+  </data>
+  <data name="Accounts.ProtectedRefusal" xml:space="preserve">
+    <value>Ο λογαριασμός είναι προστατευμένος και δεν μπορεί να διαγραφεί.</value>
+  </data>
+  <data name="Accounts.ProtectedDeleteWarning" xml:space="preserve">
+    <value>Προσοχή: διαγραφή προστατευμένου λογαριασμού.</value>
+  </data>
+  <data name="Accounts.Updated" xml:space="preserve">
+    <value>Τα στοιχεία του λογαριασμού «{0}» ενημερώθηκαν.</value>
+  </data>
+  <data name="Accounts.PasswordUpdated" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης του χρήστη «{0}» άλλαξε.</value>
+  </data>
+  <data name="Accounts.PasswordUpdatedAndSignedOut" xml:space="preserve">
+    <value>Ο κωδικός πρόσβασης του χρήστη «{0}» άλλαξε. Ο χρήστης αποσυνδέθηκε.</value>
+  </data>
+  <data name="Accounts.UserMissing" xml:space="preserve">
+    <value>Ο χρήστης δεν βρέθηκε.</value>
+  </data>
+  <data name="Accounts.TokenNameRequired" xml:space="preserve">
+    <value>Απαιτούνται το αναγνωριστικό χρήστη και το όνομα του διακριτικού.</value>
+  </data>
+  <data name="Accounts.TokenDuplicate" xml:space="preserve">
+    <value>Υπάρχει ήδη διακριτικό API με αυτό το όνομα. Κάντε επανέκδοση ή επιλέξτε άλλο όνομα.</value>
+  </data>
+  <data name="Accounts.TokenCreated" xml:space="preserve">
+    <value>Δημιουργήθηκε το διακριτικό «{0}» για τον χρήστη «{1}». Η τιμή του διακριτικού δεν διατηρείται ούτε εμφανίζεται εδώ.</value>
+  </data>
+  <data name="Accounts.TokenRegenerated" xml:space="preserve">
+    <value>Έγινε επανέκδοση του διακριτικού «{0}» για τον χρήστη «{1}». Η τιμή του διακριτικού δεν διατηρείται ούτε εμφανίζεται εδώ.</value>
+  </data>
+  <data name="Accounts.TokenRegenerateMissing" xml:space="preserve">
+    <value>Το διακριτικό «{0}» δεν υπάρχει για αυτόν τον χρήστη.</value>
+  </data>
+  <data name="Accounts.TokenDeleteInvalid" xml:space="preserve">
+    <value>Το αίτημα δεν είναι έγκυρο. Απαιτούνται τα αναγνωριστικά διακριτικού και χρήστη.</value>
+  </data>
+  <data name="Accounts.TokenMissing" xml:space="preserve">
+    <value>Το διακριτικό δεν βρέθηκε ή δεν ανήκει στον συγκεκριμένο χρήστη.</value>
+  </data>
+  <data name="Accounts.TokenConnectionProtected" xml:space="preserve">
+    <value>Το προεπιλεγμένο διακριτικό απαιτείται για τη λήψη δεδομένων τοποθεσίας και δεν μπορεί να διαγραφεί.</value>
+  </data>
+  <data name="Accounts.TokenDeleted" xml:space="preserve">
+    <value>Το διακριτικό «{0}» διαγράφηκε.</value>
+  </data>
+  <data name="Accounts.TokenCreateFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η δημιουργία του διακριτικού API. Δοκιμάστε ξανά.</value>
+  </data>
+  <data name="Accounts.TokenRegenerateFailed" xml:space="preserve">
+    <value>Δεν ήταν δυνατή η επανέκδοση του διακριτικού API. Δοκιμάστε ξανά.</value>
+  </data>
+</root>

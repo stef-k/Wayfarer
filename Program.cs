@@ -285,7 +285,7 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
             options.Lockout.MaxFailedAccessAttempts = 5;
             options.Lockout.AllowedForNewUsers = true;
         })
-        .AddErrorDescriber<WebIdentityErrorDescriber>() // Applies only to Web Identity page descriptions.
+        .AddErrorDescriber<WebIdentityErrorDescriber>() // Applies to Web Identity and account-management descriptions.
         .AddRoles<IdentityRole>() // Adds role-based authorization
         .AddEntityFrameworkStores<ApplicationDbContext>() // Uses EF Core for user store
         .AddDefaultTokenProviders(); // Adds support for token-based authentication

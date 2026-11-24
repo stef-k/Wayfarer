@@ -7,17 +7,17 @@ namespace Wayfarer.Models.ViewModels
 {
     public class CreateUserViewModel
     {
-        [Required]
+        [Required(ErrorMessage = "Accounts.Validation.UsernameRequired")]
         public string UserName { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Accounts.Validation.PasswordRequired")]
         [DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
 
-        [Required]
+        [Required(ErrorMessage = "Accounts.Validation.DisplayNameRequired")]
         public string DisplayName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Please select a role.")]
+        [Required(ErrorMessage = "Accounts.Validation.SelectRole")]
         public string Role { get; set; } = string.Empty;
 
         public bool IsActive { get; set; } = true;

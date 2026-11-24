@@ -1,9 +1,13 @@
 ﻿@using Wayfarer.Models.ViewModels
-@model Wayfarer.Models.ViewModels.EditUserViewModel
-
+@using Wayfarer.Localization
+@inject Wayfarer.Localization.WebMessages T
 @{
-    ViewData["Title"] = "Edit User";
+    ViewData["Title"] = T["Accounts.Edit"];
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
+    ViewData["LanguageSafeGet"] = Url.Action("Edit", new { id = Model.Id });
 }
+
+@model Wayfarer.Models.ViewModels.EditUserViewModel
 
 <h2 class="mb-4 text-center">@ViewData["Title"]</h2>
 
@@ -11,7 +15,7 @@
 @if (!ViewData.ModelState.IsValid)
 {
     <div class="alert alert-danger">
-        @Html.ValidationSummary("Please correct the errors below.", true)
+        @Html.ValidationSummary(true, T["Accounts.ValidationSummary"])
     </div>
 }
 
@@ -23,18 +27,19 @@
 
             <!-- Username (Read-only) -->
             <div class="mb-3">
-                <label for="UserName" class="form-label">Username</label>
+                <label for="UserName" class="form-label">@T["Accounts.Username"]</label>
                 <input type="text" class="form-control" id="UserName" name="UserName" value="@Model.UserName" readonly />
+                <span asp-validation-for="UserName" class="text-danger"></span>
             </div>
 
             <!-- Display Name -->
             <div class="mb-3">
-                <label for="DisplayName" class="form-label">Display Name</label>
+                <label for="DisplayName" class="form-label">@T["Accounts.DisplayName"]</label>
                 @if (Model.IsProtected)
                 {
                     @* Preserve required identity fields while the existing status toggles permit explicit unprotection. *@
                     <input type="hidden" asp-for="DisplayName" />
-                    <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
+                    <div class="form-text text-danger">@T["Accounts.ProtectedEdit"]</div>
                 }
                 else
                 {
@@ -46,28 +51,28 @@
             <!-- Active Status Toggle -->
             <div class="form-check form-switch mb-3">
                 <input type="checkbox" class="form-check-input" id="IsActive" asp-for="IsActive" role="switch" />
-                <label for="IsActive" class="form-check-label">Is Active</label>
+                <label for="IsActive" class="form-check-label">@T["Accounts.ActiveToggle"]</label>
             </div>
 
             <!-- Protected Status Toggle -->
             <div class="form-check form-switch mb-3">
                 <input type="checkbox" class="form-check-input" id="IsProtected" asp-for="IsProtected" role="switch" />
-                <label for="IsProtected" class="form-check-label">Is Protected</label>
+                <label for="IsProtected" class="form-check-label">@T["Accounts.ProtectedAccount"]</label>
             </div>
 
             <!-- Role Selection -->
             <div class="mb-3">
-                <label for="Role" class="form-label">Role</label>
+                <label for="Role" class="form-label">@T["Accounts.Role"]</label>
                 @if (Model.IsProtected)
                 {
                     @* The server still validates the submitted role against the persisted target. *@
                     <input type="hidden" asp-for="Role" />
-                    <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
+                    <div class="form-text text-danger">@T["Accounts.ProtectedEdit"]</div>
                 }
                 else
                 {
                     <select asp-for="Role" class="form-select">
-                        <option value="User">User</option>
+                        <option value="User">@T["Accounts.RoleUser"]</option>
                     </select>
                     @Html.ValidationMessageFor(m => m.Role, "", new { @class = "text-danger" })
                 }
@@ -75,7 +80,7 @@
 
             <!-- Submit Button -->
             <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary">@T["Accounts.Save"]</button>
             </div>
         </form>
     </div>

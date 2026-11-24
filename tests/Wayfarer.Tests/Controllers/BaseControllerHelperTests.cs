@@ -108,8 +108,9 @@ public class BaseControllerHelperTests : TestBase
 
         /// <summary>Exposes alert redirects solely for existing helper tests.</summary>
         public new IActionResult RedirectWithAlert(string action, string controller, string message,
-            string alertType = "success", object? routeValues = null, string? area = null) =>
-            base.RedirectWithAlert(action, controller, message, alertType, routeValues, area);
+            string alertType = "success", object? routeValues = null, string? area = null,
+            string? webKey = null, params string[] webArguments) =>
+            base.RedirectWithAlert(action, controller, message, alertType, routeValues, area, webKey, webArguments);
 
         /// <summary>Exposes generic error handling for privacy regression coverage.</summary>
         public new void HandleError(Exception exception) => base.HandleError(exception);

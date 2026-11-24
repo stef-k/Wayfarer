@@ -46,10 +46,10 @@ public sealed partial class WebMessages
     public CultureInfo DisplayCulture => CultureInfo.GetCultureInfo(Locale.Tag);
 
     /// <summary>Formats a display number without changing its corresponding wire value.</summary>
-    public string DisplayNumber(int count) => count.ToString("N0", DisplayCulture);
+    public string DisplayNumber(long count) => count.ToString("N0", DisplayCulture);
 
     /// <summary>Looks up a whole count message, using English grammar for missing translations. Argument zero is the formatted count.</summary>
-    public string Count(string key, int count, params object?[] args)
+    public string Count(string key, long count, params object?[] args)
     {
         var (text, translated) = Resolve(Locale.Tag, $"{key}.{Locale.PluralCategory(count)}");
         if (!translated)

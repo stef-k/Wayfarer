@@ -372,7 +372,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
     internal static ActivityTypeController Admin(ApplicationDbContext db)
     {
         var context = new DefaultHttpContext();
-        return new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db)
+        return new ActivityTypeController(NullLogger<ActivityTypeController>.Instance, db, TestWebMessages.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = context },
             TempData = new TempDataDictionary(context, Mock.Of<ITempDataProvider>())

@@ -1,10 +1,13 @@
-﻿namespace Wayfarer.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Wayfarer.Models
 {
     public class ActivityType
     {
         public int Id { get; set; }
 
-        // The name of the activity (e.g., "Running", "Cycling")
+        /// <summary>Gets or sets the editable Activity name.</summary>
+        [Required(AllowEmptyStrings = true, ErrorMessage = "Catalogs.Validation.ActivityNameRequired")]
         public required string Name { get; set; }
 
         // Optional field for more details about the activity type

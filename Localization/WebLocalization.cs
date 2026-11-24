@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.DataAnnotations;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Net.Http.Headers;
+using Wayfarer.Models.ViewModels;
 
 namespace Wayfarer.Localization;
 
@@ -20,6 +21,7 @@ public static class WebLocalization
             {
             options.ModelMetadataDetailsProviders.Add(new SettingsValidationMetadata(messages));
             options.ModelMetadataDetailsProviders.Add(new LocationVisitValidationMetadata(messages));
+            options.ModelMetadataDetailsProviders.Add(new ManagementValidationMetadata(messages));
         });
         services.AddOptions<MvcDataAnnotationsLocalizationOptions>()
             .PostConfigure<WebMessages>((options, messages) =>
@@ -28,10 +30,14 @@ public static class WebLocalization
                 var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
                 var locations = new WebAnnotationLocalizer(messages, "Locations.", "Transfers.");
                 var trips = new WebAnnotationLocalizer(messages, "Editor.Trips");
+                var accounts = new WebAnnotationLocalizer(messages, "Accounts.Validation.");
+                var catalogs = new WebAnnotationLocalizer(messages, "Catalogs.Validation.");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
                     SettingsValidationMetadata.Owns(type) ? settings
                     : LocationVisitValidationMetadata.Owns(type) ? locations
                     : type == typeof(Wayfarer.Models.Trip) ? trips
+                    : type == typeof(CreateUserViewModel) || type == typeof(EditUserViewModel) || type == typeof(ChangePasswordViewModel) ? accounts
+                    : ManagementValidationMetadata.OwnsCatalog(type) ? catalogs
                     : previous?.Invoke(type, factory) ?? factory.Create(type);
             });
     }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Localization;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Util;
 
@@ -20,18 +21,20 @@ namespace Wayfarer.Areas.Admin.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ApiTokenService _apiTokenService;
+        private readonly WebMessages _text;
 
         public UsersController(ApplicationDbContext dbContext,
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             SignInManager<ApplicationUser> signInManager,
             ILogger<UsersController> logger,
-            ApiTokenService apiTokenService) : base(logger, dbContext)
+            ApiTokenService apiTokenService, WebMessages text) : base(logger, dbContext)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
             _apiTokenService = apiTokenService;
+            _text = text;
         }
 
         /// <summary>
@@ -60,7 +63,6 @@ namespace Wayfarer.Areas.Admin.Controllers
                 DisplayName = user.DisplayName
             };
             LogAction("Admin GET", $"Change password for user {user.UserName}");
-            SetPageTitle("Change User Password");
             return View(model);  // Return the ChangePassword view with the model containing the user ID
         }
 
@@ -87,14 +89,14 @@ namespace Wayfarer.Areas.Admin.Controllers
                 // Prevent the current user (admin) from changing their own password on this page
                 if (currentUser?.UserName == user.UserName)
                 {
-                    ModelState.AddModelError(string.Empty, "You cannot change your own password from this page. Please go to the identity pages to update your password.");
+                    ModelState.AddModelError(string.Empty, _text["Accounts.Validation.OwnPassword"]);
                     LogAction("Admin POST", "Admin attempted to change their own password from the admin page.");
                     return View(model);
                 }
 
                 if (model.NewPassword != model.ConfirmPassword)
                 {
-                    ModelState.AddModelError(string.Empty, "The new password and confirmation password do not match.");
+                    ModelState.AddModelError(string.Empty, _text["Accounts.Validation.PasswordMismatch"]);
                     LogAction("Admin POST", "Password change failed due to mismatched passwords");
                     return View(model);
                 }
@@ -107,7 +109,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                     LogAudit("Password Changed", "Password changed successfully", $"Password changed for user {user.UserName}");
                     LogAction("Password Changed", $"Password changed for user {user.UserName}");
 
-                    return RedirectWithAlert("Index", "Users", $"Password for user: {user.UserName} changed successfully. They have been logged out.", "success", routeValues: null, area: "Admin");
+                    return RedirectWithAlert("Index", "Users", $"Password for user: {user.UserName} changed successfully. They have been logged out.", "success", routeValues: null, area: "Admin", "Accounts.PasswordUpdatedAndSignedOut", user.UserName ?? model.UserId);
                 }
                 else
                 {
@@ -147,7 +149,6 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 Roles = new SelectList(roles)
             };
-            SetPageTitle("Create New User");
             return View(model);
         }
 
@@ -187,14 +188,14 @@ namespace Wayfarer.Areas.Admin.Controllers
             // Validate Role field specifically
             if (string.IsNullOrEmpty(model.Role))
             {
-                ModelState.AddModelError("Role", "Please select a role.");
+                ModelState.AddModelError("Role", _text["Accounts.Validation.SelectRole"]);
                 LogAction("Admin POST", "User creation failed due to no role selected");
                 return View(model);
             }
 
             if (!allowedRoles.Contains(model.Role))
             {
-                ModelState.AddModelError("Role", "Selected role is not valid.");
+                ModelState.AddModelError("Role", _text["Accounts.Validation.RoleInvalid"]);
                 LogAction("Admin POST", $"User creation failed due to invalid role selection: {model.Role}");
                 return View(model);
             }
@@ -203,7 +204,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             ApplicationUser? existingUser = await _userManager.FindByNameAsync(model.UserName);
             if (existingUser != null)
             {
-                ModelState.AddModelError("UserName", "The username is already taken.");
+                ModelState.AddModelError("UserName", _text["Accounts.Validation.UsernameTaken"]);
                 LogAction("Admin POST", "User creation failed due to existing username");
                 return View(model);
             }
@@ -232,7 +233,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 LogAction("User Created", $"User {user.UserName} created and assigned role {model.Role}");
 
                 // Redirect to the index page with success message
-                return RedirectWithAlert("Index", "Users", "User created successfully", "success", routeValues: null, "Admin");
+                return RedirectWithAlert("Index", "Users", "User created successfully", "success", routeValues: null, "Admin", "Accounts.Created");
             }
 
             // Log errors if user creation fails and populate ModelState with the errors
@@ -258,16 +259,9 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            DeleteUserViewModel model = new DeleteUserViewModel
-            {
-                Id = user.Id,
-                Username = user.UserName ?? string.Empty,
-                DisplayName = user.DisplayName,
-            };
-            LogAction("Admin GET", $"Delete user {user.UserName}");
+                        LogAction("Admin GET", $"Delete user {user.UserName}");
 
-            SetPageTitle("Delete User");
-            return View(model);
+            return View(DeleteModel(user));
         }
 
         // UsersController
@@ -290,7 +284,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 // Note: In Admin area, we allow deletion of protected users but show a warning
                 // This is intentional - admins have override capability
-                RedirectWithAlert("Delete", "Users", "Warning: Deleting a protected user.", "warning", new { id }, "Admin");
+                RedirectWithAlert("Delete", "Users", "Warning: Deleting a protected user.", "warning", new { id }, "Admin", "Accounts.ProtectedDeleteWarning");
             }
 
             IdentityResult result = await Wayfarer.Services.LocationImports.ManagedImportAccountDeletion.DeleteAsync(_dbContext, _userManager, user!);
@@ -312,7 +306,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 }
 
                 // Redirect after deletion
-                return RedirectWithAlert("Index", "Users", "User has been deleted", "success", routeValues: null, "Admin");
+                return RedirectWithAlert("Index", "Users", "User has been deleted", "success", routeValues: null, "Admin", "Accounts.Deleted");
             }
 
             // Handle failure
@@ -320,8 +314,12 @@ namespace Wayfarer.Areas.Admin.Controllers
             {
                 ModelState.AddModelError(string.Empty, error.Description);
             }
-            return View();
+            return View(nameof(Delete), DeleteModel(user));
         }
+
+        /// <summary>Supplies the admitted target for the confirmation and for an Identity refusal.</summary>
+        private static DeleteUserViewModel DeleteModel(ApplicationUser user) =>
+            new() { Id = user.Id, Username = user.UserName ?? string.Empty, DisplayName = user.DisplayName };
 
         /// <summary>
         /// Edit user
@@ -361,7 +359,6 @@ namespace Wayfarer.Areas.Admin.Controllers
 
             LogAction("Admin GET", $"Edit user {user.UserName}");
 
-            SetPageTitle("Edit User");
             return View(model);
         }
 
@@ -373,7 +370,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         public async Task<IActionResult> Edit(EditUserViewModel model)
         {
             if (string.IsNullOrWhiteSpace(model.Role))
-                ModelState.AddModelError(nameof(model.Role), "Please select a role.");
+                ModelState.AddModelError(nameof(model.Role), _text["Accounts.Validation.SelectRole"]);
             if (!ModelState.IsValid) return View(model);
 
             ApplicationUser? user = await _userManager.FindByIdAsync(model.Id);
@@ -381,12 +378,12 @@ namespace Wayfarer.Areas.Admin.Controllers
             // The default account is immutable here, including its username, activity and protection.
             if (user.UserName == "admin")
             {
-                ModelState.AddModelError(nameof(model.Role), "The default Administrator role cannot be changed.");
+                ModelState.AddModelError(nameof(model.Role), _text["Accounts.Validation.DefaultAdminRole"]);
                 return View(model);
             }
             if (user.UserName != model.UserName)
             {
-                ModelState.AddModelError(nameof(model.UserName), "Username changes are not allowed.");
+                ModelState.AddModelError(nameof(model.UserName), _text["Accounts.Validation.UsernameImmutable"]);
                 return View(model);
             }
 
@@ -394,7 +391,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 _userManager.NormalizeName(candidate) == _userManager.NormalizeName(model.Role));
             if (role == null || !await _roleManager.RoleExistsAsync(role))
             {
-                ModelState.AddModelError(nameof(model.Role), "Selected role is not valid.");
+                ModelState.AddModelError(nameof(model.Role), _text["Accounts.Validation.RoleInvalid"]);
                 return View(model);
             }
 
@@ -427,6 +424,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             // Failure paths never call a saving error helper or publish an external success message.
             LogAction("User Edit", $"User {model.UserName} role: {role}, IsActive: {model.IsActive}");
             LogAction("User Edit", $"Invalidate User {user.UserName} sessions after role change");
+            SetAlert("User data updated successfully.", "success", "Accounts.Updated", model.UserName);
             return RedirectToAction("Index");
         }
 
@@ -478,7 +476,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 {
                     Id = user.Id,
                     Username = user.UserName ?? string.Empty,
-                    Role = string.Join(", ", roles) ?? "No Role",
+                    Roles = roles,
                     DisplayName = user.DisplayName,
                     IsActive = user.IsActive,
                     IsProtected = user.IsProtected, // Example condition
@@ -494,7 +492,6 @@ namespace Wayfarer.Areas.Admin.Controllers
             // Log admin action
             LogAction("Admin GET", "Viewed all users");
 
-            SetPageTitle("User Management");
             return View(userList); // Pass the user list to the view
         }
     }

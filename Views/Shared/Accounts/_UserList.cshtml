@@ -1,0 +1,142 @@
+@model IEnumerable<Wayfarer.Models.ViewModels.UserViewModel>
+@using Wayfarer.Localization
+@inject WebMessages T
+
+@{
+    // Generate links and forms in the area that admitted this management page.
+    var area = ViewContext.RouteData.Values["area"] as string;
+}
+
+<h1 class="text-center mb-4">@ViewData["Title"]</h1>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <a asp-action="Create" asp-controller="Users" class="btn btn-success">@T["Accounts.Create"]</a>
+        </div>
+        <div class="col-md-6">
+            <form method="get" asp-action="Index" class="d-flex">
+                <input type="text" name="search" value="@ViewBag.Search" aria-label="@T["Accounts.Search"]" placeholder="@T["Accounts.Search"]" class="form-control me-2" />
+                <button type="submit" class="btn btn-primary">@T["Shell.Search"]</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>@T["Accounts.Username"]</th>
+                    <th>@T["Accounts.DisplayName"]</th>
+                    <th>
+                        @T["Accounts.Role"]
+                        @if (area == "Admin")
+                        {
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="@T["Accounts.RoleHelp"]"></i>
+                        }
+                    </th>
+                    <th>
+                        @T["Accounts.Status"]
+                        @if (area == "Admin")
+                        {
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="@T["Accounts.InactiveHelp"]"></i>
+                        }
+                    </th>
+                    <th>
+                        @T[area == "Admin" ? "Accounts.Protected" : "Accounts.ProtectedAccount"]
+                        @if (area == "Admin")
+                        {
+                            <i class="bi bi-question-circle text-muted ms-1"
+                               data-tippy-content="@T["Accounts.ProtectedHelp"]"></i>
+                        }
+                    </th>
+                    <th>@T["Shell.Actions"]</th>
+                </tr>
+            </thead>
+            <tbody class="table-group-divider">
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">@T["Accounts.Empty"]</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var user in Model)
+                    {
+                        <tr>
+                            <td>@user.Username</td>
+                            <td>@user.DisplayName</td>
+                            <td>@(user.Roles.Count == 0
+                                ? T["Accounts.NoRole"]
+                                : string.Join(", ", user.Roles.Select(role => AccountWebText.Role(T, role))))</td>
+                            <td>
+                                @if (user.IsActive)
+                                {
+                                    <span class="badge text-bg-success">
+                                        @T["Accounts.Active"]
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-danger">
+                                        @T["Accounts.Inactive"]
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (user.IsProtected)
+                                {
+                                    <span class="badge text-bg-success">@T["Accounts.Protected"]</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a asp-action="Edit" asp-route-id="@user.Id" class="btn btn-primary btn-sm">@T["Shell.Edit"]</a>
+
+                                    @if (user.IsCurrentUser)
+                                    {
+                                        <a href="/Identity/Account/Manage/ChangePassword" class="btn btn-secondary btn-sm">@T["Accounts.PasswordChange"]</a>
+                                    }
+                                    else
+                                    {
+                                        <a asp-action="ChangePassword" asp-controller="Users" asp-route-id="@user.Id" class="btn btn-secondary btn-sm">@T["Accounts.PasswordChange"]</a>
+                                    }
+
+                                    <a asp-area="@area" asp-controller="ApiToken" asp-action="Index" asp-route-id="@user.Id" class="btn btn-info btn-sm">@T["Accounts.Tokens"]</a>
+
+                                    @if (user.IsProtected)
+                                    {
+                                        <button class="btn btn-danger btn-sm" disabled title="@T["Accounts.ProtectedDeleteTitle"]">@T["Shell.Delete"]</button>
+                                    }
+                                    else
+                                    {
+                                        <a asp-action="Delete" asp-route-id="@user.Id" class="btn btn-danger btn-sm">@T["Shell.Delete"]</a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <nav aria-label="@T["Accounts.Pagination"]">
+        <ul class="pagination justify-content-center">
+            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+            {
+                <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                    <a class="page-link"
+                       asp-area="@area"
+                       asp-action="Index"
+                       asp-controller="Users"
+                       asp-route-page="@i"
+                       asp-route-search="@ViewBag.Search">@i</a>
+                </li>
+            }
+        </ul>
+    </nav>
+</div>

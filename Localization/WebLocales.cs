@@ -9,9 +9,9 @@ public sealed record WebLocale(string Tag, string NativeName, bool PrimaryDefaul
     Dictionary<string, string> IntegerPluralRules)
 {
     /// <summary>Applies the ordered cardinal rules to an invariant, nonnegative integer count.</summary>
-    public string PluralCategory(int count)
+    public string PluralCategory(long count)
     {
-        var digits = Math.Abs((long)count).ToString(CultureInfo.InvariantCulture);
+        var digits = count.ToString(CultureInfo.InvariantCulture).TrimStart('-');
         foreach (var (category, pattern) in IntegerPluralRules)
             if (Regex.IsMatch(digits, pattern, RegexOptions.CultureInvariant | RegexOptions.NonBacktracking))
                 return category;
