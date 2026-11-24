@@ -50,6 +50,14 @@ public sealed class WebIdentityErrorDescriber(IHttpContextAccessor accessor, Web
     public override IdentityError DuplicateEmail(string email) => Describe(base.DuplicateEmail(email), email);
 
     /// <inheritdoc />
+    public override IdentityError UserAlreadyInRole(string role) =>
+        Describe(base.UserAlreadyInRole(role), AccountWebText.Role(messages, role));
+
+    /// <inheritdoc />
+    public override IdentityError UserNotInRole(string role) =>
+        Describe(base.UserNotInRole(role), AccountWebText.Role(messages, role));
+
+    /// <inheritdoc />
     public override IdentityError UserAlreadyHasPassword() => Describe(base.UserAlreadyHasPassword());
 
     /// <inheritdoc />

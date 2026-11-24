@@ -21,5 +21,6 @@ internal sealed class ManagementValidationMetadata(WebMessages text) : IBindingM
         provider.SetAttemptedValueIsInvalidAccessor((_, _) => text["Catalogs.Validation.Binding"]);
         provider.SetUnknownValueIsInvalidAccessor(_ => text["Catalogs.Validation.Binding"]);
         provider.SetValueIsInvalidAccessor(_ => text["Catalogs.Validation.Binding"]);
+        provider.SetValueMustBeANumberAccessor(_ => text["Catalogs.Validation.Binding"]);
     }
 }

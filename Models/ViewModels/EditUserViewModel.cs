@@ -12,6 +12,8 @@ namespace Wayfarer.Models.ViewModels
         public string DisplayName { get; set; } = string.Empty;
         public bool IsActive { get; set; }
         public bool IsProtected { get; set; }
-        public string Role { get; set; } = string.Empty; // Single role instead of List<string>
+        /// <summary>Gets or sets the selected persisted role key.</summary>
+        [Required(AllowEmptyStrings = true, ErrorMessage = "Accounts.Validation.SelectRole")]
+        public string Role { get; set; } = string.Empty;
     }
 }

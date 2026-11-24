@@ -573,4 +573,10 @@
   <data name="Identity.ErrorCode.PasswordRequiresUpper" xml:space="preserve">
     <value>Ο κωδικός πρόσβασης πρέπει να έχει τουλάχιστον ένα κεφαλαίο λατινικό γράμμα (A–Z).</value>
   </data>
+  <data name="Identity.ErrorCode.UserAlreadyInRole" xml:space="preserve">
+    <value>Ο χρήστης έχει ήδη τον ρόλο «{0}».</value>
+  </data>
+  <data name="Identity.ErrorCode.UserNotInRole" xml:space="preserve">
+    <value>Ο χρήστης δεν έχει τον ρόλο «{0}».</value>
+  </data>
 </root>

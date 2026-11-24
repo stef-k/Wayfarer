@@ -573,4 +573,10 @@
   <data name="Identity.ErrorCode.PasswordRequiresUpper" xml:space="preserve">
     <value>Passwords must have at least one uppercase ('A'-'Z').</value>
   </data>
+  <data name="Identity.ErrorCode.UserAlreadyInRole" xml:space="preserve">
+    <value>The user already has the {0} role.</value>
+  </data>
+  <data name="Identity.ErrorCode.UserNotInRole" xml:space="preserve">
+    <value>The user does not have the {0} role.</value>
+  </data>
 </root>

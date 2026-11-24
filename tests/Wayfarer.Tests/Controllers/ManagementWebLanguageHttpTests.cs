@@ -78,7 +78,11 @@ public sealed class ManagementWebLanguageHttpTests(PostgresMigrationTestFixture 
         var create = await GetDocumentAsync(browser, "/Admin/Users/Create");
         Assert.Equal("Διαχειριστής συστήματος", create.QuerySelector("#Role option[value=Admin]")?.TextContent.Trim());
 
-        var profile = new TransportProfile { Id = Guid.NewGuid(), Key = "area-ten-test", Label = "Fixture & label", Category = "Fixture category" };
+        var profile = new TransportProfile
+        {
+            Id = Guid.NewGuid(), Key = "area-ten-test", Label = "Fixture & label",
+            Category = "Fixture category", PlanningSpeedKmh = 17.5
+        };
         var trip = new Trip { Id = Guid.NewGuid(), UserId = target.Id, Name = "Profile fixture" };
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, UserId = target.Id, Mode = profile.Key, TransportProfileId = profile.Id };
         await using (var setup = fixture.CreateContext())
@@ -86,6 +90,13 @@ public sealed class ManagementWebLanguageHttpTests(PostgresMigrationTestFixture 
             setup.AddRange(profile, trip, segment);
             await setup.SaveChangesAsync();
         }
+        var profiles = await GetDocumentAsync(browser, $"/Admin/TransportProfile?search={profile.Key}");
+        Assert.Contains("17,5", profiles.QuerySelector("tbody")!.TextContent);
+        var edit = await GetDocumentAsync(browser, $"/Admin/TransportProfile/Edit/{profile.Id}");
+        var speed = edit.QuerySelector("#PlanningSpeedKmh");
+        Assert.Equal("17.5", speed?.GetAttribute("value"));
+        Assert.Equal("Εισαγάγετε έγκυρη τιμή.", speed?.GetAttribute("data-val-number"));
+
         var route = $"/Admin/TransportProfile/Delete/{profile.Id}";
         using var refused = await browser.PostAsync(route, ("rowVersion", profile.RowVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
