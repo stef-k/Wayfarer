@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Return a private, non-cacheable `trip_not_found` response with the requested
+  Trip ID when an authenticated planning read confirms its absence (#1013).
+
 - Make My Trips and Public Trips paging deterministic by sorting ties by
   ascending Trip ID. Each page reflects the catalogue at the time of its
   request (#1011).

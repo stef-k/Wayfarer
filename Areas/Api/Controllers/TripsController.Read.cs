@@ -61,15 +61,20 @@ public partial class TripsController
                 .Include(t => t.Tags)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(t => t.Id == id, token);
-            if (trip is null) return NotFound();
-            if (ownerPrivate || !trip.IsPublic)
+            if (ownerPrivate || trip is { IsPublic: false })
             {
                 // Binding failures must not be swallowed by the legacy lookup-exception adapter.
                 var resolver = IncomingApiTokenResolver.BindReadContext(HttpContext, read);
                 var user = await ResolveReadOwnerAsync(resolver, token);
-                if (user is null || user.Id != trip.UserId)
+                if (user is null || (trip is not null && user.Id != trip.UserId))
                     return Unauthorized("Trip is private or token invalid.");
             }
+
+            // Only a planning read has established active bearer authority for a missing root.
+            if (trip is null)
+                return ownerPrivate
+                    ? new JsonResult(new { code = "trip_not_found", tripId = id }) { StatusCode = StatusCodes.Status404NotFound }
+                    : NotFound();
 
             var dto = trip.ToFullApiDto(read, token);
             token.ThrowIfCancellationRequested();
