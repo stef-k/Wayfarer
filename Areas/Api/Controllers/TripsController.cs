@@ -100,6 +100,7 @@ public partial class TripsController : BaseApiController
 
     /// <summary>
     /// Searches user trips with server-side pagination, text search and visibility filtering.
+    /// Orders by most recently updated first, with ascending Trip ID for ties.
     /// Used by the Trip index page for AJAX-driven table rendering.
     /// </summary>
     /// <param name="page">Page number (1-based, default 1)</param>
@@ -174,6 +175,7 @@ public partial class TripsController : BaseApiController
             // (Regex.Replace cannot be translated to SQL)
             var tripEntities = await query
                 .OrderByDescending(t => t.UpdatedAt)
+                .ThenBy(t => t.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -645,6 +647,7 @@ public partial class TripsController : BaseApiController
     /// <remarks>
     /// No authentication required (optional for ownership flag).
     /// Returns lightweight trip summaries without full regions/segments data.
+    /// Breaks sort ties by ascending Trip ID. Offset pages reflect the catalogue at each request.
     ///
     /// Notes field includes HTML limited to 200 words for trip descriptions.
     /// NotesExcerpt provides plain text preview limited to 140 characters.
@@ -705,7 +708,7 @@ public partial class TripsController : BaseApiController
         }
 
         // Apply sorting
-        query = sort.ToLower() switch
+        var orderedQuery = sort.ToLower() switch
         {
             "name" => query.OrderBy(t => t.Name),
             _ => query.OrderByDescending(t => t.UpdatedAt) // "updated" or default
@@ -715,7 +718,8 @@ public partial class TripsController : BaseApiController
         var totalCount = await query.CountAsync();
 
         // Apply pagination and project to DTO
-        var items = await query
+        var items = await orderedQuery
+            .ThenBy(t => t.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(t => new
