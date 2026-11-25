@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Make My Trips and Public Trips paging deterministic by sorting ties by
+  ascending Trip ID. Each page reflects the catalogue at the time of its
+  request (#1011).
+
 - Keep language switching unavailable while a Planning save is pending or
   unconfirmed. Keep Viewer visit-progress sharing at its last confirmed setting
   while a save is pending. Localize refresh guidance after a lost reply and
