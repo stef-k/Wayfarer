@@ -13,13 +13,19 @@ namespace Wayfarer.Areas.Api.Controllers;
 public partial class TripsController
 {
     /// <summary>Explicit bearer owner snapshot, including private planning even on an owned public Trip.</summary>
+    /// <response code="404">The verified bearer’s snapshot contains no Trip with the requested ID.</response>
     [HttpGet("{id:guid}/planning")]
     public async Task<IActionResult> GetPlanning(Guid id, [FromServices] IDbContextFactory<ApplicationDbContext> contexts,
         [FromServices] IOptions<JsonOptions> jsonOptions)
     {
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);
         budget.CancelAfter(TimeSpan.FromSeconds(30));
-        try { return await ReadTripSnapshotAsync(id, contexts, jsonOptions.Value, budget.Token, ownerPrivate: true); }
+        try
+        {
+            var response = await ReadTripSnapshotAsync(id, contexts, jsonOptions.Value, budget.Token, ownerPrivate: true);
+            budget.Token.ThrowIfCancellationRequested();
+            return response;
+        }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested) { throw; }
         catch (OperationCanceledException) when (budget.IsCancellationRequested) { return FullReadFailure(); }
     }
