@@ -1,4 +1,6 @@
 @{
     // Share the shell, locale bootstrap and language selector with the rest of Wayfarer.
     Layout = "/Views/Shared/_Layout.cshtml";
+    // Server-rendered Identity content uses the document locale independently of browser catalogs.
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
 }

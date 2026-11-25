@@ -85,8 +85,11 @@ const withApp = async action => {
   globalThis.ShadowRoot = class {};
   globalThis.CSS = { escape: value => value };
   globalThis.document = { getElementById: () => null, querySelector: () => null };
-  globalThis.window = { Sortable: { create: () => ({ destroy() {} }) }, matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
-    addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  // The mounted shell uses window events to publish Planning language availability.
+  globalThis.window = Object.assign(new EventTarget(), {
+    Sortable: { create: () => ({ destroy() {} }) }, matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    location: { assign: url => navigations.push(url) }
+  });
   globalThis.fetch = async () => new Response(JSON.stringify(initial));
   const remove = node => {
     if (node?.parent) node.parent.children.splice(node.parent.children.indexOf(node), 1);

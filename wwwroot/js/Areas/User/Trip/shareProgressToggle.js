@@ -43,6 +43,18 @@ const syncToggles = (enabled) => {
     updateAllBadges(enabled);
 };
 
+/** Localizes the controller's existing refusal values. */
+const shareProgressRefusal = (error) => {
+    switch (error) {
+        case 'Trip not found or unauthorized':
+            return message('Viewer.ShareAuthorityUnavailable', 'This Trip is unavailable or you no longer have permission to change its sharing settings.');
+        case 'Trip must be public to share progress':
+            return message('Viewer.ShareRequiresPublicTrip', 'Make this Trip public before sharing visit progress.');
+        default:
+            return message('Viewer.ShareSaveFailed', 'Share progress could not be saved.');
+    }
+};
+
 /**
  * AJAX call to save share progress setting
  * @param {boolean} enabled - The new enabled state
@@ -57,6 +69,7 @@ const saveShareProgress = async (enabled) => {
         shareProgressStatus.textContent = message("Viewer.ShareSaving", 'Saving...');
     }
 
+    let feedback;
     try {
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
         const response = await fetch(`/User/Trip/ToggleShareProgress?id=${tripId}&enabled=${enabled}`, {
@@ -69,21 +82,23 @@ const saveShareProgress = async (enabled) => {
         });
 
         if (response.status === 401) {
-            throw new Error(message("Viewer.ShareSessionEnded", 'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.'));
-        }
-        const result = await response.json();
-        if (response.ok && result.success) {
-            syncToggles(result.enabled);
-        } else {
-            throw new Error(result.message && document.documentElement.lang === "en-US" ? result.message : message("Viewer.ShareSaveFailed", 'Share progress could not be saved.'));
+            feedback = message('Viewer.ShareSessionEnded', 'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
+        } else if (response.ok && !response.redirected) {
+            const result = await response.json();
+            if (result?.success === true && typeof result.enabled === 'boolean') {
+                syncToggles(result.enabled);
+                return;
+            }
+            if (result?.success === false) feedback = shareProgressRefusal(result.error);
         }
     } catch (error) {
-        // Revert on error
-        syncToggles(!enabled);
-        // Use the same visible rejection convention as other Trip actions; never leave a success badge.
-        wayfarer.showAlert('danger', error instanceof Error ? error.message : message("Viewer.ShareSaveFailed", 'Share progress could not be saved.'));
         console.error('Failed to save share progress:', error);
     }
+
+    // Restore both controls to their prior display on refusal or an unconfirmed result.
+    syncToggles(!enabled);
+    wayfarer.showAlert('danger', feedback ?? message('Viewer.ShareSaveUnconfirmed',
+        'The visit progress sharing change may still finish. Refresh the page to check the current setting.'));
 };
 
 /**

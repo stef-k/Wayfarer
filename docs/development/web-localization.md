@@ -99,7 +99,7 @@ Area 1 checks cover these Editor boundaries.
 | Close, Cancel and shared confirmations | The same managed journey checks dirty docked Close. `consumerNotes.test.mjs` checks expanded Close and Area and Place Cancel, Escape focus restoration, and discard with an independent Planning draft retained. Region, Place and Area actions use the Editor catalog for dirty prompts and destructive or dependency review. |
 | Entity changes, sharing and recovery | The mounted Editor coverage in `consumerNotes.test.mjs` includes Region save status, first-publication confirmation, unconfirmed Trip settings and sharing, map search feedback, credit validation, waypoint validation and draft-preserving Segment proposal and stale-route recovery. Shipped catalogs own live status, help, confirmation and recovery text. Authored names, transport labels and request values flow through unchanged. |
 | Place coordinate work and draft names | Mounted English and Greek Place forms check that renaming during a Leaflet pick retains the marker and selected coordinate. Done adopts the pick and Cancel restores the draft coordinate. Greek creation and Reset localize the suggested Region and Place names and retain names from search and saved records. |
-| Planning and Check, Visit Progress and Notes | Mounted checks cover an unconfirmed Planning save and its draft and save hold, scoped findings and estimate evidence, retained check inputs, canonical vs. authored Region labels, and Notes draft protection. |
+| Planning and Check, Visit Progress and Notes | Mounted checks cover the Planning language hold for pending and unconfirmed saves, retained drafts, scoped findings and estimate evidence, retained check inputs, canonical vs. authored Region labels, and Notes draft protection. `viewerShareProgress.test.mjs` checks Greek feedback for a lost reply, each controller refusal and session expiry, with both sharing controls synchronized. |
 
 The Shell catalog supplies Leaflet.Draw's polygon prompts and crossing warning.
 The Editor catalog supplies its route prompts. The Shell catalog also supplies the Editor and Viewer ruler
@@ -169,8 +169,10 @@ Provider callbacks, token-processing pages and one-time results withhold
 language switching.
 
 `WebLanguageHttpTests` exercises local Login and packaged Manage Email rendering,
-including the nested layout, a named-handler failure, destination-localized
-TempData and byte-identical personal data download. On an admitted ordinary form
+including the effective language of the headings, the nested layout, a
+named-handler failure, destination-localized TempData and byte-identical personal
+data download. Identity pages set their content language from the negotiated
+document locale independently of their browser catalog. On an admitted ordinary form
 failure, the selector requests consent and uses the application's safe GET.
 The routed layout fixtures supply the same settings dependency production startup
 supplies, independently of the database's initial settings rows.
