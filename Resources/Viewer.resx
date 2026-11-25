@@ -432,9 +432,6 @@
   <data name="Viewer.InheritedTerms" xml:space="preserve">
     <value>Includes inherited terms</value>
   </data>
-  <data name="Viewer.ShareSaving" xml:space="preserve">
-    <value>Saving...</value>
-  </data>
   <data name="Viewer.ShareSessionEnded" xml:space="preserve">
     <value>Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.</value>
   </data>

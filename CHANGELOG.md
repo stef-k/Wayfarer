@@ -3,9 +3,10 @@
 ## [Unreleased]
 
 - Keep language switching unavailable while a Planning save is pending or
-  unconfirmed. Localize Viewer visit-progress sharing refusals and refresh
-  guidance after a lost reply. Use the selected content language for localized
-  Identity pages (#960).
+  unconfirmed. Keep Viewer visit-progress sharing at its last confirmed setting
+  while a save is pending. Localize refresh guidance after a lost reply and
+  distinguish unavailable Trips from private Trips. Use the selected content
+  language for localized Identity pages (#960).
 
 - Add a browser-local English and Greek language preference, localized shared
   navigation and Trip presentation, and draft-aware switching in the Trip
