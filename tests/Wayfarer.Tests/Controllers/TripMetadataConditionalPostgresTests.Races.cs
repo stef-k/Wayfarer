@@ -93,7 +93,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Empty(_thumbnails.Invocations);
     }
 
-    /// <summary>Existing share-progress routes recheck publication when their update waits behind a privacy commit.</summary>
+    /// <summary>Existing share-progress routes refuse enabling sharing when the privacy commit wins the row lock.</summary>
     [PostgresTheory]
     [InlineData(true, true)]
     [InlineData(true, false)]
@@ -128,7 +128,12 @@ public sealed partial class TripMetadataConditionalPostgresTests
             using var sharing = await (privacyFirst ? second : first).WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(HttpStatusCode.OK, privacy.StatusCode);
             Assert.Equal(editorRoute && privacyFirst ? HttpStatusCode.BadRequest : HttpStatusCode.OK, sharing.StatusCode);
-            if (!editorRoute && privacyFirst) Assert.Contains("\"success\":false", await sharing.Content.ReadAsStringAsync());
+            if (!editorRoute && privacyFirst)
+            {
+                var reply = await sharing.Content.ReadFromJsonAsync<JsonElement>();
+                Assert.False(reply.GetProperty("success").GetBoolean());
+                Assert.Equal("Trip must be public to share progress", reply.GetProperty("error").GetString());
+            }
             await using var verification = fixture.CreateContext();
             var stored = await verification.Trips.SingleAsync(t => t.Id == trip.Id);
             Assert.False(stored.IsPublic || stored.ShareProgressEnabled);

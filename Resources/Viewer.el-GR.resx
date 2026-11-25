@@ -432,14 +432,20 @@
   <data name="Viewer.InheritedTerms" xml:space="preserve">
     <value>Περιλαμβάνει κληρονομημένους όρους</value>
   </data>
-  <data name="Viewer.ShareSaving" xml:space="preserve">
-    <value>Αποθήκευση…</value>
-  </data>
   <data name="Viewer.ShareSessionEnded" xml:space="preserve">
     <value>Η συνεδρία σας έληξε ή ο λογαριασμός σας είναι απενεργοποιημένος. Συνδεθείτε ξανά. Διατηρήστε τις μη αποθηκευμένες αλλαγές πριν φύγετε από τη σελίδα.</value>
   </data>
   <data name="Viewer.ShareSaveFailed" xml:space="preserve">
     <value>Η ρύθμιση κοινοποίησης προόδου δεν αποθηκεύτηκε.</value>
+  </data>
+  <data name="Viewer.ShareAuthorityUnavailable" xml:space="preserve">
+    <value>Αυτό το ταξίδι δεν είναι διαθέσιμο ή δεν έχετε πλέον δικαίωμα να αλλάξετε τις ρυθμίσεις κοινοποίησής του.</value>
+  </data>
+  <data name="Viewer.ShareRequiresPublicTrip" xml:space="preserve">
+    <value>Ορίστε το ταξίδι ως δημόσιο για να κοινοποιήσετε την πρόοδο των επισκέψεων.</value>
+  </data>
+  <data name="Viewer.ShareSaveUnconfirmed" xml:space="preserve">
+    <value>Η αλλαγή στην κοινοποίηση της προόδου επισκέψεων μπορεί ακόμη να ολοκληρωθεί. Ανανεώστε τη σελίδα για να ελέγξετε την τρέχουσα ρύθμιση.</value>
   </data>
   <data name="Viewer.DownloadChoicesRetained" xml:space="preserve">
     <value>Η πλήρης λήψη δεν είναι διαθέσιμη. Οι επιλογές εξαγωγής διατηρήθηκαν.</value>

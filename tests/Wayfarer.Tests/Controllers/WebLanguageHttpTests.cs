@@ -94,6 +94,7 @@ public sealed class WebLanguageHttpTests : TestBase
         var errorPage = await ParseAsync(error);
         Assert.Equal("el-GR", errorPage.DocumentElement.GetAttribute("lang"));
         Assert.Equal("Σφάλμα", errorPage.QuerySelector("main h1")?.TextContent);
+        Assert.Equal("el-GR", errorPage.QuerySelector("main h1")?.Closest("[lang]")?.GetAttribute("lang"));
         Assert.NotEmpty(errorPage.QuerySelector("main code")?.TextContent ?? "");
     }
 
@@ -129,6 +130,7 @@ public sealed class WebLanguageHttpTests : TestBase
         using var clean = await client.GetAsync(destination);
         var greek = await ParseAsync(clean);
         Assert.Equal("el-GR", greek.DocumentElement.GetAttribute("lang"));
+        Assert.Equal("el-GR", greek.QuerySelector("main h1")?.Closest("[lang]")?.GetAttribute("lang"));
         Assert.Contains("Η συνεδρία σας έληξε ή ο λογαριασμός σας έχει απενεργοποιηθεί.",
             greek.QuerySelector("#account .validation-summary-errors")?.TextContent);
         Assert.Equal("/Identity/Account/Register?returnUrl=%2FUser%2FTimeline",
@@ -156,6 +158,7 @@ public sealed class WebLanguageHttpTests : TestBase
         Assert.Equal("el-GR", page.DocumentElement.GetAttribute("lang"));
         Assert.Equal("Διαχείριση λογαριασμού", page.QuerySelector("main h1")?.TextContent);
         Assert.Equal("Διαχείριση email", page.QuerySelector("main h3")?.TextContent);
+        Assert.Equal("el-GR", page.QuerySelector("main h3")?.Closest("[lang]")?.GetAttribute("lang"));
         Assert.Equal("Προσωπικά δεδομένα", page.QuerySelector("#personal-data")?.TextContent);
         Assert.Equal("owner@example.test", page.QuerySelector("#Email")?.GetAttribute("value"));
 

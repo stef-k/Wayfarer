@@ -280,25 +280,26 @@ namespace Wayfarer.Areas.User.Controllers
         }
 
         /// <summary>
-        /// Toggle the ShareProgressEnabled setting for a trip via AJAX.
-        /// Only works if trip is already public.
+        /// Changes visit progress sharing for an owned Trip. Enabling it requires a public Trip.
         /// </summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleShareProgress(Guid id, bool enabled)
         {
+            const string unavailable = "Trip not found or unauthorized";
+            const string requiresPublicTrip = "Trip must be public to share progress";
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var trip = await _dbContext.Trips.FindAsync(id);
 
             if (trip == null || trip.UserId != userId)
             {
-                return Json(new { success = false, error = "Trip not found or unauthorized" });
+                return Json(new { success = false, error = unavailable });
             }
 
             // Only allow enabling share progress if trip is public
             if (enabled && !trip.IsPublic)
             {
-                return Json(new { success = false, error = "Trip must be public to share progress" });
+                return Json(new { success = false, error = requiresPublicTrip });
             }
 
             if (_dbContext.Database.IsRelational())
@@ -308,7 +309,13 @@ namespace Wayfarer.Areas.User.Controllers
                 var count = await _dbContext.Trips.Where(t => t.Id == id && t.UserId == userId && (!enabled || t.IsPublic))
                     .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, enabled)
                         .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), HttpContext.RequestAborted);
-                if (count == 0) return Json(new { success = false, error = "Trip must be public to share progress" });
+                if (count == 0)
+                {
+                    // Query current ownership in the database. The tracked Trip came from before the write.
+                    var stillOwned = await _dbContext.Trips.AnyAsync(t => t.Id == id && t.UserId == userId,
+                        HttpContext.RequestAborted);
+                    return Json(new { success = false, error = stillOwned ? requiresPublicTrip : unavailable });
+                }
                 await _dbContext.Entry(trip).ReloadAsync(HttpContext.RequestAborted);
             }
             else
