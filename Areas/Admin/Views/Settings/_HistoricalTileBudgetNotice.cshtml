@@ -1,17 +1,17 @@
 @model ApplicationSettings
+@inject Wayfarer.Localization.WebMessages T
 
 @if (Model.TileOutboundBudgetPerIpPerMinute == 30 &&
      !Model.TileOutboundBudgetHistorical30Acknowledged)
 {
     <div class="col-12">
         <div class="alert alert-warning">
-            <strong>Historical cache-miss budget:</strong> 30 was Wayfarer's historical default.
-            The current recommended value is 80; retaining 30 can slow large cold-cache navigation.
+            <strong>@T["AdminSettings.HistoricBudget"]</strong> @T["AdminSettings.HistoricBudgetHelp"]
             <div class="mt-2">
                 <button type="submit" class="btn btn-sm btn-primary"
-                        formaction="@Url.Action("UseRecommendedTileOutboundBudget")">Use recommended 80</button>
+                        formaction="@Url.Action("UseRecommendedTileOutboundBudget")">@T["AdminSettings.HistoricBudgetApply"]</button>
                 <button type="submit" class="btn btn-sm btn-outline-secondary"
-                        formaction="@Url.Action("AcknowledgeHistoricalTileOutboundBudget")">Keep 30 and acknowledge</button>
+                        formaction="@Url.Action("AcknowledgeHistoricalTileOutboundBudget")">@T["AdminSettings.HistoricBudgetKeep"]</button>
             </div>
         </div>
     </div>

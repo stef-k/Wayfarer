@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System.Net;
+using AngleSharp.Html.Parser;
+using Microsoft.AspNetCore.TestHost;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,36 +28,53 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class AdminJobsControllerTests : TestBase
 {
+    /// <summary>Renders an existing scheduler summary through the Greek document and enforces its Admin route.</summary>
     [Fact]
-    public async Task Index_ReturnsJobsFromScheduler()
+    public async Task Index_RendersPersistedSummaryAndEnforcesAdminRole()
     {
+        const string stored = "Deleted 1234 old log files";
         var db = CreateDbContext();
-        db.JobHistories.Add(new JobHistory { JobName = "JobA", LastRunTime = DateTime.UtcNow.AddHours(-1), Status = "Done" });
+        var actor = TestDataFixtures.CreateUser(id: "jobs-viewer", username: "jobs-viewer");
+        var jobKey = new JobKey("Cleanup <logs> \"nightly\"", "Maintenance & testing");
+        db.Users.Add(actor);
+        db.JobHistories.Add(new JobHistory { JobName = jobKey.Name, LastRunTime = DateTime.UtcNow.AddHours(-1), Status = "Completed" });
         await db.SaveChangesAsync();
+
         var scheduler = new Mock<IScheduler>();
-        var jobKey = new JobKey("JobA", "default");
         var jobDetail = new Mock<IJobDetail>();
-        jobDetail.SetupGet(j => j.JobDataMap).Returns(new JobDataMap());
-        jobDetail.SetupGet(j => j.Key).Returns(jobKey);
-        scheduler.Setup(s => s.GetJobKeys(GroupMatcher<JobKey>.AnyGroup(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<JobKey> { jobKey });
-        scheduler.Setup(s => s.GetJobDetail(jobKey, It.IsAny<CancellationToken>())).ReturnsAsync(jobDetail.Object);
-        scheduler.Setup(s => s.GetTriggersOfJob(jobKey, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyCollection<ITrigger>)new List<ITrigger>());
-        scheduler.Setup(s => s.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>()))
-            .ReturnsAsync((IReadOnlyCollection<IJobExecutionContext>)new List<IJobExecutionContext>());
+        jobDetail.SetupGet(job => job.JobDataMap).Returns(new JobDataMap { ["StatusMessage"] = stored, ["Status"] = "Completed" });
+        scheduler.Setup(service => service.GetJobKeys(GroupMatcher<JobKey>.AnyGroup(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([jobKey]);
+        scheduler.Setup(service => service.GetJobDetail(jobKey, It.IsAny<CancellationToken>())).ReturnsAsync(jobDetail.Object);
+        scheduler.Setup(service => service.GetTriggersOfJob(jobKey, It.IsAny<CancellationToken>())).ReturnsAsync([]);
+        scheduler.Setup(service => service.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
-        var controller = BuildController(db, scheduler.Object);
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            IdentityRouteHost.WithStartupSettings(services);
+            services.AddSingleton(scheduler.Object);
+        });
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("el-GR");
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, actor.Id, "Manager"));
 
-        var result = await controller.Index();
+        using var refused = await client.GetAsync("/Admin/Jobs/Index");
+        Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
+        Assert.Contains("/Identity/Account/AccessDenied", refused.Headers.Location?.OriginalString);
 
-        var view = Assert.IsType<ViewResult>(result);
-        var model = Assert.IsAssignableFrom<IEnumerable<JobMonitoringViewModel>>(view.Model);
-        var job = Assert.Single(model);
-        Assert.Equal("JobA", job.JobName);
-        Assert.False(job.IsRunning);
-        Assert.False(job.IsPaused);
-        Assert.True(job.IsInterruptable);
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, actor.Id, "Admin"));
+        using var admitted = await client.GetAsync("/Admin/Jobs/Index");
+        admitted.EnsureSuccessStatusCode();
+        var document = await new HtmlParser().ParseDocumentAsync(await admitted.Content.ReadAsStringAsync());
+        var row = Assert.Single(document.QuerySelectorAll("tbody tr"));
+        Assert.Equal(jobKey.Name, row.GetAttribute("data-job-name"));
+        Assert.Equal(jobKey.Group, row.GetAttribute("data-job-group"));
+        Assert.Contains("Ολοκληρώθηκε", row.TextContent);
+        Assert.Contains("Διαγράφηκαν 1.234 παλιά αρχεία καταγραφής.", row.TextContent);
+        Assert.Equal(stored, jobDetail.Object.JobDataMap.GetString("StatusMessage"));
+        Assert.Equal(["/Admin/Jobs/StartJob", "/Admin/Jobs/PauseJob"], row.QuerySelectorAll("form").Select(form => form.GetAttribute("action")));
+        Assert.Equal(2, row.QuerySelectorAll("input[name=__RequestVerificationToken]").Length);
     }
 
     [Fact]
@@ -159,7 +179,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.PauseJob(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("paused", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.Paused", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -177,7 +197,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.ResumeJob(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("resumed", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.Resumed", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -195,7 +215,7 @@ public class AdminJobsControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.Interrupt(jobKey, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Contains("cancellation requested", controller.TempData["Message"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.CancelRequested", controller.TempData["WebAlertKey"]);
     }
 
     [Fact]
@@ -212,7 +232,7 @@ public class AdminJobsControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Contains("could not be cancelled", controller.TempData["Error"]?.ToString() ?? "");
+        Assert.Equal("AdminJobs.CancelRefused", controller.TempData["WebAlertKey"]);
     }
 
     private static JobsController BuildController(ApplicationDbContext db, IScheduler scheduler, IServiceProvider? services = null)

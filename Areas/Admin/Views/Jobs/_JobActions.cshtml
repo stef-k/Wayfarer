@@ -1,0 +1,43 @@
+@using Wayfarer.Models.ViewModels
+@model JobMonitoringViewModel
+@inject Wayfarer.Localization.WebMessages T
+
+@* The same forms serve the initial row and the live-state templates. *@
+<div class="btn-group" role="group">
+    @if (Model.IsRunning)
+    {
+        @if (Model.IsInterruptable)
+        {
+            <form method="post" asp-action="CancelJob" class="d-inline" data-job-cancel>
+                <input type="hidden" name="jobName" value="@Model.JobName" />
+                <input type="hidden" name="jobGroup" value="@Model.JobGroup" />
+                <button type="submit" class="btn btn-danger btn-sm" title="@T["AdminJobs.CancelTitle"]">@T["AdminJobs.Cancel"]</button>
+            </form>
+        }
+        else
+        {
+            <button class="btn btn-secondary btn-sm" disabled title="@T["AdminJobs.CannotCancelTitle"]">@T["AdminJobs.Cancel"]</button>
+        }
+    }
+    else if (Model.IsPaused)
+    {
+        <form method="post" asp-action="ResumeJob" class="d-inline">
+            <input type="hidden" name="jobName" value="@Model.JobName" />
+            <input type="hidden" name="jobGroup" value="@Model.JobGroup" />
+            <button type="submit" class="btn btn-success btn-sm" title="@T["AdminJobs.ResumeTitle"]">@T["AdminJobs.Resume"]</button>
+        </form>
+    }
+    else
+    {
+        <form method="post" asp-action="StartJob" class="d-inline">
+            <input type="hidden" name="jobName" value="@Model.JobName" />
+            <input type="hidden" name="jobGroup" value="@Model.JobGroup" />
+            <button type="submit" class="btn btn-primary btn-sm" title="@T["AdminJobs.StartTitle"]">@T["AdminJobs.Start"]</button>
+        </form>
+        <form method="post" asp-action="PauseJob" class="d-inline ms-1">
+            <input type="hidden" name="jobName" value="@Model.JobName" />
+            <input type="hidden" name="jobGroup" value="@Model.JobGroup" />
+            <button type="submit" class="btn btn-warning btn-sm" title="@T["AdminJobs.PauseTitle"]">@T["AdminJobs.Pause"]</button>
+        </form>
+    }
+</div>

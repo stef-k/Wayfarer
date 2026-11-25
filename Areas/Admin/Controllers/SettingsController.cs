@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -25,6 +26,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         private readonly Wayfarer.Services.LocationImports.LocationImportStagedFiles _stagedFiles;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly SseService _sseService;
+        private readonly WebMessages _text;
 
         public SettingsController(
             Wayfarer.Services.LocationImports.LocationImportStagedFiles stagedFiles,
@@ -35,9 +37,10 @@ namespace Wayfarer.Areas.Admin.Controllers
             IProxiedImageCacheService imageCacheService,
             IWebHostEnvironment env,
             IServiceScopeFactory scopeFactory,
-            SseService sseService)
+            SseService sseService, WebMessages text)
             : base(logger, dbContext)
         {
+            _text = text;
             _stagedFiles = stagedFiles;
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _tileCacheService = tileCacheService ?? throw new ArgumentNullException(nameof(tileCacheService));
@@ -121,20 +124,20 @@ namespace Wayfarer.Areas.Admin.Controllers
             ApplicationSettings? currentSettings = _dbContext.ApplicationSettings.Find(1);
             if (currentSettings == null)
             {
-                ModelState.AddModelError(string.Empty, "Application settings could not be loaded.");
+                ModelState.AddModelError(string.Empty, _text["AdminSettings.Validation.Unavailable"]);
             }
 
             // Cross-field validation for Trip Place Auto-Visited settings
             if (updatedSettings.VisitedMaxRadiusMeters < updatedSettings.VisitedMinRadiusMeters)
             {
                 ModelState.AddModelError("VisitedMaxRadiusMeters",
-                    "Max radius must be greater than or equal to min radius.");
+                    _text["AdminSettings.Validation.VisitRadiusOrder"]);
             }
 
             if (updatedSettings.VisitedMaxSearchRadiusMeters < updatedSettings.VisitedMaxRadiusMeters)
             {
                 ModelState.AddModelError("VisitedMaxSearchRadiusMeters",
-                    "Search radius must be greater than or equal to max radius.");
+                    _text["AdminSettings.Validation.VisitSearchOrder"]);
             }
 
             // OSM tile usage policy requires tiles to be cached for at least 7 days.
@@ -143,21 +146,21 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (updatedSettings.MaxCacheTileSizeInMB is > 0 and < 256)
             {
                 ModelState.AddModelError(nameof(updatedSettings.MaxCacheTileSizeInMB),
-                    "Minimum cache size is 256 MB (OSM requires at least 7 days of cached tiles). Use -1 to disable.");
+                    _text["AdminSettings.Validation.TileCacheMinimum"]);
             }
 
             // Authenticated users should always have at least the same rate limit as anonymous users.
             if (updatedSettings.TileRateLimitAuthenticatedPerMinute < updatedSettings.TileRateLimitPerMinute)
             {
                 ModelState.AddModelError(nameof(updatedSettings.TileRateLimitAuthenticatedPerMinute),
-                    "Authenticated rate limit must be equal to or greater than the anonymous rate limit.");
+                    _text["AdminSettings.Validation.TileRateOrder"]);
             }
 
             if (updatedSettings.TileMetadataHotCacheSizeMB != -1 &&
                 (updatedSettings.TileMetadataHotCacheSizeMB < 16 || updatedSettings.TileMetadataHotCacheSizeMB > 512))
             {
                 ModelState.AddModelError(nameof(updatedSettings.TileMetadataHotCacheSizeMB),
-                    "Tile metadata hot cache size must be -1 (disable) or between 16 and 512 MB.");
+                    _text["AdminSettings.Validation.HotCache"]);
             }
 
             if (currentSettings != null)
@@ -170,7 +173,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 }
             }
 
-            if (!ValidateModelState())
+            if (!ValidateModelState("AdminSettings.Validation.Review"))
             {
                 SetTileProviderViewData();
                 return View("Index", updatedSettings);
@@ -279,12 +282,12 @@ namespace Wayfarer.Areas.Admin.Controllers
 
                 _settingsService.RefreshSettings();
 
-                SetAlert("Settings updated and refreshed successfully.", "success");
+                SetAlert("Settings updated and refreshed successfully.", "success", "AdminSettings.SaveSuccess");
                 return RedirectToAction("Index");
             }
             catch (Exception ex)
             {
-                HandleError(ex);
+                HandleError(ex, "AdminSettings.SaveFailed");
                 SetTileProviderViewData();
                 return View("Index", updatedSettings);
             }
@@ -301,10 +304,10 @@ namespace Wayfarer.Areas.Admin.Controllers
         public IActionResult DeleteAllMapTileCache()
         {
             if (TileCacheService.IsPurgeInProgress)
-                return Conflict(new { success = false, message = "A cache purge is already in progress." });
+                return Conflict(new { success = false, message = _text["AdminSettings.PurgeBusy"] });
 
             QueuePurgeOperation("all");
-            return Accepted(new { success = true, message = "Full cache purge started." });
+            return Accepted(new { success = true, message = _text["AdminSettings.PurgeFullStarted"] });
         }
 
         /// <summary>
@@ -318,10 +321,10 @@ namespace Wayfarer.Areas.Admin.Controllers
         public IActionResult DeleteLruCache()
         {
             if (TileCacheService.IsPurgeInProgress)
-                return Conflict(new { success = false, message = "A cache purge is already in progress." });
+                return Conflict(new { success = false, message = _text["AdminSettings.PurgeBusy"] });
 
             QueuePurgeOperation("lru");
-            return Accepted(new { success = true, message = "LRU cache purge started." });
+            return Accepted(new { success = true, message = _text["AdminSettings.PurgeLruStarted"] });
         }
 
         /// <summary>
@@ -456,94 +459,6 @@ namespace Wayfarer.Areas.Admin.Controllers
         private Task<CacheStatus> GetCacheStatus() => BuildCacheStatusAsync(_tileCacheService);
 
         /// <summary>
-        /// Normalizes and validates tile provider settings, applying presets when selected.
-        /// </summary>
-        private bool NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
-        {
-            var providerKey = updatedSettings.TileProviderKey?.Trim();
-            var currentCompatibility = TileProviderCatalog.ResolveCompatibility(
-                currentSettings.TileProviderKey,
-                currentSettings.TileProviderUrlTemplate);
-            var preservesUnsupportedState =
-                currentCompatibility.Status != TileProviderCompatibility.Supported &&
-                (string.IsNullOrWhiteSpace(providerKey) ||
-                 string.Equals(providerKey, currentSettings.TileProviderKey?.Trim(),
-                     StringComparison.OrdinalIgnoreCase));
-            if (preservesUnsupportedState)
-            {
-                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
-                return true;
-            }
-            if (string.IsNullOrWhiteSpace(providerKey))
-            {
-                // Preserve supported provider identity when an unrelated form omits this section.
-                PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
-                return true;
-            }
-            var preset = TileProviderCatalog.FindPreset(providerKey);
-            var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
-
-            if (preset == null && !isCustom)
-            {
-                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderKey), "Unknown tile provider selection.");
-                return false;
-            }
-
-            if (preset != null)
-            {
-                updatedSettings.TileProviderKey = preset.Key;
-                updatedSettings.TileProviderUrlTemplate = preset.UrlTemplate;
-                updatedSettings.TileProviderAttribution = preset.Attribution;
-            }
-            else
-            {
-                updatedSettings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
-            }
-
-            // Sanitize attribution HTML to prevent XSS attacks.
-            updatedSettings.TileProviderAttribution = HtmlSanitization.SanitizeAttribution(updatedSettings.TileProviderAttribution);
-
-            if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderAttribution))
-            {
-                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAttribution), "Attribution is required.");
-            }
-
-            if (!TileProviderCatalog.TryValidateTemplate(updatedSettings.TileProviderUrlTemplate, out var templateError))
-            {
-                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderUrlTemplate), templateError);
-            }
-
-            if (TileProviderCatalog.RequiresApiKey(updatedSettings.TileProviderUrlTemplate))
-            {
-                if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
-                {
-                    updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
-                }
-
-                if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
-                {
-                    ModelState.AddModelError(nameof(ApplicationSettings.TileProviderApiKey),
-                        "API key is required for the selected tile provider.");
-                }
-            }
-            else
-            {
-                updatedSettings.TileProviderApiKey = null;
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Adds tile provider preset metadata needed by the settings view.
-        /// </summary>
-        private void SetTileProviderViewData()
-        {
-            ViewData["TileProviderPresets"] = TileProviderCatalog.Presets;
-            ViewData["TileProviderCustomKey"] = TileProviderCatalog.CustomProviderKey;
-        }
-
-        /// <summary>
         /// Clears the mbtiles cache
         /// </summary>
         /// <returns></returns>
@@ -551,7 +466,7 @@ namespace Wayfarer.Areas.Admin.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult ClearMbtilesCache()
         {
-            TempData["Message"] = "All MBTiles for mobile map cache cleared.";
+            WebAlert.Store(TempData, "All MBTiles for mobile map cache cleared.", "success", "AdminSettings.PurgeMbtilesSuccess");
             return RedirectToAction("Index");
         }
     }

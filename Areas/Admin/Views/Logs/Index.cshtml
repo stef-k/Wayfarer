@@ -1,8 +1,10 @@
 @using Wayfarer.Models.ViewModels
 @model List<LogFileInfo>
+@inject Wayfarer.Localization.WebMessages T
 
 @{
-    ViewData["Title"] = "Application Logs";
+    ViewData["Title"] = T["Shell.ApplicationLogs"];
+    ViewData["WebCatalog"] = "AdminLogs";
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -13,8 +15,7 @@
             <!-- Control Panel -->
             <div class="alert alert-light small mb-3">
                 <i class="bi bi-lightbulb me-1"></i>
-                <strong>How it works:</strong> Application logs capture errors, warnings, and informational messages from the server.
-                Select a log file to view, use Search to filter content, and enable Auto-Refresh for real-time updates.
+                @T["AdminLogs.Intro"]
             </div>
 
             <div class="card mb-3">
@@ -22,15 +23,15 @@
                     <div class="row g-3 align-items-center">
                         <!-- File Selector -->
                         <div class="col-auto">
-                            <label for="logFileSelect" class="col-form-label">Log File:</label>
+                            <label for="logFileSelect" class="col-form-label">@T["AdminLogs.File"]</label>
                         </div>
                         <div class="col-auto">
                             <select id="logFileSelect" class="form-select">
-                                <option value="">-- Select a log file --</option>
+                                <option value="">@T["AdminLogs.ChooseFile"]</option>
                                 @foreach (var file in Model)
                                 {
-                                    <option value="@file.FileName" data-size="@file.SizeFormatted" data-modified="@file.LastModified.ToString("g")">
-                                        @file.FileName @(file.IsCurrent ? "(Current)" : "") - @file.SizeFormatted
+                                    <option value="@file.FileName" data-size="@file.SizeFormatted" data-modified="@file.LastModified.ToString("g", T.DisplayCulture)">
+                                        @file.FileName @(file.IsCurrent ? T["AdminLogs.Current"] : "") - @file.SizeFormatted
                                     </option>
                                 }
                             </select>
@@ -39,11 +40,11 @@
                         <!-- Search Box -->
                         <div class="col-auto">
                             <div class="input-group">
-                                <input type="text" id="searchInput" class="form-control" placeholder="Search logs..." disabled />
-                                <button type="button" id="searchBtn" class="btn btn-outline-secondary" disabled>
+                                <input type="text" id="searchInput" class="form-control" placeholder="@T["AdminLogs.Search"]" disabled />
+                                <button type="button" id="searchBtn" class="btn btn-outline-secondary" aria-label="@T["Shell.Search"]" disabled>
                                     <i class="bi bi-search"></i>
                                 </button>
-                                <button type="button" id="clearSearchBtn" class="btn btn-outline-secondary" disabled title="Clear search">
+                                <button type="button" id="clearSearchBtn" class="btn btn-outline-secondary" disabled title="@T["AdminLogs.ClearSearch"]">
                                     <i class="bi bi-x-lg"></i>
                                 </button>
                             </div>
@@ -52,16 +53,16 @@
                         <!-- Action Buttons -->
                         <div class="col-auto ms-auto">
                             <div class="btn-group" role="group">
-                                <button type="button" id="autoRefreshBtn" class="btn btn-outline-primary" disabled title="Toggle auto-refresh">
-                                    <i class="bi bi-arrow-repeat"></i> Auto-Refresh
+                                <button type="button" id="autoRefreshBtn" class="btn btn-outline-primary" disabled title="@T["AdminLogs.ToggleAutoRefresh"]">
+                                    <i class="bi bi-arrow-repeat"></i> @T["AdminLogs.AutoRefresh"]
                                 </button>
-                                <button type="button" id="refreshBtn" class="btn btn-outline-secondary" disabled title="Refresh content">
+                                <button type="button" id="refreshBtn" class="btn btn-outline-secondary" disabled title="@T["AdminLogs.Refresh"]">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
-                                <button type="button" id="downloadBtn" class="btn btn-outline-success" disabled title="Download log file">
+                                <button type="button" id="downloadBtn" class="btn btn-outline-success" disabled title="@T["AdminLogs.Download"]">
                                     <i class="bi bi-download"></i>
                                 </button>
-                                <button type="button" id="clearBtn" class="btn btn-outline-danger" disabled title="Clear display">
+                                <button type="button" id="clearBtn" class="btn btn-outline-danger" disabled title="@T["AdminLogs.Clear"]">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
@@ -73,21 +74,21 @@
             <!-- Log Viewer -->
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center py-2">
-                    <span id="fileInfo" class="text-muted small">Select a log file to view</span>
+                    <span id="fileInfo" class="text-muted small">@T["AdminLogs.ChooseFileShort"]</span>
                     <span id="searchResults" class="badge bg-secondary d-none"></span>
                 </div>
                 <div class="card-body p-0">
-                    <pre id="logViewer" class="log-viewer m-0 p-3">Select a log file from the dropdown above to view its contents.</pre>
+                    <pre id="logViewer" class="log-viewer m-0 p-3">@T["AdminLogs.ChooseFileHelp"]</pre>
                 </div>
                 <div class="card-footer py-2">
                     <div class="d-flex justify-content-between align-items-center small">
                         <div class="d-flex align-items-center gap-2">
-                            <button type="button" id="prevBtn" class="btn btn-sm btn-outline-secondary" disabled title="Load previous 1000 lines">
-                                <i class="bi bi-chevron-left"></i> Previous
+                            <button type="button" id="prevBtn" class="btn btn-sm btn-outline-secondary" disabled title="@T["AdminLogs.LoadPrevious", T.DisplayNumber(1000)]">
+                                <i class="bi bi-chevron-left"></i> @T["AdminLogs.Previous"]
                             </button>
-                            <span id="lineCount" class="text-muted">0 lines</span>
-                            <button type="button" id="nextBtn" class="btn btn-sm btn-outline-secondary" disabled title="Load next 1000 lines">
-                                Next <i class="bi bi-chevron-right"></i>
+                            <span id="lineCount" class="text-muted">@T.Count("AdminLogs.Lines", 0)</span>
+                            <button type="button" id="nextBtn" class="btn btn-sm btn-outline-secondary" disabled title="@T["AdminLogs.LoadNext", T.DisplayNumber(1000)]">
+                                @T["AdminLogs.Next"] <i class="bi bi-chevron-right"></i>
                             </button>
                         </div>
                         <div class="d-flex align-items-center gap-3">
@@ -102,7 +103,7 @@
             {
                 <div class="alert alert-info mt-3">
                     <i class="bi bi-info-circle me-2"></i>
-                    No log files found. Log files are created when the application starts logging.
+                    @T["AdminLogs.NoFiles"]
                 </div>
             }
         </div>

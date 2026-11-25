@@ -64,7 +64,9 @@ internal sealed record TileProviderPolicy(
 /// <summary>Resolves persisted settings into one deterministic, fail-closed work-series policy.</summary>
 internal static class TileProviderPolicyResolver
 {
-    private const string WayfarerSafeguardsSource = "Wayfarer safeguards";
+    /// <summary>Identifies the fixed source for policies disabled by invalid Custom limits.</summary>
+    internal const string WayfarerSafeguardsSource = "Wayfarer safeguards";
+
     /// <summary>Resolves compatibility before selecting an active traffic mode.</summary>
     internal static TileProviderPolicy Resolve(ApplicationSettings settings, ILogger? logger = null)
     {
@@ -154,7 +156,8 @@ internal static class TileProviderPolicyResolver
         TileProviderCompatibilityDecision compatibility) =>
         Create(settings, settings.TileTrafficMode, compatibility, false, 0, 0, 1, 0);
 
-    private static Dictionary<string, string> GetCustomValidationErrors(ApplicationSettings settings)
+    /// <summary>Returns fixed validation diagnostics by field without mutating the settings.</summary>
+    internal static Dictionary<string, string> GetCustomValidationErrors(ApplicationSettings settings)
     {
         var errors = new Dictionary<string, string>();
         AddRangeError(errors, nameof(settings.TileProviderSustainedRequestsPerSecond), settings.TileProviderSustainedRequestsPerSecond, 1, 20);

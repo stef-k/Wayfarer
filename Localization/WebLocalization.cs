@@ -20,6 +20,7 @@ public static class WebLocalization
         services.AddOptions<MvcOptions>().Configure<WebMessages>((options, messages) =>
             {
             options.ModelMetadataDetailsProviders.Add(new SettingsValidationMetadata(messages));
+            options.ModelMetadataDetailsProviders.Add(new AdminSettingsWebText(messages));
             options.ModelMetadataDetailsProviders.Add(new LocationVisitValidationMetadata(messages));
             options.ModelMetadataDetailsProviders.Add(new ManagementValidationMetadata(messages));
         });
@@ -28,12 +29,14 @@ public static class WebLocalization
             {
                 var previous = options.DataAnnotationLocalizerProvider;
                 var settings = new WebAnnotationLocalizer(messages, "Settings.", "HiddenAreas.", "Providers.Validation.");
+                var admin = new WebAnnotationLocalizer(messages, "AdminSettings.Validation.");
                 var locations = new WebAnnotationLocalizer(messages, "Locations.", "Transfers.");
                 var trips = new WebAnnotationLocalizer(messages, "Editor.Trips");
                 var accounts = new WebAnnotationLocalizer(messages, "Accounts.Validation.");
                 var catalogs = new WebAnnotationLocalizer(messages, "Catalogs.Validation.");
                 options.DataAnnotationLocalizerProvider = (type, factory) =>
                     SettingsValidationMetadata.Owns(type) ? settings
+                    : type == typeof(ApplicationSettings) ? admin
                     : LocationVisitValidationMetadata.Owns(type) ? locations
                     : type == typeof(Wayfarer.Models.Trip) ? trips
                     : type == typeof(CreateUserViewModel) || type == typeof(EditUserViewModel) || type == typeof(ChangePasswordViewModel) ? accounts

@@ -1,14 +1,9 @@
 @model ApplicationSettings
+@inject Wayfarer.Localization.WebMessages T
 @{
-    var tileMetadataHotCacheEntries = Wayfarer.Services.TileMetadataHotCache.GetApproximateEntryLimit(Model.TileMetadataHotCacheSizeMB);
-}
-@using Wayfarer.Util
-@using Wayfarer.Services
-@{
-    var isRegistrationOpen = (ViewData["IsRegistrationOpen"] as bool?) ?? false;
-    var tileProviderPresets = ViewData["TileProviderPresets"] as IReadOnlyList<TileProviderDefinition> ?? Array.Empty<TileProviderDefinition>();
-    var tileProviderCustomKey = ViewData["TileProviderCustomKey"]?.ToString() ?? TileProviderCatalog.CustomProviderKey;
-    var hasTileProviderApiKey = !string.IsNullOrWhiteSpace(Model.TileProviderApiKey);
+    ViewData["Title"] = T["Shell.ApplicationSettings"];
+    ViewData["WebCatalog"] = "AdminSettings";
+    ViewData["LanguageSafeGet"] = Url.Action("Index");
 }
 
 <div class="container">
@@ -19,72 +14,68 @@
                     <h2 class="mb-0 text-center">@ViewData["Title"]</h2>
                 </div>
                 <div class="card-body">
-                    <h3 class="text-center fs-4">Location Logging</h3>
-                    <p>These settings control how often mobile devices send location pings and how much data is recorded.
-                        The app ignores incoming requests that may be too frequent or
-                        do not meet the minimum distance change from the previous recorded location.</p>
+                    <h3 class="text-center fs-4">@T["AdminSettings.LocationHeading"]</h3>
+                    <p>@T["AdminSettings.LocationIntro"]</p>
 
                     <div class="alert alert-warning">
-                        <strong><i class="bi bi-battery-half me-1"></i>Mobile Battery Impact:</strong>
-                        Lower time thresholds require more frequent GPS wake-ups, increasing battery drain.
-                        Mobile devices wake ~60s before each ping for GPS acquisition.
+                        <strong><i class="bi bi-battery-half me-1"></i>@T["AdminSettings.BatteryHeading"]</strong>
+                        @T["AdminSettings.BatteryIntro"]
                         <ul class="mb-0 mt-2">
-                            <li><code>2 min</code>: <strong class="text-danger">High battery drain</strong> – continuous GPS, no sleep possible</li>
-                            <li><code>3 min</code>: High – ~2 min sleep, ~1 min active per cycle</li>
-                            <li><code>5 min</code>: Moderate – ~4 min sleep, ~1 min active per cycle (recommended)</li>
-                            <li><code>10 min</code>: Good – ~9 min sleep, ~1 min active per cycle</li>
-                            <li><code>15 min</code>: <strong>Best battery life</strong> – ~14 min sleep, ~1 min active per cycle</li>
+                            <li>@T["AdminSettings.BatteryHighMaximum", 2]</li>
+                            <li>@T["AdminSettings.BatteryHigh", 3, 2]</li>
+                            <li>@T["AdminSettings.BatteryModerate", 5, 4]</li>
+                            <li>@T["AdminSettings.BatteryGood", 10, 9]</li>
+                            <li>@T["AdminSettings.BatteryBest", 15, 14]</li>
                         </ul>
                     </div>
 
                     <p>
-                        <strong>Database storage (worst-case yearly per user):</strong><br/>
-                        <code>2</code> minutes: <code class="text-danger">262,800</code> records/year<br/>
-                        <code>3</code> minutes: <code>175,200</code> records/year<br/>
-                        <code>5</code> minutes: <code>105,120</code> records/year (recommended)<br/>
-                        <code>10</code> minutes: <code>52,560</code> records/year<br/>
-                        <code>15</code> minutes: <code>35,040</code> records/year
+                        <strong>@T["AdminSettings.StorageEstimateHeading"]</strong><br/>
+                        @T["AdminSettings.StorageEstimate", 2, T.DisplayNumber(262800)]<br/>
+                        @T["AdminSettings.StorageEstimate", 3, T.DisplayNumber(175200)]<br/>
+                        @T["AdminSettings.StorageEstimateRecommended", 5, T.DisplayNumber(105120)]<br/>
+                        @T["AdminSettings.StorageEstimate", 10, T.DisplayNumber(52560)]<br/>
+                        @T["AdminSettings.StorageEstimate", 15, T.DisplayNumber(35040)]
                     </p>
                     <form asp-action="Update" method="post">
                         @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
                         <div class="row">
 
                             <div class="col-md-6">
-                                <label for="LocationTimeThresholdMinutes" class="form-label">Time Threshold (in
-                                    minutes):</label>
+                                <label for="timeThresholdSelect" class="form-label">@T["AdminSettings.TimeThreshold"]</label>
                                 <select asp-for="LocationTimeThresholdMinutes" class="form-control" id="timeThresholdSelect">
-                                    <optgroup label="Frequent (2-5 min) - High battery usage">
-                                        <option value="2" class="text-danger fw-bold">2 min ⚠️ (High resource usage)</option>
-                                        <option value="3">3 min</option>
-                                        <option value="4">4 min</option>
-                                        <option value="5">5 min (Recommended)</option>
+                                    <optgroup label="@T["AdminSettings.TimeFrequent"]">
+                                        <option value="2" class="text-danger fw-bold">@T["AdminSettings.MinutesHigh", 2]</option>
+                                        <option value="3">@T["AdminSettings.Minutes", 3]</option>
+                                        <option value="4">@T["AdminSettings.Minutes", 4]</option>
+                                        <option value="5">@T["AdminSettings.MinutesRecommended", 5]</option>
                                     </optgroup>
-                                    <optgroup label="Moderate (10-15 min) - Balanced">
-                                        <option value="10">10 min</option>
-                                        <option value="15">15 min</option>
+                                    <optgroup label="@T["AdminSettings.TimeModerate"]">
+                                        <option value="10">@T["AdminSettings.Minutes", 10]</option>
+                                        <option value="15">@T["AdminSettings.Minutes", 15]</option>
                                     </optgroup>
-                                    <optgroup label="Hourly (30-60 min) - Low power">
-                                        <option value="30">30 min (twice per hour)</option>
-                                        <option value="45">45 min</option>
-                                        <option value="60">60 min (1 hour)</option>
+                                    <optgroup label="@T["AdminSettings.TimeHourly"]">
+                                        <option value="30">@T["AdminSettings.MinutesTwiceHourly", 30]</option>
+                                        <option value="45">@T["AdminSettings.Minutes", 45]</option>
+                                        <option value="60">@T["AdminSettings.MinutesHours", 60, T.Count("AdminSettings.Hours", 1)]</option>
                                     </optgroup>
-                                    <optgroup label="Multi-hour (2-6 hours) - Minimal tracking">
-                                        <option value="120">120 min (2 hours)</option>
-                                        <option value="180">180 min (3 hours)</option>
-                                        <option value="240">240 min (4 hours)</option>
-                                        <option value="300">300 min (5 hours)</option>
-                                        <option value="360">360 min (6 hours / 4× daily)</option>
+                                    <optgroup label="@T["AdminSettings.TimeMultiHour"]">
+                                        <option value="120">@T["AdminSettings.MinutesHours", 120, T.Count("AdminSettings.Hours", 2)]</option>
+                                        <option value="180">@T["AdminSettings.MinutesHours", 180, T.Count("AdminSettings.Hours", 3)]</option>
+                                        <option value="240">@T["AdminSettings.MinutesHours", 240, T.Count("AdminSettings.Hours", 4)]</option>
+                                        <option value="300">@T["AdminSettings.MinutesHours", 300, T.Count("AdminSettings.Hours", 5)]</option>
+                                        <option value="360">@T["AdminSettings.MinutesFourDaily", 360, T.Count("AdminSettings.Hours", 6)]</option>
                                     </optgroup>
-                                    <optgroup label="Daily (12-24 hours) - Check-in only">
-                                        <option value="720">720 min (12 hours / twice daily)</option>
-                                        <option value="1440">1440 min (24 hours / once daily)</option>
+                                    <optgroup label="@T["AdminSettings.TimeDaily"]">
+                                        <option value="720">@T["AdminSettings.MinutesTwiceDaily", 720, T.Count("AdminSettings.Hours", 12)]</option>
+                                        <option value="1440">@T["AdminSettings.MinutesOnceDaily", 1440, T.Count("AdminSettings.Hours", 24)]</option>
                                     </optgroup>
                                 </select>
                                 <small id="timeThresholdWarning" class="form-text text-danger d-none">
                                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                                    <strong>Warning:</strong> 2-minute threshold provides highest location detail but significantly
-                                    increases database storage and drains mobile device battery (continuous GPS, no sleep possible).
+                                    <strong>@T["AdminSettings.Warning"]</strong> @T["AdminSettings.TimeWarning"]
                                 </small>
                                 <span asp-validation-for="LocationTimeThresholdMinutes" class="text-danger"></span>
                             </div>
@@ -92,87 +83,87 @@
 
                             <div class="col-md-6">
                                 <label for="LocationDistanceThresholdMeters" class="form-label">
-                                    Distance Threshold (in meters):
+                                    @T["AdminSettings.DistanceThreshold"]
                                     <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Minimum distance from previous location before recording a new point. Lower values = more detailed tracks but more storage. Higher values = less detail but reduced data."></i>
+                                       data-tippy-content="@T["AdminSettings.DistanceHelp"]"></i>
                                 </label>
                                 <select asp-for="LocationDistanceThresholdMeters" class="form-control">
-                                    <optgroup label="Fine (5-50m)">
-                                        <option value="5">5 m</option>
-                                        <option value="10">10 m</option>
-                                        <option value="15">15 m (Default)</option>
-                                        <option value="20">20 m</option>
-                                        <option value="25">25 m</option>
-                                        <option value="30">30 m</option>
-                                        <option value="35">35 m</option>
-                                        <option value="40">40 m</option>
-                                        <option value="45">45 m</option>
-                                        <option value="50">50 m</option>
+                                    <optgroup label="@T["AdminSettings.DistanceFine"]">
+                                        <option value="5">@(5.ToString(T.DisplayCulture)) m</option>
+                                        <option value="10">@(10.ToString(T.DisplayCulture)) m</option>
+                                        <option value="15">@T["AdminSettings.DefaultChoice", 15.ToString(T.DisplayCulture) + " m"]</option>
+                                        <option value="20">@(20.ToString(T.DisplayCulture)) m</option>
+                                        <option value="25">@(25.ToString(T.DisplayCulture)) m</option>
+                                        <option value="30">@(30.ToString(T.DisplayCulture)) m</option>
+                                        <option value="35">@(35.ToString(T.DisplayCulture)) m</option>
+                                        <option value="40">@(40.ToString(T.DisplayCulture)) m</option>
+                                        <option value="45">@(45.ToString(T.DisplayCulture)) m</option>
+                                        <option value="50">@(50.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Medium (55-150m)">
-                                        <option value="55">55 m</option>
-                                        <option value="60">60 m</option>
-                                        <option value="65">65 m</option>
-                                        <option value="70">70 m</option>
-                                        <option value="75">75 m</option>
-                                        <option value="80">80 m</option>
-                                        <option value="85">85 m</option>
-                                        <option value="90">90 m</option>
-                                        <option value="95">95 m</option>
-                                        <option value="100">100 m</option>
-                                        <option value="105">105 m</option>
-                                        <option value="110">110 m</option>
-                                        <option value="115">115 m</option>
-                                        <option value="120">120 m</option>
-                                        <option value="125">125 m</option>
-                                        <option value="130">130 m</option>
-                                        <option value="135">135 m</option>
-                                        <option value="140">140 m</option>
-                                        <option value="145">145 m</option>
-                                        <option value="150">150 m</option>
+                                    <optgroup label="@T["AdminSettings.DistanceMedium"]">
+                                        <option value="55">@(55.ToString(T.DisplayCulture)) m</option>
+                                        <option value="60">@(60.ToString(T.DisplayCulture)) m</option>
+                                        <option value="65">@(65.ToString(T.DisplayCulture)) m</option>
+                                        <option value="70">@(70.ToString(T.DisplayCulture)) m</option>
+                                        <option value="75">@(75.ToString(T.DisplayCulture)) m</option>
+                                        <option value="80">@(80.ToString(T.DisplayCulture)) m</option>
+                                        <option value="85">@(85.ToString(T.DisplayCulture)) m</option>
+                                        <option value="90">@(90.ToString(T.DisplayCulture)) m</option>
+                                        <option value="95">@(95.ToString(T.DisplayCulture)) m</option>
+                                        <option value="100">@(100.ToString(T.DisplayCulture)) m</option>
+                                        <option value="105">@(105.ToString(T.DisplayCulture)) m</option>
+                                        <option value="110">@(110.ToString(T.DisplayCulture)) m</option>
+                                        <option value="115">@(115.ToString(T.DisplayCulture)) m</option>
+                                        <option value="120">@(120.ToString(T.DisplayCulture)) m</option>
+                                        <option value="125">@(125.ToString(T.DisplayCulture)) m</option>
+                                        <option value="130">@(130.ToString(T.DisplayCulture)) m</option>
+                                        <option value="135">@(135.ToString(T.DisplayCulture)) m</option>
+                                        <option value="140">@(140.ToString(T.DisplayCulture)) m</option>
+                                        <option value="145">@(145.ToString(T.DisplayCulture)) m</option>
+                                        <option value="150">@(150.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Coarse (200m-1km)">
-                                        <option value="200">200 m</option>
-                                        <option value="250">250 m</option>
-                                        <option value="300">300 m</option>
-                                        <option value="350">350 m</option>
-                                        <option value="400">400 m</option>
-                                        <option value="450">450 m</option>
-                                        <option value="500">500 m</option>
-                                        <option value="550">550 m</option>
-                                        <option value="600">600 m</option>
-                                        <option value="650">650 m</option>
-                                        <option value="700">700 m</option>
-                                        <option value="750">750 m</option>
-                                        <option value="800">800 m</option>
-                                        <option value="850">850 m</option>
-                                        <option value="900">900 m</option>
-                                        <option value="950">950 m</option>
-                                        <option value="1000">1 km</option>
+                                    <optgroup label="@T["AdminSettings.DistanceCoarse"]">
+                                        <option value="200">@(200.ToString(T.DisplayCulture)) m</option>
+                                        <option value="250">@(250.ToString(T.DisplayCulture)) m</option>
+                                        <option value="300">@(300.ToString(T.DisplayCulture)) m</option>
+                                        <option value="350">@(350.ToString(T.DisplayCulture)) m</option>
+                                        <option value="400">@(400.ToString(T.DisplayCulture)) m</option>
+                                        <option value="450">@(450.ToString(T.DisplayCulture)) m</option>
+                                        <option value="500">@(500.ToString(T.DisplayCulture)) m</option>
+                                        <option value="550">@(550.ToString(T.DisplayCulture)) m</option>
+                                        <option value="600">@(600.ToString(T.DisplayCulture)) m</option>
+                                        <option value="650">@(650.ToString(T.DisplayCulture)) m</option>
+                                        <option value="700">@(700.ToString(T.DisplayCulture)) m</option>
+                                        <option value="750">@(750.ToString(T.DisplayCulture)) m</option>
+                                        <option value="800">@(800.ToString(T.DisplayCulture)) m</option>
+                                        <option value="850">@(850.ToString(T.DisplayCulture)) m</option>
+                                        <option value="900">@(900.ToString(T.DisplayCulture)) m</option>
+                                        <option value="950">@(950.ToString(T.DisplayCulture)) m</option>
+                                        <option value="1000">@(1.ToString(T.DisplayCulture)) km</option>
                                     </optgroup>
-                                    <optgroup label="Very Coarse (1.5-5km)">
-                                        <option value="1500">1.5 km</option>
-                                        <option value="2000">2 km</option>
-                                        <option value="2500">2.5 km</option>
-                                        <option value="3000">3 km</option>
-                                        <option value="3500">3.5 km</option>
-                                        <option value="4000">4 km</option>
-                                        <option value="4500">4.5 km</option>
-                                        <option value="5000">5 km</option>
+                                    <optgroup label="@T["AdminSettings.DistanceVeryCoarse"]">
+                                        <option value="1500">@(1.5.ToString(T.DisplayCulture)) km</option>
+                                        <option value="2000">@(2.ToString(T.DisplayCulture)) km</option>
+                                        <option value="2500">@(2.5.ToString(T.DisplayCulture)) km</option>
+                                        <option value="3000">@(3.ToString(T.DisplayCulture)) km</option>
+                                        <option value="3500">@(3.5.ToString(T.DisplayCulture)) km</option>
+                                        <option value="4000">@(4.ToString(T.DisplayCulture)) km</option>
+                                        <option value="4500">@(4.5.ToString(T.DisplayCulture)) km</option>
+                                        <option value="5000">@(5.ToString(T.DisplayCulture)) km</option>
                                     </optgroup>
-                                    <optgroup label="Regional (10-50km)">
-                                        <option value="10000">10 km</option>
-                                        <option value="15000">15 km</option>
-                                        <option value="20000">20 km</option>
-                                        <option value="25000">25 km</option>
-                                        <option value="30000">30 km</option>
-                                        <option value="35000">35 km</option>
-                                        <option value="40000">40 km</option>
-                                        <option value="45000">45 km</option>
-                                        <option value="50000">50 km</option>
+                                    <optgroup label="@T["AdminSettings.DistanceRegional"]">
+                                        <option value="10000">@(10.ToString(T.DisplayCulture)) km</option>
+                                        <option value="15000">@(15.ToString(T.DisplayCulture)) km</option>
+                                        <option value="20000">@(20.ToString(T.DisplayCulture)) km</option>
+                                        <option value="25000">@(25.ToString(T.DisplayCulture)) km</option>
+                                        <option value="30000">@(30.ToString(T.DisplayCulture)) km</option>
+                                        <option value="35000">@(35.ToString(T.DisplayCulture)) km</option>
+                                        <option value="40000">@(40.ToString(T.DisplayCulture)) km</option>
+                                        <option value="45000">@(45.ToString(T.DisplayCulture)) km</option>
+                                        <option value="50000">@(50.ToString(T.DisplayCulture)) km</option>
                                     </optgroup>
-                                    <optgroup label="Maximum (100km)">
-                                        <option value="100000">100 km</option>
+                                    <optgroup label="@T["AdminSettings.DistanceMaximum"]">
+                                        <option value="100000">@(100.ToString(T.DisplayCulture)) km</option>
                                     </optgroup>
                                 </select>
                                 <span asp-validation-for="LocationDistanceThresholdMeters" class="text-danger"></span>
@@ -183,276 +174,71 @@
                         <div class="row mt-3">
                             <div class="col-md-6">
                                 <label for="LocationAccuracyThresholdMeters" class="form-label">
-                                    <i class="bi bi-bullseye me-1"></i>GPS Accuracy Threshold (in meters):
+                                    <i class="bi bi-bullseye me-1"></i>@T["AdminSettings.AccuracyThreshold"]
                                 </label>
                                 <select asp-for="LocationAccuracyThresholdMeters" class="form-control">
-                                    <optgroup label="High Precision (10-25m) - Strict filtering">
-                                        <option value="10">10 m</option>
-                                        <option value="15">15 m</option>
-                                        <option value="20">20 m</option>
-                                        <option value="25">25 m</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyHigh"]">
+                                        <option value="10">@(10.ToString(T.DisplayCulture)) m</option>
+                                        <option value="15">@(15.ToString(T.DisplayCulture)) m</option>
+                                        <option value="20">@(20.ToString(T.DisplayCulture)) m</option>
+                                        <option value="25">@(25.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Good Precision (30-50m) - Recommended">
-                                        <option value="30">30 m</option>
-                                        <option value="35">35 m</option>
-                                        <option value="40">40 m</option>
-                                        <option value="45">45 m</option>
-                                        <option value="50">50 m (Default)</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyGood"]">
+                                        <option value="30">@(30.ToString(T.DisplayCulture)) m</option>
+                                        <option value="35">@(35.ToString(T.DisplayCulture)) m</option>
+                                        <option value="40">@(40.ToString(T.DisplayCulture)) m</option>
+                                        <option value="45">@(45.ToString(T.DisplayCulture)) m</option>
+                                        <option value="50">@T["AdminSettings.DefaultChoice", 50.ToString(T.DisplayCulture) + " m"]</option>
                                     </optgroup>
-                                    <optgroup label="Moderate Precision (55-100m)">
-                                        <option value="55">55 m</option>
-                                        <option value="60">60 m</option>
-                                        <option value="65">65 m</option>
-                                        <option value="70">70 m</option>
-                                        <option value="75">75 m</option>
-                                        <option value="80">80 m</option>
-                                        <option value="85">85 m</option>
-                                        <option value="90">90 m</option>
-                                        <option value="95">95 m</option>
-                                        <option value="100">100 m</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyModerate"]">
+                                        <option value="55">@(55.ToString(T.DisplayCulture)) m</option>
+                                        <option value="60">@(60.ToString(T.DisplayCulture)) m</option>
+                                        <option value="65">@(65.ToString(T.DisplayCulture)) m</option>
+                                        <option value="70">@(70.ToString(T.DisplayCulture)) m</option>
+                                        <option value="75">@(75.ToString(T.DisplayCulture)) m</option>
+                                        <option value="80">@(80.ToString(T.DisplayCulture)) m</option>
+                                        <option value="85">@(85.ToString(T.DisplayCulture)) m</option>
+                                        <option value="90">@(90.ToString(T.DisplayCulture)) m</option>
+                                        <option value="95">@(95.ToString(T.DisplayCulture)) m</option>
+                                        <option value="100">@(100.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Relaxed (105-200m) - Accept more data">
-                                        <option value="105">105 m</option>
-                                        <option value="110">110 m</option>
-                                        <option value="120">120 m</option>
-                                        <option value="130">130 m</option>
-                                        <option value="140">140 m</option>
-                                        <option value="150">150 m</option>
-                                        <option value="160">160 m</option>
-                                        <option value="170">170 m</option>
-                                        <option value="180">180 m</option>
-                                        <option value="190">190 m</option>
-                                        <option value="200">200 m</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyRelaxed"]">
+                                        <option value="105">@(105.ToString(T.DisplayCulture)) m</option>
+                                        <option value="110">@(110.ToString(T.DisplayCulture)) m</option>
+                                        <option value="120">@(120.ToString(T.DisplayCulture)) m</option>
+                                        <option value="130">@(130.ToString(T.DisplayCulture)) m</option>
+                                        <option value="140">@(140.ToString(T.DisplayCulture)) m</option>
+                                        <option value="150">@(150.ToString(T.DisplayCulture)) m</option>
+                                        <option value="160">@(160.ToString(T.DisplayCulture)) m</option>
+                                        <option value="170">@(170.ToString(T.DisplayCulture)) m</option>
+                                        <option value="180">@(180.ToString(T.DisplayCulture)) m</option>
+                                        <option value="190">@(190.ToString(T.DisplayCulture)) m</option>
+                                        <option value="200">@(200.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Very Relaxed (250-500m) - Poor GPS accepted">
-                                        <option value="250">250 m</option>
-                                        <option value="300">300 m</option>
-                                        <option value="400">400 m</option>
-                                        <option value="500">500 m</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyVeryRelaxed"]">
+                                        <option value="250">@(250.ToString(T.DisplayCulture)) m</option>
+                                        <option value="300">@(300.ToString(T.DisplayCulture)) m</option>
+                                        <option value="400">@(400.ToString(T.DisplayCulture)) m</option>
+                                        <option value="500">@(500.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
-                                    <optgroup label="Maximum (1000m) - Accept almost everything">
-                                        <option value="1000">1000 m</option>
+                                    <optgroup label="@T["AdminSettings.AccuracyMaximum"]">
+                                        <option value="1000">@(1000.ToString(T.DisplayCulture)) m</option>
                                     </optgroup>
                                 </select>
                                 <small class="form-text text-muted">
-                                    Reject location pings with GPS accuracy worse than this value.
-                                    Lower values = stricter filtering (more rejections, better data quality).
-                                    Higher values = accept poor GPS readings (fewer rejections, lower data quality).
+                                    @T["AdminSettings.AccuracyHelp"]
                                 </small>
                                 <span asp-validation-for="LocationAccuracyThresholdMeters" class="text-danger"></span>
                             </div>
                         </div>
                         <hr/>
-                        <div class="row">
-                            <h3 class="text-center fs-4">Trip Place Auto-Visited</h3>
-                            <p class="text-muted">
-                                Automatically detect when users visit planned trip places based on location pings.
-                                Time-based settings (hit window, stale cleanup, visit end timeout) are derived from
-                                the Location Time Threshold above.
-                            </p>
-
-                            <div class="alert alert-info">
-                                <strong><i class="bi bi-clock-history me-1"></i>Visit Confirmation Timing:</strong>
-                                A visit is confirmed when the required number of pings arrive within the time threshold,
-                                spanning at least the threshold duration.<br/>
-                                <strong>Formula:</strong> <code>Time Threshold × Required Hits = Minimum Confirmation Time</code><br/>
-                                <ul class="mb-0 mt-2">
-                                    <li>2 min threshold × 2 hits = <strong>4 min</strong> minimum to confirm visit</li>
-                                    <li>3 min threshold × 2 hits = <strong>6 min</strong> minimum to confirm visit</li>
-                                    <li>5 min threshold × 2 hits = <strong>10 min</strong> minimum to confirm visit</li>
-                                    <li>10 min threshold × 2 hits = <strong>20 min</strong> minimum to confirm visit</li>
-                                    <li>15 min threshold × 2 hits = <strong>30 min</strong> minimum to confirm visit</li>
-                                </ul>
-                                <small class="text-muted d-block mt-2">
-                                    <i class="bi bi-info-circle me-1"></i>Lower thresholds detect visits faster but drain more battery.
-                                    Higher hit counts increase accuracy but require longer dwell times.
-                                </small>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedRequiredHits" class="form-label">
-                                    Required Hits
-                                    <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Number of consecutive location pings within a place's radius needed to confirm a visit. More hits = higher confidence but longer detection time."></i>
-                                </label>
-                                <input asp-for="VisitedRequiredHits" class="form-control" type="number" min="2" max="5" />
-                                <small class="form-text text-muted">
-                                    Number of pings needed to confirm a visit (2-5).<br/>
-                                    <em>Current: @Model.LocationTimeThresholdMinutes min × @Model.VisitedRequiredHits hits = @(Model.LocationTimeThresholdMinutes * Model.VisitedRequiredHits) min confirmation</em>
-                                </small>
-                                <span asp-validation-for="VisitedRequiredHits" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedMinRadiusMeters" class="form-label">Min Radius (meters)</label>
-                                <input asp-for="VisitedMinRadiusMeters" class="form-control" type="number" min="10" max="200" />
-                                <small class="form-text text-muted">
-                                    Minimum detection radius for good GPS (10-200).<br/>
-                                    <em>Smaller = more precise, but may miss visits with GPS drift.</em>
-                                </small>
-                                <span asp-validation-for="VisitedMinRadiusMeters" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedMaxRadiusMeters" class="form-label">Max Radius (meters)</label>
-                                <input asp-for="VisitedMaxRadiusMeters" class="form-control" type="number" min="50" max="500" />
-                                <small class="form-text text-muted">
-                                    Maximum radius ceiling for poor GPS (50-500).<br/>
-                                    <em>Larger = more forgiving, but increases false positives.</em>
-                                </small>
-                                <span asp-validation-for="VisitedMaxRadiusMeters" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedAccuracyMultiplier" class="form-label">
-                                    Accuracy Multiplier
-                                    <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Multiplies GPS accuracy for detection radius. Example: GPS 25m accuracy with 1.0x multiplier = 25m detection radius. Higher values are more lenient but may cause false positives."></i>
-                                </label>
-                                <input asp-for="VisitedAccuracyMultiplier" class="form-control" type="number" step="0.1" min="0.5" max="5.0" />
-                                <small class="form-text text-muted">
-                                    Multiplier applied to GPS accuracy (0.5-5.0).<br/>
-                                    <em>Lower = stricter matching, higher = more lenient.</em>
-                                </small>
-                                <span asp-validation-for="VisitedAccuracyMultiplier" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedAccuracyRejectMeters" class="form-label">Accuracy Reject (meters)</label>
-                                <input asp-for="VisitedAccuracyRejectMeters" class="form-control" type="number" min="0" max="1000" />
-                                <small class="form-text text-muted">
-                                    Skip pings with accuracy worse than this (0 = disabled).<br/>
-                                    <em>Filters out unreliable indoor/urban canyon readings.</em>
-                                </small>
-                                <span asp-validation-for="VisitedAccuracyRejectMeters" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-4 mb-3">
-                                <label asp-for="VisitedMaxSearchRadiusMeters" class="form-label">Search Radius (meters)</label>
-                                <input asp-for="VisitedMaxSearchRadiusMeters" class="form-control" type="number" min="50" max="2000" />
-                                <small class="form-text text-muted">Database query radius for nearby places (50-2000)</small>
-                                <span asp-validation-for="VisitedMaxSearchRadiusMeters" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="form-label">Notes Max Characters</label>
-                                <input asp-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="form-control" type="number" min="1000" max="200000" />
-                                <small class="form-text text-muted">Maximum HTML characters for notes snapshot (1000-200000)</small>
-                                <span asp-validation-for="VisitedPlaceNotesSnapshotMaxHtmlChars" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="VisitNotificationCooldownHours" class="form-label">
-                                    <i class="bi bi-bell-slash me-1"></i>Notification Cooldown (hours)
-                                    <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Prevents notification spam when users revisit the same place frequently. Visits are always recorded; this only affects SSE push notifications."></i>
-                                </label>
-                                <select asp-for="VisitNotificationCooldownHours" class="form-control">
-                                    <option value="-1">Never notify (disabled)</option>
-                                    <option value="0">Always notify (no cooldown)</option>
-                                    <optgroup label="Short (1-6 hours)">
-                                        <option value="1">1 hour</option>
-                                        <option value="2">2 hours</option>
-                                        <option value="3">3 hours</option>
-                                        <option value="6">6 hours</option>
-                                    </optgroup>
-                                    <optgroup label="Day-based (12-48 hours)">
-                                        <option value="12">12 hours</option>
-                                        <option value="24">24 hours (1 day) - Default</option>
-                                        <option value="48">48 hours (2 days)</option>
-                                    </optgroup>
-                                    <optgroup label="Weekly (72-168 hours)">
-                                        <option value="72">72 hours (3 days)</option>
-                                        <option value="168">168 hours (1 week)</option>
-                                    </optgroup>
-                                    <optgroup label="Monthly (336-720 hours)">
-                                        <option value="336">336 hours (2 weeks)</option>
-                                        <option value="720">720 hours (30 days)</option>
-                                    </optgroup>
-                                </select>
-                                <small class="form-text text-muted">
-                                    Minimum time before sending another notification for the same place.<br/>
-                                    <em>Visits are always recorded; this only affects SSE notifications.</em>
-                                </small>
-                                <span asp-validation-for="VisitNotificationCooldownHours" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <div class="alert alert-info mb-0">
-                                    <strong>Derived from Time Threshold (@Model.LocationTimeThresholdMinutes min):</strong>
-                                    <ul class="mb-0 mt-2">
-                                        <li>Hit Window: <code>@Model.LocationTimeThresholdMinutes × 1.6 = @Model.VisitedHitWindowMinutes min</code>
-                                            <br/><small class="text-muted">Max time between pings to count as consecutive hits</small></li>
-                                        <li>Candidate Stale: <code>@Model.LocationTimeThresholdMinutes × 12 = @Model.VisitedCandidateStaleMinutes min</code>
-                                            <br/><small class="text-muted">Cleanup incomplete visit candidates after this</small></li>
-                                        <li>End Visit After: <code>@Model.LocationTimeThresholdMinutes × 9 = @Model.VisitedEndVisitAfterMinutes min</code>
-                                            <br/><small class="text-muted">Close active visit after no pings for this duration</small></li>
-                                    </ul>
-                                </div>
-                            </div>
-
-                            <!-- Backfill Suggestion Settings (Consider Also feature) -->
-                            <div class="col-12 mt-3 mb-2">
-                                <h5 class="border-bottom pb-2">
-                                    <i class="bi bi-lightbulb me-1"></i>Backfill Suggestions ("Consider Also")
-                                    <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Suggests potential visits that don't meet strict detection criteria. Users must confirm these suggestions manually before visits are created."></i>
-                                </h5>
-                                <p class="text-muted small mb-2">
-                                    Settings for the "Consider Also" feature in backfill analysis. These suggestions use relaxed
-                                    matching criteria and require user confirmation before creating visits.
-                                </p>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-label">
-                                    Suggestion Max Radius Multiplier
-                                </label>
-                                <select asp-for="VisitedSuggestionMaxRadiusMultiplier" class="form-control">
-                                    <optgroup label="Conservative (2-10x)">
-                                        <option value="2">2× (@(Model.VisitedMaxSearchRadiusMeters * 2)m)</option>
-                                        <option value="5">5× (@(Model.VisitedMaxSearchRadiusMeters * 5)m)</option>
-                                        <option value="10">10× (@(Model.VisitedMaxSearchRadiusMeters * 10)m)</option>
-                                    </optgroup>
-                                    <optgroup label="Moderate (20-50x) - Recommended">
-                                        <option value="20">20× (@(Model.VisitedMaxSearchRadiusMeters * 20)m)</option>
-                                        <option value="30">30× (@(Model.VisitedMaxSearchRadiusMeters * 30)m)</option>
-                                        <option value="40">40× (@(Model.VisitedMaxSearchRadiusMeters * 40)m)</option>
-                                        <option value="50">50× (@(Model.VisitedMaxSearchRadiusMeters * 50)m) - Default</option>
-                                    </optgroup>
-                                    <optgroup label="Extensive (60-100x)">
-                                        <option value="60">60× (@(Model.VisitedMaxSearchRadiusMeters * 60)m)</option>
-                                        <option value="75">75× (@(Model.VisitedMaxSearchRadiusMeters * 75)m)</option>
-                                        <option value="100">100× (@(Model.VisitedMaxSearchRadiusMeters * 100)m)</option>
-                                    </optgroup>
-                                </select>
-                                <small class="form-text text-muted">
-                                    Max search radius for suggestions during backfill.<br/>
-                                    <em>Current: @Model.VisitedMaxSearchRadiusMeters m × @Model.VisitedSuggestionMaxRadiusMultiplier = @Model.SuggestionMaxRadius m</em>
-                                </small>
-                                <span asp-validation-for="VisitedSuggestionMaxRadiusMultiplier" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <div class="alert alert-secondary mb-0">
-                                    <strong>Derived Suggestion Tiers:</strong>
-                                    <ul class="mb-0 mt-2">
-                                        <li>Tier 1: <code>@Model.SuggestionTier1Radius m</code> (needs @Model.SuggestionTier1Hits hit)</li>
-                                        <li>Tier 2: <code>@Model.SuggestionTier2Radius m</code> (needs @Model.SuggestionTier2Hits hits)</li>
-                                        <li>Tier 3: <code>@Model.SuggestionTier3Radius m</code> (needs @Model.SuggestionTier3Hits hits)</li>
-                                        <li>Max: <code>@Model.SuggestionMaxRadius m</code> (needs @Model.SuggestionMaxHits hits)</li>
-                                    </ul>
-                                    <small class="text-muted">Cross-tier evidence filters GPS noise while catching near-miss visits.</small>
-                                </div>
-                            </div>
-                        </div>
+                        <partial name="_VisitDetection" model="Model" />
                         <hr/>
                         <div class="row">
-                            <h3 class="text-center fs-4">New User Registrations</h3>
+                            <h3 class="text-center fs-4">@T["AdminSettings.RegistrationHeading"]</h3>
                             <div class="col-md-12 mb-2">
                                 <div class="form-group">
-                                    <label for="IsRegistrationOpen" class="form-label">Allow New User
-                                        Registrations?</label>
+                                    <label for="IsRegistrationOpen" class="form-label">@T["AdminSettings.RegistrationLabel"]</label>
 
                                     <!-- Use Bootstrap's built-in large checkbox class -->
                                     <div class="form-check form-switch">
@@ -461,22 +247,21 @@
                                                value="true" @(Model.IsRegistrationOpen ? "checked" : "")/>
                                         @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
                                         <input type="hidden" name="IsRegistrationOpen" value="false"/>
-                                        <label class="form-check-label" for="IsRegistrationOpen">Enable new user
-                                            registrations</label>
+                                        <label class="form-check-label" for="IsRegistrationOpen">@T["AdminSettings.RegistrationEnable"]</label>
                                     </div>
 
-                                    <small class="form-text text-muted">Check to allow new user registrations.</small>
+                                    <small class="form-text text-muted">@T["AdminSettings.RegistrationHelp"]</small>
                                 </div>
                             </div>
                         </div>
                         <hr/>
                         <div class="row">
-                            <h3 class="text-center fs-4">User Uploads</h3>
+                            <h3 class="text-center fs-4">@T["AdminSettings.UploadHeading"]</h3>
                             <div class="col-md-8">
                                 <partial name="_UploadStorage" />
 
                                 <label for="UploadSizeLimitMB" class="form-label">
-                                    User Upload Request Limit (currently: <code>@Model.UploadSizeLimitMB</code> MiB):
+                                    @T["AdminSettings.UploadLimit", Model.UploadSizeLimitMB]
                                 </label>
 
                                 <div class="input-group">
@@ -493,472 +278,23 @@
                             </div>
 
                             <div class="form-text">
-                                • Limits complete Location-history and Trip KML upload requests, including multipart overhead.<br/>
-                                • Set <code>-1</code> to disable these file uploads, <code>0</code> for the default,
-                                or an integer from <code>1..100</code> MiB.<br/>
-                                • The fixed application maximum is <code>@ApplicationSettings.DefaultUploadSizeLimitMB MiB</code>.
-                                Trip KML also has a parser-derived file-section limit. Other forms and JSON APIs are unaffected by this setting.<br/>
+                                • @T["AdminSettings.UploadScope"]<br/>
+                                • @T["AdminSettings.UploadValues", "-1", "0", "1..100"]<br/>
+                                • @T["AdminSettings.UploadMaximum", ApplicationSettings.DefaultUploadSizeLimitMB]<br/>
                             </div>
                         </div>
                         <hr/>
 
-                        <div class="row">
-                            <h3 class="text-center fs-4">Map Tile Provider</h3>
-                            <p class="text-muted">
-                                Choose a preset or provide a custom tile provider template. Tiles are still served through
-                                the local cache proxy at <code>/Public/tiles/{z}/{x}/{y}.png</code>.
-                            </p>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="TileProviderKey" class="form-label">Provider</label>
-                                <select asp-for="TileProviderKey" class="form-control" data-custom-key="@tileProviderCustomKey">
-                                    @if (TileProviderCatalog.ResolveCompatibility(Model.TileProviderKey, Model.TileProviderUrlTemplate).Status != TileProviderCompatibility.Supported)
-                                    {
-                                        <option value="@Model.TileProviderKey" data-preserved="true" data-requires-key="false">
-                                            Unsupported persisted provider: @(string.IsNullOrWhiteSpace(Model.TileProviderKey) ? "(blank)" : Model.TileProviderKey)
-                                        </option>
-                                    }
-                                    @foreach (var preset in tileProviderPresets)
-                                    {
-                                        <option value="@preset.Key"
-                                                data-template="@preset.UrlTemplate"
-                                                data-attribution="@preset.Attribution"
-                                                data-requires-key="@(preset.RequiresApiKey.ToString().ToLowerInvariant())">
-                                            @preset.Name
-                                        </option>
-                                    }
-                                    <option value="@tileProviderCustomKey" data-template="" data-attribution="" data-requires-key="false">Custom provider</option>
-                                </select>
-                                <small class="form-text text-muted">
-                                    Presets apply their template and attribution automatically; custom providers must use HTTPS and .png tiles.
-                                </small>
-                                <span asp-validation-for="TileProviderKey" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <div class="alert alert-info mb-0">
-                                    <strong>Cache note:</strong> Provider-scoped cached files are preserved when providers, credentials, or traffic modes change.
-                                </div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="TileProviderUrlTemplate" class="form-label">Tile URL Template</label>
-                                <input asp-for="TileProviderUrlTemplate" class="form-control" />
-                                <small class="form-text text-muted">
-                                    Must include <code>{z}</code>, <code>{x}</code>, <code>{y}</code>, and optional <code>{apiKey}</code>.
-                                </small>
-                                <span asp-validation-for="TileProviderUrlTemplate" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="TileProviderAttribution" class="form-label">Attribution HTML</label>
-                                <input asp-for="TileProviderAttribution" class="form-control" />
-                                <small class="form-text text-muted">
-                                    This text appears in the map footer for all users.
-                                </small>
-                                <span asp-validation-for="TileProviderAttribution" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3" id="tileProviderApiKeyRow">
-                                <label for="TileProviderApiKey" class="form-label">API Key</label>
-                                <input class="form-control" id="TileProviderApiKey" name="TileProviderApiKey" type="password" autocomplete="off" />
-                                <small class="form-text text-muted" id="tileProviderApiKeyHelp">
-                                    @(hasTileProviderApiKey ? "A key is saved. Leave blank to keep it unchanged." : "Enter the provider API key if required.")
-                                </small>
-                                <span asp-validation-for="TileProviderApiKey" class="text-danger"></span>
-                            </div>
-
-                            <partial name="_TileProviderPolicySettings" model="Model" />
-                        </div>
-
+                        <partial name="_TileProvider" model="Model" />
                         <hr/>
-                        <div class="row">
-                            <h3 class="text-center fs-4">Tile Request Rate Limiting</h3>
-                            <p class="text-muted">
-                                Protect the tile proxy from abuse by rate limiting tile requests.
-                                Anonymous users are limited by IP address; authenticated users by user ID at a higher threshold.
-                            </p>
-
-                            <div class="col-md-3 mb-3">
-                                <div class="form-check form-switch">
-                                    <input type="checkbox" class="form-check-input"
-                                           id="TileRateLimitEnabled" name="TileRateLimitEnabled"
-                                           value="true" @(Model.TileRateLimitEnabled ? "checked" : "")/>
-                                    <input type="hidden" name="TileRateLimitEnabled" value="false"/>
-                                    <label class="form-check-label" for="TileRateLimitEnabled">
-                                        Enable tile rate limiting
-                                        <i class="bi bi-question-circle text-muted ms-1"
-                                           data-tippy-content="Protects your tile proxy from abuse. Applies separate limits to anonymous and authenticated users."></i>
-                                    </label>
-                                </div>
-                                <small class="form-text text-muted">
-                                    When enabled, tile requests are limited for all users.
-                                </small>
-                            </div>
-
-                            <div class="col-md-3 mb-3">
-                                <label asp-for="TileRateLimitPerMinute" class="form-label">Anonymous (per IP)</label>
-                                <div class="input-group">
-                                    <input asp-for="TileRateLimitPerMinute" class="form-control" type="number" min="50" max="10000" />
-                                    <span class="input-group-text">req/min</span>
-                                </div>
-                                <small class="form-text text-muted">
-                                    Default: @ApplicationSettings.DefaultTileRateLimitPerMinute. Typical map view loads 50-100 tiles.
-                                </small>
-                                <span asp-validation-for="TileRateLimitPerMinute" class="text-danger"></span>
-                            </div>
-
-                            <div class="col-md-3 mb-3">
-                                <label asp-for="TileRateLimitAuthenticatedPerMinute" class="form-label">Authenticated (per user)</label>
-                                <div class="input-group">
-                                    <input asp-for="TileRateLimitAuthenticatedPerMinute" class="form-control" type="number" min="100" max="50000" />
-                                    <span class="input-group-text">req/min</span>
-                                </div>
-                                <small class="form-text text-muted">
-                                    Default: @ApplicationSettings.DefaultTileRateLimitAuthenticatedPerMinute. Higher limit for trusted users.
-                                </small>
-                                <span asp-validation-for="TileRateLimitAuthenticatedPerMinute" class="text-danger"></span>
-                            </div>
-
-                        </div>
-                        <div class="row">
-                            <div class="col-md-3 mb-3">
-                                <div class="alert alert-info mb-0">
-                                    <strong><i class="bi bi-shield-check me-1"></i>Who is affected:</strong>
-                                    <ul class="mb-0 mt-1">
-                                        <li><strong>Logged-in:</strong> Limited per user ID</li>
-                                        <li><strong>Anonymous:</strong> Limited per IP address</li>
-                                    </ul>
-                                    <small class="text-muted">Both limits use sliding-window counting.</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr/>
-                        <div class="row">
-                            <h3 class="text-center fs-4">Map Tile Cache Management</h3>
-                            <div class="col-12 mb-2">
-                                @* Distinguish current writes from retained, read-compatible native storage. *@
-                                <strong>Current Tile Cache: </strong><code>@ViewData["CachePath"]</code>
-                                @if (ViewData["LegacyCachePath"] is string legacyTileRoot)
-                                {
-                                    <br /><strong>Legacy Tile Cache: </strong><code>@legacyTileRoot</code>
-                                }
-                            </div>
-                            <hr/>
-                            <div class="col-5 mb-2">
-                                <strong>Total Cache Files: </strong><code
-                                    id="TotalCacheFiles">@ViewData["TotalCacheFiles"]</code>
-                            </div>
-                            <div class="col-7 mb-2">
-                                <strong>Total LRU (Least Recently Used) Cache Files for zoom levels >= 9: </strong><code
-                                    id="LruTotalFiles">@ViewData["LruTotalFiles"]</code>
-                            </div>
-                            <hr/>
-                            <div class="col-5 mb-2">
-                                <strong>Total Cache Size in Megabytes: </strong><code
-                                    id="TotalCacheSize">@ViewData["TotalCacheSize"] MB</code>
-                            </div>
-                            <div class="col-7 mb-2">
-                                <strong>Total LRU Size (zoom levels >= 9) in Megabytes: </strong><code
-                                    id="TotalLru">@ViewData["TotalLru"] MB</code>
-                            </div>
-
-                            <hr/>
-                            <div class="col-5 mb-2">
-                                <strong>Total Cache Size in Gigabytes: </strong><code
-                                    id="TotalCacheSizeGB">@ViewData["TotalCacheSizeGB"] GB</code>
-                            </div>
-
-                            <div class="col-7 mb-2">
-                                <strong>Total LRU Size (zoom levels >= 9) in Gigabytes: </strong><code
-                                    id="TotalLruGB">@ViewData["TotalLruGB"] GB</code>
-                            </div>
-                            <hr/>
-                            <div class="col-md-8">
-                                <label for="MaxCacheTileSizeInMB" class="form-label">
-                                    Maximum Size for Tile Cache in Megabytes:
-                                </label>
-
-                                <div class="input-group">
-                                    <input asp-for="MaxCacheTileSizeInMB"
-                                           class="form-control"
-                                           type="number"
-                                           step="0.01"
-                                           min="-1"/>
-                                    <span class="input-group-text">MB</span>
-                                </div>
-
-                                <span asp-validation-for="MaxCacheTileSizeInMB" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • This setting controls the maximum cache size (in MB) for map tiles at zoom levels
-                                    ≥ 9.<br/>
-                                    • Set to <code>-1</code> to disable this cache entirely.<br/>
-                                    • Set to <code>0</code> to fallback to the default:
-                                    <code>@ApplicationSettings.DefaultMaxCacheTileSizeInMB MB</code>.<br/>
-                                    • <strong>Minimum: 256 MB.</strong> OSM tile usage policy requires tiles to be cached
-                                    for at least 7 days. Values below 256 MB are rejected.<br/>
-                                    • Tiles are ~10–20 KB each. The default (1024 MB) holds roughly 100,000–200,000
-                                    tiles.<br/>
-                                    • Zoom levels 0–8 are cached permanently and do not count against this size. They
-                                    consume ~1.31 to 1.75 GB.<br/>
-                                    • Increasing this value reduces OSM server usage. If exceeded, least-recently-used
-                                    tiles are purged.<br/>
-                                </div>
-                            </div>
-
-                            <div class="col-md-8 mt-3">
-                                <label asp-for="TileMetadataHotCacheSizeMB" class="form-label">
-                                    Tile Metadata Hot Cache Budget:
-                                </label>
-
-                                <div class="input-group">
-                                    <input asp-for="TileMetadataHotCacheSizeMB"
-                                           class="form-control"
-                                           type="number"
-                                           min="-1"
-                                           max="512"
-                                           data-entry-bytes="@Wayfarer.Services.TileMetadataHotCache.EstimatedBytesPerHotMetadataEntry" />
-                                    <span class="input-group-text">MB</span>
-                                </div>
-
-                                <span asp-validation-for="TileMetadataHotCacheSizeMB" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • Approximate RAM budget for the in-process tile metadata hot cache used only for zoom levels
-                                    ≥ 9.<br/>
-                                    • Stores tile metadata only. It does not store tile image bytes.<br/>
-                                    • Set to <code>-1</code> to disable the feature.<br/>
-                                    • Allowed values are <code>-1</code> or <code>16-512 MB</code>.<br/>
-                                    • The derived entry count is approximate and does not represent exact process memory usage.<br/>
-                                </div>
-
-                                <div class="alert alert-secondary mt-2 mb-0 py-2" id="tileMetadataHotCacheHint">
-                                    @if (Model.TileMetadataHotCacheSizeMB == -1)
-                                    {
-                                        <span>Hot metadata cache disabled.</span>
-                                    }
-                                    else
-                                    {
-                                        <span>@Model.TileMetadataHotCacheSizeMB MB ≈ @tileMetadataHotCacheEntries metadata entries</span>
-                                    }
-                                </div>
-                            </div>
-
-
-                            <div class="col-md-4">
-                                <div class="row mt-3">
-                                    <div class="col">
-                                        <a href="#" class="btn btn-danger" id="clearLruCache"
-                                           title="Clear LRU Map Cache">Clear LRU Cache (zoom levels >= 9)</a>
-                                    </div>
-                                </div>
-                                <div class="row mt-3">
-                                    <div class="col"><a href="#" class="btn btn-danger" id="clearAllCache"
-                                                        title="Clear All Map Cache">Clear All Map Tile Cache!</a></div>
-                                </div>
-                            </div>
-
-                            @* ── Purge progress bar (hidden until a purge starts) ── *@
-                            <div class="col-12">
-                                <div id="cachePurgeProgress" class="mt-3" style="display:none;">
-                                    <div class="progress">
-                                        <div id="cachePurgeBar"
-                                             class="progress-bar progress-bar-striped progress-bar-animated"
-                                             role="progressbar" aria-valuenow="0" aria-valuemin="0"
-                                             aria-valuemax="100" style="width: 0%">0%</div>
-                                    </div>
-                                    <small id="cachePurgeText" class="text-muted">Starting purge...</small>
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <hr/>
-
-                        @* ── Image Proxy Cache Settings ── *@
-                        <div class="row">
-                            <h3 class="text-center fs-2">Image Proxy Cache</h3>
-
-                            <div class="col-6 mb-2">
-                                <strong>Cached Images:</strong>
-                                <code id="ImageCacheCount">@ViewData["ImageCacheCount"]</code>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <strong>Cache Size:</strong>
-                                <code id="ImageCacheSizeMB">@ViewData["ImageCacheSizeMB"] MB</code>
-                            </div>
-
-                            <hr/>
-
-                            <div class="col-md-6">
-                                <label asp-for="MaxCacheImageSizeInMB" class="form-label">
-                                    Maximum Size for Image Cache in Megabytes:
-                                </label>
-
-                                <div class="input-group">
-                                    <input asp-for="MaxCacheImageSizeInMB"
-                                           class="form-control"
-                                           type="number"
-                                           step="1"
-                                           min="-1"/>
-                                    <span class="input-group-text">MB</span>
-                                </div>
-
-                                <span asp-validation-for="MaxCacheImageSizeInMB" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • Controls the maximum disk space for cached proxy images.<br/>
-                                    • Set to <code>-1</code> to disable image proxy caching entirely.<br/>
-                                    • Default: <code>@ApplicationSettings.DefaultMaxCacheImageSizeInMB MB</code>.<br/>
-                                    • Cached images are typically 20–200 KB each.<br/>
-                                    • When exceeded, least-recently-used images are purged automatically.<br/>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label asp-for="ImageCacheExpiryDays" class="form-label">
-                                    Image Cache Expiry in Days:
-                                </label>
-
-                                <div class="input-group">
-                                    <input asp-for="ImageCacheExpiryDays"
-                                           class="form-control"
-                                           type="number"
-                                           step="1"
-                                           min="1"
-                                           max="365"/>
-                                    <span class="input-group-text">days</span>
-                                </div>
-
-                                <span asp-validation-for="ImageCacheExpiryDays" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • Cached images older than this are re-fetched from the original source.<br/>
-                                    • Images in trip descriptions rarely change, so a long expiry is
-                                    recommended.<br/>
-                                    • Default: <code>@ApplicationSettings.DefaultImageCacheExpiryDays days</code>.<br/>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-12 col-md-6">
-                                <label asp-for="MaxProxyImageDownloadMB" class="form-label fw-semibold">
-                                    Max Proxy Image Download Size
-                                </label>
-                                <div class="input-group">
-                                    <input asp-for="MaxProxyImageDownloadMB" class="form-control"
-                                           type="number"
-                                           min="5"
-                                           max="200"/>
-                                    <span class="input-group-text">MB</span>
-                                </div>
-
-                                <span asp-validation-for="MaxProxyImageDownloadMB" class="text-danger"></span>
-
-                                <div class="form-text">
-                                    • Maximum single image file size the proxy will download from external sources.<br/>
-                                    • Images are optimized after download, so cached versions are typically much smaller.<br/>
-                                    • Default: <code>@ApplicationSettings.DefaultMaxProxyImageDownloadMB MB</code>.<br/>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <h3 class="text-center fs-4">Image Proxy Rate Limiting</h3>
-                            <p class="text-muted">
-                                Protect upstream image origins from abuse by rate limiting anonymous proxy image requests.
-                                Authenticated users are never rate limited.
-                            </p>
-
-                            <div class="col-md-6 mb-3">
-                                <div class="form-check form-switch">
-                                    <input type="checkbox" class="form-check-input"
-                                           id="ProxyImageRateLimitEnabled" name="ProxyImageRateLimitEnabled"
-                                           value="true" @(Model.ProxyImageRateLimitEnabled ? "checked" : "")/>
-                                    @* Hidden fallback ensures "false" is posted when checkbox is unchecked *@
-                                    <input type="hidden" name="ProxyImageRateLimitEnabled" value="false"/>
-                                    <label class="form-check-label" for="ProxyImageRateLimitEnabled">
-                                        Enable image proxy rate limiting
-                                        <i class="bi bi-question-circle text-muted ms-1"
-                                           data-tippy-content="Rate limits anonymous proxy image requests by IP address to prevent abuse and origin flooding."></i>
-                                    </label>
-                                </div>
-                                <small class="form-text text-muted">
-                                    When enabled, anonymous image proxy requests are limited per IP.
-                                </small>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="ProxyImageRateLimitPerMinute" class="form-label">Anonymous (per IP)</label>
-                                <div class="input-group">
-                                    <input asp-for="ProxyImageRateLimitPerMinute" class="form-control" type="number" min="10" max="5000" />
-                                    <span class="input-group-text">req/min</span>
-                                </div>
-                                <small class="form-text text-muted">
-                                    Default: @ApplicationSettings.DefaultProxyImageRateLimitPerMinute. Max proxy image requests per minute per IP.
-                                </small>
-                                <span asp-validation-for="ProxyImageRateLimitPerMinute" class="text-danger"></span>
-                            </div>
-                        </div>
-
-                        <hr/>
-
-                        <div class="row">
-                            <h3 class="text-center fs-2">Total Disk Usage</h3>
-
-                            <div class="col-4 mb-2 fs-5">
-                                <strong>Map Tiles Cache (zoom ≥ 9):</strong><br/>
-                                <code>@ViewData["TotalCacheSize"] MB</code> /
-                                <code>@ViewData["TotalCacheSizeGB"] GB</code>
-                            </div>
-
-                            <div class="col-4 mb-2 fs-5">
-                                <strong>Image Proxy Cache:</strong><br/>
-                                <code>@ViewData["ImageCacheSizeMB"] MB</code>
-                            </div>
-
-                            <div class="col-4 mb-2 fs-5">
-                                <strong>User Uploads (Temp):</strong><br/>
-                                <code>@ViewData["UploadsSizeMB"] MB</code> / <code>@ViewData["UploadsSizeGB"] GB</code>
-                            </div>
-                        </div>
-
-                        <!-- Separate row for combined total -->
-                        <div class="row mt-3">
-                            <div class="col-6 fs-5">
-                                <strong>Total Storage Used in Megabytes:</strong>
-                                <code class="text-primary">@ViewData["CombinedStorageMB"] MB</code>
-                            </div>
-                            <div class="col-6 fs-5">
-                                <strong>Total Storage Used in Gigabytes:</strong>
-                                <code class="text-primary">@ViewData["CombinedStorageGB"] GB</code>
-                            </div>
-                        </div>
-
-                        <div class="form-text fs-6 mt-2">
-                            • This includes storage used by: map tile cache (zoom ≥ 9) and
-                            uploaded files (e.g. Google Timeline JSON).<br/>
-                            • Zoom levels 0–8 are permanent and not included in soft limits.<br/>
-                            • Use this summary to estimate how much disk Wayfarer currently occupies on your server.
-                        </div>
-
-
+                        <partial name="_CacheSettings" model="Model" />
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-primary btn-lg mt-3">Save Changes</button>
+                            <button type="submit" class="btn btn-primary btn-lg mt-3">@T["Shell.Save"]</button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            @if (TempData["Message"] != null)
-            {
-                <div class="alert alert-success mt-3">
-                    @TempData["Message"]
-                </div>
-            }
         </div>
     </div>
 </div>

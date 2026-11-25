@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Localization;
 using Wayfarer.Services;
 using Wayfarer.Util;
 
@@ -62,20 +63,18 @@ public partial class SettingsController
                 StringComparison.OrdinalIgnoreCase))
         {
             ModelState.AddModelError(nameof(ApplicationSettings.TileTrafficMode),
-                "Provider Agreement mode requires a compatible Custom provider.");
+                _text["AdminSettings.Validation.ModeRequiresCustom"]);
             return;
         }
 
         settings.TileProviderAdvancedLimitsEnabled = true;
 
-        try
+        var errors = TileProviderPolicyResolver.GetCustomValidationErrors(settings);
+        if (errors.Count > 0)
         {
-            TileProviderPolicyResolver.ValidateCustom(settings);
-        }
-        catch (ArgumentException exception)
-        {
-            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled),
-                exception.Message);
+            // The existing field owns one combined policy error.
+            var explanation = string.Join(" ", errors.Values.Select(error => AdminSettingsWebText.PolicyError(_text, error)).Distinct());
+            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAdvancedLimitsEnabled), explanation);
         }
     }
 
@@ -119,5 +118,93 @@ public partial class SettingsController
             _settingsService.RefreshSettings();
         }
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Normalizes and validates tile provider settings, applying presets when selected.
+    /// </summary>
+    private bool NormalizeTileProviderSettings(ApplicationSettings currentSettings, ApplicationSettings updatedSettings)
+    {
+        var providerKey = updatedSettings.TileProviderKey?.Trim();
+        var currentCompatibility = TileProviderCatalog.ResolveCompatibility(
+            currentSettings.TileProviderKey,
+            currentSettings.TileProviderUrlTemplate);
+        var preservesUnsupportedState =
+            currentCompatibility.Status != TileProviderCompatibility.Supported &&
+            (string.IsNullOrWhiteSpace(providerKey) ||
+             string.Equals(providerKey, currentSettings.TileProviderKey?.Trim(),
+                 StringComparison.OrdinalIgnoreCase));
+        if (preservesUnsupportedState)
+        {
+            PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+            return true;
+        }
+        if (string.IsNullOrWhiteSpace(providerKey))
+        {
+            // Preserve supported provider identity when an unrelated form omits this section.
+            PreserveTileProviderRecoveryState(currentSettings, updatedSettings);
+            return true;
+        }
+        var preset = TileProviderCatalog.FindPreset(providerKey);
+        var isCustom = string.Equals(providerKey, TileProviderCatalog.CustomProviderKey, StringComparison.OrdinalIgnoreCase);
+
+        if (preset == null && !isCustom)
+        {
+            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderKey), _text["AdminSettings.Validation.UnknownProvider"]);
+            return false;
+        }
+
+        if (preset != null)
+        {
+            updatedSettings.TileProviderKey = preset.Key;
+            updatedSettings.TileProviderUrlTemplate = preset.UrlTemplate;
+            updatedSettings.TileProviderAttribution = preset.Attribution;
+        }
+        else
+        {
+            updatedSettings.TileProviderKey = TileProviderCatalog.CustomProviderKey;
+        }
+
+        // Sanitize attribution HTML to prevent XSS attacks.
+        updatedSettings.TileProviderAttribution = HtmlSanitization.SanitizeAttribution(updatedSettings.TileProviderAttribution);
+
+        if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderAttribution))
+        {
+            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderAttribution), _text["AdminSettings.Validation.Attribution"]);
+        }
+
+        if (!TileProviderCatalog.TryValidateTemplate(updatedSettings.TileProviderUrlTemplate, out var templateError))
+        {
+            ModelState.AddModelError(nameof(ApplicationSettings.TileProviderUrlTemplate), AdminSettingsWebText.TemplateError(_text, templateError));
+        }
+
+        if (TileProviderCatalog.RequiresApiKey(updatedSettings.TileProviderUrlTemplate))
+        {
+            if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
+            {
+                updatedSettings.TileProviderApiKey = currentSettings.TileProviderApiKey;
+            }
+
+            if (string.IsNullOrWhiteSpace(updatedSettings.TileProviderApiKey))
+            {
+                ModelState.AddModelError(nameof(ApplicationSettings.TileProviderApiKey),
+                    _text["AdminSettings.Validation.ApiKey"]);
+            }
+        }
+        else
+        {
+            updatedSettings.TileProviderApiKey = null;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Adds tile provider preset metadata needed by the settings view.
+    /// </summary>
+    private void SetTileProviderViewData()
+    {
+        ViewData["TileProviderPresets"] = TileProviderCatalog.Presets;
+        ViewData["TileProviderCustomKey"] = TileProviderCatalog.CustomProviderKey;
     }
 }

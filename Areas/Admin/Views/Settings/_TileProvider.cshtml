@@ -1,0 +1,78 @@
+@model ApplicationSettings
+@inject Wayfarer.Localization.WebMessages T
+@using Wayfarer.Util
+@using Wayfarer.Services
+@{
+    // Preset labels and editable provider values come from the original catalog and model.
+    var tileProviderPresets = ViewData["TileProviderPresets"] as IReadOnlyList<TileProviderDefinition> ?? [];
+    var tileProviderCustomKey = ViewData["TileProviderCustomKey"]?.ToString() ?? TileProviderCatalog.CustomProviderKey;
+    var hasTileProviderApiKey = !string.IsNullOrWhiteSpace(Model.TileProviderApiKey);
+}
+
+<div class="row">
+    <h3 class="text-center fs-4">@T["AdminSettings.TileProvider"]</h3>
+    <p class="text-muted">
+        @T["AdminSettings.TileProviderIntro", "/Public/tiles/{z}/{x}/{y}.png"]
+    </p>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="TileProviderKey" class="form-label">@T["AdminSettings.TileProviderLabel"]</label>
+        <select asp-for="TileProviderKey" class="form-control" data-custom-key="@tileProviderCustomKey">
+            @if (TileProviderCatalog.ResolveCompatibility(Model.TileProviderKey, Model.TileProviderUrlTemplate).Status != TileProviderCompatibility.Supported)
+            {
+                <option value="@Model.TileProviderKey" data-preserved="true" data-requires-key="false">
+                    @T["AdminSettings.TileUnsupportedProvider", string.IsNullOrWhiteSpace(Model.TileProviderKey) ? T["AdminSettings.TileBlankProvider"] : Model.TileProviderKey]
+                </option>
+            }
+            @foreach (var preset in tileProviderPresets)
+            {
+                <option value="@preset.Key"
+                        data-template="@preset.UrlTemplate"
+                        data-attribution="@preset.Attribution"
+                        data-requires-key="@(preset.RequiresApiKey.ToString().ToLowerInvariant())">
+                    @preset.Name
+                </option>
+            }
+            <option value="@tileProviderCustomKey" data-template="" data-attribution="" data-requires-key="false">@T["AdminSettings.TileCustomProvider"]</option>
+        </select>
+        <small class="form-text text-muted">
+            @T["AdminSettings.TilePresetsHelp"]
+        </small>
+        <span asp-validation-for="TileProviderKey" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="alert alert-info mb-0">
+            <strong>@T["AdminSettings.TileCacheNote"]</strong> @T["AdminSettings.TileCachePreserved"]
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="TileProviderUrlTemplate" class="form-label">@T["AdminSettings.TileTemplateLabel"]</label>
+        <input asp-for="TileProviderUrlTemplate" class="form-control" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.TileTemplateHelp", "{z}", "{x}", "{y}", "{apiKey}"]
+        </small>
+        <span asp-validation-for="TileProviderUrlTemplate" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <label asp-for="TileProviderAttribution" class="form-label">@T["AdminSettings.TileAttributionLabel"]</label>
+        <input asp-for="TileProviderAttribution" class="form-control" />
+        <small class="form-text text-muted">
+            @T["AdminSettings.TileAttributionHelp"]
+        </small>
+        <span asp-validation-for="TileProviderAttribution" class="text-danger"></span>
+    </div>
+
+    <div class="col-md-6 mb-3" id="tileProviderApiKeyRow">
+        <label for="TileProviderApiKey" class="form-label">@T["AdminSettings.TileApiKeyLabel"]</label>
+        <input class="form-control" id="TileProviderApiKey" name="TileProviderApiKey" type="password" autocomplete="off" />
+        <small class="form-text text-muted" id="tileProviderApiKeyHelp">
+            @T[hasTileProviderApiKey ? "AdminSettings.TileSavedKey" : "AdminSettings.TileEnterKey"]
+        </small>
+        <span asp-validation-for="TileProviderApiKey" class="text-danger"></span>
+    </div>
+
+    <partial name="_TileProviderPolicySettings" model="Model" />
+</div>

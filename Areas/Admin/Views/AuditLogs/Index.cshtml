@@ -1,15 +1,16 @@
 ﻿@model IEnumerable<Wayfarer.Models.AuditLog>
+@inject Wayfarer.Localization.WebMessages T
 
 @{
-    ViewData["Title"] = "Audit Logs";
+    ViewData["Title"] = T["Shell.AuditLogs"];
+    ViewData["WebContentLanguage"] = T.Locale.Tag;
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
 
 <div class="alert alert-light small mb-3 mx-auto" style="max-width: 800px;">
     <i class="bi bi-lightbulb me-1"></i>
-    <strong>How it works:</strong> Security audit trail capturing login attempts, password changes, role modifications, and data exports.
-    Use Search to filter by user, action type, or date range.
+    @T["AdminLogs.AuditIntro"]
 </div>
 
 <div class="container">
@@ -18,15 +19,15 @@
             <!-- Search Form -->
             <form method="get" asp-action="Index" class="mb-4">
                 <div class="input-group">
-                    <input type="text" name="search" value="@ViewBag.Search" placeholder="Search logs..." class="form-control" />
-                    <button type="submit" class="btn btn-primary">Search</button>
+                    <input type="text" name="search" value="@ViewBag.Search" placeholder="@T["AdminLogs.Search"]" class="form-control" />
+                    <button type="submit" class="btn btn-primary">@T["Shell.Search"]</button>
                 </div>
             </form>
 
             <!-- Display Message for No Results -->
-            @if (!string.IsNullOrEmpty(ViewBag.Message))
+            @if (!Model.Any())
             {
-                <p class="text-center text-muted">@ViewBag.Message</p>
+                <p class="text-center text-muted">@T["AdminLogs.AuditEmpty"]</p>
             }
             else
             {
@@ -35,13 +36,13 @@
                     <table class="table table-bordered table-striped table-hover">
                         <thead>
                             <tr>
-                                <th>User ID</th>
-                                <th>Action</th>
-                                <th>Timestamp</th>
+                                <th>@T["AdminLogs.AuditUser"]</th>
+                                <th>@T["AdminLogs.AuditAction"]</th>
+                                <th>@T["AdminLogs.AuditTime"]</th>
                                 <th>
-                                    Details
+                                    @T["AdminLogs.AuditDetails"]
                                     <i class="bi bi-question-circle text-muted ms-1"
-                                       data-tippy-content="Additional context: IP addresses, affected entities, error messages, and other relevant information."></i>
+                                       data-tippy-content="@T["AdminLogs.AuditDetailHelp"]"></i>
                                 </th>
                             </tr>
                         </thead>
@@ -51,7 +52,7 @@
                                 <tr>
                                     <td>@log.UserId</td>
                                     <td>@log.Action</td>
-                                    <td>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@log.Timestamp.ToString(T.DisplayCulture.DateTimeFormat.ShortDatePattern + " " + T.DisplayCulture.DateTimeFormat.LongTimePattern, T.DisplayCulture)</td>
                                     <td>@log.Details</td>
                                 </tr>
                             }
@@ -63,7 +64,7 @@
             <!-- Pagination -->
             @if (ViewBag.TotalPages > 1)
             {
-                <nav aria-label="Page navigation">
+                <nav aria-label="@T["Shell.Pagination"]">
                     <ul class="pagination justify-content-center">
                         @for (int i = 1; i <= ViewBag.TotalPages; i++)
                         {
@@ -73,7 +74,7 @@
                                    asp-controller="AuditLogs"
                                    asp-action="Index"
                                    asp-route-page="@i"
-                                   asp-route-search="@ViewBag.Search">@i</a>
+                                   asp-route-search="@ViewBag.Search">@T.DisplayNumber(i)</a>
                             </li>
                         }
                     </ul>

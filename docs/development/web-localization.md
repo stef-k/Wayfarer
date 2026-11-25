@@ -298,4 +298,20 @@ with zero blocking findings.
 | `/Manager/ApiToken` and `/Admin/ApiToken` | Both routes use shared API token presentation and localized confirmation prompts. Manager targets follow the existing eligibility policy. No token plaintext is placed in the view or in feedback. Redirects carry presentation keys and display arguments for the next request. |
 | `/Admin/ActivityType` | Catalogs owns the list, edit and delete forms, and consolidation preview, disclosures and outcomes. Editable names and descriptions, source and destination IDs, and version fields retain their original values. The preview formats and pluralizes the same dependency counts. |
 | `/Admin/TransportProfile` | Catalogs presents planning speeds, dependencies, reconciliation, deactivation, refusal and conflict outcomes. Keys, labels, categories, versions and dependency rules keep their existing authority. |
-| Focused acceptance | `ManagementWebLanguageHttpTests` exercises the rendered role actions and stored role values, the Greek Manager refusal after an English POST, a token result with encoded authored input, and the Greek Admin refusal to delete a referenced profile. PostgreSQL verifies that both refused records and their dependencies remain. A managed Chromium capture covers the Greek Transport Profile editor, stored key, and deactivation guidance. Independent review is pending. |
+| Focused acceptance | `ManagementWebLanguageHttpTests` exercises the rendered role actions and stored role values, the Greek Manager refusal after an English POST, a token result with encoded authored input, and the Greek Admin refusal to delete a referenced profile. PostgreSQL verifies that both refused records and their dependencies remain. A managed Chromium capture covers the Greek Transport Profile editor, stored key, and deactivation guidance. |
+
+Area 10 was accepted and merged in [PR #1007](https://github.com/stef-k/Wayfarer/pull/1007)
+at `ed7fd5413dba14797fc77cc97c6626b46bc3259b`. The independent CI correction
+review and [required checks](https://github.com/stef-k/Wayfarer/actions/runs/45461746164)
+passed at `c1abd8d428cf96f924f148702c8d2848c30c0b89`. The PR records the routed
+role refusals, preserved account and catalog data, Greek Transport Profile
+capture, and 13 assessed Code Guard REVIEW findings.
+
+### Area 11 Admin operations
+
+| Entry points | Presentation and evidence |
+| --- | --- |
+| `/Admin/Settings` and the Settings update and cache routes | AdminSettings owns location logging, visit detection, registration, upload and storage, provider compatibility and traffic policy, and cache controls. Field errors keep their form bindings. A failed POST supplies the Settings GET for language navigation. The browser formats purge progress and outcomes using its document locale and the existing event type and purge type. The existing controller fixture verifies the Greek accepted response and the bounded background failure payload. |
+| `/Admin/Jobs/Index` and `/Admin/Jobs/Sse` | AdminJobs owns the table, known stored summaries, status badges, confirmations and action feedback. Unrecognized summaries remain readable as diagnostics. Initial and live rows share the server action forms with antiforgery. Machine status and row identity determine live actions. Controller tests exercise the scheduler calls and redirect feedback keys. |
+| `/Admin/AuditLogs` and `/Admin/Logs` | AdminLogs owns the search, pagination, empty states, file controls, status and errors. Search highlights retain the original diagnostic characters. Audit and log records, filenames, byte positions and download contents retain their existing semantics. |
+| Focused acceptance | The existing Jobs controller tests include an MVC render of a known persisted summary and a Manager refusal at the same route. The managed Greek Admin smoke checks a routed Settings field error, a live badge and notification using the existing SSE payload, the live cancellation form, intact audit details, and log search and download without changing the diagnostic text. Independent review is pending. |

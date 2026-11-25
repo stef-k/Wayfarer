@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using Quartz.Impl.Matchers;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Parsers;
@@ -160,7 +161,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                 await _scheduler.TriggerJob(jobKey, new JobDataMap()); // Trigger the job without creating a new instance
             }
 
-            TempData["Message"] = "Job started.";
+            WebAlert.Store(TempData, "Job started.", "success", "AdminJobs.Started");
 
             return RedirectToAction("Index");
         }
@@ -179,7 +180,8 @@ namespace Wayfarer.Areas.Admin.Controllers
             await _scheduler.PauseJob(jobKey);
 
             _logger.LogInformation("Admin paused job {JobName} in group {JobGroup}", jobName, jobGroup);
-            TempData["Message"] = $"Job '{jobName}' paused. It will not run until resumed.";
+            WebAlert.Store(TempData, $"Job '{jobName}' paused. It will not run until resumed.",
+                "success", "AdminJobs.Paused", [jobName]);
             return RedirectToAction("Index");
         }
 
@@ -196,7 +198,8 @@ namespace Wayfarer.Areas.Admin.Controllers
             await _scheduler.ResumeJob(jobKey);
 
             _logger.LogInformation("Admin resumed job {JobName} in group {JobGroup}", jobName, jobGroup);
-            TempData["Message"] = $"Job '{jobName}' resumed.";
+            WebAlert.Store(TempData, $"Job '{jobName}' resumed.",
+                "success", "AdminJobs.Resumed", [jobName]);
             return RedirectToAction("Index");
         }
 
@@ -216,12 +219,14 @@ namespace Wayfarer.Areas.Admin.Controllers
             if (interrupted)
             {
                 _logger.LogInformation("Admin requested cancellation of job {JobName} in group {JobGroup}", jobName, jobGroup);
-                TempData["Message"] = $"Job '{jobName}' cancellation requested.";
+                WebAlert.Store(TempData, $"Job '{jobName}' cancellation requested.",
+                "success", "AdminJobs.CancelRequested", [jobName]);
             }
             else
             {
                 _logger.LogWarning("Could not interrupt job {JobName} in group {JobGroup} - not running or not interruptable", jobName, jobGroup);
-                TempData["Error"] = $"Job '{jobName}' could not be cancelled (not running or not interruptable).";
+                WebAlert.Store(TempData, $"Job '{jobName}' could not be cancelled (not running or not interruptable).",
+                "danger", "AdminJobs.CancelRefused", [jobName]);
             }
 
             return RedirectToAction("Index");

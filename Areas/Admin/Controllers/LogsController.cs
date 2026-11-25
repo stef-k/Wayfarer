@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Localization;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Models.ViewModels;
@@ -16,15 +18,17 @@ namespace Wayfarer.Areas.Admin.Controllers;
 public class LogsController : BaseController
 {
     private readonly StoragePaths _storage;
+    private readonly WebMessages _text;
 
     /// <summary>Reads only the shared operational log root.</summary>
     public LogsController(
         ILogger<LogsController> logger,
         ApplicationDbContext dbContext,
-        StoragePaths storage)
+        StoragePaths storage, WebMessages text)
         : base(logger, dbContext)
     {
         _storage = storage;
+        _text = text;
     }
 
     /// <summary>
@@ -33,7 +37,6 @@ public class LogsController : BaseController
     /// <returns>View with list of log files.</returns>
     public IActionResult Index()
     {
-        SetPageTitle("Application Logs");
         var logFiles = GetLogFiles();
         return View(logFiles);
     }
@@ -52,13 +55,13 @@ public class LogsController : BaseController
     {
         if (!IsValidLogFile(fileName))
         {
-            return BadRequest(new { success = false, message = "Invalid file name" });
+            return BadRequest(new { success = false, message = _text["AdminLogs.InvalidFileName"] });
         }
 
         var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
-            return NotFound(new { success = false, message = "Log file not found" });
+            return NotFound(new { success = false, message = _text["AdminLogs.FileMissing"] });
         }
 
         var response = new LogContentResponse();
@@ -126,7 +129,7 @@ public class LogsController : BaseController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading log file {FileName}", fileName);
-            return StatusCode(500, new { success = false, message = "Error reading log file" });
+            return StatusCode(500, new { success = false, message = _text["AdminLogs.ReadFailed"] });
         }
 
         response.Content = string.Join("\n", lines);
@@ -359,13 +362,13 @@ public class LogsController : BaseController
     {
         if (!IsValidLogFile(fileName))
         {
-            return BadRequest("Invalid file name");
+            return BadRequest(_text["AdminLogs.InvalidFileName"]);
         }
 
         var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
-            return NotFound("Log file not found");
+            return NotFound(_text["AdminLogs.FileMissing"]);
         }
 
         var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -383,18 +386,18 @@ public class LogsController : BaseController
     {
         if (!IsValidLogFile(fileName))
         {
-            return BadRequest(new { success = false, message = "Invalid file name" });
+            return BadRequest(new { success = false, message = _text["AdminLogs.InvalidFileName"] });
         }
 
         if (string.IsNullOrWhiteSpace(query))
         {
-            return BadRequest(new { success = false, message = "Search query is required" });
+            return BadRequest(new { success = false, message = _text["AdminLogs.SearchRequired"] });
         }
 
         var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
-            return NotFound(new { success = false, message = "Log file not found" });
+            return NotFound(new { success = false, message = _text["AdminLogs.FileMissing"] });
         }
 
         var matchingLines = new List<object>();
@@ -424,7 +427,7 @@ public class LogsController : BaseController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error searching log file {FileName}", fileName);
-            return StatusCode(500, new { success = false, message = "Error searching log file" });
+            return StatusCode(500, new { success = false, message = _text["AdminLogs.SearchFailed"] });
         }
 
         return Json(new
@@ -451,7 +454,7 @@ public class LogsController : BaseController
             return logFiles;
         }
 
-        var today = DateTime.Now.ToString("yyyyMMdd");
+        var today = DateTime.Now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
         foreach (var file in Directory.GetFiles(logDirectory, "wayfarer-*.log"))
         {
@@ -497,7 +500,7 @@ public class LogsController : BaseController
     /// </summary>
     /// <param name="bytes">Size in bytes.</param>
     /// <returns>Formatted size string (e.g., "1.5 MB").</returns>
-    private static string FormatFileSize(long bytes)
+    private string FormatFileSize(long bytes)
     {
         string[] sizes = ["B", "KB", "MB", "GB"];
         var order = 0;
@@ -508,6 +511,6 @@ public class LogsController : BaseController
             size /= 1024;
         }
 
-        return $"{size:0.##} {sizes[order]}";
+        return $"{size.ToString("0.##", _text.DisplayCulture)} {sizes[order]}";
     }
 }
