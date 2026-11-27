@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Associate the Timeline Settings Time Threshold label with its dropdown and
+  keep a rejected custom delay visible and editable with its error (#993, #997).
+
 - Show the recorded and viewer times for the same event in private live Timeline
   details, even when the two time zones differ (#1001).
 
