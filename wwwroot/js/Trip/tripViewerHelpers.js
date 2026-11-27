@@ -1,4 +1,5 @@
 import { encodeFeatureText } from '../util/feature-metadata.js';
+import { installMapAttribution } from '../util/map-attribution.js';
 import { message, number, plural } from '../localization/messages.js';
 /* tripViewerHelpers.js – read-only viewer helpers
  * -----------------------------------------------
@@ -54,10 +55,7 @@ export const initLeaflet = (center = [20, 0], zoom = 3, embedUrl = null) => {
 
     /* keep a handle to the tile layer so we can attach events */
     const tiles = createTileLayer().addTo(map);
-    map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
-    // Match the Trip Editor's accessible attribution-control contract.
-    map.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
-    map.attributionControl.getContainer()?.setAttribute('title', message('Shell.MapAttribution', 'Map attribution'));
+    installMapAttribution(map);
     L.control.zoom({ position: 'bottomright', zoomInTitle: message('Shell.ZoomIn', 'Zoom in'),
         zoomOutTitle: message('Shell.ZoomOut', 'Zoom out') }).addTo(map);
     addZoomLevelControl(map);                 /* ← your existing util */

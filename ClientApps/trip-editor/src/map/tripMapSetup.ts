@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
+import { installMapAttribution } from '../../../../wwwroot/js/util/map-attribution.js';
 import 'leaflet/dist/leaflet.css';
 import { createTripEditorTileLayer } from './tileRetryLayer';
 
@@ -15,9 +16,7 @@ export const createTripMap = (element: HTMLElement, tilesUrl = window.wayfarerTi
     attribution: window.wayfarerTileConfig?.attribution,
     maxZoom: 19
   }).addTo(map);
-  map.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank" rel="noopener">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank" rel="noopener">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
-  map.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
-  map.attributionControl.getContainer()?.setAttribute('title', message('Shell.MapAttribution', 'Map attribution'));
+  installMapAttribution(map);
 
   return map;
 };

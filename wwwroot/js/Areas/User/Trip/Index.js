@@ -7,6 +7,7 @@ import {
     initWikipediaPopovers,
 } from '../../../util/wikipedia-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
+import { installMapAttribution } from '../../../util/map-attribution.js';
 import { mountTripImport } from './tripImportControls.js';
 import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../../embedSharing.js';
 
@@ -1158,11 +1159,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
 
         createTileLayer().addTo(contextMap);
 
-        contextMap.attributionControl.setPrefix(
-            '&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | ' +
-            '<a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | ' +
-            '&copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>'
-        );
+        installMapAttribution(contextMap);
 
         // Add zoom level control with ruler tool
         addZoomLevelControl(contextMap);

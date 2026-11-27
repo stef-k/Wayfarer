@@ -1,10 +1,12 @@
 import { html, installTimelineZoom, text } from './timeline-text.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
+import { installMapAttribution } from '../../../util/map-attribution.js';
 /** Leaflet consumes observed records and geometry; camera movement never changes matching intent. */
 export const createCalendarMap = (select, moved) => {
     const map = L.map('mapContainer', { zoomControl: false }).setView([20, 0], 3);
     installTimelineZoom(map); createTileLayer().addTo(map); addZoomLevelControl(map);
+    installMapAttribution(map);
     const markers = L.markerClusterGroup({ maxClusterRadius: 50, chunkedLoading: false }).addTo(map);
     const path = L.layerGroup().addTo(map), area = L.layerGroup().addTo(map), selected = L.layerGroup().addTo(map);
     let observed = [], previousPeriod, previousAnalysis, previousArea;
