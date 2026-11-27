@@ -37,7 +37,16 @@ export const measurement = (value, speed = false) => {
 
 export const notesLabel = () => encode(message('Shell.Notes', 'Notes'));
 
-/** Render live marker details in the current document, keeping the two time bases separate. */
+/** Read an ISO date and time with an explicit UTC designator or offset. */
+const parseEventInstant = value => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return null;
+    // Date can roll impossible civil dates into the following month.
+    if (new Date(value.slice(0, 10)).getUTCDate() !== Number(value.slice(8, 10))) return null;
+    const instant = new Date(value);
+    return Number.isFinite(instant.getTime()) ? instant : null;
+};
+
+/** Render both live marker clocks from the same event instant in the current document locale. */
 export const renderLiveLocation = (location, { isLive, isLatest }, viewerTimeZone) => {
     // build your badge HTML
     let badge = '';
@@ -50,9 +59,10 @@ export const renderLiveLocation = (location, { isLive, isLatest }, viewerTimeZon
     const notesHeight = Math.ceil((location.notes?.length ?? 0) / 50) * 24;
     const style = notesHeight ? `min-height: ${notesHeight}px;` : 'display: none;';
 
-    const viewer = formatHistoryDate(location.localTimestamp, viewerTimeZone, true);
+    const instant = parseEventInstant(location.eventUtc) ?? parseEventInstant(location.localTimestamp);
+    const viewer = formatHistoryDate(instant, viewerTimeZone, true);
     const sourceZone = location.timezone || location.timeZoneId || location.timeZone;
-    const source = sourceZone ? formatHistoryDate(location.localTimestamp, sourceZone, true) : '';
+    const source = sourceZone ? formatHistoryDate(instant, sourceZone, true) : '';
     const recordedTime = source
         ? `<div>${encode(source)}</div>`
         : `<div class="fst-italic text-muted">${html('NoSourceZone', 'Source timezone unavailable')}</div>`;

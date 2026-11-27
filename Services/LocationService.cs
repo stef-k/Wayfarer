@@ -18,7 +18,7 @@ namespace Wayfarer.Parsers
 
         /// <summary>
         /// Applies optional public eligibility before viewport and zoom sampling.
-        /// Group readers can opt into the persisted UTC event clock in each marker.
+        /// Group and authenticated owner viewport readers can opt into the persisted UTC event clock.
         /// </summary>
         public async Task<(List<PublicLocationDto> Locations, int TotalItems)> GetLocationsAsync(
             double minLongitude, double minLatitude,
@@ -472,7 +472,7 @@ namespace Wayfarer.Parsers
             return (resultDtos, totalItems);
         }
 
-        /// <summary>Projects a selected marker while retaining the event clock for Group reads that request it.</summary>
+        /// <summary>Projects a selected marker and retains the persisted event clock when requested.</summary>
         private static PublicLocationDto MapLocation(Location location, int threshold, bool isLatest, bool includeEventUtc)
         {
             var eventUtc = DateTime.SpecifyKind(location.LocalTimestamp, DateTimeKind.Utc);

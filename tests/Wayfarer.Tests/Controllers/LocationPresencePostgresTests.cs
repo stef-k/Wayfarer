@@ -26,6 +26,43 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>The owner viewport returns the stored event instant alongside the legacy Athens display clock.</summary>
+    [PostgresFact]
+    public async Task ViewportReturnsStoredEventInstant()
+    {
+        var owner = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var eventUtc = new DateTime(2026, 7, 3, 9, 15, 0, DateTimeKind.Utc).AddTicks(1234560);
+        var row = new Location
+        {
+            UserId = owner.Id, LocalTimestamp = eventUtc, Timestamp = eventUtc.AddHours(1),
+            TimeZoneId = "Europe/Athens", Coordinates = new NetTopologySuite.Geometries.Point(23.73, 37.98) { SRID = 4326 }
+        };
+        db.Locations.Add(row);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var root = Directory.CreateTempSubdirectory("wayfarer-1001-");
+        try
+        {
+            await using var app = await IdentityRouteHost.StartAsync(db, root.FullName, IdentityRouteHost.WithStartupSettings);
+            using var client = app.GetTestClient();
+            client.BaseAddress = new Uri("https://wayfarer.test");
+            client.DefaultRequestHeaders.Add("Cookie", IdentityRouteHost.Cookie(app.Services, owner.Id));
+            using var response = await client.PostAsJsonAsync("/api/Location/get-user-locations", new LocationFilterRequest
+                { MinLongitude = 23, MinLatitude = 37, MaxLongitude = 24, MaxLatitude = 39, ZoomLevel = 12 });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.True(body.RootElement.GetProperty("success").GetBoolean(), body.RootElement.GetRawText());
+            var marker = Assert.Single(body.RootElement.GetProperty("data").EnumerateArray());
+            Assert.Equal(row.Id, marker.GetProperty("id").GetInt32());
+            Assert.Equal("2026-07-03T12:15:00.123456", marker.GetProperty("localTimestamp").GetString());
+            Assert.True(marker.TryGetProperty("eventUtc", out var instant), "The viewport marker must include eventUtc.");
+            Assert.Equal("2026-07-03T09:15:00.123456Z", instant.GetString());
+        }
+        finally { root.Delete(recursive: true); }
+    }
+
     /// <summary>Fresh observations retain two-hit visits; historical arrivals retain history without current effects.</summary>
     [PostgresTheory]
     [InlineData("fresh", true)]

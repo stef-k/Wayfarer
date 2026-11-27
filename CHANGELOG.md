@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Show the recorded and viewer times for the same event in private live Timeline
+  details, even when the two time zones differ (#1001).
+
 - Return a private, non-cacheable `trip_not_found` response with the requested
   Trip ID when an authenticated planning read confirms its absence (#1013).
 

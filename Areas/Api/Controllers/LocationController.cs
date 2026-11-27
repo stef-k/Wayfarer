@@ -640,15 +640,12 @@ public partial class LocationController : BaseApiController
 
 
     /// <summary>
-    ///     Gets user's locations filtered by zoom and map bounds.
+    ///     Gets the authenticated user's locations filtered by zoom and map bounds.
     ///     As the zoom level increases, more records will be returned up to 10.000.
+    ///     Each marker includes the persisted UTC event instant and the coordinate-local display clock.
     /// </summary>
-    /// <param name="minLongitude"></param>
-    /// <param name="minLatitude"></param>
-    /// <param name="maxLongitude"></param>
-    /// <param name="maxLatitude"></param>
-    /// <param name="zoomLevel"></param>
-    /// <returns></returns>
+    /// <param name="request">The viewport bounds and zoom level.</param>
+    /// <returns>The sampled markers and viewport counts.</returns>
     [Authorize]
     [HttpPost("get-user-locations")]
     public async Task<IActionResult> GetUserLocations([FromBody] LocationFilterRequest request)
@@ -674,7 +671,8 @@ public partial class LocationController : BaseApiController
                 request.MaxLatitude,
                 request.ZoomLevel,
                 userId,
-                CancellationToken.None
+                CancellationToken.None,
+                includeEventUtc: true
             );
 
             // 2) materialize into a list so we can enumerate twice
