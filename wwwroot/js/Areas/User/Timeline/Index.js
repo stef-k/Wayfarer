@@ -13,7 +13,7 @@ import { createTileLayer } from '../../../retryTileLayer.js';
 import { encodeFeatureText as encode } from '../../../util/feature-metadata.js';
 import { count, html, installTimelineZoom, text } from './timeline-text.js';
 import { renderLiveLocation } from './timeline-location.js';
-import { message } from '../../../localization/messages.js';
+import { installMapAttribution } from '../../../util/map-attribution.js';
 import {
     formatHistoryDate,
     isLiveLocation,
@@ -162,10 +162,7 @@ const initializeMap = () => {
     installTimelineZoom(mapContainer);
     createTileLayer().addTo(mapContainer);
 
-    const credit = encode(message('Shell.WayfarerMapCredit', 'Powered by Wayfarer, made by Stef'));
-    const author = encode(message('Shell.AuthorSite', 'Hi, I am Stef check out my blog!'));
-    mapContainer.attributionControl.setPrefix(`&copy; <a href="https://wayfarer.stefk.me" title="${credit}" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="${author}" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>`);
-    mapContainer.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
+    installMapAttribution(mapContainer);
 
     addZoomLevelControl(mapContainer);
 

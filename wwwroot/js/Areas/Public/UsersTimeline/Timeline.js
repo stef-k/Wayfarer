@@ -3,6 +3,7 @@ import { embeddedMapOptions, installEmbeddedMap } from '../../../embeddedMap.js'
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { message } from '../../../localization/messages.js';
 import { encodeFeatureText } from '../../../util/feature-metadata.js';
+import { installMapAttribution } from '../../../util/map-attribution.js';
 import { isLiveLocation, scheduleLocationExpiry, getViewerTimeZone } from '../../../util/datetime.js';
 import { initWikipediaPopovers } from '../../../util/wikipedia-utils.js';
 import { renderTimelineLocation } from './timelineDetail.js';
@@ -108,10 +109,7 @@ const initializeMap = () => {
     }).addTo(mapContainer);
     createTileLayer().addTo(mapContainer);
 
-    const author = encodeFeatureText(message('Shell.AuthorSite', 'Hi, I am Stef check out my blog!'));
-    const credit = encodeFeatureText(message('Shell.WayfarerMapCredit', 'Powered by Wayfarer, made by Stef'));
-    mapContainer.attributionControl.setPrefix(`&copy; <a href="https://wayfarer.stefk.me" title="${credit}" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="${author}" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>`);
-    mapContainer.attributionControl.getContainer()?.setAttribute('aria-label', message('Shell.MapAttribution', 'Map attribution'));
+    installMapAttribution(mapContainer);
 
     addZoomLevelControl(mapContainer);
 

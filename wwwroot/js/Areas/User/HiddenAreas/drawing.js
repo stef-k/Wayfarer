@@ -1,5 +1,6 @@
 import { registerLanguageDraft } from '../../../localization/languageNavigation.js';
 import { locale, message } from '../../../localization/messages.js';
+import { installMapAttribution } from '../../../util/map-attribution.js';
 
 /** Bind the actual map edit lifecycle and serialized draft to the shared selector. */
 export const bindHiddenAreaDraft = (map, events, input, polygons) => {
@@ -112,17 +113,7 @@ const mountDrawing = root => {
     L.control.zoom({ zoomInTitle: message('Shell.ZoomIn', 'Zoom in'),
         zoomOutTitle: message('Shell.ZoomOut', 'Zoom out') }).addTo(map);
     addTiles(map);
-    const poweredBy = document.createElement('a');
-    poweredBy.href = 'https://wayfarer.stefk.me';
-    poweredBy.target = '_blank';
-    poweredBy.title = message('Shell.WayfarerMapCredit', 'Powered by Wayfarer, made by Stef');
-    poweredBy.textContent = 'Wayfarer';
-    const blog = document.createElement('a');
-    blog.href = 'https://stefk.me';
-    blog.target = '_blank';
-    blog.title = message('HiddenAreas.Blog', 'Visit my blog');
-    blog.textContent = 'Stef K';
-    map.attributionControl.setPrefix(`&copy; ${poweredBy.outerHTML} | ${blog.outerHTML} | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>`);
+    installMapAttribution(map);
 
     const polygons = new L.FeatureGroup().addTo(map);
     const drawingStyle = { color: '#ff7800', weight: 3 };

@@ -3,6 +3,7 @@ import { locationAddressText, renderLocationAddress } from './location-address.j
 import { encodeFeatureText as groupHtml } from './feature-metadata.js';
 import { notesHtmlForDisplay } from './notes-images.js';
 import { groupDateTime, groupMessage as t } from './group-web-messages.js';
+import { installMapAttribution } from './map-attribution.js';
 
 const sourceZone = location => location.timezone || location.timeZoneId || location.timeZone;
 const sourceTime = location => sourceZone(location) ? groupDateTime(location.localTimestamp, sourceZone(location)) : '';
@@ -14,7 +15,7 @@ export const setupGroupMapControls = map => {
     zoomInTitle: message('Shell.ZoomIn', 'Zoom in'),
     zoomOutTitle: message('Shell.ZoomOut', 'Zoom out'),
   }).addTo(map);
-  map.attributionControl?.setPrefix('&copy; <a href="https://wayfarer.stefk.me" target="_blank">Wayfarer</a> | <a href="https://stefk.me" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
+  installMapAttribution(map);
 };
 
 /** Formats a map tooltip with authored identity and address as text. */
