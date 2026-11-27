@@ -48,10 +48,12 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
   const capture = (): DraftFields => state.capture(hold.value.filter(field => row.value?.fields[field]));
 
   /** Captures at execution time so an older queued write cannot resurrect fields settled by recovery. */
-  async function persistDraft(current?: EditorTripMetadata): Promise<void> {
+  async function persistDraft(): Promise<void> {
     if (!row.value || stale.value) return;
     const fields = capture();
     if (JSON.stringify(fields) === JSON.stringify(lastCapture)) return;
+    // A buffered projection keeps its comparison until the draft and review state commit together.
+    const current = lastCapture === null ? comparison.value ?? undefined : undefined;
     try {
       row.value = await saveDraft(row.value, fields, current);
       lastCapture = fields;
@@ -100,7 +102,7 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
 
     stale.value = unavailable.value = false;
     project(latest, current, fields);
-    if (fields) await persistDraft(current ?? undefined);
+    if (fields) await persistDraft();
 
     const history = knownHistory(latest);
     historicalStatus.value = [...recovered.settled ?? [], ...history].map(receiptStatus);
