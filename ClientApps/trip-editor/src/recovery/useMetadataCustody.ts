@@ -91,6 +91,12 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
 
   /** Completes settlement and projection in the local write queue, fencing edits against other tabs. */
   async function completeRecovery(recovered: Recovery, reopening: boolean, beforeSettlement?: number): Promise<Recovery> {
+    // Confirmed access loss hides the workspace even when local draft projection is blocked.
+    if (recovered.inaccessible && workspaceError) {
+      workspaceError.value = custodyMessage('owner');
+      return { ...recovered, current: null };
+    }
+
     const latest = await readCustody(recovered.row.account, recovered.row.tripId);
     const matchesRecovery = latest.generation === recovered.row.generation;
     const current = matchesRecovery ? recovered.current : null;
@@ -98,7 +104,10 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     const canKeepFields = row.value?.generation === latest.generation ||
       matchesRecovery && row.value?.generation === beforeSettlement;
     if (fields && !canKeepFields) report(new CustodyRefusal('stale'));
-    if ((!reopening && stale.value) || (unavailable.value && row.value)) return { ...recovered, current: null };
+    // The explicit reopen may replace the failed local draft once the owner read matches this generation.
+    const canReopenAfterStorageFailure = reopening && current !== null;
+    if ((!reopening && stale.value) || (unavailable.value && row.value && !canReopenAfterStorageFailure))
+      return { ...recovered, current: null };
 
     stale.value = unavailable.value = false;
     project(latest, current, fields);
@@ -107,24 +116,19 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     const history = knownHistory(latest);
     historicalStatus.value = [...recovered.settled ?? [], ...history].map(receiptStatus);
     if (stale.value || unavailable.value) return { ...recovered, current: null };
-    if (recovered.inaccessible && workspaceError) {
-      workspaceError.value = custodyMessage('owner');
-      return { ...recovered, current: null };
-    }
     if (!current && (history.length || Object.keys(latest.fields).length && !hold.value.length))
       feedback.value = custodyMessage('owner');
     else feedback.value = hold.value.length ? custodyMessage('held') : '';
     return { ...recovered, row: latest, current };
   }
 
-  /** Explicit or reload recovery has no mutation or continuation authority. */
-  async function recover(): Promise<EditorTripMetadata | null> {
+  /** Only the reopen action may replace stale local input. Recovery has no mutation or continuation authority. */
+  async function recover(reopening = false): Promise<EditorTripMetadata | null> {
     if (account === null || busy.value) return null;
     if (!account) {
       report(new Error());
       return null;
     }
-    const reopening = stale.value;
     busy.value = true;
     try {
       await nextTick();

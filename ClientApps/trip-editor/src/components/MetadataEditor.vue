@@ -288,8 +288,8 @@ async function saveMetadata(): Promise<EditorTripMetadata | false | null> {
 }
 
 /** Projects a fresh owner read while keeping recovery separate from the foreground save sequence. */
-async function recoverDraft(): Promise<void> {
-  const current = await custody.recover();
+async function recoverDraft(reopening = false): Promise<void> {
+  const current = await custody.recover(reopening);
   if (current) publishOwner(current);
 }
 
@@ -365,7 +365,7 @@ const creditErrors = computed(() => fieldErrors('credits'));
     <template #body>
       <div v-if="custody.feedback.value || custody.hold.value.length" class="trip-editor-form-warning" role="status">
         <p>{{ custody.feedback.value || custodyMessage('held') }}</p>
-        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || custody.busy.value" @click="recoverDraft">
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || custody.busy.value" @click="recoverDraft(custody.stale.value)">
           {{ custody.stale.value ? localize('Editor.ReceiptReopen', 'Reopen latest draft') : localize('Editor.ReceiptRecover', 'Recover Trip save') }}
         </button>
       </div>
