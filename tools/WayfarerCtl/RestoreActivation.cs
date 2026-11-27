@@ -129,6 +129,7 @@ public sealed class RestoreActivation(IProcessRunner runner)
         receipt = receipt with { Containers = [.. receipt.Containers, canonicalInspector] };
         receipt.Save(root);
         await new RestoreCandidate(runner).InspectAsync(root, candidate, directory, candidate.Project + "_backend", canonicalInspector, token);
+        await RestoreTripProofAuthority.PrepareAsync(owner, Compose("exec", "-T", "db"), receipt, token);
         if (receipt.Phase == RestorePhase.ActivatedStopped)
         {
             receipt = receipt.Advance(RestorePhase.WritesPossible);

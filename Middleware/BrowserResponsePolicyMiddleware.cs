@@ -24,7 +24,9 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
         var privateCalendar = context.Request.Path.StartsWithSegments("/User/Timeline/calendar", StringComparison.OrdinalIgnoreCase);
         var privatePlanning = path.StartsWith("/api/trips/", StringComparison.OrdinalIgnoreCase)
             && (path.Contains("/planning", StringComparison.OrdinalIgnoreCase) || path.Contains("/editor", StringComparison.OrdinalIgnoreCase)
-                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase) || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase))
+                || path.Contains("/conditional/", StringComparison.OrdinalIgnoreCase)
+                || path.TrimEnd('/').EndsWith("/conditional", StringComparison.OrdinalIgnoreCase)
+                || path.Contains("/deletion", StringComparison.OrdinalIgnoreCase))
             || path.StartsWith("/Trip/ExportPersonalWayfarerKml/", StringComparison.OrdinalIgnoreCase)
             || path.TrimEnd('/').Equals("/User/Trip/Import", StringComparison.OrdinalIgnoreCase)
             || path.TrimEnd('/').Equals("/User/Trip/ReviewImport", StringComparison.OrdinalIgnoreCase);

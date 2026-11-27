@@ -1,4 +1,6 @@
+@using System.Security.Claims
 @using Wayfarer.Localization
+@inject IWebHostEnvironment Environment
 @inject WebMessages T
 @{
     // The importer must register its file and review owners before switching is shown.
@@ -11,6 +13,10 @@
 <h2>@ViewData["Title"]</h2>
 
 @Html.AntiForgeryToken()
+
+@* Recovery is account scoped and independent of the current Trip list and graph. *@
+<div id="trip-metadata-recovery" data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
+     data-editor-url="@Url.Action("Edit", "Trip", new { area = "User", id = Guid.Empty })"></div>
 
 <div class="d-flex flex-wrap gap-2 mb-3">
     <a asp-area="User" asp-controller="Trip" asp-action="Create"
@@ -398,5 +404,13 @@
 @section Scripts
 {
     @Html.FrontendViewScripts()
+    @if (Environment.IsDevelopment())
+    {
+        <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/recovery/myTrips.ts"></script>
+    }
+    else if (Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/trip-editor/src/recovery/myTrips.ts").Script is string recoveryScript)
+    {
+        <script type="module" src="@recoveryScript"></script>
+    }
     <script type="module" src="~/js/Areas/User/Trip/compositionEntries.js" asp-append-version="true"></script>
 }

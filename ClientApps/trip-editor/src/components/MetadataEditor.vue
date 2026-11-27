@@ -4,23 +4,25 @@ import { editorFieldError } from '../editorValidation';
 import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { EditorMutationHttpError, EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
+import { EditorMutationHttpError, EditorValidationError, patchMetadata, patchShareProgress, putTags } from '../api/tripEditorApi';
 import { confirmMetadataExit } from './metadataExit';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { TripEditorMapView } from '../map/mapViewport';
-import { buildMetadataRequest, capturedViewDraft, createMetadataDraftState, equivalentViewDraft, normalizeTagNameKey, normalizeTagNames,
+import { buildMetadataRequest, capturedViewDraft, createMetadataDraftState, equivalentViewDraft, normalizeTagNames,
   viewDraft, type MetadataDraft } from './metadataDraft';
 import EditorSurface from './EditorSurface.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 import TripCreditsEditor from './TripCreditsEditor.vue';
+import MetadataTagsEditor from './MetadataTagsEditor.vue';
+import ReceiptComparison from '../recovery/ReceiptComparison.vue';
+import { custodyMessage, useMetadataCustody } from '../recovery/useMetadataCustody';
 import { confirmFirstPublication } from './publicationPolicy';
 import type {
   EditorMutationResult,
   EditorOptions,
   EditorTag,
   EditorTripMetadata,
-  EditorWarning,
-  TagSuggestion
+  EditorWarning
 } from '../types';
 
 const props = defineProps<{
@@ -44,23 +46,20 @@ const emit = defineEmits<{
 
 const draftState = createMetadataDraftState(props.metadata, props.tagOrder, props.tagsBySlug);
 const draft = draftState.draft;
+const custody = useMetadataCustody(props, draftState);
 const isSaving = ref(false);
 const lastSavedAt = ref<string | null>(null);
 const saveError = ref<string | null>(null);
 const validationErrors = ref<Record<string, string[]>>({});
 const warnings = ref<EditorWarning[]>([]);
 const exitInProgress = ref(false);
-const tagInput = ref('');
-const tagSuggestions = ref<TagSuggestion[]>([]);
-const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
-let suggestionRequestId = 0;
 /// Discarding this interaction revokes pending exit permission without retiring an HTTP attempt.
 const editSession = ref(0);
 /// Distinguishes explicit sharing input during this save from privacy-driven clearing.
 let shareProgressEditedDuringSave = false;
 const persistedDraft = computed(() => draftState.baseline);
-const isMetadataDirty = computed(() => draftState.metadataAttempt.value !== null || JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
+const isMetadataDirty = computed(() => draftState.metadataAttempt.value !== null || draftState.retained.size > 0 || JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
 const isShareProgressDirty = computed(() => draftState.sharingAttempt.value !== null || normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
 const sharingUnconfirmed = computed(() => draftState.sharingAttempt.value?.outcome === 'unknown');
@@ -71,7 +70,7 @@ const sharingHoldMessage = computed(() =>
   localize('Editor.SharingHoldRecovery', 'We could not confirm the sharing change. Your choice ({0}) is retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open to retain your choice, or leave without saving. Leaving or reloading loses the retained choice and does not undo the earlier change.',
     draft.shareProgressEnabled ? localize('Editor.Enabled', 'Enabled') : localize('Editor.Disabled', 'Disabled')));
 const metadataHoldMessage = localize('Editor.MetadataHoldRecovery', 'We could not confirm the Trip settings change. Your latest settings are retained in this editor. Saving is paused because the earlier change may still finish. Keep this editor open, or leave without saving. Leaving or reloading loses retained settings and does not undo the earlier change.');
-const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
+const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value || custody.hold.value.length > 0);
 /// Combines metadata, tag, share-progress, region, segment, and Planning drafts for navigation prompts.
 const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
 const shareProgressUnavailable = computed(() => !draft.isPublic || !props.metadata.isPublic);
@@ -143,10 +142,6 @@ watch(() => props.capturedMapView, view => {
   Object.assign(draft, matchesSaved ? viewDraft(persistedDraft.value) : captured);
 }, { flush: 'sync' });
 
-watch(tagInput, () => {
-  void loadTagSuggestions();
-});
-
 watch(
   () => draft.isPublic,
   isPublic => {
@@ -171,10 +166,11 @@ const unregisterLanguageDraft = registerLanguageDraft(() => hasUnsavedEditorChan
 
 onMounted(() => {
   window.addEventListener('beforeunload', confirmUnload);
+  void recoverDraft();
   unregisterSurfaceHandler = props.editorSurface.registerTargetHandler(target.value.key, {
     isDirty: () => isDirty.value,
     save: () => save(false),
-    discard: resetDraft
+    discard: () => { void resetDraft(); }
   });
   if (props.autoOpen !== false) {
     void openMetadata();
@@ -188,12 +184,10 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', confirmUnload);
 });
 
-const resetDraft = (): void => {
+const resetDraft = async (): Promise<void> => {
+  if (custody.enabled && !await custody.discard()) return;
   editSession.value++;
-  draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
-  tagInput.value = '';
-  tagSuggestions.value = [];
-  tagSuggestionError.value = null;
+  if (!custody.enabled) draftState.reset(props.metadata, props.tagOrder, props.tagsBySlug);
   validationErrors.value = {};
   saveError.value = null;
   warnings.value = [];
@@ -218,13 +212,10 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   let failed = false;
 
   try {
-    if (isMetadataDirty.value) {
-      const submitted = draftState.beginMetadata();
-      const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, submitted);
-      savedMetadata = result.affected.metadata ?? result.data;
-      draftState.acknowledge(savedMetadata, submitted, shareProgressEditedDuringSave);
-      warnings.value = result.warnings ?? [];
-      emit('mutationApplied', result as EditorMutationResult<unknown>);
+    if (custody.enabled || isMetadataDirty.value) {
+      const result = await saveMetadata();
+      if (result === false) return;
+      savedMetadata = result ?? savedMetadata;
     }
 
     if (isTagsDirty.value) {
@@ -276,7 +267,43 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   }
 };
 
+/** Uses durable authorization for both marked saves and ordinary mixed submissions. */
+async function saveMetadata(): Promise<EditorTripMetadata | false | null> {
+  const prepared = custody.enabled ? draftState.request() : undefined;
+  if (prepared) {
+    const protectedSave = await custody.submit(prepared);
+    if (protectedSave) {
+      if (protectedSave.metadata) publishOwner(protectedSave.metadata);
+      return protectedSave.continueSave ? protectedSave.metadata : false;
+    }
+  }
+  if (!isMetadataDirty.value) return null;
+  const submitted = draftState.beginMetadata(prepared);
+  const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, submitted);
+  const metadata = result.affected.metadata ?? result.data;
+  draftState.acknowledge(metadata, submitted, shareProgressEditedDuringSave);
+  warnings.value = result.warnings ?? [];
+  emit('mutationApplied', result as EditorMutationResult<unknown>);
+  return metadata;
+}
+
+/** Projects a fresh owner read while keeping recovery separate from the foreground save sequence. */
+async function recoverDraft(): Promise<void> {
+  const current = await custody.recover();
+  if (current) publishOwner(current);
+}
+
+/** Uses the existing metadata-only workspace projection. */
+function publishOwner(metadata: EditorTripMetadata): void {
+  emit('mutationApplied', {
+    success: true, data: metadata, warnings: [], deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] },
+    affected: { metadata, regions: [], regionOrder: null, places: [], placeOrdersByRegionId: {}, areas: [],
+      areaOrdersByRegionId: {}, segments: [], segmentOrder: null, tags: [], tagOrder: null, visitProgress: null, options: null }
+  });
+}
+
 const backToTrips = async (): Promise<void> => {
+  await custody.persist();
   if (!hasUnsavedEditorChanges.value || (await confirmMetadataExit(saveUnconfirmed.value, metadataUnconfirmed.value ? metadataHoldMessage : sharingHoldMessage.value))) {
     leaveEditor();
   }
@@ -309,49 +336,6 @@ function confirmUnload(event: BeforeUnloadEvent): void {
 /** Opens the existing metadata surface without replacing pending drafts. */
 const openMetadata = (): Promise<boolean> => props.editorSurface.activateTarget(target.value);
 
-async function loadTagSuggestions(): Promise<void> {
-  const query = tagInput.value.trim();
-  const requestId = ++suggestionRequestId;
-  tagSuggestionError.value = null;
-
-  if (!query) {
-    tagSuggestions.value = [];
-    return;
-  }
-
-  try {
-    const items = await suggestTags(query, props.tagOptions.suggestionTake);
-    if (requestId === suggestionRequestId) {
-      const existingNames = new Set(normalizeTagNames(draft.tags).map(normalizeTagNameKey));
-      tagSuggestions.value = items.filter(item => !existingNames.has(normalizeTagNameKey(item.name)));
-    }
-  } catch {
-    if (requestId === suggestionRequestId) {
-      tagSuggestions.value = [];
-      tagSuggestionError.value = localize('Editor.TagSuggestionsUnavailable', 'Suggestions unavailable.');
-    }
-  }
-}
-
-function addTag(value: string): void {
-  const name = value.trim();
-  if (!name || draft.tags.length >= props.tagOptions.maxTags) {
-    return;
-  }
-
-  const existing = new Set(normalizeTagNames(draft.tags).map(normalizeTagNameKey));
-  if (!existing.has(normalizeTagNameKey(name))) {
-    draft.tags.push(name);
-  }
-
-  tagInput.value = '';
-  tagSuggestions.value = [];
-}
-
-function removeTag(index: number): void {
-  draft.tags.splice(index, 1);
-}
-
 function normalizeShareProgress(value: MetadataDraft): boolean {
   return value.isPublic && props.metadata.isPublic && value.shareProgressEnabled;
 }
@@ -379,7 +363,16 @@ const creditErrors = computed(() => fieldErrors('credits'));
 
   <EditorSurface v-else :controller="editorSurface" :target="target" :status-text="statusText">
     <template #body>
-      <form id="trip-editor-metadata-form" class="trip-editor-metadata" @submit.prevent="save(false)">
+      <div v-if="custody.feedback.value || custody.hold.value.length" class="trip-editor-form-warning" role="status">
+        <p>{{ custody.feedback.value || custodyMessage('held') }}</p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || custody.busy.value" @click="recoverDraft">
+          {{ custody.stale.value ? localize('Editor.ReceiptReopen', 'Reopen latest draft') : localize('Editor.ReceiptRecover', 'Recover Trip save') }}
+        </button>
+      </div>
+      <ReceiptComparison v-if="custody.comparison.value" :current="custody.comparison.value" :fields="custody.review.value"
+        :disabled="isSaving || custody.busy.value || custody.stale.value" @adopt="custody.adopt" />
+      <p v-for="status in new Set(custody.historicalStatus.value)" :key="status" role="status">{{ status }}</p>
+      <form id="trip-editor-metadata-form" class="trip-editor-metadata" :inert="!custody.ready.value || custody.stale.value || custody.editingBlocked.value" @submit.prevent="save(false)">
         <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
         <p v-if="metadataUnconfirmed" class="trip-editor-form-warning" role="alert">{{ metadataHoldMessage }}</p>
 
@@ -411,39 +404,7 @@ const creditErrors = computed(() => fieldErrors('credits'));
           <small v-for="message in fieldErrors('shareProgressEnabled')" :key="message">{{ message }}</small>
         </section>
 
-        <section class="trip-editor-settings-group" aria-labelledby="trip-editor-tags-heading">
-          <h3 id="trip-editor-tags-heading">{{ localize("Editor.Tags", "Tags") }}</h3>
-          <div class="trip-editor-tags trip-editor-tags--editable">
-            <span v-for="(tag, index) in draft.tags" :key="`${normalizeTagNameKey(tag)}-${index}`">
-              {{ tag }}
-              <button type="button" :aria-label="localize('Editor.RemoveTag', 'Remove tag {0}', tag)" @click="removeTag(index)">{{ localize("Editor.Remove", "Remove") }}</button>
-            </span>
-          </div>
-          <div class="trip-editor-tag-entry">
-            <label class="trip-editor-field">
-              <span>{{ localize("Editor.AddTag", "Add tag") }}</span>
-              <input
-                v-model="tagInput"
-                type="text"
-                autocomplete="off"
-                :aria-describedby="tagSuggestionError ? 'trip-editor-tag-suggestion-error' : undefined"
-                @keydown.enter.prevent="addTag(tagInput)"
-              />
-            </label>
-            <button type="button" class="btn btn-outline-light btn-sm" :disabled="!tagInput.trim() || draft.tags.length >= tagOptions.maxTags" @click="addTag(tagInput)">{{ localize("Editor.Add", "Add") }}</button>
-          </div>
-          <div v-if="tagSuggestions.length > 0" class="trip-editor-tag-suggestions">
-            <button v-for="suggestion in tagSuggestions" :key="suggestion.slug" type="button" @click="addTag(suggestion.name)">
-              {{ suggestion.name }}
-            </button>
-          </div>
-          <small id="trip-editor-tag-suggestion-error" v-if="tagSuggestionError">{{ tagSuggestionError }}</small>
-          <small v-for="message in fieldErrors('tags')" :key="message">{{ message }}</small>
-          <template v-for="(_, index) in draft.tags" :key="`tag-error-${index}`">
-            <small v-for="message in fieldErrors(`tags[${index}]`)" :key="message">{{ message }}</small>
-          </template>
-        </section>
-
+        <MetadataTagsEditor :key="editSession" v-model:tags="draft.tags" :options="tagOptions" :field-errors="fieldErrors" />
 
             <RichNotesEditor :adoption-revision="draftState.notesAdoption.value" :key="editSession" editor-id="trip-editor-metadata-notes" v-model="draft.notesHtml" :label="localize('Shell.Notes', 'Notes')" :validation-messages="fieldErrors('notesHtml')" />
 
@@ -476,8 +437,8 @@ const creditErrors = computed(() => fieldErrors('credits'));
     </template>
 
     <template #footer>
-      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm" :disabled="isSaving || saveUnconfirmed">{{ localize("Editor.SaveSettingsContinue", "Save settings & Continue") }}</button>
-      <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || saveUnconfirmed" @click="saveAndExit">{{ localize("Editor.SaveSettingsExit", "Save settings & Exit") }}</button>
+      <button type="submit" form="trip-editor-metadata-form" class="btn btn-primary btn-sm"  :disabled="isSaving || saveUnconfirmed || !custody.ready.value || custody.busy.value">{{ localize("Editor.SaveSettingsContinue", "Save settings & Continue") }}</button>
+      <button type="button" class="btn btn-outline-light btn-sm"  :disabled="isSaving || saveUnconfirmed || !custody.ready.value || custody.busy.value" @click="saveAndExit">{{ localize("Editor.SaveSettingsExit", "Save settings & Exit") }}</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || saveUnconfirmed || !isDirty" @click="resetDraft">{{ localize("Editor.CancelReset", "Cancel / Reset") }}</button>
       <button type="button" class="btn btn-link btn-sm" :disabled="isSaving" @click="backToTrips">{{ saveUnconfirmed ? localize('Editor.LeaveWithoutSaving', 'Leave without saving') : localize('Editor.BackToTrips', 'Back to Trips') }}</button>
     </template>

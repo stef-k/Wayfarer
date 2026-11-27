@@ -4818,4 +4818,23 @@
   <data name="Editor.TripsImportTravel" xml:space="preserve">
     <value>Travel</value>
   </data>
+  <data name="Editor.ReceiptDraftChanged" xml:space="preserve"><value>This draft changed in another tab. Reopen the latest draft.</value></data>
+  <data name="Editor.ReceiptHeld" xml:space="preserve"><value>A previous Trip save is unconfirmed. Recover the save before sending overlapping changes.</value></data>
+  <data name="Editor.ReceiptReview" xml:space="preserve"><value>Review the current Trip value and explicitly use it as the comparison base.</value></data>
+  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Browser storage could not retain this edit. Keep this page open and try again.</value></data>
+  <data name="Editor.ReceiptOwnerUnavailable" xml:space="preserve"><value>Current Trip values are unavailable. Your retained draft is available in this browser.</value></data>
+  <data name="Editor.ReceiptIssuance" xml:space="preserve"><value>The save could not be prepared. Your draft is retained and can be sent with a new Save.</value></data>
+  <data name="Editor.ReceiptNull" xml:space="preserve"><value>Not set</value></data>
+  <data name="Editor.ReceiptEmpty" xml:space="preserve"><value>Empty</value></data>
+  <data name="Editor.ReceiptCurrent" xml:space="preserve"><value>Current {0}</value></data>
+  <data name="Editor.ReceiptAdopt" xml:space="preserve"><value>Use current {0} as comparison base</value></data>
+  <data name="Editor.ReceiptRecover" xml:space="preserve"><value>Recover Trip save</value></data>
+  <data name="Editor.ReceiptReopen" xml:space="preserve"><value>Reopen latest draft</value></data>
+  <data name="Editor.ReceiptMyTrips" xml:space="preserve"><value>Recover Trip saves and drafts</value></data>
+  <data name="Editor.ReceiptDraftNotes" xml:space="preserve"><value>Retained Notes draft</value></data>
+  <data name="Editor.ReceiptMapCenter" xml:space="preserve"><value>Map center</value></data>
+  <data name="Editor.ReceiptApplied" xml:space="preserve"><value>The earlier Trip save was confirmed.</value></data>
+  <data name="Editor.ReceiptNoOp" xml:space="preserve"><value>The earlier save confirmed those values were already saved.</value></data>
+  <data name="Editor.ReceiptUnapplied" xml:space="preserve"><value>The earlier save was refused. Review the current values before saving again.</value></data>
+  <data name="Editor.ReceiptRetired" xml:space="preserve"><value>The earlier save can no longer run. Its historical result is unavailable.</value></data>
 </root>

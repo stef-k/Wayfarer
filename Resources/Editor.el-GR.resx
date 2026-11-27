@@ -4818,4 +4818,23 @@
   <data name="Editor.TripsImportTravel" xml:space="preserve">
     <value>Μετακίνηση</value>
   </data>
+  <data name="Editor.ReceiptDraftChanged" xml:space="preserve"><value>Το πρόχειρο άλλαξε σε άλλη καρτέλα. Ανοίξτε ξανά το πιο πρόσφατο πρόχειρο.</value></data>
+  <data name="Editor.ReceiptHeld" xml:space="preserve"><value>Μια προηγούμενη αποθήκευση ταξιδιού δεν έχει επιβεβαιωθεί. Ανακτήστε την πριν στείλετε αλλαγές στα ίδια πεδία.</value></data>
+  <data name="Editor.ReceiptReview" xml:space="preserve"><value>Ελέγξτε την τρέχουσα τιμή του ταξιδιού και επιλέξτε τη ως βάση σύγκρισης.</value></data>
+  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Το πρόγραμμα περιήγησης δεν μπόρεσε να αποθηκεύσει την αλλαγή. Κρατήστε τη σελίδα ανοιχτή και δοκιμάστε ξανά.</value></data>
+  <data name="Editor.ReceiptOwnerUnavailable" xml:space="preserve"><value>Οι τρέχουσες τιμές του ταξιδιού δεν είναι διαθέσιμες. Το πρόχειρό σας παραμένει σε αυτό το πρόγραμμα περιήγησης.</value></data>
+  <data name="Editor.ReceiptIssuance" xml:space="preserve"><value>Η αποθήκευση δεν μπόρεσε να προετοιμαστεί. Το πρόχειρό σας διατηρήθηκε· επιλέξτε ξανά Αποθήκευση για αποστολή.</value></data>
+  <data name="Editor.ReceiptNull" xml:space="preserve"><value>Δεν έχει οριστεί</value></data>
+  <data name="Editor.ReceiptEmpty" xml:space="preserve"><value>Κενό</value></data>
+  <data name="Editor.ReceiptCurrent" xml:space="preserve"><value>Τρέχουσα τιμή: {0}</value></data>
+  <data name="Editor.ReceiptAdopt" xml:space="preserve"><value>Χρήση της τρέχουσας τιμής ({0}) ως βάσης σύγκρισης</value></data>
+  <data name="Editor.ReceiptRecover" xml:space="preserve"><value>Ανάκτηση αποθήκευσης ταξιδιού</value></data>
+  <data name="Editor.ReceiptReopen" xml:space="preserve"><value>Άνοιγμα πιο πρόσφατου πρόχειρου</value></data>
+  <data name="Editor.ReceiptMyTrips" xml:space="preserve"><value>Ανάκτηση αποθηκεύσεων και πρόχειρων ταξιδιών</value></data>
+  <data name="Editor.ReceiptDraftNotes" xml:space="preserve"><value>Διατηρημένο πρόχειρο σημειώσεων</value></data>
+  <data name="Editor.ReceiptMapCenter" xml:space="preserve"><value>Κέντρο χάρτη</value></data>
+  <data name="Editor.ReceiptApplied" xml:space="preserve"><value>Η προηγούμενη αποθήκευση του ταξιδιού επιβεβαιώθηκε.</value></data>
+  <data name="Editor.ReceiptNoOp" xml:space="preserve"><value>Η προηγούμενη αποθήκευση επιβεβαίωσε ότι οι τιμές αυτές είχαν ήδη αποθηκευτεί.</value></data>
+  <data name="Editor.ReceiptUnapplied" xml:space="preserve"><value>Η προηγούμενη αποθήκευση απορρίφθηκε. Ελέγξτε τις τρέχουσες τιμές πριν αποθηκεύσετε ξανά.</value></data>
+  <data name="Editor.ReceiptRetired" xml:space="preserve"><value>Η προηγούμενη αποθήκευση δεν μπορεί πλέον να εκτελεστεί. Το ιστορικό αποτέλεσμά της δεν είναι διαθέσιμο.</value></data>
 </root>

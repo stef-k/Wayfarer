@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
 
@@ -8,6 +9,7 @@ public sealed partial class TripEditorController
 {
     /// <summary>Cookie/antiforgery opt-in metadata save, sharing the bearer's locked per-field compare/apply authority.</summary>
     [HttpPatch("metadata/conditional")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> PatchConditionalMetadata(Guid tripId, CancellationToken cancellationToken)
     {
@@ -15,14 +17,17 @@ public sealed partial class TripEditorController
         if (authFailure != null) return authFailure;
         try
         {
-            var result = await new TripMetadataMutationService(_dbContext)
-                .ApplyAsync(tripId, userId!, Request.Body, true, null, cancellationToken);
-            var trip = result.Trip;
-            if (result.Applied)
+            var routes = new TripMetadataReceiptRoutes(Request, _dbContext, userId!, true, null);
+            var (execution, identity) = await routes.PatchAsync(tripId, cancellationToken);
+            if (execution.Mutation is { Applied: true } applied)
             {
-                _thumbnailGenerator.InvalidateThumbnails(tripId, trip.UpdatedAt);
-                await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: result.ImagesIntroduced);
+                _thumbnailGenerator.InvalidateThumbnails(tripId, applied.Trip.UpdatedAt);
+                await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: applied.ImagesIntroduced);
             }
+            if (execution.Evidence != null && identity != null)
+                return TripMetadataReceiptRoutes.EvidenceResult(execution.Evidence, identity);
+            var result = execution.Mutation ?? throw new InvalidOperationException("Missing Trip metadata result.");
+            var trip = result.Trip;
             var metadata = EditorTripStateMapper.ToMetadata(trip,
                 trip.IsPublic ? GeneratePublicTripUrl(tripId) : null,
                 trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(tripId) : null);
@@ -33,5 +38,43 @@ public sealed partial class TripEditorController
                 EditorAffectedSlicesDto.MetadataOnly(metadata), EditorDeletedIdsDto.Empty, warnings));
         }
         catch (TripMetadataMutationRejected rejection) { return rejection.ToActionResult(); }
+    }
+
+    /// <summary>Issues one Name/Notes permit for an authenticated owner session and its antiforgery proof.</summary>
+    [HttpPost("metadata/conditional/operations")]
+    [ValidateAntiForgeryToken]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public Task<IActionResult> IssueMetadataOperation(Guid tripId, CancellationToken token) =>
+        WithMetadataAuthorityAsync(routes => routes.IssueAsync(tripId, token));
+
+    /// <summary>Observes a Web operation even if the account can no longer load the Trip.</summary>
+    [HttpGet("metadata/conditional/operations/{operationId:guid}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public Task<IActionResult> LookupMetadataOperation(Guid tripId, Guid operationId, CancellationToken token) =>
+        WithMetadataAuthorityAsync(routes => routes.LookupAsync(tripId, operationId, token));
+
+    /// <summary>Reads fresh owner comparison values without loading Regions, geometry or external providers.</summary>
+    [HttpGet("metadata/conditional")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> ReadConditionalMetadata(Guid tripId, CancellationToken token)
+    {
+        var failure = RequireEditorUser(out var userId);
+        if (failure != null) return failure;
+        var trip = await _dbContext.Trips.AsNoTracking()
+            .SingleOrDefaultAsync(trip => trip.Id == tripId && trip.UserId == userId, token);
+        if (trip == null) return NotFound();
+        return Ok(new
+        {
+            subjectId = userId,
+            metadata = EditorTripStateMapper.ToMetadata(trip, trip.IsPublic ? GeneratePublicTripUrl(tripId) : null,
+                trip.IsPublic && trip.ShareProgressEnabled ? GenerateProgressPublicTripUrl(tripId) : null)
+        });
+    }
+
+    /// <summary>Applies the Editor's current cookie and User authority to receipt routes.</summary>
+    private Task<IActionResult> WithMetadataAuthorityAsync(Func<TripMetadataReceiptRoutes, Task<IActionResult>> dispatch)
+    {
+        var failure = RequireEditorUser(out var userId);
+        return failure == null ? dispatch(new(Request, _dbContext, userId!, true, null)) : Task.FromResult(failure);
     }
 }
