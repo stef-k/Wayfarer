@@ -113,6 +113,8 @@ namespace Wayfarer.Areas.Public.Controllers
                     Speed = location.Speed,
                     LocationType = location.LocationType,
                     ActivityType = location.ActivityType,
+                    // Expose assignment without copying the private Activity ID.
+                    HasActivity = location.ActivityTypeId.HasValue,
                     Address = location.Address,
                     FullAddress = location.FullAddress,
                     ProviderAddressLine1 = location.ProviderAddressLine1,
