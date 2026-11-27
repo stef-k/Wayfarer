@@ -45,6 +45,14 @@ test('Timeline renders Greek browser feedback and detail while retaining timesta
         assert.match(detail, /37\.987654%2C23\.100000/);
         assert.match(detail, /Αναζήτηση στη Βικιπαίδεια/);
 
+        // The public assignment flag wins over the legacy name sentinel.
+        const activityDetail = attributes => renderTimelineLocation({ ...location, ...attributes }, status, viewerTimeZone);
+        const missingActivity = /Δραστηριότητα:<\/strong> <i class="bi bi-patch-question" role="img"\s+title="Δεν υπάρχουν διαθέσιμα δεδομένα" aria-label="Δεν υπάρχουν διαθέσιμα δεδομένα">/;
+        assert.match(activityDetail({ activityType: 'Unknown', hasActivity: true }), /Δραστηριότητα:<\/strong> Unknown<\/div>/);
+        assert.match(activityDetail({ hasActivity: true }), /Δραστηριότητα:<\/strong> Walk &lt;Sunday&gt;<\/div>/);
+        assert.match(activityDetail({ hasActivity: false }), missingActivity);
+        assert.match(activityDetail({ activityType: 'Unknown' }), missingActivity);
+
         const importedDetail = renderTimelineLocation({ ...location, timezone: '03:00:00' }, status, viewerTimeZone);
         assert.match(importedDetail, /Τοπική ώρα καταγραφής:<\/strong>\s*<div>3 Ιουλ 2026, 12:15 \(03:00:00\)<\/div>/);
         const encodedDetail = renderTimelineLocation({ ...location, timezone: '<legacy&zone>' }, status, viewerTimeZone);

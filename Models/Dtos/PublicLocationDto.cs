@@ -24,6 +24,10 @@ public class PublicLocationDto
     public double? Speed { get; set; }
     public string? LocationType { get; set; }
     public string? ActivityType { get; set; }
+    /// <summary>Whether a public Timeline location has an assigned Activity, without exposing its ID.</summary>
+    [JsonPropertyName("hasActivity")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? HasActivity { get; init; }
     public int? ActivityTypeId { get; set; }
     public string? Address { get; set; }
     public string? FullAddress { get; set; }

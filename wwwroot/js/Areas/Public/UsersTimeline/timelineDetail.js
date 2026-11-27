@@ -33,7 +33,9 @@ export const renderTimelineLocation = (location, { isLive, isLatest }, viewerTim
         : isLatest ? `<span class="badge bg-success float-end ms-2">${label('Latest', 'LATEST LOCATION')}</span>` : '';
     const missing = `<i class="bi bi-patch-question" role="img"
         title="${label('NoValue', 'No data available')}" aria-label="${label('NoValue', 'No data available')}"></i>`;
-    const activity = location.activityType && location.activityType !== 'Unknown' ? encode(location.activityType) : missing;
+    // Older responses used the name "Unknown" as their missing-value sentinel.
+    const hasActivity = location.hasActivity ?? (Boolean(location.activityType) && location.activityType !== 'Unknown');
+    const activity = hasActivity ? encode(location.activityType) : missing;
     const coordinate = value => encode(number(value, { useGrouping: false, maximumSignificantDigits: 21 }));
     const notesHeight = Math.ceil((location.notes?.length ?? 0) / 50) * 24;
 

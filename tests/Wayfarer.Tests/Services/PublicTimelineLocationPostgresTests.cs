@@ -17,6 +17,41 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Publishes Activity assignment without serializing the assigned ID or changing the legacy name.</summary>
+    [PostgresFact]
+    public async Task GetPublicTimeline_DistinguishesAssignedUnknownFromMissingActivity()
+    {
+        var user = await fixture.CreateUserAsync();
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "now";
+        await using var db = fixture.CreateContext();
+        // Roll back the catalog row along with the Locations, even if an assertion fails.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        db.Users.Update(user);
+        var now = DateTime.UtcNow.AddDays(-2);
+        var assigned = Row(user.Id, now, 23, "Assigned");
+        assigned.ActivityType = await db.ActivityTypes.SingleOrDefaultAsync(activity => activity.Name == "Unknown")
+            ?? new ActivityType { Name = "Unknown" };
+        var unassigned = Row(user.Id, now.AddMinutes(-1), 24, "Unassigned");
+        db.Locations.AddRange(assigned, unassigned);
+        await db.SaveChangesAsync();
+
+        var result = await Controller(db).GetPublicTimeline(Request(user.UserName!));
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+        {
+            Converters = { new PointJsonConverter() }
+        };
+        var points = Points(result);
+        Assert.Equal(new[] { assigned.Id, unassigned.Id }.Order(), points.Select(p => p.Id).Order());
+        foreach (var point in points)
+        {
+            var json = System.Text.Json.JsonSerializer.SerializeToElement(point, options);
+            Assert.Equal("Unknown", json.GetProperty("activityType").GetString());
+            Assert.Equal(System.Text.Json.JsonValueKind.Null, json.GetProperty("activityTypeId").ValueKind);
+            Assert.Equal(point.Id == assigned.Id, json.GetProperty("hasActivity").GetBoolean());
+        }
+    }
+
     /// <summary>The public adapter retains derived freshness without disclosing raw observation/device evidence.</summary>
     [PostgresTheory]
     [InlineData(true)]

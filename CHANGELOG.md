@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Show an assigned Activity named `Unknown` in both public Timeline layouts.
+  Locations without an Activity show the localized missing-data icon (#994).
+
 - Associate the Timeline Settings Time Threshold label with its dropdown and
   keep a rejected custom delay visible and editable with its error (#993, #997).
 
