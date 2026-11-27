@@ -68,12 +68,11 @@ references and standard font CSS from actual server publication. This focused
 integration smoke needs outbound server HTTPS to that public image. It does not
 mock the proxy or turn an unavailable origin into a product failure.
 
-Vite owns all four Razor entries under `ClientApps/rich-notes/` and the Trip entry.
-The Razor views use `ViteAssets.Read`, including transitive imported CSS, after the
-layout's global scripts. The replaced auto-linked MvcFrontendKit constructors are
-removed. Each page loads one entry. Build with `npm run build`; development also
-needs `npm run dev` on 5173. `npm run smoke:trip-editor:assets:built` checks all five
-entry graphs. W3 removes the retired dependency, copied distribution and layout
+Vite owns four entries under `ClientApps/rich-notes/`, the Trip Editor and the
+My Trips recovery entry. The Razor views use `ViteAssets.Read`, including
+transitive imported CSS, after the layout's global scripts. Each page loads one
+entry. Build with `npm run build`. Development also needs `npm run dev` on 5173.
+`npm run smoke:trip-editor:assets:built` checks all six entry graphs. W3 removes the retired dependency, copied distribution and layout
 loading switches. Inspect a fresh Release publish with the published asset smoke;
 see [Notes reconciliation](rich-notes.md) for inventory, ownership and transition rules.
 
