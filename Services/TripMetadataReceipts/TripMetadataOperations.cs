@@ -7,7 +7,7 @@ namespace Wayfarer.Services.TripMetadataReceipts;
 
 /// <summary>Issues and recovers permits under the current adapter and continuous database authority.</summary>
 internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetadataProofs proofs, string subject, bool web,
-    Func<CancellationToken, Task<bool>>? revalidateBearer)
+    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential)
 {
     private readonly TripMetadataReceiptStore _store = new(db);
     private string Adapter => web ? "web" : "bearer";
@@ -21,7 +21,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
             SELECT * FROM public."Trips" WHERE "Id" = {tripId} AND "UserId" = {subject} FOR SHARE
             """).AnyAsync(token);
         if (!owned) throw TripMetadataMutationService.MissingTrip();
-        await RequireActiveAsync(db, subject, revalidateBearer, token);
+        await RequireActiveAsync(db, subject, revalidateCredential, token);
         var sample = await _store.AdmissionAsync(token);
         if (sample.Now < sample.Cutoff) throw Unavailable();
         var identity = new TripMetadataIdentity(TripMetadataIdentity.Version, subject, Adapter, TripMetadataIdentity.OperationKind,
@@ -82,7 +82,7 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
         var permit = await VerifyAsync(tripId, proof, operationId, token);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var fenced = await _store.FenceAsync(subject, operationId, false, token);
-        await RequireActiveAsync(db, subject, revalidateBearer, token);
+        await RequireActiveAsync(db, subject, revalidateCredential, token);
         var sample = await _store.AdmissionAsync(token);
         permit.RequireCurrent(sample);
         var evidence = fenced ? await _store.ReadAsync(permit.Identity, permit.Authority, token) : null;
@@ -102,11 +102,11 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
 
     /// <summary>Retains the writer's account and incoming credential checks through transaction completion.</summary>
     internal static async Task RequireActiveAsync(ApplicationDbContext db, string subject,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, CancellationToken token)
     {
         var active = await db.Users.FromSqlInterpolated($"SELECT * FROM public.\"AspNetUsers\" WHERE \"Id\" = {subject} AND \"IsActive\" FOR SHARE")
             .AsNoTracking().ToListAsync(token);
-        if (active.Count == 0 || revalidateBearer != null && !await revalidateBearer(token))
+        if (active.Count == 0 || revalidateCredential != null && !await revalidateCredential(active[0], token))
             throw new TripMetadataMutationRejected(401, "mutation-authority-unavailable", "Authentication is no longer valid.");
     }
 

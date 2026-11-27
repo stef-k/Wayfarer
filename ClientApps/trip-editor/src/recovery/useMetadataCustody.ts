@@ -2,9 +2,9 @@ import { computed, inject, nextTick, ref, shallowRef, watch } from 'vue';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
 import { adoptedDraft, type createMetadataDraftState } from '../components/metadataDraft';
 import type { EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata } from '../types';
-import { adoptBases, authorize, CustodyRefusal, heldFields, knownHistory, readCustody, remember, saveDraft, type Custody, type SettingsField } from './custody';
+import { adoptBases, authorize, CustodyRefusal, heldFields, knownHistory, readCustody, remember, saveDraft, type Custody, type DraftFields, type SettingsField } from './custody';
 import { freezeRequest, issuePermit, sendAttempt } from './receiptApi';
-import { metadataAccount, metadataWorkspaceError, receiptStatus, recoverMetadata } from './recoverMetadata';
+import { metadataAccount, metadataWorkspaceError, receiptStatus, recoverMetadata, type Recovery } from './recoverMetadata';
 
 type Props = { metadata: EditorTripMetadata; editorEndpoint: string; antiforgeryToken: string;
   tagOrder: string[]; tagsBySlug: Record<string, EditorTag> };
@@ -24,7 +24,7 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
   const hold = computed(() => row.value ? heldFields(row.value) : []);
   const review = computed(() => comparison.value ? row.value?.review ?? [] : []);
   let pending: Promise<unknown> = Promise.resolve();
-  let lastCapture = '';
+  let lastCapture: DraftFields | null = null;
 
   /** Serializes local input persistence without holding a transaction across a network request. */
   const enqueue = <T>(action: () => Promise<T>): Promise<T> => {
@@ -44,34 +44,75 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     feedback.value = custodyMessage('storage');
   }
 
-  /** Writes only after input changes. A touched field returning to its old value during a hold remains captured. */
-  function persist(): Promise<void> {
-    if (account === null || !row.value || stale.value) return Promise.resolve();
-    const included = hold.value.filter(field => row.value?.fields[field]);
-    const fields = state.capture(included);
-    const capture = JSON.stringify(fields);
-    if (capture === lastCapture) return pending.then(() => undefined);
-    lastCapture = capture;
-    return enqueue(async () => {
-      if (!row.value || stale.value) return;
-      try {
-        row.value = await saveDraft(row.value, fields);
-        unavailable.value = false;
-      } catch (error) {
-        lastCapture = '';
-        report(error);
-      }
-    });
+  /** Captures edited fields, including a return to the old original while an attempt is held. */
+  const capture = (): DraftFields => state.capture(hold.value.filter(field => row.value?.fields[field]));
+
+  /** Captures at execution time so an older queued write cannot resurrect fields settled by recovery. */
+  async function persistDraft(current?: EditorTripMetadata): Promise<void> {
+    if (!row.value || stale.value) return;
+    const fields = capture();
+    if (JSON.stringify(fields) === JSON.stringify(lastCapture)) return;
+    try {
+      row.value = await saveDraft(row.value, fields, current);
+      lastCapture = fields;
+      unavailable.value = false;
+    } catch (error) { report(error); }
   }
+
+  const persist = (): Promise<void> => account === null || !row.value ? Promise.resolve() : enqueue(persistDraft);
 
   watch(state.draft, () => { void persist(); }, { flush: 'post' });
 
-  /** Publishes only the current durable generation and preserves any dirty field's original. */
-  function project(view: Custody, current: EditorTripMetadata | null): void {
+  /** Projects the durable generation with any input authored during this Editor's own settlement. */
+  function project(view: Custody, current: EditorTripMetadata | null, fields?: DraftFields): void {
     row.value = view;
     comparison.value = current;
-    state.restore(view.fields, current ?? props.metadata, props.tagOrder, props.tagsBySlug);
-    lastCapture = JSON.stringify(state.capture(heldFields(view).filter(field => view.fields[field])));
+    state.restore(fields ?? view.fields, current ?? props.metadata, props.tagOrder, props.tagsBySlug);
+    lastCapture = fields ? null : capture();
+  }
+
+  /** Overlays only edits made since the last durable capture, preserving their original comparison bases. */
+  function bufferedFields(view: Custody): DraftFields | undefined {
+    const live = capture();
+    const prior = lastCapture ?? {};
+    const changed = Object.keys({ ...prior, ...live }).filter(key =>
+      JSON.stringify(live[key as SettingsField]) !== JSON.stringify(prior[key as SettingsField])) as SettingsField[];
+    if (!changed.length) return;
+    const fields: DraftFields = { ...view.fields };
+    for (const field of changed) {
+      const value = live[field];
+      if (value) fields[field] = value;
+      else delete fields[field];
+    }
+    return fields;
+  }
+
+  /** Completes settlement and projection in the local write queue, fencing edits against other tabs. */
+  async function completeRecovery(recovered: Recovery, reopening: boolean, beforeSettlement?: number): Promise<Recovery> {
+    const latest = await readCustody(recovered.row.account, recovered.row.tripId);
+    const matchesRecovery = latest.generation === recovered.row.generation;
+    const current = matchesRecovery ? recovered.current : null;
+    const fields = row.value && !reopening ? bufferedFields(latest) : undefined;
+    const canKeepFields = row.value?.generation === latest.generation ||
+      matchesRecovery && row.value?.generation === beforeSettlement;
+    if (fields && !canKeepFields) report(new CustodyRefusal('stale'));
+    if ((!reopening && stale.value) || (unavailable.value && row.value)) return { ...recovered, current: null };
+
+    stale.value = unavailable.value = false;
+    project(latest, current, fields);
+    if (fields) await persistDraft(current ?? undefined);
+
+    const history = knownHistory(latest);
+    historicalStatus.value = [...recovered.settled ?? [], ...history].map(receiptStatus);
+    if (stale.value || unavailable.value) return { ...recovered, current: null };
+    if (recovered.inaccessible && workspaceError) {
+      workspaceError.value = custodyMessage('owner');
+      return { ...recovered, current: null };
+    }
+    if (!current && (history.length || Object.keys(latest.fields).length && !hold.value.length))
+      feedback.value = custodyMessage('owner');
+    else feedback.value = hold.value.length ? custodyMessage('held') : '';
+    return { ...recovered, row: latest, current };
   }
 
   /** Explicit or reload recovery has no mutation or continuation authority. */
@@ -81,29 +122,14 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
       report(new Error());
       return null;
     }
+    const reopening = stale.value;
     busy.value = true;
     try {
       await nextTick();
       await persist();
-      const recovered = await recoverMetadata(account, props.metadata.id, props.editorEndpoint);
-      await nextTick();
-      await persist();
-      const latest = await readCustody(account, props.metadata.id);
-      const view = latest.generation === recovered.row.generation ? recovered : { row: latest, current: null, settled: recovered.settled };
-      // Never replace an input the browser reported it could not retain.
-      if (recovered.inaccessible && workspaceError) {
-        workspaceError.value = custodyMessage('owner');
-        return null;
-      }
-      if (unavailable.value && row.value && !stale.value) return null;
-      project(view.row, view.current);
-      const history = knownHistory(view.row);
-      historicalStatus.value = [...view.settled ?? [], ...history].map(receiptStatus);
-      stale.value = unavailable.value = false;
-      if (!view.current && (history.length || Object.keys(view.row.fields).length && !hold.value.length))
-        feedback.value = custodyMessage('owner');
-      else feedback.value = hold.value.length ? custodyMessage('held') : '';
-      return view.current;
+      const recovered = await recoverMetadata(account, props.metadata.id, props.editorEndpoint, (settle, before) =>
+        enqueue(async () => completeRecovery(await settle(), reopening, before)));
+      return recovered.current;
     } catch (error) {
       report(error);
       return null;

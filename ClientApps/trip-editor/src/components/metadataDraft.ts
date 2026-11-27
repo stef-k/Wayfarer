@@ -3,7 +3,7 @@ import { EditorMutationHttpError, EditorValidationError } from '../api/tripEdito
 import type { ContributionPolicy, TripCredit, EditorMetadataOriginalValues, EditorMetadataConditionalRequest, EditorTag, EditorTripMetadata, EditorTripMetadataUpdateRequest } from '../types';
 import type { TripEditorMapView } from '../map/mapViewport';
 import { normalizeNotesHtml } from '../notes/notesHtml';
-import type { DraftEntries, DraftFields, DraftValue, SettingsField } from '../recovery/custody';
+import type { DraftFields, DraftValue, SettingsField } from '../recovery/custody';
 
 /** Editable metadata values; conversion preserves the existing manual-field/API contract. */
 export type MetadataDraft = {
@@ -262,7 +262,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   };
 
   /** Overlays the durable authored generation onto fresh confirmed settings. */
-  const restore = (fields: DraftEntries, next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
+  const restore = (fields: DraftFields, next: EditorTripMetadata, order: string[], tags: Record<string, EditorTag>): void => {
     const previousNotes = draft.notesHtml;
     reset(next, order, tags);
     for (const [key, value] of Object.entries(fields)) {

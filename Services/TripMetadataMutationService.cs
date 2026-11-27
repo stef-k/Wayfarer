@@ -14,24 +14,24 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
 {
     /// <summary>Preserves the existing unmarked single-transaction writer and response.</summary>
     internal async Task<TripMetadataMutationResult> ApplyAsync(Guid tripId, string userId, Stream body, bool web,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, CancellationToken token)
     {
         if (!await db.Trips.AsNoTracking().AnyAsync(t => t.Id == tripId && t.UserId == userId, token))
             throw MissingTrip();
         var request = await TripMetadataConditionalRequest.ReadAsync(body, web, token);
-        var execution = await CommitAsync(tripId, userId, () => Task.FromResult(request), revalidateBearer, null, token);
+        var execution = await CommitAsync(tripId, userId, () => Task.FromResult(request), revalidateCredential, null, token);
         return execution.Mutation ?? throw new InvalidOperationException("Trip metadata commit did not return a mutation.");
     }
 
     /// <summary>Uses the same compare/apply path, with an operation fence outside the existing Trip/account locks.</summary>
     internal Task<TripMetadataExecution> ApplyProtectedAsync(TripMetadataPermit permit, byte[] bytes,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, CancellationToken token)
     {
         var identity = permit.Identity;
         if (TripMetadataIdentity.Digest(identity.SubjectId, identity.Adapter, identity.TripId, bytes) != identity.RequestDigest)
             throw new TripMetadataMutationRejected(409, "trip-attempt-digest-mismatch", "The Trip save bytes do not match the issued proof.");
         return CommitAsync(identity.TripId, identity.SubjectId,
-            () => ReadProtectedAsync(bytes, identity.Adapter == "web", token), revalidateBearer, permit, token);
+            () => ReadProtectedAsync(bytes, identity.Adapter == "web", token), revalidateCredential, permit, token);
     }
 
     /// <summary>Parses the verified immutable payload with the marked grammar only.</summary>
@@ -45,7 +45,7 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
 
     /// <summary>Commits domain changes and terminal evidence together, preserving uncertainty on failed COMMIT.</summary>
     private async Task<TripMetadataExecution> CommitAsync(Guid tripId, string userId,
-        Func<Task<TripMetadataConditionalRequest>> readRequest, Func<CancellationToken, Task<bool>>? revalidateBearer,
+        Func<Task<TripMetadataConditionalRequest>> readRequest, Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential,
         TripMetadataPermit? permit, CancellationToken token)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
@@ -55,14 +55,14 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
             var store = new TripMetadataReceiptStore(db);
             if (permit != null)
             {
-                var prior = await ReadPriorAsync(store, permit, revalidateBearer, token);
+                var prior = await ReadPriorAsync(store, permit, revalidateCredential, token);
                 if (prior != null) return new(null, prior);
             }
             var request = await readRequest();
             // Read the post-wait row independently of any earlier tracked/preflight state.
             var trip = await db.Trips.FromSqlInterpolated($"SELECT * FROM public.\"Trips\" WHERE \"Id\" = {tripId} AND \"UserId\" = {userId} FOR UPDATE")
                 .AsNoTracking().SingleOrDefaultAsync(token) ?? throw MissingTrip();
-            await TripMetadataOperations.RequireActiveAsync(db, userId, revalidateBearer, token);
+            await TripMetadataOperations.RequireActiveAsync(db, userId, revalidateCredential, token);
             if (permit != null) permit.RequireOpen(await store.AdmissionAsync(token));
 
             var current = Values(trip);
@@ -89,13 +89,13 @@ internal sealed class TripMetadataMutationService(ApplicationDbContext db)
 
     /// <summary>Historical evidence is independent of current target ownership and is returned before new-work validation.</summary>
     private async Task<TripMetadataEvidence?> ReadPriorAsync(TripMetadataReceiptStore store, TripMetadataPermit permit,
-        Func<CancellationToken, Task<bool>>? revalidateBearer, CancellationToken token)
+        Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential, CancellationToken token)
     {
         var identity = permit.Identity;
         await store.FenceAsync(identity.SubjectId, identity.OperationId, true, token);
         var prior = await store.ReadAsync(identity, permit.Authority, token);
         if (prior == null) return null;
-        await TripMetadataOperations.RequireActiveAsync(db, identity.SubjectId, revalidateBearer, token);
+        await TripMetadataOperations.RequireActiveAsync(db, identity.SubjectId, revalidateCredential, token);
         permit.RequireCurrent(await store.AdmissionAsync(token));
         return prior;
     }

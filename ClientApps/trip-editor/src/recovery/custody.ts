@@ -102,7 +102,7 @@ export async function listCustody(account: string): Promise<Custody[]> {
 }
 
 /** Commits only authored changes, giving changed fields the new durable revision. */
-export const saveDraft = (view: Custody, fields: DraftFields): Promise<Custody> =>
+export const saveDraft = (view: Custody, fields: DraftFields, current?: EditorTripMetadata): Promise<Custody> =>
   access(view.account, view.tripId, row => {
     requireGeneration(row, view.generation);
     const nextFields: DraftEntries = {};
@@ -117,7 +117,7 @@ export const saveDraft = (view: Custody, fields: DraftFields): Promise<Custody> 
     if (modified) {
       row.generation++;
       row.fields = nextFields;
-      row.review = row.review.filter(key => row.fields[key]);
+      row.review = current ? fieldsForReview(row, current, new Set(heldFields(row))) : row.review.filter(key => row.fields[key]);
     }
     return { next: row, value: row };
   });
@@ -184,11 +184,16 @@ export const reconcile = (view: Custody, current: EditorTripMetadata): Promise<{
       delete row.outcomes[id];
     }
     row.attempts = row.attempts.filter(attempt => !reconciled.has(attempt.permit.operationId));
-    const originals = current.originalValues;
-    row.review = Object.entries(row.fields).filter(([key, entry]) => originals && Object.hasOwn(originals, key) &&
-      !blocked.has(key) && !same(entry.original, originals[key as keyof EditorMetadataOriginalValues])).map(([key]) => asField(key));
+    row.review = fieldsForReview(row, current, blocked);
     return { next: row, value: { row, settled } };
   });
+
+/** Flags changed owner originals only when relevant effects have settled. */
+function fieldsForReview(row: Custody, current: EditorTripMetadata, blocked: ReadonlySet<string>): SettingsField[] {
+  const originals = current.originalValues;
+  return Object.entries(row.fields).filter(([key, entry]) => originals && Object.hasOwn(originals, key) &&
+    !blocked.has(key) && !same(entry.original, originals[key as keyof EditorMetadataOriginalValues])).map(([key]) => asField(key));
+}
 
 /** Updates only explicitly adopted comparison bases, preserving the desired values. */
 export const adoptBases = (view: Custody, accepted: DraftFields): Promise<Custody> =>

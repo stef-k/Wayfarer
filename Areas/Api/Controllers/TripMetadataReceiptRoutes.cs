@@ -7,24 +7,24 @@ namespace Wayfarer.Areas.Api.Controllers;
 
 /// <summary>Shared transport boundary for receipt operations on the two conditional metadata adapters.</summary>
 internal sealed class TripMetadataReceiptRoutes(HttpRequest request, ApplicationDbContext db, string subject, bool web,
-    Func<CancellationToken, Task<bool>>? revalidateBearer)
+    Func<ApplicationUser, CancellationToken, Task<bool>>? revalidateCredential)
 {
     private TripMetadataOperations Operations => new(db, request.HttpContext.RequestServices.GetRequiredService<TripMetadataProofs>(),
-        subject, web, revalidateBearer);
+        subject, web, revalidateCredential);
 
     /// <summary>Uses the existing writer for ordinary edits and preserves exact request bytes on protected edits.</summary>
     internal async Task<(TripMetadataExecution Execution, TripMetadataIdentity? Identity)> PatchAsync(Guid tripId, CancellationToken token)
     {
         var writer = new TripMetadataMutationService(db);
         if (!request.Headers.ContainsKey(TripMetadataIdentity.ProofHeader))
-            return (new(await writer.ApplyAsync(tripId, subject, request.Body, web, revalidateBearer, token), null), null);
+            return (new(await writer.ApplyAsync(tripId, subject, request.Body, web, web ? null : revalidateCredential, token), null), null);
         var proof = ReadProof();
         var permit = await Operations.VerifyAsync(tripId, proof, null, token);
         if (request.Headers.ContainsKey("Content-Encoding"))
             throw new TripMetadataMutationRejected(400, "mutation-request-invalid", "Protected Trip saves require unencoded UTF-8 JSON.");
         using var body = new MemoryStream();
         await request.Body.CopyToAsync(body, token);
-        var execution = await writer.ApplyProtectedAsync(permit, body.ToArray(), revalidateBearer, token);
+        var execution = await writer.ApplyProtectedAsync(permit, body.ToArray(), revalidateCredential, token);
         return (execution, permit.Identity);
     }
 

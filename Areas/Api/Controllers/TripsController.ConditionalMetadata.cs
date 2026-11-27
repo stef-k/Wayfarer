@@ -17,7 +17,7 @@ public partial class TripsController
         try
         {
             var routes = new TripMetadataReceiptRoutes(Request, _dbContext, user.Id, false,
-                token => authority.RevalidateMutationAsync(HttpContext, user.Id, token));
+                (_, token) => authority.RevalidateMutationAsync(HttpContext, user.Id, token));
             var (execution, identity) = await routes.PatchAsync(tripId, cancellationToken);
             if (execution.Mutation is { Applied: true, NotesRequested: true } applied)
                 await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: applied.FirstImagesIntroduced);
@@ -52,6 +52,6 @@ public partial class TripsController
         var user = await authority.ResolveAsync(HttpContext, token);
         if (user == null) return Unauthorized();
         return await dispatch(new(Request, _dbContext, user.Id, false,
-            cancellation => authority.RevalidateMutationAsync(HttpContext, user.Id, cancellation)));
+            (_, cancellation) => authority.RevalidateMutationAsync(HttpContext, user.Id, cancellation)));
     }
 }

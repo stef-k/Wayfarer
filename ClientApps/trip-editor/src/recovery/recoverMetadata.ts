@@ -9,9 +9,11 @@ export const metadataAccount: InjectionKey<string> = Symbol('trip-metadata-accou
 /** Clears the mounted graph if a fresh recovery read confirms the owner scope is gone. */
 export const metadataWorkspaceError: InjectionKey<Ref<string | null>> = Symbol('trip-metadata-workspace-error');
 export type Recovery = { row: Custody; current: EditorTripMetadata | null; inaccessible?: boolean; settled?: TerminalState[] };
+type CompleteRecovery = (settle: () => Promise<Recovery>, beforeSettlement?: number) => Promise<Recovery>;
 
-/** Resolves attempts through read-only routes, then reconciles against fresh owner comparison values. */
-export async function recoverMetadata(account: string, tripId: string, endpoint: string): Promise<Recovery> {
+/** Resolves through read-only routes, then lets the caller serialize final settlement and projection. */
+export async function recoverMetadata(account: string, tripId: string, endpoint: string,
+  complete: CompleteRecovery = settle => settle()): Promise<Recovery> {
   let row = await readCustody(account, tripId);
   for (const attempt of row.attempts) {
     if (row.outcomes[attempt.permit.operationId]) continue;
@@ -21,20 +23,22 @@ export async function recoverMetadata(account: string, tripId: string, endpoint:
   // A tab may publish a newer generation while the owner request is in flight.
   for (let read = 0; read < 3; read++) {
     row = await readCustody(account, tripId);
-    if (!Object.keys(row.fields).length && !row.attempts.length) return { row, current: null };
+    if (!Object.keys(row.fields).length && !row.attempts.length)
+      return complete(async () => ({ row, current: null }));
     let current: EditorTripMetadata;
     try {
       current = await readOwnerMetadata(endpoint, account, tripId);
     } catch (error) {
-      return { row: await readCustody(account, tripId), current: null, inaccessible: error instanceof OwnerScopeUnavailable };
+      return complete(async () =>
+        ({ row: await readCustody(account, tripId), current: null, inaccessible: error instanceof OwnerScopeUnavailable }));
     }
     try {
-      return { ...await reconcile(row, current), current };
+      return await complete(async () => ({ ...await reconcile(row, current), current }), row.generation);
     } catch (error) {
       if (!(error instanceof CustodyRefusal) || error.reason !== 'stale') throw error;
     }
   }
-  return { row: await readCustody(account, tripId), current: null };
+  return complete(async () => ({ row: await readCustody(account, tripId), current: null }));
 }
 
 /** Presents the historical result separately from the current comparison values. */

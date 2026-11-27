@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
 
@@ -17,7 +19,7 @@ public sealed partial class TripEditorController
         if (authFailure != null) return authFailure;
         try
         {
-            var routes = new TripMetadataReceiptRoutes(Request, _dbContext, userId!, true, null);
+            var routes = WebMetadataRoutes(userId!);
             var (execution, identity) = await routes.PatchAsync(tripId, cancellationToken);
             if (execution.Mutation is { Applied: true } applied)
             {
@@ -75,6 +77,15 @@ public sealed partial class TripEditorController
     private Task<IActionResult> WithMetadataAuthorityAsync(Func<TripMetadataReceiptRoutes, Task<IActionResult>> dispatch)
     {
         var failure = RequireEditorUser(out var userId);
-        return failure == null ? dispatch(new(Request, _dbContext, userId!, true, null)) : Task.FromResult(failure);
+        return failure == null ? dispatch(WebMetadataRoutes(userId!)) : Task.FromResult(failure);
+    }
+
+    /// <summary>Binds the authenticated cookie's stamp to the account row read under the final lock.</summary>
+    private TripMetadataReceiptRoutes WebMetadataRoutes(string userId)
+    {
+        var claim = HttpContext.RequestServices.GetRequiredService<IOptions<IdentityOptions>>().Value.ClaimsIdentity.SecurityStampClaimType;
+        var stamp = User.FindFirst(claim)?.Value;
+        return new(Request, _dbContext, userId, true, (account, _) =>
+            Task.FromResult(!string.IsNullOrEmpty(stamp) && string.Equals(stamp, account.SecurityStamp, StringComparison.Ordinal)));
     }
 }
