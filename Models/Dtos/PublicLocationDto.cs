@@ -12,7 +12,7 @@ public class PublicLocationDto
     public DateTime Timestamp { get; set; }
     public DateTime LocalTimestamp { get; set; }
 
-    /// <summary>The persisted UTC event instant, included only in Group location responses.</summary>
+    /// <summary>The persisted UTC event instant when requested by Group or authenticated owner viewport reads.</summary>
     [JsonPropertyName("eventUtc")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DateTime? EventUtc { get; internal init; }
