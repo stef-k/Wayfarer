@@ -26,8 +26,13 @@ WAYPOINT_SPECS = (
     'tests/e2e/trip-editor/tripEditorRouteWorkCompletion.spec.ts',
 )
 SOURCE_EXCLUDES = {'.git', 'bin', 'obj', '.local', 'node_modules', 'ChromeCache',
-                   'TileCache', 'ImageCache', 'Logs', 'Uploads', 'coverage-report',
+                   'TileCache', 'ImageCache', 'Uploads', 'coverage-report',
                    'TestResults', 'playwright-report', 'test-results', '__pycache__'}
+# These application sources share a directory name with operational logs.
+ADMIN_LOG_SOURCES = {
+    'Areas/Admin/Views/Logs/Index.cshtml',
+    'wwwroot/js/Areas/Admin/Logs/Index.js',
+}
 
 
 def report_error(phase, error, root=None):
@@ -78,7 +83,9 @@ def copy_source(repository, destination):
     destination.mkdir()
     for name in filter(None, paths):
         relative = Path(name)
-        if any(part in SOURCE_EXCLUDES for part in relative.parts):
+        if SOURCE_EXCLUDES.intersection(relative.parts):
+            continue
+        if 'Logs' in relative.parts and name not in ADMIN_LOG_SOURCES:
             continue
         source = ordinary(repository / relative)
         if not os.path.lexists(source):

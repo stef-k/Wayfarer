@@ -1,4 +1,4 @@
-"""Behavioral supervisor contracts at real child/endpoint and finalizer seams."""
+"""Behavioral contracts for managed source copies, children, endpoints and finalization."""
 
 from contextlib import redirect_stderr
 import io
@@ -13,8 +13,40 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from browser_e2e import BrowserRun, child_environment, run_owned, wait_ready, WAYPOINT_SPECS
+from browser_e2e import BrowserRun, child_environment, copy_source, run_owned, wait_ready, WAYPOINT_SPECS
 from browser_processes import Child
+
+
+class CopySourceTests(unittest.TestCase):
+    """Verify the managed copy against paths reported by Git."""
+
+    def test_copies_admin_logs_sources_and_excludes_runtime_log(self):
+        """Both Admin Logs assets survive isolation while a runtime log is filtered out."""
+        admin_sources = {
+            Path('Areas/Admin/Views/Logs/Index.cshtml'): b'<h1>Application Logs</h1>',
+            Path('wwwroot/js/Areas/Admin/Logs/Index.js'): b'export {};',
+        }
+        runtime_log = Path('runtime/Logs/wayfarer-20990101.log')
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory) / 'repository'
+            repository.mkdir()
+            subprocess.run(['git', 'init', '-q'], cwd=repository, check=True)
+            for relative, contents in {**admin_sources, runtime_log: b'runtime diagnostic'}.items():
+                source = repository / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_bytes(contents)
+            # Put every sample in Git's candidate list, including the runtime log.
+            subprocess.run(['git', 'add', '--force', '--', '.'], cwd=repository, check=True)
+
+            destination = Path(directory) / 'managed-source'
+            copy_source(repository, destination)
+
+            for relative, contents in admin_sources.items():
+                with self.subTest(path=relative):
+                    copied = destination / relative
+                    self.assertTrue(copied.is_file())
+                    self.assertEqual(contents, copied.read_bytes())
+            self.assertFalse((destination / runtime_log).exists())
 
 
 class SupervisorTests(unittest.TestCase):
