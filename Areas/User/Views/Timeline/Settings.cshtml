@@ -56,7 +56,7 @@
 
                         <!-- Time Threshold Dropdown with Custom Option -->
                         <div class="mb-3">
-                            <label for="PublicTimelineTimeThreshold" class="form-label">@T["Settings.TimeThreshold"]</label>
+                            <label for="TimeThresholdDropdown" class="form-label">@T["Settings.TimeThreshold"]</label>
                             <select asp-for="PublicTimelineTimeThreshold" class="form-select" id="TimeThresholdDropdown" data-saved-threshold="@Model.PublicTimelineTimeThreshold">
                                 <option value="">@T["Settings.SelectThreshold"]</option>
                                 <option value="now">@T["Settings.ThresholdNow"]</option>
@@ -79,8 +79,8 @@
                             <span asp-validation-for="ConfirmLivePublicTimeline" class="text-danger"></span>
                         </div>
 
-                        <!-- Custom Time Input (Hidden by default) -->
-                        <div id="CustomTimeInput" class="mb-3" style="display:none;">
+                        <!-- The selected threshold controls visibility of the custom field and its error. -->
+                        <div id="CustomTimeInput" class="mb-3" hidden>
                             <label for="CustomThreshold" class="form-label">@T["Settings.CustomThreshold"]</label>
                             <input type="text" class="form-control" asp-for="CustomThreshold" placeholder="@T["Settings.CustomPlaceholder"]" />
                             @* Show field-specific errors and retain the original delay notation. *@
@@ -113,16 +113,15 @@
             const savedValue = thresholdDropdown.dataset.savedThreshold;
             const options = Array.from(thresholdDropdown.options).map(option => option.value);
 
+            // Map a stored non-preset delay to Custom, keeping the attempted input on validation responses.
+            thresholdDropdown.value = savedValue;
             if (savedValue && !options.includes(savedValue)) {
                 thresholdDropdown.value = 'custom';
-                customTimeInput.style.display = 'block';
                 customThresholdField.value = savedValue;
-            } else {
-                thresholdDropdown.value = savedValue;
-                customTimeInput.style.display = 'none';
             }
 
             const updateThresholdControls = () => {
+                customTimeInput.hidden = thresholdDropdown.value !== 'custom';
                 const isNow = thresholdDropdown.value === 'now';
                 liveConfirmation.hidden = !isNow;
                 if (!isNow) {
@@ -132,10 +131,7 @@
             };
 
             thresholdDropdown.addEventListener('change', function () {
-                if (this.value === 'custom') {
-                    customTimeInput.style.display = 'block';
-                } else {
-                    customTimeInput.style.display = 'none';
+                if (this.value !== 'custom') {
                     customThresholdField.value = '';
                 }
                 updateThresholdControls();
