@@ -103,8 +103,11 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
     assert.equal(captures.length, 1);
     element.dispatchEvent(new Event('wheel'));
     fire('zoomstart');
+    // The window can reflow while Leaflet is still animating this wheel gesture.
+    browser.dispatchEvent(new Event('resize'));
     finish(44, 10);
     assert.equal(captures.length, 2);
+    assert.deepEqual(captures.at(-1), { center: { latitude: 44, longitude: 24 }, zoom: 10 });
     assert.equal(element.dataset.tripEditorMapLat, '44.000000');
     element.dispatchEvent(Object.assign(new Event('keydown'), { keyCode: 39 }));
     fire('movestart');
@@ -122,7 +125,7 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
     element.dispatchEvent(new Event('wheel'));
     resized();
     assert.equal(invalidations, 1, 'container changes refresh Leaflet geometry without a window resize');
-    assert.equal(captures.length, 6, 'resize revokes a pending gesture and does not capture a metadata edit');
+    assert.equal(captures.length, 6, 'resize alone does not capture a metadata edit');
     frame();
     owner.dispose();
     assert.equal(disconnected, true, 'workspace disposal releases container observation');

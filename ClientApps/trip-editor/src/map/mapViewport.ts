@@ -233,7 +233,6 @@ export const createMapViewport = (map: LeafletMap, options: {
   element.addEventListener('pointerdown', pointerDown, true);
   document.addEventListener('pointerup', pointerUp, true);
   document.addEventListener('pointercancel', pointerUp, true);
-  window.addEventListener('resize', transient);
   map.on('movestart zoomstart', startMovement);
   map.on('dragstart boxzoomstart', startDrag);
   map.on('autopanstart', transient);
@@ -241,7 +240,7 @@ export const createMapViewport = (map: LeafletMap, options: {
   map.on('moveend', finishMovement);
 
   // Leaflet's pan target uses the size at its start. Apply layout changes after its own
-  // terminal events so a resize cannot shift that target or announce it early.
+  // terminal events so reflow preserves the target, settlement, and active gesture.
   const resizeObserver = new ResizeObserver(() => {
     resizePending = true;
     settleMovement();
@@ -274,7 +273,6 @@ export const createMapViewport = (map: LeafletMap, options: {
       element.removeEventListener('pointerdown', pointerDown, true);
       document.removeEventListener('pointerup', pointerUp, true);
       document.removeEventListener('pointercancel', pointerUp, true);
-      window.removeEventListener('resize', transient);
       map.off('movestart zoomstart', startMovement);
       map.off('dragstart boxzoomstart', startDrag);
       map.off('autopanstart', transient);
