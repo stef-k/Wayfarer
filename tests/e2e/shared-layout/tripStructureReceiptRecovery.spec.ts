@@ -85,6 +85,15 @@ test('typed Region recovery after reload keeps the newer draft and sends zero re
   await page.screenshot({ path: process.env.WAYFARER_STRUCTURE_SCREENSHOT ?? info.outputPath('typed-region-recovery.png'), fullPage: true });
 });
 
+/** Reviews the retained generation and explicitly frees its slot through the recovery UI. */
+async function reviewAndDiscardRegionDraft(page: Page, desired: string): Promise<void> {
+  const recovery = page.getByRole('region', { name: 'Trip save recovery' });
+  await recovery.getByRole('button', { name: 'Check server', exact: true }).click();
+  await recovery.getByText('Retained draft', { exact: false }).click();
+  await expect(recovery.locator('pre')).toContainText(desired);
+  await recovery.getByRole('button', { name: 'Discard local draft', exact: true }).click();
+}
+
 test('a stale open Region form leaves the newer durable draft and saved Region untouched', async ({ page, context }) => {
   const config = loadSharedLayoutConfig();
   const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
@@ -110,28 +119,66 @@ test('a stale open Region form leaves the newer durable draft and saved Region u
     return (await response.json()).regionsById[id];
   };
   const saved = await readSaved();
-  await name(page).fill('Older draft A');
-  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: 'Older draft A' });
-  await name(other).fill('Newer draft B');
-  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
-    name: 'Newer draft B', originals: { name: saved.name }, attempts: 0
-  });
-  const newer = await regionCustody(page, tripId, id);
-
   const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
   const sends: string[] = [];
   context.on('request', request => {
     if ([routePath, routePath + '/operations'].includes(new URL(request.url()).pathname)) sends.push(request.method());
   });
-  await page.getByRole('button', { name: 'Save Region', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('This draft is out of date. Review the retained draft in Trip save recovery');
+  await name(page).fill('Older draft A');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: 'Older draft A' });
+  const first = await regionCustody(page, tripId, id);
+
+  // An untouched form cannot start its own draft while this slot is occupied.
+  await name(other).fill('Occupied slot edit');
+  const save = (actor: Page) => actor.getByRole('button', { name: 'Save Region', exact: true });
+  const stale = (actor: Page) => actor.getByRole('alert').filter({ hasText: 'This draft is out of date.' });
+  await save(other).click();
+  await expect(save(other)).toBeEnabled();
+  await expect(stale(other)).toBeVisible();
+  await expect(name(other)).toHaveValue('Occupied slot edit');
+  expect(await regionCustody(page, tripId, id)).toEqual(first);
+  expect(sends).toEqual([]);
+
+  await reviewAndDiscardRegionDraft(other, 'Older draft A');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null });
+  await other.reload();
+  await card(other).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+  await name(other).fill('Newer draft B');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
+    name: 'Newer draft B', originals: { name: saved.name }, attempts: 0
+  });
+  const newer = await regionCustody(page, tripId, id);
+  expect(newer.generation).toBeGreaterThan(first.generation);
+
+  await name(page).fill('Older draft A edited again');
+  await save(page).click();
+  await expect(save(page)).toBeEnabled();
+  await expect(stale(page)).toContainText('Review the retained draft in Trip save recovery');
   const recovery = page.getByRole('region', { name: 'Trip save recovery' });
   await recovery.getByText('Retained draft', { exact: false }).click();
   await expect(recovery.locator('pre')).toContainText('Newer draft B');
-  await expect(name(page)).toHaveValue('Older draft A');
+  await expect(name(page)).toHaveValue('Older draft A edited again');
+  await expect(name(other)).toHaveValue('Newer draft B');
   expect(await readSaved()).toEqual(saved);
   expect(await regionCustody(page, tripId, id)).toEqual(newer);
   expect(sends).toEqual([]);
+
+  // Flush two input events through Vue before IndexedDB can commit either of their transactions.
+  await name(other).evaluate((input: HTMLInputElement) => {
+    input.value = 'Queued edit B';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return Promise.resolve().then(() => {
+      input.value = 'Current edit B';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  });
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
+    name: 'Current edit B', originals: newer.originals, generation: newer.generation + 2
+  });
+  await save(other).click();
+  await expect.poll(async () => (await readSaved()).name).toBe('Current edit B');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null, attempts: 0 });
+  expect(sends).toEqual(['POST', 'PATCH']);
 });
 
 test('a newer tab generation during typed permit issuance prevents dispatch', async ({ page, context }) => {
@@ -174,6 +221,10 @@ test('a newer tab generation during typed permit issuance prevents dispatch', as
   try {
     await minted.promise;
     const starting = await regionCustody(page, tripId, id);
+    await other.reload();
+    await reviewAndDiscardRegionDraft(other, 'First tab submitted draft');
+    await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: null });
+    await card(other).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
     await regionName(other).fill('Second tab newer draft');
     await expect.poll(async () => (await regionCustody(page, tripId, id)).generation).toBeGreaterThan(starting.generation);
   } finally { release.resolve(); }

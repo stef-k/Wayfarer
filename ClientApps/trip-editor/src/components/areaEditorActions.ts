@@ -1,5 +1,5 @@
 import { message } from '../../../../wwwroot/js/localization/messages.js';
-import { onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
 import { createArea, deleteArea, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderAreas, updateArea } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorArea, EditorRegion, Guid } from '../types';
 import { buildAreaCreateTarget, buildAreaEditTarget } from './regionPlaceEditorTargets';
@@ -18,8 +18,10 @@ export function useAreaEditorActions(context: any) {
   let editorAlive = true;
   let savingSession: number | null = null;
   onUnmounted(() => { editorAlive = false; });
+  // A reopened or reset form cannot inherit another form's staged generation.
+  const stageSession = computed(() => Symbol(context.areaDraftState.session()));
   /** Captures newer authored Polygon, scalar and create intent without starting a submission. */
-  watch(() => {
+  watch([stageSession, () => {
     try {
       if (areaDraft.id) {
         const payload = context.areaDraftState.request();
@@ -31,10 +33,13 @@ export function useAreaEditorActions(context: any) {
         expected: { areas: creationBase.map(({ id, displayOrder }) => ({ id, displayOrder })) }, value
       });
     } catch { return null; }
-  }, frozen => {
+  }], ([session, frozen]) => {
     if (frozen && areaDraft.regionId) void saveStructureIntent(context.props.editorEndpoint, areaDraft.id ? 'area-fields' : 'area-create',
       { type: areaDraft.id ? 'area' : 'region', id: areaDraft.id ?? areaDraft.regionId },
-      JSON.parse(frozen), areaDraft.id ? undefined : creationDraftId).catch(() => undefined);
+      JSON.parse(frozen), areaDraft.id ? undefined : creationDraftId, session).catch(error => {
+      if (editorAlive && session === stageSession.value && error instanceof StaleStructureDraft)
+        context.applyError(error, 'Area save failed.');
+    });
   });
   // Explicit discard retires only this Area attempt's UI lock; it says nothing about its server outcome.
   watch(() => context.areaDraftState.session(), () => {

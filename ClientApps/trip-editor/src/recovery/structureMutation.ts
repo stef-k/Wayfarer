@@ -9,7 +9,8 @@ import { dispatchAuthority, structureContract, structureRoute, type StructureRou
 
 export const structureCustodyChanged = 'trip-structure-custody-changed';
 export const structureOwnerLost = 'trip-structure-owner-unavailable';
-const stagedIntents = new Map<string, Promise<StructureDraftVersion>>();
+type StagedIntent = { formSession?: symbol; generation?: number; latest?: Promise<StructureDraftVersion> };
+const stagedIntents = new Map<string, StagedIntent>();
 
 const revisionKey = (scope: { account: string; tripId: string }, route: StructureRoute, localId?: string): string =>
   JSON.stringify([scope.account, scope.tripId, route.kind, route.target.type, route.target.id, localId]);
@@ -27,8 +28,8 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
   };
   if (legacyRegionHold(scope.account, scope.tripId) !== null) throw new CustodyRefusal('held');
   const revision = revisionKey(scope, route, localId);
-  const staged = stagedIntents.get(revision);
-  const canDispatch = (): boolean => current() && stagedIntents.get(revision) === staged;
+  const staged = stagedIntents.get(revision)?.latest;
+  const canDispatch = (): boolean => current() && stagedIntents.get(revision)?.latest === staged;
   let attempt: Awaited<ReturnType<typeof reserveStructure>>;
   try {
     const { row, key } = staged
@@ -65,7 +66,10 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
   const updated = await readCustody(scope.account, scope.tripId);
   if (!current() || updated.structure?.drafts[attempt.key] && updated.structure.drafts[attempt.key].generation > attempt.generation)
     throw new CustodyRefusal('stale');
-  return projectReceipt<T>(route, graph, evidence.result);
+  const result = projectReceipt<T>(route, graph, evidence.result);
+  // Only a qualified settlement can retire this form's generation and let its next edit start fresh.
+  if (staged && canDispatch() && !updated.structure?.drafts[attempt.key]) stagedIntents.delete(revision);
+  return result;
 }
 
 /** An untouched create may start its own local draft. Delete and direct reorder controls stage at submission. */
@@ -73,7 +77,7 @@ function stageNewSubmission(scope: ReturnType<typeof dispatchAuthority>, route: 
   const { kind } = route;
   if (kind.endsWith('-fields') || kind === 'place-save' || kind === 'region-order' || kind === 'area-geometry')
     throw new CustodyRefusal('stale');
-  return persistStructure(scope, route, payload, localId, kind.endsWith('-create'));
+  return persistStructure(scope, route, payload, localId);
 }
 
 /** Supplies existing Editor controls with a qualified current snapshot and exact historical deletion IDs. */
@@ -164,16 +168,27 @@ export function submitRegionDeletion<T>(endpoint: string, tripId: string, source
   return sendStructureMutation(endpoint, token, route, payload);
 }
 
-/** Retains an updated form payload without issuing, preparing or authorizing any request. */
+/** Queues authored edits for this form, advancing only from a committed stage. */
 export async function saveStructureIntent(endpoint: string, kind: string, target: StructureRoute['target'],
-  payload: object, draftId?: string): Promise<void> {
+  payload: object, draftId?: string, formSession?: symbol): Promise<void> {
   const scope = dispatchAuthority(endpoint);
   const route = structureRoute(endpoint, scope.tripId, kind, target);
   const revision = revisionKey(scope, route, draftId);
-  const staged = persistStructure(scope, route, payload, draftId).then(({ key, generation }) => ({ key, generation }));
-  stagedIntents.set(revision, staged);
-  await staged;
-  window.dispatchEvent(new Event(structureCustodyChanged));
+  const prior = stagedIntents.get(revision);
+  const intent: StagedIntent = prior && prior.formSession === formSession ? prior : { formSession };
+  const ready = prior?.latest?.catch(error => {
+    // A storage error can be retried from the last committed generation. A stale form must be reviewed.
+    if (prior === intent && error instanceof StaleStructureDraft) throw error;
+  });
+  const staged = Promise.resolve(ready).then(async () => {
+    const { key, generation } = await persistStructure(scope, route, payload, draftId, intent.generation);
+    intent.generation = generation;
+    return { key, generation };
+  });
+  intent.latest = staged;
+  stagedIntents.set(revision, intent);
+  try { await staged; }
+  finally { window.dispatchEvent(new Event(structureCustodyChanged)); }
 }
 
 /** An old hold has no proof and may only be acknowledged locally after inspecting the current Trip. */

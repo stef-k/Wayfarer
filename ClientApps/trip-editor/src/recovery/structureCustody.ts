@@ -29,15 +29,16 @@ export class StaleStructureDraft extends CustodyRefusal {
   constructor() { super('stale'); }
 }
 
-/** Persists the exact typed original and desired intent with its own local generation. */
+/** Replaces only the expected draft generation, or starts a draft in an empty slot. */
 export function persistStructure(scope: Scope, route: StructureRoute, payload: object, localId?: string,
-  newDraft = false): Promise<StructureDraftVersion & { row: Custody }> {
+  expectedGeneration?: number): Promise<StructureDraftVersion & { row: Custody }> {
   return access(scope.account, scope.tripId, row => {
     const drafts = state(row).drafts;
     const prefix = [route.kind, route.target.type, route.target.id];
     const key = JSON.stringify([...prefix, ...(localId === undefined ? [] : [localId])]);
     const prior = drafts[key];
-    if (prior && newDraft) throw new CustodyRefusal('stale');
+    const matches = expectedGeneration === undefined ? prior === undefined : prior?.generation === expectedGeneration;
+    if (!matches || prior?.review) throw new StaleStructureDraft();
     if (!prior || JSON.stringify(prior.payload) !== JSON.stringify(payload))
       drafts[key] = { route, localId, payload, generation: ++row.generation };
     return { next: row, value: { row, key, generation: drafts[key].generation } };

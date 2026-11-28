@@ -2,7 +2,7 @@ import { saveStructureIntent } from '../recovery/structureMutation';
 import { StaleStructureDraft } from '../recovery/structureCustody';
 import { structureContract } from '../recovery/structureRoutes';
 import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
-import { onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { validateRegionCreation, type RegionCreationRequest } from '../api/creationTypes';
 import { createRegion, EditorLifecycleConfirmationError, EditorMutationHttpError, EditorValidationError, orderRegions, prepareRegionOrder, updateRegion } from '../api/tripEditorApi';
@@ -24,8 +24,10 @@ export function useRegionEditorActions(context: any) {
     context.isSaving.value = false;
   }, { flush: 'sync' });
   onUnmounted(() => { editorAlive = false; });
+  // A reopened or reset form cannot inherit another form's staged generation.
+  const stageSession = computed(() => Symbol(owner.session()));
   /** Persists typed Region intent even while an earlier response or permit is in flight. */
-  watch(() => {
+  watch([stageSession, () => {
     try {
       if (context.draft.id && context.activeRegion.value) {
         const payload = owner.request();
@@ -36,12 +38,15 @@ export function useRegionEditorActions(context: any) {
       return JSON.stringify(value) === JSON.stringify(context.regionCreateBaselineRequest.value) ? null
         : JSON.stringify({ expected: { regions: owner.creationOriginals.value }, value });
     } catch { return null; }
-  }, frozen => {
+  }], ([session, frozen]) => {
     if (!frozen) return;
     const id = context.draft.id;
     const target = id ? { type: 'region' as const, id } : { type: 'trip' as const, id: context.props.state.tripId };
     void saveStructureIntent(context.props.editorEndpoint, id ? 'region-fields' : 'region-create', target,
-      JSON.parse(frozen), id ? undefined : creationDraftId).catch(() => undefined);
+      JSON.parse(frozen), id ? undefined : creationDraftId, session).catch(error => {
+      if (editorAlive && session === stageSession.value && error instanceof StaleStructureDraft)
+        context.applyError(error, 'Region save failed.');
+    });
   });
   /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
   const held = (): boolean => {
