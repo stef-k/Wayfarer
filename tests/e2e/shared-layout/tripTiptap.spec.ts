@@ -56,11 +56,19 @@ test('Batch 1 portable title and publication credits', async ({ page }, testInfo
   await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')), page.getByRole('button', { name: 'Log in' }).click()]);
   await page.goto(`/User/Trip/Edit/${tripId}`);
   const form = page.locator('#trip-editor-metadata-form');
-  await form.getByLabel('Public trip', { exact: true }).uncheck();
-  let saved = page.waitForResponse(r => r.url().endsWith('/metadata/conditional') && r.request().method() === 'PATCH');
-  await page.getByRole('button', { name: 'Save settings & Continue', exact: true }).click();
-  expect((await saved).ok()).toBeTruthy();
-  await form.getByLabel('Public trip', { exact: true }).check();
+  const publication = form.getByLabel('Public trip', { exact: true });
+  const save = page.getByRole('button', { name: 'Save settings & Continue', exact: true });
+  const receipt = () => page.waitForResponse(r => r.url().endsWith('/metadata/conditional') && r.request().method() === 'PATCH');
+  // The shared recovery journey may already have made this fixture private.
+  await expect(form).not.toHaveAttribute('inert', '');
+  if (await publication.isChecked()) {
+    await publication.uncheck();
+    const privateSave = receipt();
+    await save.click();
+    expect(await (await privateSave).json()).toMatchObject({ state: 'applied' });
+    await expect(save).toBeEnabled();
+  }
+  await publication.check();
   await expect(form.getByLabel('Publication policy', { exact: true })).toHaveValue('CC-BY-4.0');
   await expect(form.locator('details').filter({ hasText: 'Sources & credits' })).not.toHaveAttribute('open', '');
   await form.getByText('Sources & credits', { exact: true }).click();
@@ -71,10 +79,10 @@ test('Batch 1 portable title and publication credits', async ({ page }, testInfo
   await form.getByLabel('Notices', { exact: true }).fill('Keep this readable notice');
   await form.getByLabel('Publication policy', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: process.env.WAYFARER_911_AUTHOR_SCREENSHOT || testInfo.outputPath('911-author.png') });
-  saved = page.waitForResponse(r => r.url().endsWith('/metadata/conditional') && r.request().method() === 'PATCH');
-  await page.getByRole('button', { name: 'Save settings & Continue', exact: true }).click();
+  const saved = receipt();
+  await save.click();
   await page.getByRole('dialog', { name: 'Publish Trip?', exact: true }).getByRole('button', { name: 'Publish', exact: true }).click();
-  expect((await saved).ok()).toBeTruthy();
+  expect(await (await saved).json()).toMatchObject({ state: 'applied' });
   await page.getByRole('button', { name: 'Add Segment', exact: true }).click();
   await page.locator('[data-segment-field="title"]').fill('Morning walk');
   await page.locator('[data-segment-field="mode"]').selectOption('walk');

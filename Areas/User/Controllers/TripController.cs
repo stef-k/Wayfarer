@@ -326,6 +326,11 @@ namespace Wayfarer.Areas.User.Controllers
                 SetCloneAlert("Viewer.CloneOwned", "info");
                 return RedirectToAction("Edit", new { id });
             }
+            if (clone.Status == TripCloneStatus.Contention)
+            {
+                SetCloneAlert("Viewer.CloneContention", "warning");
+                return RedirectToAction("Index", "TripViewer", new { area = "Public" });
+            }
 
             if (clone.RequiresImageWarmup)
             {

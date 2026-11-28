@@ -4,7 +4,7 @@ import { EditorValidationError } from '../api/tripEditorApi';
 import { adoptedDraft, type createMetadataDraftState } from '../components/metadataDraft';
 import type { EditorTag, EditorTripMetadata } from '../types';
 import { adoptBases, authorize, CustodyRefusal, heldFields, knownHistory, readCustody, remember, saveDraft, type Custody, type DraftFields, type SettingsField } from './custody';
-import { freezeRequest, issuePermit, sendAttempt } from './receiptApi';
+import { freezeRequest, issuePermit, sendAttempt, type Evidence } from './receiptApi';
 import type { WebOperation } from './receiptV2';
 import { metadataAccount, metadataWorkspaceError, receiptStatus, recoverMetadata, type Recovery } from './recoverMetadata';
 
@@ -192,22 +192,26 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
 
   /** A foreground response can continue only after correlated success and a fresh owner read. */
   async function execute(view: Custody, attempt: NonNullable<Awaited<ReturnType<typeof authorize>>>) {
+    let evidence: Evidence;
+    let metadata: EditorTripMetadata | null;
     try {
-      const evidence = await sendAttempt(props.editorEndpoint, props.antiforgeryToken, attempt);
+      evidence = await sendAttempt(props.editorEndpoint, props.antiforgeryToken, attempt);
       if (!['applied', 'checkedNoOp', 'terminalUnapplied'].includes(evidence.state)) throw new Error();
       await remember(view, attempt, evidence);
-      const metadata = await recover();
-      if (evidence.state === 'terminalUnapplied') {
-        feedback.value = custodyMessage('review');
-        return { metadata, continueSave: false };
-      }
-      const newer = Object.keys(attempt.submitted).some(field => row.value?.fields[field as SettingsField]);
-      return { metadata, continueSave: !!metadata && !row.value?.attempts.some(candidate => candidate.permit.operationId === attempt.permit.operationId) && !stale.value && !newer };
+      metadata = await recover();
     } catch (error) {
       feedback.value = custodyMessage('held');
       if (error instanceof EditorValidationError) throw error;
       return { metadata: null, continueSave: false };
     }
+    if (evidence.state === 'terminalUnapplied') {
+      // Show field guidance only after the correlated refusal has gone through custody settlement.
+      if (evidence.errors) return { metadata, continueSave: false, validationErrors: evidence.errors };
+      feedback.value = custodyMessage('review');
+      return { metadata, continueSave: false };
+    }
+    const newer = Object.keys(attempt.submitted).some(field => row.value?.fields[field as SettingsField]);
+    return { metadata, continueSave: !!metadata && !row.value?.attempts.some(candidate => candidate.permit.operationId === attempt.permit.operationId) && !stale.value && !newer };
   }
 
   /** Storage failure prevents dispatch, and a stale interaction must reopen the current draft. */

@@ -108,7 +108,7 @@ internal sealed class TripMetadataReceiptRoutes(HttpRequest request, Application
         {
             StatusCode = evidence.State != "terminalUnapplied" ? 200 : evidence.Code switch
             {
-                "publication-policy-required" or "share-progress-requires-public" => 400,
+                "mutation-request-invalid" or "publication-policy-required" or "share-progress-requires-public" => 400,
                 "tag-not-on-trip" => 404,
                 _ => 409
             }

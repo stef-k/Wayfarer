@@ -53,6 +53,63 @@ public sealed partial class TripMetadataConditionalPostgresTests
         output.WriteLine(receipt.GetRawText());
     }
 
+    /// <summary>Replays a lost validation refusal and proves even staged catalogue inserts roll back.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task V2_ValidationRefusalSettlesWithoutEffects(bool tags)
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var drop = true;
+        await using var host = await StartAsync(db, middleware: app => app.Use(async (context, next) =>
+        {
+            if (!drop || context.Request.Method is not ("PATCH" or "PUT")) { await next(); return; }
+            drop = false;
+            var transport = context.Response.Body;
+            await using var buffer = new MemoryStream();
+            context.Response.Body = buffer;
+            try { await next(); }
+            finally { context.Response.Body = transport; }
+            throw new IOException("Controlled lost validation response");
+        }));
+        using var web = await WebAsync(host, trip.UserId);
+        var prefix = "cap" + Guid.NewGuid().ToString("N");
+        var names = Enumerable.Range(1, 26).Select(index => prefix + index).ToArray();
+        var invalid = tags
+            ? TripControlWrite.Create(trip.Id, "editor/tags/conditional", HttpMethod.Put, "tags-replace", true, new { tags = names })
+            : TripControlWrite.Create(trip.Id, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true,
+                new { expected = new { name = trip.Name, notesHtml = trip.Notes }, changes = new { name = "", notesHtml = "Must not apply" } });
+        var permit = await invalid.PermitAsync(web, trip);
+        using var lost = await invalid.DispatchAsync(web, permit);
+        Assert.Equal(HttpStatusCode.InternalServerError, lost.StatusCode);
+        using var lookup = await invalid.LookupAsync(web, permit);
+        var refusal = await EvidenceAsync(lookup, permit, "terminalUnapplied");
+        Assert.Equal("mutation-request-invalid", refusal.GetProperty("code").GetString());
+        Assert.False(refusal.GetProperty("futureEffects").GetBoolean());
+        var error = Assert.Single(refusal.GetProperty("errors").EnumerateObject());
+        Assert.Equal(tags ? "tags" : "name", error.Name);
+        Assert.Equal(tags ? "You can add up to 25 tags per trip." : "Name must contain 1 through 200 characters.",
+            Assert.Single(error.Value.EnumerateArray()).GetString());
+        using var replay = await invalid.DispatchAsync(web, permit);
+        var repeated = await EvidenceAsync(replay, permit, "terminalUnapplied", 400);
+        Assert.True(JsonElement.DeepEquals(refusal, repeated));
+
+        var stored = await db.Trips.AsNoTracking().Include(t => t.Tags).SingleAsync(t => t.Id == trip.Id);
+        Assert.Equal((trip.Name, trip.Notes, trip.UpdatedAt), (stored.Name, stored.Notes, stored.UpdatedAt));
+        Assert.Empty(stored.Tags);
+        Assert.False(await db.Tags.AnyAsync(tag => tag.Slug.StartsWith(prefix)));
+
+        var corrected = tags
+            ? TripControlWrite.Create(trip.Id, "editor/tags/conditional", HttpMethod.Put, "tags-replace", true, new { tags = names.Take(1).ToArray() })
+            : TripControlWrite.Create(trip.Id, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true,
+                new { expected = new { name = trip.Name }, changes = new { name = "Corrected Name" } });
+        var freshPermit = await corrected.PermitAsync(web, trip);
+        using var saved = await corrected.DispatchAsync(web, freshPermit);
+        await EvidenceAsync(saved, freshPermit, "applied");
+        if (tags) fixture.RegisterTag(await db.Tags.AsNoTracking().SingleAsync(tag => tag.Slug == names[0]));
+    }
+
     /// <summary>Publish-only compares the exact reviewed policy even though it writes no policy field.</summary>
     [PostgresFact]
     public async Task V2_PublishOnlyRefusesAnInterveningBearerPolicyChange()

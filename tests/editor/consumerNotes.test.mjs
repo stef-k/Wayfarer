@@ -12,6 +12,8 @@ const bundle = await build({ stdin: { contents: `
   import RichNotesEditor from './components/RichNotesEditor.vue';
   import { createApp, h, nextTick, proxyRefs, reactive, watch } from 'vue';
   import { confirmDialogState, settleConfirmDialog } from './composables/useConfirmDialog';
+  import { metadataAccount } from './recovery/recoverMetadata';
+  export { tripReceiptReplies, tripReceipt } from '../../../tests/editor/tripReceiptReplies.mjs';
   export { createTripEditorMap } from './map/leafletAdapter';
   export { createApp, h, nextTick, reactive, RichNotesEditor };
   export function mountApp(state) {
@@ -23,6 +25,7 @@ const bundle = await build({ stdin: { contents: `
       if (dialog && !window.useMountedConfirmation) settleConfirmDialog(true);
     });
     window.app = createApp(App, { config: { editorEndpoint: '/api/trips/trip/editor', antiforgeryToken: 'anti', tripIndexUrl: '/User/Trip' } });
+    app.provide(metadataAccount, document.getElementById('trip-editor-app').dataset.accountId);
     app.mount('#app');
   }`, loader: 'ts', resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'iife', globalName: 'Probe',
   plugins: [{ name: 'actual-notes-owners', setup(builder) {
@@ -163,12 +166,13 @@ test('coalesced reversal then authoritative refresh adopts Notes in every Trip o
       const page = await browser.newPage();
       try {
         await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
-        await page.goto('http://notes.test/');
+        await page.goto('http://localhost/');
         await page.addScriptTag({ content: script });
         await page.evaluate(state => Probe.mountApp(state), { ...state, metadata: plain(metadata), regionsById: { region: plain(region) },
           placesById: { place: plain(place) }, areasById: { area: plain(area) }, segmentsById: { segment: plain(segment) } });
         await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
-        const result = await page.evaluate(async ({ component, draft, open, save, entity, refreshed }) => {
+        if (kind === 'metadata') await page.locator('#trip-editor-metadata-form:not([inert])').waitFor();
+        const result = await page.evaluate(async ({ kind, component, draft, open, save, entity, refreshed }) => {
           const parent = captured['App.vue'][0];
           parent.editorSurface.clearActiveTarget();
           const owner = captured[component][0];
@@ -182,17 +186,19 @@ test('coalesced reversal then authoritative refresh adopts Notes in every Trip o
           handle.editor.commands.focus('end'); handle.editor.commands.insertContent('C'); await Probe.nextTick();
           const typed = { displayed: handle.getValue(), draft: owner[draft].notesHtml };
           let call;
-          window.fetch = async (url, init) => { call = { method: init.method, body: JSON.parse(init.body) };
+          const reject = async (url, init) => { call = { method: init.method, body: JSON.parse(init.body) };
             return new Response(JSON.stringify({ code: 'validation', errors: { notesHtml: ['Check Notes'] } }), { status: 400 }); };
+          window.fetch = kind === 'metadata' ? Probe.tripReceiptReplies(() => refreshed.data, reject) : reject;
           await owner[save](false);
           app.unmount();
           return { reversal, adopted, typed, call };
-        }, { component, draft, open, save, entity: plain(entity), refreshed: envelope(kind, { ...entity,
+        }, { kind, component, draft, open, save, entity: plain(entity), refreshed: envelope(kind, { ...entity,
           notesHtml: '<p><strong>A</strong></p>', originalValues: { ...entity.originalValues, notesHtml: '<p><strong>A</strong></p>' } }) });
         assert.deepEqual(result.reversal, { displayed: '<p>A</p>', draft: '<p>A</p>', undo: true });
         assert.deepEqual(result.adopted, { displayed: '<p><strong>A</strong></p>', draft: '<p><strong>A</strong></p>', undo: false, redo: false });
         assert.deepEqual(result.typed, { displayed: '<p><strong>AC</strong></p>', draft: '<p><strong>AC</strong></p>' });
-        assert.deepEqual(result.call, { method: 'PATCH', body: { expected: { ...(kind === 'place' || kind === 'area' ? { regionId: 'region' } : {}),
+        assert.deepEqual(result.call, { method: 'PATCH', body: { ...(kind === 'metadata' ? { receiptContract: 'trip-metadata-receipt-2' } : {}),
+          expected: { ...(kind === 'place' || kind === 'area' ? { regionId: 'region' } : {}),
           notesHtml: '<p><strong>A</strong></p>' }, changes: { notesHtml: '<p><strong>AC</strong></p>' } } });
       } finally { await page.close(); }
     });
@@ -266,10 +272,11 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
       const page = await browser.newPage();
       try {
         await page.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<div id="trip-editor-app" data-account-id="account" data-trip-id="trip"><div id="app"></div></div>' }));
-        await page.goto('http://notes.test/');
+        await page.goto('http://localhost/');
         await page.addScriptTag({ content: script });
         await page.evaluate(state => Probe.mountApp(state), state);
         await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+        if (kind === 'metadata') await page.locator('#trip-editor-metadata-form:not([inert])').waitFor();
         const result = await page.evaluate(async ({ kind, component, draft, open, save, reset, entity, original, savedEnvelope, refreshedEnvelope }) => {
           const parent = captured['App.vue'][0];
           parent.editorSurface.clearActiveTarget();
@@ -297,10 +304,15 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           let dispatched;
           const dispatch = new Promise(resolve => { dispatched = resolve; });
           const calls = [];
-          window.fetch = async (url, init) => {
+          const write = async (url, init) => {
             calls.push({ url, method: init.method, body: JSON.parse(init.body) });
             return new Promise(resolve => { settle = resolve; dispatched(); });
           };
+          window.fetch = kind === 'metadata' ? Probe.tripReceiptReplies(() => savedEnvelope.data,
+            async (url, init, permit) => {
+              await write(url, init);
+              return Response.json(Probe.tripReceipt(permit, 'applied', { fieldDigests: { notes: 'sha256:' + 'a'.repeat(64) } }));
+            }) : write;
           const saving = owner[save](false);
           // Metadata can await its publication decision before the request captures the draft.
           await Promise.race([dispatch, saving.then(() => { throw new Error('Save completed without dispatching'); })]);
@@ -322,7 +334,7 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           const displayed = handle.getValue();
           const historyRetained = handle.editor.can().undo() && handle.editor.state.selection.eq(newerSelection);
           // Explicit reset adopts authoritative saved Notes and discards only this live history.
-          owner[reset]();
+          await owner[reset]();
           await Probe.nextTick();
           const resetRetired = handle.editor.isDestroyed;
           handle = current();
@@ -334,14 +346,15 @@ test('actual Vue Notes emissions retain all five Trip owner contracts', async t 
           handle.editor.commands.insertContent(' discarded');
           handle.editor.commands.undo();
           await Probe.nextTick();
-          owner[reset]();
+          await owner[reset]();
           await Probe.nextTick();
           handle = current();
           handle.editor.commands.redo();
           const redoAfterSameValueReset = handle.getValue();
           handle.clear();
           await Probe.nextTick();
-          window.fetch = async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ code: 'validation', errors: { notesHtml: ['Check Notes'] } }), { status: 400 }); };
+          const reject = async (url, init) => { calls.push({ url, method: init.method, body: JSON.parse(init.body) }); return new Response(JSON.stringify({ code: 'validation', errors: { notesHtml: ['Check Notes'] } }), { status: 400 }); };
+          window.fetch = kind === 'metadata' ? Probe.tripReceiptReplies(() => savedEnvelope.data, reject) : reject;
           await owner[save](false);
           const empty = owner[draft].notesHtml;
           const emptyCall = calls.at(-1);
@@ -808,9 +821,16 @@ test('Greek credit validation opens the controls and associates the server error
   await credits.getByRole('button', { name: 'Προσθήκη αναφοράς' }).click();
   await summary.click();
   await page.evaluate(() => {
-    window.fetch = async () => Response.json({
-      errors: { credits: ['Check the contribution policy and complete readable credits.'] }
-    }, { status: 400 });
+    let current = captured['App.vue'][0].state.metadata;
+    window.fetch = Probe.tripReceiptReplies(() => current, (_url, request, permit) => {
+      const credits = JSON.parse(request.body).changes.credits;
+      if (!credits[0].contributor) return Response.json(Probe.tripReceipt(permit, 'terminalUnapplied', {
+        code: 'mutation-request-invalid', errors: { credits: ['Check the contribution policy and complete readable credits.'] }
+      }), { status: 400 });
+      window.retriedCredits = credits;
+      current = { ...current, credits, originalValues: { ...current.originalValues, credits } };
+      return Response.json(Probe.tripReceipt(permit, 'applied', { fieldDigests: { credits: 'sha256:' + 'a'.repeat(64) } }));
+    });
   });
   const form = page.locator('#trip-editor-metadata-form');
   await form.evaluate(node => node.requestSubmit());
@@ -822,15 +842,6 @@ test('Greek credit validation opens the controls and associates the server error
   assert.match(await credits.locator(`[id="${errorId}"]`).textContent(), /Ελέγξτε την πολιτική συνεισφοράς και συμπληρώστε ευανάγνωστες αναφορές/);
 
   await credits.getByRole('textbox', { name: 'Συντελεστής', exact: true }).fill('Author');
-  await page.evaluate(reply => {
-    window.fetch = async (_url, request) => {
-      const credits = JSON.parse(request.body).changes.credits;
-      window.retriedCredits = credits;
-      const current = captured['App.vue'][0].state.metadata;
-      const metadata = { ...current, credits, originalValues: { ...current.originalValues, credits } };
-      return Response.json({ ...reply, data: metadata, affected: { ...reply.affected, metadata } });
-    };
-  }, envelope('metadata', metadata));
   await form.evaluate(node => node.requestSubmit());
   await page.waitForFunction(() => window.retriedCredits?.[0]?.contributor === 'Author');
   await page.waitForFunction(() => captured['MetadataEditor.vue'][0].isMetadataDirty === false, null, { timeout: 3000 });
@@ -1037,16 +1048,20 @@ test('Greek creation and Reset localize only app-generated Region and Place name
 test('Greek metadata and sharing recovery retain the earlier attempt and localize the exit prompt', async t => {
   const browser = await chromium.launch();
   t.after(() => browser.close());
-  const recoveries = [
-    { field: 'name', message: 'Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή στις ρυθμίσεις του ταξιδιού.' },
-    { field: 'shareProgressEnabled', message: 'Δεν μπορέσαμε να επιβεβαιώσουμε την αλλαγή κοινοποίησης. Η επιλογή σας (Ενεργό)' }
-  ];
-  for (const { field, message } of recoveries) {
-    const page = await mountGreekEditor(browser, { ...state, metadata: { ...metadata, isPublic: true,
-      originalValues: { ...metadata.originalValues, isPublic: true } } });
+  const held = 'Μια προηγούμενη αποθήκευση ταξιδιού δεν έχει επιβεβαιωθεί.';
+  for (const field of ['name', 'shareProgressEnabled']) {
+    const publication = { isPublic: true, contributionPolicy: 'CC-BY-4.0' };
+    const page = await mountGreekEditor(browser, { ...state, metadata: { ...metadata, ...publication,
+      originalValues: { ...metadata.originalValues, ...publication } } });
     await page.evaluate(() => {
       window.useMountedConfirmation = true;
-      window.fetch = async () => { throw new TypeError('diagnostic-only lost reply'); };
+      window.writes = [];
+      const current = captured['App.vue'][0].state.metadata;
+      window.fetch = Probe.tripReceiptReplies(() => current, (_url, _init, permit) => {
+        window.writes.push(permit.kind);
+        throw new TypeError('diagnostic-only lost reply');
+      }, { lookup: permit => Response.json({ ...permit, state: 'unobserved', historicalOutcome: 'unknown',
+        futureEffects: true, observedAtUtc: '2026-11-28T09:56:00Z' }) });
     });
     const form = page.locator('#trip-editor-metadata-form');
     const draft = field === 'name' ? form.getByRole('textbox', { name: 'Όνομα', exact: true })
@@ -1055,17 +1070,20 @@ test('Greek metadata and sharing recovery retain the earlier attempt and localiz
     else await draft.check();
     const save = page.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' });
     await save.click();
-    const warning = form.getByRole('alert').filter({ hasText: message });
+    const warning = page.getByRole('status').filter({ hasText: held });
     await warning.waitFor({ timeout: 3000 });
-    assert.ok(await save.isDisabled());
-    assert.match(await warning.textContent(), /προηγούμενη αλλαγή μπορεί ακόμη να ολοκληρωθεί/);
+    await warning.getByRole('button', { name: 'Ανάκτηση αποθήκευσης ταξιδιού' }).click();
+    await save.click();
+    await form.getByRole('alert').filter({ hasText: 'Η αλλαγή δεν επιβεβαιώθηκε.' }).waitFor({ timeout: 3000 });
+    await warning.waitFor({ timeout: 3000 });
+    assert.deepEqual(await page.evaluate(() => window.writes), [field === 'name' ? 'metadata' : 'editor-sharing']);
 
     const leave = page.getByRole('button', { name: 'Έξοδος χωρίς αποθήκευση', exact: true });
     await leave.click();
     const dialog = page.getByRole('dialog', { name: 'Έξοδος χωρίς αποθήκευση;' });
-    await dialog.getByText(message, { exact: false }).waitFor({ timeout: 3000 });
+    await dialog.getByText(held, { exact: false }).waitFor({ timeout: 3000 });
     await dialog.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
-    assert.ok(await save.isDisabled());
+    await warning.waitFor({ timeout: 3000 });
     if (field === 'name') assert.equal(await draft.inputValue(), 'Retained title');
     else assert.ok(await draft.isChecked());
     await page.close();
@@ -1078,7 +1096,15 @@ test('Greek Region save status and first publication use the current locale', as
   const page = await mountGreekEditor(browser, state);
   await page.evaluate(() => {
     window.useMountedConfirmation = true;
-    window.fetch = async () => Response.json({ errors: { name: ['Name is required.'] } }, { status: 400 });
+    window.publications = [];
+    let current = captured['App.vue'][0].state.metadata;
+    window.fetch = Probe.tripReceiptReplies(() => current, (_url, request, permit) => {
+      const { expected, changes } = JSON.parse(request.body);
+      window.publications.push({ expected, changes });
+      current = { ...current, ...changes, originalValues: { ...current.originalValues, ...changes } };
+      const digest = 'sha256:' + 'a'.repeat(64);
+      return Response.json(Probe.tripReceipt(permit, 'applied', { fieldDigests: { isPublic: digest, contributionPolicy: digest } }));
+    }, { next: async () => Response.json({ errors: { name: ['Name is required.'] } }, { status: 400 }) });
   });
   const save = page.getByRole('button', { name: 'Αποθήκευση ρυθμίσεων και συνέχεια' });
   await page.getByRole('checkbox', { name: 'Δημόσιο ταξίδι', exact: true }).check();
@@ -1089,6 +1115,13 @@ test('Greek Region save status and first publication use the current locale', as
   await publication.getByText(/Συνεισφορές ιδιοκτήτη: Δημόσια προβολή μόνο/).waitFor({ timeout: 3000 });
   await publication.getByRole('button', { name: 'Συνέχεια επεξεργασίας' }).press('Escape');
   assert.equal(await policy.inputValue(), 'view-only');
+  assert.deepEqual(await page.evaluate(() => window.publications), []);
+  await save.click();
+  await publication.getByRole('button', { name: 'Δημοσίευση', exact: true }).click();
+  await page.waitForFunction(() => captured['App.vue'][0].state.metadata.isPublic);
+  assert.deepEqual(await page.evaluate(() => window.publications), [{
+    expected: { isPublic: false, contributionPolicy: null }, changes: { isPublic: true, contributionPolicy: 'view-only' }
+  }]);
 
   // Region Manager's status is a separate live region from the inline form header.
   await page.evaluate(() => captured['MetadataEditor.vue'][0].resetDraft());
@@ -1218,5 +1251,6 @@ async function mountEditor(browser, graph, locale, { realMap = false } = {}) {
   await page.addScriptTag({ content: script });
   await page.evaluate(graph => Probe.mountApp(graph), graph);
   await page.waitForFunction(() => window.captured?.['RegionManager.vue']);
+  await page.locator('#trip-editor-metadata-form:not([inert])').waitFor();
   return page;
 }

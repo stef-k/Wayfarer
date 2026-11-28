@@ -189,7 +189,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     const captured = await custody.captureSave();
     let current = props.metadata;
     for (const branch of captured.branches) {
-      if (branch.kind === 'editor-sharing' && !current.isPublic && JSON.parse(branch.body).enabled === true) {
+      // A preceding reply can arrive after the user has made the draft private.
+      if (branch.kind === 'editor-sharing' && (!current.isPublic || !draft.isPublic) && JSON.parse(branch.body).enabled === true) {
         saveError.value = localize('Editor.ProgressNeedsPublic', 'Unavailable until trip is public');
         return;
       }
@@ -198,6 +199,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
         current = result.metadata;
         publishOwner(current);
       }
+      if (result.validationErrors) throw new EditorValidationError({ errors: result.validationErrors });
       if (!result.continueSave || savingSession !== editSession.value) return;
     }
     lastSavedAt.value = date(new Date(), { timeStyle: 'short' });

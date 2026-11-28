@@ -59,7 +59,11 @@ internal sealed partial class TripMetadataMutationService
             await transaction.RollbackToSavepointAsync(effects, token);
             db.ChangeTracker.Clear();
             await readmission();
-            return new(null, new("terminalUnapplied", "unapplied", false) { Code = TerminalCode(error, permit.Identity.Contract) });
+            return new(null, new("terminalUnapplied", "unapplied", false)
+            {
+                Code = TerminalCode(error, permit.Identity.Contract),
+                Errors = (error as TripMetadataMutationRejected)?.Errors
+            });
         }
     }
 
@@ -69,6 +73,8 @@ internal sealed partial class TripMetadataMutationService
         if (error is TripMetadataMutationRejected { Code: "mutation-base-stale" }) return "mutation-base-stale";
         if (contract != TripMetadataIdentity.Version2) return null;
         if (IsContention(error)) return "mutation-contention";
+        if (error is TripMetadataMutationRejected { Code: "mutation-request-invalid", Errors: not null })
+            return "mutation-request-invalid";
         return error is TripMetadataMutationRejected { Code: "publication-policy-required" or "share-progress-requires-public"
             or "tag-not-on-trip" or "mutation-contention" } refusal ? refusal.Code : null;
     }

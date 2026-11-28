@@ -95,6 +95,81 @@ async function verifySupersededTabs(oldEditor: Page, token: string, viewer: Page
   await viewer.close();
 }
 
+test('Trip controls stop a captured enable after a newer private draft', async ({ page }) => {
+  await signIn(page);
+  const read = async () => (await page.request.get(metadata + '?contract=' + v2)).json();
+  const original = await read();
+  expect(original.metadata).toMatchObject({ isPublic: true, shareProgressEnabled: false });
+  const entered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  await page.route('**' + metadata, async route => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    const response = await route.fetch();
+    expect((await response.json()).state).toBe('applied');
+    entered.resolve();
+    await release.promise;
+    await route.fulfill({ response });
+  });
+  const sharingRequests: string[] = [];
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.startsWith(editor + '/share-progress/conditional'))
+      sharingRequests.push(request.method());
+  });
+  await page.goto(editorUrl);
+  await expect(form(page)).not.toHaveAttribute('inert', '');
+  const publication = form(page).getByRole('checkbox', { name: 'Public trip', exact: true });
+  const sharing = form(page).getByLabel('Show visit progress on public trip');
+  await form(page).getByLabel('Name', { exact: true }).fill('Name saved before private draft');
+  await sharing.check();
+  const save = page.getByRole('button', { name: 'Save settings & Exit', exact: true });
+  try {
+    await save.click();
+    await entered.promise;
+    await publication.uncheck();
+    await expect.poll(async () => (await custody(page, original.subjectId)).fields.isPublic?.desired.isPublic).toBe(false);
+    await expect(sharing).toBeDisabled();
+  } finally {
+    release.resolve();
+  }
+  await expect(save).toBeEnabled();
+  expect(sharingRequests).toEqual([]);
+  expect((await read()).metadata).toMatchObject({
+    name: 'Name saved before private draft', isPublic: true, shareProgressEnabled: false
+  });
+  const draft = await custody(page, original.subjectId);
+  expect(draft.fields.isPublic?.desired.isPublic).toBe(false);
+  expect(draft.fields.shareProgressEnabled?.desired.shareProgressEnabled).toBe(true);
+  await expect(publication).not.toBeChecked();
+  await expect(page).toHaveURL(new RegExp(editorUrl + '$'));
+});
+
+test('Trip controls let a corrected Name save after correlated validation', async ({ page }) => {
+  await signIn(page);
+  const read = async () => (await page.request.get(metadata + '?contract=' + v2)).json();
+  const original = await read();
+  await page.goto(editorUrl);
+  await expect(form(page)).not.toHaveAttribute('inert', '');
+  const name = form(page).getByRole('textbox', { name: /^Name/ });
+  const save = page.getByRole('button', { name: 'Save settings & Continue', exact: true });
+  const reply = () => page.waitForResponse(response =>
+    new URL(response.url()).pathname === metadata && response.request().method() === 'PATCH');
+  await name.fill('');
+  const rejected = reply();
+  await save.click();
+  expect((await rejected).status()).toBe(400);
+  expect(await (await rejected).json()).toMatchObject({ state: 'terminalUnapplied', code: 'mutation-request-invalid' });
+  await expect(form(page).getByText('Review the highlighted fields before saving.')).toBeVisible();
+  await expect(form(page).getByText('Name must contain 1 through 200 characters.')).toBeVisible();
+  expect((await read()).metadata.name).toBe(original.metadata.name);
+  expect((await custody(page, original.subjectId)).attempts).toHaveLength(0);
+  await name.fill('Corrected Name');
+  const saved = reply();
+  await save.click();
+  expect(await (await saved).json()).toMatchObject({ state: 'applied' });
+  await expect(form(page).getByRole('alert')).toHaveCount(0);
+  expect((await read()).metadata.name).toBe('Corrected Name');
+});
+
 test('Trip controls retain a v1 attempt through blocked custody migration', async ({ page, context }) => {
   test.setTimeout(60_000);
   const token = await signIn(page);

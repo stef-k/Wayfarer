@@ -1,6 +1,6 @@
 import type { EditorTripMetadata, ValidationProblemDetails } from '../types';
 import { captureMutationPublication, EditorValidationError } from '../api/tripEditorApi';
-import { keysAre, refusalStatus, rejectDuplicateMembers, uuid, v2Contract, validDigests, validTags, validV2Success,
+import { keysAre, rejectDuplicateMembers, uuid, v2Contract, validDigests, validTags, validV2Refusal, validV2Success, validValidationErrors,
   webWriteRoute, type WebOperation } from './receiptV2';
 
 export const contract = 'trip-metadata-receipt-1';
@@ -10,7 +10,7 @@ const correlation = ['contract', 'subjectId', 'adapter', 'kind', 'tripId', 'oper
 
 export type Permit = Record<typeof correlation[number], string> & { proof: string };
 export type TerminalState = 'applied' | 'checkedNoOp' | 'terminalUnapplied' | 'retired';
-export type Evidence = Record<string, unknown> & { state: TerminalState | 'unobserved' | 'unresolved' };
+export type Evidence = Record<string, unknown> & { state: TerminalState | 'unobserved' | 'unresolved'; errors?: Record<string, string[]> };
 export type Attempt = { permit: Permit; body: string; submitted: Record<string, number>; bases?: Record<string, unknown> };
 
 /** The Web transport only sends the exact frozen UTF-8 representation. */
@@ -81,10 +81,10 @@ async function readEvidence(response: Response, attempt: Attempt, lookup: boolea
     if (response.status === 200 && historicalOutcome === state && futureEffects === false && validRetention(value) &&
         validResult) return { ...value, state };
   } else if (state === 'terminalUnapplied') {
-    const status = refusalStatus(attempt.permit.kind, code);
-    const validRefusal = legacy ? code === 'mutation-base-stale' : status !== null && response.status === (lookup ? 200 : status);
-    if (historicalOutcome === 'unapplied' && futureEffects === false && validRetention(value) &&
-        validRefusal && keysAre(value, [...terminal, 'code'])) return { ...value, state };
+    const validRefusal = legacy ? code === 'mutation-base-stale' && keysAre(value, [...terminal, 'code'])
+      : validV2Refusal(value, attempt.permit.kind, response.status, lookup, [...terminal, 'code']);
+    if (historicalOutcome === 'unapplied' && futureEffects === false && validRetention(value) && validRefusal)
+      return { ...value, state };
   } else if ((legacy || lookup) && response.status === 200 && historicalOutcome === 'unknown' && timestamp(value.observedAtUtc)) {
     if ((state === 'unobserved' && futureEffects === true || state === 'retired' && futureEffects === false) &&
         keysAre(value, [...common, 'observedAtUtc'])) return { ...value, state };
@@ -112,7 +112,8 @@ export async function sendAttempt(endpoint: string, token: string, attempt: Atte
   catch (error) {
     // A validation problem can guide editing but supplies no settlement for this dispatch.
     const problem = await invalid?.json().catch(() => null) as ValidationProblemDetails | undefined;
-    if (problem?.code === 'mutation-request-invalid' && problem.errors) throw new EditorValidationError(problem);
+    if (problem?.code === 'mutation-request-invalid' && (attempt.permit.contract === contract ? problem.errors
+      : !Object.hasOwn(problem, 'operationId') && validValidationErrors(problem.errors))) throw new EditorValidationError(problem);
     throw error;
   }
 }

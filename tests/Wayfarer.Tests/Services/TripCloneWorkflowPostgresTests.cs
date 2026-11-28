@@ -124,6 +124,62 @@ public sealed class TripCloneWorkflowPostgresTests(PostgresImportTestFixture fix
         finally { Directory.Delete(root, true); }
     }
 
+    /// <summary>A tag-only commit invalidates a Clone snapshot before the source Trip lock.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CloneRefusesAnOlderTagSnapshotWithZeroEffects(bool web)
+    {
+        var sourceOwner = await fixture.CreateUserAsync();
+        var destination = await fixture.CreateUserAsync();
+        await using var writer = fixture.CreateContext();
+        var source = new Trip { Id = Guid.NewGuid(), UserId = sourceOwner.Id, Name = "Reusable source",
+            IsPublic = true, ContributionPolicy = "CC-BY-4.0" };
+        fixture.RegisterTrip(source.Id);
+        writer.AddRange(source, new ApiToken { UserId = destination.Id, User = null!,
+            Token = destination.Id, Name = "clone contention" });
+        var region = new Region { Id = Guid.NewGuid(), TripId = source.Id, UserId = sourceOwner.Id, Name = "Source Region" };
+        region.Places.Add(new Place { Id = Guid.NewGuid(), RegionId = region.Id, UserId = sourceOwner.Id, Name = "Source Place" });
+        writer.Regions.Add(region);
+        await writer.SaveChangesAsync();
+
+        var sourceFreshness = await writer.Trips.Where(t => t.Id == source.Id).Select(t => t.UpdatedAt).SingleAsync();
+        var gate = new SourceWait { Resume = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        await using var db = fixture.CreateContext(gate);
+        var mvc = web ? BuildMvcController(db, destination.Id) : null;
+        var pending = mvc != null ? mvc.Clone(source.Id) : BuildApiController(db, destination.Id).CloneTrip(source.Id);
+        var name = "clone" + Guid.NewGuid().ToString("N");
+        try
+        {
+            Assert.Same(gate.Entered.Task, await Task.WhenAny(gate.Entered.Task, pending).WaitAsync(TimeSpan.FromSeconds(10)));
+            var tags = new TripTagService(writer, NullLogger<TripTagService>.Instance);
+            await tags.AttachTagsAsync(source.Id, [name], sourceOwner.Id);
+            fixture.RegisterTag(await writer.Tags.AsNoTracking().SingleAsync(tag => tag.Slug == name));
+        }
+        finally { gate.Resume.TrySetResult(); }
+
+        var result = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        if (mvc != null)
+        {
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("TripViewer", redirect.ControllerName);
+            Assert.Equal("Viewer.CloneContention", mvc.TempData["WebAlertKey"]);
+            Assert.Equal("warning", mvc.TempData["AlertType"]);
+        }
+        else
+        {
+            var conflict = Assert.IsType<ConflictObjectResult>(result);
+            Assert.Equal("mutation-contention", conflict.Value!.GetType().GetProperty("code")!.GetValue(conflict.Value));
+        }
+
+        Assert.False(await writer.Trips.AnyAsync(t => t.UserId == destination.Id));
+        Assert.False(await writer.Regions.AnyAsync(r => r.UserId == destination.Id));
+        Assert.False(await writer.Places.AnyAsync(p => p.UserId == destination.Id));
+        var saved = await writer.Trips.AsNoTracking().Include(t => t.Tags).SingleAsync(t => t.Id == source.Id);
+        Assert.Equal(name, Assert.Single(saved.Tags).Slug);
+        Assert.Equal(sourceFreshness, saved.UpdatedAt);
+    }
+
     /// <summary>Proves both entry points, shared tags, reconciliation, and rollback in one provider workflow.</summary>
     [PostgresFact]
     public async Task BothEntryPoints_PersistCompleteCloneAndMalformedAggregateRollsBack()
@@ -286,12 +342,18 @@ public sealed class TripCloneWorkflowPostgresTests(PostgresImportTestFixture fix
     private sealed class SourceWait : DbCommandInterceptor
     {
         internal readonly TaskCompletionSource<int> Entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+        internal TaskCompletionSource? Resume { get; init; }
+
+        /// <summary>Optionally pauses before the lock, after Clone's Repeatable Read snapshot is established.</summary>
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
             CommandEventData data, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
             if (command.CommandText.Contains("Trips") && command.CommandText.Contains("FOR SHARE"))
+            {
                 Entered.TrySetResult(((NpgsqlConnection)command.Connection!).ProcessID);
-            return ValueTask.FromResult(result);
+                if (Resume != null) await Resume.Task.WaitAsync(cancellationToken);
+            }
+            return result;
         }
     }
 }

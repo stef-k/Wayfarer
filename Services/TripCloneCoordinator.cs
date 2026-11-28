@@ -27,7 +27,9 @@ public enum TripCloneStatus
     /// <summary>The incoming bearer credential is no longer valid at acquisition.</summary>
     Unauthorized,
     /// <summary>The complete private clone committed successfully.</summary>
-    Succeeded
+    Succeeded,
+    /// <summary>A confirmed transaction conflict left the source snapshot unusable and the destination unchanged.</summary>
+    Contention
 }
 
 /// <summary>Loads, validates, constructs, reconciles, and atomically persists complete Trip clones.</summary>
@@ -44,6 +46,7 @@ public sealed partial class TripCloneCoordinator(ApplicationDbContext dbContext)
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken)
             : null;
+        var commitStarted = false;
         try
         {
             if (transaction != null && sourceOwner != null)
@@ -91,6 +94,7 @@ public sealed partial class TripCloneCoordinator(ApplicationDbContext dbContext)
             var mediaOmitted = TripCopyMedia.OmitUnqualified(clone);
             TripRichNotes.NormalizeDestination(clone);
             await PersistConstructedAsync(clone, cancellationToken);
+            commitStarted = true;
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
             var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
@@ -108,6 +112,11 @@ public sealed partial class TripCloneCoordinator(ApplicationDbContext dbContext)
                 throw new AggregateException("Trip cloning failed and its transaction rollback also failed.",
                     cloneFailure, rollbackFailure);
             }
+            // An older snapshot can lose the source lock after a tag-only commit advances the Trip row.
+            if (!commitStarted && (cloneFailure is TripMetadataMutationRejected { Code: "mutation-contention" }
+                || cloneFailure.GetBaseException() is PostgresException
+                    { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }))
+                return new(TripCloneStatus.Contention);
             throw;
         }
     }

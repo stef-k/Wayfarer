@@ -174,6 +174,9 @@ internal sealed class TripMetadataMutationRejected(int status, string code, stri
     /// <summary>Transport code used to select bounded terminal refusals.</summary>
     internal string Code => code;
 
+    /// <summary>Field guidance from deterministic validation without echoing submitted values.</summary>
+    internal Dictionary<string, string[]>? Errors => errors;
+
     /// <summary>Projects the approved ProblemDetails contract without current private values or credentials.</summary>
     internal IActionResult ToActionResult()
     {

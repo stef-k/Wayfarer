@@ -77,6 +77,10 @@ internal sealed record TripMetadataEvidence(string State, string HistoricalOutco
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Code { get; init; }
 
+    /// <summary>Field guidance on a v2 validation refusal, preserved for replay and lookup.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string[]>? Errors { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TripPrivacyEffect? PrivacyEffect { get; init; }
 

@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 const module = await build({
   entryPoints: ['ClientApps/trip-editor/src/recovery/receiptApi.ts'], bundle: true, write: false, format: 'esm', platform: 'node'
 });
-const { lookupAttempt } = await import(`data:text/javascript;base64,${Buffer.from(module.outputFiles[0].text).toString('base64')}`);
+const { lookupAttempt, sendAttempt } = await import(`data:text/javascript;base64,${Buffer.from(module.outputFiles[0].text).toString('base64')}`);
 
 const endpoint = '/api/trips/12345678-1234-4234-8234-123456789abc/editor';
 const identity = {
@@ -35,5 +35,26 @@ test('tag recovery accepts the same identity across arrays and rejects malformed
   for (const malformed of invalid) {
     fake.mock.mockImplementationOnce(async () => new Response(malformed));
     await assert.rejects(lookupAttempt(endpoint, attempt), /Trip receipt/);
+  }
+});
+
+/** A 400 only releases custody when its complete refusal matches the retained permit. */
+test('validation settlement requires a correlated refusal with field guidance', async t => {
+  const { tagResult, ...common } = saved;
+  const refusal = { ...common, state: 'terminalUnapplied', historicalOutcome: 'unapplied',
+    code: 'mutation-request-invalid', errors: { tags: ['Tag too long (max 64 characters).'] } };
+  const fake = t.mock.method(globalThis, 'fetch', async () => Response.json(refusal, { status: 400 }));
+  assert.deepEqual(await sendAttempt(endpoint, 'anti', attempt), refusal);
+  fake.mock.mockImplementationOnce(async () => Response.json(refusal));
+  assert.deepEqual(await lookupAttempt(endpoint, attempt), refusal);
+
+  for (const [body, status] of [
+    [{ code: refusal.code, errors: refusal.errors }, 400],
+    [{ ...refusal, requestDigest: 'sha256:' + 'b'.repeat(64) }, 400],
+    [{ ...refusal, errors: { tags: [64] } }, 400],
+    [refusal, 500]
+  ]) {
+    fake.mock.mockImplementationOnce(async () => Response.json(body, { status }));
+    await assert.rejects(sendAttempt(endpoint, 'anti', attempt));
   }
 });

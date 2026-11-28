@@ -96,11 +96,29 @@ export function validV2Success(value: Record<string, unknown>, attempt: Attempt,
 }
 
 /** Matches a recorded refusal to its own kind and execution HTTP status. */
-export function refusalStatus(kind: string, code: unknown): number | null {
+function refusalStatus(kind: string, code: unknown): number | null {
+  if (code === 'mutation-request-invalid') return 400;
   if (code === 'mutation-contention') return 409;
   if (kind === 'metadata' && code === 'mutation-base-stale') return 409;
   if (kind === 'metadata' && code === 'publication-policy-required') return 400;
   if ((kind === 'editor-sharing' || kind === 'viewer-sharing') && code === 'share-progress-requires-public') return 400;
   if (kind === 'tags-detach' && code === 'tag-not-on-trip') return 404;
   return null;
+}
+
+/** Checks the status and exact members of a v2 refusal, including any field validation detail. */
+export function validV2Refusal(value: Record<string, unknown>, kind: string, status: number, lookup: boolean, members: string[]): boolean {
+  const expectedStatus = refusalStatus(kind, value.code);
+  if (expectedStatus === null || status !== (lookup ? 200 : expectedStatus)) return false;
+  if (value.code !== 'mutation-request-invalid') return keysAre(value, members);
+  return keysAre(value, [...members, 'errors']) && validValidationErrors(value.errors);
+}
+
+/** Validates the single field and message emitted by the request validators. */
+export function validValidationErrors(value: unknown): boolean {
+  if (!object(value)) return false;
+  const fields = Object.entries(value);
+  if (fields.length !== 1) return false;
+  const [[field, messages]] = fields;
+  return !!field && Array.isArray(messages) && messages.length === 1 && typeof messages[0] === 'string' && !!messages[0];
 }

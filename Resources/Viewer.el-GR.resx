@@ -483,6 +483,9 @@
   <data name="Viewer.CloneSignIn" xml:space="preserve">
     <value>Συνδεθείτε για να αντιγράψετε το ταξίδι.</value>
   </data>
+  <data name="Viewer.CloneContention" xml:space="preserve">
+    <value>Το ταξίδι άλλαξε κατά την αντιγραφή. Δοκιμάστε ξανά.</value>
+  </data>
   <data name="Viewer.CloneFailed" xml:space="preserve">
     <value>Η αντιγραφή του ταξιδιού απέτυχε. Δοκιμάστε ξανά.</value>
   </data>
