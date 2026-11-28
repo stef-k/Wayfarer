@@ -73,7 +73,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Equal(2, result.GetProperty("placeOrders").GetArrayLength());
         Assert.Equal(TripStructureDigests.Place(saved, "location"), result.GetProperty("fieldDigests").GetProperty("location").GetString());
         var savedSegments = result.GetProperty("segmentEffects").GetProperty("updatedSegments").EnumerateArray().ToArray();
-        var manual = Assert.Single(savedSegments.Where(row => row.GetProperty("estimatedDurationSource").GetString() == "Manual"));
+        var manual = Assert.Single(savedSegments, row => row.GetProperty("estimatedDurationSource").GetString() == "Manual");
         Assert.Equal(storedManualDuration?.Ticks.ToString(CultureInfo.InvariantCulture), manual.GetProperty("estimatedDurationTicks").GetString());
         Assert.True(TripMetadataIdentity.IsDigest(manual.GetProperty("route").GetProperty("effectiveDigest").GetString()));
         var vectors = result.GetProperty("placeOrders").EnumerateArray().ToArray();

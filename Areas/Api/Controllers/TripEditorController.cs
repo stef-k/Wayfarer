@@ -77,6 +77,7 @@ public sealed partial class TripEditorController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetEditorState(Guid tripId, CancellationToken cancellationToken)
     {
+        Response.Headers.CacheControl = "private, no-store";
         var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
         {

@@ -1,7 +1,7 @@
 import type { EditorTripState } from '../types';
 import { keysAre, rejectDuplicateMembers } from './receiptV2';
 import { object } from './receiptStructureResults';
-import { isId } from './structureRoutes';
+import { dispatchHeader, dispatchVersion, isId } from './structureRoutes';
 
 export class StructureOwnerUnavailable extends Error {}
 
@@ -9,16 +9,54 @@ export class StructureOwnerUnavailable extends Error {}
 export async function readStructureOwner(endpoint: string, account: string, tripId: string): Promise<EditorTripState> {
   const reply = await fetch(endpoint, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
   if (reply.redirected || [401, 403, 404].includes(reply.status)) throw new StructureOwnerUnavailable();
-  if (!reply.ok) throw new Error('Current Trip values are unavailable');
+  if (!reply.ok || reply.headers.get(dispatchHeader) !== dispatchVersion)
+    throw new Error('Current Trip values are unavailable');
   const raw = await reply.text();
   rejectDuplicateMembers(raw, false);
   const graph: unknown = JSON.parse(raw);
   if (!object(graph) || graph.ownerId !== account || graph.tripId !== tripId) throw new StructureOwnerUnavailable();
-  if (!object(graph.metadata) || graph.metadata.id !== tripId ||
-      !['regionsById', 'placesById', 'areasById', 'segmentsById', 'placeOrderByRegionId', 'areaOrderByRegionId', 'visitProgress', 'options']
-        .every(key => object(graph[key])) || !['regionOrder', 'segmentOrder'].every(key => Array.isArray(graph[key])))
-    throw new Error('Current Trip comparisons are incomplete');
+  if (!coherentOwnerGraph(graph, tripId)) throw new Error('Current Trip comparisons are incomplete');
   return graph as unknown as EditorTripState;
+}
+
+/** Rejects partial graphs before recovery interprets an absent row as a missing target. */
+function coherentOwnerGraph(graph: Record<string, unknown>, tripId: string): boolean {
+  const { metadata, regionsById: regions, placesById: places, areasById: areas, segmentsById: segments } = graph;
+  return object(metadata) && metadata.id === tripId && object(graph.visitProgress) && object(graph.options) &&
+    entityRows(regions, tripId) && entityRows(segments, tripId) &&
+    exactIds(graph.regionOrder, Object.keys(regions)) && exactIds(graph.segmentOrder, Object.keys(segments)) &&
+    childRows(places, graph.placeOrderByRegionId, regions, tripId, false) &&
+    childRows(areas, graph.areaOrderByRegionId, regions, tripId, true);
+}
+
+/** Links each apparent entity to the exact Trip, using its validated dictionary identity. */
+function entityRows(value: unknown, tripId: string): value is Record<string, unknown> {
+  return object(value) && Object.entries(value).every(([id, row]) =>
+    isId(id) && object(row) && row.id === id && row.tripId === tripId);
+}
+
+/** Requires complete sibling lists and exact nullable comparison fields for each included child. */
+function childRows(rows: unknown, orders: unknown, parents: Record<string, unknown>, tripId: string, area: boolean): boolean {
+  if (!entityRows(rows, tripId) || !object(orders) || Object.keys(orders).length !== Object.keys(parents).length) return false;
+  const byParent = new Map(Object.keys(parents).map(id => [id, [] as string[]]));
+  for (const [id, row] of Object.entries(rows)) {
+    if (!object(row) || !isId(row.regionId) || !object(row.originalValues) || row.originalValues.regionId !== row.regionId) return false;
+    const siblings = byParent.get(row.regionId);
+    const original = row.originalValues;
+    if (!siblings || original.displayOrder !== null && !Number.isInteger(original.displayOrder)) return false;
+    if (area && (!Object.hasOwn(original, 'fillHex') || typeof original.geometry !== 'string' ||
+        !/^area-polygon-1:[0-9A-F]{64}$/u.test(original.geometry))) return false;
+    if (!area && !Object.hasOwn(original, 'address')) return false;
+    siblings.push(id);
+  }
+  return [...byParent].every(([id, children]) => exactIds(orders[id], children));
+}
+
+/** Checks membership independently of presentation order. */
+function exactIds(vector: unknown, ids: string[]): boolean {
+  if (!Array.isArray(vector) || vector.length !== ids.length || !vector.every(isId)) return false;
+  const members = new Set(vector);
+  return members.size === ids.length && ids.every(id => members.has(id));
 }
 
 /** Captures the Area's exact edit-start material independently of display defaults. */
