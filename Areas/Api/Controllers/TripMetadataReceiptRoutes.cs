@@ -36,11 +36,10 @@ internal sealed class TripMetadataReceiptRoutes(HttpRequest request, Application
 
     /// <summary>Creates one permit or returns the ordinary refusal without correlation.</summary>
     internal Task<IActionResult> IssueAsync(Guid tripId, CancellationToken token) =>
-        RespondAsync(() =>
+        RespondAsync(() => Operations.IssueAsync(tripId, request.Body, token, contract =>
         {
-            ValidateTransport(strict: true);
-            return Operations.IssueAsync(tripId, request.Body, token);
-        });
+            if (contract == TripMetadataIdentity.Version2) ValidateTransport(strict: true);
+        }));
 
     /// <summary>Recovers one authorized operation independently of the Trip graph or target existence.</summary>
     internal Task<IActionResult> LookupAsync(Guid tripId, Guid operationId, CancellationToken token) =>

@@ -120,7 +120,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
   const originals = reactive<Partial<EditorMetadataOriginalValues>>({ ...metadata.originalValues });
   // A later edit back to the old value remains intent while an earlier save may have changed the server.
   const retained = reactive(new Set<SettingsField>());
-  let tagsOriginal: unknown = tagBase(Object.values(tagsBySlug));
+  let tagsOriginal: unknown = tagBase(tagOrder.map(slug => tagsBySlug[slug]).filter(Boolean));
   let sharingOriginal: unknown = sharingBase(metadata);
   let policyOriginal: unknown = metadata.originalValues?.contributionPolicy;
   /** Adopts only clean fields; dirty fields retain both their desired value and their original compare. */
@@ -133,7 +133,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
       if (!retained.has(field) && same(current[field], before[field])) adopt(field, incoming, next);
     }
     if (!retained.has('tags') && same(normalizeTagNames(draft.tags), normalizeTagNames(baseline.tags))) {
-      tagsOriginal = tagBase(Object.values(tags));
+      tagsOriginal = tagBase(order.map(slug => tags[slug]).filter(Boolean));
       draft.tags = [...incoming.tags]; baseline.tags = [...incoming.tags];
     }
     if (!retained.has('shareProgressEnabled') &&
@@ -182,7 +182,7 @@ export function createMetadataDraftState(metadata: EditorTripMetadata, tagOrder:
     Object.assign(baseline, toDraft(next, order, tags));
     for (const field of metadataFields) delete originals[field];
     Object.assign(originals, next.originalValues ?? {});
-    tagsOriginal = tagBase(Object.values(tags));
+    tagsOriginal = tagBase(order.map(slug => tags[slug]).filter(Boolean));
     sharingOriginal = sharingBase(next);
     policyOriginal = next.originalValues?.contributionPolicy;
   };

@@ -28,11 +28,6 @@ import type {
   EditorSegmentOrderResult,
   EditorSegmentSaveRequest,
   EditorSegmentNotesConditionalRequest,
-  EditorShareProgressUpdateRequest,
-  EditorTag,
-  EditorTripTagsUpdateRequest,
-  EditorTripMetadata,
-  EditorMetadataConditionalRequest,
   EditorTripState,
   ExternalRouteProposal,
   TagSuggestion,
@@ -163,57 +158,6 @@ export const searchGeocode = async (
 
   return (await response.json()) as EditorGeocodeSearchResponse;
 };
-
-/** Saves through the protected route only; unavailable contracts never fall back to a legacy full draft. */
-export const patchMetadata = async (
-  endpoint: string,
-  antiforgeryToken: string,
-  request: EditorMetadataConditionalRequest
-): Promise<EditorMutationResult<EditorTripMetadata>> => {
-  const publish = captureMutationPublication(`${endpoint}/metadata/conditional`);
-  const response = await fetch(`${endpoint}/metadata/conditional`, {
-    method: 'PATCH',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      RequestVerificationToken: antiforgeryToken
-    },
-    credentials: 'same-origin',
-    body: JSON.stringify(request)
-  });
-  requireSession(response);
-
-  if (response.status === 400) {
-    throw new EditorValidationError((await response.json()) as ValidationProblemDetails);
-  }
-
-  if (response.status === 409) {
-    throw new EditorMutationHttpError('Trip fields changed on another device. Your draft is retained. Review current Trip values before choosing a new base and saving.', 409);
-  }
-
-  if (!response.ok) {
-    throw new EditorMutationHttpError(`Trip settings could not be confirmed (${response.status}). Keep your draft and review current values before saving again.`, response.status);
-  }
-
-  const result = await response.json() as EditorMutationResult<EditorTripMetadata>;
-  publish(result);
-  return result;
-};
-
-/// Replaces the complete trip-level tag set through the same-origin editor API.
-export const putTags = async (
-  endpoint: string,
-  antiforgeryToken: string,
-  request: EditorTripTagsUpdateRequest
-): Promise<EditorMutationResult<EditorTag[]>> => sendMutation(`${endpoint}/tags`, 'PUT', antiforgeryToken, request, 'tag save');
-
-/// Toggles public progress sharing through the same-origin editor API.
-export const patchShareProgress = async (
-  endpoint: string,
-  antiforgeryToken: string,
-  request: EditorShareProgressUpdateRequest
-): Promise<EditorMutationResult<EditorTripMetadata>> =>
-  sendMutation(`${endpoint}/share-progress`, 'PATCH', antiforgeryToken, request, 'share-progress save');
 
 /// Loads existing public tag suggestions without mutating editor state.
 export const suggestTags = async (query: string, take: number): Promise<TagSuggestion[]> => {

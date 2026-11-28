@@ -185,7 +185,7 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
     /// <summary>Commits an authored cookie/antiforgery draft with its retained starting values, then rereads persistence.</summary>
     private async Task<RootMetadata> EditWebMetadataAsync(HttpClient web, Guid tripId)
     {
-        using var response = await web.PatchAsJsonAsync($"/api/trips/{tripId}/editor/metadata/conditional", new
+        var operation = TripControlWrite.Create(tripId, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true, new
         {
             expected = new { name = "Before", notesHtml = "Before notes", isPublic = true,
                 coverImage = new { rawUrl = "https://example.test/before.jpg" },
@@ -194,8 +194,10 @@ public sealed class TripTimestampPostgresTests(PostgresImportTestFixture fixture
                 coverImage = new { rawUrl = "https://example.test/after.jpg" },
                 center = new { latitude = 37.5, longitude = 23.5 }, zoom = 11 }
         });
-        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         await using var db = fixture.CreateContext();
+        var trip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == tripId);
+        using var response = await operation.DispatchAsync(web, await operation.PermitAsync(web, trip));
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         var stored = await db.Trips.SingleAsync(trip => trip.Id == tripId);
         Assert.Equal(new RootMetadata(stored.UserId, "Web title", "Web notes", false, false,
             "https://example.test/after.jpg", 37.5, 23.5, 11), Metadata(stored));

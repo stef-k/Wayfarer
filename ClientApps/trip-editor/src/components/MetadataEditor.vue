@@ -14,6 +14,7 @@ import RichNotesEditor from './RichNotesEditor.vue';
 import TripCreditsEditor from './TripCreditsEditor.vue';
 import MetadataTagsEditor from './MetadataTagsEditor.vue';
 import ReceiptComparison from '../recovery/ReceiptComparison.vue';
+import { markOwnerPublication } from '../recovery/receiptApi';
 import { custodyMessage, useMetadataCustody } from '../recovery/useMetadataCustody';
 import { confirmFirstPublication } from './publicationPolicy';
 import type {
@@ -216,11 +217,14 @@ async function recoverDraft(reopening = false): Promise<void> {
 
 /** Uses the existing metadata-only workspace projection. */
 function publishOwner(metadata: EditorTripMetadata): void {
-  emit('mutationApplied', {
-    success: true, data: metadata, warnings: [], deletedIds: { regions: [], places: [], areas: [], segments: [], tags: [] },
+  const result: EditorMutationResult<unknown> = {
+    success: true, data: metadata, warnings: [], deletedIds: { regions: [], places: [], areas: [], segments: [],
+      tags: metadata.tags ? props.tagOrder.filter(slug => !metadata.tags?.some(tag => tag.slug === slug)) : [] },
     affected: { metadata, regions: [], regionOrder: null, places: [], placeOrdersByRegionId: {}, areas: [],
       areaOrdersByRegionId: {}, segments: [], segmentOrder: null, tags: metadata.tags ?? [], tagOrder: metadata.tags?.map(tag => tag.slug) ?? null, visitProgress: null, options: null }
-  });
+  };
+  markOwnerPublication(metadata, result);
+  emit('mutationApplied', result);
 }
 
 const backToTrips = async (): Promise<void> => {
@@ -287,7 +291,7 @@ const creditErrors = computed(() => fieldErrors('credits'));
       <ReceiptComparison v-if="custody.comparison.value" :current="custody.comparison.value" :fields="custody.review.value"
         :disabled="isSaving || custody.busy.value || custody.stale.value" @adopt="custody.adopt" />
       <p v-for="status in new Set(custody.historicalStatus.value)" :key="status" role="status">{{ status }}</p>
-      <form id="trip-editor-metadata-form" class="trip-editor-metadata" :inert="!custody.ready.value || custody.stale.value || custody.editingBlocked.value" @submit.prevent="save(false)">
+      <form id="trip-editor-metadata-form" class="trip-editor-metadata" :inert="!custody.editable.value || custody.stale.value || custody.editingBlocked.value" @submit.prevent="save(false)">
         <div v-if="saveError" class="trip-editor-form-error" role="alert">{{ saveError }}</div>
 
         <label class="trip-editor-field">

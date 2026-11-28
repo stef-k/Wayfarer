@@ -20,6 +20,9 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var web = await WebAsync(app, trip.UserId);
+        var control = TripControlWrite.Create(trip.Id, $"/User/Trip/{trip.Id}/share-progress/conditional",
+            HttpMethod.Post, "viewer-sharing", true, new { enabled = true });
+        var permit = await control.PermitAsync(web, trip);
         await using var writer = fixture.CreateContext();
         await using var transaction = await writer.Database.BeginTransactionAsync();
         var target = writer.Trips.Where(t => t.Id == trip.Id);
@@ -28,17 +31,16 @@ public sealed partial class TripMetadataConditionalPostgresTests
             : await target.ExecuteUpdateAsync(setters => setters.SetProperty(t => t.UserId, newOwner.Id)
                 .SetProperty(t => t.ShareProgressEnabled, false));
         Assert.Equal(1, affected);
-        var sharing = web.PostAsync($"/User/Trip/ToggleShareProgress/{trip.Id}?enabled=true", null);
+        var sharing = control.DispatchAsync(web, permit);
         try
         {
-            await probe.UpdateStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
             await WaitForBlockAsync(probe.ProcessId);
             await transaction.CommitAsync();
 
             using var response = await sharing.WaitAsync(TimeSpan.FromSeconds(10));
-            response.EnsureSuccessStatusCode();
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
             var reply = await response.Content.ReadFromJsonAsync<JsonElement>();
-            Assert.False(reply.GetProperty("success").GetBoolean());
             await using var verification = fixture.CreateContext();
             var stored = await verification.Trips.FindAsync(trip.Id);
             if (newOwner == null)
@@ -52,7 +54,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
                 Assert.True(stored.IsPublic);
                 Assert.False(stored.ShareProgressEnabled);
             }
-            Assert.Equal("Trip not found or unauthorized", reply.GetProperty("error").GetString());
+            Assert.Equal("mutation-scope-unavailable", reply.GetProperty("code").GetString());
         }
         finally
         {

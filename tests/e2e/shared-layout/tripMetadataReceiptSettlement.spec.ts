@@ -5,7 +5,7 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 /** Reads custody without waiting on the Editor's completion callback. */
 async function durableDraft(page: Page, tripId: string): Promise<Custody | null> {
   return page.evaluate(id => new Promise((resolve, reject) => {
-    const connection = indexedDB.open('wayfarer-trip-metadata', 1);
+    const connection = indexedDB.open('wayfarer-trip-metadata', 2);
     connection.onerror = () => reject(connection.error);
     connection.onsuccess = () => {
       const db = connection.result;
@@ -83,7 +83,7 @@ async function verifyInaccessibleDraft(page: Page, tripId: string, before: Custo
 
 /** Advances custody in another tab and explicitly reopens it after the buffered write failed. */
 async function reopenAfterStorageFailure(page: Page, tripId: string, metadata: string, submitted: string, inaccessible: boolean): Promise<void> {
-  await expect(page.getByText('Browser storage could not retain this edit.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Trip draft storage is unavailable.', { exact: false })).toBeVisible();
   await expect(name(page)).toHaveValue('Newer C');
   await expect.poll(() => draftName(page, tripId)).toBeNull();
 

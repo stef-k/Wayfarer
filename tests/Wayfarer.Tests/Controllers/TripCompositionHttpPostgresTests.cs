@@ -66,11 +66,14 @@ public sealed partial class TripCompositionHttpPostgresTests(PostgresImportTestF
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Contains(workspace.ToString(), await list.Content.ReadAsStringAsync());
         // Publication uses the normal conditional writer and remains independent of Finish.
-        using var published = await browser.PatchAsJsonAsync($"/api/trips/{c}/editor/metadata/conditional", new
+        var publication = TripControlWrite.Create(c, "editor/metadata/conditional", HttpMethod.Patch, "metadata", true, new
         {
             expected = new { isPublic = false, contributionPolicy = (string?)null },
             changes = new { isPublic = true, contributionPolicy = "CC0-1.0" }
         });
+        var issued = await publication.IssueAsync(browser, owner.Id, c);
+        using var published = await publication.DispatchAsync(browser, await issued.Content.ReadFromJsonAsync<JsonElement>());
+        issued.Dispose();
         Assert.True(published.StatusCode == HttpStatusCode.OK, await published.Content.ReadAsStringAsync());
         var publicBefore = await browser.GetByteArrayAsync($"/api/trips/{c}");
         var publicText = System.Text.Encoding.UTF8.GetString(publicBefore);

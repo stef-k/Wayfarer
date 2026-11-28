@@ -13,9 +13,10 @@ internal sealed class TripMetadataOperations(ApplicationDbContext db, TripMetada
     private string Adapter => web ? "web" : "bearer";
 
     /// <summary>Authenticates a new edit without creating a durable execution record or applying effects.</summary>
-    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token)
+    internal async Task<Dictionary<string, object?>> IssueAsync(Guid tripId, Stream body, CancellationToken token, Action<string>? validateTransport = null)
     {
         var (contract, digest) = await ReadIssuanceAsync(body, token);
+        validateTransport?.Invoke(contract);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, token);
         var owned = await db.Trips.FromSqlInterpolated($"""
             SELECT * FROM public."Trips" WHERE "Id" = {tripId} AND "UserId" = {subject} FOR SHARE

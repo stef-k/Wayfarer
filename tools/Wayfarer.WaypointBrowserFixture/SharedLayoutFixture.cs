@@ -21,18 +21,22 @@ public static class SharedLayoutFixture
         var manifest = JsonSerializer.Deserialize<LayoutManifest>(await File.ReadAllTextAsync(path), FixtureJson.Options)!;
         if (command == "cleanup-layout")
         {
+            await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM public.trip_metadata_receipts WHERE subject_id = {manifest.UserId}");
             await db.Groups.Where(group => group.OwnerUserId == manifest.UserId).ExecuteDeleteAsync();
             await db.Trips.Where(trip => trip.Id == manifest.TripId && trip.UserId == manifest.UserId).ExecuteDeleteAsync();
             await db.Users.Where(user => user.Id == manifest.UserId).ExecuteDeleteAsync();
         }
-        if (await db.Users.AnyAsync(user => user.Id == manifest.UserId)
+        var receipts = await db.Database.SqlQuery<bool>($"""
+            SELECT EXISTS (SELECT 1 FROM public.trip_metadata_receipts WHERE subject_id = {manifest.UserId}) AS "Value"
+            """).SingleAsync();
+        if (receipts || await db.Users.AnyAsync(user => user.Id == manifest.UserId)
             || await db.Trips.AnyAsync(trip => trip.Id == manifest.TripId)
             || await db.ApiTokens.AnyAsync(token => token.UserId == manifest.UserId)
             || await db.UserRoles.AnyAsync(link => link.UserId == manifest.UserId)
             || await db.Regions.AnyAsync(region => region.Id == manifest.RegionId)
             || await db.Places.AnyAsync(place => place.Id == manifest.PlaceId))
             throw new InvalidOperationException("Shared-layout cleanup left captured fixture rows.");
-        Console.WriteLine("Shared-layout fixture cleanup independently verified: User, Trip, token, role, Region, Place=0.");
+        Console.WriteLine("Shared-layout fixture cleanup independently verified: User, Trip, token, role, Region, Place, Trip receipts=0.");
         return true;
     }
 

@@ -46,7 +46,7 @@ internal static class TripMetadataReceiptHttp
         SendAsync(client, HttpMethod.Get, Route(trip, web) + "/operations/" + permit.GetProperty("operationId").GetString(), permit, null);
 
     /// <summary>Uses the exact proof without putting it in the URL or response logs.</summary>
-    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string route, JsonElement permit, string? body)
+    internal static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string route, JsonElement permit, string? body)
     {
         using var request = new HttpRequestMessage(method, route);
         request.Headers.Add("X-Wayfarer-Trip-Attempt", permit.GetProperty("proof").GetString());
@@ -67,4 +67,43 @@ internal static class TripMetadataReceiptHttp
         Assert.True(reply.Headers.CacheControl is { Private: true, NoStore: true });
         return value;
     }
+}
+
+/// <summary>A frozen v2 routed operation used for both original dispatch and exact replay.</summary>
+internal sealed record TripControlWrite(string Route, HttpMethod Method, string Kind, string Adapter, string Body)
+{
+    internal const string Contract = "trip-metadata-receipt-2";
+
+    /// <summary>Serializes one frozen payload using the exact route kind.</summary>
+    internal static TripControlWrite Create(Guid trip, string suffix, HttpMethod method, string kind, bool web, object payload)
+    {
+        var fields = JsonSerializer.SerializeToElement(payload).EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
+        fields.Add("receiptContract", Contract);
+        var route = suffix.StartsWith("/User/", StringComparison.Ordinal) ? suffix : $"/api/trips/{trip}/{suffix}";
+        return new(route, method, kind, web ? "web" : "bearer", JsonSerializer.Serialize(fields));
+    }
+
+    /// <summary>Requests a real permit without recording credentials in evidence.</summary>
+    internal Task<HttpResponseMessage> IssueAsync(HttpClient client, string subject, Guid trip) =>
+        client.PostAsJsonAsync(Route + "/operations", new
+        {
+            contract = Contract,
+            requestDigest = TripMetadataIdentity.Digest(Contract, Kind, subject, Adapter, trip, Encoding.UTF8.GetBytes(Body))
+        });
+
+    /// <summary>Reads a successful authenticated issuance.</summary>
+    internal async Task<JsonElement> PermitAsync(HttpClient client, Trip trip)
+    {
+        using var response = await IssueAsync(client, trip.UserId, trip.Id);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    /// <summary>Sends the original bytes and proof to the exact write route.</summary>
+    internal Task<HttpResponseMessage> DispatchAsync(HttpClient client, JsonElement permit) =>
+        TripMetadataReceiptHttp.SendAsync(client, Method, Route, permit, Body);
+
+    /// <summary>Reads one operation without replaying it.</summary>
+    internal Task<HttpResponseMessage> LookupAsync(HttpClient client, JsonElement permit) =>
+        TripMetadataReceiptHttp.SendAsync(client, HttpMethod.Get, Route + "/operations/" + permit.GetProperty("operationId").GetString(), permit, null);
 }

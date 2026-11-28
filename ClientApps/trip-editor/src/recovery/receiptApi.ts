@@ -1,8 +1,10 @@
 import type { EditorTripMetadata } from '../types';
+import { captureMutationPublication } from '../api/tripEditorApi';
 import { keysAre, refusalStatus, rejectDuplicateMembers, uuid, v2Contract, validDigests, validTags, validV2Success,
   webWriteRoute, type WebOperation } from './receiptV2';
 
 export const contract = 'trip-metadata-receipt-1';
+const ownerPublications = new WeakMap<EditorTripMetadata, (result: object) => void>();
 const proofHeader = 'X-Wayfarer-Trip-Attempt';
 const correlation = ['contract', 'subjectId', 'adapter', 'kind', 'tripId', 'operationId', 'requestDigest', 'executeBeforeUtc'] as const;
 
@@ -122,7 +124,9 @@ export class OwnerScopeUnavailable extends Error {}
 
 /** Reads comparison values through the owner route without requiring the Trip graph. */
 export async function readOwnerMetadata(endpoint: string, account: string, tripId: string, legacy = false): Promise<EditorTripMetadata> {
-  const reply = await fetch(`${endpoint}/metadata/conditional${legacy ? '' : `?contract=${v2Contract}`}`, { credentials: 'same-origin', cache: 'no-store' });
+  const url = `${endpoint}/metadata/conditional${legacy ? '' : `?contract=${v2Contract}`}`;
+  const publish = captureMutationPublication(url);
+  const reply = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
   if (reply.redirected || [401, 403, 404].includes(reply.status)) throw new OwnerScopeUnavailable();
   if (!reply.ok) throw new Error('Current Trip values are unavailable');
   const result = await reply.json() as { subjectId: string; metadata: EditorTripMetadata; tags?: EditorTripMetadata['tags'] };
@@ -131,8 +135,14 @@ export async function readOwnerMetadata(endpoint: string, account: string, tripI
   if (metadata.id !== tripId || typeof metadata.originalValues?.name !== 'string' ||
       !(metadata.originalValues.notesHtml === null || typeof metadata.originalValues.notesHtml === 'string'))
     throw new Error('Current Trip comparison values are unavailable');
-  if (legacy) return metadata;
-  if (!validTags(result.tags, true) || typeof metadata.isPublic !== 'boolean' || typeof metadata.shareProgressEnabled !== 'boolean')
+  if (!legacy && (!validTags(result.tags, true) || typeof metadata.isPublic !== 'boolean' || typeof metadata.shareProgressEnabled !== 'boolean'))
     throw new Error('Current Trip comparison values are incomplete');
-  return { ...metadata, tags: result.tags };
+  const snapshot = legacy ? metadata : { ...metadata, tags: result.tags };
+  ownerPublications.set(snapshot, publish);
+  return snapshot;
+}
+
+/** Carries the owner read's dispatch boundary when publishing metadata alongside independent Planning state. */
+export function markOwnerPublication(snapshot: EditorTripMetadata, result: object): void {
+  ownerPublications.get(snapshot)?.(result);
 }

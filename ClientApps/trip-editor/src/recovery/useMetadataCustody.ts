@@ -218,7 +218,10 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
 
   /** Discards only this displayed generation, keeping immutable attempt evidence. */
   async function discard(): Promise<boolean> {
-    if (account === null) return true;
+    if (account === null) {
+      state.restore({}, props.metadata, props.tagOrder, props.tagsBySlug);
+      return true;
+    }
     editingBlocked.value = true;
     try {
       await ready();
@@ -247,7 +250,7 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
     finally { editingBlocked.value = false; }
   }
 
-  return { ready: computed(() => row.value !== null && !unavailable.value),
+  return { ready: computed(() => row.value !== null && !unavailable.value), editable: computed(() => row.value !== null),
     hold, review, busy, stale, feedback, comparison, historicalStatus, editingBlocked, recover, captureSave, submit, discard, adopt, persist };
 }
 
