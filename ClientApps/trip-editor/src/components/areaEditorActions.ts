@@ -6,6 +6,7 @@ import { buildAreaCreateTarget, buildAreaEditTarget } from './regionPlaceEditorT
 import { buildAreaRequest, emptyAreaDraft } from './regionPlaceDrafts';
 import { beginAreaPolygonMapWork } from './areaPolygonMapWork';
 import { saveStructureIntent } from '../recovery/structureMutation';
+import { StaleStructureDraft } from '../recovery/structureCustody';
 import { areaMaterials, prepareAreaDeletion } from '../recovery/structureOwner';
 import { confirm } from '../composables/useConfirmDialog';
 
@@ -130,7 +131,7 @@ export function useAreaEditorActions(context: any) {
       context.markSaved();
     } catch (error) {
       if (!editorAlive || session !== context.areaDraftState.session()) return;
-      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && error.status >= 400 && error.status < 500;
       if (areaId && dispatched && !rejected) context.areaDraftState.uncertain.value = true;
       context.applyError(error, 'Area save failed.');

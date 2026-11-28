@@ -1,5 +1,6 @@
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { EditorMutationHttpError, EditorSegmentConflictError, EditorValidationError } from '../api/tripEditorApi';
+import { StaleStructureDraft } from '../recovery/structureCustody';
 
 /** Localizes the displayed status while existing styling and workflow checks retain their inputs. */
 export const editorStatusText = (value: string): string => {
@@ -30,6 +31,8 @@ export const editorModeText = (kind: string, mode: string): string => {
 
 /** Maps recognized request failures without changing which attempts remain unconfirmed. */
 export const editorErrorText = (error: unknown, fallback: string): string => {
+  if (error instanceof StaleStructureDraft)
+    return message('Editor.StructureStaleDraft', 'This draft is out of date. Review the retained draft in Trip save recovery before trying again.');
   if (error instanceof EditorValidationError) return message('Editor.InvalidForm', 'Review the highlighted fields before saving.');
   if (error instanceof EditorSegmentConflictError)
     return message('Editor.SegmentConflictReview', 'The saved Segment or its route changed. Keep editing to retain your draft, or reload the current saved Segment below.');

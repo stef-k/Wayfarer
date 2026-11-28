@@ -2,13 +2,14 @@ import type { EditorMutationResult, EditorTripState } from '../types';
 import { CustodyRefusal, readCustody } from './custody';
 import { issueStructure, sendStructure } from './receiptStructure';
 import { object } from './receiptStructureResults';
-import { persistStructure, rememberStructure, reserveStructure, settleStructure, targetRow } from './structureCustody';
+import { persistStructure, readStagedStructure, rememberStructure, reserveStructure, settleStructure, StaleStructureDraft,
+  targetRow, type StructureDraftVersion } from './structureCustody';
 import { readStructureOwner, StructureOwnerUnavailable } from './structureOwner';
 import { dispatchAuthority, structureContract, structureRoute, type StructureRoute } from './structureRoutes';
 
 export const structureCustodyChanged = 'trip-structure-custody-changed';
 export const structureOwnerLost = 'trip-structure-owner-unavailable';
-const liveGeneration = new Map<string, number>();
+const stagedIntents = new Map<string, Promise<StructureDraftVersion>>();
 
 const revisionKey = (scope: { account: string; tripId: string }, route: StructureRoute, localId?: string): string =>
   JSON.stringify([scope.account, scope.tripId, route.kind, route.target.type, route.target.id, localId]);
@@ -17,7 +18,7 @@ export class StructureRefused extends Error {
   constructor(readonly code: string) { super('The earlier Trip save was refused. Review current values before saving again.'); }
 }
 
-/** Persists current intent, obtains its exact permit, then reserves the final dispatch in one transaction. */
+/** Verifies the staged intent, obtains its exact permit, then reserves the final dispatch in one transaction. */
 export async function sendStructureMutation<T>(endpoint: string, token: string, route: StructureRoute, payload: object,
   localId?: string): Promise<EditorMutationResult<T>> {
   const scope = dispatchAuthority(endpoint);
@@ -26,11 +27,21 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
   };
   if (legacyRegionHold(scope.account, scope.tripId) !== null) throw new CustodyRefusal('held');
   const revision = revisionKey(scope, route, localId);
-  const captured = liveGeneration.get(revision);
-  const canDispatch = (): boolean => current() && liveGeneration.get(revision) === captured;
-  const { row, key } = await persistStructure(scope, route, payload, localId);
-  const frozen = await issueStructure(route, scope.account, scope.tripId, token, payload);
-  const attempt = await reserveStructure(row, key, frozen, canDispatch);
+  const staged = stagedIntents.get(revision);
+  const canDispatch = (): boolean => current() && stagedIntents.get(revision) === staged;
+  let attempt: Awaited<ReturnType<typeof reserveStructure>>;
+  try {
+    const { row, key } = staged
+      ? await readStagedStructure(scope, route, payload, await staged)
+      : await stageNewSubmission(scope, route, payload, localId);
+    if (!canDispatch()) throw new CustodyRefusal('stale');
+    const frozen = await issueStructure(route, scope.account, scope.tripId, token, payload);
+    attempt = await reserveStructure(row, key, frozen, canDispatch);
+  } catch (error) {
+    if (!(error instanceof CustodyRefusal) || error.reason !== 'stale') throw error;
+    window.dispatchEvent(new Event(structureCustodyChanged));
+    throw new StaleStructureDraft();
+  }
   window.dispatchEvent(new Event(structureCustodyChanged));
   if (!canDispatch()) throw new CustodyRefusal('stale');
   const evidence = await sendStructure(endpoint, token, attempt);
@@ -52,9 +63,17 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
   if (evidence.state !== 'applied' && evidence.state !== 'checkedNoOp')
     throw new StructureRefused(String(evidence.code ?? evidence.state));
   const updated = await readCustody(scope.account, scope.tripId);
-  if (!current() || updated.structure?.drafts[key] && updated.structure.drafts[key].generation > attempt.generation)
+  if (!current() || updated.structure?.drafts[attempt.key] && updated.structure.drafts[attempt.key].generation > attempt.generation)
     throw new CustodyRefusal('stale');
   return projectReceipt<T>(route, graph, evidence.result);
+}
+
+/** An untouched create may start its own local draft. Delete and direct reorder controls stage at submission. */
+function stageNewSubmission(scope: ReturnType<typeof dispatchAuthority>, route: StructureRoute, payload: object, localId?: string) {
+  const { kind } = route;
+  if (kind.endsWith('-fields') || kind === 'place-save' || kind === 'region-order' || kind === 'area-geometry')
+    throw new CustodyRefusal('stale');
+  return persistStructure(scope, route, payload, localId, kind.endsWith('-create'));
 }
 
 /** Supplies existing Editor controls with a qualified current snapshot and exact historical deletion IDs. */
@@ -151,8 +170,9 @@ export async function saveStructureIntent(endpoint: string, kind: string, target
   const scope = dispatchAuthority(endpoint);
   const route = structureRoute(endpoint, scope.tripId, kind, target);
   const revision = revisionKey(scope, route, draftId);
-  liveGeneration.set(revision, (liveGeneration.get(revision) ?? 0) + 1);
-  await persistStructure(scope, route, payload, draftId);
+  const staged = persistStructure(scope, route, payload, draftId).then(({ key, generation }) => ({ key, generation }));
+  stagedIntents.set(revision, staged);
+  await staged;
   window.dispatchEvent(new Event(structureCustodyChanged));
 }
 

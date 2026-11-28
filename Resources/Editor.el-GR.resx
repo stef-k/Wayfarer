@@ -4838,6 +4838,7 @@
   <data name="Editor.StructureLegacyHold" xml:space="preserve"><value>Δεν υπάρχει ανακτήσιμη απόδειξη για μια προηγούμενη διαγραφή περιοχής.</value></data>
   <data name="Editor.StructureDismiss" xml:space="preserve"><value>Απόκρυψη ειδοποίησης</value></data>
   <data name="Editor.StructureDraft" xml:space="preserve"><value>Διατηρημένο πρόχειρο</value></data>
+  <data name="Editor.StructureStaleDraft" xml:space="preserve"><value>Αυτό το πρόχειρο δεν είναι πλέον ενημερωμένο. Ελέγξτε το διατηρημένο πρόχειρο στην ανάκτηση αποθηκεύσεων ταξιδιού πριν δοκιμάσετε ξανά.</value></data>
   <data name="Editor.StructureTargetUnavailable" xml:space="preserve"><value>Το αρχικό στοιχείο δεν είναι πλέον διαθέσιμο.</value></data>
   <data name="Editor.StructureParentChanged" xml:space="preserve"><value>Ελέγξτε τη νέα γονική περιοχή πριν από την αποθήκευση.</value></data>
   <data name="Editor.StructureDiscard" xml:space="preserve"><value>Απόρριψη τοπικού προχείρου</value></data>

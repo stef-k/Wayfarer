@@ -1,4 +1,5 @@
 import { saveStructureIntent } from '../recovery/structureMutation';
+import { StaleStructureDraft } from '../recovery/structureCustody';
 import { structureContract } from '../recovery/structureRoutes';
 import { message, plural } from '../../../../wwwroot/js/localization/messages.js';
 import { editorWarningText } from './editorFeedbackText';
@@ -222,7 +223,7 @@ export function usePlaceEditorActions(context: any) {
       context.props.editorSurface.replaceActiveTarget(context.activePlaceTarget.value);
       if (!owner.creationUncertain.value && !owner.structural() && Object.keys(owner.request().changes).length === 0) context.markSaved(result.warnings.map(warning => editorWarningText(warning.code)), 'Place saved');
     } catch (error) {
-      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (rejected) releaseAttempt();
       if (!currentAttempt()) return;

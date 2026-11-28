@@ -1,4 +1,5 @@
 import { saveStructureIntent } from '../recovery/structureMutation';
+import { StaleStructureDraft } from '../recovery/structureCustody';
 import { structureContract } from '../recovery/structureRoutes';
 import { type RegionOrderOriginals, validateRegionOrderAcknowledgement, validateRegionOrderPreview } from './regionOrdering';
 import { onUnmounted, watch } from 'vue';
@@ -150,7 +151,7 @@ export function useRegionEditorActions(context: any) {
     } catch (error) {
       if (!currentAttempt()) return;
       // A transport/server failure is not evidence of no effect. Preserve even a newer reversal to the old base.
-      const rejected = error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError || error instanceof EditorLifecycleConfirmationError
         || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (creation && rejected) owner.creationUncertain.value = false;
       if (dispatched && !rejected) {
@@ -258,7 +259,8 @@ export function useRegionEditorActions(context: any) {
       // Reordering does not acknowledge or reset a newer scalar draft.
       if (Object.keys(owner.request().changes).length === 0 && !context.isDirty.value) context.markSaved();
     } catch (error) {
-      const rejected = error instanceof EditorValidationError || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
+      const rejected = error instanceof StaleStructureDraft || error instanceof EditorValidationError
+        || error instanceof EditorMutationHttpError && [401, 403, 404, 405, 409, 429].includes(error.status);
       if (rejected || !dispatched) { owner.orderUncertain.value = false; owner.orderIntent.value = null; }
       if (!currentAttempt()) return;
       const heldError = dispatched && !rejected ? new Error('The Region order could not be confirmed and may have committed. Your intent is retained. Do not replay it; refresh/reset cannot prove noncommit. Explicitly leave without saving to abandon this page.') : error;

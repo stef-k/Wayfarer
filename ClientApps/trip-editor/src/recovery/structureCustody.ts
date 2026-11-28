@@ -7,6 +7,7 @@ import { object } from './receiptStructureResults';
 import type { EditorTripState } from '../types';
 
 export type StructureDraft = { route: StructureRoute; localId?: string; payload: object; generation: number; review?: boolean };
+export type StructureDraftVersion = { key: string; generation: number };
 export type StructureAttempt = StructureDispatch & { key: string; generation: number; footprint: Footprint };
 export type DependentReservation = { id: string; path: string; method: string; footprint: Footprint };
 export type StructureCustody = {
@@ -23,17 +24,36 @@ const possible = (row: StructureCustody): Footprint[] => [...row.attempts, ...ro
 const terminal = (evidence: Evidence): evidence is Evidence & { state: TerminalState } =>
   ['applied', 'checkedNoOp', 'terminalUnapplied', 'retired'].includes(evidence.state);
 
+/** Refuses a stale form before its protected mutation is sent. */
+export class StaleStructureDraft extends CustodyRefusal {
+  constructor() { super('stale'); }
+}
+
 /** Persists the exact typed original and desired intent with its own local generation. */
-export function persistStructure(scope: Scope, route: StructureRoute, payload: object, localId?: string): Promise<{ row: Custody; key: string }> {
+export function persistStructure(scope: Scope, route: StructureRoute, payload: object, localId?: string,
+  newDraft = false): Promise<StructureDraftVersion & { row: Custody }> {
   return access(scope.account, scope.tripId, row => {
     const drafts = state(row).drafts;
     const prefix = [route.kind, route.target.type, route.target.id];
     const key = JSON.stringify([...prefix, ...(localId === undefined ? [] : [localId])]);
     const prior = drafts[key];
+    if (prior && newDraft) throw new CustodyRefusal('stale');
     if (!prior || JSON.stringify(prior.payload) !== JSON.stringify(payload))
       drafts[key] = { route, localId, payload, generation: ++row.generation };
-    return { next: row, value: { row, key } };
+    return { next: row, value: { row, key, generation: drafts[key].generation } };
   });
+}
+
+/** Reads the form's exact durable generation without writing to custody. */
+export async function readStagedStructure(scope: Scope, route: StructureRoute, payload: object,
+  { key, generation }: StructureDraftVersion): Promise<{ row: Custody; key: string }> {
+  const row = await readCustody(scope.account, scope.tripId);
+  const draft = row.structure?.drafts[key];
+  if (!draft || draft.generation !== generation || draft.route.path !== route.path ||
+      JSON.stringify(draft.payload) !== JSON.stringify(authoredIntent(route, payload)))
+    throw new CustodyRefusal('stale');
+  if (draft.review) throw new CustodyRefusal('review');
+  return { row, key };
 }
 
 /** Makes the final scope, generation, overlap and exact frozen-attempt checks in one strict transaction. */
@@ -46,7 +66,7 @@ export function reserveStructure(view: Custody, key: string, frozen: StructureDi
     const expected = view.structure?.drafts[key];
     if (!scopeCurrent() || row.account !== view.account || row.tripId !== view.tripId || !draft || draft.generation !== expected?.generation ||
         permit.subjectId !== view.account || permit.tripId !== view.tripId || route.path !== draft.route.path ||
-        route.method !== draft.route.method || JSON.stringify(draft.payload) !== JSON.stringify(withoutMarker(body)))
+        route.method !== draft.route.method || JSON.stringify(draft.payload) !== JSON.stringify(authoredIntent(route, withoutMarker(body))))
       throw new CustodyRefusal('stale');
     if (draft.review) throw new CustodyRefusal('review');
     const footprint = structureFootprint(route, draft.payload);
@@ -152,8 +172,15 @@ export function discardStructure(view: Custody, key: string): Promise<Custody> {
 
 export const readStructureCustody = (scope: Scope): Promise<Custody> => readCustody(scope.account, scope.tripId);
 
-/** The persisted body must contain exactly the draft plus its transport marker. */
-function withoutMarker(body: string): unknown {
+/** Preparation adds fresh consent to the submission while the stored authored intent keeps its originals. */
+function authoredIntent(route: StructureRoute, payload: object): object {
+  if (route.kind !== 'place-save' && route.kind !== 'region-order') return payload;
+  const { conditionToken: _token, reviewed: _reviewed, ...intent } = payload as Record<string, unknown>;
+  return intent;
+}
+
+/** Removes the transport marker before comparing the frozen body to the durable intent. */
+function withoutMarker(body: string): object {
   const { receiptContract: _marker, ...payload } = JSON.parse(body) as Record<string, unknown>;
   return payload;
 }

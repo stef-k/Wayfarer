@@ -3,7 +3,9 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 
 /** Observes actual committed browser custody before allowing the lost response or subsequent reload. */
 async function regionCustody(page: Page, tripId: string, id: string) {
-  return page.evaluate(({ tripId, id }) => new Promise<{ name: string | null; generation: number; attempts: number }>((resolve, reject) => {
+  return page.evaluate(({ tripId, id }) => new Promise<{
+    name: string | null; originals: Record<string, unknown> | null; generation: number; attempts: number;
+  }>((resolve, reject) => {
     const open = indexedDB.open('wayfarer-trip-metadata', 3);
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
@@ -15,7 +17,8 @@ async function regionCustody(page: Page, tripId: string, id: string) {
         const structure = read.result?.structure;
         const key = JSON.stringify(['region-fields', 'region', id]);
         const draft = structure?.drafts[key];
-        resolve({ name: draft?.payload.changes.name ?? null, generation: draft?.generation ?? 0, attempts: structure?.attempts.length ?? 0 });
+        resolve({ name: draft?.payload.changes.name ?? null, originals: draft?.payload.expected ?? null,
+          generation: draft?.generation ?? 0, attempts: structure?.attempts.length ?? 0 });
         db.close();
       };
     };
@@ -80,6 +83,55 @@ test('typed Region recovery after reload keeps the newer draft and sends zero re
   await expect(recovery.locator('pre')).toContainText('Newer Region C');
   expect(writes).toEqual(['POST', 'PATCH']);
   await page.screenshot({ path: process.env.WAYFARER_STRUCTURE_SCREENSHOT ?? info.outputPath('typed-region-recovery.png'), fullPage: true });
+});
+
+test('a stale open Region form leaves the newer durable draft and saved Region untouched', async ({ page, context }) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const editor = `/User/Trip/Edit/${tripId}`;
+  const endpoint = `/api/trips/${tripId}/editor`;
+  await context.route('**/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  const other = await context.newPage();
+  await Promise.all([page.goto(editor), other.goto(editor)]);
+  const card = (actor: Page) => actor.locator('.trip-editor-region-card--normal').first();
+  await expect(card(page)).toBeVisible();
+  const id = (await card(page).getAttribute('data-region-id'))!;
+  const name = (actor: Page) => actor.locator('#trip-editor-region-form').getByLabel('Name', { exact: true });
+  for (const actor of [page, other])
+    await card(actor).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+  const readSaved = async () => {
+    const response = await page.request.get(endpoint);
+    expect(response.ok()).toBe(true);
+    return (await response.json()).regionsById[id];
+  };
+  const saved = await readSaved();
+  await name(page).fill('Older draft A');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({ name: 'Older draft A' });
+  await name(other).fill('Newer draft B');
+  await expect.poll(() => regionCustody(page, tripId, id)).toMatchObject({
+    name: 'Newer draft B', originals: { name: saved.name }, attempts: 0
+  });
+  const newer = await regionCustody(page, tripId, id);
+
+  const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
+  const sends: string[] = [];
+  context.on('request', request => {
+    if ([routePath, routePath + '/operations'].includes(new URL(request.url()).pathname)) sends.push(request.method());
+  });
+  await page.getByRole('button', { name: 'Save Region', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('This draft is out of date. Review the retained draft in Trip save recovery');
+  const recovery = page.getByRole('region', { name: 'Trip save recovery' });
+  await recovery.getByText('Retained draft', { exact: false }).click();
+  await expect(recovery.locator('pre')).toContainText('Newer draft B');
+  await expect(name(page)).toHaveValue('Older draft A');
+  expect(await readSaved()).toEqual(saved);
+  expect(await regionCustody(page, tripId, id)).toEqual(newer);
+  expect(sends).toEqual([]);
 });
 
 test('a newer tab generation during typed permit issuance prevents dispatch', async ({ page, context }) => {
