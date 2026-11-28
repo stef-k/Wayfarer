@@ -2,7 +2,7 @@ import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { initShareProgressToggle } from '../../../../wwwroot/js/Areas/User/Trip/shareProgressToggle.js';
 import { adoptedDraft } from '../components/metadataDraft';
 import { adoptBases, authorize, CustodyRefusal, heldFields, readCustody, remember, saveDraft, sharingBase, type Custody } from './custody';
-import { freezeRequest, issuePermit, readOwnerMetadata, sendAttempt } from './receiptApi';
+import { freezeRequest, issuePermit, OwnerScopeUnavailable, readOwnerMetadata, sendAttempt } from './receiptApi';
 import { receiptStatus, recoverMetadata } from './recoverMetadata';
 import { custodyMessage } from './useMetadataCustody';
 import type { EditorTripMetadata } from '../types';
@@ -82,8 +82,11 @@ function mount(root: HTMLElement, account: string, tripId: string): void {
     } }, current);
     await authorize(row, [field]);
     const body = freezeRequest({ enabled });
-    const permit = await issuePermit(endpoint, token, account, tripId, body, 'viewer-sharing')
-      .catch(() => { throw new Error(custodyMessage('issuance')); });
+    const permit = await issuePermit(endpoint, token, account, tripId, body, 'viewer-sharing').catch(() => null);
+    if (!permit) {
+      feedback = custodyMessage('issuance');
+      return;
+    }
     const attempt = await authorize(row, [field], { permit, body });
     if (!attempt) return;
     row = { ...row, attempts: [...row.attempts, attempt] };
@@ -104,8 +107,9 @@ function mount(root: HTMLElement, account: string, tripId: string): void {
     render();
     try { await action(); }
     catch (error) {
-      feedback = custodyMessage(error instanceof CustodyRefusal ? error.reason : 'storage');
-      if (error instanceof CustodyRefusal && error.reason === 'stale') current = null;
+      const reason = error instanceof CustodyRefusal ? error.reason : error instanceof OwnerScopeUnavailable ? 'owner' : 'storage';
+      feedback = custodyMessage(reason);
+      if (reason === 'stale' || reason === 'owner') current = null;
     } finally {
       busy = false;
       render();

@@ -31,7 +31,12 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
                 // Bearer null Notes means Unchanged. Web Clear must also be an explicit empty string.
                 if (canonicalKey == "notes" && next == null)
                 {
-                    if (originals.TryGetValue(key, out var ignored)) ReadValue(key, ignored, false);
+                    if (originals.TryGetValue(key, out var ignored))
+                    {
+                        if (contract == TripMetadataIdentity.Version2)
+                            throw Invalid(key, "Omit the original for unchanged Notes.");
+                        ReadValue(key, ignored, false);
+                    }
                     continue;
                 }
                 if (!originals.TryGetValue(key, out var original)) throw Invalid(key, "An original value is required for each changed field.");

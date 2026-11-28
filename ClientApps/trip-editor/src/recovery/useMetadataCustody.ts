@@ -1,5 +1,6 @@
 import { computed, inject, nextTick, ref, shallowRef, watch } from 'vue';
 import { message as localize } from '../../../../wwwroot/js/localization/messages.js';
+import { EditorValidationError } from '../api/tripEditorApi';
 import { adoptedDraft, type createMetadataDraftState } from '../components/metadataDraft';
 import type { EditorTag, EditorTripMetadata } from '../types';
 import { adoptBases, authorize, CustodyRefusal, heldFields, knownHistory, readCustody, remember, saveDraft, type Custody, type DraftFields, type SettingsField } from './custody';
@@ -202,8 +203,9 @@ export function useMetadataCustody(props: Props, state: ReturnType<typeof create
       }
       const newer = Object.keys(attempt.submitted).some(field => row.value?.fields[field as SettingsField]);
       return { metadata, continueSave: !!metadata && !row.value?.attempts.some(candidate => candidate.permit.operationId === attempt.permit.operationId) && !stale.value && !newer };
-    } catch {
+    } catch (error) {
       feedback.value = custodyMessage('held');
+      if (error instanceof EditorValidationError) throw error;
       return { metadata: null, continueSave: false };
     }
   }

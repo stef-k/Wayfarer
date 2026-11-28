@@ -1,5 +1,5 @@
-import type { EditorTripMetadata } from '../types';
-import { captureMutationPublication } from '../api/tripEditorApi';
+import type { EditorTripMetadata, ValidationProblemDetails } from '../types';
+import { captureMutationPublication, EditorValidationError } from '../api/tripEditorApi';
 import { keysAre, refusalStatus, rejectDuplicateMembers, uuid, v2Contract, validDigests, validTags, validV2Success,
   webWriteRoute, type WebOperation } from './receiptV2';
 
@@ -107,7 +107,14 @@ export async function sendAttempt(endpoint: string, token: string, attempt: Atte
     method, credentials: 'same-origin', headers: { ...writeHeaders(token), [proofHeader]: attempt.permit.proof },
     body: attempt.body
   });
-  return readEvidence(response, attempt, false);
+  const invalid = response.status === 400 ? response.clone() : null;
+  try { return await readEvidence(response, attempt, false); }
+  catch (error) {
+    // A validation problem can guide editing but supplies no settlement for this dispatch.
+    const problem = await invalid?.json().catch(() => null) as ValidationProblemDetails | undefined;
+    if (problem?.code === 'mutation-request-invalid' && problem.errors) throw new EditorValidationError(problem);
+    throw error;
+  }
 }
 
 /** Recovery never renews the permit or dispatches an effect. */

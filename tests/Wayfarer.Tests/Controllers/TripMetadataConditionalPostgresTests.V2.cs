@@ -107,4 +107,44 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Equal((trip.Name, trip.ShareProgressEnabled, trip.UpdatedAt), (saved.Name, saved.ShareProgressEnabled, saved.UpdatedAt));
         Assert.Empty(saved.Tags);
     }
+
+    /// <summary>Supplies exact v2 framing witnesses independently provided by the accepted amendment.</summary>
+    [Theory]
+    [InlineData("viewer-sharing", "{\"receiptContract\":\"trip-metadata-receipt-2\",\"enabled\":true}",
+        "sha256:9360ff364b4615b25c97d43da427499c31c46e04d64012e3212212b10ced7106")]
+    [InlineData("tags-detach", "{\"receiptContract\":\"trip-metadata-receipt-2\",\"slug\":\"day-hike\"}",
+        "sha256:cf99b905ab8e823a4dfc3926d634a1ffd929acf49d930b1f1954f9d78554f2eb")]
+    public void V2_RequestDigestMatchesPublishedVectors(string kind, string body, string expected)
+    {
+        var trip = Guid.Parse("12345678-1234-4234-8234-123456789abc");
+        Assert.Equal(expected, Wayfarer.Services.TripMetadataReceipts.TripMetadataIdentity.Digest(TripControlWrite.Contract,
+            kind, "owner-a", "web", trip, System.Text.Encoding.UTF8.GetBytes(body)));
+    }
+
+    /// <summary>Only the reviewed policy can be a comparison dependency outside the v2 effective selection.</summary>
+    [PostgresFact]
+    public async Task V2_NullDesiredNotesLeavesItUnchangedAndRequiresNoOriginal()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        await using var host = await StartAsync(db);
+        using var bearer = Bearer(host, trip.UserId);
+        var invalid = TripControlWrite.Create(trip.Id, "conditional", HttpMethod.Patch, "metadata", false, new
+        {
+            expected = new { name = trip.Name, notes = trip.Notes },
+            changes = new { name = "A changed name", notes = (string?)null }
+        });
+        using var refused = await invalid.DispatchAsync(bearer, await invalid.PermitAsync(bearer, trip));
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        var accepted = TripControlWrite.Create(trip.Id, "conditional", HttpMethod.Patch, "metadata", false, new
+        {
+            expected = new { name = trip.Name },
+            changes = new { name = "A changed name", notes = (string?)null }
+        });
+        var permit = await accepted.PermitAsync(bearer, trip);
+        using var reply = await accepted.DispatchAsync(bearer, permit);
+        var receipt = await EvidenceAsync(reply, permit, "applied");
+        Assert.Equal("name", Assert.Single(receipt.GetProperty("fieldDigests").EnumerateObject()).Name);
+        Assert.True(await db.Trips.AnyAsync(t => t.Id == trip.Id && t.Notes == trip.Notes && t.Name == "A changed name"));
+    }
 }

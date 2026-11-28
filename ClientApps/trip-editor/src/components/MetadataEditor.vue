@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { EditorValidationError } from '../api/tripEditorApi';
 import { editorErrorText } from './editorFeedbackText';
 import { editorFieldError } from '../editorValidation';
 import { date, message as localize } from '../../../../wwwroot/js/localization/messages.js';
@@ -203,7 +204,12 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
     await nextTick();
     if (exitAfterSave && savingSession === editSession.value && !isDirty.value) await backToTrips();
   } catch (error) {
-    saveError.value = editorErrorText(error, 'Trip settings save failed.');
+    if (error instanceof EditorValidationError) {
+      validationErrors.value = error.errors;
+      saveError.value = localize('Editor.InvalidForm', 'Review the highlighted fields before saving.');
+    } else {
+      saveError.value = editorErrorText(error, 'Trip settings save failed.');
+    }
   } finally {
     isSaving.value = false;
   }
