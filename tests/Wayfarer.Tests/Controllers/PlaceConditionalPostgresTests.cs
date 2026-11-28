@@ -51,7 +51,7 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
             : await web.PutAsJsonAsync($"/api/trips/{place.Region.TripId}/editor/places/{place.Id}", new
             { regionId = place.RegionId, name = "Web name", notesHtml = place.Notes, address = place.Address,
                 location = new { latitude = 14, longitude = 22 }, iconName = "marker", markerColor = "bg-blue", reverseGeocode = false });
-        Assert.True(response.StatusCode == (conditional ? HttpStatusCode.OK : HttpStatusCode.BadRequest), await response.Content.ReadAsStringAsync());
+        Assert.True(response.StatusCode == (conditional ? HttpStatusCode.OK : HttpStatusCode.Conflict), await response.Content.ReadAsStringAsync());
         await using var verify = fixture.CreateContext();
         var stored = await verify.Places.SingleAsync(p => p.Id == place.Id);
         Assert.Equal(protectedBearer ? "Newer Mobile notes" : place.Notes, stored.Notes);

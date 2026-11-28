@@ -39,8 +39,9 @@ public sealed partial class PlaceConditionalPostgresTests
         using var prepare = await client.PostAsJsonAsync(path + "/prepare", request);
         Assert.True(prepare.IsSuccessStatusCode, await prepare.Content.ReadAsStringAsync());
         request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
-        async Task<HttpResponseMessage> Structure() => operation == "order" || webStructural
-            ? await client.PutAsJsonAsync(path, request) : await client.PostAsJsonAsync(path, request);
+        Task<HttpResponseMessage> Structure() => operation == "order"
+            ? DispatchPlaceOrderAsync(client, graph.UserId, graph.TripId, graph.SourceId, webStructural, request)
+            : DispatchPlaceStructureAsync(client, place, webStructural, operation, request);
         Task<HttpResponseMessage> Notes() => webStructural
             ? PatchAsync(bearer, place, false, new { notes = place.Notes }, new { notes = "Opposite Notes" })
             : PatchAsync(web, place, true, new { notesHtml = place.Notes }, new { notesHtml = "Opposite Notes" });
@@ -178,11 +179,12 @@ public sealed partial class PlaceConditionalPostgresTests
         using var web = await WebAsync(app, place.UserId);
         var request = await MoveRequestAsync(place, graph.DestinationId!.Value, true);
         await PrepareStructureAsync(web, place, true, "move", request);
+        var send = await PreparePlaceStructureDispatchAsync(web, place, "move", request);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         // Hold the row this writer changes; holding the target can deadlock against an earlier sibling lock.
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Places\" WHERE \"Id\" = {graph.PlaceIds[1]} FOR UPDATE");
-        var pending = web.PutAsJsonAsync(StructurePath(place, true, "move"), request);
+        var pending = send();
         await WaitForLockAsync(probe, 0);
         Assert.False(pending.IsCompleted);
         output.WriteLine("Routed move reached a physical PostgreSQL Place wait before the sibling membership change.");

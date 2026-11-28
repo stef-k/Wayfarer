@@ -1,3 +1,4 @@
+using Wayfarer.Services.TripMetadataReceipts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -69,9 +70,8 @@ public sealed partial class AreaConditionalPostgresTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var error = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
         Assert.Equal("mutation-request-invalid", error.GetProperty("code").GetString());
-        var messages = error.GetProperty("errors").GetProperty("name");
-        Assert.NotEmpty(messages.EnumerateArray());
-        if (length > 200) Assert.Contains("200", messages[0].GetString());
+        Assert.Equal("terminalUnapplied", error.GetProperty("state").GetString());
+        Assert.False(error.TryGetProperty("errors", out _));
         Assert.Empty(probe.Updates);
         var correctedName = new string('x', 200);
         using var corrected = await PatchAsync(web, area, true, new { name = area.Name, notesHtml = area.Notes },
@@ -94,10 +94,11 @@ public sealed partial class AreaConditionalPostgresTests
         using var web = await WebAsync(app, area.Region.UserId);
         using var bearer = Bearer(app, area.Region.UserId);
         var route = $"/api/trips/{area.Region.TripId}/editor/regions/{area.RegionId}";
-        using var previewResponse = await web.PostAsJsonAsync(route + "/deletion-preview", new { places = "keep", areas = "keep" });
+        using var previewResponse = await web.PostAsJsonAsync(route + "/deletion-preview?contract=" + TripMetadataIdentity.StructureVersion, new { places = "keep", areas = "keep" });
         Assert.Equal(HttpStatusCode.OK, previewResponse.StatusCode);
         var preview = (await previewResponse.Content.ReadFromJsonAsync<RegionDeletionPreviewDto>())!;
-        using var deletion = await web.PostAsJsonAsync(route + "/deletion", new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
+        using var deletion = await TripMetadataReceiptHttp.DispatchRegionDeletionAsync(web, area.Region.UserId, area.Region.TripId, area.RegionId,
+            new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
         Assert.Equal(HttpStatusCode.OK, deletion.StatusCode);
         using var staleWeb = await PatchAsync(web, area, true, new { notesHtml = area.Notes }, new { notesHtml = "Old scope" });
         using var staleBearer = await PatchAsync(bearer, area, false, new { notes = area.Notes }, new { notes = "Old scope" });
@@ -174,9 +175,9 @@ public sealed partial class AreaConditionalPostgresTests
         Assert.Empty(_warmup.Invocations);
     }
 
-    /// <summary>Legacy geometry-only PUT writes no Notes; its conflicting Geometry replacements remain unconditional.</summary>
+    /// <summary>Reviewed geometry writes preserve Notes and refuse stale originals and superseded paths.</summary>
     [PostgresFact]
-    public async Task LegacyGeometryOnly_PreservesNotesAndScope_ButCanOverwriteGeometry()
+    public async Task ProtectedGeometry_PreservesNotesAndRefusesStaleAndSupersededWrites()
     {
         var area = await SeedAsync();
         var probe = new AreaProbe();
@@ -187,22 +188,29 @@ public sealed partial class AreaConditionalPostgresTests
         using var notes = await PatchAsync(bearer, area, false, new { notes = area.Notes }, new { notes = "New Notes" });
         Assert.Equal(HttpStatusCode.OK, notes.StatusCode);
         var writes = probe.Updates.Count;
-        using var geometry = await web.PutAsJsonAsync($"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/geometry", new { geometry = Geometry(Polygon(20)) });
+        var path = $"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/geometry";
+        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, area.Region.UserId, "web", "area-geometry",
+            area.Region.TripId, "", Guid.Empty, default) { Target = new("area", area.Id) };
+        var geometryBody = System.Text.Json.JsonSerializer.Serialize(new { expected = new { regionId = area.RegionId, geometry = Fingerprint(area) },
+            geometry = Geometry(Polygon(20)) }, System.Text.Json.JsonSerializerOptions.Web);
+        using var geometry = await TripMetadataReceiptHttp.DispatchTypedAsync(web, identity, HttpMethod.Put, path + "/receipt", geometryBody);
         Assert.Equal(HttpStatusCode.OK, geometry.StatusCode);
         var sql = probe.Updates.Skip(writes).Single(s => s.Contains("UPDATE \"Areas\""));
         Assert.Contains("\"Geometry\" =", sql);
         Assert.DoesNotContain("\"Notes\" =", sql);
-        using var wrongTrip = await web.PutAsJsonAsync($"/api/trips/{Guid.NewGuid()}/editor/areas/{area.Id}/geometry", new { geometry = Geometry(area) });
+        var foreignTrip = Guid.NewGuid();
+        using var wrongTrip = await TripMetadataReceiptHttp.DispatchTypedAsync(web, identity with { TripId = foreignTrip }, HttpMethod.Put,
+            $"/api/trips/{foreignTrip}/editor/areas/{area.Id}/geometry/receipt", geometryBody);
         Assert.Equal(HttpStatusCode.NotFound, wrongTrip.StatusCode);
         using var staleProtected = await PatchAsync(web, area, true, new { geometry = Fingerprint(area) }, new { geometry = Geometry(Polygon(30)) });
         Assert.Equal(HttpStatusCode.Conflict, staleProtected.StatusCode);
         using var legacyOverwrite = await web.PutAsJsonAsync($"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/geometry", new { geometry = Geometry(area) });
-        Assert.Equal(HttpStatusCode.OK, legacyOverwrite.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, legacyOverwrite.StatusCode);
         await using var verify = fixture.CreateContext();
         var stored = await verify.Areas.SingleAsync(a => a.Id == area.Id);
         Assert.Equal("New Notes", stored.Notes);
-        AssertPolygon(area.Geometry, stored.Geometry);
-        output.WriteLine("Legacy geometry-only PUT: Geometry + Trip UpdatedAt only; preserved Notes, still unconditional for Geometry conflicts.");
+        AssertPolygon(Polygon(20), stored.Geometry);
+        output.WriteLine("Checked geometry changed Geometry and Trip freshness only. Stale and obsolete writes left it unchanged.");
         output.WriteLine(sql);
     }
 

@@ -1,3 +1,4 @@
+using Wayfarer.Services.TripMetadataReceipts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -31,7 +32,8 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var app = await StartAsync(db); using var web = await WebAsync(app, g.UserId); using var bearer = Bearer(app, g.UserId);
         var deletionPath = $"/api/trips/{g.TripId}/{(deleteFirst ? "" : "editor/")}regions/{g.SourceId}";
         var deleting = deleteFirst ? bearer : web;
-        using var discovery = await deleting.PostAsJsonAsync(deletionPath + "/deletion-preview", new { places = "keep", areas = "keep" });
+        var previewPath = deletionPath + "/deletion-preview" + (deleteFirst ? "" : "?contract=" + TripMetadataIdentity.StructureVersion);
+        using var discovery = await deleting.PostAsJsonAsync(previewPath, new { places = "keep", areas = "keep" });
         Assert.Equal(HttpStatusCode.OK, discovery.StatusCode);
         var preview = (await discovery.Content.ReadFromJsonAsync<RegionDeletionPreviewDto>())!;
         var ordering = operation == "destination-order" ? bearer : web;
@@ -61,8 +63,19 @@ public sealed partial class PlaceConditionalPostgresTests
         using var prepare = await ordering.PostAsJsonAsync(path + "/prepare", request);
         Assert.True(prepare.StatusCode == HttpStatusCode.OK, await prepare.Content.ReadAsStringAsync());
         request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString(); request["reviewed"] = true;
-        Task<HttpResponseMessage> Delete() => deleting.PostAsJsonAsync(deletionPath + "/deletion", new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
-        Task<HttpResponseMessage> Write() => ordering.PutAsJsonAsync(path, request);
+        var choices = new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token };
+        Task<HttpResponseMessage> Delete() => deleteFirst ? deleting.PostAsJsonAsync(deletionPath + "/deletion", choices)
+            : TripMetadataReceiptHttp.DispatchRegionDeletionAsync(deleting, g.UserId, g.TripId, g.SourceId, choices);
+        Task<HttpResponseMessage> Write() => operation switch
+        {
+            "move" => DispatchPlaceStructureAsync(ordering, place, true, operation, request),
+            "destination-order" => DispatchPlaceOrderAsync(ordering, g.UserId, g.TripId, g.DestinationId!.Value, false, request),
+            "place-order" => DispatchPlaceOrderAsync(ordering, g.UserId, g.TripId, g.SourceId, true, request),
+            _ => TripMetadataReceiptHttp.DispatchTypedAsync(ordering,
+                new(TripMetadataIdentity.StructureVersion, g.UserId, "web", "region-order", g.TripId, "", Guid.Empty, default)
+                    { Target = new("trip", g.TripId) }, HttpMethod.Put, path + "/receipt",
+                JsonSerializer.Serialize(request, JsonSerializerOptions.Web))
+        };
         using var first = deleteFirst ? await Delete() : await Write();
         Assert.True(first.StatusCode == HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
         var graph = await GraphStateAsync(g.TripId); var rows = await StoredStructureRowsAsync(g.TripId);

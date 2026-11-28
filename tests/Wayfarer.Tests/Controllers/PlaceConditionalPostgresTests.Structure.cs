@@ -181,6 +181,11 @@ public sealed partial class PlaceConditionalPostgresTests
             JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
     }
 
+    /// <summary>Issues the combined-save permit before acquiring the fixture's separate apply blocker.</summary>
+    private static Task<Func<Task<HttpResponseMessage>>> PreparePlaceStructureDispatchAsync(HttpClient client, Place place, string operation, object payload) =>
+        TripMetadataReceiptHttp.PrepareTypedAsync(client, PlaceStructureIdentity(place), HttpMethod.Put, StructurePath(place, true, operation) + "/receipt",
+            JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+
     /// <summary>Binds a protected combined save to the exact Place.</summary>
     private static TripMetadataIdentity PlaceStructureIdentity(Place place) =>
         new(TripMetadataIdentity.StructureVersion, place.UserId, "web", "place-save", place.Region.TripId,

@@ -74,6 +74,15 @@ internal static class TripMetadataReceiptHttp
             return await SendAsync(client, method, route, await issuance.Content.ReadFromJsonAsync<JsonElement>(), body);
     }
 
+    /// <summary>Confirms a protected Web Region deletion using only the reviewed choices and token.</summary>
+    internal static Task<HttpResponseMessage> DispatchRegionDeletionAsync(HttpClient client, string userId, Guid tripId, Guid regionId, object choices)
+    {
+        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, userId, "web", "region-delete",
+            tripId, "", Guid.Empty, default) { Target = new("region", regionId) };
+        return DispatchTypedAsync(client, identity, HttpMethod.Post,
+            $"/api/trips/{tripId}/editor/regions/{regionId}/deletion/receipt", JsonSerializer.Serialize(choices));
+    }
+
     /// <summary>Captures issuance before a race test installs its separate domain-row blocker.</summary>
     internal static async Task<Func<Task<HttpResponseMessage>>> PrepareTypedAsync(HttpClient client, TripMetadataIdentity identity,
         HttpMethod method, string route, string payload)
