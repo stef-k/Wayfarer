@@ -40,7 +40,8 @@ public partial class TripsController
 
     /// <summary>Owns graph, identity, projection and cleanup on the same fresh tracked context.</summary>
     private async Task<IActionResult> ReadTripSnapshotAsync(Guid id,
-        IDbContextFactory<ApplicationDbContext> contexts, JsonOptions jsonOptions, CancellationToken token, bool ownerPrivate = false)
+        IDbContextFactory<ApplicationDbContext> contexts, JsonOptions jsonOptions, CancellationToken token,
+        bool ownerPrivate = false, bool ownerComparisons = false)
     {
         ApplicationDbContext? read = null;
         IDbContextTransaction? transaction = null;
@@ -51,15 +52,16 @@ public partial class TripsController
             transaction = await read.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, token);
             await read.Database.ExecuteSqlRawAsync(
                 "SET TRANSACTION READ ONLY; SET LOCAL transaction_timeout = '30s'", token);
-            var trip = await read.Trips
+            IQueryable<Trip> graph = read.Trips
                 .Include(t => t.Regions).ThenInclude(r => r.Places)
-                .Include(t => t.Regions).ThenInclude(r => r.Areas)
+                .Include(t => t.Regions).ThenInclude(r => r.Areas);
+            if (!ownerComparisons) graph = graph
                 .Include(t => t.Segments).ThenInclude(s => s.FromPlace).ThenInclude(p => p!.Region)
                 .Include(t => t.Segments).ThenInclude(s => s.ToPlace).ThenInclude(p => p!.Region)
                 .Include(t => t.Segments).ThenInclude(s => s.Waypoints)
                     .ThenInclude(w => w.Place).ThenInclude(p => p.Region)
-                .Include(t => t.Tags)
-                .AsSplitQuery()
+                .Include(t => t.Tags);
+            var trip = await graph.AsSplitQuery()
                 .FirstOrDefaultAsync(t => t.Id == id, token);
             if (ownerPrivate || trip is { IsPublic: false })
             {
@@ -76,11 +78,12 @@ public partial class TripsController
                     ? new JsonResult(new { code = "trip_not_found", tripId = id }) { StatusCode = StatusCodes.Status404NotFound }
                     : NotFound();
 
-            var dto = trip.ToFullApiDto(read, token);
+            var dto = ownerComparisons
+                ? TripStructureOwnerSnapshot.Project(trip, read, token)
+                : ProjectFullTrip(trip, read, ownerPrivate, token);
             token.ThrowIfCancellationRequested();
-            // Exactly one serialization pass, using the same options and UTF-8 media type as MVC.
             // No entity or deferred projection survives the database boundary.
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(ownerPrivate ? (object)new { trip = dto, planning = PlanningOwnerSnapshot.FromTrip(trip) } : dto, jsonOptions.JsonSerializerOptions);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(dto, jsonOptions.JsonSerializerOptions);
             token.ThrowIfCancellationRequested();
             return File(bytes, "application/json; charset=utf-8");
         }
@@ -102,6 +105,13 @@ public partial class TripsController
             if (!cleaned && !failed)
                 throw new InvalidOperationException("Trip read cleanup failed.");
         }
+    }
+
+    /// <summary>Preserves full graph validation and the unversioned private Planning shape.</summary>
+    private static object ProjectFullTrip(Trip trip, ApplicationDbContext read, bool ownerPrivate, CancellationToken token)
+    {
+        var dto = trip.ToFullApiDto(read, token);
+        return ownerPrivate ? new { trip = dto, planning = PlanningOwnerSnapshot.FromTrip(trip) } : dto;
     }
 
     /// <summary>Retains ordinary legacy lookup failures as null, while preserving cancellation and admission.</summary>

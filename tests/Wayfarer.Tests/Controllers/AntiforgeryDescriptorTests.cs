@@ -62,7 +62,8 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Api.TripEditor.ExecuteEditorSharing Api.TripEditor.IssueEditorSharing
         Api.TripEditor.PatchConditionalMetadata Api.TripEditor.PatchConditionalRegion Api.TripEditor.PatchConditionalArea
         Api.TripEditor.PatchConditionalSegmentNotes Api.TripEditor.PatchConditionalPlace Api.TripEditor.PatchPlanning
-        Api.TripEditor.CheckPlanning Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
+        Api.TripEditor.ProtectedRegionFields Api.TripEditor.ProtectedPlaceFields Api.TripEditor.ProtectedAreaFields
+        Api.TripEditor.ProtectedAreaGeometryFields Api.TripEditor.CheckPlanning Api.TripEditor.PreviewRegionDeletion Api.TripEditor.ConfirmRegionDeletion
         Api.TripEditor.PreviewPlaceDeletion Api.TripEditor.ConfirmPlaceDeletion
         Api.TripEditor.PreparePlaceUpdate Api.TripEditor.PrepareEditorPlaceOrder
         Api.TripEditor.DeleteRegion Api.TripEditor.OrderRegions Api.TripEditor.PrepareEditorRegionOrder Api.TripEditor.SearchGeocode Api.TripEditor.CreatePlace
@@ -78,6 +79,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
     // These routes have their own credential authority; cookie tokens must not become a mobile requirement.
     // KeyStatus is a read-only POST under the same active bearer authority as Location ingestion.
     private const string BearerActions = """
+        Api.Trips.ProtectedRegionFields Api.Trips.ProtectedPlaceFields Api.Trips.ProtectedAreaFields
         Api.Location.KeyStatus
         Api.MobileLocationImports.Put Api.MobileLocationImports.Start Api.MobileLocationImports.Stop Api.MobileLocationImports.Delete
         Api.MobileLocationImports.Control

@@ -225,6 +225,9 @@ public static class EditorTripStateMapper
             Planning = area.Planning,
             PlanningDiagnostics = Wayfarer.Models.Planning.PlanningValidation.Diagnostics(area.Planning, "area"),
             OriginalValues = new(regionId, area.Name, RichNotes.Normalize(area.Notes), area.FillHex, AreaGeometryIdentity.For(area.Geometry))
+            {
+                DisplayOrder = area.DisplayOrder
+            }
         };
 
     private static EditorVisitProgressDto BuildVisitProgress(
