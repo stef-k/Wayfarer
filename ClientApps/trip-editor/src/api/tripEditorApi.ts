@@ -401,8 +401,9 @@ const sendMutation = async <TData>(
 
   const result = await response.json() as EditorMutationResult<TData>;
   if (reservation) {
+    // The existing command owner reports its incomplete-acknowledgement error. Its reservation stays held.
     if (response.redirected || result.success !== true || !result.affected || !result.deletedIds ||
-        !Object.hasOwn(result, 'data') || !Array.isArray(result.warnings)) throw new Error('Segment acknowledgement unavailable.');
+        !Object.hasOwn(result, 'data') || !Array.isArray(result.warnings)) return result;
     await reservation.complete();
   }
   publish(result);

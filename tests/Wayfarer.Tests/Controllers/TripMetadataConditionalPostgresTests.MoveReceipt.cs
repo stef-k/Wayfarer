@@ -48,7 +48,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         using var web = await WebAsync(app, trip.UserId);
         var path = $"/api/trips/{trip.Id}/editor/places/{place.Id}";
         using var preview = await web.PostAsJsonAsync(path + "/prepare", new { expected, changes, placeIdsByRegion = orders }, JsonSerializerOptions.Web);
-        Assert.True(preview.IsSuccessStatusCode, await preview.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
         var approval = await preview.Content.ReadFromJsonAsync<JsonElement>();
         var body = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion, expected, changes,
             placeIdsByRegion = orders, conditionToken = approval.GetProperty("conditionToken").GetString(), reviewed = true }, JsonSerializerOptions.Web);
