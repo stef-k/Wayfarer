@@ -24,7 +24,7 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
   const current = (): boolean => {
     try { return dispatchAuthority(endpoint) === scope; } catch { return false; }
   };
-  if (legacyRegionHold(scope.account, scope.tripId)) throw new CustodyRefusal('held');
+  if (legacyRegionHold(scope.account, scope.tripId) !== null) throw new CustodyRefusal('held');
   const revision = revisionKey(scope, route, localId);
   const captured = liveGeneration.get(revision);
   const canDispatch = (): boolean => current() && liveGeneration.get(revision) === captured;

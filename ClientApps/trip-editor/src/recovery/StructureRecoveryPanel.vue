@@ -42,7 +42,7 @@ const legacySource = computed(() => {
 });
 
 const drafts = computed(() => Object.entries(custody.value.drafts));
-const visible = computed(() => !!error.value || legacy.value || histories.value.length || drafts.value.length ||
+const visible = computed(() => !!error.value || legacy.value !== null || histories.value.length || drafts.value.length ||
   custody.value.attempts.length || custody.value.dependents.length);
 
 /** Refreshes browser records without contacting the server or changing generations. */
@@ -190,7 +190,7 @@ onUnmounted(() => {
     <p v-if="custody.dependents.length" class="mb-1">
       {{ message('Editor.StructureDependentHeld', 'An earlier Planning or Segment save is still unconfirmed.') }}
     </p>
-    <p v-if="legacy" class="mb-1">
+    <p v-if="legacy !== null" class="mb-1">
       {{ message('Editor.StructureLegacyHold', 'An earlier Region deletion has no recoverable receipt.') }}
       <span v-if="graph && legacySource" class="d-block">
         {{ graph.regionsById[legacySource]
