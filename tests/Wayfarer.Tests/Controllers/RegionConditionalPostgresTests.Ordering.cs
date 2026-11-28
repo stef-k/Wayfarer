@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Models;
 using Wayfarer.Util;
@@ -45,12 +46,21 @@ public sealed partial class RegionConditionalPostgresTests
         }
         await PrepareRegionOrderAsync(client, graph.TripId, web, request);
         Assert.Equal(before, await RegionOrderStoredAsync(graph.TripId, true));
-        using var response = await client.PutAsJsonAsync(RegionOrderPath(graph.TripId, web), request);
+        using var response = await DispatchRegionOrderAsync(client, graph.UserId, graph.TripId, web, request);
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         var reply = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("bd2-1", reply.GetProperty("contract").GetString());
-        Assert.Equal(graph.TripId, reply.GetProperty("data").GetProperty("tripId").GetGuid());
-        if (!web) Assert.True(reply.GetProperty("applied").GetBoolean());
+        if (web)
+        {
+            Assert.Equal(TripMetadataIdentity.StructureVersion, reply.GetProperty("contract").GetString());
+            Assert.Equal(graph.TripId, reply.GetProperty("tripId").GetGuid());
+            Assert.Equal("applied", reply.GetProperty("state").GetString());
+        }
+        else
+        {
+            Assert.Equal("bd2-1", reply.GetProperty("contract").GetString());
+            Assert.Equal(graph.TripId, reply.GetProperty("data").GetProperty("tripId").GetGuid());
+            Assert.True(reply.GetProperty("applied").GetBoolean());
+        }
         await using var verify = fixture.CreateContext();
         var rows = await verify.Regions.Where(r => r.TripId == graph.TripId).ToArrayAsync();
         var ids = (Guid[])request["regionIds"]!;
@@ -90,7 +100,7 @@ public sealed partial class RegionConditionalPostgresTests
         }
         if (!orderFirst) await Notes();
         var before = await RegionOrderStoredAsync(region.TripId);
-        using var order = await orderClient.PutAsJsonAsync(RegionOrderPath(region.TripId, orderWeb), request);
+        using var order = await DispatchRegionOrderAsync(orderClient, region.UserId, region.TripId, orderWeb, request);
         Assert.Equal(orderFirst ? HttpStatusCode.OK : HttpStatusCode.Conflict, order.StatusCode);
         if (orderFirst) await Notes();
         else
@@ -134,7 +144,7 @@ public sealed partial class RegionConditionalPostgresTests
         foreach (var prepare in new[] { true, false })
         {
             using var response = prepare ? await web.PostAsJsonAsync(RegionOrderPath(graph.TripId, true) + "/prepare", request)
-                : await web.PutAsJsonAsync(RegionOrderPath(graph.TripId, true), request);
+                : await DispatchRegionOrderAsync(web, graph.UserId, graph.TripId, true, request);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             var body = await response.Content.ReadAsStringAsync();
             Assert.DoesNotContain(foreign.Id.ToString(), body);
@@ -167,7 +177,7 @@ public sealed partial class RegionConditionalPostgresTests
         if (drift == "cover") await db.Regions.Where(r => r.Id == graph.SourceId).ExecuteUpdateAsync(s => s.SetProperty(r => r.CoverImageUrl, "Private newer cover"));
         await db.SaveChangesAsync();
         var before = await RegionOrderStoredAsync(graph.TripId);
-        using var response = await web.PutAsJsonAsync(RegionOrderPath(graph.TripId, true), request);
+        using var response = await DispatchRegionOrderAsync(web, graph.UserId, graph.TripId, true, request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.DoesNotContain("Private newer cover", await response.Content.ReadAsStringAsync());
         Assert.Equal(before, await RegionOrderStoredAsync(graph.TripId));
@@ -185,7 +195,7 @@ public sealed partial class RegionConditionalPostgresTests
         await using var app = await StartAsync(db, [new FailRegionCommit()]);
         using var web = await WebAsync(app, region.UserId);
         await PrepareRegionOrderAsync(web, region.TripId, true, request);
-        using var response = await web.PutAsJsonAsync(RegionOrderPath(region.TripId, true), request);
+        using var response = await DispatchRegionOrderAsync(web, region.UserId, region.TripId, true, request);
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(before, await RegionOrderStoredAsync(region.TripId));
     }
@@ -203,9 +213,13 @@ public sealed partial class RegionConditionalPostgresTests
         await using var createApp = await StartAsync(db, [createProbe]);
         using var web = await WebAsync(orderApp, region.UserId); using var bearer = Bearer(createApp, region.UserId);
         await PrepareRegionOrderAsync(web, region.TripId, true, request);
+        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, region.UserId, "web", "region-order",
+            region.TripId, "", Guid.Empty, default) { Target = new("trip", region.TripId) };
+        var send = await TripMetadataReceiptHttp.PrepareTypedAsync(web, identity, HttpMethod.Put,
+            RegionOrderPath(region.TripId, true) + "/receipt", JsonSerializer.Serialize(request, JsonSerializerOptions.Web));
         await using var blocker = fixture.CreateContext(); await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {region.TripId} FOR UPDATE");
-        var order = web.PutAsJsonAsync(RegionOrderPath(region.TripId, true), request);
+        var order = send();
         await orderProbe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10)); await WaitForBlockAsync(orderProbe.ProcessId);
         var create = bearer.PostAsJsonAsync($"/api/trips/{region.TripId}/conditional/regions", new
         {
@@ -295,7 +309,7 @@ public sealed partial class RegionConditionalPostgresTests
         if (variant == "tampered") request["conditionToken"] = "tampered";
         if (variant == "intent") request["regionIds"] = ((Guid[])request["regionIds"]!).Reverse().ToArray();
         var before = await RegionOrderStoredAsync(region.TripId);
-        using var response = await (variant == "dialect" ? bearer : web).PutAsJsonAsync(RegionOrderPath(region.TripId, variant != "dialect"), request);
+        using var response = await DispatchRegionOrderAsync(variant == "dialect" ? bearer : web, region.UserId, region.TripId, variant != "dialect", request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal(before, await RegionOrderStoredAsync(region.TripId));
     }
@@ -320,6 +334,18 @@ public sealed partial class RegionConditionalPostgresTests
     }
 
     /// <summary>Keeps Web/bearer URL selection explicit at the routed test boundary.</summary>
+    /// <summary>Runs the reviewed order through the current route for each adapter.</summary>
+    private static Task<HttpResponseMessage> DispatchRegionOrderAsync(HttpClient client, string userId, Guid tripId, bool web, object payload)
+    {
+        var path = RegionOrderPath(tripId, web);
+        if (!web) return client.PutAsJsonAsync(path, payload);
+        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, userId, "web",
+            "region-order", tripId, "", Guid.Empty, default) { Target = new("trip", tripId) };
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, identity, HttpMethod.Put, path + "/receipt",
+            JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+    }
+
+    /// <summary>Finds the adapter's ordering route and preview prefix.</summary>
     private static string RegionOrderPath(Guid tripId, bool web) => $"/api/trips/{tripId}/{(web ? "editor" : "conditional")}/regions/order";
 
     /// <summary>Fresh persisted rows and row versions prove no partial writes; preservation mode ignores only normal order/root freshness.</summary>
@@ -362,9 +388,10 @@ public sealed partial class RegionConditionalPostgresTests
             "canonical" => ("region", graph.DestinationId!.Value, graph.TripId),
             _ => ("region", graph.SourceId, graph.TripId)
         };
+        web.DefaultRequestHeaders.Add("X-Wayfarer-Trip-Dispatch", "3");
         using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/{kind}/{id}", new { expected = new { parentId = parent, planning = (object?)null }, operation = "set", value = plan });
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-        using var reordered = await web.PutAsJsonAsync(RegionOrderPath(graph.TripId, true), request);
+        using var reordered = await DispatchRegionOrderAsync(web, graph.UserId, graph.TripId, true, request);
         Assert.Equal(scope == "region" ? HttpStatusCode.Conflict : HttpStatusCode.OK, reordered.StatusCode);
     }
 }

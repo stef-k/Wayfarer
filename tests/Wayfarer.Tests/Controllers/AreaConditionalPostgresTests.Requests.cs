@@ -141,9 +141,10 @@ public sealed partial class AreaConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, area.Region.UserId) : Bearer(app, area.Region.UserId);
-        using var response = await client.PatchAsync(web ? $"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/conditional"
-            : $"/api/trips/{area.Region.TripId}/conditional/areas/{area.Id}",
-            new StringContent(json.Replace("PARENT", area.RegionId.ToString()), Encoding.UTF8, "application/json"));
+        var body = json.Replace("PARENT", area.RegionId.ToString());
+        using var response = web ? await DispatchAreaFieldsAsync(client, area, body)
+            : await client.PatchAsync($"/api/trips/{area.Region.TripId}/conditional/areas/{area.Id}",
+                new StringContent(body, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("mutation-request-invalid", await response.Content.ReadAsStringAsync());
         Assert.Empty(probe.Updates);

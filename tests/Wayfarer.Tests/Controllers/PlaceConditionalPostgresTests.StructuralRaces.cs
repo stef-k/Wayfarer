@@ -100,8 +100,7 @@ public sealed partial class PlaceConditionalPostgresTests
             if (drift == "parent") await other.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, graph.DestinationId!.Value));
         }
         var preserved = await GraphStateAsync(graph.TripId);
-        using var result = web ? await client.PutAsJsonAsync(StructurePath(place, web, "coordinates"), request)
-            : await client.PostAsJsonAsync(StructurePath(place, web, "coordinates"), request);
+        using var result = await DispatchPlaceStructureAsync(client, place, web, "coordinates", request);
         Assert.Equal(HttpStatusCode.Conflict, result.StatusCode);
         Assert.DoesNotContain("New provenance", await result.Content.ReadAsStringAsync());
         Assert.Equal(preserved, await GraphStateAsync(graph.TripId));
@@ -127,8 +126,7 @@ public sealed partial class PlaceConditionalPostgresTests
         if (drift == "content") await db.Places.Where(p => p.Id == place.Id).ExecuteUpdateAsync(s => s.SetProperty(p => p.Notes, "New material Notes"));
         if (drift == "order") await db.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.DisplayOrder, 99));
         if (drift == "membership") await db.Places.Where(p => p.Id == graph.PlaceIds[1]).ExecuteUpdateAsync(s => s.SetProperty(p => p.RegionId, graph.DestinationId!.Value));
-        using var response = web ? await client.PutAsJsonAsync(StructurePath(place, web, "move"), request)
-            : await client.PostAsJsonAsync(StructurePath(place, web, "move"), request);
+        using var response = await DispatchPlaceStructureAsync(client, place, web, "move", request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.Equal(place.RegionId, (await verify.Places.FindAsync(place.Id))!.RegionId);
@@ -270,9 +268,10 @@ public sealed partial class PlaceConditionalPostgresTests
         await PrepareStructureAsync(web, place, true, "coordinates", request);
         var segmentId = graph.EndpointIds[0];
         var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unknown"))]);
+        web.DefaultRequestHeaders.Add("X-Wayfarer-Trip-Dispatch", "3");
         using var saved = await web.PatchAsJsonAsync($"/api/trips/{graph.TripId}/editor/planning/segment/{segmentId}", new { expected = new { parentId = graph.TripId, planning = (object?)null }, operation = "set", value = plan });
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-        using var moved = await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request);
+        using var moved = await DispatchPlaceStructureAsync(web, place, true, "coordinates", request);
         Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
         await using var verify = fixture.CreateContext();
         Assert.True(PlanningCodec.Equal(plan, (await verify.Segments.AsNoTracking().SingleAsync(s => s.Id == segmentId)).Planning));

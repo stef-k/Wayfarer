@@ -16,7 +16,7 @@ const result = await build({ stdin: { contents: `export { default as Editor } fr
     });
     // This component fixture owns Planning acknowledgement and draft behavior. Authenticated browser and routed tests own transport.
     builder.onLoad({ filter: /dependentDispatch\.ts$/ }, () => ({ contents:
-      'export const dependentRefusal = () => false; export const sendDependent = async (_, url, init) => ({ response: await fetch(url, init), complete: async () => {} });'
+      'export const dependentRefusal = () => false; export const dependentSegmentSuccess = (_response, result) => result.success === true && !!result.affected && !!result.deletedIds && Object.hasOwn(result, "data") && Array.isArray(result.warnings); export const sendDependent = async (_, url, init) => ({ response: await fetch(url, init), complete: async () => {} });'
     }));
     builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = async () => true;' }));
   } }] });

@@ -169,7 +169,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         });
         var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, trip.UserId, "web", "place-create",
             trip.Id, "", Guid.Empty, default) { Target = new("region", region.Id) };
-        var permit = await IssueTypedAsync(web, identity, route, body);
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(web, identity, route, body);
         return (route, body, permit);
     }
 

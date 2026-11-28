@@ -88,7 +88,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var route = path + "/receipt";
         var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, trip.UserId, "web", "place-save",
             trip.Id, "", Guid.Empty, default) { Target = new("place", place.Id) };
-        return (route, body, await IssueTypedAsync(web, identity, route, body));
+        return (route, body, await TripMetadataReceiptHttp.IssueTypedAsync(web, identity, route, body));
     }
 
     /// <summary>Gates only the original metered commit, after the account check and staging of the charge.</summary>

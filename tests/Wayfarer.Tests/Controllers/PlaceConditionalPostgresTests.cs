@@ -13,6 +13,7 @@ using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -78,7 +79,7 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
                 : await PatchAsync(bearer, place, false, new { notes = place.Notes, markerColor = place.MarkerColor }, new { notes = "Mobile notes", markerColor = "bg-red" });
             Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
             var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            if (isWeb) Assert.Equal(result.GetProperty("data").GetRawText(), result.GetProperty("affected").GetProperty("places")[0].GetRawText());
+            if (isWeb) Assert.Equal(place.Id, result.GetProperty("result").GetProperty("id").GetGuid());
             else Assert.Equal("bd2-1", result.GetProperty("contract").GetString());
         }
         await Save(webFirst);
@@ -216,9 +217,25 @@ public sealed partial class PlaceConditionalPostgresTests(PostgresImportTestFixt
     {
         var originals = JsonSerializer.SerializeToElement(expected).EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
         originals["regionId"] = place.RegionId;
-        return client.PatchAsJsonAsync(web ? $"/api/trips/{place.Region.TripId}/editor/places/{place.Id}/conditional"
-            : $"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}", new { expected = originals, changes });
+        return web ? DispatchPlaceFieldsAsync(client, place, JsonSerializer.Serialize(new { expected = originals, changes }, JsonSerializerOptions.Web))
+            : client.PatchAsJsonAsync($"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}", new { expected = originals, changes });
     }
+
+    /// <summary>Exercises the production permit and typed Place writer, including raw invalid bodies.</summary>
+    private static Task<HttpResponseMessage> DispatchPlaceFieldsAsync(HttpClient client, Place place, string payload)
+    {
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, PlaceFieldsIdentity(place), HttpMethod.Patch, $"/api/trips/{place.Region.TripId}/editor/places/{place.Id}/conditional/receipt", payload);
+    }
+
+    /// <summary>Issues the exact field permit before the fixture acquires unrelated row locks.</summary>
+    private static Task<Func<Task<HttpResponseMessage>>> PreparePlaceFieldsAsync(HttpClient client, Place place, object expected, object changes) =>
+        TripMetadataReceiptHttp.PrepareTypedAsync(client, PlaceFieldsIdentity(place), HttpMethod.Patch, $"/api/trips/{place.Region.TripId}/editor/places/{place.Id}/conditional/receipt",
+            JsonSerializer.Serialize(new { expected, changes }, JsonSerializerOptions.Web));
+
+    /// <summary>Supplies the same narrow target and adapter for issuance and dispatch.</summary>
+    private static TripMetadataIdentity PlaceFieldsIdentity(Place place) =>
+        new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, place.UserId, "web",
+            "place-fields", place.Region.TripId, "", Guid.Empty, default) { Target = new("place", place.Id) };
 
     /// <summary>Seeds exact Place scalars and a credential, under the reusable fixture's scoped cleanup.</summary>
     private async Task<Place> SeedAsync(string? notes = "Original notes", string? icon = "marker", string? color = "bg-blue")

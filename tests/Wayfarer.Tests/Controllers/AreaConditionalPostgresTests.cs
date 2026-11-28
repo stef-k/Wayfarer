@@ -13,6 +13,7 @@ using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -82,7 +83,7 @@ public sealed partial class AreaConditionalPostgresTests(PostgresImportTestFixtu
                 : await PatchAsync(bearer, area, false, new { notes = area.Notes }, new { notes = "<p>Mobile notes</p>" });
             Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
             var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            if (isWeb) Assert.Equal(area.Id, result.GetProperty("affected").GetProperty("areas")[0].GetProperty("id").GetGuid());
+            if (isWeb) Assert.Equal(area.Id, result.GetProperty("result").GetProperty("id").GetGuid());
             else Assert.Equal("bd2-1", result.GetProperty("contract").GetString());
         }
         await Save(webFirst);
@@ -253,9 +254,25 @@ public sealed partial class AreaConditionalPostgresTests(PostgresImportTestFixtu
     {
         var originals = JsonSerializer.SerializeToElement(expected).EnumerateObject().ToDictionary(p => p.Name, p => (object?)p.Value);
         originals["regionId"] = area.RegionId;
-        return client.PatchAsJsonAsync(web ? $"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/conditional"
-            : $"/api/trips/{area.Region.TripId}/conditional/areas/{area.Id}", new { expected = originals, changes });
+        return web ? DispatchAreaFieldsAsync(client, area, JsonSerializer.Serialize(new { expected = originals, changes }, JsonSerializerOptions.Web))
+            : client.PatchAsJsonAsync($"/api/trips/{area.Region.TripId}/conditional/areas/{area.Id}", new { expected = originals, changes });
     }
+
+    /// <summary>Exercises the production permit and typed Area writer, including raw invalid bodies.</summary>
+    private static Task<HttpResponseMessage> DispatchAreaFieldsAsync(HttpClient client, Area area, string payload)
+    {
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, AreaFieldsIdentity(area), HttpMethod.Patch, $"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/conditional/receipt", payload);
+    }
+
+    /// <summary>Issues the exact field permit before the fixture acquires unrelated row locks.</summary>
+    private static Task<Func<Task<HttpResponseMessage>>> PrepareAreaFieldsAsync(HttpClient client, Area area, object expected, object changes) =>
+        TripMetadataReceiptHttp.PrepareTypedAsync(client, AreaFieldsIdentity(area), HttpMethod.Patch, $"/api/trips/{area.Region.TripId}/editor/areas/{area.Id}/conditional/receipt",
+            JsonSerializer.Serialize(new { expected, changes }, JsonSerializerOptions.Web));
+
+    /// <summary>Supplies the same narrow target and adapter for issuance and dispatch.</summary>
+    private static TripMetadataIdentity AreaFieldsIdentity(Area area) =>
+        new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, area.Region.UserId, "web",
+            "area-fields", area.Region.TripId, "", Guid.Empty, default) { Target = new("area", area.Id) };
 
     /// <summary>Seeds precise persisted Polygon holes and a credential, under the reusable fixture's scoped cleanup.</summary>
     private async Task<Area> SeedAsync(string? notes = "Original notes", string? fill = "#123456")

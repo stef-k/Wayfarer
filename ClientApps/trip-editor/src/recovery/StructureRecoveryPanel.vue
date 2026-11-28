@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, onUnmounted, ref, shallowRef } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { readCustody, type Custody } from './custody';
 import { metadataWorkspaceError, receiptStatus } from './recoverMetadata';
@@ -8,6 +8,7 @@ import { legacyRegionHold, legacyRegionHoldKey, structureCustodyChanged, structu
 import { readStructureOwner, StructureOwnerUnavailable } from './structureOwner';
 import { object } from './receiptStructureResults';
 import type { EditorTripState } from '../types';
+import type { Evidence, TerminalState } from './receiptApi';
 
 const props = defineProps<{ account: string; tripId: string; endpoint: string; standalone?: boolean }>();
 const workspaceError = inject(metadataWorkspaceError, null);
@@ -21,16 +22,31 @@ let mounted = true;
 const custody = computed(() => row.value?.structure ?? emptyStructure());
 const histories = computed(() => Object.entries(custody.value.outcomes)
   .filter(([id]) => custody.value.attempts.some(attempt => attempt.permit.operationId === id) || graph.value !== null));
+/** Drops stale display state immediately when the containing page changes owner or Trip. */
+watch(() => [props.account, props.tripId, props.endpoint], () => {
+  row.value = null;
+  graph.value = null;
+  legacy.value = false;
+  error.value = '';
+  void refresh();
+}, { flush: 'sync' });
+
 const drafts = computed(() => Object.entries(custody.value.drafts));
 const visible = computed(() => !!error.value || legacy.value || histories.value.length || drafts.value.length ||
   custody.value.attempts.length || custody.value.dependents.length);
 
 /** Refreshes browser records without contacting the server or changing generations. */
 async function refresh(): Promise<void> {
+  const { account, tripId, endpoint } = props;
+  const current = (): boolean => mounted && props.account === account && props.tripId === tripId && props.endpoint === endpoint;
   try {
-    legacy.value = !!legacyRegionHold(props.account, props.tripId);
-    row.value = await readCustody(props.account, props.tripId);
+    const hold = !!legacyRegionHold(account, tripId);
+    const stored = await readCustody(account, tripId);
+    if (!current()) return;
+    legacy.value = hold;
+    row.value = stored;
   } catch {
+    if (!current()) return;
     error.value = message('Editor.ReceiptStorage', 'The draft could not be stored. Keep this page open and retry.');
   }
 }
@@ -47,14 +63,14 @@ async function checkServer(): Promise<void> {
   if (busy.value) return;
   busy.value = true;
   error.value = '';
-  const account = props.account;
-  const tripId = props.tripId;
-  const current = (): boolean => mounted && props.account === account && props.tripId === tripId;
+  const { account, tripId, endpoint } = props;
+  const current = (): boolean => mounted && props.account === account && props.tripId === tripId && props.endpoint === endpoint;
   try {
     let before = await readCustody(account, tripId);
-    before = await observeStructure(before, props.endpoint);
-    if (current()) row.value = before;
-    const owner = await readStructureOwner(props.endpoint, account, tripId);
+    before = await observeStructure(before, endpoint);
+    if (!current()) return;
+    row.value = before;
+    const owner = await readStructureOwner(endpoint, account, tripId);
     const settled = await settleStructure(before, owner, current);
     if (!current()) return;
     row.value = settled;
@@ -102,6 +118,33 @@ const originalParent = (payload: object): string | null => {
   return original?.regionId ?? original?.place?.regionId ?? null;
 };
 
+/** Describes a known saved creation whose generated row is unavailable in the owner graph. */
+function historyStatus(id: string, evidence: Evidence & { state: TerminalState }): string {
+  const attempt = custody.value.attempts.find(item => item.permit.operationId === id);
+  if (attempt?.route.kind.endsWith('-create') && object(evidence.result) && typeof evidence.result.id === 'string' &&
+      (!graph.value || !targetRow(graph.value, attempt.route.kind.slice(0, -7), evidence.result.id)))
+    return message('Editor.StructureSavedUnavailable', 'Saved, current details unavailable.');
+  return receiptStatus(evidence.state);
+}
+
+/** Lists only committed historical order vectors, independent of the current owner graph. */
+function historicalOrders(result: Record<string, unknown>): { label: string; ids: string }[] {
+  const output: { label: string; ids: string }[] = [];
+  const record = (label: string, items: unknown) => {
+    if (Array.isArray(items)) output.push({ label, ids: items.map(item => item.id).join(' → ') });
+  };
+  record(message('Editor.StructureRegionOrder', 'Saved Region order'), result.regionOrder);
+  for (const [label, single, plural] of [
+    [message('Editor.StructurePlaceOrder', 'Saved Place order'), result.placeOrder, result.placeOrders],
+    [message('Editor.StructureAreaOrder', 'Saved Area order'), result.areaOrder, result.areaOrders]
+  ] as const) {
+    for (const vector of [single, ...(Array.isArray(plural) ? plural : [])]) {
+      if (object(vector)) record(`${label} (${vector.regionId})`, vector.items);
+    }
+  }
+  return output;
+}
+
 onMounted(() => {
   void refresh();
   window.addEventListener(structureCustodyChanged, refresh);
@@ -119,10 +162,21 @@ onUnmounted(() => {
 <template>
   <section v-if="visible" class="border rounded p-2 mb-2" aria-label="Trip save recovery" data-structure-recovery>
     <p v-if="error" role="status" class="mb-1">{{ error }}</p>
-    <p v-for="[id, evidence] in histories" :key="id" role="status" class="mb-1">
-      {{ receiptStatus(evidence.state) }}
-      <span v-if="object(evidence.result) && typeof evidence.result.id === 'string'">{{ evidence.result.id }}</span>
-    </p>
+    <div v-for="[id, evidence] in histories" :key="id" class="mb-1">
+      <p role="status" class="mb-0">
+        {{ historyStatus(id, evidence) }}
+        <span v-if="object(evidence.result) && typeof evidence.result.id === 'string'">{{ evidence.result.id }}</span>
+      </p>
+      <details v-if="object(evidence.result) && historicalOrders(evidence.result).length" class="mb-1">
+        <summary>{{ message('Editor.StructureSavedOrders', 'Orders at time of save') }}</summary>
+        <dl class="mb-1">
+          <template v-for="vector in historicalOrders(evidence.result)" :key="vector.label">
+            <dt>{{ vector.label }}</dt>
+            <dd class="text-break">{{ vector.ids || message('Editor.ReceiptEmpty', 'Empty') }}</dd>
+          </template>
+        </dl>
+      </details>
+    </div>
     <p v-if="custody.dependents.length" class="mb-1">
       {{ message('Editor.StructureDependentHeld', 'An earlier Planning or Segment save is still unconfirmed.') }}
     </p>

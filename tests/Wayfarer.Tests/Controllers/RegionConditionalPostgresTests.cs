@@ -12,6 +12,7 @@ using NetTopologySuite.Geometries;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -89,7 +90,7 @@ public sealed partial class RegionConditionalPostgresTests(PostgresImportTestFix
                 new Dictionary<string, object?> { [key] = name ? "Edited name" : "Edited notes" });
             Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
             var result = await response.Content.ReadFromJsonAsync<JsonElement>();
-            if (isWeb) Assert.Equal(region.Id, result.GetProperty("affected").GetProperty("regions")[0].GetProperty("id").GetGuid());
+            if (isWeb) Assert.Equal(region.Id, result.GetProperty("result").GetProperty("id").GetGuid());
             else Assert.Equal("bd2-1", result.GetProperty("contract").GetString());
         }
         await Save(webFirst);
@@ -287,9 +288,27 @@ public sealed partial class RegionConditionalPostgresTests(PostgresImportTestFix
     }
 
     /// <summary>Dispatches the new operation-specific contract through production routing.</summary>
-    private static Task<HttpResponseMessage> PatchAsync(HttpClient client, Region region, bool web, object expected, object changes) =>
-        client.PatchAsJsonAsync(web ? $"/api/trips/{region.TripId}/editor/regions/{region.Id}/conditional"
-            : $"/api/trips/{region.TripId}/conditional/regions/{region.Id}", new { expected, changes });
+    private static Task<HttpResponseMessage> PatchAsync(HttpClient client, Region region, bool web, object expected, object changes)
+    {
+        return web ? DispatchRegionFieldsAsync(client, region, JsonSerializer.Serialize(new { expected, changes }, JsonSerializerOptions.Web))
+            : client.PatchAsJsonAsync($"/api/trips/{region.TripId}/conditional/regions/{region.Id}", new { expected, changes });
+    }
+
+    /// <summary>Exercises the production permit and typed Region writer, including raw invalid bodies.</summary>
+    private static Task<HttpResponseMessage> DispatchRegionFieldsAsync(HttpClient client, Region region, string payload)
+    {
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, RegionFieldsIdentity(region), HttpMethod.Patch, $"/api/trips/{region.TripId}/editor/regions/{region.Id}/conditional/receipt", payload);
+    }
+
+    /// <summary>Issues the exact field permit before the fixture acquires unrelated row locks.</summary>
+    private static Task<Func<Task<HttpResponseMessage>>> PrepareRegionFieldsAsync(HttpClient client, Region region, object expected, object changes) =>
+        TripMetadataReceiptHttp.PrepareTypedAsync(client, RegionFieldsIdentity(region), HttpMethod.Patch, $"/api/trips/{region.TripId}/editor/regions/{region.Id}/conditional/receipt",
+            JsonSerializer.Serialize(new { expected, changes }, JsonSerializerOptions.Web));
+
+    /// <summary>Supplies the same narrow target and adapter for issuance and dispatch.</summary>
+    private static TripMetadataIdentity RegionFieldsIdentity(Region region) =>
+        new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, region.UserId, "web",
+            "region-fields", region.TripId, "", Guid.Empty, default) { Target = new("region", region.Id) };
 
     /// <summary>Seeds an owned Region and incoming credential; fixture cleanup remains Trip/user scoped.</summary>
     private async Task<Region> SeedAsync(string? notes = "Original notes", string name = "Original Region")

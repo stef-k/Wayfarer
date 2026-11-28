@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -110,20 +109,9 @@ public sealed partial class TripMetadataConditionalPostgresTests
     {
         var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, trip.UserId, "web", "region-fields",
             trip.Id, "", Guid.Empty, default) { Target = new("region", region.Id) };
-        var permit = await IssueTypedAsync(client, identity, route, body);
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(client, identity, route, body);
         Assert.Equal(region.Id, permit.GetProperty("target").GetProperty("id").GetGuid());
         return permit;
-    }
-
-    /// <summary>Issues a permit on the exact route with the frozen eight-frame digest.</summary>
-    private static async Task<JsonElement> IssueTypedAsync(HttpClient client, TripMetadataIdentity identity, string route, string body)
-    {
-        using var response = await client.PostAsJsonAsync(route + "/operations", new
-        {
-            contract = identity.Contract, requestDigest = identity.StructureDigest(Encoding.UTF8.GetBytes(body))
-        });
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
-        return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
     /// <summary>Requests historical evidence without sending the submitted body.</summary>

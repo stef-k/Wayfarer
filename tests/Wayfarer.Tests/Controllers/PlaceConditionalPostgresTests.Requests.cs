@@ -48,9 +48,10 @@ public sealed partial class PlaceConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, place.UserId) : Bearer(app, place.UserId);
-        using var response = await client.PatchAsync(web ? $"/api/trips/{place.Region.TripId}/editor/places/{place.Id}/conditional"
-            : $"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}",
-            new StringContent(json.Replace("PARENT", place.RegionId.ToString()), Encoding.UTF8, "application/json"));
+        var body = json.Replace("PARENT", place.RegionId.ToString());
+        using var response = web ? await DispatchPlaceFieldsAsync(client, place, body)
+            : await client.PatchAsync($"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}",
+                new StringContent(body, Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("mutation-request-invalid", await response.Content.ReadAsStringAsync());
         Assert.Empty(probe.Updates);

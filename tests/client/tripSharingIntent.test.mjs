@@ -11,7 +11,7 @@ const bundle = await build({ stdin: { contents: 'export { default } from "./App.
   plugins: [{ name: 'c3-sharing-parent-tree', setup(builder) {
     // Fixture-owned fetch responses exercise publication and draft protection behind the authenticated dispatch boundary.
     builder.onLoad({ filter: /dependentDispatch\.ts$/ }, () => ({ contents:
-      'export const dependentRefusal = () => false; export const sendDependent = (_, url, init) => fetch(url, init).then(response => ({ response, complete: async () => {} }));'
+      'export const dependentRefusal = () => false; export const dependentSegmentSuccess = (_response, result) => result.success === true && !!result.affected && !!result.deletedIds && Object.hasOwn(result, "data") && Array.isArray(result.warnings); export const sendDependent = (_, url, init) => fetch(url, init).then(response => ({ response, complete: async () => {} }));'
     }));
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.

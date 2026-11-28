@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Models;
 using Xunit;
@@ -20,7 +21,7 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class RegionDeletionHttpPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
-    /// <summary>Each adapter returns the same authoritative lifecycle envelope; preview makes no writes.</summary>
+    /// <summary>Both adapters commit their reviewed choices after a preview that makes no writes.</summary>
     [PostgresTheory]
     [InlineData(true)]
     [InlineData(false)]
@@ -43,11 +44,26 @@ public sealed class RegionDeletionHttpPostgresTests(PostgresImportTestFixture fi
         if (cookie) { UserConnectionTokenHttpTests.Cookie(client, app.Services, g.UserId); await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client); }
         else client.DefaultRequestHeaders.Authorization = new("Bearer", "wf_848_" + g.UserId);
         var route = $"/api/trips/{g.TripId}/{(cookie ? "editor/" : "")}regions/{g.SourceId}";
-        using var response = await client.PostAsJsonAsync(route + "/deletion-preview", new { places = "keep", areas = "keep" });
+        var previewPath = route + "/deletion-preview" + (cookie ? "?contract=" + TripMetadataIdentity.StructureVersion : "");
+        using var response = await client.PostAsJsonAsync(previewPath, new { places = "keep", areas = "keep" });
         Assert.True(response.StatusCode == HttpStatusCode.OK, string.Join("\n", logs.Entries.Select(l => l.Exception?.Message))); Assert.True(response.Headers.CacheControl?.NoStore);
         var preview = (await response.Content.ReadFromJsonAsync<RegionDeletionPreviewDto>())!;
         Assert.Equal("create", preview.Destination.Mode);
         Assert.False(await db.Regions.AnyAsync(r => r.Id == preview.Destination.RegionId));
+        if (cookie)
+        {
+            var body = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion,
+                places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
+            var path = route + "/deletion/receipt";
+            var permit = await TripMetadataReceiptHttp.IssueTypedAsync(client, RegionDeletionIdentity(g), path, body);
+            using var applied = await TripMetadataReceiptHttp.SendAsync(client, HttpMethod.Post, path, permit, body);
+            var receipt = (await TripMetadataReceiptHttp.EvidenceAsync(applied, permit, "applied")).GetProperty("result");
+            Assert.Equal(g.PlaceIds.Order(), receipt.GetProperty("movedPlaces").EnumerateArray().Select(row => row.GetProperty("id").GetGuid()));
+            Assert.Equal(g.AreaIds.Order(), receipt.GetProperty("movedAreas").EnumerateArray().Select(row => row.GetProperty("id").GetGuid()));
+            Assert.Empty(receipt.GetProperty("segmentEffects").GetProperty("deletedSegmentIds").EnumerateArray());
+            Assert.Equal(preview.Destination.RegionId, receipt.GetProperty("destinationRegionId").GetGuid());
+            return;
+        }
         using var mutation = await client.PostAsJsonAsync(route + "/deletion", new { places = "keep", areas = "keep", confirmationToken = preview.Confirmation.Token });
         Assert.Equal(HttpStatusCode.OK, mutation.StatusCode);
         var result = (await mutation.Content.ReadFromJsonAsync<EditorMutationResult<RegionDeletionResultDto>>())!;
@@ -117,11 +133,21 @@ public sealed class RegionDeletionHttpPostgresTests(PostgresImportTestFixture fi
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
             Assert.Equal("region-deletion-request-invalid", (await invalid.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         }
-        using var missing = await client.PostAsJsonAsync(route + "/deletion", new { places = "delete", areas = "delete" });
-        Assert.Equal(HttpStatusCode.Conflict, missing.StatusCode);
-        Assert.Equal("region-deletion-confirmation-required", (await missing.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
-        using var tampered = await client.PostAsJsonAsync(route + "/deletion", new { places = "keep", areas = "keep", confirmationToken = "tampered" });
-        Assert.Equal(HttpStatusCode.BadRequest, tampered.StatusCode);
+        using var superseded = await client.PostAsJsonAsync(route + "/deletion", new { places = "delete", areas = "delete" });
+        Assert.Equal(HttpStatusCode.Conflict, superseded.StatusCode);
+        Assert.Equal("trip-write-upgrade-required", (await superseded.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+        var protectedRoute = route + "/deletion/receipt";
+        var missing = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion, places = "delete", areas = "delete" });
+        var missingPermit = await TripMetadataReceiptHttp.IssueTypedAsync(client, RegionDeletionIdentity(g), protectedRoute, missing);
+        using var missingReply = await TripMetadataReceiptHttp.SendAsync(client, HttpMethod.Post, protectedRoute, missingPermit, missing);
+        Assert.Equal("mutation-review-required", (await TripMetadataReceiptHttp.EvidenceAsync(missingReply, missingPermit,
+            "terminalUnapplied", 409)).GetProperty("code").GetString());
+        var tampered = JsonSerializer.Serialize(new { receiptContract = TripMetadataIdentity.StructureVersion,
+            places = "keep", areas = "keep", confirmationToken = "tampered" });
+        var tamperedPermit = await TripMetadataReceiptHttp.IssueTypedAsync(client, RegionDeletionIdentity(g), protectedRoute, tampered);
+        using var tamperedReply = await TripMetadataReceiptHttp.SendAsync(client, HttpMethod.Post, protectedRoute, tamperedPermit, tampered);
+        Assert.Equal("region-deletion-preview-stale", (await TripMetadataReceiptHttp.EvidenceAsync(tamperedReply, tamperedPermit,
+            "terminalUnapplied", 409)).GetProperty("code").GetString());
         var other = await fixture.CreateUserAsync();
         client.DefaultRequestHeaders.Remove("Cookie"); client.DefaultRequestHeaders.Remove("RequestVerificationToken");
         UserConnectionTokenHttpTests.Cookie(client, app.Services, other.Id); await UserConnectionTokenHttpTests.AddAntiforgeryAsync(client);
@@ -131,4 +157,9 @@ public sealed class RegionDeletionHttpPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync(route + "/deletion-preview", new { places = "keep", areas = "keep" })).StatusCode);
         Assert.True(await db.Regions.AnyAsync(r => r.Id == g.SourceId));
     }
+
+    /// <summary>Binds the retained confirmation to the same owned Region and Web adapter.</summary>
+    private static TripMetadataIdentity RegionDeletionIdentity(RegionDeletionTestGraph graph) =>
+        new(TripMetadataIdentity.StructureVersion, graph.UserId, "web", "region-delete", graph.TripId, "", Guid.Empty, default)
+        { Target = new("region", graph.SourceId) };
 }

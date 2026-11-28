@@ -31,13 +31,15 @@ public sealed partial class RegionConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = webRoute ? await WebAsync(app, region.UserId) : Bearer(app, region.UserId);
+        var key = drift == "notes" ? webRoute ? "notesHtml" : "notes" : "name";
+        var expected = new Dictionary<string, object?> { [key] = drift == "notes" ? region.Notes : region.Name };
+        var changes = new Dictionary<string, object?> { [key] = "Must not commit" };
+        var send = webRoute ? await PrepareRegionFieldsAsync(client, region, expected, changes)
+            : () => PatchAsync(client, region, false, expected, changes);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {region.Id} FOR UPDATE");
-        var key = drift == "notes" ? webRoute ? "notesHtml" : "notes" : "name";
-        var pending = PatchAsync(client, region, webRoute,
-            new Dictionary<string, object?> { [key] = drift == "notes" ? region.Notes : region.Name },
-            new Dictionary<string, object?> { [key] = "Must not commit" });
+        var pending = send();
         try
         {
             await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -80,12 +82,15 @@ public sealed partial class RegionConditionalPostgresTests
         await using var db = fixture.CreateContext();
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, region.UserId) : Bearer(app, region.UserId);
+        var key = web ? "notesHtml" : "notes";
+        var expected = new Dictionary<string, object?> { [key] = region.Notes };
+        var changes = new Dictionary<string, object?> { [key] = "Requested notes" };
+        var send = web ? await PrepareRegionFieldsAsync(client, region, expected, changes)
+            : () => PatchAsync(client, region, false, expected, changes);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {region.Id} FOR UPDATE");
-        var key = web ? "notesHtml" : "notes";
-        var pending = PatchAsync(client, region, web,
-            new Dictionary<string, object?> { [key] = region.Notes }, new Dictionary<string, object?> { [key] = "Requested notes" });
+        var pending = send();
         try
         {
             await probe.LockStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));

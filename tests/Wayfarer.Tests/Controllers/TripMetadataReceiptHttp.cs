@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -53,6 +54,45 @@ internal static class TripMetadataReceiptHttp
         if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
         return await client.SendAsync(request);
     }
+
+    /// <summary>Issues a permit on the exact route with the frozen eight-frame digest.</summary>
+    internal static async Task<JsonElement> IssueTypedAsync(HttpClient client, TripMetadataIdentity identity, string route, string body)
+    {
+        using var response = await IssueTypedResponseAsync(client, identity, route, body);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadFromJsonAsync<JsonElement>();
+    }
+
+    /// <summary>Routes a Web regression request through the typed contract, retaining issuance refusals for assertions.</summary>
+    internal static async Task<HttpResponseMessage> DispatchTypedAsync(HttpClient client, TripMetadataIdentity identity,
+        HttpMethod method, string route, string payload)
+    {
+        var body = MarkTypedBody(identity.Contract, payload);
+        var issuance = await IssueTypedResponseAsync(client, identity, route, body);
+        if (!issuance.IsSuccessStatusCode) return issuance;
+        using (issuance)
+            return await SendAsync(client, method, route, await issuance.Content.ReadFromJsonAsync<JsonElement>(), body);
+    }
+
+    /// <summary>Captures issuance before a race test installs its separate domain-row blocker.</summary>
+    internal static async Task<Func<Task<HttpResponseMessage>>> PrepareTypedAsync(HttpClient client, TripMetadataIdentity identity,
+        HttpMethod method, string route, string payload)
+    {
+        var body = MarkTypedBody(identity.Contract, payload);
+        var permit = await IssueTypedAsync(client, identity, route, body);
+        return () => SendAsync(client, method, route, permit, body);
+    }
+
+    /// <summary>Prepends the contract marker while preserving all fixture bytes, including duplicated names.</summary>
+    private static string MarkTypedBody(string contract, string payload) =>
+        "{\"receiptContract\":\"" + contract + "\"" + (payload == "{}" ? "}" : "," + payload[1..]);
+
+    /// <summary>Hashes validated or deliberately malformed fixture bytes exactly as sent.</summary>
+    private static Task<HttpResponseMessage> IssueTypedResponseAsync(HttpClient client, TripMetadataIdentity identity, string route, string body) =>
+        client.PostAsJsonAsync(route + "/operations", new
+        {
+            contract = identity.Contract, requestDigest = identity.StructureDigest(Encoding.UTF8.GetBytes(body))
+        });
 
     /// <summary>Checks complete correlation independently of the current Trip.</summary>
     internal static async Task<JsonElement> EvidenceAsync(HttpResponseMessage reply, JsonElement permit, string state, int status = 200)

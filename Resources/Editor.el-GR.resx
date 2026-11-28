@@ -4845,4 +4845,9 @@
   <data name="Editor.ReceiptNoOp" xml:space="preserve"><value>Η προηγούμενη αποθήκευση επιβεβαίωσε ότι οι τιμές αυτές είχαν ήδη αποθηκευτεί.</value></data>
   <data name="Editor.ReceiptUnapplied" xml:space="preserve"><value>Η προηγούμενη αποθήκευση απορρίφθηκε. Ελέγξτε τις τρέχουσες τιμές πριν αποθηκεύσετε ξανά.</value></data>
   <data name="Editor.ReceiptRetired" xml:space="preserve"><value>Η προηγούμενη αποθήκευση δεν μπορεί πλέον να εκτελεστεί. Το ιστορικό αποτέλεσμά της δεν είναι διαθέσιμο.</value></data>
+  <data name="Editor.StructureSavedUnavailable" xml:space="preserve"><value>Αποθηκεύτηκε. Οι τρέχουσες λεπτομέρειες δεν είναι διαθέσιμες.</value></data>
+  <data name="Editor.StructureSavedOrders" xml:space="preserve"><value>Σειρές κατά την αποθήκευση</value></data>
+  <data name="Editor.StructureRegionOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά περιοχών</value></data>
+  <data name="Editor.StructurePlaceOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά τοποθεσιών</value></data>
+  <data name="Editor.StructureAreaOrder" xml:space="preserve"><value>Αποθηκευμένη σειρά ζωνών</value></data>
 </root>

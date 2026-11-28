@@ -41,16 +41,20 @@ public sealed partial class AreaConditionalPostgresTests
         var probe = new AreaProbe(lockedTable);
         await using var app = await StartAsync(db, [probe]);
         using var client = web ? await WebAsync(app, area.Region.UserId) : Bearer(app, area.Region.UserId);
+        var key = drift == "name" ? "name" : drift == "fill" ? "fillHex" : drift is "hole" or "precision" ? "geometry" : web ? "notesHtml" : "notes";
+        var original = key == "name" ? area.Name : key == "fillHex" ? area.FillHex : key == "geometry" ? Fingerprint(area) : area.Notes;
+        var desired = key == "geometry" ? (object)Geometry(Polygon(30)) : key == "fillHex" ? "#abcdef" : "Must not commit";
+        var expected = new Dictionary<string, object?> { ["regionId"] = area.RegionId, [key] = original };
+        var changes = new Dictionary<string, object?> { [key] = desired };
+        var send = web ? await PrepareAreaFieldsAsync(client, area, expected, changes)
+            : () => PatchAsync(client, area, false, expected, changes);
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         var lockId = lockedTable == "Areas" ? area.Id : lockedTable == "Regions" ? area.RegionId : area.Region.TripId;
         if (lockedTable == "Areas") await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Areas\" WHERE \"Id\" = {lockId} FOR UPDATE");
         else if (lockedTable == "Regions") await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Regions\" WHERE \"Id\" = {lockId} FOR UPDATE");
         else await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Trips\" WHERE \"Id\" = {lockId} FOR UPDATE");
-        var key = drift == "name" ? "name" : drift == "fill" ? "fillHex" : drift is "hole" or "precision" ? "geometry" : web ? "notesHtml" : "notes";
-        var original = key == "name" ? area.Name : key == "fillHex" ? area.FillHex : key == "geometry" ? Fingerprint(area) : area.Notes;
-        var desired = key == "geometry" ? (object)Geometry(Polygon(30)) : key == "fillHex" ? "#abcdef" : "Must not commit";
-        var pending = PatchAsync(client, area, web, new Dictionary<string, object?> { [key] = original }, new Dictionary<string, object?> { [key] = desired });
+        var pending = send();
         try
         {
             await WaitForLockAsync(probe, 0);
@@ -96,12 +100,13 @@ public sealed partial class AreaConditionalPostgresTests
         await using var app = await StartAsync(db, [probe]);
         using var web = await WebAsync(app, area.Region.UserId);
         using var bearer = Bearer(app, area.Region.UserId);
+        var sendWeb = await PrepareAreaFieldsAsync(web, area, new { regionId = area.RegionId, name = area.Name, fillHex = area.FillHex, geometry = Fingerprint(area) },
+            new { name = "Concurrent Web name", fillHex = "#abcdef", geometry = Geometry(Polygon(20)) });
         await using var blocker = fixture.CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
         await blocker.Database.ExecuteSqlInterpolatedAsync($"SELECT 1 FROM public.\"Areas\" WHERE \"Id\" = {area.Id} FOR UPDATE");
         Task<HttpResponseMessage> Save(bool isWeb) => isWeb
-            ? PatchAsync(web, area, true, new { name = area.Name, fillHex = area.FillHex, geometry = Fingerprint(area) },
-                new { name = "Concurrent Web name", fillHex = "#abcdef", geometry = Geometry(Polygon(20)) })
+            ? sendWeb()
             : PatchAsync(bearer, area, false, new { notes = area.Notes }, new { notes = "Concurrent Mobile notes" });
         var first = Save(webFirst);
         Task<HttpResponseMessage>? second = null;

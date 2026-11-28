@@ -1,4 +1,4 @@
-import { dependentRefusal, sendDependent } from '../recovery/dependentDispatch';
+import { sendDependent } from '../recovery/dependentDispatch';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { planningValidationText } from './planningFindingText';
 import { holdLanguageNavigation, isLanguageUnload, registerLanguageDraft } from '../../../../wwwroot/js/localization/languageNavigation.js';
@@ -131,7 +131,6 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
       const response = dispatch.response;
       if (!response.ok) {
         const problem = await readPlanningReply<Record<string, unknown>>(response);
-        if (dependentRefusal(response, problem)) await dispatch.complete();
         const statuses: Record<string, number> = { 'trip-write-upgrade-required': 409, 'planning-request-invalid': 400, 'planning-value-invalid': 400,
           'mutation-authority-unavailable': 401, 'mutation-scope-stale': 409, 'mutation-base-stale': 409,
           'mutation-scope-unavailable': 404, 'mutation-contention': 409 };
@@ -143,6 +142,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
           || Object.hasOwn(problem, 'errors') && (!problem.errors || typeof problem.errors !== 'object' || Array.isArray(problem.errors)
             || Object.values(problem.errors).some(errors => !Array.isArray(errors) || errors.some(error => typeof error !== 'string')))
           || Object.hasOwn(problem, 'detail') && typeof problem.detail !== 'string') throw new Error('Planning acknowledgement unavailable.');
+        await dispatch.complete();
         draft.error = rejectedPlanningText(problem.code, problem.detail);
 
         return;

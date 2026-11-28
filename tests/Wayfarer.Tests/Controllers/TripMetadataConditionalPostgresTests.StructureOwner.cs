@@ -73,7 +73,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var route = protectedBase + "/deletion/receipt";
         var identity = new TripMetadataIdentity(contract, trip.UserId, "bearer", "area-delete", trip.Id, "", Guid.Empty, default)
             { Target = new("area", area.Id) };
-        var permit = await IssueTypedAsync(bearer, identity, route, body);
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(bearer, identity, route, body);
         using var reply = await TripMetadataReceiptHttp.SendAsync(bearer, HttpMethod.Post, route, permit, body);
         Assert.True(reply.IsSuccessStatusCode, await reply.Content.ReadAsStringAsync());
         var result = (await TripMetadataReceiptHttp.EvidenceAsync(reply, permit, "applied")).GetProperty("result");

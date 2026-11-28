@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
 using Wayfarer.Models.Planning;
 using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
@@ -29,7 +31,30 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await db.Segments.Where(row => graph.EndpointIds.Concat(graph.SurvivorIds).Contains(row.Id))
             .ExecuteUpdateAsync(set => set.SetProperty(row => row.Planning, plan));
 
-        await using var app = await StartAsync(db);
+        var dropReply = places == "delete" && areas == "keep";
+        if (dropReply)
+        {
+            var now = DateTime.UtcNow;
+            db.PlaceVisitCandidates.Add(new PlaceVisitCandidate { Id = Guid.NewGuid(), UserId = graph.UserId,
+                PlaceId = graph.PlaceIds[0], FirstHitUtc = now, LastHitUtc = now, ConsecutiveHits = 1 });
+            await db.SaveChangesAsync();
+        }
+        await using var app = await StartAsync(db, middleware: host => host.Use(async (context, next) =>
+        {
+            if (!dropReply || !context.Request.Path.Value!.EndsWith("/deletion/receipt", StringComparison.Ordinal))
+            {
+                await next();
+                return;
+            }
+
+            dropReply = false;
+            var transport = context.Response.Body;
+            await using var buffer = new MemoryStream();
+            context.Response.Body = buffer;
+            try { await next(); }
+            finally { context.Response.Body = transport; }
+            throw new IOException("Controlled lost response after mixed Region deletion.");
+        }));
         using var web = await WebAsync(app, graph.UserId);
         var baseUrl = $"/api/trips/{graph.TripId}/editor/regions/{graph.SourceId}/deletion";
         const string contract = TripMetadataIdentity.StructureVersion;
@@ -44,10 +69,11 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var identity = new TripMetadataIdentity(contract, graph.UserId, "web", "region-delete", graph.TripId, "", Guid.Empty, default)
             { Target = new("region", graph.SourceId) };
         var route = baseUrl + "/receipt";
-        var permit = await IssueTypedAsync(web, identity, route, body);
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(web, identity, route, body);
         using var committed = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Post, route, permit, body);
-        Assert.True(committed.IsSuccessStatusCode, await committed.Content.ReadAsStringAsync());
-        var evidence = await TripMetadataReceiptHttp.EvidenceAsync(committed, permit, "applied");
+        var evidence = places == "delete" && areas == "keep"
+            ? await RecoverMixedDeletionAsync(db, app, graph, route, permit, committed)
+            : await TripMetadataReceiptHttp.EvidenceAsync(committed, permit, "applied");
         var result = evidence.GetProperty("result");
         Assert.Equal(TripStructureDigests.Planning(plan), result.GetProperty("planningDigest").GetString());
         Assert.Equal(places == "keep" ? graph.PlaceIds.Length : 0, result.GetProperty("movedPlaces").GetArrayLength());
@@ -61,8 +87,37 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.All(removed, row => Assert.Equal(TripStructureDigests.Planning(plan), row.GetProperty("planningDigest").GetString()));
         Assert.All(await db.Segments.AsNoTracking().Where(row => graph.SurvivorIds.Contains(row.Id)).ToArrayAsync(),
             row => Assert.True(PlanningCodec.Equal(plan, row.Planning)));
-        using var recovery = await LookupStructureAsync(web, route, permit);
-        Assert.Equal(evidence.GetRawText(), (await TripMetadataReceiptHttp.EvidenceAsync(recovery, permit, "applied")).GetRawText());
+        Assert.False(await db.Regions.AsNoTracking().AnyAsync(row => row.Id == graph.SourceId));
+        if (places == "delete" && areas == "keep")
+        {
+            var destination = result.GetProperty("destinationRegionId").GetGuid();
+            Assert.Equal("create", result.GetProperty("destinationMode").GetString());
+            Assert.Equal(graph.AreaIds.Length, await db.Areas.CountAsync(row => graph.AreaIds.Contains(row.Id) && row.RegionId == destination));
+            Assert.Equal(graph.PlaceIds.Order(), result.GetProperty("deletedPlaceIds").EnumerateArray().Select(row => row.GetGuid()));
+            Assert.Equal(graph.EndpointIds.Order(), result.GetProperty("segmentEffects").GetProperty("deletedSegmentIds")
+                .EnumerateArray().Select(row => row.GetGuid()));
+            Assert.Equal(1, result.GetProperty("visitEffects").GetProperty("deletedCandidates").GetInt32());
+            Assert.False(await db.PlaceVisitCandidates.AnyAsync(row => graph.PlaceIds.Contains(row.PlaceId)));
+            var visit = await db.PlaceVisitEvents.AsNoTracking().SingleAsync(row => row.TripIdSnapshot == graph.TripId);
+            Assert.Null(visit.PlaceId);
+            Assert.Equal("Delete source", visit.RegionNameSnapshot);
+            Assert.Equal("First", visit.PlaceNameSnapshot);
+        }
+
+        using var current = await WebAsync(app, graph.UserId);
+        using var replay = await TripMetadataReceiptHttp.SendAsync(current, HttpMethod.Post, route, permit, body);
+        Assert.Equal(evidence.GetRawText(), (await TripMetadataReceiptHttp.EvidenceAsync(replay, permit, "applied")).GetRawText());
+    }
+
+    /// <summary>Recovers the historical outcome with a replacement credential after the source was removed.</summary>
+    private static async Task<JsonElement> RecoverMixedDeletionAsync(ApplicationDbContext db, WebApplication app,
+        RegionDeletionTestGraph graph, string route, JsonElement permit, HttpResponseMessage lost)
+    {
+        Assert.Equal(HttpStatusCode.InternalServerError, lost.StatusCode);
+        await db.Users.Where(row => row.Id == graph.UserId).ExecuteUpdateAsync(set => set.SetProperty(row => row.SecurityStamp, Guid.NewGuid().ToString("N")));
+        using var replacement = await WebAsync(app, graph.UserId);
+        using var recovery = await LookupStructureAsync(replacement, route, permit);
+        return await TripMetadataReceiptHttp.EvidenceAsync(recovery, permit, "applied");
     }
 
     /// <summary>Old pages cannot dispatch any of the six dependent mutations with a missing or repeated protocol header.</summary>

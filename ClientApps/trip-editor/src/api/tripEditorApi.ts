@@ -1,4 +1,4 @@
-import { dependentRefusal, sendDependent } from '../recovery/dependentDispatch';
+import { dependentRefusal, dependentSegmentSuccess, sendDependent } from '../recovery/dependentDispatch';
 import { acceptDispatchVersion, dispatchHeader, findStructureRoute } from '../recovery/structureRoutes';
 import { sendStructureMutation } from '../recovery/structureMutation';
 import type { RegionCreationRequest, PlaceCreationRequest } from './creationTypes';
@@ -369,7 +369,7 @@ const sendMutation = async <TData>(
   const response = reservation?.response ?? await fetch(url, init);
   if (reservation && !response.ok) {
     const problem: unknown = await response.clone().json().catch(() => null);
-    if (dependentRefusal(response, problem)) await reservation.complete();
+    if (dependentRefusal(response, problem, method, url)) await reservation.complete();
     if (response.status === 409 && (problem as { code?: string } | null)?.code === 'trip-write-upgrade-required')
       throw new EditorMutationHttpError('Reload the editor before saving this Trip change.', 409);
   }
@@ -402,8 +402,7 @@ const sendMutation = async <TData>(
   const result = await response.json() as EditorMutationResult<TData>;
   if (reservation) {
     // The existing command owner reports its incomplete-acknowledgement error. Its reservation stays held.
-    if (response.redirected || result.success !== true || !result.affected || !result.deletedIds ||
-        !Object.hasOwn(result, 'data') || !Array.isArray(result.warnings)) return result;
+    if (!dependentSegmentSuccess(response, result, method, url)) return result;
     await reservation.complete();
   }
   publish(result);

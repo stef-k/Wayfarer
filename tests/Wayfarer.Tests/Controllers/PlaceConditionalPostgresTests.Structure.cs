@@ -1,3 +1,4 @@
+using Wayfarer.Services.TripMetadataReceipts;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -99,7 +100,7 @@ public sealed partial class PlaceConditionalPostgresTests
         Assert.True(prepare.StatusCode == HttpStatusCode.OK, await prepare.Content.ReadAsStringAsync());
         request["conditionToken"] = (await prepare.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("conditionToken").GetString();
         request["reviewed"] = true;
-        using var response = await client.PutAsJsonAsync(path, request);
+        using var response = await DispatchPlaceOrderAsync(client, graph.UserId, graph.TripId, regionId, web, request);
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         await using var verify = fixture.CreateContext();
         for (var index = 0; index < places.Length; index++)
@@ -137,8 +138,7 @@ public sealed partial class PlaceConditionalPostgresTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
         if (!structuralFirst) await Scalar();
-        using var coordinates = webStructural ? await web.PutAsJsonAsync(StructurePath(place, true, "coordinates"), request)
-            : await bearer.PostAsJsonAsync(StructurePath(place, false, "coordinates"), request);
+        using var coordinates = await DispatchPlaceStructureAsync(webStructural ? web : bearer, place, webStructural, "coordinates", request);
         Assert.True(coordinates.StatusCode == HttpStatusCode.OK, await coordinates.Content.ReadAsStringAsync());
         if (structuralFirst) await Scalar();
         await using var verify = fixture.CreateContext();
@@ -172,6 +172,31 @@ public sealed partial class PlaceConditionalPostgresTests
         : $"/api/trips/{place.Region.TripId}/conditional/places/{place.Id}/{operation}";
     private static string OrderPath(Guid tripId, Guid regionId, bool web) =>
         $"/api/trips/{tripId}/{(web ? "editor" : "conditional")}/regions/{regionId}/places/order";
+    /// <summary>Dispatches the combined save while preserving the exact Web request and the deployed bearer path.</summary>
+    private static Task<HttpResponseMessage> DispatchPlaceStructureAsync(HttpClient client, Place place, bool web, string operation, object payload)
+    {
+        var path = StructurePath(place, web, operation);
+        if (!web) return client.PostAsJsonAsync(path, payload);
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, PlaceStructureIdentity(place), HttpMethod.Put, path + "/receipt",
+            JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+    }
+
+    /// <summary>Binds a protected combined save to the exact Place.</summary>
+    private static TripMetadataIdentity PlaceStructureIdentity(Place place) =>
+        new(TripMetadataIdentity.StructureVersion, place.UserId, "web", "place-save", place.Region.TripId,
+            "", Guid.Empty, default) { Target = new("place", place.Id) };
+
+    /// <summary>Dispatches reviewed ordering through the matching adapter and scope.</summary>
+    private static Task<HttpResponseMessage> DispatchPlaceOrderAsync(HttpClient client, string userId, Guid tripId, Guid regionId, bool web, object payload)
+    {
+        var path = OrderPath(tripId, regionId, web);
+        if (!web) return client.PutAsJsonAsync(path, payload);
+        var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, userId, "web", "place-order", tripId,
+            "", Guid.Empty, default) { Target = new("region", regionId) };
+        return TripMetadataReceiptHttp.DispatchTypedAsync(client, identity, HttpMethod.Put, path + "/receipt",
+            JsonSerializer.Serialize(payload, JsonSerializerOptions.Web));
+    }
+
     private static async Task PrepareStructureAsync(HttpClient client, Place place, bool web, string operation, Dictionary<string, object?> request)
     {
         using var prepare = await client.PostAsJsonAsync(StructurePath(place, web, operation) + "/prepare", request);
@@ -183,7 +208,7 @@ public sealed partial class PlaceConditionalPostgresTests
     private static async Task<HttpResponseMessage> ApplyStructureAsync(HttpClient client, Place place, bool web, string operation, Dictionary<string, object?> request)
     {
         await PrepareStructureAsync(client, place, web, operation, request);
-        return web ? await client.PutAsJsonAsync(StructurePath(place, web, operation), request) : await client.PostAsJsonAsync(StructurePath(place, web, operation), request);
+        return await DispatchPlaceStructureAsync(client, place, web, operation, request);
     }
     private static async Task AddCredentialAsync(ApplicationDbContext db, string userId)
     {

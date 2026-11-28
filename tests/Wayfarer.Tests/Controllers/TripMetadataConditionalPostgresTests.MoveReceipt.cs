@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -33,6 +34,8 @@ public sealed partial class TripMetadataConditionalPostgresTests
         };
         var expected = new { place = PlaceStructuralRequest.Original(place), placesByRegion = originals };
         var changes = new { regionId = destination, location = new { latitude = 4d, longitude = 4d } };
+        var storedManualDuration = await db.Segments.AsNoTracking().Where(row => graph.SurvivorIds.Contains(row.Id)
+            && row.EstimatedDurationSource == EstimatedDurationSource.Manual).Select(row => row.EstimatedDuration).SingleAsync();
         var drop = true;
         await using var app = await StartAsync(db, middleware: host => host.Use(async (context, next) =>
         {
@@ -55,7 +58,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         var route = path + "/receipt";
         var identity = new TripMetadataIdentity(TripMetadataIdentity.StructureVersion, trip.UserId, "web", "place-save",
             trip.Id, "", Guid.Empty, default) { Target = new("place", place.Id) };
-        var permit = await IssueTypedAsync(web, identity, route, body);
+        var permit = await TripMetadataReceiptHttp.IssueTypedAsync(web, identity, route, body);
 
         using var lost = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Put, route, permit, body);
         Assert.Equal(HttpStatusCode.InternalServerError, lost.StatusCode);
@@ -69,7 +72,22 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.Equal(destination, result.GetProperty("regionId").GetGuid());
         Assert.Equal(2, result.GetProperty("placeOrders").GetArrayLength());
         Assert.Equal(TripStructureDigests.Place(saved, "location"), result.GetProperty("fieldDigests").GetProperty("location").GetString());
-        Assert.NotEmpty(result.GetProperty("segmentEffects").GetProperty("updatedSegments").EnumerateArray());
+        var savedSegments = result.GetProperty("segmentEffects").GetProperty("updatedSegments").EnumerateArray().ToArray();
+        var manual = Assert.Single(savedSegments.Where(row => row.GetProperty("estimatedDurationSource").GetString() == "Manual"));
+        Assert.Equal(storedManualDuration?.Ticks.ToString(CultureInfo.InvariantCulture), manual.GetProperty("estimatedDurationTicks").GetString());
+        Assert.True(TripMetadataIdentity.IsDigest(manual.GetProperty("route").GetProperty("effectiveDigest").GetString()));
+        var vectors = result.GetProperty("placeOrders").EnumerateArray().ToArray();
+        foreach (var vector in vectors)
+        {
+            var regionId = vector.GetProperty("regionId").GetGuid().ToString("D");
+            Assert.Equal(orders[regionId], vector.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("id").GetGuid()).ToArray());
+        }
+
+        using var ownerReply = await web.GetAsync($"/api/trips/{trip.Id}/editor");
+        Assert.Equal(HttpStatusCode.OK, ownerReply.StatusCode);
+        var owner = await ownerReply.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(place.RegionId, owner.GetProperty("placesById").GetProperty(place.Id.ToString("D")).GetProperty("regionId").GetGuid());
         using var replay = await TripMetadataReceiptHttp.SendAsync(web, HttpMethod.Put, route, permit, body);
         Assert.Equal(evidence.GetRawText(), (await TripMetadataReceiptHttp.EvidenceAsync(replay, permit, "applied")).GetRawText());
         Assert.Equal(place.RegionId, await db.Places.Where(row => row.Id == place.Id).Select(row => row.RegionId).SingleAsync());
