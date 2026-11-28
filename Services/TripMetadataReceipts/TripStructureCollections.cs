@@ -73,7 +73,10 @@ internal sealed class TripStructureCollections(ApplicationDbContext db)
         var request = await RegionOrderRequest.ReadAsync(body, write.Token);
         await new RegionOrderingService(db, confirmation).ApplyAsync(write.TripId, write.Subject, request, write.Web,
             write.Readmit, write.Token, protectedWrite: true);
-        return new(true, new { regionOrder = await RegionOrderAsync(db, write.TripId, write.Token) });
+        var expected = request.Regions.EnumerateArray()
+            .ToDictionary(row => row.GetProperty("id").GetGuid(), row => row.GetProperty("displayOrder").GetInt32());
+        var changed = request.RegionIds.Where((id, index) => expected[id] != index + 1).Any();
+        return new(changed, new { regionOrder = await RegionOrderAsync(db, write.TripId, write.Token) });
     }
 
     /// <summary>Returns every persisted Region order and exact canonical marker at commit.</summary>

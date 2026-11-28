@@ -12,20 +12,28 @@ import { confirm } from '../composables/useConfirmDialog';
 /// Coordinates area-specific editor actions while RegionManager owns shared draft state.
 export function useAreaEditorActions(context: any) {
   const areaDraft = context.areaDraftState.draft;
+  let creationDraftId: string | undefined;
   let creationBase: ReturnType<typeof areaMaterials> | null = null;
   let editorAlive = true;
   let savingSession: number | null = null;
   onUnmounted(() => { editorAlive = false; });
-  /** Keeps a newer polygon or scalar draft when the earlier Area request is still outstanding. */
+  /** Captures newer authored Polygon, scalar and create intent without starting a submission. */
   watch(() => {
-    if (!areaDraft.id) return null;
     try {
-      const payload = context.areaDraftState.request();
-      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      if (areaDraft.id) {
+        const payload = context.areaDraftState.request();
+        return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      }
+      if (!creationDraftId || !creationBase || !context.areaCreateBaselineRequest.value) return null;
+      const value = buildAreaRequest(areaDraft);
+      return JSON.stringify(value) === JSON.stringify(context.areaCreateBaselineRequest.value) ? null : JSON.stringify({
+        expected: { areas: creationBase.map(({ id, displayOrder }) => ({ id, displayOrder })) }, value
+      });
     } catch { return null; }
   }, frozen => {
-    if (frozen && areaDraft.id) void saveStructureIntent(context.props.editorEndpoint, 'area-fields',
-      { type: 'area', id: areaDraft.id }, JSON.parse(frozen)).catch(() => undefined);
+    if (frozen && areaDraft.regionId) void saveStructureIntent(context.props.editorEndpoint, areaDraft.id ? 'area-fields' : 'area-create',
+      { type: areaDraft.id ? 'area' : 'region', id: areaDraft.id ?? areaDraft.regionId },
+      JSON.parse(frozen), areaDraft.id ? undefined : creationDraftId).catch(() => undefined);
   });
   // Explicit discard retires only this Area attempt's UI lock; it says nothing about its server outcome.
   watch(() => context.areaDraftState.session(), () => {
@@ -42,7 +50,9 @@ export function useAreaEditorActions(context: any) {
 
     context.clearRegionPlaceDrafts();
     context.areaDraftState.reset(null);
-    creationBase = areaMaterials(context.props.state, region.id);
+    try { creationBase = areaMaterials(context.props.state, region.id); }
+    catch (error) { context.applyError(error, 'Area creation base unavailable.'); return; }
+    creationDraftId = crypto.randomUUID();
     Object.assign(areaDraft, emptyAreaDraft(region.id, context.props.state.options.areaDefaults.fillHex));
     areaDraft.name = context.props.state.options.areaDefaults.name || 'Area';
     context.clearRegionPlaceBaselines();
@@ -108,7 +118,7 @@ export function useAreaEditorActions(context: any) {
         ? await updateArea(context.props.editorEndpoint, areaId, context.props.antiforgeryToken, submitted)
         : await createArea(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, {
           expected: { areas: creationBase!.map(({ id, displayOrder }) => ({ id, displayOrder })) }, value: submitted.changes
-        });
+        }, creationDraftId);
       // Retired replies cannot publish older affected slices over a newer editing session.
       if (!editorAlive || session !== context.areaDraftState.session()) return;
       if (!result.success) throw new Error('The Area save was not acknowledged. Keep your draft and review the unknown outcome.');

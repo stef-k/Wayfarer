@@ -58,7 +58,7 @@ export function structureRoute(endpoint: string, tripId: string, kind: string, t
 
 /** Identifies the existing control's operation without treating prepare and preview as writes. */
 export function findStructureRoute(endpoint: string, tripId: string, url: string, verb: string): StructureRoute | null {
-  if (!url.startsWith(endpoint + '/')) return null;
+  if (!isId(tripId) || !url.startsWith(endpoint + '/')) return null;
   const suffix = url.slice(endpoint.length + 1);
   for (const [kind, [type, method, pattern]] of Object.entries(routes)) {
     if (verb !== method) continue;

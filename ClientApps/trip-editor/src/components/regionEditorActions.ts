@@ -16,23 +16,31 @@ export function useRegionEditorActions(context: any) {
   let editorAlive = true;
   const owner = context.regionDraftState;
   let savingSession: number | null = null;
+  let creationDraftId: string | undefined;
   watch(() => owner.session(), () => {
     if (savingSession === null) return;
     savingSession = null;
     context.isSaving.value = false;
   }, { flush: 'sync' });
   onUnmounted(() => { editorAlive = false; });
-  /** Persists newer Region input even while an earlier response or permit remains in flight. */
+  /** Persists typed Region intent even while an earlier response or permit is in flight. */
   watch(() => {
-    if (!context.draft.id || !context.activeRegion.value) return null;
     try {
-      const payload = owner.request();
-      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      if (context.draft.id && context.activeRegion.value) {
+        const payload = owner.request();
+        return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      }
+      if (!creationDraftId || !owner.creationOriginals.value || !context.regionCreateBaselineRequest.value) return null;
+      const value = buildRegionRequest(context.draft);
+      return JSON.stringify(value) === JSON.stringify(context.regionCreateBaselineRequest.value) ? null
+        : JSON.stringify({ expected: { regions: owner.creationOriginals.value }, value });
     } catch { return null; }
   }, frozen => {
+    if (!frozen) return;
     const id = context.draft.id;
-    if (frozen && id) void saveStructureIntent(context.props.editorEndpoint, 'region-fields', { type: 'region', id },
-      JSON.parse(frozen)).catch(() => undefined);
+    const target = id ? { type: 'region' as const, id } : { type: 'trip' as const, id: context.props.state.tripId };
+    void saveStructureIntent(context.props.editorEndpoint, id ? 'region-fields' : 'region-create', target,
+      JSON.parse(frozen), id ? undefined : creationDraftId).catch(() => undefined);
   });
   /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
   const held = (): boolean => {
@@ -43,6 +51,7 @@ export function useRegionEditorActions(context: any) {
 
   /** Restores a clean creation draft with the document's suggested Region name. */
   const resetRegionCreation = (): void => {
+    creationDraftId = crypto.randomUUID();
     owner.reset(null);
     owner.beginCreate(context.props.state);
     context.draft.name = message('Editor.NewRegionDraftName', 'New Region');
@@ -126,7 +135,7 @@ export function useRegionEditorActions(context: any) {
       if (creation) owner.creationUncertain.value = true;
       const result = regionId
         ? await updateRegion(context.props.editorEndpoint, regionId, context.props.antiforgeryToken, submitted)
-        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!);
+        : await createRegion(context.props.editorEndpoint, context.props.antiforgeryToken, creation!, creationDraftId);
       if (!currentAttempt()) return;
       if (creation) {
         if (result.contract !== structureContract) validateRegionCreation(result, context.props.state.tripId, creation);
@@ -223,6 +232,7 @@ export function useRegionEditorActions(context: any) {
     owner.orderingPending.value = true;
     context.resetFeedback();
     try {
+      await saveStructureIntent(context.props.editorEndpoint, 'region-order', { type: 'trip', id: tripId }, request);
       const preview = await prepareRegionOrder(context.props.editorEndpoint, context.props.antiforgeryToken, request);
       if (!currentAttempt()) return;
       validateRegionOrderPreview(preview, tripId, request.expected);

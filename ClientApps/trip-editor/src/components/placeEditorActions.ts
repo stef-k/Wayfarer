@@ -19,18 +19,28 @@ export function usePlaceEditorActions(context: any) {
   const owner = context.placeDraftState;
   let alive = true;
   let savingSession: number | null = null;
+  let creationDraftId: string | undefined;
   onUnmounted(() => { alive = false; });
-  /** Retains the newer Place scalar draft independently of the earlier protected dispatch. */
+  /** Captures newer scalar, structural and map/search creation intent with fixed comparison originals. */
   watch(() => {
-    if (!context.placeDraft.id || owner.structural()) return null;
     try {
-      const payload = owner.request();
-      return Object.keys(payload.changes).length ? JSON.stringify(payload) : null;
+      if (context.placeDraft.id) {
+        const structural = owner.structural();
+        const payload = structural ? owner.structuralRequest() : owner.request();
+        return Object.keys(payload.changes).length ? JSON.stringify({ kind: structural ? 'place-save' : 'place-fields', payload }) : null;
+      }
+      const value = buildPlaceRequest(context.placeDraft);
+      const originals = value.regionId && owner.creationOriginals.value?.[value.regionId];
+      if (!creationDraftId || !originals || !context.placeCreateBaselineRequest.value ||
+          JSON.stringify(value) === JSON.stringify(context.placeCreateBaselineRequest.value)) return null;
+      return JSON.stringify({ kind: 'place-create', payload: { expected: { regionId: value.regionId, places: originals }, value: withoutRegionId(value) } });
     } catch { return null; }
   }, frozen => {
+    if (!frozen) return;
+    const { kind, payload } = JSON.parse(frozen);
     const id = context.placeDraft.id;
-    if (frozen && id) void saveStructureIntent(context.props.editorEndpoint, 'place-fields', { type: 'place', id },
-      JSON.parse(frozen)).catch(() => undefined);
+    const target = id ? { type: 'place' as const, id } : { type: 'region' as const, id: context.placeDraft.regionId };
+    void saveStructureIntent(context.props.editorEndpoint, kind, target, payload, id ? undefined : creationDraftId).catch(() => undefined);
   });
   // Discard retires this attempt's UI gate without declaring that the server did not commit.
   watch(() => owner.session(), () => {
@@ -61,6 +71,7 @@ export function usePlaceEditorActions(context: any) {
 
     Object.assign(context.draft, emptyRegionDraft());
     owner.reset(null);
+    creationDraftId = crypto.randomUUID();
     owner.beginCreate(context.props.state);
     Object.assign(context.placeDraft, emptyPlaceDraft(region.id));
     Object.assign(context.areaDraft, emptyAreaDraft());
@@ -187,7 +198,7 @@ export function usePlaceEditorActions(context: any) {
         ? await updatePlaceConditional(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, conditional)
         : placeId
           ? await updatePlace(context.props.editorEndpoint, placeId, context.props.antiforgeryToken, structure!)
-          : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!);
+          : await createPlace(context.props.editorEndpoint, complete.regionId!, context.props.antiforgeryToken, creation!, creationDraftId);
       if (structure) {
         if (result.contract !== structureContract) validatePlaceAcknowledgement(result, context.props.state.tripId, placeId, complete.regionId!, scalar, structure, segmentIds);
         releaseAttempt();

@@ -14,6 +14,14 @@ const bundled = await build({ stdin: { contents: script.content, loader: 'ts',
   external: ['vue'], plugins: [{ name: 'region-leaves', setup(builder) {
     builder.onLoad({ filter: /\.vue$/ }, () => ({ contents: 'export default {};' }));
     builder.onLoad({ filter: /notesHtml\.ts$/ }, () => ({ contents: 'export const normalizeNotesHtml = value => value ?? "";' }));
+    // This fixture owns mounted form/publication behavior. Routed and Chromium tests own authenticated custody.
+    builder.onLoad({ filter: /structureMutation\.ts$/ }, () => ({ contents: `
+      export class StructureRefused extends Error {}
+      export const saveStructureIntent = async () => {};
+      export const submitRegionDeletion = async (endpoint, trip, id, token, body) =>
+        (await fetch(endpoint + '/regions/' + id + '/deletion/receipt', { method: 'POST', body: JSON.stringify(body) })).json();
+      export const sendStructureMutation = async () => { throw new Error('Expected mounted owner transport fixture'); };
+    ` }));
     builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = options => globalThis.regionConfirm(options);' }));
   } }] });
 const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
@@ -425,15 +433,16 @@ for (const newer of [false, true]) test(`Region deletion preserves a ${newer ? '
   let dialog;
   globalThis.regionConfirm = async options => { dialog = options; return false; };
   const sample = () => ({ count: 0, ids: [], hasMore: false });
-  const preview = { contractVersion: 1, tripId: 'trip', sourceRegionId: 'region', sourceRegionName: 'Original', places: 'keep', areas: 'keep',
+  const preview = { contractVersion: 2, contract: 'trip-region-place-area-receipt-1', tripId: 'trip', sourceRegionId: 'region', sourceRegionName: 'Original', places: 'keep', areas: 'keep',
     destination: { mode: 'not-required', regionId: null, name: null }, consequences: Object.fromEntries(['movedPlaces','deletedPlaces','movedAreas','deletedAreas','deletedSegments','updatedSegments','detachedWaypoints'].map(key => [key, sample()])),
     confirmation: { token: 'consent', expiresAt: new Date(Date.now() + 600000).toISOString() } };
+  Object.assign(preview.consequences, { unlinkedVisits: 0, deletedCandidates: 0 });
   const result = { success: true, data: { tripId: 'trip', sourceRegionId: 'region', places: 'keep', areas: 'keep', destinationRegionId: null,
     movedPlaceIds: [], movedAreaIds: [], updatedSegmentIds: [], detachedWaypointAssociations: [] }, deletedIds: { regions: ['region'], places: [], areas: [], segments: [], tags: [] }, warnings: [],
     affected: { metadata: { id: 'trip', name: 'Trip', notesHtml: '', isPublic: false, shareProgressEnabled: false, center: null, zoom: null, coverImage: null, publicUrl: null, progressPublicUrl: null, updatedAt: '2026-10-25T00:00:00Z', originalValues: { name: 'Trip', notesHtml: null } }, regions: [], regionOrder: [], places: [], areas: [], segments: [], tags: [],
       placeOrdersByRegionId: {}, areaOrdersByRegionId: {}, segmentOrder: null, tagOrder: null, options: null, visitProgress: { totalPlaces: 0, visitedPlaces: 0, percentVisited: 0, placeSummariesByPlaceId: {}, historyRows: [] } } };
   const pending = deferred();
-  globalThis.fetch = async url => url.endsWith('deletion-preview') ? new Response(JSON.stringify(preview)) : pending.promise;
+  globalThis.fetch = async url => url.includes('deletion-preview?contract=trip-region-place-area-receipt-1') ? new Response(JSON.stringify(preview)) : pending.promise;
   const owner = mount();
   try {
     await owner.editor.openEdit(owner.props.state.regionsById.region);

@@ -164,7 +164,7 @@ export const createPlanningWorkspace = (state: Ref<EditorTripState | null>, endp
       }
     } catch (error) {
       if (error instanceof Error && (error.message === 'held' || error.message === 'stale' || error.message.startsWith('Reload the editor'))) {
-        draft.error = error.message === 'held' ? message('Editor.ReceiptOverlap', 'Recover the earlier save before sending overlapping changes.') : error.message;
+        draft.error = error.message === 'held' ? message('Editor.ReceiptHeld', 'Recover the earlier save before sending overlapping changes.') : error.message;
         return;
       }
       draft.uncertain = true;

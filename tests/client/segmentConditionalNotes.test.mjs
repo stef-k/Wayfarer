@@ -9,6 +9,10 @@ import { createRenderer, nextTick, proxyRefs, watch } from 'vue';
 const bundle = await build({ stdin: { contents: 'export { default } from "./App.vue";', loader: 'ts',
   resolveDir: 'ClientApps/trip-editor/src' }, bundle: true, write: false, format: 'esm', platform: 'node', external: ['vue'],
   plugins: [{ name: 'segment-parent-tree', setup(builder) {
+    // Fixture-owned fetch responses exercise the mounted command/acknowledgement owner independently of IndexedDB.
+    builder.onLoad({ filter: /dependentDispatch\.ts$/ }, () => ({ contents:
+      'export const dependentRefusal = () => false; export const sendDependent = (_, url, init) => fetch(url, init).then(response => ({ response, complete: async () => {} }));'
+    }));
     builder.onLoad({ filter: /\.vue$/ }, async args => {
       // The layout-only wrapper passes both slots through; browser tests own its DOM geometry.
       if (/TripSidebarLayout\.vue$/.test(args.path)) return { contents: `export default { props: ['surfaceMode'], setup(_, { slots }) {

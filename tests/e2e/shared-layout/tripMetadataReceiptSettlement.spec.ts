@@ -5,7 +5,7 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 /** Reads custody without waiting on the Editor's completion callback. */
 async function durableDraft(page: Page, tripId: string): Promise<Custody | null> {
   return page.evaluate(id => new Promise((resolve, reject) => {
-    const connection = indexedDB.open('wayfarer-trip-metadata', 2);
+    const connection = indexedDB.open('wayfarer-trip-metadata');
     connection.onerror = () => reject(connection.error);
     connection.onsuccess = () => {
       const db = connection.result;

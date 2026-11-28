@@ -2,12 +2,8 @@ import { reactive } from 'vue';
 import { message } from '../../../../wwwroot/js/localization/messages.js';
 import { captureMutationPublication } from '../api/tripEditorApi';
 import { CustodyRefusal } from '../recovery/custody';
-import { sendStructureMutation, StructureRefused } from '../recovery/structureMutation';
-import { structureContract, structureRoute } from '../recovery/structureRoutes';
-import { completePlace } from './placeStructuralEditing';
-import { completeSegment } from './segmentNotesDraft';
-import { completeVisitProgress } from './placeConditionalDraft';
-import { completeDeletionMetadata } from './placeDeletion';
+import { submitRegionDeletion, StructureRefused } from '../recovery/structureMutation';
+import { structureContract } from '../recovery/structureRoutes';
 import type { EditorMutationResult, Guid } from '../types';
 
 export type Disposition = 'keep' | 'delete';
@@ -38,9 +34,9 @@ export const regionDeletionLabel = (choices: RegionDeletionChoices): string => c
 export const heldRegionDeletionKey = (server: string, account: string, trip: string): string =>
   `wayfarer:region-deletion:v1:${server}:${account}:${trip}`;
 
-/// One dialog attempt owns previews, final activation and the durable unknown-outcome hold.
+/// One dialog owns choice preview and explicit activation of the typed deletion transport.
 export const createRegionDeletionController = (options: {
-  sourceId: Guid; tripId: Guid; endpoint: string; antiforgeryToken: string; storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+  sourceId: Guid; tripId: Guid; endpoint: string; antiforgeryToken: string; storage: Pick<Storage, 'getItem'>;
   scopeKey: string; isCurrent: () => boolean;
   fetch: typeof fetch; onSuccess: (result: EditorMutationResult<RegionDeletionResult>) => void;
 }) => {
@@ -105,9 +101,8 @@ export const createRegionDeletionController = (options: {
     if (options.storage.getItem(options.scopeKey)) { state.held = true; return false; }
     state.submitting = true;
     try {
-      const route = structureRoute(options.endpoint, options.tripId, 'region-delete', { type: 'region', id: options.sourceId });
-      const publish = captureMutationPublication(route.path);
-      const result = await sendStructureMutation<RegionDeletionResult>(options.endpoint, options.antiforgeryToken, route,
+      const publish = captureMutationPublication(`${options.endpoint}/regions/${options.sourceId}/deletion/receipt`);
+      const result = await submitRegionDeletion<RegionDeletionResult>(options.endpoint, options.tripId, options.sourceId, options.antiforgeryToken,
         { ...choices(), confirmationToken: state.preview.confirmation.token });
       if (!options.isCurrent()) return false;
       publish(result);
@@ -132,48 +127,3 @@ export type RegionDeletionController = ReturnType<typeof createRegionDeletionCon
 const validSample = (sample: { count: number; ids: unknown[]; hasMore: boolean }): boolean => Boolean(sample
   && Number.isInteger(sample.count) && sample.count >= 0 && Array.isArray(sample.ids)
   && sample.ids.length === Math.min(sample.count, 5) && sample.hasMore === (sample.count > 5));
-
-/** Region acknowledgements retain the delivered sampled preview, checking complete returned effects and affected scope. */
-export const validateRegionDeletionAcknowledgement = (result: EditorMutationResult<RegionDeletionResult>, p: RegionDeletionPreview): void => {
-  const a = result?.affected;
-  const d = result?.data;
-  const deleted = result?.deletedIds;
-  const same = (x: unknown, y: unknown): boolean => JSON.stringify(x) === JSON.stringify(y);
-  const ids = (x: unknown): x is string[] => Array.isArray(x) && x.every(id => typeof id === 'string') && new Set(x).size === x.length;
-  const matchesSample = (values: string[], sample: Sample): boolean => ids(values) && validSample(sample)
-    && values.length === sample.count && sample.ids.every(id => values.includes(id));
-  const effects = p.consequences;
-  const destination = p.destination.regionId;
-  if (result?.success !== true || !d || d.tripId !== p.tripId || d.sourceRegionId !== p.sourceRegionId
-    || d.places !== p.places || d.areas !== p.areas || d.destinationRegionId !== destination
-    || !matchesSample(d.movedPlaceIds, effects.movedPlaces) || !matchesSample(d.movedAreaIds, effects.movedAreas)
-    || !matchesSample(d.updatedSegmentIds, effects.updatedSegments)
-    || !deleted || !same(deleted.regions, [p.sourceRegionId]) || !same(deleted.tags, [])
-    || !matchesSample(deleted.places, effects.deletedPlaces) || !matchesSample(deleted.areas, effects.deletedAreas)
-    || !matchesSample(deleted.segments, effects.deletedSegments)
-    || d.movedPlaceIds.some(id => deleted.places.includes(id)) || d.movedAreaIds.some(id => deleted.areas.includes(id))
-    || !Array.isArray(d.detachedWaypointAssociations) || d.detachedWaypointAssociations.length !== effects.detachedWaypoints.count
-    || effects.detachedWaypoints.ids.some(w => !d.detachedWaypointAssociations.some(x => same(x, w)))
-    || d.detachedWaypointAssociations.some(w => !w || typeof w !== 'object'
-      || !d.updatedSegmentIds.includes((w as { segmentId: string }).segmentId) || !deleted.places.includes((w as { placeId: string }).placeId))
-    || !a || !Array.isArray(a.regions) || !ids(a.regions.map(r => r.id)) || !ids(a.regionOrder)
-    || !same(a.regions.map(r => r.id), a.regionOrder) || a.regionOrder.includes(p.sourceRegionId)
-    || a.regions.some(r => r.tripId !== p.tripId || typeof r.name !== 'string' || typeof r.notesHtml !== 'string' || !Number.isInteger(r.displayOrder) || !r.capabilities || !r.originalValues)
-    || destination !== null && !a.regions.some(r => r.id === destination && r.name === 'Unassigned Places')
-    || !Array.isArray(a.places) || !ids(a.places.map(x => x.id)) || a.places.some(x => !completePlace(x) || x.tripId !== p.tripId || x.regionId !== destination)
-    || !Array.isArray(a.areas) || !ids(a.areas.map(x => x.id)) || a.areas.some(x => x.tripId !== p.tripId || x.regionId !== destination
-      || typeof x.name !== 'string' || typeof x.notesHtml !== 'string' || x.geometry?.type !== 'Polygon' || !Array.isArray(x.geometry.coordinates) || typeof x.fillHex !== 'string'
-      || !x.originalValues || !['regionId', 'name', 'notesHtml', 'fillHex', 'geometry'].every(key => Object.hasOwn(x.originalValues!, key)) || !x.capabilities)
-    || !a.placeOrdersByRegionId || !a.areaOrdersByRegionId
-    || ![...Object.keys(a.placeOrdersByRegionId), ...Object.keys(a.areaOrdersByRegionId)].every(id => id === destination)
-    || !d.movedPlaceIds.every(id => a.places.some(x => x.id === id)) || !d.movedAreaIds.every(id => a.areas.some(x => x.id === id))
-    || !same(d.movedPlaceIds.length ? { [destination!]: a.places.map(x => x.id) } : {}, a.placeOrdersByRegionId)
-    || !same(d.movedAreaIds.length ? { [destination!]: a.areas.map(x => x.id) } : {}, a.areaOrdersByRegionId)
-    || !Array.isArray(a.segments) || !ids(a.segments.map(x => x.id)) || a.segments.some(x => !completeSegment(x) || x.tripId !== p.tripId || deleted.segments.includes(x.id))
-    || !d.updatedSegmentIds.every(id => a.segments.some(x => x.id === id))
-    || (deleted.segments.length === 0 ? a.segmentOrder !== null || !same(a.segments.map(x => x.id).sort(), [...d.updatedSegmentIds].sort())
-      : !ids(a.segmentOrder) || !same([...a.segmentOrder].sort(), a.segments.map(x => x.id).sort()))
-    || !completeDeletionMetadata(a.metadata, p.tripId) || !completeVisitProgress(a.visitProgress!)
-    || !same(a.tags, []) || [a.tagOrder, a.options].some(x => x !== null) || !same(result.warnings, []))
-    throw new Error('Region deletion acknowledgement is incomplete. Outcome unknown; keep the operation held without replay.');
-};

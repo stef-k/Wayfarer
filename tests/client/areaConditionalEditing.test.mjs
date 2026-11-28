@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
@@ -24,9 +25,9 @@ const polygon = offset => ({ type: 'Polygon', coordinates: [
 ] });
 const area = (overrides = {}) => {
   const value = { id: 'area', tripId: 'trip', regionId: 'region', name: 'Original', notesHtml: '', fillHex: '#ff6600',
-    geometry: polygon(10), displayOrder: 1, capabilities: { canEdit: true, canDelete: true }, ...overrides };
+    geometry: polygon(10), planning: null, displayOrder: 1, capabilities: { canEdit: true, canDelete: true }, ...overrides };
   value.originalValues ??= { regionId: value.regionId, name: value.name, notesHtml: value.notesHtml || null,
-    fillHex: value.fillHex, geometry: 'area-polygon-1:' + JSON.stringify(value.geometry) };
+    fillHex: value.fillHex, displayOrder: value.displayOrder, geometry: 'area-polygon-1:' + createHash('sha256').update(JSON.stringify(value.geometry)).digest('hex').toUpperCase() };
   return value;
 };
 const region = { id: 'region', name: 'Region', isShadow: false, capabilities: { canEdit: true, canAddChildren: true } };
@@ -37,7 +38,7 @@ const mount = (initial = area()) => {
   surface.clearActiveTarget();
   let mapOptions;
   let stops = 0;
-  const props = shallowReactive({ state: { regionsById: { region }, regionOrder: ['region'],
+  const props = shallowReactive({ state: { tripId: 'trip', regionsById: { region }, regionOrder: ['region'],
     placesById: {}, placeOrderByRegionId: {}, areasById: { area: initial }, areaOrderByRegionId: { region: ['area'] },
     options: { areaDefaults: { name: 'Area', fillHex: '#ff6600' } }, permissions: { canEditAreas: true } },
     editorSurface: surface, editorEndpoint: '/api/trips/trip/editor', antiforgeryToken: 'anti', searchActive: false,
@@ -237,11 +238,24 @@ test('Region drift never silently rebinds pinned Area scope; missing originals a
 }));
 
 test('Area map Cancel restores holes; create/delete/order retain existing routes and discard guards', () => withGlobals(async () => {
-  const owner = mount();
+  const regionId = '12345678-1234-4234-8234-123456789abc';
+  const areaId = '23456789-2345-4345-8345-23456789abcd';
+  const original = area({ id: areaId, regionId });
+  const owner = mount(original);
+  owner.props.state = { ...owner.props.state, regionsById: { [regionId]: { ...region, id: regionId } },
+    regionOrder: [regionId], areasById: { [areaId]: original }, areaOrderByRegionId: { [regionId]: [areaId] } };
+  const parent = owner.props.state.regionsById[regionId];
   const calls = [];
-  globalThis.fetch = async (url, init) => { calls.push([url, init.method, JSON.parse(init.body ?? 'null')]); return saved(area()); };
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init.method, JSON.parse(init.body ?? 'null')]);
+    if (url.endsWith('/deletion-preview')) return Response.json({
+      contract: 'trip-region-place-area-receipt-1', tripId: 'trip', areaId, regionId, name: 'Original',
+      hasPlanning: false, confirmation: { token: 'confirmed', expiresAt: new Date(Date.now() + 60000).toISOString() }
+    });
+    return saved(original);
+  };
   try {
-    await owner.editor.openAreaEdit(owner.props.state.areasById.area);
+    await owner.editor.openAreaEdit(owner.props.state.areasById[areaId]);
     owner.editor.drawAreaPolygon();
     owner.mapOptions.onChanged(polygon(20));
     assert.equal(await owner.surface.cancelMapWork(), false);
@@ -250,28 +264,30 @@ test('Area map Cancel restores holes; create/delete/order retain existing routes
     assert.deepEqual(owner.editor.areaDraft.geometry, polygon(10));
     assert.equal(owner.stops, 1);
     await owner.editor.cancelAreaDraft();
-    await owner.editor.openAreaCreate(region);
+    await owner.editor.openAreaCreate(parent);
     assert.equal(owner.editor.areaDirty, false);
     owner.editor.drawAreaPolygon();
     owner.mapOptions.onChanged(polygon(20));
     await owner.surface.finishMapWork();
     await owner.editor.saveAreaDraft();
     await nextTick();
-    assert.equal(calls[0][0], '/api/trips/trip/editor/regions/region/areas');
+    assert.equal(calls[0][0], `/api/trips/trip/editor/regions/${regionId}/areas`);
     assert.equal(calls[0][1], 'POST');
-    assert.deepEqual(calls[0][2].geometry, polygon(20));
-    assert.equal(Object.hasOwn(calls[0][2], 'expected'), false);
+    assert.deepEqual(calls[0][2].value.geometry, polygon(20));
+    assert.deepEqual(calls[0][2].expected.areas, [{ id: areaId, displayOrder: 1 }]);
     owner.editor.areaDraft.name = 'Dirty';
     globalThis.areaConfirm = async () => false;
-    await owner.editor.reorderAreas('region', ['area'], ['area']);
+    await owner.editor.reorderAreas(regionId, [areaId], [areaId]);
     assert.equal(calls.length, 1);
     globalThis.areaConfirm = async () => true;
     await owner.editor.deleteDraftArea();
-    assert.equal(calls[1][1], 'DELETE');
-    assert.equal(calls[1][0], '/api/trips/trip/editor/areas/area');
-    await owner.editor.reorderAreas('region', ['area'], ['area']);
-    assert.equal(calls[2][1], 'PUT');
-    assert.equal(calls[2][0], '/api/trips/trip/editor/regions/region/areas/order');
+    assert.equal(calls[1][1], 'POST');
+    assert.equal(calls[1][0], `/api/trips/trip/editor/areas/${areaId}/deletion-preview`);
+    assert.equal(calls[2][1], 'DELETE');
+    assert.equal(calls[2][0], `/api/trips/trip/editor/areas/${areaId}`);
+    await owner.editor.reorderAreas(regionId, [areaId], [areaId]);
+    assert.equal(calls[3][1], 'PUT');
+    assert.equal(calls[3][0], `/api/trips/trip/editor/regions/${regionId}/areas/order`);
   } finally { owner.dispose(); }
 }));
 

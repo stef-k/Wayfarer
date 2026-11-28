@@ -5,7 +5,7 @@ import { loadSharedLayoutConfig } from './sharedLayoutConfig';
 /** Exposes actual durable state to bound asynchronous tab steps without sleeping or changing custody. */
 async function notesGeneration(page: Page, tripId: string): Promise<{ desired: string; original: string | null } | null> {
   return page.evaluate(id => new Promise((resolve, reject) => {
-    const connection = indexedDB.open('wayfarer-trip-metadata', 2);
+    const connection = indexedDB.open('wayfarer-trip-metadata');
     connection.onerror = () => reject(connection.error);
     connection.onsuccess = () => {
       const db = connection.result;

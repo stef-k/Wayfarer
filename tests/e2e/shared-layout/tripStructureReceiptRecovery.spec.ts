@@ -81,3 +81,52 @@ test('typed Region recovery after reload keeps the newer draft and sends zero re
   expect(writes).toEqual(['POST', 'PATCH']);
   await page.screenshot({ path: process.env.WAYFARER_STRUCTURE_SCREENSHOT ?? info.outputPath('typed-region-recovery.png'), fullPage: true });
 });
+
+test('a newer tab generation during typed permit issuance prevents dispatch', async ({ page, context }) => {
+  const config = loadSharedLayoutConfig();
+  const tripId = process.env.WAYFARER_E2E_TRIP_ID!;
+  const editor = `/User/Trip/Edit/${tripId}`;
+  const endpoint = `/api/trips/${tripId}/editor`;
+  await context.route('**/tiles/**', route => route.abort());
+  await page.goto('/Identity/Account/Login');
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Account/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  const other = await context.newPage();
+  await Promise.all([page.goto(editor), other.goto(editor)]);
+  const card = (actor: Page) => actor.locator('.trip-editor-region-card--normal').first();
+  await expect(card(page)).toBeVisible();
+  const id = (await card(page).getAttribute('data-region-id'))!;
+  const regionName = (actor: Page) => actor.locator('#trip-editor-region-form').getByLabel('Name', { exact: true });
+  for (const actor of [page, other])
+    await card(actor).locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit', exact: true }).click();
+
+  const routePath = `${endpoint}/regions/${id}/conditional/receipt`;
+  const minted = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const sends: string[] = [];
+  context.on('request', request => {
+    if (new URL(request.url()).pathname === routePath) sends.push(request.method());
+  });
+  await page.route(`**${routePath}/operations`, async route => {
+    const reply = await route.fetch();
+    expect(reply.status()).toBe(200);
+    minted.resolve();
+    await release.promise;
+    await route.fulfill({ response: reply });
+  }, { times: 1 });
+  await regionName(page).fill('First tab submitted draft');
+  await expect.poll(async () => (await regionCustody(page, tripId, id)).name).toBe('First tab submitted draft');
+  await page.getByRole('button', { name: 'Save Region', exact: true }).click();
+  try {
+    await minted.promise;
+    const starting = await regionCustody(page, tripId, id);
+    await regionName(other).fill('Second tab newer draft');
+    await expect.poll(async () => (await regionCustody(page, tripId, id)).generation).toBeGreaterThan(starting.generation);
+  } finally { release.resolve(); }
+
+  await expect(page.getByRole('button', { name: 'Save Region', exact: true })).toBeEnabled();
+  expect(sends).toEqual([]);
+  expect(await regionCustody(page, tripId, id)).toMatchObject({ name: 'Second tab newer draft', attempts: 0 });
+});

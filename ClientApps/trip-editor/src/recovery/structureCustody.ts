@@ -150,18 +150,6 @@ export function discardStructure(view: Custody, key: string): Promise<Custody> {
   });
 }
 
-/** Lets a later deliberate review preserve the desired intent while making a new local generation. */
-export function reviewStructure(view: Custody, key: string): Promise<Custody> {
-  return access(view.account, view.tripId, row => {
-    requireGeneration(row, view.generation);
-    const draft = state(row).drafts[key];
-    if (!draft?.review) throw new CustodyRefusal('stale');
-    draft.review = false;
-    draft.generation = ++row.generation;
-    return { next: row, value: row };
-  });
-}
-
 export const readStructureCustody = (scope: Scope): Promise<Custody> => readCustody(scope.account, scope.tripId);
 
 /** The persisted body must contain exactly the draft plus its transport marker. */

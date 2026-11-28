@@ -8,6 +8,10 @@ import { dispatchAuthority, structureContract, structureRoute, type StructureRou
 
 export const structureCustodyChanged = 'trip-structure-custody-changed';
 export const structureOwnerLost = 'trip-structure-owner-unavailable';
+const liveGeneration = new Map<string, number>();
+
+const revisionKey = (scope: { account: string; tripId: string }, route: StructureRoute, localId?: string): string =>
+  JSON.stringify([scope.account, scope.tripId, route.kind, route.target.type, route.target.id, localId]);
 
 export class StructureRefused extends Error {
   constructor(readonly code: string) { super('The earlier Trip save was refused. Review current values before saving again.'); }
@@ -21,11 +25,14 @@ export async function sendStructureMutation<T>(endpoint: string, token: string, 
     try { return dispatchAuthority(endpoint) === scope; } catch { return false; }
   };
   if (legacyRegionHold(scope.account, scope.tripId)) throw new CustodyRefusal('held');
+  const revision = revisionKey(scope, route, localId);
+  const captured = liveGeneration.get(revision);
+  const canDispatch = (): boolean => current() && liveGeneration.get(revision) === captured;
   const { row, key } = await persistStructure(scope, route, payload, localId);
   const frozen = await issueStructure(route, scope.account, scope.tripId, token, payload);
-  const attempt = await reserveStructure(row, key, frozen, current);
+  const attempt = await reserveStructure(row, key, frozen, canDispatch);
   window.dispatchEvent(new Event(structureCustodyChanged));
-  if (!current()) throw new CustodyRefusal('stale');
+  if (!canDispatch()) throw new CustodyRefusal('stale');
   const evidence = await sendStructure(endpoint, token, attempt);
   const before = await rememberStructure(scope, attempt, evidence);
   if (!before.structure?.outcomes[attempt.permit.operationId]) throw new CustodyRefusal('held');
@@ -131,11 +138,20 @@ function projectReceipt<T>(route: StructureRoute, graph: EditorTripState, receip
   return { contract: structureContract, success: true, data: data as T, affected, deletedIds, warnings };
 }
 
+/** Sends one explicitly confirmed Region disposition through its typed receipt route. */
+export function submitRegionDeletion<T>(endpoint: string, tripId: string, sourceId: string, token: string,
+  payload: object): Promise<EditorMutationResult<T>> {
+  const route = structureRoute(endpoint, tripId, 'region-delete', { type: 'region', id: sourceId });
+  return sendStructureMutation(endpoint, token, route, payload);
+}
+
 /** Retains an updated form payload without issuing, preparing or authorizing any request. */
 export async function saveStructureIntent(endpoint: string, kind: string, target: StructureRoute['target'],
   payload: object, draftId?: string): Promise<void> {
   const scope = dispatchAuthority(endpoint);
   const route = structureRoute(endpoint, scope.tripId, kind, target);
+  const revision = revisionKey(scope, route, draftId);
+  liveGeneration.set(revision, (liveGeneration.get(revision) ?? 0) + 1);
   await persistStructure(scope, route, payload, draftId);
   window.dispatchEvent(new Event(structureCustodyChanged));
 }

@@ -64,7 +64,7 @@ async function checkServer(): Promise<void> {
   } catch (failure) {
     if (!current()) return;
     if (failure instanceof StructureOwnerUnavailable) hideOwner();
-    error.value = message('Editor.ReceiptOwner', 'Current Trip values are unavailable. Your draft and save history are retained.');
+    error.value = message('Editor.ReceiptOwnerUnavailable', 'Current Trip values are unavailable. Your draft and save history are retained.');
   } finally {
     busy.value = false;
   }
@@ -149,7 +149,7 @@ onUnmounted(() => {
       </button>
     </details>
     <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="busy" @click="checkServer">
-      {{ message('Editor.ReceiptCheckServer', 'Check server') }}
+      {{ message('Editor.StructureCheckServer', 'Check server') }}
     </button>
   </section>
 </template>

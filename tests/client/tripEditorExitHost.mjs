@@ -10,6 +10,10 @@ const script = compileScript(descriptor, { id: 'editor-exit-test' });
 const bundled = await build({ stdin: { contents: script.content + '\nexport { providePlanningWorkspace } from "../planning/planningState";', loader: 'ts',
   resolveDir: 'ClientApps/trip-editor/src/components' }, bundle: true, write: false, format: 'esm', platform: 'node',
   external: ['vue'], plugins: [{ name: 'exit-boundaries', setup(builder) {
+    // Fixture-owned fetch responses exercise publication and draft protection behind the authenticated dispatch boundary.
+    builder.onLoad({ filter: /dependentDispatch\.ts$/ }, () => ({ contents:
+      'export const dependentRefusal = () => false; export const sendDependent = (_, url, init) => fetch(url, init).then(response => ({ response, complete: async () => {} }));'
+    }));
     builder.onLoad({ filter: /\.vue$/ }, () => ({ contents: 'export default {};' }));
     builder.onLoad({ filter: /notesHtml\.ts$/ }, () => ({ contents: 'export const normalizeNotesHtml = value => value ?? "";' }));
     builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = options => globalThis.exitConfirm(options);' }));

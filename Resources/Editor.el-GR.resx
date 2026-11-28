@@ -4833,6 +4833,14 @@
   <data name="Editor.ReceiptMyTrips" xml:space="preserve"><value>Ανάκτηση αποθηκεύσεων και πρόχειρων ταξιδιών</value></data>
   <data name="Editor.ReceiptDraftNotes" xml:space="preserve"><value>Διατηρημένο πρόχειρο σημειώσεων</value></data>
   <data name="Editor.ReceiptMapCenter" xml:space="preserve"><value>Κέντρο χάρτη</value></data>
+  <data name="Editor.StructureCheckServer" xml:space="preserve"><value>Έλεγχος διακομιστή</value></data>
+  <data name="Editor.StructureDependentHeld" xml:space="preserve"><value>Μια προηγούμενη αποθήκευση σχεδιασμού ή τμήματος δεν έχει επιβεβαιωθεί.</value></data>
+  <data name="Editor.StructureLegacyHold" xml:space="preserve"><value>Δεν υπάρχει ανακτήσιμη απόδειξη για μια προηγούμενη διαγραφή περιοχής.</value></data>
+  <data name="Editor.StructureDismiss" xml:space="preserve"><value>Απόκρυψη ειδοποίησης</value></data>
+  <data name="Editor.StructureDraft" xml:space="preserve"><value>Διατηρημένο πρόχειρο</value></data>
+  <data name="Editor.StructureTargetUnavailable" xml:space="preserve"><value>Το αρχικό στοιχείο δεν είναι πλέον διαθέσιμο.</value></data>
+  <data name="Editor.StructureParentChanged" xml:space="preserve"><value>Ελέγξτε τη νέα γονική περιοχή πριν από την αποθήκευση.</value></data>
+  <data name="Editor.StructureDiscard" xml:space="preserve"><value>Απόρριψη τοπικού προχείρου</value></data>
   <data name="Editor.ReceiptApplied" xml:space="preserve"><value>Η προηγούμενη αποθήκευση του ταξιδιού επιβεβαιώθηκε.</value></data>
   <data name="Editor.ReceiptNoOp" xml:space="preserve"><value>Η προηγούμενη αποθήκευση επιβεβαίωσε ότι οι τιμές αυτές είχαν ήδη αποθηκευτεί.</value></data>
   <data name="Editor.ReceiptUnapplied" xml:space="preserve"><value>Η προηγούμενη αποθήκευση απορρίφθηκε. Ελέγξτε τις τρέχουσες τιμές πριν αποθηκεύσετε ξανά.</value></data>

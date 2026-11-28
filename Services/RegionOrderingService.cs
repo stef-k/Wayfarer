@@ -51,15 +51,19 @@ internal sealed class RegionOrderingService(ApplicationDbContext db, LifecycleDe
             Compare(request, current);
             if (!confirmation.MatchesRegionOrder(request.ConditionToken, userId, tripId, request.Intent(web), Fingerprint(current))) throw Stale();
             var normal = current.Where(r => !RegionOrderRequest.IsCanonical(r)).ToDictionary(r => r.Id);
+            var changed = false;
             for (var index = 0; index < request.RegionIds.Length; index++)
             {
                 var region = normal[request.RegionIds[index]];
                 var order = index + 1;
+                if (protectedWrite && region.DisplayOrder == order) continue;
+                changed = true;
                 await db.Regions.Where(r => r.Id == region.Id).ExecuteUpdateAsync(s => s.SetProperty(r => r.DisplayOrder, order), token);
                 region.DisplayOrder = order;
             }
             var now = DateTime.UtcNow;
-            await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
+            if (!protectedWrite || changed)
+                await db.Trips.Where(t => t.Id == tripId).ExecuteUpdateAsync(s => s.SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), token);
             var orderIds = current.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Id).Select(r => r.Id).ToArray();
             var affected = new EditorAffectedSlicesDto(null, normal.Values.Select(EditorTripStateMapper.ToRegion).ToArray(), orderIds,
                 [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], new Dictionary<Guid, IReadOnlyList<Guid>>(), [], null, [], null, null, null);
