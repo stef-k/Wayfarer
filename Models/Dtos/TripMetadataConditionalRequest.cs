@@ -9,14 +9,14 @@ namespace Wayfarer.Models.Dtos;
 internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?> Expected, Dictionary<string, object?> Changes)
 {
     /// <summary>Parses only the selected fields, preserving explicit null originals and rejecting ambiguous input.</summary>
-    internal static async Task<TripMetadataConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token, bool receipt = false)
+    internal static async Task<TripMetadataConditionalRequest> ReadAsync(Stream body, bool web, CancellationToken token, string? contract = null)
     {
         try
         {
             using var document = await JsonDocument.ParseAsync(body, cancellationToken: token);
-            var root = Fields(document.RootElement, receipt ? ["expected", "changes", "receiptContract"] : ["expected", "changes"]);
-            if (receipt && (!root.TryGetValue("receiptContract", out var marker) || marker.ValueKind != JsonValueKind.String
-                || marker.GetString() != TripMetadataIdentity.Version))
+            var root = Fields(document.RootElement, contract != null ? ["expected", "changes", "receiptContract"] : ["expected", "changes"]);
+            if (contract != null && (!root.TryGetValue("receiptContract", out var marker) || marker.ValueKind != JsonValueKind.String
+                || marker.GetString() != contract))
                 throw Invalid("receiptContract", "A matching supported receipt contract is required.");
             if (!root.TryGetValue("expected", out var expected) || !root.TryGetValue("changes", out var changes))
                 throw Invalid("request", "Both expected and changes objects are required.");
@@ -38,9 +38,9 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
                 parsed.Expected[canonicalKey] = ReadValue(key, original, false);
                 parsed.Changes[canonicalKey] = next;
             }
-            if (originals.Keys.Except(desired.Keys).Any()) throw Invalid("expected", "Originals must correspond to requested fields.");
+            ReadDependencies(parsed, originals, desired, contract);
             if (parsed.Changes.Count == 0) throw Invalid("changes", "At least one effective field change is required.");
-            if (receipt && parsed.Changes.Keys.Any(field => field is not ("name" or "notes")))
+            if (contract == TripMetadataIdentity.Version && parsed.Changes.Keys.Any(field => field is not ("name" or "notes")))
                 throw Invalid("changes", "Trip save receipts support Name and Notes only.");
             return parsed;
         }
@@ -48,8 +48,21 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
         catch (JsonException) { throw Invalid("request", "The request must be valid JSON."); }
     }
 
+    /// <summary>Publication compares the reviewed policy even when it is outside the write set.</summary>
+    private static void ReadDependencies(TripMetadataConditionalRequest request, Dictionary<string, JsonElement> originals,
+        Dictionary<string, JsonElement> desired, string? contract)
+    {
+        var publication = contract == TripMetadataIdentity.Version2 && request.Changes.GetValueOrDefault("isPublic") is true;
+        if (originals.Keys.Except(desired.Keys).Any(key => !publication || key != "contributionPolicy"))
+            throw Invalid("expected", "Originals must correspond to requested fields.");
+        if (!publication || desired.ContainsKey("contributionPolicy")) return;
+        if (!originals.TryGetValue("contributionPolicy", out var policy))
+            throw Invalid("contributionPolicy", "The reviewed contribution policy is required.");
+        request.Expected.Add("contributionPolicy", ReadValue("contributionPolicy", policy, false));
+    }
+
     /// <summary>Checks each object once so duplicate, unknown, and wrongly cased properties fail closed.</summary>
-    private static Dictionary<string, JsonElement> Fields(JsonElement value, string[] allowed)
+    internal static Dictionary<string, JsonElement> Fields(JsonElement value, string[] allowed)
     {
         if (value.ValueKind != JsonValueKind.Object) throw Invalid("request", "An object is required.");
         var result = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
@@ -112,7 +125,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
     }
 
     /// <summary>Desired centers are finite pairs or Clear; originals also admit partial legacy pairs.</summary>
-    private static TripMetadataCenter ReadCenter(JsonElement value, bool desired)
+    internal static TripMetadataCenter ReadCenter(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return new(null, null);
         var fields = Fields(value, ["latitude", "longitude"]);
@@ -132,7 +145,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
     }
 
     /// <summary>Uses the existing view zoom limits without rejecting an originally published legacy integer.</summary>
-    private static int? ReadZoom(JsonElement value, bool desired)
+    internal static int? ReadZoom(JsonElement value, bool desired)
     {
         if (value.ValueKind == JsonValueKind.Null) return null;
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var zoom) || (desired && (zoom < 0 || zoom > 19)))
@@ -141,7 +154,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
     }
 
     /// <summary>Distinguishes explicit null from invalid or omitted original strings.</summary>
-    private static string? NullableString(string key, JsonElement value) => value.ValueKind switch
+    internal static string? NullableString(string key, JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.Null => null,
         JsonValueKind.String => value.GetString(),
@@ -149,7 +162,7 @@ internal sealed record TripMetadataConditionalRequest(Dictionary<string, object?
     };
 
     /// <summary>Returns field-keyed validation guidance without echoing private supplied values.</summary>
-    private static TripMetadataMutationRejected Invalid(string field, string message) =>
+    internal static TripMetadataMutationRejected Invalid(string field, string message) =>
         new(400, "mutation-request-invalid", "Check the requested Trip fields.", new() { [field] = [message] });
 }
 

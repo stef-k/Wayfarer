@@ -77,6 +77,11 @@ public sealed partial class TripCloneCoordinator
         }
 
         var tagIds = source.Tags.Select(tag => tag.Id).Distinct().ToArray();
+        if (tagIds.Length > 0)
+        {
+            await TripTagMembership.LockCatalogueAsync(dbContext, cancellationToken);
+            await TripTagMembership.ProtectAsync(dbContext, tagIds, cancellationToken);
+        }
         var tags = await dbContext.Tags.Where(tag => tagIds.Contains(tag.Id)).ToArrayAsync(cancellationToken);
         if (tags.Length != tagIds.Length)
             throw new InvalidOperationException("A source Tag identity could not be resolved.");

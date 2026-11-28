@@ -4,95 +4,6 @@ import { message } from '../../../localization/messages.js';
  * Keeps the Viewer sharing switches in sync with the last confirmed setting.
  */
 
-let isPublicSwitch = null;
-let shareProgressContainer = null;
-let shareProgressToggles = [];
-let shareProgressStatus = null;
-let modalShareStatus = null;
-let btnCopyProgressLink = null;
-let confirmedEnabled = false;
-let saveInFlight = false;
-
-/** Renders the confirmed setting across both switches, both badges and the copy link. */
-const renderConfirmedSharing = () => {
-    const enabled = confirmedEnabled;
-    for (const toggle of shareProgressToggles) toggle.checked = enabled;
-    if (shareProgressStatus) {
-        shareProgressStatus.className = enabled ? 'badge bg-success' : 'badge bg-secondary';
-        shareProgressStatus.textContent = enabled ? message("Viewer.Public", 'Visible to public') : message("Viewer.Private", 'Private');
-    }
-    if (modalShareStatus) {
-        modalShareStatus.className = enabled ? 'badge bg-success small' : 'badge bg-secondary small';
-        modalShareStatus.textContent = enabled ? message("Viewer.Public", 'Visible to public') : message("Viewer.Private", 'Private');
-    }
-    // Show/hide copy link button based on enabled state
-    if (btnCopyProgressLink) {
-        btnCopyProgressLink.classList.toggle('d-none', !enabled);
-    }
-};
-
-/** Locks both switches for the lifetime of their shared save. */
-const setSaving = (saving) => {
-    saveInFlight = saving;
-    for (const toggle of shareProgressToggles) toggle.disabled = saving;
-};
-
-/** Localizes the controller's existing refusal values. */
-const shareProgressRefusal = (error) => {
-    switch (error) {
-        case 'Trip not found or unauthorized':
-            return message('Viewer.ShareAuthorityUnavailable', 'This Trip is unavailable or you no longer have permission to change its sharing settings.');
-        case 'Trip must be public to share progress':
-            return message('Viewer.ShareRequiresPublicTrip', 'Make this Trip public before sharing visit progress.');
-        default:
-            return message('Viewer.ShareSaveFailed', 'Share progress could not be saved.');
-    }
-};
-
-/**
- * Requests a sharing change while keeping the confirmed setting visible.
- * @param {boolean} enabled - The requested sharing setting.
- */
-const saveShareProgress = async (enabled) => {
-    renderConfirmedSharing();
-    if (saveInFlight || enabled === confirmedEnabled) return;
-    const tripId = shareProgressToggles.find(toggle => toggle.dataset.tripId)?.dataset.tripId;
-    if (!tripId) return;
-
-    setSaving(true);
-    let feedback;
-    try {
-        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-        const response = await fetch(`/User/Trip/ToggleShareProgress?id=${tripId}&enabled=${enabled}`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'RequestVerificationToken': token
-            }
-        });
-
-        if (response.status === 401) {
-            feedback = message('Viewer.ShareSessionEnded', 'Your session has ended or your account is disabled. Sign in again. Keep any unsaved changes before leaving this page.');
-        } else if (response.ok && !response.redirected) {
-            const result = await response.json();
-            if (result?.success === true && typeof result.enabled === 'boolean') {
-                confirmedEnabled = result.enabled;
-                return;
-            }
-            if (result?.success === false) feedback = shareProgressRefusal(result.error);
-        }
-    } catch (error) {
-        console.error('Failed to save share progress:', error);
-    } finally {
-        renderConfirmedSharing();
-        setSaving(false);
-    }
-
-    wayfarer.showAlert('danger', feedback ?? message('Viewer.ShareSaveUnconfirmed',
-        'The visit progress sharing change may still finish. Refresh the page to check the current setting.'));
-};
-
 /**
  * Copy text to clipboard with fallback for older browsers
  * @param {string} text - Text to copy
@@ -120,19 +31,7 @@ const copyToClipboard = async (text) => {
  * Initializes sharing from the server-rendered switch and connects both inputs to the same save.
  */
 export const initShareProgressToggle = () => {
-    isPublicSwitch = document.getElementById('isPublicSwitch');
-    shareProgressContainer = document.getElementById('shareProgressContainer');
-    shareProgressToggles = ['shareProgressSwitch', 'modalShareProgressSwitch']
-        .map(id => document.getElementById(id)).filter(Boolean);
-    shareProgressStatus = document.getElementById('shareProgressStatus');
-    modalShareStatus = document.getElementById('modalShareStatus');
-    btnCopyProgressLink = document.getElementById('btnCopyProgressLink');
-
-    confirmedEnabled = shareProgressToggles[0]?.checked ?? false;
-    renderConfirmedSharing();
-    for (const toggle of shareProgressToggles) {
-        toggle.addEventListener('change', () => saveShareProgress(toggle.checked));
-    }
+    const btnCopyProgressLink = document.getElementById('btnCopyProgressLink');
 
     // Copy Link button - copies public URL with progress param
     if (btnCopyProgressLink) {
@@ -161,18 +60,4 @@ export const initShareProgressToggle = () => {
         });
     }
 
-    // Show/hide Share Progress container when IsPublic changes
-    if (isPublicSwitch && shareProgressContainer) {
-        isPublicSwitch.addEventListener('change', () => {
-            if (isPublicSwitch.checked) {
-                shareProgressContainer.classList.remove('d-none');
-            } else {
-                shareProgressContainer.classList.add('d-none');
-                // Auto-disable share progress when making trip private
-                if (confirmedEnabled) {
-                    saveShareProgress(false);
-                }
-            }
-        });
-    }
 };

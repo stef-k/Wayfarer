@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
@@ -11,7 +12,7 @@ namespace Wayfarer.Areas.User.Controllers
 {
     [Area("User")]
     [Authorize(Roles = "User")]
-    public class TripController : BaseController
+    public partial class TripController : BaseController
     {
         private readonly ITripMapThumbnailGenerator _thumbnailGenerator;
         private readonly ITripTagService _tripTagService;
@@ -279,54 +280,11 @@ namespace Wayfarer.Areas.User.Controllers
             }
         }
 
-        /// <summary>
-        /// Changes visit progress sharing for an owned Trip. Enabling it requires a public Trip.
-        /// </summary>
+        /// <summary>Refuses a Viewer sharing write from a page rendered before cutover.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ToggleShareProgress(Guid id, bool enabled)
-        {
-            const string unavailable = "Trip not found or unauthorized";
-            const string requiresPublicTrip = "Trip must be public to share progress";
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var trip = await _dbContext.Trips.FindAsync(id);
-
-            if (trip == null || trip.UserId != userId)
-            {
-                return Json(new { success = false, error = unavailable });
-            }
-
-            // Only allow enabling share progress if trip is public
-            if (enabled && !trip.IsPublic)
-            {
-                return Json(new { success = false, error = requiresPublicTrip });
-            }
-
-            if (_dbContext.Database.IsRelational())
-            {
-                // A stale preflight cannot re-enable sharing after a protected privacy change commits.
-                var now = DateTime.UtcNow;
-                var count = await _dbContext.Trips.Where(t => t.Id == id && t.UserId == userId && (!enabled || t.IsPublic))
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.ShareProgressEnabled, enabled)
-                        .SetProperty(t => t.UpdatedAt, t => t.UpdatedAt > now ? t.UpdatedAt : now), HttpContext.RequestAborted);
-                if (count == 0)
-                {
-                    // Query current ownership in the database. The tracked Trip came from before the write.
-                    var stillOwned = await _dbContext.Trips.AnyAsync(t => t.Id == id && t.UserId == userId,
-                        HttpContext.RequestAborted);
-                    return Json(new { success = false, error = stillOwned ? requiresPublicTrip : unavailable });
-                }
-                await _dbContext.Entry(trip).ReloadAsync(HttpContext.RequestAborted);
-            }
-            else
-            {
-                trip.ShareProgressEnabled = enabled;
-                trip.UpdatedAt = DateTime.UtcNow;
-                await _dbContext.SaveChangesAsync();
-            }
-
-            return Json(new { success = true, enabled = trip.ShareProgressEnabled });
-        }
+        public Task<IActionResult> ToggleShareProgress(Guid id, bool enabled) =>
+            Task.FromResult(TripMetadataReceiptRoutes.UpgradeRequired().ToActionResult());
 
         /// <summary>
         /// Clones a public trip to the current user's account.

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Recover mixed Trip metadata, tags and progress sharing through the Editor,
+  Viewer and My Trips. Owner bearer clients can replace tags and set or reset
+  the saved map view with receipts. Upgrade with all Trip writers and catalogue
+  cleanup stopped before activating v2 (#1019).
+
 - Recover Name and Notes saves in the Trip Editor and My Trips after a lost
   reply. Preserve newer drafts and ask before adopting a changed comparison
   value. Add the corresponding protected bearer endpoints and a database

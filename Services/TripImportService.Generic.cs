@@ -30,9 +30,9 @@ public partial class TripImportService
             : null;
         try
         {
+            await RequireActiveImportOwnerAsync(userId, cancellationToken);
             var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens, cancellationToken);
             foreach (var tag in reconciledTags) target.Tags.Add(tag);
-            await RequireActiveImportOwnerAsync(userId, cancellationToken);
             AddShadowRegion(target, userId);
             _dbContext.Trips.Add(target);
             await _dbContext.SaveChangesAsync(cancellationToken);

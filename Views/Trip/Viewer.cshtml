@@ -1,4 +1,5 @@
 @inject Wayfarer.Localization.WebMessages T
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Environment
 @using System.Linq
 @using Wayfarer.Util
 @using Wayfarer.Models
@@ -529,7 +530,14 @@
 @* Anti-forgery token for AJAX calls (owner only) *@
 @if (owner)
 {
-    <form id="__AjaxAntiForgeryForm" method="post" class="d-none">@Html.AntiForgeryToken()</form>
+    @* The Viewer exposes the same retained sharing choice even after the Trip becomes private. *@
+    <section id="viewer-sharing-recovery" class="px-2" data-account-id="@Model.UserId" data-trip-id="@Model.Id">
+        <form id="__AjaxAntiForgeryForm" method="post" class="d-none">@Html.AntiForgeryToken()</form>
+        <p role="status" class="mb-1"></p>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-recover>@T["Editor.ReceiptRecover"]</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-adopt hidden>@T["Viewer.ShareAdoptCurrent"]</button>
+        <button type="button" class="btn btn-primary btn-sm" data-submit hidden>@T["Viewer.ShareSaveChoice"]</button>
+    </section>
 }
 
 @* Visit History Modal - owner only *@
@@ -644,7 +652,7 @@
                         {
                             <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" role="switch" id="modalShareProgressSwitch"
-                                       data-trip-id="@Model.Id"
+                                       data-trip-id="@Model.Id" disabled
                                        @Html.Raw(shareProgressEnabled ? "checked=\"checked\"" : "")>
                                 <label class="form-check-label" for="modalShareProgressSwitch">
                                     <i class="bi bi-broadcast me-1" aria-hidden="true"></i>@T["Viewer.ShareProgress"]
@@ -736,6 +744,18 @@
 @section Scripts {
     <script type="module" src="~/js/Trip/viewerPrint.js" asp-append-version="true"></script>
     @Html.FrontendViewScripts()
+    @if (owner && User.IsInRole("User"))
+    {
+        @* Use the same bundled receipt decoder and IndexedDB migration as the Editor. *@
+        if (Environment.IsDevelopment())
+        {
+            <script type="module" src="http://localhost:5173/ClientApps/trip-editor/src/recovery/viewerSharing.ts"></script>
+        }
+        else if (Wayfarer.Util.ViteAssets.Read(Environment.WebRootPath, "ClientApps/trip-editor/src/recovery/viewerSharing.ts").Script is string sharingScript)
+        {
+            <script type="module" src="@sharingScript"></script>
+        }
+    }
     <script>
         // Clone trip confirmation
         document.getElementById('clone-trip-form')?.addEventListener('submit', function(e) {

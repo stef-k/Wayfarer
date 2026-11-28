@@ -98,13 +98,15 @@ internal sealed partial class TripCompositionApply
         p.AddressEnrichmentProvider = metadata.Provider; p.AddressEnrichmentStorageMode = metadata.StorageMode; p.AddressEnrichedAt = metadata.EnrichedAt;
     }
 
+    /// <summary>Reuses protected catalogue identities under the existing destination Trip lock.</summary>
     private async Task TagsAsync(Trip trip, JsonElement value, bool captured, CancellationToken token)
     {
         var values = value.ValueKind == JsonValueKind.Null ? [] : value.Deserialize<string[]>() ?? throw TripCompositionFieldValues.Invalid();
         var names = captured ? values.Select(slug => source.Trip.Tags.SingleOrDefault(t => t.Slug == slug)?.Name
             ?? throw TripCompositionFieldValues.Invalid()).ToArray() : values;
         if (names.Length > 25 || names.Any(n => !TripTagService.IsValidTagName(n))) throw TripCompositionFieldValues.Invalid();
-        var previous = trip.Tags.Select(t => t.Slug).ToHashSet(StringComparer.Ordinal);
+        await TripTagMembership.LockCatalogueAsync(db, token);
+        var previous = trip.Tags.Select(t => t.Id).ToHashSet();
         trip.Tags.Clear();
         foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -114,6 +116,8 @@ internal sealed partial class TripCompositionApply
             if (tag == null) { tag = new Tag { Id = Guid.NewGuid(), Slug = slug, Name = normalized }; db.Tags.Add(tag); }
             if (!trip.Tags.Contains(tag)) trip.Tags.Add(tag);
         }
-        TagsChanged |= !previous.SetEquals(trip.Tags.Select(t => t.Slug));
+        await TripTagMembership.ProtectAsync(db, trip.Tags.Where(tag => db.Entry(tag).State != EntityState.Added)
+            .Select(tag => tag.Id), token);
+        TagsChanged |= !previous.SetEquals(trip.Tags.Select(t => t.Id));
     }
 }

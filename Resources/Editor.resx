@@ -4821,7 +4821,7 @@
   <data name="Editor.ReceiptDraftChanged" xml:space="preserve"><value>This draft changed in another tab. Reopen the latest draft.</value></data>
   <data name="Editor.ReceiptHeld" xml:space="preserve"><value>A previous Trip save is unconfirmed. Recover the save before sending overlapping changes.</value></data>
   <data name="Editor.ReceiptReview" xml:space="preserve"><value>Review the current Trip value and explicitly use it as the comparison base.</value></data>
-  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Browser storage could not retain this edit. Keep this page open and try again.</value></data>
+  <data name="Editor.ReceiptStorage" xml:space="preserve"><value>Trip draft storage is unavailable. Close older Trip tabs, then reload or recover the draft.</value></data>
   <data name="Editor.ReceiptOwnerUnavailable" xml:space="preserve"><value>Current Trip values are unavailable. Your retained draft is available in this browser.</value></data>
   <data name="Editor.ReceiptIssuance" xml:space="preserve"><value>The save could not be prepared. Your draft is retained and can be sent with a new Save.</value></data>
   <data name="Editor.ReceiptNull" xml:space="preserve"><value>Not set</value></data>

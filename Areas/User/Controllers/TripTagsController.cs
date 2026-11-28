@@ -1,7 +1,7 @@
-using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
@@ -12,7 +12,7 @@ namespace Wayfarer.Areas.User.Controllers;
 [Authorize(Roles = "User")]
 [Route("User/Trip/{tripId:guid}/Tags")]
 [AutoValidateAntiforgeryToken]
-public sealed class TripTagsController : BaseController
+public sealed partial class TripTagsController : BaseController
 {
     private readonly ITripTagService _tripTagService;
 
@@ -38,60 +38,15 @@ public sealed class TripTagsController : BaseController
         return Ok(new { tags });
     }
 
+    /// <summary>Refuses the legacy tag attach invocation after cutover.</summary>
     [HttpPost]
-    public async Task<IActionResult> Attach(Guid tripId, [FromBody] ModifyTagsRequest request, CancellationToken cancellationToken)
-    {
-        if (request?.Tags == null || request.Tags.Count == 0)
-        {
-            return BadRequest(new { error = "Please provide at least one tag." });
-        }
+    public Task<IActionResult> Attach(Guid tripId, [FromBody] ModifyTagsRequest request, CancellationToken cancellationToken) =>
+        Task.FromResult(TripMetadataReceiptRoutes.UpgradeRequired().ToActionResult());
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        try
-        {
-            var tags = await _tripTagService.AttachTagsAsync(tripId, request.Tags, userId, cancellationToken);
-            return Ok(new { tags });
-        }
-        catch (ValidationException vex)
-        {
-            return BadRequest(new { error = vex.Message });
-        }
-        catch (KeyNotFoundException knf)
-        {
-            return NotFound(new { error = knf.Message });
-        }
-    }
-
+    /// <summary>Refuses the legacy tag detach invocation after cutover.</summary>
     [HttpDelete("{slug}")]
-    public async Task<IActionResult> Remove(Guid tripId, string slug, CancellationToken cancellationToken)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
-        {
-            return Unauthorized();
-        }
-
-        try
-        {
-            var removed = await _tripTagService.DetachTagAsync(tripId, slug, userId, cancellationToken);
-            if (!removed)
-            {
-                return NotFound(new { error = "Tag not found on this trip." });
-            }
-
-            var tags = await _tripTagService.GetTagsForTripAsync(tripId, userId, cancellationToken);
-            return Ok(new { tags });
-        }
-        catch (KeyNotFoundException knf)
-        {
-            return NotFound(new { error = knf.Message });
-        }
-    }
+    public Task<IActionResult> Remove(Guid tripId, string slug, CancellationToken cancellationToken) =>
+        Task.FromResult(TripMetadataReceiptRoutes.UpgradeRequired().ToActionResult());
 
     public sealed class ModifyTagsRequest
     {

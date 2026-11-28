@@ -39,6 +39,8 @@ export interface TripCredit {
 export type ContributionPolicy = 'CC-BY-4.0' | 'CC0-1.0' | 'view-only';
 
 export interface EditorTripMetadata {
+  /** Present only on the graph-free version-two owner snapshot. */
+  tags?: EditorTag[];
   contributionPolicy: ContributionPolicy | null;
   credits: TripCredit[];
   /** Complete private aggregate; absence must be explicit in owner snapshots. */
