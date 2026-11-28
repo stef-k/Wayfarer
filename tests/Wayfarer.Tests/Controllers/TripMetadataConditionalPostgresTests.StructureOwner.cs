@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Models.Planning;
 using Wayfarer.Services.TripMetadataReceipts;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -24,8 +25,9 @@ public sealed partial class TripMetadataConditionalPostgresTests
         await using var db = fixture.CreateContext();
         var region = await SeedStructureRegionAsync(db, trip);
         var polygon = new Polygon(new LinearRing([new(0, 0), new(0, 2), new(2, 2), new(0, 0)])) { SRID = 4326 };
+        var plan = new PlanningAggregate(1, [new(Guid.NewGuid(), new("unspecified"))]);
         var area = new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Legacy fill",
-            Geometry = polygon, DisplayOrder = null, FillHex = " #123aCD " };
+            Geometry = polygon, DisplayOrder = null, FillHex = " #123aCD ", Planning = plan };
         var sibling = new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Zero order", Geometry = polygon, DisplayOrder = 0 };
         db.Areas.AddRange(area, sibling);
         await db.SaveChangesAsync();
@@ -78,6 +80,7 @@ public sealed partial class TripMetadataConditionalPostgresTests
         Assert.True(reply.IsSuccessStatusCode, await reply.Content.ReadAsStringAsync());
         var result = (await TripMetadataReceiptHttp.EvidenceAsync(reply, permit, "applied")).GetProperty("result");
         Assert.Equal(area.Id, result.GetProperty("id").GetGuid());
+        Assert.Equal(TripStructureDigests.Planning(plan), result.GetProperty("planningDigest").GetString());
         Assert.Equal(sibling.Id, result.GetProperty("areaOrder").GetProperty("items")[0].GetProperty("id").GetGuid());
         Assert.Equal(1, result.GetProperty("areaOrder").GetProperty("items")[0].GetProperty("displayOrder").GetInt32());
     }
